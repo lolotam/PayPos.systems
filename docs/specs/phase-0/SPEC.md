@@ -1,7 +1,7 @@
 # Phase 0 — Foundation Spec
 
 > **Status:** Draft v1 · 2026-09-17
-> **Repo:** `E:\shamel-kw` (working product name: **Shamel**)
+> **Repo:** `E:\PosPay.systems\pospay` (product name: **PosPay**, domain `pospay.systems`)
 > **Governing docs:** `CLAUDE.md` · `CLAUDE.architecture.md` · `docs/06_Tech_Stack_Architecture_EN.md` · `docs/module-map.md`
 >
 > On conflict, those documents win. This spec only decides *what Phase 0 delivers*, never *how the code is shaped*.
@@ -212,7 +212,7 @@ Dokploy staging: `api`, `worker`, `postgres`, `redis`, `traefik`. Migrations run
 
 These need Waleed's answer before the slice that depends on them:
 
-1. **Product name.** The repo is `shamel-kw`; the docs say "ABU Salem". Which name goes in the invoice header, the WABA verified name and the domain? *(blocks S10)*
+1. **Product name.** The product is **PosPay** (repo `pospay`, domain `pospay.systems`, ADR-0001). Still open: legal review of "Pay" in the name before it goes in the invoice header and the WABA verified name. *(blocks the S10 invoice header only)*
 2. **Plans at launch.** How many, what are they called, and which feature flags separate them? *(blocks S5 seed)*
 3. **Role names.** `09_Dashboards_Roles_Permissions_AR.md` has the matrix — confirm the exact role codes to seed. *(blocks S9)*
 4. **PIN length.** 4 or 6 digits? Lockout after how many failures, and for how long? *(blocks S9)*
