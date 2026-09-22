@@ -141,9 +141,15 @@ withNewTenant(userId, company, fn)      // bootstrap only — see below
 
 1. generates the company id itself with `IdGenerator` — the caller cannot pass one in;
 2. opens a transaction, sets `app.user_id` = the authenticated caller and `app.company_id` = the new id;
-3. inserts the company row **as its first statement**, then runs `fn` (owner membership, audit row, outbox event, idempotency record) in the same transaction.
+3. runs `fn(tx, companyId)` and commits. It does **no** business writes itself: it is context setup only, so `packages/db` knows nothing about tenancy.
 
-Because the id is fresh and inserted first, it can never be used to enter an existing tenant: the insert would fail on the primary key and abort the transaction. It is importable only from `identity`'s `onboard-company` (`no-restricted-imports`).
+Inside `fn`, `onboard-company` performs, in this order:
+
+1. **claim the idempotency key in the `USER` scope** (caller's user id + operation + key). A replay finds the completed record and returns the stored response; a concurrent duplicate finds `IN_FLIGHT` and gets `409`. Nothing else has been written yet, so neither can create a second company;
+2. `CompanyRegistry.register(tx, company)` — the only insert of the company row;
+3. owner membership, `AuditLog` row, `CompanyCreated` outbox event, and the completed idempotency record.
+
+Because the id is generated inside the wrapper and never accepted from outside, `withNewTenant` can only ever address a company that does not exist yet; it cannot be used to enter an existing tenant. It is importable only from `identity`'s `onboard-company` (`no-restricted-imports`).
 
 **Who may call it — platform grants.** Memberships authorize work *inside* a company; creating a company happens before any membership exists, so it needs a grant that is not tied to a company:
 
@@ -191,6 +197,8 @@ A forged `companyId` finds no row, because RLS hides every other company's devic
 2. **Device + PIN**: `verify-cashier-pin` resolves an `employeeId`, and the principal takes that employee's **memberships**, filtered to scopes that cover the device's branch. A membership row names **exactly one** holder: `CHECK (num_nonnulls(user_id, employee_id) = 1)`. Employee memberships are ordinary memberships — same roles, same overrides, same DENY-wins rule (§5.2) — so the guard has one code path. If the employee is also linked to a `user`, the user's own memberships are **not** added: a PIN proves who is at the till, not who owns the login.
 
 A PIN never adds a `userId` and never opens `app.`.
+
+**Offline.** While the POS is offline, `verify-cashier-pin` cannot reach the server, and a queued action carrying only `deviceId` and `employeeId` does not prove a PIN was entered. Until the offline operator credential is designed in P2-T9 (device-signed, short-lived, revocable), the server **quarantines** every synced money-moving action that lacks one: it is stored, never applied, and surfaced to a manager. It is never trusted on the device's word and never silently discarded.
 
 **C. API key** (Phase 5 public API). `apikey` is global identity (§2.1), so it is resolved on `pospay_auth`, but it carries a **`company_id` column** — not free-form metadata — fixed at creation and never updatable:
 
@@ -268,7 +276,8 @@ A user's effective permissions are the union of every applicable, active members
 A company must never exist without an owner, and `tenancy` must not write into `identity` (not an allowed arrow).
 
 - `onboard-company` is a use case in `identity` (`identity → tenancy` is allowed by `module-map.md`).
-- It calls a **tenancy port** to insert the company, then inserts the owner membership, then appends `CompanyCreated` to the outbox — all in **one** transaction.
+- It calls its own `CompanyRegistry` port to insert the company, then inserts the owner membership, then appends `CompanyCreated` to the outbox — all in **one** transaction.
+- **This is the one synchronous cross-module write.** `module-map.md` §3 reserves ports for reads and sends every cross-module state change through the outbox. A company without its owner membership must never be observable, so an event cannot serve here. The exception is exactly this call: `identity`'s `CompanyRegistry` adapter → `tenancy`'s exported `registerCompany`, in the caller's transaction. Any other synchronous cross-module write needs its own ADR. `module-map.md` §3 records it.
 - **Last-owner protection:** removing or demoting the last active owner of a company is refused.
 - Memberships are administered afterwards only through `identity` use cases guarded by `manage:memberships:company`, and every change writes an `AuditLog` row.
 
@@ -301,6 +310,8 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 **2026-09-23, after Codex round 4:** `platform_grants` + `@RequirePlatform` authorize onboarding before any membership exists; `Principal.grants` carries every credential's permissions so the guard has one code path.
 
 **2026-09-23, after Codex round 5:** grants keep their `effect` and are evaluated at the target scope (branch-level DENY under a business-level ALLOW); ALLOW overrides included; cache invalidation covers role and platform-grant changes; `platform_audit_log` for non-tenant audit.
+
+**2026-09-23, after Codex round 6:** `withNewTenant` is context-only and the idempotency claim precedes the company insert; the synchronous `identity → tenancy` write is recorded as the one exception to `module-map.md` §3; offline money-moving actions without an operator credential are quarantined until P2-T9.
 
 ## 7. Consequences
 

@@ -71,6 +71,14 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `channels` | `ChannelFeePort` | `expenses` | how an aggregator commission is booked |
 | `realtime` | `ChannelScopePort` | `identity` | which channels this session may subscribe to |
 
+### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
+
+| Consumer | Port it defines | Writes to | Why not an event |
+|---|---|---|---|
+| `identity` | `CompanyRegistry` | `tenancy` (`registerCompany`, exported from `tenancy/index.ts`) | `onboard-company` creates the company and its first owner membership in one transaction; a company without an owner must never be observable |
+
+No other port may write. A second synchronous write needs its own ADR and a row here.
+
 > `payments → orders` and `orders → catalog` exist as ports in **both directions of the list** without creating a cycle, because neither module imports the other — the adapters do. If a new port would create a cycle **between adapters**, use an event instead.
 
 ---
