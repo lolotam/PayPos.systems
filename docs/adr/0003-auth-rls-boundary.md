@@ -44,6 +44,7 @@ Owned by Better Auth and reached **only** through `packages/auth`, on the dedica
 | `verification` | core | email / reset tokens |
 | `two_factor` | `two-factor` plugin | TOTP secret + backup codes, encrypted at rest |
 | `platform_grants` | ours | global permissions not tied to a company, today only `create:companies:platform` (§3) |
+| `platform_audit_log` | ours | audit trail for platform grants and revocations; insert-only, no updates or deletes (§3) |
 | `apikey` | `api-key` plugin | installed in T9b, wired in Phase 5; carries a non-updatable **`company_id` column** and its own scopes (§4 path C) — an API key never bypasses tenant resolution |
 
 **Not enabled:** the `organization` plugin. Its `organization`, `member` and `invitation` tables are not created. See §5.1.
@@ -151,7 +152,7 @@ Because the id is fresh and inserted first, it can never be used to enter an exi
 | `platform_grants` | global identity (§2.1) | `user_id`, `permission` (e.g. `create:companies:platform`), `granted_by`, `granted_at`, `expires_at`, `revoked_at` | read by `pospay_auth` only; written only by `pnpm platform:grant` run as `pospay_owner` — no API writes it in Phase 0 |
 
 - The guard `@RequirePlatform('create:companies:platform')` reads `principal.grants` (§4), which path A fills from the user's active platform grants.
-- The first grant is created by the `platform:grant` script during setup; every later grant or revocation writes an `AuditLog` row.
+- The first grant is created by the `platform:grant` script during setup. Every grant and revocation writes a row to **`platform_audit_log`** — a global table (no `company_id`, no RLS), insert-only for `pospay_owner` and `pospay_auth`, readable only by the owner. `AuditLog` is tenant data and would force the script to invent a company, so platform actions never go there.
 - This is the **Phase 0** answer. Whether merchants may later onboard themselves is PRD **D-34**; if they may, a self-serve route gets its own grant and rate limit — it does not reopen this one.
 - The `Platform` module and its UI still arrive in Phase 5; T9a ships only the table, the script, the guard and the one permission.
 
@@ -216,7 +217,8 @@ type Principal = {
 
 type Grant = {
   permission: string;             // 'action:resource:scope'
-  source: 'membership' | 'device' | 'api-key' | 'platform';
+  effect: 'ALLOW' | 'DENY';       // DENY entries are kept, never pre-subtracted
+  source: 'role' | 'override' | 'device' | 'api-key' | 'platform';
   scopeType: 'PLATFORM' | 'COMPANY' | 'BUSINESS' | 'BRANCH';
   scopeId: string | null;
 };
@@ -226,15 +228,24 @@ The guard evaluates `grants` only, so it has one code path for every credential.
 
 | Path | `grants` come from |
 |---|---|
-| A · user | role permissions of the active memberships minus DENY overrides (§5.2), plus active `platform_grants` |
-| B · device, before PIN | the system `Device` role's permissions, scoped to the device's branch |
-| B · device + PIN | the employee's memberships, filtered to the device's branch, minus DENY — the `Device` grants are dropped |
-| C · API key | the key's scopes, all at `COMPANY` scope for the key's company |
+| A · user | ALLOW from the role permissions of every active membership; ALLOW **and** DENY from active `permission_overrides`; ALLOW from active `platform_grants` |
+| B · device, before PIN | ALLOW from the system `Device` role, at the device's branch |
+| B · device + PIN | the employee's memberships and overrides as in path A, filtered to scopes that cover the device's branch — the `Device` grants are dropped |
+| C · API key | ALLOW from the key's scopes, at `COMPANY` scope for the key's company |
+
+**Evaluation happens at the request's target scope**, not while building the list, because a broad ALLOW and a narrow DENY must both survive until the guard knows which branch is being touched:
+
+1. collect the grants for the permission whose scope **covers** the target (a company grant covers its businesses and branches; a business grant covers its branches);
+2. if any of them is a `DENY` → refuse (§5.2, PRD D-31);
+3. else if any is an `ALLOW` → permit;
+4. else → refuse (deny by default).
+
+So a business-wide ALLOW with a DENY on branch 3 permits branches 1, 2, 4 and refuses branch 3.
 
 ### 4.1 Rules
 
 - **Company switching (path A).** The client may *ask* for any company id. The server honours it only if the user has an active membership in it; otherwise 403 before `withTenant()` is called. `session.active_company_id` is a convenience hint and is re-checked on every request. (T8 proves this with a spy on `withTenant`.)
-- **Membership removal** takes effect on the next request: memberships are read per request, and the permission cache in Redis is invalidated on every membership or override change.
+- **Membership removal** takes effect on the next request: memberships are read per request, and the permission cache in Redis is invalidated on **every** change to `memberships`, `permission_overrides`, `roles`, `role_permissions` and `platform_grants` — for role changes, for every principal holding that role. The mutation and its invalidation are in the same use case; a cache key carries a version so a missed invalidation is bounded by a short TTL, not by the full cache lifetime.
 - **Membership window.** `starts_at` / `ends_at` are enforced in the query, not in a nightly job.
 - **Device revocation** is rejected on the next contact; a revoked device's unsynced sales are quarantined, never discarded (PRD §8.4).
 
@@ -288,6 +299,8 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 **2026-09-23, after Codex round 3:** `role_permissions` cannot extend a global role; the tenant root `companies` is keyed on `id` alone; `withNewTenant` defines the onboarding bootstrap.
 
 **2026-09-23, after Codex round 4:** `platform_grants` + `@RequirePlatform` authorize onboarding before any membership exists; `Principal.grants` carries every credential's permissions so the guard has one code path.
+
+**2026-09-23, after Codex round 5:** grants keep their `effect` and are evaluated at the target scope (branch-level DENY under a business-level ALLOW); ALLOW overrides included; cache invalidation covers role and platform-grant changes; `platform_audit_log` for non-tenant audit.
 
 ## 7. Consequences
 
