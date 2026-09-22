@@ -6,6 +6,7 @@
   "description": "Shared ESLint, TypeScript and Prettier configuration for every PosPay app and package",
   "exports": {
     "./eslint": "./eslint/index.js",
+    "./eslint/jsdoc": "./eslint/jsdoc.js",
     "./tsconfig/base.json": "./tsconfig/base.json",
     "./tsconfig/node.json": "./tsconfig/node.json"
   },

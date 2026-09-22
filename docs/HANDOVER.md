@@ -34,7 +34,8 @@ Solo developer (Waleed) building entirely with AI agents.
 | `.specify/PROJECT-OVERRIDES.md` | local changes to spec-kit defaults | — |
 | `AGENTS.md` | index for Codex and other agents; review guidelines | — |
 
-ADRs: `0001` domain/subdomain topology · `0002` workspace tooling baseline · `0003` auth ↔ RLS boundary.
+ADRs: `0001` domain/subdomain topology · `0002` workspace tooling baseline · `0003` auth ↔ RLS boundary ·
+`0004` test runner (Vitest) · `0005` money rounding (half away from zero) and percentage precision (4 dp).
 
 ## 3. How work is done here
 
@@ -105,18 +106,25 @@ Postgres is reached as `pospay_owner` until T4 creates `pospay_app` and `pospay_
 | T1 Workspace skeleton | ✅ done | PR #1, #2 |
 | T12a Minimal CI | ✅ done (branch protection still to do) | `.github/workflows/ci.yml` |
 | T2 Local infra | ✅ done | PR #12 — `deploy/docker-compose.dev.yml` |
-| T3 `packages/domain` (Money, rounding, Percentage, TaxRule) | ⬜ **next** | — |
-| T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | ⬜ | ADR-0003 §2–§3 |
+| T3 `packages/domain` (Money, rounding, Percentage, TaxRule) | 🟡 **PR open** — `pnpm check` green, 93 tests | ADR-0004, ADR-0005 |
+| T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | ⬜ **next** | ADR-0003 §2–§3 |
 | T6a contracts → T5 tenancy schema + RLS suite → T6b api → T7 write primitives → **T9a → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v3 §2 |
 
 **Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T9a → T8 → T9b → T12b → T13.
 
-### 4.1 Next action — T3
+### 4.1 Next action — finish T3, then T4
 
-- Choose the test runner (ADR-0002 defers it to T3; Vitest is the stated lean) and record it in an ADR.
-- `packages/domain`: `Money` as `bigint` mills with lossless string transport and `numeric(14,3)` bounds; `roundKwd` half-up at line level **including negatives**; `Percentage`; `TaxRule` (VAT-ready).
-- **Zero runtime dependencies**; exhaustive unit tests; full Arabic JSDoc on every export (`lint:docs` enforces it).
-- Done when: tests pass and `dependencies` in `packages/domain/package.json` is empty.
+- T3: get the PR through Codex review and merge it.
+- T4 `packages/db` per plan v3 and ADR-0003 §2–§3: Drizzle client, `withTenant` / `withUser` / `withNewTenant`,
+  the `pospay_app` and `pospay_auth` roles, migrate/seed scripts; the raw client is never exported (a test proves it).
+- T4 is the first package that needs Postgres in tests — decide testcontainers vs the T2 compose stack, in an ADR.
+
+### 4.2 Package facts worth knowing
+
+- `packages/domain` exports its TypeScript source (`"exports": "./src/index.ts"`), with no build step. Relative
+  imports use `.js` extensions so the same source also resolves under `NodeNext` (api/worker).
+- A package linted from its own folder does not match the shared `packages/<name>/src/**` globs. It re-scopes
+  `requireArabicJsdoc` (exported from `@pospay/config/eslint/jsdoc`) to `src/**` — see `packages/domain/eslint.config.js`.
 
 ## 5. Open items
 
