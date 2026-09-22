@@ -56,7 +56,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 Goal: Detect and reduce ambiguity or missing decision points in the active feature specification and record the clarifications directly in the spec file.
 
-Note: This clarification workflow is expected to run (and be completed) BEFORE invoking `/speckit-plan`. If the user explicitly states they are skipping clarification (e.g., exploratory spike), you may proceed, but must warn that downstream rework risk increases.
+Note: This clarification workflow is expected to run (and be completed) BEFORE invoking `/speckit-plan`. If the user asks to skip clarification, lower-impact questions may be skipped with a warning, but **every unresolved business rule (money, tax, discounts, commissions, stock, permissions, tenant scope, time/attendance rules) must still be resolved before `/speckit-plan`** — `CLAUDE.md` §11. There is no exploratory-spike exception for business rules.
 
 Execution steps:
 
@@ -126,7 +126,7 @@ Execution steps:
    - The item is specifically about implementation method, tech-stack comparison, or task breakdown (note internally)
 
 4. Generate (internally) a prioritized queue of candidate clarification questions (maximum 5). Do NOT output them all at once. Apply these constraints:
-    - Maximum of 5 total questions across the whole session.
+    - Maximum of 5 total questions across the whole session for non-business topics; business-rule questions are not capped (see Behavior rules).
     - Each question must be answerable with EITHER:
        - A short multiple‑choice selection (2–5 distinct, mutually exclusive options), OR
        - A one-word / short‑phrase answer (explicitly constrain: "Answer in <=5 words").
@@ -229,9 +229,9 @@ Behavior rules:
 
 - If no meaningful ambiguities found (or all potential questions would be low-impact), respond: "No critical ambiguities detected worth formal clarification." and suggest proceeding.
 - If spec file missing, instruct user to run `/speckit-specify` first (do not create a new spec here).
-- Never exceed 5 total asked questions (clarification retries for a single question do not count as new questions).
+- Aim for at most 5 questions per session for non-business topics. **Business-rule questions have no quota**: keep asking, in further sessions if needed, until every unresolved business rule (money, tax, discounts, commissions, stock, permissions, tenant scope, time/attendance rules) is answered.
 - Avoid speculative tech stack questions unless the absence blocks functional clarity.
-- Respect user early termination signals ("stop", "done", "proceed").
+- Respect user early termination signals ("stop", "done", "proceed"), but if any business-rule question is still open, record it as `TODO(spec)` and state that `/speckit-plan` is blocked until it is answered.
 - If no questions asked due to full coverage, output a compact coverage summary (all categories Clear) then suggest advancing.
 - If quota reached with unresolved high-impact categories remaining, explicitly flag them under Deferred with rationale.
 
@@ -280,7 +280,7 @@ Report completion (after questioning loop ends or early termination):
 - Sections touched (list names).
 - Spec quality checklist status (if `FEATURE_DIR/checklists/requirements.md` was re-validated): show before/after pass counts (e.g., "Spec Quality Checklist: 12/16 → 15/16 items passing") and list any items that changed state — both newly checked (unchecked → checked) and any regressions (checked → unchecked). If any items remain unchecked, list them as areas needing attention.
 - Coverage summary table listing each taxonomy category with Status: Resolved (was Partial/Missing and addressed), Deferred (exceeds question quota, or remaining item is specifically implementation method, tech-stack comparison, or task breakdown), Clear (already sufficient), Outstanding (still Partial/Missing but low impact).
-- If any Outstanding or Deferred remain, recommend whether to proceed to `/speckit-plan` or run `/speckit-clarify` again later post-plan.
+- If any Outstanding or Deferred item is a business rule, `/speckit-plan` is **blocked**: say so and recommend `/speckit-clarify` again. Otherwise recommend whether to proceed to `/speckit-plan`.
 - Suggested next command.
 
 ## Done When
