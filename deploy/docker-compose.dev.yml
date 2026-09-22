@@ -1,0 +1,72 @@
+# Local development infrastructure — Phase 0 T2.
+# Postgres 16 + Redis 7 only. The apps run on the host with `pnpm dev`.
+# Ports are bound to 127.0.0.1: nothing here is reachable from the network.
+# Secrets come from the repo-root .env (see .env.example); there are no defaults.
+
+name: pospay-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pospay}
+      POSTGRES_USER: ${POSTGRES_OWNER_USER:-pospay_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:?set POSTGRES_OWNER_PASSWORD in .env}
+      TZ: UTC
+      PGTZ: UTC
+    # A runaway query must not starve the API later (IMPLEMENTATION-PLAN T2).
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - statement_timeout=30s
+      - -c
+      - idle_in_transaction_session_timeout=60s
+      - -c
+      - lock_timeout=10s
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - timezone=UTC
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pospay_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 1g
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+      - --appendonly
+      - 'yes'
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
+    volumes:
+      - pospay_redis_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    mem_limit: 384m
+
+volumes:
+  pospay_pg_data:
+  pospay_redis_data:

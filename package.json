@@ -15,7 +15,11 @@
     "test": "turbo run test",
     "build": "turbo run build",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "infra:up": "docker compose --env-file .env -f deploy/docker-compose.dev.yml up -d --wait",
+    "infra:down": "docker compose --env-file .env -f deploy/docker-compose.dev.yml down",
+    "infra:ps": "docker compose --env-file .env -f deploy/docker-compose.dev.yml ps",
+    "infra:logs": "docker compose --env-file .env -f deploy/docker-compose.dev.yml logs -f --tail=100"
   },
   "devDependencies": {
     "@pospay/config": "workspace:*",
