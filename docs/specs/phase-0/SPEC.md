@@ -157,7 +157,7 @@ Zod contracts for tenancy, error envelope `{ code, message_ar, message_en, detai
 **Done when:** a use case can append an outbox event inside its own transaction, proven by a test.
 
 ### S8 — `tenancy` use cases
-`create-company`, `create-business`, `create-branch`, plus `queries/` for list and detail. Each write: one transaction, `Idempotency-Key`, outbox event inside the transaction, audit log row.
+`create-business`, `create-branch`, plus `queries/` for list and detail. **No `create-company`:** a company is created only by `identity`'s `onboard-company` (S9 / T9a), together with its first owner, through the `CompanyRegistry` port that `tenancy` exposes. Each write: one transaction, `Idempotency-Key`, outbox event inside the transaction, audit log row.
 **Done when:** integration tests cover happy path and the listed edge cases.
 
 ### S9 — `packages/auth` + `identity`

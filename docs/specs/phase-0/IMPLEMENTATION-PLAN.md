@@ -246,7 +246,7 @@ apps/api/src/modules/tenancy/
   tenancy.module.ts  index.ts
 ```
 
-**Use cases:** `create-business/`, `create-branch/`, plus the tenancy-side port that `identity`'s `onboard-company` (T9a) calls to insert the company row. Company creation is **not** a tenancy use case: the company and its first owner membership are created in one transaction by `onboard-company`.
+**Use cases:** `create-business/`, `create-branch/`, and nothing else — the `CompanyRegistry` port that `onboard-company` calls already exists from T9a. Company creation is **not** a tenancy use case: the company and its first owner membership are created in one transaction by `onboard-company`.
 **Queries:** `list-businesses.query.ts`, `branch-detail.query.ts`
 
 **Each write:** one transaction · `Idempotency-Key` · outbox event inside the transaction · audit log row.
@@ -268,8 +268,14 @@ apps/api/src/modules/tenancy/
 ```
 packages/auth/src/{config.ts,principal.ts,client.ts,index.ts}
 packages/db/schema/identity.ts
+packages/db/migrations/NNNN_identity_bootstrap.sql   ← Better Auth tables, memberships, roles,
+                                                       permissions, role_permissions, overrides,
+                                                       company feature overrides + their RLS
 apps/api/src/modules/identity/**
+apps/api/src/modules/tenancy/{ports/company-registry.port.ts,persistence/drizzle-company-registry.ts,index.ts}
 ```
+
+**First step — the tenancy precursor.** Before `onboard-company`, T9a adds to `tenancy` exactly one port, `CompanyRegistry.register(tx, company)`, its Drizzle adapter, and its export from `tenancy/index.ts`. It inserts a company row inside the caller's transaction and does nothing else. This breaks the cycle Codex found in v3-draft: T9a needs the port, and T8 depends on T9a, so the port cannot live in T8.
 
 **Required behaviour**
 - Better Auth self-hosted on the Drizzle adapter: email + password and the `two-factor` (TOTP) plugin. Tables classified exactly as ADR-0003 says.

@@ -450,7 +450,8 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 
 T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. Both come from T9 in the Phase 0 plan v2, which schedules T9 after T8. This PRD splits T9. **`IMPLEMENTATION-PLAN.md` §2 must be amended to match.**
 
-- [ ] P0-T9a.1 Better Auth self-hosted on the Drizzle adapter with email + password and the `two-factor` (TOTP) plugin; tables per the ADR-0003 classification.
+- [ ] P0-T9a.0 Tenancy precursor: `CompanyRegistry` port + Drizzle adapter exported from `tenancy/index.ts` (inserts a company row inside the caller's transaction, nothing else). It lives here, not in T8, because T8 depends on T9a.
+- [ ] P0-T9a.1 Better Auth self-hosted on the Drizzle adapter with email + password and the `two-factor` (TOTP) plugin; tables per the ADR-0003 classification; migration `NNNN_identity_bootstrap.sql` creates every T9a table and its RLS.
 - [ ] P0-T9a.2 `memberships` bridge table (user-keyed RLS), `roles`, `permissions` (seeded from code), `role_permissions` (with `constraints jsonb`, enforced later in P2-T7), `permission_overrides` (ALLOW/DENY, reason, granted_by, expires_at), `starts_at`/`ends_at` on memberships — reconciling SPEC §4 with `09` §11 (see §13 item 10).
 - [ ] P0-T9a.3 `@Require('action:resource:scope')` guard resolving the principal and membership server-side, deny by default, union of applicable memberships minus DENY; Redis permission cache invalidated on change; a route without a guard fails CI.
 - [ ] P0-T9a.4 **Tenant feature-flag enforcement now:** `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI). `09` §12 requires flags from Phase 0 even though the `platform` module and its screens stay in Phase 5 (SPEC §3 forbids the module now). Tests prove a disabled feature is refused server-side.
@@ -461,7 +462,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 #### P0-T8 — `tenancy` use cases · L · ⬜ · depends T9a
 
 - [ ] P0-T8.1 Module shape exactly per `CLAUDE.architecture.md` §5; slice specs in `docs/specs/tenancy/{create-business,create-branch}.md` (company creation is `identity`'s `onboard-company`).
-- [ ] P0-T8.2 Use cases `create-business`, `create-branch` (and the tenancy-side port that `onboard-company` calls to insert the company row): one transaction, `Idempotency-Key`, outbox event inside the transaction, audit row; events `CompanyCreated`, `BusinessCreated`, `BranchCreated` documented in `events/published.ts`. A new business copies its vertical template into `business.settings`.
+- [ ] P0-T8.2 Use cases `create-business`, `create-branch` (the `CompanyRegistry` port already exists from P0-T9a.0): one transaction, `Idempotency-Key`, outbox event inside the transaction, audit row; events `CompanyCreated`, `BusinessCreated`, `BranchCreated` documented in `events/published.ts`. A new business copies its vertical template into `business.settings`.
 - [ ] P0-T8.3 Scenario IDs written into the slice specs before code: `TEN-01` happy path per use case, `TEN-02` duplicate `Idempotency-Key` replay, `TEN-03` cross-company `business_id` on branch creation, `TEN-04` user switching to a company they belong to, `TEN-05` user requesting a company they do not belong to.
 - [ ] P0-T8.4 Queries `list-businesses.query.ts`, `branch-detail.query.ts` with result-shape tests and `EXPLAIN` index-usage assertions on a seeded dataset.
 - [ ] P0-T8.5 **API-level isolation proof:** with a real session of company A, requesting company B's id is refused **before** `withTenant(B)` is ever called (asserted by a spy on the wrapper).
