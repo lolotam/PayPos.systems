@@ -5,12 +5,17 @@
   "type": "module",
   "description": "Shared kernel — Money, KWD rounding, Percentage, TaxRule. Pure TypeScript, zero dependencies, runs in Node and the browser",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run && pnpm run test:node",
+    "test:node": "node --input-type=module -e \"import { parseMoney, moneyToString } from '@pospay/domain'; if (moneyToString(parseMoney('12.5')) !== '12.500') process.exit(1);\""
   },
   "dependencies": {},
   "devDependencies": {
