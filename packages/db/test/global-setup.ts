@@ -31,14 +31,32 @@ async function connectMaintenance(env: PgTestEnv): Promise<postgres.Sql> {
   return sql;
 }
 
-// داتابيزات اختبار فضلت من تشغيلة وقعت. اللي عليها اتصال لسه شغال بتاعة تشغيلة تانية، فبنسيبها.
+// كل تشغيلة ماسكة lock باسم الـ runId بتاعها طول ما هي عايشة، على اتصال الصيانة.
+// الـ template بيفضل من غير اتصالات بين نسخة والتانية، فغياب الاتصالات مش دليل إن التشغيلة ماتت —
+// الدليل إننا نقدر ناخد الـ lock بتاعها.
+const runLockKey = (runId: string): string => `pospay:test-run:${runId}`;
+
+function runIdOf(datname: string): string | null {
+  const match = /^pospay_(?:tpl_(.+)|test_(.+)_[0-9a-f]{8})$/.exec(datname);
+  return match?.[1] ?? match?.[2] ?? null;
+}
+
+// داتابيزات فضلت من تشغيلات وقعت: بنمسح بس اللي تشغيلتها مش ماسكة الـ lock بتاعها.
 async function sweepLeftovers(sql: postgres.Sql): Promise<void> {
   const rows = await sql<{ datname: string }[]>`
-    SELECT d.datname FROM pg_database d
-    WHERE (d.datname LIKE 'pospay\\_test\\_%' OR d.datname LIKE 'pospay\\_tpl\\_%')
-      AND NOT EXISTS (SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname)`;
+    SELECT datname FROM pg_database
+    WHERE datname LIKE 'pospay\\_test\\_%' OR datname LIKE 'pospay\\_tpl\\_%'`;
   for (const { datname } of rows) {
-    if (TEST_DB.test(datname)) await sql.unsafe(`DROP DATABASE IF EXISTS "${datname}"`);
+    const runId = runIdOf(datname);
+    if (runId === null || !TEST_DB.test(datname)) continue;
+    const [lock] = await sql<{ free: boolean }[]>`
+      SELECT pg_try_advisory_lock(hashtext(${runLockKey(runId)})) AS free`;
+    if (lock?.free !== true) continue;
+    try {
+      await sql.unsafe(`DROP DATABASE IF EXISTS "${datname}" WITH (FORCE)`);
+    } finally {
+      await sql`SELECT pg_advisory_unlock(hashtext(${runLockKey(runId)}))`;
+    }
   }
 }
 
@@ -47,6 +65,8 @@ export default async function setup(project: TestProject): Promise<() => Promise
   const runId = `${Date.now().toString(36)}_${process.pid}`;
   const template = `pospay_tpl_${runId}`;
   const sql = await connectMaintenance(env);
+  // الـ lock ده بيتفك لوحده لما الاتصال يقفل — حتى لو التشغيلة وقعت من غير teardown.
+  await sql`SELECT pg_advisory_lock(hashtext(${runLockKey(runId)}))`;
   await sweepLeftovers(sql);
   await sql.unsafe(`CREATE DATABASE "${template}"`);
   await migrateDatabase(pgUrl(env, env.ownerUser, env.ownerPassword, template), {
