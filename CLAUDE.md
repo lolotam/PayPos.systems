@@ -22,7 +22,7 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
 
 ## 1. Workflow — one vertical slice at a time
 1. Never implement a whole module. Implement **one use case** (e.g. "post stock adjustment").
-2. Before code, write/update the slice spec in `docs/specs/<module>/<use-case>.md`: requirements, business rules, edge cases, acceptance criteria, schema changes, API contract, permissions, tests.
+2. Before code, write/update the slice spec in `docs/specs/NNN-<module>-<use-case>/spec.md` (created by `/speckit-specify` — see `.specify/PROJECT-OVERRIDES.md`): requirements, business rules, edge cases, acceptance criteria, schema changes, API contract, permissions, tests.
 3. Then, in this order: **contract (Zod) → migration + RLS policy → domain functions + their tests → use case → adapters (persistence, http) → integration tests → UI.** Run `pnpm check` before declaring done.
 4. Do not touch modules outside the slice. If you must, say so and explain why.
 5. Every architectural decision → `docs/adr/NNNN-title.md` (context, decision, consequences).

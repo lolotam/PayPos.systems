@@ -644,7 +644,7 @@ each with the file and the rule number:
 
 A slice is finished when **all** of these are true:
 
-- [ ] Spec exists in `docs/specs/<module>/<use-case>.md` (`CLAUDE.md` §1)
+- [ ] Spec exists in `docs/specs/NNN-<module>-<use-case>/spec.md` (created by `/speckit-specify` — see `.specify/PROJECT-OVERRIDES.md`) (`CLAUDE.md` §1)
 - [ ] Business rules are pure functions in `domain/`, with exhaustive unit tests that run with no DB
 - [ ] The use case depends only on ports; the concrete bindings live only in `<module>.module.ts`
 - [ ] The write is one transaction, is idempotent, and appends its outbox event inside that transaction

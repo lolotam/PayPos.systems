@@ -142,7 +142,7 @@ The tasks.md should be immediately executable - each task must be specific enoug
 
 **CRITICAL**: Tasks MUST be organized by user story to enable independent implementation and testing.
 
-**Tests are OPTIONAL**: Only generate test tasks if explicitly requested in the feature specification or if user requests TDD approach.
+**Tests are MANDATORY in this repository** (`CLAUDE.md` §9, not optional): every slice gets exhaustive domain unit tests, use-case integration tests, an RLS negative isolation test for every new tenant table, and a result-shape + `EXPLAIN` test for every `queries/` file. Generate these test tasks first, before implementation tasks; they must fail before the code exists.
 
 ### Checklist Format (REQUIRED)
 
