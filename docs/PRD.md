@@ -450,19 +450,19 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 
 T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. Both come from T9 in the Phase 0 plan v2, which schedules T9 after T8. This PRD splits T9. **`IMPLEMENTATION-PLAN.md` §2 must be amended to match.**
 
-- [ ] P0-T9a.0 Tenancy precursor: `CompanyRegistry` port + Drizzle adapter exported from `tenancy/index.ts` (inserts a company row inside the caller's transaction, nothing else). It lives here, not in T8, because T8 depends on T9a.
+- [ ] P0-T9a.0 Company-registry boundary: port `identity/ports/company-registry.port.ts` and adapter `identity/persistence/tenancy-company-registry.adapter.ts` (the consumer owns both, `module-map.md` §3); the adapter calls `registerCompany(tx, input)`, the one write `tenancy` exports from `index.ts`. Lives here, not in T8, because T8 depends on T9a.
 - [ ] P0-T9a.1 Better Auth self-hosted on the Drizzle adapter with email + password and the `two-factor` (TOTP) plugin; tables per the ADR-0003 classification; migration `NNNN_identity_bootstrap.sql` creates every T9a table and its RLS.
 - [ ] P0-T9a.2 `memberships` bridge table (user-keyed RLS), `roles`, `permissions` (seeded from code), `role_permissions` (with `constraints jsonb`, enforced later in P2-T7), `permission_overrides` (ALLOW/DENY, reason, granted_by, expires_at), `starts_at`/`ends_at` on memberships — reconciling SPEC §4 with `09` §11 (see §13 item 10).
 - [ ] P0-T9a.3 `@Require('action:resource:scope')` guard resolving the principal and membership server-side, deny by default, union of applicable memberships minus DENY; Redis permission cache invalidated on change; a route without a guard fails CI.
 - [ ] P0-T9a.4 **Tenant feature-flag enforcement now:** `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI). `09` §12 requires flags from Phase 0 even though the `platform` module and its screens stay in Phase 5 (SPEC §3 forbids the module now). Tests prove a disabled feature is refused server-side.
-- [ ] P0-T9a.5 `onboard-company` use case from P0-T0.8 (company + first owner membership in one transaction); last-owner protection.
+- [ ] P0-T9a.5 `onboard-company` as a **complete slice**: spec, Zod contract, `POST /v1/companies` (caller ⛔ D-34), `Idempotency-Key`, company + owner membership + audit row + `CompanyCreated` outbox event in one transaction; scenarios `ONB-01` happy path, `ONB-02` failed membership insert leaves no company and no outbox row, `ONB-03` replay, `ONB-04` two companies created through the API; last-owner protection.
 - [ ] P0-T9a.6 Seed role bundles as **provisional codes** (renamed when D-07 is decided): Owner, General Manager, Accountant, Business Manager, Branch Manager, Shift Supervisor, Cashier, Waiter, Kitchen, Storekeeper, Staff, Marketing, Viewer.
 - **Done when:** a real login produces a session; a user with two company memberships can switch only between those two; a guard-less route and a disabled feature are both refused in tests.
 
 #### P0-T8 — `tenancy` use cases · L · ⬜ · depends T9a
 
 - [ ] P0-T8.1 Module shape exactly per `CLAUDE.architecture.md` §5; slice specs in `docs/specs/tenancy/{create-business,create-branch}.md` (company creation is `identity`'s `onboard-company`).
-- [ ] P0-T8.2 Use cases `create-business`, `create-branch` (the `CompanyRegistry` port already exists from P0-T9a.0): one transaction, `Idempotency-Key`, outbox event inside the transaction, audit row; events `CompanyCreated`, `BusinessCreated`, `BranchCreated` documented in `events/published.ts`. A new business copies its vertical template into `business.settings`.
+- [ ] P0-T8.2 Use cases `create-business`, `create-branch` (`registerCompany` already exists from P0-T9a.0): one transaction, `Idempotency-Key`, outbox event inside the transaction, audit row; events `BusinessCreated`, `BranchCreated` documented in `events/published.ts`. A new business copies its vertical template into `business.settings`.
 - [ ] P0-T8.3 Scenario IDs written into the slice specs before code: `TEN-01` happy path per use case, `TEN-02` duplicate `Idempotency-Key` replay, `TEN-03` cross-company `business_id` on branch creation, `TEN-04` user switching to a company they belong to, `TEN-05` user requesting a company they do not belong to.
 - [ ] P0-T8.4 Queries `list-businesses.query.ts`, `branch-detail.query.ts` with result-shape tests and `EXPLAIN` index-usage assertions on a seeded dataset.
 - [ ] P0-T8.5 **API-level isolation proof:** with a real session of company A, requesting company B's id is refused **before** `withTenant(B)` is ever called (asserted by a spy on the wrapper).
@@ -962,6 +962,7 @@ Every item below blocks the task named in "Blocks". An implementing agent must n
 | D-30 | **Customer identity scope:** one customer record per business or per company (`10` §9 asks for history across businesses). | Lean: company-scoped customer, business-scoped loyalty and credit. Changes the key, so decide before P2-T3. | P2-T3, P4-T4, P4-T5 | Client |
 | D-31 | **ALLOW/DENY precedence** across overlapping memberships and scopes (a DENY at branch vs an ALLOW at business). | Lean: any applicable DENY wins. | P0-T9a | Waleed |
 | D-32 | **Attendance edge rules:** overnight shifts, missed punches, auto-close of open sessions, who may edit. | Lean: missed punches become exceptions, never auto-deductions. | P1-T5, P1-T6 | Client |
+| D-34 | **Who may create a company** (`POST /v1/companies`): platform staff only, self-serve sign-up, or both. Self-serve reopens public sign-up, which ADR-0003 §6 closes. | Lean: platform staff only until P5 subscriptions; Phase 0 tests use a seeded platform user. | P0-T9a.5 production guard, P5-T5 | Client + Waleed |
 | D-33 | **Payroll vs commission accounting:** where commission is expensed, so payroll and the P&L do not count it twice; same for attendance deductions. | Lean: commission expensed once when the statement is approved; payroll references it. | P5-T9 | Client + accountant |
 
 ---

@@ -246,11 +246,11 @@ apps/api/src/modules/tenancy/
   tenancy.module.ts  index.ts
 ```
 
-**Use cases:** `create-business/`, `create-branch/`, and nothing else — the `CompanyRegistry` port that `onboard-company` calls already exists from T9a. Company creation is **not** a tenancy use case: the company and its first owner membership are created in one transaction by `onboard-company`.
+**Use cases:** `create-business/`, `create-branch/`, and nothing else — `registerCompany`, the write `onboard-company` reaches through its own port, already exists from T9a. Company creation is **not** a tenancy use case: the company and its first owner membership are created in one transaction by `onboard-company`.
 **Queries:** `list-businesses.query.ts`, `branch-detail.query.ts`
 
 **Each write:** one transaction · `Idempotency-Key` · outbox event inside the transaction · audit log row.
-**Events published:** `CompanyCreated`, `BusinessCreated`, `BranchCreated`.
+**Events published:** `BusinessCreated`, `BranchCreated`. (`CompanyCreated` is published by `identity`'s `onboard-company`, T9a.)
 
 **Scenarios, written into the slice specs before code:** `TEN-01` happy path per use case · `TEN-02` duplicate `Idempotency-Key` replay · `TEN-03` cross-company `business_id` on branch creation · `TEN-04` user switching to a company they belong to · `TEN-05` user requesting a company they do not belong to.
 
@@ -272,20 +272,33 @@ packages/db/migrations/NNNN_identity_bootstrap.sql   ← Better Auth tables, mem
                                                        permissions, role_permissions, overrides,
                                                        company feature overrides + their RLS
 apps/api/src/modules/identity/**
-apps/api/src/modules/tenancy/{ports/company-registry.port.ts,persistence/drizzle-company-registry.ts,index.ts}
+apps/api/src/modules/identity/ports/company-registry.port.ts             ← owned by the consumer
+apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
+apps/api/src/modules/tenancy/{persistence/register-company.ts,index.ts}  ← tenancy's public write, nothing more
+packages/contracts/src/identity/onboard-company.ts
 ```
 
-**First step — the tenancy precursor.** Before `onboard-company`, T9a adds to `tenancy` exactly one port, `CompanyRegistry.register(tx, company)`, its Drizzle adapter, and its export from `tenancy/index.ts`. It inserts a company row inside the caller's transaction and does nothing else. This breaks the cycle Codex found in v3-draft: T9a needs the port, and T8 depends on T9a, so the port cannot live in T8.
+**First step — the company-registry boundary** (`docs/module-map.md` §3: the consumer owns the interface and its adapter).
+- `identity/ports/company-registry.port.ts` — `CompanyRegistry.register(tx, company)`, defined by `identity`, the consumer.
+- `identity/persistence/tenancy-company-registry.adapter.ts` — implements it by calling the one write `tenancy` exports from its `index.ts`, `registerCompany(tx, input)`. The adapter is the only file that knows both modules; the arrow `identity → tenancy` is already declared.
+- `tenancy` keeps ownership of the `companies` table. `registerCompany` inserts one row inside the caller's transaction and does nothing else.
+
+This lives in T9a, not T8, because T8 depends on T9a.
 
 **Required behaviour**
 - Better Auth self-hosted on the Drizzle adapter: email + password and the `two-factor` (TOTP) plugin. Tables classified exactly as ADR-0003 says.
 - `memberships` (user-keyed RLS bridge), `roles`, `permissions` (seeded from code), `role_permissions` (with `constraints jsonb`), `permission_overrides` (ALLOW/DENY, reason, granted_by, expires_at), `starts_at` / `ends_at` on memberships — per `09` §11, replacing the single `permission_overrides jsonb` in `SPEC.md` §4.
 - `@Require('action:resource:scope')` guard: principal and membership resolved server-side, deny by default, union of applicable memberships minus any DENY (precedence per PRD D-31). A route without a guard fails CI.
 - `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI).
-- `onboard-company` use case in `identity`: company (through a tenancy port) + first owner membership in **one** transaction; last-owner protection.
+- **`onboard-company` is a complete slice**, with every requirement T8 has for its own writes:
+  - spec `docs/specs/NNN-identity-onboard-company/spec.md` and Zod contract in `packages/contracts`;
+  - `POST /v1/companies`, guarded; **who may call it is `TODO(spec)` PRD D-34** — Phase 0 tests call it as a seeded platform user;
+  - `Idempotency-Key`; company row + owner membership + `AuditLog` row + `CompanyCreated` outbox event, all in **one** transaction;
+  - last-owner protection on later membership changes.
+- **Scenarios** (integration, real Postgres, real session): `ONB-01` happy path → company, owner membership, audit row and outbox event all exist; `ONB-02` the membership insert fails → **no** company row, **no** outbox row; `ONB-03` replayed key → identical stored response, one company; `ONB-04` **two companies created through the API** by two users — the first half of the phase's success criterion, which T5 and T8 then use.
 - Role bundles seeded as **provisional** codes (see `SPEC.md` §8 q3).
 
-**Done when:** a real login produces a session; a user with two company memberships can switch only between those two; a guard-less route and a disabled feature are both refused in tests.
+**Done when:** `ONB-01`…`ONB-04` pass; a real login produces a session; a user with two company memberships can switch only between those two; a guard-less route and a disabled feature are both refused in tests.
 
 ---
 
