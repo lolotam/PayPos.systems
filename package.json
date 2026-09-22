@@ -1,0 +1,27 @@
+{
+  "name": "pospay",
+  "private": true,
+  "description": "PosPay — multi-tenant, multi-vertical business-management SaaS",
+  "type": "module",
+  "packageManager": "pnpm@12.5.1",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "check": "turbo run typecheck lint test && pnpm lint:docs",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "lint:docs": "node packages/config/scripts/lint-docs.mjs",
+    "test": "turbo run test",
+    "build": "turbo run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "eslint": "10.11.0",
+    "prettier": "3.9.8",
+    "turbo": "2.11.2",
+    "typescript": "6.0.3"
+  }
+}
