@@ -191,8 +191,9 @@ A PR that changes a documented function **and leaves its doc comment describing 
 ## 5. Database rules
 - PostgreSQL only via **Drizzle** schema + `drizzle-kit` migrations (`pnpm db:migrate`). Never edit the DB by hand. Never use `db push` in shared envs.
 - Every tenant table has `company_id uuid NOT NULL` (+ `business_id` where applicable) and an RLS policy. **New table ⇒ new policy + negative isolation test, in the same PR.**
-- All DB access goes through `withTenant(companyId, tx => …)` which sets `app.company_id` inside the transaction. **Exporting the raw Drizzle client from `packages/db` is forbidden** — modules receive `tx` only.
-- The three entry points with no session (gateway webhooks, messaging callbacks, worker jobs) resolve the tenant from an identifier and then use the same `withTenant()` wrapper. There is no fourth way to reach the DB (`06` §5.4).
+- All tenant-data access goes through `withTenant(companyId, tx => …)` which sets `app.company_id` inside the transaction. **Exporting the raw Drizzle client from `packages/db` is forbidden** — modules receive `tx` only.
+- The three entry points with no session (gateway webhooks, messaging callbacks, worker jobs) resolve the tenant from an identifier and then use the same `withTenant()` wrapper. There is no fourth way to reach tenant data (`06` §5.4).
+- **The one named exception — authentication (ADR-0003).** Login runs before a tenant is known, so the global identity tables (`user`, `session`, `account`, `verification`, `two_factor`, `apikey`) have no `company_id` and no tenant RLS. They are reachable **only** from `packages/auth`, on the dedicated `pospay_auth` role that has grants on those tables and nothing else, and **no role has `BYPASSRLS`**. A user lists their own memberships through `withUser(userId, tx => …)`; every business query still goes through `withTenant()`. A new auth table is classified in ADR-0003 before it is created.
 - IDs: **UUID v7** (generated client-side on the POS while offline). Timestamps: `timestamptz` in UTC; display in branch timezone.
 - Money: `numeric(14,3)` in Postgres; in TS **`bigint` mills (1 KWD = 1000)** or the `Money` type from `packages/domain` — **never `number`**.
 - Bilingual text: `name_ar`, `name_en` columns (English required, Arabic optional unless spec says otherwise).
