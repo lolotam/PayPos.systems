@@ -1,5 +1,8 @@
 <!--
 Sync Impact Report
+- 2.0.1 (2026-09-23, PATCH): Principle V names the database-test mechanism — the compose
+  Postgres with a cloned database per spec file (ADR-0006) — instead of testcontainers. The rule
+  itself (real Postgres, never mocks) is unchanged.
 - Version change: 1.0.0 → 2.0.0 (merges the parallel 1.0.0 draft written by Gemini into the
   main checkout on 2026-09-22; its five principles map onto I–VII and its ratification
   date is adopted)
@@ -127,7 +130,7 @@ live in ESLint, dependency-cruiser and the module-map check do not.
 
 Merging requires: exhaustive unit tests for every pure `domain/` function with no database;
 integration tests for each use case (happy path plus listed edge cases) against real
-Postgres via testcontainers; RLS negative tests for every tenant table; a result-shape test
+Postgres (the compose stack, one cloned database per spec file — ADR-0006); RLS negative tests for every tenant table; a result-shape test
 and an index-usage `EXPLAIN` assertion for every `queries/` file; and Playwright E2E for the
 POS critical path (open shift → order → split payment → print → close shift, including the
 offline toggle). The RLS suite runs as the restricted application role and MUST assert:
@@ -399,4 +402,4 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.0.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-22
+**Version**: 2.0.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23

@@ -158,7 +158,7 @@ Drizzle config, drizzle-kit migrations wiring, `withTenant(companyId, fn)`, migr
 **Done when:** a throwaway migration applies and rolls forward cleanly.
 
 ### S5 — `tenancy` schema + RLS ⭐ **the success criterion**
-Tables: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides`. RLS policies, `FORCE ROW LEVEL SECURITY`, composite indexes, and the **negative isolation tests** (cross-tenant read = 0 rows, cross-tenant write errors) running against a real Postgres via testcontainers.
+Tables: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides`. RLS policies, `FORCE ROW LEVEL SECURITY`, composite indexes, and the **negative isolation tests** (cross-tenant read = 0 rows, cross-tenant write errors) running against a real Postgres (the compose stack, ADR-0006).
 **Done when:** the negative tests pass and are wired into `pnpm test`.
 
 ### S6 — `packages/contracts` + `apps/api` skeleton

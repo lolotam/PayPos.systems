@@ -1,0 +1,34 @@
+{
+  "name": "@pospay/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The only sanctioned path to PostgreSQL — withTenant / withUser / withNewTenant over Drizzle, roles bootstrap and migrations",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run && pnpm run test:node",
+    "test:node": "node --input-type=module -e \"import * as db from '@pospay/db'; if (typeof db.createDatabase !== 'function') process.exit(1);\"",
+    "db:migrate": "node --env-file-if-exists=../../.env scripts/migrate.ts",
+    "db:generate": "node scripts/generate-migration.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2",
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "@types/node": "24.13.6",
+    "drizzle-kit": "0.31.10",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}
