@@ -121,8 +121,12 @@ Postgres is reached as `pospay_owner` until T4 creates `pospay_app` and `pospay_
 
 ### 4.2 Package facts worth knowing
 
-- `packages/domain` exports its TypeScript source (`"exports": "./src/index.ts"`), with no build step. Relative
-  imports use `.js` extensions so the same source also resolves under `NodeNext` (api/worker).
+- `packages/domain` builds with `tsc -p tsconfig.build.json` to `dist/` (git-ignored) and exports `dist/index.js`
+  + `dist/index.d.ts`, so a plain, unbundled Node consumer (api/worker) can import it. Turbo builds a package's
+  dependencies before `typecheck` and the package itself before its `test`; `test:node` imports `@pospay/domain`
+  with plain Node to catch a broken export. Relative imports in `src/` use `.js` extensions.
+- `packages/domain` may import only files inside its own `src/` — a local lint rule (`kernel/own-files-only`)
+  checks the resolved path, not the spelling.
 - A package linted from its own folder does not match the shared `packages/<name>/src/**` globs. It re-scopes
   `requireArabicJsdoc` (exported from `@pospay/config/eslint/jsdoc`) to `src/**` — see `packages/domain/eslint.config.js`.
 
