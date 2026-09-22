@@ -220,7 +220,7 @@ StockItem / StockLocation / StockMovement (item, location, qty_delta, unit_cost,
 Recipe / RecipeIngredient / ProductionOrder ; Purchase / PurchaseLine ; Transfer ; StockCount ; Wastage
 ServiceMaterialUsage (item, stock_item, qty)
 AuditLog (company, actor, entity, action, before, after, at)   Outbox (id, aggregate, event_type, payload, created_at, published_at)
-IdempotencyKey (key, company_id, operation, request_fingerprint, status, response_status, response_body, expires_at)
+IdempotencyKey (scope_type COMPANY|USER, scope_id, company_id?, user_id?, operation, key, request_fingerprint, status, response_status, response_body, expires_at)
 Plan (code, names, feature_flags, limits)   ApprovalRequest (company, type, requested_by, payload, status, decided_by, note)
 ```
 

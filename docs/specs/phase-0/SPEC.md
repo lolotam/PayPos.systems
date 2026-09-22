@@ -107,8 +107,10 @@ AuditLog        id · company_id · actor_user_id · entity · entity_id
                 action · before jsonb · after jsonb · at timestamptz
 Outbox          id · company_id · aggregate · event_type · payload jsonb
                 created_at · published_at?
-IdempotencyKey  key · company_id · request_hash · response_hash
-                created_at · expires_at
+IdempotencyKey  id · scope_type (COMPANY|USER) · scope_id · company_id? · user_id?
+                operation · key · request_fingerprint · status (IN_FLIGHT|COMPLETED|FAILED)
+                response_status · response_body jsonb · created_at · expires_at
+                UNIQUE (scope_type, scope_id, operation, key)
 ```
 
 ### Conventions (from `CLAUDE.md` §5, restated so Codex cannot miss them)
