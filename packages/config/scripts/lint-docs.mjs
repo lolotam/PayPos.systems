@@ -59,7 +59,8 @@ let errors = 0;
 let warnings = 0;
 
 const ARABIC_REQUIRED = /(^|\/)(domain|ports)\/.*\.ts$|(^|\/)events\/published\.ts$/;
-const ARABIC_LETTER = /[\u0600-\u06FF]/;
+// A letter of the Arabic script — digits (١) and punctuation (،) do not count as prose.
+const ARABIC_LETTER = /(?=\p{Script=Arabic})\p{L}/u;
 
 // CLAUDE.md §3.1 — the explanation is in Arabic. A block that has a description but no
 // Arabic letter at all was written in the wrong language.

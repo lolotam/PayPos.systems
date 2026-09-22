@@ -120,7 +120,12 @@ export const boundariesConfig = [
       // Node exposes fetch as a global, so an import ban alone would miss it.
       'no-restricted-globals': [
         'error',
-        { name: 'fetch', message: 'use-cases/ reach the network only through a port.' },
+        {
+          globals: [
+            { name: 'fetch', message: 'use-cases/ reach the network only through a port.' },
+          ],
+          checkGlobalObject: true,
+        },
       ],
       'no-restricted-imports': [
         'error',
