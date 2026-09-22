@@ -43,6 +43,7 @@ Owned by Better Auth and reached **only** through `packages/auth`, on the dedica
 | `account` | core | password hash lives here; never selected by any module |
 | `verification` | core | email / reset tokens |
 | `two_factor` | `two-factor` plugin | TOTP secret + backup codes, encrypted at rest |
+| `platform_grants` | ours | global permissions not tied to a company, today only `create:companies:platform` (§3) |
 | `apikey` | `api-key` plugin | installed in T9b, wired in Phase 5; carries a non-updatable **`company_id` column** and its own scopes (§4 path C) — an API key never bypasses tenant resolution |
 
 **Not enabled:** the `organization` plugin. Its `organization`, `member` and `invitation` tables are not created. See §5.1.
@@ -141,7 +142,18 @@ withNewTenant(userId, company, fn)      // bootstrap only — see below
 2. opens a transaction, sets `app.user_id` = the authenticated caller and `app.company_id` = the new id;
 3. inserts the company row **as its first statement**, then runs `fn` (owner membership, audit row, outbox event, idempotency record) in the same transaction.
 
-Because the id is fresh and inserted first, it can never be used to enter an existing tenant: the insert would fail on the primary key and abort the transaction. It is importable only from `identity`'s `onboard-company` (`no-restricted-imports`), and the route is guarded by D-34's permission, not by a company membership.
+Because the id is fresh and inserted first, it can never be used to enter an existing tenant: the insert would fail on the primary key and abort the transaction. It is importable only from `identity`'s `onboard-company` (`no-restricted-imports`).
+
+**Who may call it — platform grants.** Memberships authorize work *inside* a company; creating a company happens before any membership exists, so it needs a grant that is not tied to a company:
+
+| Table | Group | Columns | Access |
+|---|---|---|---|
+| `platform_grants` | global identity (§2.1) | `user_id`, `permission` (e.g. `create:companies:platform`), `granted_by`, `granted_at`, `expires_at`, `revoked_at` | read by `pospay_auth` only; written only by `pnpm platform:grant` run as `pospay_owner` — no API writes it in Phase 0 |
+
+- The guard `@RequirePlatform('create:companies:platform')` reads `principal.grants` (§4), which path A fills from the user's active platform grants.
+- The first grant is created by the `platform:grant` script during setup; every later grant or revocation writes an `AuditLog` row.
+- This is the **Phase 0** answer. Whether merchants may later onboard themselves is PRD **D-34**; if they may, a self-serve route gets its own grant and rate limit — it does not reopen this one.
+- The `Platform` module and its UI still arrive in Phase 5; T9a ships only the table, the script, the guard and the one permission.
 
 `packages/auth` holds its own pool on `pospay_auth`. No other package can import it (`no-restricted-imports`).
 
@@ -196,11 +208,28 @@ type Principal = {
   kind: 'user' | 'device' | 'api-key';
   userId: string | null;          // null for a device before a cashier PIN is entered
   employeeId: string | null;      // set after a PIN, see §4.2
-  companyId: string;              // verified against memberships, never taken from the client
-  memberships: MembershipScope[]; // COMPANY | BUSINESS | BRANCH + scope_id, active window only
+  companyId: string | null;       // verified, never taken from the client; null only before onboarding
   deviceId: string | null;
+  memberships: MembershipScope[]; // COMPANY | BUSINESS | BRANCH + scope_id, active window only
+  grants: Grant[];                // what the guard actually evaluates — see below
+};
+
+type Grant = {
+  permission: string;             // 'action:resource:scope'
+  source: 'membership' | 'device' | 'api-key' | 'platform';
+  scopeType: 'PLATFORM' | 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  scopeId: string | null;
 };
 ```
+
+The guard evaluates `grants` only, so it has one code path for every credential. Each path fills it:
+
+| Path | `grants` come from |
+|---|---|
+| A · user | role permissions of the active memberships minus DENY overrides (§5.2), plus active `platform_grants` |
+| B · device, before PIN | the system `Device` role's permissions, scoped to the device's branch |
+| B · device + PIN | the employee's memberships, filtered to the device's branch, minus DENY — the `Device` grants are dropped |
+| C · API key | the key's scopes, all at `COMPANY` scope for the key's company |
 
 ### 4.1 Rules
 
@@ -257,6 +286,8 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 **2026-09-23, after Codex round 2:** role references use a non-null `owner_key` (§2.3) so global roles can be assigned safely; device operators are authorized through employee memberships (§4 path B); `pospay_app` gets DML on `roles` / `role_permissions`; `apikey.company_id` stated as the one column on a global table; `/health` exempt from rate limiting.
 
 **2026-09-23, after Codex round 3:** `role_permissions` cannot extend a global role; the tenant root `companies` is keyed on `id` alone; `withNewTenant` defines the onboarding bootstrap.
+
+**2026-09-23, after Codex round 4:** `platform_grants` + `@RequirePlatform` authorize onboarding before any membership exists; `Principal.grants` carries every credential's permissions so the guard has one code path.
 
 ## 7. Consequences
 
