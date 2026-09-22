@@ -58,7 +58,7 @@ CREATE FUNCTION app_user_id() RETURNS uuid LANGUAGE sql STABLE SET search_path =
   AS $$ SELECT NULLIF(current_setting('app.user_id', true), '')::uuid $$;
 ```
 
-Both are `SECURITY INVOKER` (the default). In addition, **both wrappers set both settings on every call** — the one they do not use is set to `''` — so no transaction inherits a value from the previous one.
+Both are `SECURITY INVOKER` (the default). In addition, **every wrapper sets both settings on every call** — the one they do not use is set to `''` — so no transaction inherits a value from the previous one.
 
 Policies are **split by command**. A combined `FOR ALL` policy is wrong here: `DELETE` never evaluates `WITH CHECK`, and an `UPDATE` could reach a row that is only visible through the user branch.
 
@@ -87,11 +87,18 @@ Policies are **split by command**. A combined `FOR ALL` policy is wrong here: `D
 owner_key text GENERATED ALWAYS AS (COALESCE(company_id::text, 'global')) STORED,
 UNIQUE (id, owner_key)
 
--- memberships (and role_permissions, which does the same towards its role)
+-- memberships
 role_owner_key text NOT NULL,
 FOREIGN KEY (role_id, role_owner_key) REFERENCES roles (id, owner_key),
 CHECK (role_owner_key = 'global' OR role_owner_key = company_id::text)
+
+-- role_permissions — stricter: a row belongs to exactly its role's owner
+role_owner_key text NOT NULL,
+FOREIGN KEY (role_id, role_owner_key) REFERENCES roles (id, owner_key),
+CHECK (role_owner_key = COALESCE(company_id::text, 'global'))
 ```
+
+A membership may *use* a global role; a tenant may never *extend* one. On `role_permissions` a row with `company_id = <tenant>` must point at a role owned by that tenant, and only rows with `company_id IS NULL` — which the mutation policy never lets a tenant write — may point at a global role. So the pre-PIN `Device` role cannot gain a money-moving permission inside one tenant.
 
 Both columns are `NOT NULL`, so the FK is always checked; the FK forces `role_owner_key` to be the role's real owner; the `CHECK` then allows only a global role or a role of the same company. The first owner's membership in `onboard-company` references the global Owner role with `role_owner_key = 'global'`. T5 adds a negative test assigning another company's custom role.
 
@@ -105,9 +112,11 @@ A system row has `company_id IS NULL`, so it never satisfies the mutation policy
 
 ### 2.4 Tenant data — everything else
 
-Unchanged from `CLAUDE.md` §5: `company_id uuid NOT NULL`, `USING` **and** an explicit `WITH CHECK` on `company_id`, `FORCE ROW LEVEL SECURITY`, tenant-qualified composite foreign keys, reached only through `withTenant()`.
+**The tenant root.** `companies` has **no** `company_id` column: its `id` *is* the tenant key. Its policies are `FOR SELECT USING (id = app_company_id())` and `FOR INSERT / UPDATE WITH CHECK (id = app_company_id())`, with no `DELETE` grant (companies are closed, never deleted). Every child table's `company_id` references `companies(id)`. This leaves no second column that could disagree with the first.
 
-## 3. Database roles and the two wrappers
+Every other tenant table is unchanged from `CLAUDE.md` §5: `company_id uuid NOT NULL`, `USING` **and** an explicit `WITH CHECK` on `company_id`, `FORCE ROW LEVEL SECURITY`, tenant-qualified composite foreign keys, reached only through `withTenant()`.
+
+## 3. Database roles and the three wrappers
 
 | Role | Attributes | May touch | Used by |
 |---|---|---|---|
@@ -117,13 +126,22 @@ Unchanged from `CLAUDE.md` §5: `company_id uuid NOT NULL`, `USING` **and** an e
 
 No role has `BYPASSRLS`. The platform bypass role stays deferred (review finding #14).
 
-`packages/db` exports exactly two entry points, both transaction-local (`set_config(…, true)`):
+`packages/db` exports exactly three entry points, all transaction-local (`set_config(…, true)`):
 
 ```ts
 withTenant(companyId, fn, { userId? })  // sets app.company_id (+ app.user_id when a user is acting;
                                         // webhooks and jobs have none)
 withUser(userId, fn)                    // sets app.user_id only — for listing one's own memberships
+withNewTenant(userId, company, fn)      // bootstrap only — see below
 ```
+
+**`withNewTenant` — the onboarding bootstrap.** A new company has no membership yet, so path A (§4) would refuse it, yet the company row and the first membership are RLS-protected writes. `withNewTenant`:
+
+1. generates the company id itself with `IdGenerator` — the caller cannot pass one in;
+2. opens a transaction, sets `app.user_id` = the authenticated caller and `app.company_id` = the new id;
+3. inserts the company row **as its first statement**, then runs `fn` (owner membership, audit row, outbox event, idempotency record) in the same transaction.
+
+Because the id is fresh and inserted first, it can never be used to enter an existing tenant: the insert would fail on the primary key and abort the transaction. It is importable only from `identity`'s `onboard-company` (`no-restricted-imports`), and the route is guarded by D-34's permission, not by a company membership.
 
 `packages/auth` holds its own pool on `pospay_auth`. No other package can import it (`no-restricted-imports`).
 
@@ -238,10 +256,12 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 
 **2026-09-23, after Codex round 2:** role references use a non-null `owner_key` (§2.3) so global roles can be assigned safely; device operators are authorized through employee memberships (§4 path B); `pospay_app` gets DML on `roles` / `role_permissions`; `apikey.company_id` stated as the one column on a global table; `/health` exempt from rate limiting.
 
+**2026-09-23, after Codex round 3:** `role_permissions` cannot extend a global role; the tenant root `companies` is keyed on `id` alone; `withNewTenant` defines the onboarding bootstrap.
+
 ## 7. Consequences
 
 - **`CLAUDE.md` §5 is amended** in the same PR: the "no fourth way to reach the DB" sentence names the auth path as the one exception, reachable only from `packages/auth` on `pospay_auth`.
-- T4 creates the three roles and both wrappers; T5's isolation suite runs as `pospay_app` and additionally asserts `pospay_auth` cannot read any tenant table.
+- T4 creates the three roles and all three wrappers; T5's isolation suite runs as `pospay_app` and additionally asserts `pospay_auth` cannot read any tenant table.
 - T9a adds tests that `pospay_auth` sees no tenant table, `pospay_app` cannot read `account` or `two_factor`, a user lists only their own memberships under `withUser()`, and an owner lists their company's memberships under `withTenant()` but not another company's.
 - Adding a Better Auth plugin later requires classifying its tables here first.
 - Cost: two DB pools instead of one, and a per-request membership read (cached in Redis, invalidated on change).
