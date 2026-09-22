@@ -1,6 +1,6 @@
 # Phase 0 — Foundation Spec
 
-> **Status:** Draft v1 · 2026-09-17
+> **Status:** Draft v2 · 2026-09-22 · §5 and §8 synced with `docs/PRD.md` v1.1
 > **Repo:** `E:\PosPay.systems\pospay` (product name: **PosPay**, domain `pospay.systems`)
 > **Governing docs:** `CLAUDE.md` · `CLAUDE.architecture.md` · `docs/06_Tech_Stack_Architecture_EN.md` · `docs/module-map.md`
 >
@@ -161,6 +161,8 @@ Zod contracts for tenancy, error envelope `{ code, message_ar, message_en, detai
 **Done when:** integration tests cover happy path and the listed edge cases.
 
 ### S9 — `packages/auth` + `identity`
+> Delivered in two parts, T9a **before** S8 and T9b after it — see `IMPLEMENTATION-PLAN.md` v3 §2.
+
 Better Auth self-hosted on the Drizzle adapter with the `organization`, `two-factor`, `phone-number` and `api-key` plugins. Then `memberships`, the `@Require('action:resource:scope')` guard, `cashier_pins`, `devices`, and the use cases `register-device`, `approve-device`, `revoke-device`, `set-cashier-pin`, `verify-cashier-pin`.
 **Done when:** a request with no guard fails CI; PIN verification works against a stored hash; a revoked device is rejected.
 
@@ -213,8 +215,8 @@ Dokploy staging: `api`, `worker`, `postgres`, `redis`, `traefik`. Migrations run
 These need Waleed's answer before the slice that depends on them:
 
 1. **Product name.** The product is **PosPay** (repo `pospay`, domain `pospay.systems`, ADR-0001). Still open: legal review of "Pay" in the name before it goes in the invoice header and the WABA verified name. *(blocks the S10 invoice header only)*
-2. **Plans at launch.** How many, what are they called, and which feature flags separate them? *(blocks S5 seed)*
-3. **Role names.** `09_Dashboards_Roles_Permissions_AR.md` has the matrix — confirm the exact role codes to seed. *(blocks S9)*
+2. **Plans at launch.** How many, what are they called, and which feature flags separate them? *(does **not** block S5: seed one **provisional** plan; renaming later needs no schema change — PRD D-06)*
+3. **Role names.** `09_Dashboards_Roles_Permissions_AR.md` has the matrix — confirm the exact role codes. *(does **not** block S9: seed **provisional** codes; renaming is a data migration — PRD D-07. Final names needed before the Phase 1 pilot)*
 4. **PIN length.** 4 or 6 digits? Lockout after how many failures, and for how long? *(blocks S9)*
 5. **Device token lifetime.** 7 or 30 days, and what is the renewal window? *(blocks S9)*
 6. **Staging host.** Which existing VPS hosts staging, or is a new one provisioned? *(blocks S13)*

@@ -1,6 +1,6 @@
 # Phase 0 — Implementation Plan
 
-> **Status:** Draft v1 · 2026-09-17 · pending adversarial review
+> **Status:** v3 · 2026-09-22 · synced with `docs/PRD.md` v1.1 (§13 item 22)
 > **Reads with:** `SPEC.md` in this folder
 > **Audience:** the implementing agent (Codex `gpt-6-astra`, reasoning effort `high`) and Waleed
 
@@ -34,7 +34,7 @@ Each task lists its deliverable, the files it touches, and the condition that cl
 
 Deciding this *after* the schema is written means rewriting the schema. It is therefore T0, not part of T9.
 
-**Deliverable:** `docs/adr/0001-auth-rls-boundary.md`, plus the table classification it produces.
+**Deliverable:** `docs/adr/0003-auth-rls-boundary.md` (0001 is the domain topology ADR, 0002 the tooling baseline), plus the table classification it produces.
 
 **The decision to make — proposed answer, to be confirmed:**
 
@@ -235,7 +235,7 @@ apps/api/src/shared/idempotency.middleware.ts
 
 ---
 
-### T8 — `tenancy` use cases · Size L · depends: T7
+### T8 — `tenancy` use cases · Size L · depends: T9a
 
 **Deliverable:** the first real vertical slices.
 
@@ -246,38 +246,59 @@ apps/api/src/modules/tenancy/
   tenancy.module.ts  index.ts
 ```
 
-**Use cases:** `create-company/`, `create-business/`, `create-branch/`
+**Use cases:** `create-business/`, `create-branch/`, plus the tenancy-side port that `identity`'s `onboard-company` (T9a) calls to insert the company row. Company creation is **not** a tenancy use case: the company and its first owner membership are created in one transaction by `onboard-company`.
 **Queries:** `list-businesses.query.ts`, `branch-detail.query.ts`
 
 **Each write:** one transaction · `Idempotency-Key` · outbox event inside the transaction · audit log row.
 **Events published:** `CompanyCreated`, `BusinessCreated`, `BranchCreated`.
 
-**Done when:** integration tests cover the happy path plus the edge cases named in the slice spec, and `pnpm lint:boundaries` passes.
+**Scenarios, written into the slice specs before code:** `TEN-01` happy path per use case · `TEN-02` duplicate `Idempotency-Key` replay · `TEN-03` cross-company `business_id` on branch creation · `TEN-04` user switching to a company they belong to · `TEN-05` user requesting a company they do not belong to.
+
+**API-level isolation proof:** with a real session of company A, requesting company B's id is refused **before** `withTenant(B)` is ever called (asserted by a spy on the wrapper). This is the second half of the phase's success criterion and needs the real sessions from T9a.
+
+**Done when:** `TEN-01`…`TEN-05` pass as integration tests against real Postgres with real sessions, and `pnpm lint:boundaries` passes.
 
 ---
 
-### T9 — `packages/auth` + `identity` · Size L · depends: T8
+### T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · Size L · depends: T7 · **before T8**
 
-**Deliverable:** the five login types' foundation.
+**Why split.** T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. v2 scheduled all of identity after T8, which made T8 unprovable. Full sub-tasks: `docs/PRD.md` P0-T9a.
 
 **Files**
 ```
-packages/auth/src/{config.ts,plugins.ts,client.ts,index.ts}
+packages/auth/src/{config.ts,principal.ts,client.ts,index.ts}
 packages/db/schema/identity.ts
-packages/db/migrations/0003_identity.sql
 apps/api/src/modules/identity/**
 ```
 
 **Required behaviour**
-- Better Auth self-hosted on the Drizzle adapter, with the `organization`, `two-factor`, `phone-number` and `api-key` plugins. Auth tables live in **our** Postgres under the same RLS.
-- `packages/auth` is the **only** code that issues or verifies a session, hashes a password, or hashes a PIN.
-- `@Require('action:resource:scope')` guard resolving the membership server-side. A controller method without a guard fails CI.
-- Use cases: `register-device`, `approve-device`, `revoke-device`, `set-cashier-pin`, `verify-cashier-pin`.
-- Redis rate limits on PIN attempts and login.
+- Better Auth self-hosted on the Drizzle adapter: email + password and the `two-factor` (TOTP) plugin. Tables classified exactly as ADR-0003 says.
+- `memberships` (user-keyed RLS bridge), `roles`, `permissions` (seeded from code), `role_permissions` (with `constraints jsonb`), `permission_overrides` (ALLOW/DENY, reason, granted_by, expires_at), `starts_at` / `ends_at` on memberships — per `09` §11, replacing the single `permission_overrides jsonb` in `SPEC.md` §4.
+- `@Require('action:resource:scope')` guard: principal and membership resolved server-side, deny by default, union of applicable memberships minus any DENY (precedence per PRD D-31). A route without a guard fails CI.
+- `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI).
+- `onboard-company` use case in `identity`: company (through a tenancy port) + first owner membership in **one** transaction; last-owner protection.
+- Role bundles seeded as **provisional** codes (see `SPEC.md` §8 q3).
 
-**Blocked on:** `SPEC.md` §8 questions 3, 4, 5. Mark `TODO(spec)` and stop rather than choosing values.
+**Done when:** a real login produces a session; a user with two company memberships can switch only between those two; a guard-less route and a disabled feature are both refused in tests.
 
-**Done when:** PIN verification works against a stored hash, a revoked device is rejected on next contact, and every sensitive action writes an `AuditLog` row.
+---
+
+### T9b — Devices, cashier PINs, remaining auth plugins · Size L · depends: T8
+
+**Full sub-tasks:** `docs/PRD.md` P0-T9b.
+
+**Files:** `packages/db/schema/identity.ts` (extended), `packages/db/migrations/NNNN_devices_pins.sql`, `apps/api/src/modules/identity/**`
+
+**Required behaviour**
+- `packages/auth` is the **only** code that issues or verifies a session, hashes a password, or hashes a PIN — enforced by `no-restricted-imports` on hashing libraries outside the package.
+- `phone-number` and `api-key` plugins installed but not wired until a delivery channel (Phase 1) or the public API (Phase 5) exists. `organization` only if ADR-0003 gives it a role.
+- `cashier_pins`, `devices` with tenant-qualified FKs to branches. Platform role codes seeded, unused until Phase 5.
+- Use cases: `register-device` (pairing code, short Redis TTL), `approve-device`, `revoke-device`, `set-cashier-pin`, `verify-cashier-pin`. Redis rate limits on PIN attempts and login.
+- Every sensitive action (PIN change, device approval/revocation, role change, override) writes an `AuditLog` row.
+
+**Blocked on:** `SPEC.md` §8 questions 4 and 5. Mark `TODO(spec)` and stop rather than choosing values.
+
+**Done when:** PIN verification works against a stored hash, a revoked device is rejected on next contact, membership removal takes effect on the next request, and every sensitive action writes an `AuditLog` row.
 
 ---
 
@@ -329,7 +350,7 @@ build all apps → docker images
 
 ---
 
-### T13 — Staging deploy + backups · Size L · depends: T12
+### T13 — Staging deploy + backups · Size L · depends: T9b, T10, T11, T12b
 
 **Deliverable:** a staging environment that can be rolled back, and a backup that has been restored.
 
@@ -337,7 +358,7 @@ build all apps → docker images
 
 **Required behaviour**
 - Dokploy + Traefik. Migrations run as **their own step before** new containers start.
-- Multi-stage builds on `node:22-alpine`, production dependencies only.
+- Multi-stage builds on `node:24-alpine` (ADR-0002), production dependencies only.
 - **`apps/worker` bootstrap ships here** — `main.ts`, `/health`, `/ready`, BullMQ connection and the outbox dispatcher (poll → publish → mark published, with retry and consumer-side dedupe by `event_id`). Without a dispatcher the outbox writer from T7 delivers nothing, and Phase 1 commissions would consume an empty stream.
 - **No Chromium and no Arabic fonts in the worker image yet** — document rendering is out of scope for Phase 0 (`SPEC.md` §2). They arrive in Phase 5 with `packages/documents`, and the memory limit is set then.
 
@@ -364,8 +385,8 @@ build all apps → docker images
 
 ```
 T0 ─ T1 ─┬─ T2 ─┐
-         └─ T3 ─┴─ T4 ─ T6a ─ T5 ─ T6b ─┬─ T7 ─ T8 ─┬─ T9
-                                        │            └─ T10
+         └─ T3 ─┴─ T4 ─ T6a ─ T5 ─ T6b ─┬─ T7 ─ T9a ─ T8 ─┬─ T9b
+                                        │                  └─ T10
                                         └─ T11
                                  T1 ─ T12a        T12b ─ T13
 ```
@@ -373,10 +394,11 @@ T0 ─ T1 ─┬─ T2 ─┐
 - **T0** now precedes everything. The auth ↔ RLS boundary is a schema decision, not a T9 detail.
 - **T6 splits.** `CLAUDE.md` §1 mandates *contract → migration*, and the first draft had the schema (T5) before the contracts (T6), contradicting the project's own rule. **T6a** (Zod contracts for tenancy) moves **before** T5; **T6b** (the NestJS app, filter, health, OpenAPI) stays after it.
 - **T12 splits.** A minimal CI — typecheck, lint, unit — runs from **T12a at T1**, otherwise "every rule is a CI gate" is false for the first two weeks of PRs. **T12b** adds the full gate once there is something to gate.
-- **T13 depends on T9, T10 and T11**, not only on T12. Staging must not be declared done while the worker, i18n and observability are missing.
+- **T9 splits (v3).** **T9a** (Better Auth, memberships, guards, feature flags, `onboard-company`) moves **before** T8, because T8's API-level isolation proof needs real sessions and its first-owner rule needs memberships. **T9b** (devices, PINs, remaining plugins) stays after T8.
+- **T13 depends on T9b, T10 and T11**, not only on T12. Staging must not be declared done while the worker, i18n and observability are missing.
 - **Redaction moves earlier.** The pino redaction list lands with **T6b**, not T11. Adding it after real requests have been logged means the exposure already happened.
 
-**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T8 → T9 → T12b → T13
+**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → **T9a → T8** → T9b → T12b → T13
 
 T11 can run in parallel with T7–T8; it touches no module code.
 
@@ -393,19 +415,31 @@ The first draft said 4 weeks. The review rejected that as "an optimistic coding 
 | 1 | T0 · T1 · T2 · T3 · T12a |
 | 2 | T4 · T6a · **T5** |
 | 3 | T5 (isolation suite) · T6b · T7 |
-| 4 | T7 · T8 |
-| 5 | T9 |
-| 6 | T9 · T10 · T11 |
+| 4 | T7 · T9a |
+| 5 | T9a · T8 |
+| 6 | T9b · T10 · T11 |
 | 7 | T12b · T13 |
 | 8 | buffer — open questions, rework, the PITR rehearsal |
 
 ≈ **6–8 weeks**, against the 3–4 weeks in `06_Tech_Stack_Architecture_EN.md` §7. **That doc's estimate is optimistic and should be updated**, or Phase 0's acceptance bar lowered deliberately — but not silently.
 
-**Most likely to overrun: T9** (Better Auth + identity). Estimated 7–12 working days rather than 2–3. AI accelerates writing code far more reliably than it accelerates verifying security.
+**Most likely to overrun: T9a + T9b** (Better Auth + identity). Estimated 7–12 working days together rather than 2–3. AI accelerates writing code far more reliably than it accelerates verifying security.
 
 ---
 
 ## 4. Revision log
+
+**v3 — 2026-09-22.** Synced with `docs/PRD.md` v1.1 §13 items 4, 7, 12 and 22 (itself revised after a second Codex review, `docs/PRD-CODEX-REVIEW.md`).
+
+| Change | Why |
+|---|---|
+| **T9 → T9a (before T8) + T9b (after T8)** | T8's API-level proof needs real sessions; `onboard-company` needs memberships |
+| Company creation moves from `tenancy` to `identity`'s `onboard-company` | a company is never ownerless, and no undeclared `tenancy → identity` write |
+| T8 gains scenarios `TEN-01`…`TEN-05` and the spy-on-`withTenant` proof | the success criterion's second half, made testable |
+| ADR for T0 is **0003**, not 0001 | 0001 and 0002 were already taken |
+| `node:24-alpine`, not 22 | ADR-0002 pins Node 24 |
+| Duplicate `## 4.` heading fixed | — |
+| `SPEC.md` §8 q2 and q3 no longer block the schema | provisional seeds; renaming later is a data migration |
 
 **v2 — 2026-09-17.** Adversarial review by Codex `gpt-6-astra` (effort `high`); full text in `CODEX-REVIEW.md`. Verdict on v1: **NEEDS REVISION**.
 
@@ -439,21 +473,21 @@ The first draft said 4 weeks. The review rejected that as "an optimistic coding 
 
 ---
 
-## 4. Where the implementer must stop and ask
+## 5. Where the implementer must stop and ask
 
-- Any of the six `TODO(spec)` questions blocking the current task
+- Any `TODO(spec)` question in `SPEC.md` §8 or `docs/PRD.md` §11 that blocks the current task
 - Any need for a dependency arrow not already in `docs/module-map.md`
 - Any temptation to add a library not named in `06_Tech_Stack_Architecture_EN.md` §1
 - Any case where a rule in `CLAUDE.md` appears to conflict with this plan — **the rule wins, and the plan is wrong**
 
 ---
 
-## 5. Known risks
+## 6. Known risks
 
 | Risk | Why it matters | Mitigation in this plan |
 |---|---|---|
 | RLS looks right but is bypassable | Silent cross-tenant leak — the worst possible bug | Four negative assertions in T5, run in CI on every PR |
-| Better Auth's Drizzle adapter fights our RLS | Auth tables live in the same database under the same policies | T9 is scheduled after T8 so the pattern is already proven on simpler tables |
+| Better Auth's Drizzle adapter fights our RLS | Login runs before a tenant is known | T0 (ADR-0003) classifies every auth table before any schema; T9a proves real login against RLS before T8 relies on it |
 | Idempotency added later | Retried POSTs double-create orders in Phase 2 | T7 ships it before the first real write in T8 |
 | CI added at the end | Rules go unenforced for weeks and drift accumulates | T12 starts right after T5 and grows |
 | Backups configured but never tested | An untested backup is a hypothesis, not a backup | T13 is not done until one restore has been performed |

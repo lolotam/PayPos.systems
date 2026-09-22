@@ -375,14 +375,14 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 - [ ] P0-T0.8 Define the **first-owner bootstrap** without an ownerless intermediate company and without an undeclared `tenancy → identity` write. Proposed: an `identity` use case `onboard-company` (identity may import tenancy per `module-map.md`) creates the company through a tenancy port and the owner membership in the **same** transaction. Also specify who may administer memberships afterwards (privileged, audited).
 - **Done when:** Waleed approves ADR-0003 with every enabled auth and plugin table classified, before any migration is generated.
 
-#### P0-T1 — Workspace skeleton · S · ✅ (PR #1 merged; PR #2 open with Codex review fixes)
+#### P0-T1 — Workspace skeleton · S · ✅ (PR #1 and PR #2 merged)
 
 - [x] P0-T1.1 `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.base.json`, `.gitignore`, `.env.example`, `.editorconfig`, `README.md`, `.nvmrc`, Prettier.
 - [x] P0-T1.2 `packages/config/eslint/{index,boundaries,jsdoc}.js` with `boundaries`, `jsdoc` scoped to `domain/**` + `ports/**` + `events/published.ts`, `max-lines` 400 error, `max-lines-per-function` 60, `no-warning-comments`, `no-restricted-imports` / `no-restricted-globals` for `use-cases/`.
 - [x] P0-T1.3 `packages/config/scripts/lint-docs.mjs` (rejects JSDoc without Arabic in the mandatory folders).
 - [x] P0-T1.4 ADR-0002 workspace tooling baseline (TS pinned to 6.0, pnpm build scripts denied by default, minimum release age).
 - [x] P0-T1.5 `pnpm check` = `turbo run typecheck lint test && pnpm lint:docs`.
-- [ ] P0-T1.6 Merge PR #2 (`fix/phase0-t1-codex-review`).
+- [x] P0-T1.6 Merge PR #2 (`fix/phase0-t1-codex-review`).
 - **Done when:** `pnpm install` and `pnpm check` exit 0 on the empty workspace. ✅
 
 #### P0-T2 — Local infrastructure · S · ⬜ · depends T1
