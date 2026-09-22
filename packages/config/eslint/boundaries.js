@@ -41,7 +41,8 @@ export const boundariesConfig = [
         layer('jobs'),
         layer('events'),
         // Must stay last: first match wins, so this only catches files at the module root
-        // (<module>.module.ts and index.ts).
+        // (index.ts and <module>.module.ts). Which of those may be imported is decided by
+        // the entry-point rule below.
         { type: 'module-root', pattern: 'modules/*', capture: ['module'] },
       ],
     },
@@ -82,6 +83,18 @@ export const boundariesConfig = [
           ],
         },
       ],
+      // CLAUDE.architecture.md §5.1 — index.ts is the module's only public surface.
+      // A deep import of <module>.module.ts (or anything else) from another module fails here.
+      'boundaries/entry-point': [
+        2,
+        {
+          default: 'allow',
+          policies: [
+            { target: { type: 'module-root' }, allow: ['index.ts'] },
+            { target: { type: 'module-root' }, disallow: ['!(index.ts)'] },
+          ],
+        },
+      ],
     },
   },
   {
@@ -104,6 +117,16 @@ export const boundariesConfig = [
   {
     files: ['apps/**/modules/*/use-cases/**/*.ts'],
     rules: {
+      // Node exposes fetch as a global, so an import ban alone would miss it.
+      'no-restricted-globals': [
+        'error',
+        {
+          globals: [
+            { name: 'fetch', message: 'use-cases/ reach the network only through a port.' },
+          ],
+          checkGlobalObject: true,
+        },
+      ],
       'no-restricted-imports': [
         'error',
         {

@@ -52,5 +52,15 @@ The test runner is chosen in T3, the first slice that has tests.
 - `pnpm check` = `turbo run typecheck lint test` + `pnpm lint:docs`, and CI runs exactly that.
 - ESLint allows 400 lines per file (error). The 300-line *warning* in `CLAUDE.md` §3 cannot be expressed
   alongside the error with one rule; it is left to review until a custom rule is worth writing.
-- Boundaries: cross-module imports resolve only through a module's `index.ts`; which *modules* may
-  import which is checked separately against `docs/module-map.md` in T12.
+- Boundaries: cross-module imports resolve only through a module's `index.ts` (enforced by
+  `boundaries/entry-point`); which *modules* may import which is checked separately against
+  `docs/module-map.md` in T12.
+- `use-cases/` cannot call the global `fetch` (`no-restricted-globals`), not only import an HTTP client.
+- `events/published.ts` needs a JSDoc on every exported interface/type alias.
+- `pnpm lint:docs` rejects a JSDoc block in `domain/**`, `ports/**` or `events/published.ts` that
+  contains no Arabic letter — the language rule in `CLAUDE.md` §3.1 is a gate, not a convention.
+
+### Amendment 2026-09-22 — after Codex review of PR #1
+
+The four points above were added in response to the automated review. `CLAUDE.architecture.md` and
+`docs/module-map.md` were added to the repo in the same PR.
