@@ -43,20 +43,33 @@ Owned by Better Auth and reached **only** through `packages/auth`, on the dedica
 | `account` | core | password hash lives here; never selected by any module |
 | `verification` | core | email / reset tokens |
 | `two_factor` | `two-factor` plugin | TOTP secret + backup codes, encrypted at rest |
-| `apikey` | `api-key` plugin | installed in T9b, wired in Phase 5; **each key row carries a `company_id` in its metadata and is resolved to a membership-equivalent principal** — an API key never bypasses tenant resolution |
+| `apikey` | `api-key` plugin | installed in T9b, wired in Phase 5; carries a non-updatable **`company_id` column** and its own scopes (§4 path C) — an API key never bypasses tenant resolution |
 
 **Not enabled:** the `organization` plugin. Its `organization`, `member` and `invitation` tables are not created. See §5.1.
 
 ### 2.2 The bridge — RLS keyed on the user, and on the company for administrators
 
-| Table | Policy |
-|---|---|
-| `memberships` | `USING (user_id = current_setting('app.user_id', true)::uuid OR company_id = current_setting('app.company_id', true)::uuid)` — `WITH CHECK (company_id = current_setting('app.company_id', true)::uuid)` |
-| `permission_overrides` | same shape as `memberships` (it hangs off a membership) |
+**Every policy in this repository reads the context through two SQL helpers**, never through a raw cast. On a pooled connection a transaction-local setting that was set earlier survives as an empty string, and `''::uuid` raises `22P02` instead of matching nothing:
+
+```sql
+CREATE FUNCTION app_company_id() RETURNS uuid LANGUAGE sql STABLE SET search_path = pg_catalog
+  AS $$ SELECT NULLIF(current_setting('app.company_id', true), '')::uuid $$;
+CREATE FUNCTION app_user_id() RETURNS uuid LANGUAGE sql STABLE SET search_path = pg_catalog
+  AS $$ SELECT NULLIF(current_setting('app.user_id', true), '')::uuid $$;
+```
+
+Both are `SECURITY INVOKER` (the default). In addition, **both wrappers set both settings on every call** — the one they do not use is set to `''` — so no transaction inherits a value from the previous one.
+
+Policies are **split by command**. A combined `FOR ALL` policy is wrong here: `DELETE` never evaluates `WITH CHECK`, and an `UPDATE` could reach a row that is only visible through the user branch.
+
+| Table | `FOR SELECT` | `FOR INSERT / UPDATE / DELETE` |
+|---|---|---|
+| `memberships` | `USING (user_id = app_user_id() OR company_id = app_company_id())` | `USING (company_id = app_company_id())` `WITH CHECK (company_id = app_company_id())` |
+| `permission_overrides` | same as `memberships` | same as `memberships` |
 
 - The **user branch** lets a just-authenticated user list their own companies (via `withUser()`, §3) without already having a company.
 - The **company branch** lets an owner or manager administer the memberships of *their* company inside `withTenant()`. Whether they may is decided by the guard (`manage:memberships:company`), not by RLS.
-- Writes are always company-scoped: nobody inserts a membership into another company, including their own row.
+- Writes are always company-scoped: nobody inserts, changes or deletes a membership outside the current company — not even their own membership in another company, which the SELECT policy lets them *see*.
 
 ### 2.3 Global reference data — no RLS, read-only for the app
 
@@ -64,10 +77,16 @@ Owned by Better Auth and reached **only** through `packages/auth`, on the dedica
 |---|---|
 | `plans` | platform-level (Phase 0 T5.3) |
 | `permissions` | the catalogue of `action:resource:scope` strings, **seeded from code** on migrate |
-| `roles` | system roles have `company_id IS NULL`. Custom company roles (Phase 1+) set `company_id` and follow §2.4; the policy is `USING (company_id IS NULL OR company_id = current_setting('app.company_id', true)::uuid)`, `WITH CHECK (company_id = current_setting('app.company_id', true)::uuid)` |
-| `role_permissions` | follows its role |
+| `roles` | system roles have `company_id IS NULL`; custom company roles (Phase 1+) set `company_id` |
+| `role_permissions` | carries the same nullable `company_id` as its role, enforced by a composite FK `(company_id, role_id)` |
 
-`pospay_app` has `SELECT` only on the system rows; it cannot modify a plan, a permission, or a system role.
+`plans` and `permissions` have no RLS, and `pospay_app` has `SELECT` only. `roles` and `role_permissions` mix global and company rows, so they get **split** policies:
+
+| Table | `FOR SELECT` | `FOR INSERT / UPDATE / DELETE` |
+|---|---|---|
+| `roles`, `role_permissions` | `USING (company_id IS NULL OR company_id = app_company_id())` | `USING (company_id = app_company_id())` `WITH CHECK (company_id = app_company_id())` |
+
+A system row has `company_id IS NULL`, so it never satisfies the mutation policy: a tenant can read it but cannot update it, re-home it into its own company, or delete it. T5 adds a negative test for each of the three.
 
 ### 2.4 Tenant data — everything else
 
@@ -95,13 +114,40 @@ withUser(userId, fn)                    // sets app.user_id only — for listing
 
 ## 4. Request flow and the principal contract
 
+There are **three** credential types, and each binds to a tenant differently. All three end at the same place — a verified `companyId` — and nothing reaches `withTenant()` for business work before that verification.
+
+**A. User session** (admin app, platform):
+
 ```
-request ─► packages/auth: verify session / device token / API key      (pospay_auth, global)
-        ─► withUser(userId): load the user's active memberships          (bridge, user branch)
-        ─► pick the requested company (header or session hint)
-        ─► REFUSE unless one of those memberships is for that company    ← before any tenant query
-        ─► withTenant(companyId, fn, { userId }): every business query        (tenant RLS)
+verify session cookie                          packages/auth · pospay_auth · global
+─► withUser(userId): active memberships        bridge · user branch
+─► requested company (header or session hint)
+─► REFUSE unless a membership covers it        ← before any tenant query
+─► withTenant(companyId, fn, { userId })       tenant RLS
 ```
+
+**B. Device token** (POS). A device belongs to exactly one branch of one company, and `devices` is tenant data. The token therefore **names** its tenant and is **proven** inside it:
+
+```
+token = pd_<companyId>.<deviceId>.<secret>     issued once by approve-device, stored hashed
+─► parse companyId, deviceId                   no DB access yet
+─► withTenant(companyId, fn)                   tenant RLS
+     load devices WHERE id = deviceId          0 rows if the companyId was forged
+     constant-time compare hash(secret) with token_hash; status must be ACTIVE
+─► REFUSE on any mismatch — one error for every case, so it is not an oracle
+```
+
+A forged `companyId` finds no row, because RLS hides every other company's devices. A cashier PIN entered afterwards adds `employeeId` to the principal; it never adds a `userId`.
+
+**C. API key** (Phase 5 public API). `apikey` is global identity (§2.1), so it is resolved on `pospay_auth`, but it carries a **`company_id` column** — not free-form metadata — fixed at creation and never updatable:
+
+```
+verify key hash                                packages/auth · pospay_auth · global
+─► companyId = apikey.company_id, scopes from the key
+─► withTenant(companyId, fn)                   tenant RLS; the guard checks the key's scopes, not memberships
+```
+
+`withUser()` is used by path A only.
 
 The resolved principal, defined in `packages/auth/src/principal.ts` (T9a):
 
@@ -118,7 +164,7 @@ type Principal = {
 
 ### 4.1 Rules
 
-- **Company switching.** The client may *ask* for any company id. The server honours it only if the user has an active membership in it; otherwise 403 before `withTenant()` is called. `session.active_company_id` is a convenience hint and is re-checked on every request. (T8 proves this with a spy on `withTenant`.)
+- **Company switching (path A).** The client may *ask* for any company id. The server honours it only if the user has an active membership in it; otherwise 403 before `withTenant()` is called. `session.active_company_id` is a convenience hint and is re-checked on every request. (T8 proves this with a spy on `withTenant`.)
 - **Membership removal** takes effect on the next request: memberships are read per request, and the permission cache in Redis is invalidated on every membership or override change.
 - **Membership window.** `starts_at` / `ends_at` are enforced in the query, not in a nightly job.
 - **Device revocation** is rejected on the next contact; a revoked device's unsynced sales are quarantined, never discarded (PRD §8.4).
@@ -163,6 +209,10 @@ Controller guard scanning cannot see routes mounted by Better Auth's handler, so
 | `GET  /health` · `GET /ready` | probes |
 
 Every public route is rate-limited in Redis. Sign-up is **not** public: companies are created by `onboard-company`, invited users by an invitation flow in T9a.
+
+## 6a. Revisions
+
+**2026-09-22, after Codex review of PR #5:** §4 split into three resolution paths (device tokens and API keys cannot go through `withUser()`); §2.2 and §2.3 policies split by command, so a tenant cannot delete or re-home a global role; every policy reads context through the `NULLIF` helpers, and both wrappers always set both settings.
 
 ## 7. Consequences
 
