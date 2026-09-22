@@ -93,6 +93,10 @@ Branch
   is_active · created_at
 
 Plan            id · code · name_ar · name_en · feature_flags jsonb
+CompanyFeatureOverride  company_id (FK → companies.id) · flag · enabled bool
+                reason · set_by · set_at · expires_at?
+                PK (company_id, flag) · RLS on company_id · read by the T9a feature guard
+                effective flag = override if present and unexpired, else the plan's flag
 User            (owned by Better Auth tables)
 Membership      id · company_id · user_id · scope (COMPANY|BUSINESS|BRANCH)
                 scope_id · role · permission_overrides jsonb
@@ -147,7 +151,7 @@ Drizzle config, drizzle-kit migrations wiring, `withTenant(companyId, fn)`, migr
 **Done when:** a throwaway migration applies and rolls forward cleanly.
 
 ### S5 — `tenancy` schema + RLS ⭐ **the success criterion**
-Tables: `plans`, `companies`, `businesses`, `branches`. RLS policies, `FORCE ROW LEVEL SECURITY`, composite indexes, and the **negative isolation tests** (cross-tenant read = 0 rows, cross-tenant write errors) running against a real Postgres via testcontainers.
+Tables: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides`. RLS policies, `FORCE ROW LEVEL SECURITY`, composite indexes, and the **negative isolation tests** (cross-tenant read = 0 rows, cross-tenant write errors) running against a real Postgres via testcontainers.
 **Done when:** the negative tests pass and are wired into `pnpm test`.
 
 ### S6 — `packages/contracts` + `apps/api` skeleton

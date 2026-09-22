@@ -224,7 +224,7 @@ IdempotencyKey (scope_type COMPANY|USER, scope_id, company_id?, user_id?, operat
 Plan (code, names, feature_flags, limits)   ApprovalRequest (company, type, requested_by, payload, status, decided_by, note)
 ```
 
-**Global vs tenant tables (from Phase 0 T0).** Better Auth's `user`, `session`, `account`, `verification` are global identity tables with no `company_id` and no tenant RLS, reachable only through a narrowly privileged auth role. `memberships` is the bridge, RLS-keyed on `app.user_id`. Everything else is tenant data under `app.company_id`. `plans` is platform reference data: readable, never writable by the app role.
+**Global vs tenant tables — canonical source is ADR-0003 §2.** In short: *global identity* (`user`, `session`, `account`, `verification`, `two_factor`, `apikey`, `platform_grants`) has no tenant RLS and is reached only through `packages/auth`; the *bridge* (`memberships`, `permission_overrides`) is readable by `app.user_id` or `app.company_id`, writable by company only; *mixed-scope* tables are `roles` / `role_permissions` (global or company rows) and **`idempotency_keys`** (`COMPANY` rows by `app_company_id()`, `USER` rows by `app_user_id()` — the `USER` form exists for onboarding, before any tenant); *global reference* is `plans` and `permissions`, read-only for the app; `companies` is the tenant root keyed on `id`; everything else is tenant data under `app.company_id`.
 
 ---
 

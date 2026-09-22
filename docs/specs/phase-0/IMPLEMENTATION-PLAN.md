@@ -291,7 +291,7 @@ This lives in T9a, not T8, because T8 depends on T9a.
 - `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI).
 - **`onboard-company` is a complete slice**, with every requirement T8 has for its own writes:
   - spec `docs/specs/NNN-identity-onboard-company/spec.md` and Zod contract in `packages/contracts`;
-  - `POST /v1/companies`, guarded; **who may call it is `TODO(spec)` PRD D-34** — Phase 0 tests call it as a seeded platform user;
+  - `POST /v1/companies`, guarded by `@RequirePlatform('create:companies:platform')` backed by the `platform_grants` table, the `pnpm platform:grant` setup script and `Principal.grants` (ADR-0003 §3–§4) — all delivered **in T9a**; whether merchants may later self-onboard is PRD D-34;
   - `Idempotency-Key` in the **`USER` scope** (T7) — the retry cannot know the company id yet; the whole transaction runs inside `withNewTenant(callerUserId, company, fn)` (ADR-0003 §3), which generates the company id, sets `app.user_id` to the **authenticated caller** and `app.company_id` to the **new company id**, and inserts the company row first; company row + owner membership + `AuditLog` row + `CompanyCreated` outbox event, all in **one** transaction;
   - last-owner protection on later membership changes.
 - **Scenarios** (integration, real Postgres, real session): `ONB-01` happy path → company, owner membership, audit row and outbox event all exist; `ONB-02` the membership insert fails → **no** company row, **no** outbox row; `ONB-03` replayed key → identical stored response, one company; `ONB-04` **two companies created through the API** by two users — the first half of the phase's success criterion, which T5 and T8 then use.
