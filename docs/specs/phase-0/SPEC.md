@@ -98,8 +98,15 @@ CompanyFeatureOverride  company_id (FK → companies.id) · flag · enabled bool
                 PK (company_id, flag) · RLS on company_id · read by the T9a feature guard
                 effective flag = override if present and unexpired, else the plan's flag
 User            (owned by Better Auth tables)
-Membership      id · company_id · user_id · scope (COMPANY|BUSINESS|BRANCH)
-                scope_id · role · permission_overrides jsonb
+Membership      id · company_id · user_id? · employee_id? (exactly one) · role_id · role_owner_key
+                scope (COMPANY|BUSINESS|BRANCH) · scope_id · starts_at · ends_at?
+Role            id · company_id? (NULL = system role) · code · name_ar · name_en · owner_key (generated)
+Permission      code 'action:resource:scope' · seeded from code
+RolePermission  role_id · role_owner_key · company_id? · permission_code
+PermissionOverride  id · company_id · membership_id · permission_code · effect (ALLOW|DENY)
+                scope · scope_id · reason · granted_by · expires_at?
+PlatformGrant   user_id · permission · granted_by · granted_at · expires_at? · revoked_at?
+                (global, ADR-0003 §3)
 CashierPin      id · company_id · branch_id · employee_ref · pin_hash
                 rotated_at · failed_attempts · locked_until
 Device          id · company_id · branch_id · label · device_fingerprint

@@ -36,13 +36,16 @@ Deciding this *after* the schema is written means rewriting the schema. It is th
 
 **Deliverable:** `docs/adr/0003-auth-rls-boundary.md` (0001 is the domain topology ADR, 0002 the tooling baseline), plus the table classification it produces.
 
-**The decision to make — proposed answer, to be confirmed:**
+**The classification — canonical text is ADR-0003 §2; this is its index, not a second copy:**
 
-| Group | Tables | RLS |
-|---|---|---|
-| **Global identity** | Better Auth's `user`, `session`, `account`, `verification` | **No `company_id`, no tenant RLS.** These are identity, not tenant data. Reached only through a narrowly-privileged auth role that can touch these tables and nothing else. |
-| **The bridge** | `memberships` (ours) | RLS keyed on the **user**, not the company: `USING (user_id = current_setting('app.user_id')::uuid)`. This is what lets a just-authenticated user discover their companies without already having one. |
-| **Tenant data** | everything else | RLS on `company_id`, exactly as `CLAUDE.md` §5 says |
+| Class | Tables |
+|---|---|
+| **Global identity** (no tenant RLS, `packages/auth` / `pospay_auth` only) | `user`, `session`, `account`, `verification`, `two_factor`, `apikey` (fixed `company_id` column), `platform_grants`, `platform_audit_log` |
+| **Bridge** (read by user or company, write by company) | `memberships`, `permission_overrides` |
+| **Mixed scope** (global rows + company rows, split policies) | `roles`, `role_permissions`, `idempotency_keys` (`COMPANY` / `USER` scope) |
+| **Global reference** (read-only for the app) | `plans`, `permissions` |
+| **Tenant root** (keyed on `id`) | `companies` |
+| **Tenant data** | everything else |
 
 **Request flow this produces:** authenticate (global) → read memberships as the user → resolve the requested company and **verify membership server-side** → `withTenant(companyId, …)` for all business data.
 
@@ -287,7 +290,7 @@ This lives in T9a, not T8, because T8 depends on T9a.
 **Required behaviour**
 - Better Auth self-hosted on the Drizzle adapter: email + password and the `two-factor` (TOTP) plugin. Tables classified exactly as ADR-0003 says.
 - `memberships` (user-keyed RLS bridge), `roles`, `permissions` (seeded from code), `role_permissions` (with `constraints jsonb`), `permission_overrides` (ALLOW/DENY, reason, granted_by, expires_at), `starts_at` / `ends_at` on memberships — per `09` §11, replacing the single `permission_overrides jsonb` in `SPEC.md` §4.
-- `@Require('action:resource:scope')` guard: principal and membership resolved server-side, deny by default, union of applicable memberships minus any DENY (precedence per PRD D-31). A route without a guard fails CI.
+- `@Require('action:resource:scope')` guard: principal and membership resolved server-side, deny by default, union of applicable memberships with DENY-wins precedence evaluated at the request scope (PRD D-31, **decided** 2026-09-22; ADR-0003 §4). A route without a guard fails CI.
 - `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI).
 - **`onboard-company` is a complete slice**, with every requirement T8 has for its own writes:
   - spec `docs/specs/NNN-identity-onboard-company/spec.md` and Zod contract in `packages/contracts`;
@@ -305,7 +308,7 @@ This lives in T9a, not T8, because T8 depends on T9a.
 
 **Full sub-tasks:** `docs/PRD.md` P0-T9b.
 
-**Files:** `packages/db/schema/identity.ts` (extended), `packages/db/migrations/NNNN_devices_pins.sql`, `apps/api/src/modules/identity/**`
+**Files:** `packages/db/schema/identity.ts` (extended), `packages/db/migrations/NNNN_devices_pins.sql`, `apps/api/src/modules/identity/**`, `packages/auth/src/{config.ts,plugins.ts}` (phone-number and api-key plugins), `packages/config/eslint/index.js` (hashing-library import ban outside `packages/auth`)
 
 **Required behaviour**
 - `packages/auth` is the **only** code that issues or verifies a session, hashes a password, or hashes a PIN — enforced by `no-restricted-imports` on hashing libraries outside the package.
