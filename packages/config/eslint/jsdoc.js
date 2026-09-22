@@ -29,4 +29,20 @@ export const jsdocConfig = [
       'jsdoc/tag-lines': ['error', 'any', { startLines: 1 }],
     },
   },
+  {
+    // Every published event is a contract between modules; its comment says when it is emitted.
+    files: ['**/events/published.ts'],
+    plugins: { jsdoc },
+    rules: {
+      'jsdoc/require-jsdoc': [
+        'error',
+        {
+          publicOnly: true,
+          require: { FunctionDeclaration: false },
+          contexts: ['TSInterfaceDeclaration', 'TSTypeAliasDeclaration'],
+        },
+      ],
+      'jsdoc/require-description': 'error',
+    },
+  },
 ];
