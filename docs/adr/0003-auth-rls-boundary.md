@@ -1,6 +1,6 @@
 # ADR-0003 — The auth ↔ RLS boundary
 
-- **Status:** Proposed — awaiting Waleed's approval (P0-T0 "done when")
+- **Status:** Accepted — approved by Waleed on 2026-09-23 (P0-T0 done)
 - **Date:** 2026-09-22
 - **Task:** Phase 0 · T0 (`docs/specs/phase-0/IMPLEMENTATION-PLAN.md` v3, `docs/PRD.md` P0-T0.1 – P0-T0.8)
 - **Blocks:** T4 (roles), T5 (first migration), T9a (identity)
