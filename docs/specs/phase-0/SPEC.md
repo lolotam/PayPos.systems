@@ -1,6 +1,6 @@
 # Phase 0 — Foundation Spec
 
-> **Status:** Draft v1 · 2026-09-17
+> **Status:** Draft v2 · 2026-09-22 · §5 and §8 synced with `docs/PRD.md` v1.1
 > **Repo:** `E:\PosPay.systems\pospay` (product name: **PosPay**, domain `pospay.systems`)
 > **Governing docs:** `CLAUDE.md` · `CLAUDE.architecture.md` · `docs/06_Tech_Stack_Architecture_EN.md` · `docs/module-map.md`
 >
@@ -93,9 +93,20 @@ Branch
   is_active · created_at
 
 Plan            id · code · name_ar · name_en · feature_flags jsonb
+CompanyFeatureOverride  company_id (FK → companies.id) · flag · enabled bool
+                reason · set_by · set_at · expires_at?
+                PK (company_id, flag) · RLS on company_id · read by the T9a feature guard
+                effective flag = override if present and unexpired, else the plan's flag
 User            (owned by Better Auth tables)
-Membership      id · company_id · user_id · scope (COMPANY|BUSINESS|BRANCH)
-                scope_id · role · permission_overrides jsonb
+Membership      id · company_id · user_id? · employee_id? (exactly one) · role_id · role_owner_key
+                scope (COMPANY|BUSINESS|BRANCH) · scope_id · starts_at · ends_at?
+Role            id · company_id? (NULL = system role) · code · name_ar · name_en · owner_key (generated)
+Permission      code 'action:resource:scope' · seeded from code
+RolePermission  role_id · role_owner_key · company_id? · permission_code
+PermissionOverride  id · company_id · membership_id · permission_code · effect (ALLOW|DENY)
+                scope · scope_id · reason · granted_by · expires_at?
+PlatformGrant   user_id · permission · granted_by · granted_at · expires_at? · revoked_at?
+                (global, ADR-0003 §3)
 CashierPin      id · company_id · branch_id · employee_ref · pin_hash
                 rotated_at · failed_attempts · locked_until
 Device          id · company_id · branch_id · label · device_fingerprint
@@ -107,8 +118,10 @@ AuditLog        id · company_id · actor_user_id · entity · entity_id
                 action · before jsonb · after jsonb · at timestamptz
 Outbox          id · company_id · aggregate · event_type · payload jsonb
                 created_at · published_at?
-IdempotencyKey  key · company_id · request_hash · response_hash
-                created_at · expires_at
+IdempotencyKey  id · scope_type (COMPANY|USER) · scope_id · company_id? · user_id?
+                operation · key · request_fingerprint · status (IN_FLIGHT|COMPLETED|FAILED)
+                response_status · response_body jsonb · created_at · expires_at
+                UNIQUE (scope_type, scope_id, operation, key)
 ```
 
 ### Conventions (from `CLAUDE.md` §5, restated so Codex cannot miss them)
@@ -145,7 +158,7 @@ Drizzle config, drizzle-kit migrations wiring, `withTenant(companyId, fn)`, migr
 **Done when:** a throwaway migration applies and rolls forward cleanly.
 
 ### S5 — `tenancy` schema + RLS ⭐ **the success criterion**
-Tables: `plans`, `companies`, `businesses`, `branches`. RLS policies, `FORCE ROW LEVEL SECURITY`, composite indexes, and the **negative isolation tests** (cross-tenant read = 0 rows, cross-tenant write errors) running against a real Postgres via testcontainers.
+Tables: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides`. RLS policies, `FORCE ROW LEVEL SECURITY`, composite indexes, and the **negative isolation tests** (cross-tenant read = 0 rows, cross-tenant write errors) running against a real Postgres via testcontainers.
 **Done when:** the negative tests pass and are wired into `pnpm test`.
 
 ### S6 — `packages/contracts` + `apps/api` skeleton
@@ -157,10 +170,12 @@ Zod contracts for tenancy, error envelope `{ code, message_ar, message_en, detai
 **Done when:** a use case can append an outbox event inside its own transaction, proven by a test.
 
 ### S8 — `tenancy` use cases
-`create-company`, `create-business`, `create-branch`, plus `queries/` for list and detail. Each write: one transaction, `Idempotency-Key`, outbox event inside the transaction, audit log row.
+`create-business`, `create-branch`, plus `queries/` for list and detail. **No `create-company`:** a company is created only by `identity`'s `onboard-company` (S9 / T9a), together with its first owner, through `identity`'s own `CompanyRegistry` port, whose adapter calls the one write `tenancy` exports, `registerCompany`. Each write: one transaction, `Idempotency-Key`, outbox event inside the transaction, audit log row.
 **Done when:** integration tests cover happy path and the listed edge cases.
 
 ### S9 — `packages/auth` + `identity`
+> Delivered in two parts, T9a **before** S8 and T9b after it — see `IMPLEMENTATION-PLAN.md` v3 §2.
+
 Better Auth self-hosted on the Drizzle adapter with the `organization`, `two-factor`, `phone-number` and `api-key` plugins. Then `memberships`, the `@Require('action:resource:scope')` guard, `cashier_pins`, `devices`, and the use cases `register-device`, `approve-device`, `revoke-device`, `set-cashier-pin`, `verify-cashier-pin`.
 **Done when:** a request with no guard fails CI; PIN verification works against a stored hash; a revoked device is rejected.
 
@@ -213,8 +228,8 @@ Dokploy staging: `api`, `worker`, `postgres`, `redis`, `traefik`. Migrations run
 These need Waleed's answer before the slice that depends on them:
 
 1. **Product name.** The product is **PosPay** (repo `pospay`, domain `pospay.systems`, ADR-0001). Still open: legal review of "Pay" in the name before it goes in the invoice header and the WABA verified name. *(blocks the S10 invoice header only)*
-2. **Plans at launch.** How many, what are they called, and which feature flags separate them? *(blocks S5 seed)*
-3. **Role names.** `09_Dashboards_Roles_Permissions_AR.md` has the matrix — confirm the exact role codes to seed. *(blocks S9)*
+2. **Plans at launch.** How many, what are they called, and which feature flags separate them? *(does **not** block S5: seed one **provisional** plan; renaming later needs no schema change — PRD D-06)*
+3. **Role names.** `09_Dashboards_Roles_Permissions_AR.md` has the matrix — confirm the exact role codes. *(does **not** block S9: seed **provisional** codes; renaming is a data migration — PRD D-07. Final names needed before the Phase 1 pilot)*
 4. **PIN length.** 4 or 6 digits? Lockout after how many failures, and for how long? *(blocks S9)*
 5. **Device token lifetime.** 7 or 30 days, and what is the renewal window? *(blocks S9)*
 6. **Staging host.** Which existing VPS hosts staging, or is a new one provisioned? *(blocks S13)*

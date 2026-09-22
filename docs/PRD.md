@@ -220,11 +220,11 @@ StockItem / StockLocation / StockMovement (item, location, qty_delta, unit_cost,
 Recipe / RecipeIngredient / ProductionOrder ; Purchase / PurchaseLine ; Transfer ; StockCount ; Wastage
 ServiceMaterialUsage (item, stock_item, qty)
 AuditLog (company, actor, entity, action, before, after, at)   Outbox (id, aggregate, event_type, payload, created_at, published_at)
-IdempotencyKey (key, company_id, operation, request_fingerprint, status, response_status, response_body, expires_at)
+IdempotencyKey (scope_type COMPANY|USER, scope_id, company_id?, user_id?, operation, key, request_fingerprint, status, response_status, response_body, expires_at)
 Plan (code, names, feature_flags, limits)   ApprovalRequest (company, type, requested_by, payload, status, decided_by, note)
 ```
 
-**Global vs tenant tables (from Phase 0 T0).** Better Auth's `user`, `session`, `account`, `verification` are global identity tables with no `company_id` and no tenant RLS, reachable only through a narrowly privileged auth role. `memberships` is the bridge, RLS-keyed on `app.user_id`. Everything else is tenant data under `app.company_id`. `plans` is platform reference data: readable, never writable by the app role.
+**Global vs tenant tables — canonical source is ADR-0003 §2.** In short: *global identity* (`user`, `session`, `account`, `verification`, `two_factor`, `apikey`, `platform_grants`) has no tenant RLS and is reached only through `packages/auth`; the *bridge* (`memberships`, `permission_overrides`) is readable by `app.user_id` or `app.company_id`, writable by company only; *mixed-scope* tables are `roles` / `role_permissions` (global or company rows) and **`idempotency_keys`** (`COMPANY` rows by `app_company_id()`, `USER` rows by `app_user_id()` — the `USER` form exists for onboarding, before any tenant); *global reference* is `plans` and `permissions`, read-only for the app; `companies` is the tenant root keyed on `id`; everything else is tenant data under `app.company_id`.
 
 ---
 
@@ -313,7 +313,7 @@ Four financial rules close the gaps a 24-hour idempotency window leaves open:
 
 ### 8.5 Reliability
 
-Idempotency store with replayable response, scoped uniqueness (`key` + `company_id` + `operation`), request-fingerprint mismatch → 422, `IN_FLIGHT` → 409, 24 h retention · outbox written in the same transaction, dispatched by the worker, consumers idempotent by `event_id`, replay is a supported recovery tool · inbound webhooks: verify signature → store raw → enqueue → ack 200, dedupe by provider event id · `/health` and `/ready` on `api` and `worker` · every container has a healthcheck, memory limit and restart policy · migrations run as their own step before containers, expand/contract, indexes `CONCURRENTLY`, never destructive in the same release · previous image must still serve against the new schema (proven in staging) · backups: nightly logical `pg_dump` + physical base backup with continuous WAL archiving (pgBackRest or wal-g) to Backblaze B2, RPO ≤ 5 min, RTO ≤ 2 h, both rehearsed, both checking in to Healthchecks.io · a deploy that cannot be rolled back in one click is not finished.
+Idempotency store with replayable response, scoped uniqueness (`scope` + `operation` + `key`, scope = company, or the user for bootstrap writes), request-fingerprint mismatch → 422, `IN_FLIGHT` → 409, 24 h retention · outbox written in the same transaction, dispatched by the worker, consumers idempotent by `event_id`, replay is a supported recovery tool · inbound webhooks: verify signature → store raw → enqueue → ack 200, dedupe by provider event id · `/health` and `/ready` on `api` and `worker` · every container has a healthcheck, memory limit and restart policy · migrations run as their own step before containers, expand/contract, indexes `CONCURRENTLY`, never destructive in the same release · previous image must still serve against the new schema (proven in staging) · backups: nightly logical `pg_dump` + physical base backup with continuous WAL archiving (pgBackRest or wal-g) to Backblaze B2, RPO ≤ 5 min, RTO ≤ 2 h, both rehearsed, both checking in to Healthchecks.io · a deploy that cannot be rolled back in one click is not finished.
 
 ### 8.6 Observability
 
@@ -365,7 +365,7 @@ The phase order follows `06` §7 (the governing doc), `05_App_Blueprint_Build_Pl
 
 Login happens before a tenant is known, so Better Auth's own queries cannot run inside `withTenant()`, and a user may belong to several companies.
 
-- [ ] P0-T0.1 Write `docs/adr/0003-auth-rls-boundary.md` (the plan says `0001`, but 0001 is the domain ADR — see §13). Classify tables: **global identity** (`user`, `session`, `account`, `verification`: no `company_id`, no tenant RLS, reached only through a narrowly privileged auth role with table grants and **no** `BYPASSRLS`), **the bridge** (`memberships`: RLS `USING (user_id = current_setting('app.user_id')::uuid)`), **tenant data** (everything else on `company_id`).
+- [ ] P0-T0.1 Write `docs/adr/0003-auth-rls-boundary.md` (the plan says `0001`, but 0001 is the domain ADR — see §13). Classify **every** table into the ADR-0003 §2 classes: global identity (incl. plugin tables, `platform_grants`, `platform_audit_log`), bridge (`memberships`, `permission_overrides`), mixed scope (`roles`, `role_permissions`, `idempotency_keys`), global reference (`plans`, `permissions`), tenant root (`companies`), tenant data. No role has `BYPASSRLS`.
 - [ ] P0-T0.2 Record the request flow: authenticate (global) → read memberships as the user → resolve requested company and verify membership server-side → `withTenant(companyId, …)` for all business data.
 - [ ] P0-T0.3 Amend `CLAUDE.md` §5 with a named exception for the auth path (do not quietly break the "all access through `withTenant()`" rule).
 - [ ] P0-T0.4 Decide the single authorization authority: our `memberships` table owns authorization; Better Auth `organization` plugin is used for nothing it duplicates (two authorities is a bug).
@@ -375,14 +375,14 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 - [ ] P0-T0.8 Define the **first-owner bootstrap** without an ownerless intermediate company and without an undeclared `tenancy → identity` write. Proposed: an `identity` use case `onboard-company` (identity may import tenancy per `module-map.md`) creates the company through a tenancy port and the owner membership in the **same** transaction. Also specify who may administer memberships afterwards (privileged, audited).
 - **Done when:** Waleed approves ADR-0003 with every enabled auth and plugin table classified, before any migration is generated.
 
-#### P0-T1 — Workspace skeleton · S · ✅ (PR #1 merged; PR #2 open with Codex review fixes)
+#### P0-T1 — Workspace skeleton · S · ✅ (PR #1 and PR #2 merged)
 
 - [x] P0-T1.1 `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.base.json`, `.gitignore`, `.env.example`, `.editorconfig`, `README.md`, `.nvmrc`, Prettier.
 - [x] P0-T1.2 `packages/config/eslint/{index,boundaries,jsdoc}.js` with `boundaries`, `jsdoc` scoped to `domain/**` + `ports/**` + `events/published.ts`, `max-lines` 400 error, `max-lines-per-function` 60, `no-warning-comments`, `no-restricted-imports` / `no-restricted-globals` for `use-cases/`.
 - [x] P0-T1.3 `packages/config/scripts/lint-docs.mjs` (rejects JSDoc without Arabic in the mandatory folders).
 - [x] P0-T1.4 ADR-0002 workspace tooling baseline (TS pinned to 6.0, pnpm build scripts denied by default, minimum release age).
 - [x] P0-T1.5 `pnpm check` = `turbo run typecheck lint test && pnpm lint:docs`.
-- [ ] P0-T1.6 Merge PR #2 (`fix/phase0-t1-codex-review`).
+- [x] P0-T1.6 Merge PR #2 (`fix/phase0-t1-codex-review`).
 - **Done when:** `pnpm install` and `pnpm check` exit 0 on the empty workspace. ✅
 
 #### P0-T2 — Local infrastructure · S · ⬜ · depends T1
@@ -419,6 +419,7 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 
 - [ ] P0-T5.1 `packages/db/schema/tenancy.ts` + `migrations/0001_tenancy.sql`: `plans`, `companies`, `businesses`, `branches` per SPEC §4, with `company_id NOT NULL`, explicit `USING` **and** `WITH CHECK` policies, `FORCE ROW LEVEL SECURITY`, composite indexes starting with `company_id`.
 - [ ] P0-T5.2 Tenant-qualified composite foreign keys: `businesses UNIQUE (company_id, id)`, `branches` references `(company_id, business_id)`; the same pattern is mandatory for every child table in later phases.
+- [ ] P0-T5.2b `company_feature_overrides` lives in the tenancy schema (tenancy owns plans and flags); T9a's feature guard only reads it.
 - [ ] P0-T5.3 `plans` exception: no `company_id`, no RLS, read-only for the app role — recorded in an ADR.
 - [ ] P0-T5.4 Define the tenant-root rule for `companies` (`id` vs `company_id` relationship enforced).
 - [ ] P0-T5.5 Negative isolation suite (`packages/db/src/__tests__/rls-tenancy.spec.ts`, testcontainers, **run as the restricted app role**): role assertions (`NOSUPERUSER`, `NOBYPASSRLS`, no ownership, cannot `SET ROLE`); cross-tenant `SELECT` = 0 rows; cross-tenant `INSERT` rejected by `WITH CHECK`; cross-tenant `UPDATE`/`DELETE` affect 0 rows; same-tenant `UPDATE` changing `company_id` rejected; `UPSERT` cannot cross tenants; query outside `withTenant()` returns 0 rows.
@@ -441,7 +442,7 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 
 - [ ] P0-T7.1 `outbox` table + `OutboxWriter` port; event row written inside the caller's transaction; test proves a rolled-back transaction leaves no outbox row.
 - [ ] P0-T7.2 `audit_log` table + writer; field allowlists for `before`/`after`; DB privileges prevent runtime modification or deletion of audit rows.
-- [ ] P0-T7.3 Idempotency store: `key` + `company_id` + `operation` uniqueness, `request_fingerprint`, `status IN_FLIGHT|COMPLETED|FAILED`, `response_status`, `response_body`, `expires_at` (24 h, swept by a job); claim + business effect in one transaction; same key different body → 422; concurrent duplicate on `IN_FLIGHT` → 409; crash mid-flight expires rather than blocks.
+- [ ] P0-T7.3 Idempotency store: `scope_type` (`COMPANY` | `USER`) + `scope_id` + `operation` + `key` uniqueness (`USER` scope for bootstrap writes such as `onboard-company`, which cannot know the new company id), `request_fingerprint`, `status IN_FLIGHT|COMPLETED|FAILED`, `response_status`, `response_body`, `expires_at` (24 h, swept by a job); claim + business effect in one transaction; same key different body → 422; concurrent duplicate on `IN_FLIGHT` → 409; crash mid-flight expires rather than blocks.
 - [ ] P0-T7.4 `Clock` and `IdGenerator` ports + `SystemClock`, `UuidV7Generator`; CI grep rejects `Date.now()` / `randomUUID()` in `use-cases/`.
 - [ ] P0-T7.5 Worker transaction/context entry point: a job resolves `company_id` from its payload and calls `withTenant()`; nothing non-serialisable crosses into a job.
 - **Done when:** tests prove (a) rollback leaves no outbox row, (b) a replayed key returns the identical stored response, (c) same key + different body is rejected, (d) two concurrent identical requests produce exactly one effect.
@@ -450,18 +451,19 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 
 T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. Both come from T9 in the Phase 0 plan v2, which schedules T9 after T8. This PRD splits T9. **`IMPLEMENTATION-PLAN.md` §2 must be amended to match.**
 
-- [ ] P0-T9a.1 Better Auth self-hosted on the Drizzle adapter with email + password and the `two-factor` (TOTP) plugin; tables per the ADR-0003 classification.
+- [ ] P0-T9a.0 Company-registry boundary: port `identity/ports/company-registry.port.ts` and adapter `identity/persistence/tenancy-company-registry.adapter.ts` (the consumer owns both, `module-map.md` §3); the adapter calls `registerCompany(tx, input)`, the one write `tenancy` exports from `index.ts`. Lives here, not in T8, because T8 depends on T9a.
+- [ ] P0-T9a.1 Better Auth self-hosted on the Drizzle adapter with email + password and the `two-factor` (TOTP) plugin; tables per the ADR-0003 classification; migration `NNNN_identity_bootstrap.sql` creates every T9a table and its RLS.
 - [ ] P0-T9a.2 `memberships` bridge table (user-keyed RLS), `roles`, `permissions` (seeded from code), `role_permissions` (with `constraints jsonb`, enforced later in P2-T7), `permission_overrides` (ALLOW/DENY, reason, granted_by, expires_at), `starts_at`/`ends_at` on memberships — reconciling SPEC §4 with `09` §11 (see §13 item 10).
 - [ ] P0-T9a.3 `@Require('action:resource:scope')` guard resolving the principal and membership server-side, deny by default, union of applicable memberships minus DENY; Redis permission cache invalidated on change; a route without a guard fails CI.
 - [ ] P0-T9a.4 **Tenant feature-flag enforcement now:** `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI). `09` §12 requires flags from Phase 0 even though the `platform` module and its screens stay in Phase 5 (SPEC §3 forbids the module now). Tests prove a disabled feature is refused server-side.
-- [ ] P0-T9a.5 `onboard-company` use case from P0-T0.8 (company + first owner membership in one transaction); last-owner protection.
+- [ ] P0-T9a.5 `onboard-company` as a **complete slice**: spec, Zod contract, `POST /v1/companies` (caller ⛔ D-34), `Idempotency-Key`, company + owner membership + audit row + `CompanyCreated` outbox event in one transaction; scenarios `ONB-01` happy path, `ONB-02` failed membership insert leaves no company and no outbox row, `ONB-03` replay, `ONB-04` two companies created through the API; last-owner protection.
 - [ ] P0-T9a.6 Seed role bundles as **provisional codes** (renamed when D-07 is decided): Owner, General Manager, Accountant, Business Manager, Branch Manager, Shift Supervisor, Cashier, Waiter, Kitchen, Storekeeper, Staff, Marketing, Viewer.
 - **Done when:** a real login produces a session; a user with two company memberships can switch only between those two; a guard-less route and a disabled feature are both refused in tests.
 
 #### P0-T8 — `tenancy` use cases · L · ⬜ · depends T9a
 
 - [ ] P0-T8.1 Module shape exactly per `CLAUDE.architecture.md` §5; slice specs in `docs/specs/tenancy/{create-business,create-branch}.md` (company creation is `identity`'s `onboard-company`).
-- [ ] P0-T8.2 Use cases `create-business`, `create-branch` (and the tenancy-side port that `onboard-company` calls to insert the company row): one transaction, `Idempotency-Key`, outbox event inside the transaction, audit row; events `CompanyCreated`, `BusinessCreated`, `BranchCreated` documented in `events/published.ts`. A new business copies its vertical template into `business.settings`.
+- [ ] P0-T8.2 Use cases `create-business`, `create-branch` (`registerCompany` already exists from P0-T9a.0): one transaction, `Idempotency-Key`, outbox event inside the transaction, audit row; events `BusinessCreated`, `BranchCreated` documented in `events/published.ts`. A new business copies its vertical template into `business.settings`.
 - [ ] P0-T8.3 Scenario IDs written into the slice specs before code: `TEN-01` happy path per use case, `TEN-02` duplicate `Idempotency-Key` replay, `TEN-03` cross-company `business_id` on branch creation, `TEN-04` user switching to a company they belong to, `TEN-05` user requesting a company they do not belong to.
 - [ ] P0-T8.4 Queries `list-businesses.query.ts`, `branch-detail.query.ts` with result-shape tests and `EXPLAIN` index-usage assertions on a seeded dataset.
 - [ ] P0-T8.5 **API-level isolation proof:** with a real session of company A, requesting company B's id is refused **before** `withTenant(B)` is ever called (asserted by a spy on the wrapper).
@@ -959,8 +961,9 @@ Every item below blocks the task named in "Blocks". An implementing agent must n
 | D-28 | **Commission accrual trigger and reassignment:** entries only from `ServiceCompleted` (per line, performer assigned); what reassignment after statement approval does. | Lean: single trigger; reassignment after approval = correction entry in the next open period. | P1-T8, P1-T10 | Client + Waleed |
 | D-29 | **Offline limits:** maximum offline age before the POS stops selling, and the on-account credit exposure allowed offline per customer and per device. | Lean: 24 h, and the customer's synced remaining credit. | P2-T9 | Client |
 | D-30 | **Customer identity scope:** one customer record per business or per company (`10` §9 asks for history across businesses). | Lean: company-scoped customer, business-scoped loyalty and credit. Changes the key, so decide before P2-T3. | P2-T3, P4-T4, P4-T5 | Client |
-| D-31 | **ALLOW/DENY precedence** across overlapping memberships and scopes (a DENY at branch vs an ALLOW at business). | Lean: any applicable DENY wins. | P0-T9a | Waleed |
+| D-31 | **ALLOW/DENY precedence** across overlapping memberships and scopes (a DENY at branch vs an ALLOW at business). | ✅ **Decided 2026-09-22 by Waleed:** any DENY that covers the requested scope wins, evaluated at request time (ADR-0003 §4, §5.2). | — | Waleed |
 | D-32 | **Attendance edge rules:** overnight shifts, missed punches, auto-close of open sessions, who may edit. | Lean: missed punches become exceptions, never auto-deductions. | P1-T5, P1-T6 | Client |
+| D-34 | **Who may create a company** (`POST /v1/companies`): platform staff only, self-serve sign-up, or both. Self-serve reopens public sign-up, which ADR-0003 §6 closes. | Lean: platform staff only until P5 subscriptions; Phase 0 tests use a seeded platform user. | P0-T9a.5 production guard, P5-T5 | Client + Waleed |
 | D-33 | **Payroll vs commission accounting:** where commission is expensed, so payroll and the P&L do not count it twice; same for attendance deductions. | Lean: commission expensed once when the statement is approved; payroll references it. | P5-T9 | Client + accountant |
 
 ---
