@@ -63,6 +63,16 @@ describe('application roles (ADR-0003 §3)', () => {
     }
   });
 
+  it('migrating again revokes a membership granted by hand, so SET ROLE cannot escalate', async () => {
+    const env = readPgTestEnv();
+    await owner`GRANT pg_read_all_data TO pospay_app`;
+    await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
+    const rows = await owner`
+      SELECT 1 FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member
+      WHERE r.rolname = 'pospay_app'`;
+    expect(rows).toHaveLength(0);
+  });
+
   it('migrating again is a no-op that keeps the roles restricted', async () => {
     const env = readPgTestEnv();
     await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
