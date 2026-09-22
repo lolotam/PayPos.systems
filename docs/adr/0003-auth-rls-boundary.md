@@ -78,7 +78,22 @@ Policies are **split by command**. A combined `FOR ALL` policy is wrong here: `D
 | `plans` | platform-level (Phase 0 T5.3) |
 | `permissions` | the catalogue of `action:resource:scope` strings, **seeded from code** on migrate |
 | `roles` | system roles have `company_id IS NULL`; custom company roles (Phase 1+) set `company_id` |
-| `role_permissions` | carries the same nullable `company_id` as its role, enforced by a composite FK `(company_id, role_id)` |
+| `role_permissions` | carries its role's `owner_key` (below) and `company_id` |
+
+**Referencing a role safely.** A membership must point at a role that is either global or belongs to the membership's own company. A plain `role_id` FK allows another tenant's custom role; a composite FK on the nullable `company_id` is skipped by PostgreSQL whenever a column is `NULL` (`MATCH SIMPLE`), so it proves nothing for global roles. Instead every role has a non-null key that names its owner:
+
+```sql
+-- roles
+owner_key text GENERATED ALWAYS AS (COALESCE(company_id::text, 'global')) STORED,
+UNIQUE (id, owner_key)
+
+-- memberships (and role_permissions, which does the same towards its role)
+role_owner_key text NOT NULL,
+FOREIGN KEY (role_id, role_owner_key) REFERENCES roles (id, owner_key),
+CHECK (role_owner_key = 'global' OR role_owner_key = company_id::text)
+```
+
+Both columns are `NOT NULL`, so the FK is always checked; the FK forces `role_owner_key` to be the role's real owner; the `CHECK` then allows only a global role or a role of the same company. The first owner's membership in `onboard-company` references the global Owner role with `role_owner_key = 'global'`. T5 adds a negative test assigning another company's custom role.
 
 `plans` and `permissions` have no RLS, and `pospay_app` has `SELECT` only. `roles` and `role_permissions` mix global and company rows, so they get **split** policies:
 
@@ -97,7 +112,7 @@ Unchanged from `CLAUDE.md` §5: `company_id uuid NOT NULL`, `USING` **and** an e
 | Role | Attributes | May touch | Used by |
 |---|---|---|---|
 | `pospay_owner` | owns every table, runs migrations | everything | `pnpm db:migrate` only — never a running container |
-| `pospay_app` | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing | tenant + bridge tables under RLS; `SELECT` on §2.3 | `api`, `worker` |
+| `pospay_app` | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing | tenant + bridge tables under RLS; `SELECT` on `plans` and `permissions`; `SELECT, INSERT, UPDATE, DELETE` on `roles` and `role_permissions` (the split policies in §2.3 decide which rows) | `api`, `worker` |
 | `pospay_auth` | `NOSUPERUSER`, `NOBYPASSRLS`, owns nothing | **only** the §2.1 tables, table-level grants | `packages/auth` |
 
 No role has `BYPASSRLS`. The platform bypass role stays deferred (review finding #14).
@@ -137,7 +152,14 @@ token = pd_<companyId>.<deviceId>.<secret>     issued once by approve-device, st
 ─► REFUSE on any mismatch — one error for every case, so it is not an oracle
 ```
 
-A forged `companyId` finds no row, because RLS hides every other company's devices. A cashier PIN entered afterwards adds `employeeId` to the principal; it never adds a `userId`.
+A forged `companyId` finds no row, because RLS hides every other company's devices.
+
+**Authorization on a device** has two stages:
+
+1. **Device only** (before a PIN): the principal carries the device's own fixed permission set — the system role `Device` (sync, read the catalog snapshot, register a clock-in). Nothing that moves money.
+2. **Device + PIN**: `verify-cashier-pin` resolves an `employeeId`, and the principal takes that employee's **memberships**, filtered to scopes that cover the device's branch. A membership row names **exactly one** holder: `CHECK (num_nonnulls(user_id, employee_id) = 1)`. Employee memberships are ordinary memberships — same roles, same overrides, same DENY-wins rule (§5.2) — so the guard has one code path. If the employee is also linked to a `user`, the user's own memberships are **not** added: a PIN proves who is at the till, not who owns the login.
+
+A PIN never adds a `userId` and never opens `app.`.
 
 **C. API key** (Phase 5 public API). `apikey` is global identity (§2.1), so it is resolved on `pospay_auth`, but it carries a **`company_id` column** — not free-form metadata — fixed at creation and never updatable:
 
@@ -171,7 +193,7 @@ type Principal = {
 
 ### 4.2 `employee_ref`
 
-`cashier_pins.employee_ref` points at `staff.employees(id)` once `staff` exists (Phase 1), with a tenant-qualified FK `(company_id, employee_id)`. Until then it is a nullable `employee_id` with no FK, and T9b does not issue PINs to anything but test fixtures. An employee **may** be linked to a `user` (`module-map.md`: `staff → identity`), but a PIN never opens `app.`; it only identifies who is operating an already-approved device.
+`cashier_pins.employee_id` and `memberships.employee_id` point at `staff.employees(id)` once `staff` exists (Phase 1), with a tenant-qualified FK `(company_id, employee_id)`. Until then they are plain columns with no FK, and T9b does not issue PINs to anything but test fixtures. An employee **may** be linked to a `user` (`module-map.md`: `staff → identity`), but a PIN never opens `app.`; it only identifies who is operating an already-approved device.
 
 ## 5. Decisions on authority
 
@@ -208,11 +230,13 @@ Controller guard scanning cannot see routes mounted by Better Auth's handler, so
 | `POST /v1/webhooks/*` | signature-verified, tenant resolved from the payload (`CLAUDE.md` §6) |
 | `GET  /health` · `GET /ready` | probes |
 
-Every public route is rate-limited in Redis. Sign-up is **not** public: companies are created by `onboard-company`, invited users by an invitation flow in T9a.
+Every public route is rate-limited in Redis **except `/health`**, which must report process liveness even when Redis is down or the limit is exhausted — otherwise an orchestrator restarts a healthy API during a Redis incident. `/ready` still reports Redis. Sign-up is **not** public: companies are created by `onboard-company`, invited users by an invitation flow in T9a.
 
 ## 6a. Revisions
 
 **2026-09-22, after Codex review of PR #5:** §4 split into three resolution paths (device tokens and API keys cannot go through `withUser()`); §2.2 and §2.3 policies split by command, so a tenant cannot delete or re-home a global role; every policy reads context through the `NULLIF` helpers, and both wrappers always set both settings.
+
+**2026-09-23, after Codex round 2:** role references use a non-null `owner_key` (§2.3) so global roles can be assigned safely; device operators are authorized through employee memberships (§4 path B); `pospay_app` gets DML on `roles` / `role_permissions`; `apikey.company_id` stated as the one column on a global table; `/health` exempt from rate limiting.
 
 ## 7. Consequences
 
