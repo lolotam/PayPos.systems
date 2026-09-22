@@ -6,7 +6,16 @@ changes, so that a `specify` refresh can be checked against them.
 | What | Where | Why |
 |---|---|---|
 | Specs are created under `docs/specs/NNN-<module>-<use-case>/`, not `specs/` | `scripts/powershell/create-new-feature.ps1` (line with `'docs/specs'`), `speckit-specify` skills, `templates/overrides/plan-template.md` | `CLAUDE.md` §1 requires the slice spec under `docs/specs/` |
+| Business rules are never guessed; no cap on clarification markers | `speckit-specify` skills | `CLAUDE.md` §11 |
+| Specs carry a mandatory **Slice design** section (schema, API contract, permissions, events, test plan) | `templates/overrides/spec-template.md`, `speckit-specify` checklist | `CLAUDE.md` §1 |
 | Test tasks are mandatory, never optional | `speckit-tasks` skills, `templates/overrides/tasks-template.md` | `CLAUDE.md` §9 — tests are required to merge |
+
+## Where the commands run
+
+The spec-kit commands call `.specify/scripts/powershell/*.ps1`. They are run on Waleed's Windows machine,
+where Windows PowerShell 5.1 executes them. They are **not** run in Codex's cloud environment: Codex is the
+PR reviewer here, not a spec-kit executor, so no POSIX variant is shipped. If a Linux agent ever needs them,
+install PowerShell 7 (`pwsh`) there or re-initialise spec-kit with `--script sh` — do not hand-port the scripts.
 
 ## After a Spec Kit refresh
 

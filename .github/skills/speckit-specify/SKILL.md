@@ -119,18 +119,18 @@ Given that feature description, do this:
     2. Extract key concepts from description
        Identify: actors, actions, data, constraints
     3. For unclear aspects:
-       - Make informed guesses based on context and industry standards
-       - Only mark with [NEEDS CLARIFICATION: specific question] if:
+       - **Never guess a business rule** (money, tax, discounts, commissions, stock, permissions, tenant scope, time/attendance rules, anything a merchant would argue about). Mark each one [NEEDS CLARIFICATION: specific question] — `CLAUDE.md` §11.
+       - For non-business details (wording, layout, technical defaults), make an informed guess and record it in Assumptions. Mark those with [NEEDS CLARIFICATION] only if:
          - The choice significantly impacts feature scope or user experience
          - Multiple reasonable interpretations exist with different implications
          - No reasonable default exists
-       - **LIMIT: Maximum 3 [NEEDS CLARIFICATION] markers total**
+       - **No cap on markers for business rules.** Every unresolved business rule keeps its marker; there is no "maximum 3" in this repository
        - Prioritize clarifications by impact: scope > security/privacy > user experience > technical details
     4. Fill User Scenarios & Testing section
        If no clear user flow: ERROR "Cannot determine user scenarios"
     5. Generate Functional Requirements
        Each requirement must be testable
-       Use reasonable defaults for unspecified details (document assumptions in Assumptions section)
+       Use reasonable defaults only for non-business details (document them in Assumptions); an unspecified business rule stays a [NEEDS CLARIFICATION] marker
     6. Define Success Criteria
        Create measurable, technology-agnostic outcomes
        Include both quantitative metrics (time, performance, volume) and qualitative measures (user satisfaction, task completion)
@@ -153,7 +153,7 @@ Given that feature description, do this:
 
       ## Content Quality
 
-      - [ ] No implementation details (languages, frameworks, APIs)
+      - [ ] Business sections contain no implementation details; implementation decisions appear only under **Slice design**
       - [ ] Focused on user value and business needs
       - [ ] Written for non-technical stakeholders
       - [ ] All mandatory sections completed
@@ -168,6 +168,7 @@ Given that feature description, do this:
       - [ ] Edge cases are identified
       - [ ] Scope is clearly bounded
       - [ ] Dependencies and assumptions identified
+      - [ ] **Slice design** complete: schema changes (tables, RLS policies, indexes, tenant-qualified FKs), API contract (endpoint, Zod schema, `Idempotency-Key`, error codes), permissions (`action:resource:scope`, feature flag), events, and the test plan (domain unit, integration scenario IDs, RLS negative, `EXPLAIN`) — each filled or marked [NEEDS CLARIFICATION]
 
       ## Feature Readiness
 
@@ -197,8 +198,8 @@ Given that feature description, do this:
 
       - **If [NEEDS CLARIFICATION] markers remain**:
         1. Extract all [NEEDS CLARIFICATION: ...] markers from the spec
-        2. **LIMIT CHECK**: If more than 3 markers exist, keep only the 3 most critical (by scope/security/UX impact) and make informed guesses for the rest
-        3. For each clarification needed (max 3), present options to user in this format:
+        2. **ROUNDS, NOT A CAP**: if more than 3 markers exist, ask the 3 most critical now and the rest in further rounds of up to 3 — never replace a business-rule marker with a guess. The spec is not ready for `/speckit-plan` while any business-rule marker remains
+        3. For each clarification in this round (up to 3), present options to user in this format:
 
            ```markdown
            ## Question [N]: [Topic]
@@ -224,7 +225,7 @@ Given that feature description, do this:
            - Each cell should have spaces around content: `| Content |` not `|Content|`
            - Header separator must have at least 3 dashes: `|--------|`
            - Test that the table renders correctly in markdown preview
-        5. Number questions sequentially (Q1, Q2, Q3 - max 3 total)
+        5. Number questions sequentially within the round (Q1, Q2, Q3), then continue with the next round until no business-rule marker remains
         6. Present all questions together before waiting for responses
         7. Wait for user to respond with their choices for all questions (e.g., "Q1: A, Q2: Custom - [details], Q3: B")
         8. Update the spec by replacing each [NEEDS CLARIFICATION] marker with the user's selected or provided answer
@@ -294,9 +295,9 @@ Report completion to the user with:
 
 When creating this spec from a user prompt:
 
-1. **Make informed guesses**: Use context, industry standards, and common patterns to fill gaps
+1. **Never guess business rules**: money, tax, commissions, stock, permissions, tenant scope and time rules are always asked (`CLAUDE.md` §11); use context and common patterns only for non-business gaps
 2. **Document assumptions**: Record reasonable defaults in the Assumptions section
-3. **Limit clarifications**: Maximum 3 [NEEDS CLARIFICATION] markers - use only for critical decisions that:
+3. **Clarifications**: every unresolved business rule gets a marker (no cap); for non-business details, use a marker only for decisions that:
    - Significantly impact feature scope or user experience
    - Have multiple reasonable interpretations with different implications
    - Lack any reasonable default
