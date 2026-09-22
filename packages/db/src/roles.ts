@@ -13,6 +13,7 @@ export interface RolePasswords {
 // الباسورد بيعدّي بـ set_config عشان format(%L) هو اللي يعمل الـ quoting، مش كود JavaScript.
 // أي عضوية في role تاني بتتشال كل مرة: NOINHERIT بيمنع وراثة الصلاحيات بس، مش SET ROLE،
 // فعضوية فضلت من grant يدوي كانت هتخلي الـ app ياخد صلاحيات role أعلى.
+// CASCADE عشان لو الـ role اداها لحد تاني بـ ADMIN OPTION، الـ REVOKE ميقعش ويرجّع الـ bootstrap كله.
 const ROLES_SQL = `
 DO $$
 DECLARE r record; m record;
@@ -33,7 +34,7 @@ BEGIN
       JOIN pg_roles gr ON gr.oid = am.grantor
       WHERE u.rolname = r.name
     LOOP
-      EXECUTE format('REVOKE %I FROM %I GRANTED BY %I', m.granted, r.name, m.grantor);
+      EXECUTE format('REVOKE %I FROM %I GRANTED BY %I CASCADE', m.granted, r.name, m.grantor);
     END LOOP;
   END LOOP;
 END $$`;

@@ -2,6 +2,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { readPgTestEnv } from '../../test/pg-env.ts';
+import { withClusterRoleLock } from '../../test/role-lock.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { migrateDatabase } from '../migrations.ts';
 
@@ -30,9 +31,12 @@ afterAll(async () => {
 
 describe('application roles (ADR-0003 §3)', () => {
   it('pospay_app and pospay_auth are restricted login roles', async () => {
-    const rows = await owner<RoleRow[]>`
+    const rows = await withClusterRoleLock(
+      'shared',
+      () => owner<RoleRow[]>`
       SELECT rolname, rolsuper, rolbypassrls, rolinherit, rolcreatedb, rolcreaterole, rolcanlogin
-      FROM pg_roles WHERE rolname IN ('pospay_app', 'pospay_auth') ORDER BY rolname`;
+      FROM pg_roles WHERE rolname IN ('pospay_app', 'pospay_auth') ORDER BY rolname`,
+    );
     const restricted = {
       rolsuper: false,
       rolbypassrls: false,
@@ -48,9 +52,12 @@ describe('application roles (ADR-0003 §3)', () => {
   });
 
   it('are members of no other role, so they cannot SET ROLE to a privileged one', async () => {
-    const rows = await owner`
+    const rows = await withClusterRoleLock(
+      'shared',
+      () => owner`
       SELECT m.member FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member
-      WHERE r.rolname IN ('pospay_app', 'pospay_auth')`;
+      WHERE r.rolname IN ('pospay_app', 'pospay_auth')`,
+    );
     expect(rows).toHaveLength(0);
   });
 
@@ -62,15 +69,29 @@ describe('application roles (ADR-0003 §3)', () => {
       await app.end();
     }
   });
+});
 
-  it('migrating again revokes a membership granted by hand, so SET ROLE cannot escalate', async () => {
+describe('bootstrap re-run (pnpm db:migrate on a persistent cluster)', () => {
+  it('migrating again revokes hand-granted memberships, even a grant chain', async () => {
     const env = readPgTestEnv();
-    await owner`GRANT pg_read_all_data TO pospay_app`;
-    await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
-    const rows = await owner`
-      SELECT 1 FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member
-      WHERE r.rolname = 'pospay_app'`;
-    expect(rows).toHaveLength(0);
+    await withClusterRoleLock('exclusive', async () => {
+      try {
+        // pospay_app gets a role WITH ADMIN OPTION and passes it on to pospay_auth: without
+        // CASCADE, revoking the first grant fails because the second depends on it.
+        await owner`GRANT pg_read_all_data TO pospay_app WITH ADMIN OPTION`;
+        await owner.begin(async (tx) => {
+          await tx`SET LOCAL ROLE pospay_app`;
+          await tx`GRANT pg_read_all_data TO pospay_auth`;
+        });
+        await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
+        const rows = await owner`
+          SELECT 1 FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member
+          WHERE r.rolname IN ('pospay_app', 'pospay_auth')`;
+        expect(rows).toHaveLength(0);
+      } finally {
+        await owner`REVOKE pg_read_all_data FROM pospay_app CASCADE`;
+      }
+    });
   });
 
   it('migrating again is a no-op that keeps the roles restricted', async () => {
