@@ -13,8 +13,12 @@ declare module 'vitest' {
 const TEST_DB = /^pospay_(test|tpl)_[a-z0-9_]+$/;
 
 async function connectMaintenance(env: PgTestEnv): Promise<postgres.Sql> {
+  // الاتصال ده شايل الـ lock اللي بيثبت إن التشغيلة عايشة، فلازم يفضل مفتوح طول التشغيلة:
+  // postgres.js بيقفل أي اتصال بعد 30–60 دقيقة افتراضياً، وده كان هيفك الـ lock في النص.
   const sql = postgres(pgUrl(env, env.ownerUser, env.ownerPassword, 'postgres'), {
     max: 1,
+    max_lifetime: null,
+    idle_timeout: 0,
     onnotice: () => undefined,
   });
   try {
