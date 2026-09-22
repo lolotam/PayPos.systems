@@ -1,0 +1,27 @@
+{
+  "name": "@pospay/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared kernel — Money, KWD rounding, Percentage, TaxRule. Pure TypeScript, zero dependencies, runs in Node and the browser",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run && pnpm run test:node",
+    "test:node": "node --input-type=module -e \"import { parseMoney, moneyToString } from '@pospay/domain'; if (moneyToString(parseMoney('12.5')) !== '12.500') process.exit(1);\""
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}
