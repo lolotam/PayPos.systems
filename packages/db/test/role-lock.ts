@@ -3,7 +3,7 @@ import { inject } from 'vitest';
 
 import { pgUrl } from './pg-env.ts';
 
-const ROLE_TEST_LOCK = 'pospay:test-cluster-roles';
+export const ROLE_TEST_LOCK = 'pospay:test-cluster-roles';
 
 /**
  * الـ roles على مستوى الـ cluster، فاختبار بيغيّر عضوية role بيأثر على أي تشغيلة تانية شغالة في نفس الوقت.

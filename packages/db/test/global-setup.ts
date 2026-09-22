@@ -3,6 +3,7 @@ import postgres from 'postgres';
 
 import { migrateDatabase } from '../src/migrations.ts';
 import { pgUrl, readPgTestEnv, type PgTestEnv } from './pg-env.ts';
+import { ROLE_TEST_LOCK } from './role-lock.ts';
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -73,10 +74,16 @@ export default async function setup(project: TestProject): Promise<() => Promise
   await sql`SELECT pg_advisory_lock(hashtext(${runLockKey(runId)}))`;
   await sweepLeftovers(sql);
   await sql.unsafe(`CREATE DATABASE "${template}"`);
-  await migrateDatabase(pgUrl(env, env.ownerUser, env.ownerPassword, template), {
-    app: env.appPassword,
-    auth: env.authPassword,
-  });
+  // الـ bootstrap بيشيل عضويات الـ roles، فلازم يستنى أي اختبار في تشغيلة تانية بيغيّرها (role-lock.ts).
+  await sql`SELECT pg_advisory_lock(hashtext(${ROLE_TEST_LOCK}))`;
+  try {
+    await migrateDatabase(pgUrl(env, env.ownerUser, env.ownerPassword, template), {
+      app: env.appPassword,
+      auth: env.authPassword,
+    });
+  } finally {
+    await sql`SELECT pg_advisory_unlock(hashtext(${ROLE_TEST_LOCK}))`;
+  }
   project.provide('pg', { ...env, template, runId });
 
   return async () => {

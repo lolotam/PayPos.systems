@@ -96,9 +96,11 @@ describe('bootstrap re-run (pnpm db:migrate on a persistent cluster)', () => {
 
   it('migrating again is a no-op that keeps the roles restricted', async () => {
     const env = readPgTestEnv();
-    await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
-    const [row] = await owner<{ rolbypassrls: boolean }[]>`
-      SELECT rolbypassrls FROM pg_roles WHERE rolname = 'pospay_app'`;
+    const [row] = await withClusterRoleLock('exclusive', async () => {
+      await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
+      return owner<{ rolbypassrls: boolean }[]>`
+        SELECT rolbypassrls FROM pg_roles WHERE rolname = 'pospay_app'`;
+    });
     expect(row).toEqual({ rolbypassrls: false });
   });
 });
