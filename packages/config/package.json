@@ -1,0 +1,31 @@
+{
+  "name": "@pospay/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared ESLint, TypeScript and Prettier configuration for every PosPay app and package",
+  "exports": {
+    "./eslint": "./eslint/index.js",
+    "./tsconfig/base.json": "./tsconfig/base.json",
+    "./tsconfig/node.json": "./tsconfig/node.json"
+  },
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-boundaries": "7.2.0",
+    "eslint-plugin-jsdoc": "64.5.4",
+    "globals": "17.12.0",
+    "typescript-eslint": "8.70.1"
+  },
+  "devDependencies": {
+    "eslint": "10.11.0"
+  },
+  "peerDependencies": {
+    "eslint": "^10.0.0",
+    "typescript": "^6.0.0"
+  }
+}
