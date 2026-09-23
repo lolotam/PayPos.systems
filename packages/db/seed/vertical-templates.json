@@ -1,0 +1,77 @@
+{
+  "source": "docs/PRD.md §7.1 — adding a vertical is configuration (a template copied into business.settings), never an if (vertical === …) in a use case",
+  "templates": {
+    "restaurant": {
+      "modules": [
+        "orders",
+        "payments",
+        "cash",
+        "catalog",
+        "inventory",
+        "kitchen",
+        "channels",
+        "customers"
+      ],
+      "features": [
+        "recipes",
+        "tables",
+        "delivery",
+        "restaurant_order_types",
+        "kds",
+        "delivery_zones"
+      ],
+      "phases": ["P2", "P3", "P4"]
+    },
+    "salon": {
+      "modules": [
+        "orders",
+        "payments",
+        "cash",
+        "catalog",
+        "appointments",
+        "staff",
+        "commissions",
+        "customers"
+      ],
+      "features": [
+        "attendance",
+        "timed_services",
+        "service_barcode",
+        "deposit",
+        "post_session_rating",
+        "simple_products"
+      ],
+      "phases": ["P1", "P4"]
+    },
+    "laundry": {
+      "modules": ["orders", "payments", "cash", "catalog", "customers", "notifications"],
+      "features": [
+        "tickets",
+        "delivery",
+        "per_piece_pricing",
+        "per_kilo_pricing",
+        "qr_ticket",
+        "ready_notification"
+      ],
+      "phases": ["P6"]
+    },
+    "retail": {
+      "modules": ["orders", "payments", "cash", "catalog", "inventory", "customers"],
+      "features": [
+        "barcode",
+        "scale",
+        "batch_expiry",
+        "suppliers",
+        "offers",
+        "fast_search",
+        "multi_unit_selling"
+      ],
+      "phases": ["P6"]
+    },
+    "services": {
+      "modules": ["orders", "payments", "catalog", "customers", "appointments", "staff"],
+      "features": ["quotes", "on_account_customers", "recurring_invoices", "collections"],
+      "phases": ["P6"]
+    }
+  }
+}

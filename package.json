@@ -17,6 +17,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "pnpm --filter @pospay/db db:migrate",
+    "db:seed": "pnpm --filter @pospay/db db:seed",
     "db:generate": "pnpm --filter @pospay/db db:generate",
     "contracts:openapi": "pnpm --filter @pospay/contracts contracts:openapi",
     "infra:up": "docker compose --env-file .env -f deploy/docker-compose.dev.yml up -d --wait",

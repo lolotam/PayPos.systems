@@ -1,0 +1,538 @@
+{
+  "id": "6dc20411-5037-454d-9a9c-8dda2cf49874",
+  "prevId": "e237835c-adc8-4e84-b82d-088ea529049a",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.branches": {
+      "name": "branches",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_ar": {
+          "name": "name_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address_ar": {
+          "name": "address_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address_en": {
+          "name": "address_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "geo_lat": {
+          "name": "geo_lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "geo_lng": {
+          "name": "geo_lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opening_hours": {
+          "name": "opening_hours",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "branches_company_id_business_id_idx": {
+          "name": "branches_company_id_business_id_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "branches_business_fk": {
+          "name": "branches_business_fk",
+          "tableFrom": "branches",
+          "tableTo": "businesses",
+          "columnsFrom": [
+            "company_id",
+            "business_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "branches_pkey": {
+          "name": "branches_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "branches_geo_pair": {
+          "name": "branches_geo_pair",
+          "value": "(\"branches\".\"geo_lat\" IS NULL) = (\"branches\".\"geo_lng\" IS NULL)"
+        },
+        "branches_geo_lat_range": {
+          "name": "branches_geo_lat_range",
+          "value": "\"branches\".\"geo_lat\" IS NULL OR \"branches\".\"geo_lat\" BETWEEN -90 AND 90"
+        },
+        "branches_geo_lng_range": {
+          "name": "branches_geo_lng_range",
+          "value": "\"branches\".\"geo_lng\" IS NULL OR \"branches\".\"geo_lng\" BETWEEN -180 AND 180"
+        },
+        "branches_address_ar_length": {
+          "name": "branches_address_ar_length",
+          "value": "\"branches\".\"address_ar\" IS NULL OR char_length(\"branches\".\"address_ar\") BETWEEN 1 AND 500"
+        },
+        "branches_address_en_length": {
+          "name": "branches_address_en_length",
+          "value": "\"branches\".\"address_en\" IS NULL OR char_length(\"branches\".\"address_en\") BETWEEN 1 AND 500"
+        },
+        "branches_name_en_length": {
+          "name": "branches_name_en_length",
+          "value": "char_length(\"branches\".\"name_en\") BETWEEN 1 AND 255"
+        },
+        "branches_name_ar_length": {
+          "name": "branches_name_ar_length",
+          "value": "\"branches\".\"name_ar\" IS NULL OR char_length(\"branches\".\"name_ar\") BETWEEN 1 AND 255"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.businesses": {
+      "name": "businesses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vertical_type": {
+          "name": "vertical_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_ar": {
+          "name": "name_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'KWD'"
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Asia/Kuwait'"
+        },
+        "settings": {
+          "name": "settings",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "businesses_company_id_created_at_idx": {
+          "name": "businesses_company_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "businesses_company_id_companies_id_fk": {
+          "name": "businesses_company_id_companies_id_fk",
+          "tableFrom": "businesses",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "businesses_pkey": {
+          "name": "businesses_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "businesses_vertical_type": {
+          "name": "businesses_vertical_type",
+          "value": "\"businesses\".\"vertical_type\" IN ('restaurant', 'salon', 'laundry', 'retail', 'services')"
+        },
+        "businesses_currency_format": {
+          "name": "businesses_currency_format",
+          "value": "\"businesses\".\"currency\" ~ '^[A-Z]{3}$'"
+        },
+        "businesses_name_en_length": {
+          "name": "businesses_name_en_length",
+          "value": "char_length(\"businesses\".\"name_en\") BETWEEN 1 AND 255"
+        },
+        "businesses_name_ar_length": {
+          "name": "businesses_name_ar_length",
+          "value": "\"businesses\".\"name_ar\" IS NULL OR char_length(\"businesses\".\"name_ar\") BETWEEN 1 AND 255"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.companies": {
+      "name": "companies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name_ar": {
+          "name": "name_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "companies_plan_id_idx": {
+          "name": "companies_plan_id_idx",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "companies_plan_id_plans_id_fk": {
+          "name": "companies_plan_id_plans_id_fk",
+          "tableFrom": "companies",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "companies_name_en_length": {
+          "name": "companies_name_en_length",
+          "value": "char_length(\"companies\".\"name_en\") BETWEEN 1 AND 255"
+        },
+        "companies_name_ar_length": {
+          "name": "companies_name_ar_length",
+          "value": "\"companies\".\"name_ar\" IS NULL OR char_length(\"companies\".\"name_ar\") BETWEEN 1 AND 255"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.company_feature_overrides": {
+      "name": "company_feature_overrides",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "flag": {
+          "name": "flag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "set_by": {
+          "name": "set_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "set_at": {
+          "name": "set_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "company_feature_overrides_company_id_companies_id_fk": {
+          "name": "company_feature_overrides_company_id_companies_id_fk",
+          "tableFrom": "company_feature_overrides",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "company_feature_overrides_pkey": {
+          "name": "company_feature_overrides_pkey",
+          "columns": [
+            "company_id",
+            "flag"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.plans": {
+      "name": "plans",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_ar": {
+          "name": "name_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "feature_flags": {
+          "name": "feature_flags",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "plans_code_unique": {
+          "name": "plans_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
