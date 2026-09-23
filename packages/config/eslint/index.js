@@ -13,6 +13,32 @@ const sizeLimitExcludes = [
   '**/fixtures/**',
 ];
 
+// ADR-0003 §3: two restricted database facades, each wired by exactly one owner. Everyone else is refused;
+// the owner re-enables its own facade with `allowDatabaseFacade` in its eslint.config.js.
+const FACADES = {
+  createAuthDatabase: 'the pospay_auth facade belongs to packages/auth (ADR-0003 §2.1).',
+  createOutboxDispatcherDatabase:
+    'the pospay_dispatcher facade belongs to apps/worker (ADR-0003 §3).',
+};
+const facadeRule = (allowed) => [
+  'error',
+  {
+    paths: Object.entries(FACADES)
+      .filter(([name]) => name !== allowed)
+      .map(([name, message]) => ({ name: '@pospay/db', importNames: [name], message })),
+  },
+];
+
+/**
+ * The override a facade's owner adds: every other facade stays refused.
+ *
+ * @param {keyof typeof FACADES} allowed the facade this package owns
+ * @returns {import('eslint').Linter.Config} the override
+ */
+export const allowDatabaseFacade = (allowed) => ({
+  rules: { 'no-restricted-imports': facadeRule(allowed) },
+});
+
 /** Shared flat config. Every app and package re-exports this from its own eslint.config.js. */
 export const config = tseslint.config(
   {
@@ -30,6 +56,7 @@ export const config = tseslint.config(
       // CLAUDE.md §3.1 — the three banned debt markers fail the build (the softer marker only warns, via lint:docs).
       'no-warning-comments': ['error', { terms: ['fixme', 'hack', 'xxx'], location: 'anywhere' }],
       '@typescript-eslint/no-explicit-any': 'error',
+      'no-restricted-imports': facadeRule(null),
       '@typescript-eslint/consistent-type-imports': 'error',
       // NestJS modules are empty classes that exist to carry @Module(); undecorated ones stay banned.
       '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],

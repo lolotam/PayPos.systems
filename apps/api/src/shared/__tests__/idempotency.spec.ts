@@ -6,12 +6,15 @@ import { createLogger } from '@pospay/observability';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApp } from '../../app.ts';
+import { Public } from '../public.decorator.ts';
 import { codeForStatus } from '../errors.ts';
 import { Idempotency, requestFingerprint, type IdempotencyInput } from '../idempotency.ts';
 
 // The HTTP half of plan v4 T7: the header is required and validated, the fingerprint is stable, and the
 // two runIdempotent failures reach the client as their own catalogued codes. The database half — replay,
 // 422 on a different body, concurrency — is proven in packages/db against real Postgres.
+// Public: this probe tests the envelope and idempotency mechanics, not authentication.
+@Public()
 @Controller('probe')
 class IdempotentProbe {
   @Post('orders/:id/refund')

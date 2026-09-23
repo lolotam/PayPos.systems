@@ -466,6 +466,12 @@ Both write to `platform_audit_log` and run only as an operator (`pospay_owner` /
 A clean deployment runs both once for the first operator; tests use the same scripts to create the two users `ONB-04`
 needs. Inviting users **into a company** (membership invitations) is not part of Phase 0 — issue #19.
 
+**T9a-1 as built (ADR-0009):** Better Auth 1.7.5 (email + password, TOTP, sign-up closed) on `pospay_auth`
+through the restricted `createAuthDatabase` facade (ESLint-enforced); tables `user`/`session`/`account`/`verification`/
+`two_factor` (migrations 0007/0008); `AuthService` + `provisionUser`; `Principal` types + `resolveUserPrincipal`;
+`/v1/auth/*` mounted on Fastify; a global `SessionGuard` denies every route without a session unless `@Public()`.
+Open `TODO(spec)`: session lifetime, minimum password length, login rate limiting (ADR-0009).
+
 **Four sequential PRs (debate C7)** — each passes its own gates and leaves unfinished business routes unavailable;
 none may commit a company without its owner membership. T8 depends on all four.
 

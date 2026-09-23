@@ -10,6 +10,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'IdempotencyKeyReusedError',
       'appendAuditLog',
       'appendOutboxEvent',
+      'createAuthDatabase',
       'createDatabase',
       'createOutboxDispatcherDatabase',
       'markEventConsumed',

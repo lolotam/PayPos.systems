@@ -8,6 +8,11 @@ const CATALOG = {
     en: 'The request is not valid',
   },
   BAD_REQUEST: { status: 400, ar: 'الطلب غير صالح', en: 'The request is malformed' },
+  UNAUTHENTICATED: {
+    status: 401,
+    ar: 'يجب تسجيل الدخول',
+    en: 'Authentication is required',
+  },
   NOT_FOUND: { status: 404, ar: 'المسار غير موجود', en: 'Not found' },
   METHOD_NOT_ALLOWED: { status: 405, ar: 'الطريقة غير مسموحة', en: 'Method not allowed' },
   PAYLOAD_TOO_LARGE: { status: 413, ar: 'حجم الطلب كبير جداً', en: 'Payload too large' },

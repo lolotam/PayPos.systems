@@ -1,1 +1,3 @@
-export { default } from '@pospay/config/eslint';
+import config, { allowDatabaseFacade } from '@pospay/config/eslint';
+
+export default [...config, allowDatabaseFacade('createOutboxDispatcherDatabase')];

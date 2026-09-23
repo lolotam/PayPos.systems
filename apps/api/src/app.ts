@@ -8,22 +8,27 @@ import {
   type OnApplicationShutdown,
   type Type,
 } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { APP_GUARD, NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { AuthService } from '@pospay/auth';
 import { createLogger, type Logger } from '@pospay/observability';
 import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 
+import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { ApiError, codeForStatus } from './shared/errors.ts';
 import { EnvelopeExceptionFilter } from './shared/exception.filter.ts';
 import { HealthController } from './shared/health.controller.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { PinoNestLogger } from './shared/nest-logger.ts';
 import { READINESS_CHECKS, singleFlight, type ReadinessCheck } from './shared/readiness.ts';
+import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
 
 export interface AppDependencies {
   readonly readiness: readonly ReadinessCheck[];
   /** Releases what main.ts opened (pools, clients). Runs on app.close() and on SIGTERM/SIGINT. */
   readonly onShutdown?: () => Promise<void>;
+  /** Better Auth, and the public URL its routes resolve against. Without it no route but @Public() answers. */
+  readonly auth?: { readonly service: AuthService; readonly baseURL: string };
 }
 
 export interface AppOptions {
@@ -66,6 +71,9 @@ class AppModule {
         { provide: READINESS_CHECKS, useValue: deps.readiness.map(singleFlight) },
         { provide: SHUTDOWN, useValue: deps.onShutdown ?? (async () => undefined) },
         ShutdownHook,
+        { provide: AUTH_SERVICE, useValue: deps.auth?.service ?? null },
+        // Deny by default: every route needs a session unless it is @Public() (ADR-0003 §4).
+        { provide: APP_GUARD, useClass: SessionGuard },
       ],
     };
   }
@@ -107,6 +115,12 @@ export async function createApp(
   });
   // One line per request with safe, structural fields only: the route PATTERN, never the raw URL, whose
   // path segments and query string can carry tokens or phone numbers.
+  if (deps.auth !== undefined) {
+    mountAuthRoutes(adapter.getInstance(), deps.auth.service, {
+      baseURL: deps.auth.baseURL,
+      logger,
+    });
+  }
   adapter.getInstance().addHook('onResponse', async (request, reply) => {
     request.log.info(
       {

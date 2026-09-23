@@ -1,0 +1,33 @@
+{
+  "name": "@pospay/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Better Auth on the pospay_auth role — the only package that verifies a session or hashes a password (ADR-0003)",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.5",
+    "@pospay/db": "workspace:*",
+    "@pospay/ids": "workspace:*",
+    "better-auth": "1.7.5"
+  },
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "@types/node": "24.13.6",
+    "eslint": "10.11.0",
+    "postgres": "3.4.9",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}
