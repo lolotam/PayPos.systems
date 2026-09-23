@@ -243,16 +243,16 @@ describe('platform:create-user and platform grants (T9a-3)', () => {
   });
 });
 
-describe('platform:create-user failures leave nothing half-done and leak nothing', () => {
-  const input = (email: string) => ({
-    email,
-    name: 'Half',
-    operator: 'waleed',
-    redirectTo: `${ORIGIN}/set-password`,
-  });
-  const userCount = async (email: string) =>
-    (await owner`SELECT count(*)::int AS n FROM "user" WHERE email = ${email}`)[0]?.['n'];
+const input = (email: string) => ({
+  email,
+  name: 'Half',
+  operator: 'waleed',
+  redirectTo: `${ORIGIN}/set-password`,
+});
+const userCount = async (email: string) =>
+  (await owner`SELECT count(*)::int AS n FROM "user" WHERE email = ${email}`)[0]?.['n'];
 
+describe('platform:create-user failures leave nothing half-done', () => {
   it('refuses bad input before writing anything', async () => {
     await expect(
       createPlatformUser(auth, { ...input('bad@example.test'), operator: ' ' }),
@@ -270,6 +270,18 @@ describe('platform:create-user failures leave nothing half-done and leak nothing
     expect(await userCount('half@example.test')).toBe(0);
   });
 
+  it('removes the new user when its credential account cannot be written', async () => {
+    await owner`REVOKE INSERT ON account FROM pospay_auth`;
+    try {
+      await expect(createPlatformUser(auth, input('noacct@example.test'))).rejects.toThrow();
+    } finally {
+      await owner`GRANT INSERT ON account TO pospay_auth`;
+    }
+    expect(await userCount('noacct@example.test')).toBe(0);
+  });
+});
+
+describe('platform:create-user failures leak nothing', () => {
   it('the script reports a database failure by class and code only — no query, no email, no hash', () => {
     const run = () =>
       spawnSync(

@@ -149,12 +149,18 @@ async function provision(
     { email: input.email.toLowerCase(), name: input.name, emailVerified: true },
     { method: 'admin' },
   );
-  await context.internalAdapter.linkAccount({
-    userId: user.id,
-    providerId: 'credential',
-    accountId: user.id,
-    password: hash,
-  });
+  try {
+    await context.internalAdapter.linkAccount({
+      userId: user.id,
+      providerId: 'credential',
+      accountId: user.id,
+      password: hash,
+    });
+  } catch (error) {
+    // The user row is already committed; without its credential it could never sign in and would block a retry.
+    await context.internalAdapter.deleteUser(user.id);
+    throw error;
+  }
   return user.id;
 }
 
