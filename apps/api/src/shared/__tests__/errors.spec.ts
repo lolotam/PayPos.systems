@@ -35,6 +35,11 @@ class ProbeController {
     throw { message: 'token=tok_thrown_object' };
   }
 
+  @Get('item/:id')
+  item(): { ok: true } {
+    return { ok: true };
+  }
+
   @Get('log-secrets')
   logSecrets(@Req() request: FastifyRequest): { logged: true } {
     request.log.info({ pin: '4821', token: 'tok_live_secret', phone: '96550012345' }, 'probe');
@@ -161,6 +166,23 @@ describe('non-Error throws', () => {
 });
 
 describe('errors Fastify raises before Nest runs', () => {
+  it('an overlong route parameter keeps Fastify’s 414 as URI_TOO_LONG', async () => {
+    const res = await app.inject({ method: 'GET', url: `/v1/probe/item/${'x'.repeat(200)}` });
+    expect(res.statusCode).toBe(414);
+    expect(errorEnvelope.parse(res.json()).code).toBe('URI_TOO_LONG');
+  });
+
+  it('an unsupported content type keeps its 415 as UNSUPPORTED_MEDIA_TYPE', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/probe/business',
+      headers: { 'content-type': 'application/x-unknown' },
+      payload: 'raw',
+    });
+    expect(res.statusCode).toBe(415);
+    expect(errorEnvelope.parse(res.json()).code).toBe('UNSUPPORTED_MEDIA_TYPE');
+  });
+
   it('an oversized body keeps its 413 as PAYLOAD_TOO_LARGE in the envelope', async () => {
     const res = await app.inject({
       method: 'POST',

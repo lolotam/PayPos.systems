@@ -23,9 +23,12 @@ const SECRET_SUFFIXES = [
 ];
 const PHONE_SUFFIXES = ['phone', 'phones', 'phonenumber', 'phonenumbers', 'mobile', 'mobiles'];
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
+// A plural container ("passwords", "tokens", "hashes") holds secrets under ordinary child keys, so the key
+// is also tested with a trailing "s" or "es" removed — the container is redacted before its children.
 const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
   const normalized = normalizeKey(key);
-  return suffixes.some((suffix) => normalized.endsWith(suffix));
+  const forms = [normalized, normalized.replace(/es$/, ''), normalized.replace(/s$/, '')];
+  return forms.some((form) => suffixes.some((suffix) => form.endsWith(suffix)));
 };
 const isSecretKey = (key: string): boolean => endsWithAny(key, SECRET_SUFFIXES);
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);

@@ -11,6 +11,12 @@ const CATALOG = {
   NOT_FOUND: { status: 404, ar: 'المسار غير موجود', en: 'Not found' },
   METHOD_NOT_ALLOWED: { status: 405, ar: 'الطريقة غير مسموحة', en: 'Method not allowed' },
   PAYLOAD_TOO_LARGE: { status: 413, ar: 'حجم الطلب كبير جداً', en: 'Payload too large' },
+  URI_TOO_LONG: { status: 414, ar: 'الرابط طويل جداً', en: 'URI too long' },
+  UNSUPPORTED_MEDIA_TYPE: {
+    status: 415,
+    ar: 'نوع المحتوى غير مدعوم',
+    en: 'Unsupported media type',
+  },
   NOT_READY: {
     status: 503,
     ar: 'الخدمة غير جاهزة حالياً',
@@ -57,7 +63,8 @@ export class ApiError extends Error {
 
 /**
  * Maps a framework HTTP status (a route that does not exist, a wrong method, an oversized body) to a
- * catalogued code; anything else is an internal error.
+ * catalogued code. A catalogued status keeps its code; any other 4xx is a malformed request (400); any
+ * 5xx — or anything else — is an internal error (500).
  *
  * @param status the status the framework chose
  * @returns the catalogued code
@@ -66,5 +73,6 @@ export function codeForStatus(status: number): ErrorCode {
   const found = (Object.keys(CATALOG) as ErrorCode[]).find(
     (code) => CATALOG[code].status === status && code !== 'VALIDATION_FAILED',
   );
-  return found ?? 'INTERNAL_ERROR';
+  if (found !== undefined) return found;
+  return status >= 400 && status < 500 ? 'BAD_REQUEST' : 'INTERNAL_ERROR';
 }

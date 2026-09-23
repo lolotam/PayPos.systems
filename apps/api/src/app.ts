@@ -95,11 +95,11 @@ export async function createApp(
     // envelope instead of Fastify's default body, which echoes the malformed input.
     frameworkErrors: (error: unknown, _request: unknown, reply: FastifyReply) => {
       const status = (error as { statusCode?: unknown }).statusCode;
-      // Keep Fastify's own 4xx status (413 for an oversized body); anything else is a malformed request.
-      const apiError =
-        typeof status === 'number' && status > 400 && status < 500
-          ? new ApiError(codeForStatus(status))
-          : new ApiError('BAD_REQUEST');
+      // A catalogued Fastify status keeps its code (413, 414, 415…); another 4xx is BAD_REQUEST; a
+      // server-side failure stays a 500. A missing status (a malformed URL) is a bad request.
+      const apiError = new ApiError(
+        typeof status === 'number' ? codeForStatus(status) : 'BAD_REQUEST',
+      );
       void reply.code(apiError.status).send(apiError.toEnvelope());
     },
   });

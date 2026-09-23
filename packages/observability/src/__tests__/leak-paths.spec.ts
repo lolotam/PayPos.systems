@@ -270,3 +270,27 @@ describe('the repository’s own field names', () => {
     expect(line).toMatchObject({ phones: ['***345', '***765'] });
   });
 });
+
+describe('plural secret containers', () => {
+  it('passwords, tokens and hashes are redacted whole, before their children', () => {
+    const raw = capture((log) =>
+      log.info(
+        {
+          passwords: { app: 'pw_app_leak', auth: 'pw_auth_leak' },
+          tokens: ['t_leak'],
+          hashes: { a: 'h_leak' },
+        },
+        'event',
+      ),
+    );
+    for (const leak of ['pw_app_leak', 'pw_auth_leak', 't_leak', 'h_leak'])
+      expect(raw).not.toContain(leak);
+  });
+
+  it('ordinary plurals are kept (addresses, statuses)', () => {
+    const line = JSON.parse(
+      capture((log) => log.info({ addresses: ['x'], statuses: ['open'] }, 'event')),
+    );
+    expect(line).toMatchObject({ addresses: ['x'], statuses: ['open'] });
+  });
+});
