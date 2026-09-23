@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 
-import { OWNER_ROLE_ID, PERMISSIONS, SYSTEM_ROLES } from './access-catalog.ts';
+import { OWNER_ROLE_ID, PERMISSIONS, PLATFORM_ROLES, SYSTEM_ROLES } from './access-catalog.ts';
 
 /**
  * كل الـ modules اللي ليها feature flag — أسماءها نفس أسماء الـ modules في docs/module-map.md.
@@ -62,6 +62,11 @@ async function seedAccessCatalog(sql: postgres.Sql): Promise<void> {
       await tx`
         INSERT INTO roles (id, company_id, code, name_en) VALUES (${role.id}, NULL, ${role.code}, ${role.nameEn})
         ON CONFLICT (id, owner_key) DO UPDATE SET code = EXCLUDED.code, name_en = EXCLUDED.name_en`;
+    }
+    for (const role of PLATFORM_ROLES) {
+      await tx`
+        INSERT INTO platform_roles (code, name_en) VALUES (${role.code}, ${role.nameEn})
+        ON CONFLICT (code) DO UPDATE SET name_en = EXCLUDED.name_en`;
     }
     await tx`
       INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code)

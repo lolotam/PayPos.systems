@@ -579,6 +579,12 @@ This lives in T9a, not T8, because T8 depends on T9a.
 
 **Done when:** PIN verification works against a stored hash, a revoked device is rejected on next contact, membership removal takes effect on the next request, and every sensitive action writes an `AuditLog` row.
 
+**T9b-1 as built:** the credential-hashing import ban (ESLint, tested with the API's real config, `use-cases/` included);
+`user.phone_number` / `phone_number_verified` (migration 0014; the `phone-number` plugin is registered with the delivery
+channel in P1-T7 — its routes are 404 until then); the `api-key` plugin deferred to P5-T7 because in Better Auth 1.7 it
+is a separate package (ADR-0009 amendment); the five platform role codes seeded into their own `platform_roles` table —
+never the tenant `roles`, so no company can assign them (`TODO(spec)` D-07, no permissions until Phase 5). Devices (T9b-2) and cashier PINs (T9b-3) follow.
+
 ---
 
 ### T10 — `settings` + `packages/i18n` · Size M · depends: T8

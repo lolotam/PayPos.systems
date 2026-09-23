@@ -55,6 +55,7 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'account:UPDATE',
     'platform_audit_log:INSERT',
     'platform_grants:SELECT',
+    'platform_roles:SELECT',
     'session:DELETE',
     'session:INSERT',
     'session:SELECT',
@@ -106,6 +107,7 @@ const IDENTITY_TABLES = [
   'two_factor',
   'platform_grants',
   'platform_audit_log',
+  'platform_roles',
 ];
 
 let testDb: TestDatabase;

@@ -4,6 +4,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 import { boundariesConfig } from './boundaries.js';
+import { CREDENTIAL_PATHS, CREDENTIAL_PATTERNS, CREDENTIAL_SYNTAX } from './credentials.js';
 import { jsdocConfig } from './jsdoc.js';
 
 const sizeLimitExcludes = [
@@ -20,12 +21,16 @@ const FACADES = {
   createOutboxDispatcherDatabase:
     'the pospay_dispatcher facade belongs to apps/worker (ADR-0003 §3).',
 };
-const facadeRule = (allowed) => [
+const facadeRule = (allowed, credentials = false) => [
   'error',
   {
-    paths: Object.entries(FACADES)
-      .filter(([name]) => name !== allowed)
-      .map(([name, message]) => ({ name: '@pospay/db', importNames: [name], message })),
+    paths: [
+      ...Object.entries(FACADES)
+        .filter(([name]) => name !== allowed)
+        .map(([name, message]) => ({ name: '@pospay/db', importNames: [name], message })),
+      ...(credentials ? [] : CREDENTIAL_PATHS),
+    ],
+    patterns: credentials ? [] : CREDENTIAL_PATTERNS,
   },
 ];
 
@@ -33,10 +38,11 @@ const facadeRule = (allowed) => [
  * The override a facade's owner adds: every other facade stays refused.
  *
  * @param {keyof typeof FACADES} allowed the facade this package owns
+ * @param {{ credentials?: boolean }} [options] credentials: true only for packages/auth, the one owner of hashing
  * @returns {import('eslint').Linter.Config} the override
  */
-export const allowDatabaseFacade = (allowed) => ({
-  rules: { 'no-restricted-imports': facadeRule(allowed) },
+export const allowDatabaseFacade = (allowed, options = {}) => ({
+  rules: { 'no-restricted-imports': facadeRule(allowed, options.credentials === true) },
 });
 
 /** Shared flat config. Every app and package re-exports this from its own eslint.config.js. */
@@ -64,6 +70,7 @@ export const config = tseslint.config(
       // (@pospay/observability) can redact it. The logger also withholds messages that look like data.
       'no-restricted-syntax': [
         'error',
+        ...CREDENTIAL_SYNTAX,
         {
           selector:
             'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > TemplateLiteral[expressions.length>0]',

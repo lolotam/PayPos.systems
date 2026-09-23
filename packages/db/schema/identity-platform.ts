@@ -65,3 +65,19 @@ export const platformAuditLog = pgTable(
     index('platform_audit_log_at_idx').on(t.at),
   ],
 );
+
+// أدوار فريق المنصة (PRD P0-T9b.4) — جدول لوحده مش roles بتاعة الشركات، عشان مفيش شركة تقدر تدّيها لحد. الأكواد
+// مؤقتة (TODO(spec) D-07) ومن غير صلاحيات لحد ما الـ Platform module ييجي في Phase 5؛ صلاحية المنصة النهارده
+// platform_grants بس.
+export const platformRoles = pgTable(
+  'platform_roles',
+  {
+    code: text('code').primaryKey(),
+    nameEn: text('name_en').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('platform_roles_code_format', sql`${t.code} ~ '^[a-z][a-z_]{0,63}$'`),
+    check('platform_roles_name_en_length', sql`char_length(${t.nameEn}) BETWEEN 1 AND 255`),
+  ],
+);

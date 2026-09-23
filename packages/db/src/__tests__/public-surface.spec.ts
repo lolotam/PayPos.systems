@@ -11,6 +11,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'IdempotencyKeyReusedError',
       'OWNER_ROLE_ID',
       'PERMISSIONS',
+      'PLATFORM_ROLES',
       'PROVISIONAL_PLAN_ID',
       'SYSTEM_ROLES',
       'appendAuditLog',
