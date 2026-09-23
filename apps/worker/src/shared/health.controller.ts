@@ -1,4 +1,5 @@
 import { Controller, Get, Inject, Res } from '@nestjs/common';
+import { errorMessages } from '@pospay/i18n';
 import type { FastifyReply } from 'fastify';
 
 export const READINESS_CHECKS = Symbol('READINESS_CHECKS');
@@ -53,8 +54,7 @@ export class HealthController {
     }
     await reply.code(503).send({
       code: 'NOT_READY',
-      message_ar: 'الخدمة غير جاهزة حالياً',
-      message_en: 'The service is not ready',
+      ...errorMessages('NOT_READY'),
       details: { checks },
     });
   }

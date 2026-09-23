@@ -45,6 +45,48 @@ export const allowDatabaseFacade = (allowed, options = {}) => ({
   rules: { 'no-restricted-imports': facadeRule(allowed, options.credentials === true) },
 });
 
+// CLAUDE.md §8 — a log message is a constant event name; data goes in fields, where the sanitiser
+// (@pospay/observability) can redact it. The logger also withholds messages that look like data.
+const LOG_SYNTAX = [
+  {
+    selector:
+      'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > TemplateLiteral[expressions.length>0]',
+    message: 'Log messages are constant event names — put dynamic values in the log object.',
+  },
+  {
+    selector:
+      "CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > BinaryExpression[operator='+']",
+    message: 'Log messages are constant event names — put dynamic values in the log object.',
+  },
+];
+
+// CLAUDE.md §7 — text a user reads lives in packages/i18n. Arabic in a string is always such text, so it is refused
+// anywhere else; comments are not strings and stay Arabic (§3.1).
+const USER_TEXT =
+  'Arabic text belongs in packages/i18n (CLAUDE.md §7) — add a catalog key and use t().';
+// Built from code points so this file holds no Arabic itself: the Arabic block, U+0600 to U+06FF.
+const ARABIC = `/[${String.fromCharCode(0x600)}-${String.fromCharCode(0x6ff)}]/`;
+const USER_TEXT_SYNTAX = [
+  { selector: `Literal[value=${ARABIC}]`, message: USER_TEXT },
+  { selector: `TemplateElement[value.raw=${ARABIC}]`, message: USER_TEXT },
+];
+
+const restrictedSyntax = ({ userText }) => [
+  'error',
+  ...CREDENTIAL_SYNTAX,
+  ...LOG_SYNTAX,
+  ...(userText ? [] : USER_TEXT_SYNTAX),
+];
+
+/**
+ * The override for code that may hold user-facing text: packages/i18n, and tests that assert it.
+ *
+ * @returns {import('eslint').Linter.Config} the override
+ */
+export const allowUserFacingText = () => ({
+  rules: { 'no-restricted-syntax': restrictedSyntax({ userText: true }) },
+});
+
 /** Shared flat config. Every app and package re-exports this from its own eslint.config.js. */
 export const config = tseslint.config(
   {
@@ -66,23 +108,13 @@ export const config = tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
       // NestJS modules are empty classes that exist to carry @Module(); undecorated ones stay banned.
       '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
-      // CLAUDE.md §8 — a log message is a constant event name; data goes in fields, where the sanitiser
-      // (@pospay/observability) can redact it. The logger also withholds messages that look like data.
-      'no-restricted-syntax': [
-        'error',
-        ...CREDENTIAL_SYNTAX,
-        {
-          selector:
-            'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > TemplateLiteral[expressions.length>0]',
-          message: 'Log messages are constant event names — put dynamic values in the log object.',
-        },
-        {
-          selector:
-            "CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > BinaryExpression[operator='+']",
-          message: 'Log messages are constant event names — put dynamic values in the log object.',
-        },
-      ],
+      'no-restricted-syntax': restrictedSyntax({ userText: false }),
     },
+  },
+  {
+    // Tests assert the Arabic a user sees; the rule is about where the product keeps its text, not its tests.
+    files: ['**/__tests__/**', '**/*.spec.ts', '**/test/**'],
+    ...allowUserFacingText(),
   },
   {
     // CLAUDE.md §3 — file and function size.

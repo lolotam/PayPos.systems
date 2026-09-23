@@ -1,96 +1,34 @@
 import type { ErrorEnvelope } from '@pospay/contracts';
+import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 
-// Every error the API returns, in both languages (CLAUDE.md §6). A new code is added here, never inlined.
-const CATALOG = {
-  VALIDATION_FAILED: {
-    status: 400,
-    ar: 'البيانات المرسلة غير صحيحة',
-    en: 'The request is not valid',
-  },
-  BAD_REQUEST: { status: 400, ar: 'الطلب غير صالح', en: 'The request is malformed' },
-  UNAUTHENTICATED: {
-    status: 401,
-    ar: 'يجب تسجيل الدخول',
-    en: 'Authentication is required',
-  },
-  AUTHENTICATION_FAILED: {
-    status: 401,
-    ar: 'تعذّر تسجيل الدخول بهذه البيانات',
-    en: 'Authentication failed',
-  },
-  FORBIDDEN: { status: 403, ar: 'غير مسموح بهذا الإجراء', en: 'This action is not allowed' },
-  FEATURE_DISABLED: {
-    status: 403,
-    ar: 'هذه الخاصية غير مفعّلة لشركتك',
-    en: 'This feature is not enabled for your company',
-  },
-  PAIRING_CODE_INVALID: {
-    status: 400,
-    ar: 'كود الربط غير صحيح أو انتهت صلاحيته',
-    en: 'The pairing code is invalid or has expired',
-  },
-  DEVICE_PENDING: {
-    status: 409,
-    ar: 'الجهاز في انتظار موافقة المدير',
-    en: 'The device is waiting for a manager to approve it',
-  },
-  DEVICE_NOT_PENDING: {
-    status: 409,
-    ar: 'لا يوجد جهاز في انتظار الموافقة بهذا المعرّف في هذا الفرع',
-    en: 'No device in this branch is waiting for approval with this id',
-  },
-  PIN_INVALID: {
-    status: 401,
-    ar: 'الرقم السري غير صحيح',
-    en: 'The PIN is incorrect',
-  },
-  PIN_LOCKED: {
-    status: 423,
-    ar: 'الرقم السري مقفول بعد محاولات خاطئة كثيرة، حاول بعد 15 دقيقة',
-    en: 'The PIN is locked after too many wrong attempts — try again in 15 minutes',
-  },
-  NOT_FOUND: { status: 404, ar: 'المسار غير موجود', en: 'Not found' },
-  METHOD_NOT_ALLOWED: { status: 405, ar: 'الطريقة غير مسموحة', en: 'Method not allowed' },
-  PAYLOAD_TOO_LARGE: { status: 413, ar: 'حجم الطلب كبير جداً', en: 'Payload too large' },
-  URI_TOO_LONG: { status: 414, ar: 'الرابط طويل جداً', en: 'URI too long' },
-  UNSUPPORTED_MEDIA_TYPE: {
-    status: 415,
-    ar: 'نوع المحتوى غير مدعوم',
-    en: 'Unsupported media type',
-  },
-  TOO_MANY_REQUESTS: {
-    status: 429,
-    ar: 'طلبات كثيرة، حاول بعد قليل',
-    en: 'Too many requests — try again shortly',
-  },
-  IDEMPOTENCY_KEY_REQUIRED: {
-    status: 400,
-    ar: 'رأس Idempotency-Key مطلوب ويجب أن يكون من 1 إلى 255 حرفاً مرئياً',
-    en: 'An Idempotency-Key header of 1–255 visible ASCII characters is required',
-  },
-  IDEMPOTENCY_KEY_IN_PROGRESS: {
-    status: 409,
-    ar: 'طلب بنفس المفتاح ما زال قيد التنفيذ، أعد المحاولة بعد قليل',
-    en: 'A request with this Idempotency-Key is still in progress — retry shortly',
-  },
-  IDEMPOTENCY_KEY_REUSED: {
-    status: 422,
-    ar: 'تم استخدام مفتاح Idempotency-Key مع طلب مختلف',
-    en: 'This Idempotency-Key was already used with a different request',
-  },
-  NOT_READY: {
-    status: 503,
-    ar: 'الخدمة غير جاهزة حالياً',
-    en: 'The service is not ready',
-  },
-  INTERNAL_ERROR: {
-    status: 500,
-    ar: 'حدث خطأ غير متوقع',
-    en: 'An unexpected error occurred',
-  },
-} as const;
+// Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
+// §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
+const STATUS = {
+  VALIDATION_FAILED: 400,
+  BAD_REQUEST: 400,
+  UNAUTHENTICATED: 401,
+  AUTHENTICATION_FAILED: 401,
+  FORBIDDEN: 403,
+  FEATURE_DISABLED: 403,
+  PAIRING_CODE_INVALID: 400,
+  DEVICE_PENDING: 409,
+  DEVICE_NOT_PENDING: 409,
+  PIN_INVALID: 401,
+  PIN_LOCKED: 423,
+  NOT_FOUND: 404,
+  METHOD_NOT_ALLOWED: 405,
+  PAYLOAD_TOO_LARGE: 413,
+  URI_TOO_LONG: 414,
+  UNSUPPORTED_MEDIA_TYPE: 415,
+  TOO_MANY_REQUESTS: 429,
+  IDEMPOTENCY_KEY_REQUIRED: 400,
+  IDEMPOTENCY_KEY_IN_PROGRESS: 409,
+  IDEMPOTENCY_KEY_REUSED: 422,
+  NOT_READY: 503,
+  INTERNAL_ERROR: 500,
+} as const satisfies Record<ErrorMessageCode, number>;
 
-export type ErrorCode = keyof typeof CATALOG;
+export type ErrorCode = keyof typeof STATUS;
 
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
@@ -117,22 +55,20 @@ export class ApiError extends Error {
   readonly details: unknown;
 
   constructor(code: ErrorCode, details?: unknown) {
-    super(CATALOG[code].en);
+    super(errorMessages(code).message_en);
     this.name = 'ApiError';
     this.code = code;
     this.details = details;
   }
 
   get status(): number {
-    return CATALOG[this.code].status;
+    return STATUS[this.code];
   }
 
   toEnvelope(): ErrorEnvelope {
-    const { ar, en } = CATALOG[this.code];
     return {
       code: this.code,
-      message_ar: ar,
-      message_en: en,
+      ...errorMessages(this.code),
       ...(this.details === undefined ? {} : { details: this.details }),
     };
   }
@@ -147,8 +83,8 @@ export class ApiError extends Error {
  * @returns the catalogued code
  */
 export function codeForStatus(status: number): ErrorCode {
-  const found = (Object.keys(CATALOG) as ErrorCode[]).find(
-    (code) => CATALOG[code].status === status && !RAISED_BY_THE_API_ONLY.has(code),
+  const found = (Object.keys(STATUS) as ErrorCode[]).find(
+    (code) => STATUS[code] === status && !RAISED_BY_THE_API_ONLY.has(code),
   );
   if (found !== undefined) return found;
   return status >= 400 && status < 500 ? 'BAD_REQUEST' : 'INTERNAL_ERROR';
