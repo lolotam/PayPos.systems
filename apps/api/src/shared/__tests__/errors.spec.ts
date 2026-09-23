@@ -161,6 +161,17 @@ describe('non-Error throws', () => {
 });
 
 describe('errors Fastify raises before Nest runs', () => {
+  it('an oversized body keeps its 413 as PAYLOAD_TOO_LARGE in the envelope', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/probe/business',
+      headers: { 'content-type': 'application/json' },
+      payload: JSON.stringify({ name_en: 'x'.repeat(1_100_000) }),
+    });
+    expect(res.statusCode).toBe(413);
+    expect(errorEnvelope.parse(res.json()).code).toBe('PAYLOAD_TOO_LARGE');
+  });
+
   it('a malformed URL is 400 BAD_REQUEST in the envelope and the input is not echoed', async () => {
     const res = await app.inject({ method: 'GET', url: '/%ZZ_echo_me' });
     expect(res.statusCode).toBe(400);

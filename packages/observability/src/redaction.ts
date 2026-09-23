@@ -18,8 +18,10 @@ const SECRET_SUFFIXES = [
   'pin',
   'otp',
   'cvv',
+  // a hash of a secret (pin_hash, token_hash, password_hash) is still sensitive
+  'hash',
 ];
-const PHONE_SUFFIXES = ['phone', 'phonenumber', 'mobile'];
+const PHONE_SUFFIXES = ['phone', 'phones', 'phonenumber', 'phonenumbers', 'mobile', 'mobiles'];
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
 const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
   const normalized = normalizeKey(key);
@@ -72,7 +74,8 @@ export function sanitize(value: unknown): unknown {
     for (const [key, child] of Object.entries(node)) {
       if (typeof child === 'function') continue;
       if (isSecretKey(key)) out[key] = REDACTED;
-      else if (isPhoneKey(key)) out[key] = maskPhone(child);
+      else if (isPhoneKey(key))
+        out[key] = Array.isArray(child) ? child.map(maskPhone) : maskPhone(child);
       else out[key] = walk(child, depth + 1);
     }
     return out;

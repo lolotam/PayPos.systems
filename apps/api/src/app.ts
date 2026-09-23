@@ -13,7 +13,7 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { createLogger, type Logger } from '@pospay/observability';
 import { LogController, type FastifyReply } from 'fastify';
 
-import { ApiError } from './shared/errors.ts';
+import { ApiError, codeForStatus } from './shared/errors.ts';
 import { EnvelopeExceptionFilter } from './shared/exception.filter.ts';
 import { HealthController } from './shared/health.controller.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
@@ -93,8 +93,14 @@ export async function createApp(
     logController: new LogController({ disableRequestLogging: true }),
     // A malformed URL (e.g. `/%ZZ`) is rejected by Fastify's router before Nest runs; answer with the
     // envelope instead of Fastify's default body, which echoes the malformed input.
-    frameworkErrors: (_error: unknown, _request: unknown, reply: FastifyReply) => {
-      void reply.code(400).send(new ApiError('BAD_REQUEST').toEnvelope());
+    frameworkErrors: (error: unknown, _request: unknown, reply: FastifyReply) => {
+      const status = (error as { statusCode?: unknown }).statusCode;
+      // Keep Fastify's own 4xx status (413 for an oversized body); anything else is a malformed request.
+      const apiError =
+        typeof status === 'number' && status > 400 && status < 500
+          ? new ApiError(codeForStatus(status))
+          : new ApiError('BAD_REQUEST');
+      void reply.code(apiError.status).send(apiError.toEnvelope());
     },
   });
   // One line per request with safe, structural fields only: the route PATTERN, never the raw URL, whose

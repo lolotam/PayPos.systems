@@ -251,3 +251,22 @@ describe('round 6 — child options and key spellings', () => {
     expect(line).toMatchObject({ shipping: 'fast', openingHours: 'late' });
   });
 });
+
+describe('the repository’s own field names', () => {
+  it('pin_hash, token_hash and password_hash are redacted', () => {
+    const raw = capture((log) =>
+      log.info(
+        { pin_hash: 'h_pin_leak', token_hash: 'h_tok_leak', password_hash: 'h_pw_leak' },
+        'event',
+      ),
+    );
+    for (const leak of ['h_pin_leak', 'h_tok_leak', 'h_pw_leak']) expect(raw).not.toContain(leak);
+  });
+
+  it('every number in a phones array keeps only its last 3 digits', () => {
+    const line = JSON.parse(
+      capture((log) => log.info({ phones: ['96550012345', '96560098765'] }, 'event')),
+    );
+    expect(line).toMatchObject({ phones: ['***345', '***765'] });
+  });
+});
