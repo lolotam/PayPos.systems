@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+# apps/worker — multi-stage on node:24-alpine (ADR-0002), production dependencies only. No Chromium and no Arabic
+# fonts yet: document rendering arrives in Phase 5 with packages/documents (plan T13).
+
+FROM node:24-alpine AS build
+RUN npm install -g pnpm@12.5.1
+WORKDIR /repo
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm turbo run build --filter=@pospay/worker...
+RUN pnpm --filter @pospay/worker deploy --prod --legacy /out/worker
+
+FROM node:24-alpine AS worker
+ENV NODE_ENV=production WORKER_HOST=0.0.0.0 WORKER_PORT=3001
+WORKDIR /app
+COPY --from=build --chown=node:node /out/worker .
+USER node
+EXPOSE 3001
+HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${WORKER_PORT}/health" >/dev/null || exit 1
+CMD ["node", "dist/main.js"]

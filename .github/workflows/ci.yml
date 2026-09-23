@@ -118,11 +118,52 @@ jobs:
       - name: build all apps
         run: pnpm turbo run build
 
+  # CLAUDE.md §10 — images are built on every code change, and pushed to GHCR tagged by the commit SHA (never `latest`)
+  # only from main. Plain docker CLI, no third-party action: the token below is the run's own, scoped to this repo.
+  images:
+    name: docker images
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+      SHA: ${{ github.sha }}
+      PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: build api · migrate · worker
+        run: |
+          registry="$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')"
+          docker build -f deploy/Dockerfile.api --target api -t "$registry/pospay-api:$SHA" .
+          docker build -f deploy/Dockerfile.api --target migrate -t "$registry/pospay-migrate:$SHA" .
+          docker build -f deploy/Dockerfile.worker -t "$registry/pospay-worker:$SHA" .
+          echo "REGISTRY_LC=$registry" >> "$GITHUB_ENV"
+
+      # No .env reaches an image: the build context excludes it (.dockerignore), and this proves it.
+      - name: no env file in any image
+        run: |
+          for image in api migrate worker; do
+            ! docker run --rm --entrypoint sh "$REGISTRY_LC/pospay-$image:$SHA" -c 'find / -name ".env" -not -path "/proc/*" 2>/dev/null | grep -q .'
+          done
+
+      - name: push (main only)
+        if: env.PUSH == 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for image in api migrate worker; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
+
   # The one check branch protection requires. It passes when `check` passed, or when `check` was
   # skipped because only docs changed — and fails on anything else, including a failed `changes`.
   gate:
     name: ci-gate
-    needs: [changes, check]
+    needs: [changes, check, images]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -130,8 +171,13 @@ jobs:
       - env:
           CHANGES: ${{ needs.changes.result }}
           CHECK: ${{ needs.check.result }}
+          IMAGES: ${{ needs.images.result }}
           CODE: ${{ needs.changes.outputs.code }}
         run: |
-          echo "changes=$CHANGES check=$CHECK code=$CODE"
+          echo "changes=$CHANGES check=$CHECK images=$IMAGES code=$CODE"
           [ "$CHANGES" = "success" ] || exit 1
-          if [ "$CODE" = "true" ]; then [ "$CHECK" = "success" ]; else [ "$CHECK" = "skipped" ]; fi
+          if [ "$CODE" = "true" ]; then
+            [ "$CHECK" = "success" ] && [ "$IMAGES" = "success" ]
+          else
+            [ "$CHECK" = "skipped" ] && [ "$IMAGES" = "skipped" ]
+          fi

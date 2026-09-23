@@ -1,0 +1,125 @@
+# Staging — plan T13, PRD D-11: on the existing server beside production for now, until the new server is bought.
+# Deployed by Dokploy. Every image is pinned to a commit SHA (IMAGE_TAG), never `latest`; rolling back is redeploying
+# the previous SHA. Every secret is injected by Dokploy — `${VAR:?}` makes a missing one stop the deploy, never start
+# with a blank. Nothing here is a secret.
+
+name: pospay-staging
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgres://pospay_app:${POSTGRES_APP_PASSWORD:?}@postgres:5432/pospay
+  REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pospay
+      POSTGRES_USER: pospay_owner
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:?}
+      TZ: UTC
+      PGTZ: UTC
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - statement_timeout=30s
+      - -c
+      - idle_in_transaction_session_timeout=60s
+      - -c
+      - lock_timeout=10s
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - timezone=UTC
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pospay_owner -d pospay']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 1g
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      [
+        'redis-server',
+        '--requirepass',
+        '${REDIS_PASSWORD:?}',
+        '--appendonly',
+        'yes',
+        '--maxmemory',
+        '256mb',
+        '--maxmemory-policy',
+        'noeviction',
+      ]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+    mem_limit: 320m
+
+  # Migrations are their own step (CLAUDE.md §10): the apps start only after this exits 0.
+  migrate:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-migrate:${IMAGE_TAG:?}
+    restart: 'no'
+    environment:
+      NODE_ENV: production
+      MIGRATION_DATABASE_URL: postgres://pospay_owner:${POSTGRES_OWNER_PASSWORD:?}@postgres:5432/pospay
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?}
+      POSTGRES_AUTH_PASSWORD: ${POSTGRES_AUTH_PASSWORD:?}
+      POSTGRES_DISPATCHER_PASSWORD: ${POSTGRES_DISPATCHER_PASSWORD:?}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 256m
+
+  api:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-api:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@postgres:5432/pospay
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:?}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:?}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    # Dokploy's Traefik routes the API's domain here; the port is never published on the host.
+    expose:
+      - '3000'
+    mem_limit: 512m
+
+  worker:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-worker:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@postgres:5432/pospay
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    expose:
+      - '3001'
+    mem_limit: 384m
+
+volumes:
+  pg_data:
+  redis_data:

@@ -762,6 +762,18 @@ Docker images remain T13.
 
 **Done when:** the docker-image build is a required check on `main` (the last gate from T12b's list); a staging deploy succeeds from a SHA-tagged image, the previous image still runs against the new schema, and **one PITR restore has actually been performed** to a chosen timestamp and queried.
 
+**T13-1 as built (images, no server touched):** `deploy/Dockerfile.api` (targets `api` and `migrate`) and
+`deploy/Dockerfile.worker`, multi-stage on `node:24-alpine`, `pnpm deploy --prod` so only production dependencies
+ship, running as `node`, with a `/health` healthcheck; the worker has no Chromium and no fonts. `.dockerignore` keeps
+every `.env` out of the build context, and CI proves no image contains one. CI's `docker images` job builds all three
+on every code change and pushes them to GHCR tagged by the commit SHA from `main` only; `ci-gate` requires it, so the
+image build is a required check on `main`. `deploy/docker-compose.staging.yml`: Postgres 16 and Redis 7 with the dev
+limits, `migrate` as a one-shot step the API and worker wait on (`service_completed_successfully`), memory limits and
+restart policies everywhere, no host ports (Dokploy's Traefik routes), every secret `${VAR:?}` so a missing one stops
+the deploy. Rehearsed locally end to end with throwaway secrets: migrate exits 0, API and worker healthy and ready, an
+unauthenticated route 401. **T13-2 (on the server, with Waleed's go-ahead):** Dokploy project, secrets, subdomains, the
+previous-image-on-new-schema check, and the backups (restic + pgBackRest) with their timed restores.
+
 ---
 
 ## 2. Dependency order — revised (v4)

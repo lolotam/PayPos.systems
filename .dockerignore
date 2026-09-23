@@ -1,0 +1,11 @@
+# Build context for deploy/Dockerfile.* — secrets and local state never enter an image (CLAUDE.md §8).
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+.git
+.github
+*.log
