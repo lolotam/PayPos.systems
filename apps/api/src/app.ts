@@ -11,7 +11,7 @@ import {
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createLogger, type Logger } from '@pospay/observability';
-import { LogController, type FastifyReply } from 'fastify';
+import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import { ApiError, codeForStatus } from './shared/errors.ts';
 import { EnvelopeExceptionFilter } from './shared/exception.filter.ts';
@@ -93,13 +93,15 @@ export async function createApp(
     logController: new LogController({ disableRequestLogging: true }),
     // A malformed URL (e.g. `/%ZZ`) is rejected by Fastify's router before Nest runs; answer with the
     // envelope instead of Fastify's default body, which echoes the malformed input.
-    frameworkErrors: (error: unknown, _request: unknown, reply: FastifyReply) => {
+    frameworkErrors: (error: unknown, request: FastifyRequest, reply: FastifyReply) => {
       const status = (error as { statusCode?: unknown }).statusCode;
       // A catalogued Fastify status keeps its code (413, 414, 415…); another 4xx is BAD_REQUEST; a
       // server-side failure stays a 500. A missing status (a malformed URL) is a bad request.
       const apiError = new ApiError(
         typeof status === 'number' ? codeForStatus(status) : 'BAD_REQUEST',
       );
+      // Fastify's own error logging is off, so a framework-side failure is logged here (type/code only).
+      if (apiError.code === 'INTERNAL_ERROR') request.log.error({ err: error }, 'unhandled error');
       void reply.code(apiError.status).send(apiError.toEnvelope());
     },
   });
