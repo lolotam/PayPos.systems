@@ -1,7 +1,7 @@
 import { SetMetadata } from '@nestjs/common';
 import type { FeatureFlag, Permission } from '@pospay/db';
 
-import { permissionScope } from '../domain/access.ts';
+import { targetFitsPermission } from '../use-cases/authorize-request/authorize-request.ts';
 
 export const REQUIRE_ACCESS = 'pospay:require-access';
 export const AUTHENTICATED_ONLY = 'pospay:authenticated-only';
@@ -32,13 +32,10 @@ export interface RequiredAccess {
  * @returns the metadata decorator
  */
 export function Require(permission: Permission, target: AccessTargetParams = {}): MethodDecorator {
-  const scope = permissionScope(permission);
-  const expected =
-    scope === 'branch'
-      ? target.branch !== undefined && target.business === undefined
-      : scope === 'business'
-        ? target.business !== undefined && target.branch === undefined
-        : scope === 'company' && target.business === undefined && target.branch === undefined;
+  const expected = targetFitsPermission(permission, {
+    business: target.business !== undefined,
+    branch: target.branch !== undefined,
+  });
   if (!expected) {
     throw new TypeError(`@Require('${permission}') needs exactly the target its scope names`);
   }

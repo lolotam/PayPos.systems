@@ -16,12 +16,9 @@ import { createLogger, type Logger } from '@pospay/observability';
 import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import {
-  ACCESS_READER,
-  AccessGuard,
   COMPANY_HEADER,
-  FeatureGuard,
   assertEveryRouteGuarded,
-  createAccessReader,
+  identityProviders,
 } from './modules/identity/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { ApiError, codeForStatus } from './shared/errors.ts';
@@ -85,15 +82,10 @@ class AppModule {
         { provide: SHUTDOWN, useValue: deps.onShutdown ?? (async () => undefined) },
         ShutdownHook,
         { provide: AUTH_SERVICE, useValue: deps.auth?.service ?? null },
-        {
-          provide: ACCESS_READER,
-          useValue: deps.database === undefined ? null : createAccessReader(deps.database),
-        },
         // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
-        { provide: APP_GUARD, useClass: AccessGuard },
-        { provide: APP_GUARD, useClass: FeatureGuard },
+        ...identityProviders(deps.database),
       ],
     };
   }

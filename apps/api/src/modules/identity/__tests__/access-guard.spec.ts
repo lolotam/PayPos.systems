@@ -22,7 +22,8 @@ import {
 } from '../../../../../../packages/db/test/test-database.ts';
 import { seedReferenceData } from '../../../../../../packages/db/src/seed.ts';
 import { createApp } from '../../../app.ts';
-import { Require, RequiresFeature } from '../index.ts';
+import { Public } from '../../../shared/public.decorator.ts';
+import { Authenticated, Require, RequiresFeature } from '../index.ts';
 
 // T9a-2 against real Postgres: memberships decide which companies a user may switch to, the permission is
 // evaluated at the route's target with DENY winning, and a disabled feature is refused.
@@ -326,7 +327,51 @@ describe('routes without a declared access', () => {
       createApp({ readiness: [] }, { controllers: [Unguarded], logger: createLogger('silent') }),
     ).rejects.toThrow(/Unguarded\.open/);
   });
+});
 
+describe('conflicting or inherited access declarations', () => {
+  it('a public class, or @Authenticated beside @Require, cannot hide a permission — both refuse to start', async () => {
+    @Public()
+    @Controller('probe/public-class')
+    class PublicClass {
+      @Require('read:memberships:company')
+      @Get()
+      hidden(): string {
+        return 'hidden';
+      }
+    }
+    @Controller('probe/both')
+    class Both {
+      @Authenticated()
+      @Require('read:memberships:company')
+      @Get()
+      hidden(): string {
+        return 'hidden';
+      }
+    }
+    for (const controller of [PublicClass, Both]) {
+      await expect(
+        createApp({ readiness: [] }, { controllers: [controller], logger: createLogger('silent') }),
+      ).rejects.toThrow(/\.hidden \(conflicting\)/);
+    }
+  });
+
+  it('an inherited route with no declared access is caught too', async () => {
+    class Base {
+      @Get('inherited')
+      inherited(): string {
+        return 'open';
+      }
+    }
+    @Controller('probe/child')
+    class Child extends Base {}
+    await expect(
+      createApp({ readiness: [] }, { controllers: [Child], logger: createLogger('silent') }),
+    ).rejects.toThrow(/Child\.inherited \(unguarded\)/);
+  });
+});
+
+describe('an app without a database', () => {
   it('without a database no @Require route answers', async () => {
     const bare = await createApp(
       { readiness: [], auth: { service: fakeAuth, baseURL: 'http://api.test' } },
