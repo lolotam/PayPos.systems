@@ -156,8 +156,10 @@ The overrides table is here, not in `identity`, because `tenancy` owns plans and
 - Every policy reads context through `app_company_id()` (migration 0000), **never** a raw
   `current_setting(...)::uuid` cast — an empty setting on a pooled connection would raise `22P02`.
 - Policies are split by command: `FOR SELECT … USING`, `FOR INSERT … WITH CHECK`, `FOR UPDATE … USING … WITH CHECK`,
-  `FOR DELETE … USING`. Every write policy declares `WITH CHECK` explicitly.
-- `ENABLE` **and** `FORCE ROW LEVEL SECURITY` on every tenant table; composite indexes start with `company_id`.
+  `FOR DELETE … USING`. `INSERT` and `UPDATE` policies declare `WITH CHECK` explicitly (`DELETE` has none by definition).
+- `ENABLE` **and** `FORCE ROW LEVEL SECURITY` on every tenant table. On tenant **child** tables, composite indexes start
+  with `company_id` and a same-tenant `UPDATE` of `company_id` is rejected; `companies` (no `company_id`) gets its own
+  root-table assertions below.
 - Tenant-qualified composite foreign keys (below).
 
 **Seeds vs fixtures (debate C2).** `seed.ts` writes only the **provisional plan** — every module flag enabled
@@ -296,7 +298,7 @@ duplicate executes, (f) a key-acquisition lock timeout returns a retryable `409`
 
 ---
 
-### T7b — Worker bootstrap + outbox dispatcher · Size M · depends: T7 · **NEW in v4**
+### T7b — Worker bootstrap + outbox dispatcher · Size M · depends: T7 · **NEW in v4** · before T9a-1
 
 **Why here, not in T13 (debate C3).** T8 and T9a publish events; with no dispatcher until T13, delivery bugs would
 surface at the very end. The worker's image and deployment stay in T13.
@@ -307,6 +309,16 @@ apps/worker/src/{main.ts,worker.module.ts,health.controller.ts}
 apps/worker/src/outbox/**                          ← dispatcher: poll → publish → mark published
 packages/db/migrations/<generated>_outbox-dispatcher.sql
 ```
+
+**Worker bootstrap requirements (moved from T13).** `main.ts` on NestJS; `/health` (process alive, no dependency checks)
+and `/ready` (Postgres and Redis reachable — tested to go non-200 when either is down); the BullMQ connection; graceful
+shutdown that stops polling before closing pools.
+
+**Database access stays inside `packages/db` (debate C11 rule).** The dispatcher does not open its own client:
+`packages/db` exports a second, restricted facade — `createOutboxDispatcherDatabase({ url })` — whose only methods
+claim a batch of unpublished events and record delivery metadata. `apps/worker` supplies the `pospay_dispatcher`
+credentials and wires it; no other app imports it, and the "no database client outside `packages/db` /
+`packages/auth`" rule stays intact.
 
 **Delivery guarantee — at-least-once, effect-once.** A crash between "published" and "marked published" redelivers.
 Every event carries a stable `event_id`; consumers dedupe by it and apply each effect once. Publication tracking and
@@ -321,8 +333,10 @@ to read anything, so it cannot drain every company's outbox, and there is no byp
 - RLS stays **forced** on `outbox`; role-scoped policies `FOR SELECT TO pospay_dispatcher USING (true)` and
   `FOR UPDATE TO pospay_dispatcher USING (true) WITH CHECK (true)` — the one documented exception to the
   helper-based tenant policy rule.
-- Reached only through a dedicated dispatcher pool/adapter in `apps/worker`, never available to HTTP handlers. No
-  membership or `PUBLIC` path lets an application role acquire it.
+- Reached only through `createOutboxDispatcherDatabase` in `packages/db`, wired by `apps/worker`, never available to
+  HTTP handlers. No membership or `PUBLIC` path lets an application role acquire it.
+- Schema access: an explicit `GRANT USAGE ON SCHEMA public`; `CONNECT` to the database through its default `PUBLIC`
+  grant. Both are listed in T5's reviewed privilege inventory.
 - Handlers that apply an event's effect run as `pospay_app` inside `withTenant(event.company_id)`.
 
 **Blocked on (`TODO(spec)`):** ordering scope (per aggregate? per company?) and poison-event handling (attempt limit,
@@ -335,7 +349,7 @@ with the effect applied once; `pospay_dispatcher` can read `outbox` across tenan
 
 ---
 
-### T8 — `tenancy` use cases · Size L · depends: T9a-4, T7b
+### T8 — `tenancy` use cases · Size L · depends: T9a-4
 
 **Deliverable:** the first real vertical slices.
 
@@ -365,7 +379,7 @@ company B that must never appear in any response nor change. These are complemen
 
 ---
 
-### T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · 4 PRs · depends: T7 · **before T8**
+### T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · 4 PRs · depends: T7b · **before T8**
 
 **Four sequential PRs (debate C7)** — each passes its own gates and leaves unfinished business routes unavailable;
 none may commit a company without its owner membership. T8 depends on all four.
@@ -475,7 +489,7 @@ are **required** on every PR from the moment they exist. Branch protection makin
 
 ---
 
-### T12b — Full gate · Size M · depends: T8, T7b
+### T12b — Full gate · Size M · depends: T8
 
 **Files:** `.github/workflows/ci.yml` (extended), `.github/workflows/build.yml`, `scripts/module-map/*`
 
@@ -486,9 +500,11 @@ unit (domain) → integration → RLS negative tests → EXPLAIN checks →
 build all apps → docker images
 ```
 
-- **Activation:** each gate becomes required in the PR that first gives it something to check — cycles and module-map
-  with T8 (the first cross-module arrows), EXPLAIN checks with the first `queries/` file, build and images with T6b's
-  first app. T12b turns the remaining ones on and fixes the order.
+- **Activation:** each gate becomes required in the PR that first gives it something to check — cycles, module-map,
+  the generated YAML and the write-exception check with **T9a-4** (`identity → tenancy` and `registerCompany` are the
+  first cross-module arrow and write); EXPLAIN checks with the first `queries/` file; **build** with each app (T6b for
+  `api`, T7b for `worker`); **docker images** with the Dockerfiles in T13. T12b turns the remaining ones on and fixes
+  the order.
 - **Module map (debate C6):** `docs/module-map.md` stays authoritative; `docs/module-map.yaml` is **generated** from it
   deterministically and CI fails when the committed YAML is stale. The single synchronous write exception
   (`identity`'s `CompanyRegistry` → `tenancy`'s `registerCompany`) is represented as its own entry — an
@@ -536,13 +552,13 @@ cross-module write is blocked by CI.
 
 ```
 T0 ─ T1 ─┬─ T2 ─┐
-         └─ T3 ─┴─ T4 ─ T6a ─ T5 ─ T6b ─┬─ T7 ─┬─ T7b ────────────────┐
-                                        │      └─ T9a-1 ─ T9a-2 ─ T9a-3 ─ T9a-4 ─┴─ T8 ─┬─ T9b
-                                        └─ T11                                          └─ T10
-            T1 ─ T12a (runs on every PR, grows with each task)          T8 + T7b ─ T12b ─ T13
+         └─ T3 ─┴─ T4 ─ T6a ─ T5 ─ T6b ─┬─ T7 ─ T7b ─ T9a-1 ─ T9a-2 ─ T9a-3 ─ T9a-4 ─ T8 ─┬─ T9b
+                                        │                                                └─ T10
+                                        └─ T11
+            T1 ─ T12a (runs on every PR, grows with each task)                  T8 ─ T12b ─ T13
 ```
 
-- **v4:** T7b (worker + outbox dispatcher) moves up from T13; T9a is four PRs; T12a is live and already gates T5's
+- **v4:** T7b (worker + outbox dispatcher) moves up from T13 and runs **before** T9a (serial, like everything else); T9a is four PRs; T12a is live and already gates T5's
   suites; T12b switches the remaining gates on (`DEBATE-2026-09-23.md`). Done so far: T0–T4, T6a, T12a.
 
 - **T0** now precedes everything. The auth ↔ RLS boundary is a schema decision, not a T9 detail.
@@ -552,8 +568,7 @@ T0 ─ T1 ─┬─ T2 ─┐
 - **T13 depends on T9b, T10 and T11**, not only on T12. Staging must not be declared done while the worker, i18n and observability are missing.
 - **Redaction moves earlier.** The pino redaction list lands with **T6b**, not T11. Adding it after real requests have been logged means the exposure already happened.
 
-**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → **T9a-1 → T9a-2 → T9a-3 → T9a-4** → T8 → T9b → T12b → T13
-(T7b runs beside the T9a PRs and must be green before T8.)
+**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → **T9a-1 → T9a-2 → T9a-3 → T9a-4** → T8 → T9b → T12b → T13
 
 T11 can run in parallel with T7–T8; it touches no module code.
 
@@ -561,9 +576,30 @@ T11 can run in parallel with T7–T8; it touches no module code.
 
 ---
 
-## 3. Rough schedule — revised
+## 3. Schedule — re-forecast in v4
 
-The first draft said 4 weeks. The review rejected that as "an optimistic coding budget, not a credible completion forecast", and it is right: T7 and T9 were costed as if concurrency, the auth bootstrap and authorization edge cases were free.
+The first draft said 4 weeks; v2 said 6–8. The v2 table is kept below as history. **v4 re-forecasts the remaining work
+from what T3, T4 and T6a actually cost** (debate C10): typing was fast; verification was not — T4 took 9 review rounds,
+T6a 5. Each remaining task is therefore costed as *build* plus an explicit *review/rework* allowance.
+
+| Task | Build | Review / rework | Why that allowance |
+|---|---|---|---|
+| T5 | 2 d | 2 d | RLS + privilege inventory is the phase's security core |
+| T6b | 1 d | 0.5 d | framework wiring, redaction tests |
+| T7 | 1.5 d | 1.5 d | concurrency (idempotency waits, outbox in-transaction) |
+| T7b | 1.5 d | 1.5 d | new role + delivery guarantees + crash tests |
+| T9a-1 … T9a-4 | 5 d | 4 d | auth and authorization — the plan's top risk |
+| T8 | 2 d | 1 d | first tenancy slices + isolation proof |
+| T9b | 2 d | 2 d | PINs, devices, rate limits — blocked on D-08 / D-09 |
+| T10 · T11 | 2 d | 1 d | T10 blocked on D-02 / D-10 |
+| T12b | 1 d | 0.5 d | gates + fixture PR |
+| T13 | 2.5 d | 1.5 d | staging, PITR rehearsal — blocked on D-11 |
+
+**Remaining ≈ 20.5 build days + 15.5 review days = 36 working days ≈ 7 weeks** from 2026-09-23, *excluding* time waiting on
+open decisions (D-02, D-08, D-09, D-10, D-11, D-34). This is an estimate, not a commitment; re-forecast after T5 and
+after T9a-4 with actuals.
+
+<details><summary>v2 week table (history — superseded)</summary>
 
 | Week | Tasks |
 |---|---|
@@ -576,12 +612,9 @@ The first draft said 4 weeks. The review rejected that as "an optimistic coding 
 | 7 | T12b · T13 |
 | 8 | buffer — open questions, rework, the PITR rehearsal |
 
-≈ **6–8 weeks**, against the 3–4 weeks in `06_Tech_Stack_Architecture_EN.md` §7.
+</details>
 
-> **v4 — this is an unvalidated target, not a forecast (debate C10).** T4 needed 9 review rounds (shared-cluster test
-> races, role-membership escalation, `CASCADE`, stale role attributes, the BYPASSRLS guard); T6a needed 5. The cost
-> driver is verification, not typing. Re-forecast after T5 from actual elapsed effort, adding T7b, the four T9a PRs,
-> the open `TODO(spec)` decisions and an explicit review/rework allowance per task — not a flat increment. **That doc's estimate is optimistic and should be updated**, or Phase 0's acceptance bar lowered deliberately — but not silently.
+The 3–4 weeks in `06_Tech_Stack_Architecture_EN.md` §7 was optimistic and should be updated to match — deliberately, not silently.
 
 **Most likely to overrun: T9a + T9b** (Better Auth + identity). Estimated 7–12 working days together rather than 2–3. AI accelerates writing code far more reliably than it accelerates verifying security.
 
@@ -601,12 +634,12 @@ The first draft said 4 weeks. The review rejected that as "an optimistic coding 
 | T6 → T6a (done) + a real T6b section; pino + redaction in T6b, T11 no longer owns it | the old T6 section was stale |
 | T7: UUID v7 in `packages/ids` with injected time/entropy | the POS and worker need ids too |
 | T7 idempotency: one transaction, unique-index coordination, no persisted `IN_FLIGHT`, lock-timeout → `409` | v3's crash-leaves-`IN_FLIGHT` contradicted its own single transaction |
-| **New T7b**: worker + outbox dispatcher (at-least-once, effect-once) and the `pospay_dispatcher` role | delivery bugs would otherwise surface only in T13; `pospay_app` cannot discover tenants |
+| **New T7b** (before T9a): worker bootstrap + outbox dispatcher (at-least-once, effect-once), the `pospay_dispatcher` role behind a `packages/db` facade | delivery bugs would otherwise surface only in T13; `pospay_app` cannot discover tenants |
 | T9a → four PRs | too large to review as one |
 | T8 isolation proof: spy + DB-boundary instrumentation + no-other-client rule + sentinel rows | a spy alone proves too little |
 | T12a / T12b real sections; generated `module-map.yaml` with the write exception as its own entry | `module-map.yaml` did not exist; gates had no activation points |
 | T13 keeps the worker image/deploy only | the worker moved to T7b |
-| Schedule: 6–8 weeks is an unvalidated target, re-forecast after T5 | T4 took 9 review rounds |
+| Schedule re-forecast from actuals: ≈ 36 working days remaining, build + explicit review allowance per task | T4 took 9 review rounds, T6a 5 |
 
 
 **v3 — 2026-09-22.** Synced with `docs/PRD.md` v1.1 §13 items 4, 7, 12 and 22 (itself revised after a second Codex review, `docs/PRD-CODEX-REVIEW.md`).
@@ -668,6 +701,6 @@ The first draft said 4 weeks. The review rejected that as "an optimistic coding 
 |---|---|---|
 | RLS looks right but is bypassable | Silent cross-tenant leak — the worst possible bug | Four negative assertions in T5, run in CI on every PR |
 | Better Auth's Drizzle adapter fights our RLS | Login runs before a tenant is known | T0 (ADR-0003) classifies every auth table before any schema; T9a proves real login against RLS before T8 relies on it |
-| Idempotency added later | Retried POSTs double-create orders in Phase 2 | T7 ships it before the first real write in T8 |
-| CI added at the end | Rules go unenforced for weeks and drift accumulates | T12 starts right after T5 and grows |
+| Idempotency added later | Retried POSTs double-create orders in Phase 2 | T7 ships it before the first real write, `onboard-company` in T9a-4 |
+| CI added at the end | Rules go unenforced for weeks and drift accumulates | T12a has run `pnpm check` on every PR since T1, on the compose stack since T4; T12b switches on the rest |
 | Backups configured but never tested | An untested backup is a hypothesis, not a backup | T13 is not done until one restore has been performed |

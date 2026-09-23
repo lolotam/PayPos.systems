@@ -139,13 +139,16 @@ it cannot drain every company's outbox. The dispatcher role can, on `outbox` **o
   `FOR UPDATE TO pospay_dispatcher USING (true) WITH CHECK (true)` — the one documented exception to the rule that
   every policy reads context through `app_company_id()` / `app_user_id()`.
 - Column grants make `event_id`, `company_id` and `payload` immutable to it.
-- It is reached only through a dedicated pool in `apps/worker`, never from an HTTP handler, and no membership or
-  `PUBLIC` path lets another role acquire it. Handlers apply each event's effect as `pospay_app` inside
+- It is reached only through a restricted facade in `packages/db` (`createOutboxDispatcherDatabase`) wired by
+  `apps/worker`, never from an HTTP handler, and no membership or `PUBLIC` path lets another role acquire it.
+- Schema access: an explicit `GRANT USAGE ON SCHEMA public`; `CONNECT` through the database's default `PUBLIC`
+  grant. Both belong to the reviewed privilege inventory (plan T5). Handlers apply each event's effect as `pospay_app` inside
   `withTenant(event.company_id)`.
 - T7b tests: it reads `outbox` across tenants and nothing else, cannot change the immutable columns, and no
   application role can assume it.
 
-`packages/db` exports exactly three entry points, all transaction-local (`set_config(…, true)`):
+`packages/db` exports `createDatabase({ url, ids })`, which returns exactly three entry points — all transaction-local
+(`set_config(…, true)`) — plus `close()`; the underlying client never leaves the package:
 
 ```ts
 withTenant(companyId, fn, { userId? })  // sets app.company_id (+ app.user_id when a user is acting;

@@ -426,7 +426,7 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 - [ ] P0-T5.6 Context-leak assertions: reuse one pooled connection A → B → no tenant; after an exception; after a rollback; two concurrent transactions do not see each other's setting; session-level settings do not survive under transaction-local overrides.
 - [ ] P0-T5.7 Referential-integrity assertion: A cannot create a branch whose `business_id` belongs to B.
 - [ ] P0-T5.8 Inventory assertion: no `SECURITY DEFINER` function on tenant tables; if ever added it pins `search_path` and restricts `EXECUTE`.
-- [ ] P0-T5.9 Seed: one **provisional** plan and its feature-flag set (renamed when D-06 is decided — the decision must not block the schema), one demo company per vertical, vertical templates as JSON.
+- [ ] P0-T5.9 Seed: one **provisional** plan with every module flag enabled (renamed when D-06 is decided — the decision must not block the schema) and the vertical templates as JSON. **No company** — demo companies are created in P0-T9a through `onboard-company` (plan v4).
 - **Done when:** every assertion passes as the restricted role and is wired into `pnpm test`.
 
 #### P0-T6b — `apps/api` skeleton · M · ⬜ · depends T5
@@ -457,6 +457,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P0-T9a.3 `@Require('action:resource:scope')` guard resolving the principal and membership server-side, deny by default, union of applicable memberships minus DENY; Redis permission cache invalidated on change; a route without a guard fails CI.
 - [ ] P0-T9a.4 **Tenant feature-flag enforcement now:** `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI). `09` §12 requires flags from Phase 0 even though the `platform` module and its screens stay in Phase 5 (SPEC §3 forbids the module now). Tests prove a disabled feature is refused server-side.
 - [ ] P0-T9a.5 `onboard-company` as a **complete slice**: spec, Zod contract, `POST /v1/companies` (caller ⛔ D-34), `Idempotency-Key`, company + owner membership + audit row + `CompanyCreated` outbox event in one transaction; scenarios `ONB-01` happy path, `ONB-02` failed membership insert leaves no company and no outbox row, `ONB-03` replay, `ONB-04` two companies created through the API; last-owner protection.
+- [ ] P0-T9a.7 Persistent demo companies — one per vertical, generic names — created through `onboard-company`, never by a raw seed (plan v4, T9a-4).
 - [ ] P0-T9a.6 Seed role bundles as **provisional codes** (renamed when D-07 is decided): Owner, General Manager, Accountant, Business Manager, Branch Manager, Shift Supervisor, Cashier, Waiter, Kitchen, Storekeeper, Staff, Marketing, Viewer.
 - **Done when:** a real login produces a session; a user with two company memberships can switch only between those two; a guard-less route and a disabled feature are both refused in tests.
 

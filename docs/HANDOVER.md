@@ -114,15 +114,15 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 | T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | ✅ done | PR #15 — ADR-0006 (+ issue #16 for T5) |
 | T6a contracts | ✅ done | PR #17 |
 | Plan v4 (debate with Codex) | 🟡 **PR open** | `docs/specs/phase-0/DEBATE-2026-09-23.md` |
-| **T5 tenancy schema + RLS suite** (next) → T6b api → T7 write primitives → **T9a → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v3 §2 |
+| **T5 tenancy schema + RLS suite** (next) → T6b api → T7 write primitives → T7b worker + dispatcher → **T9a-1…4 → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
 
-**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T9a → T8 → T9b → T12b → T13.
+**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → T9a-1 → T9a-2 → T9a-3 → T9a-4 → T8 → T9b → T12b → T13.
 
 ### 4.1 Next action — merge plan v4, then T5
 
 - Plan v4: get the docs PR through review and merge it. It changes T5 (policies per ADR-0003, no demo companies, #16
   privilege allowlist), adds T7b and the `pospay_dispatcher` role, and splits T9a into four PRs.
-- T5 per plan v3 §T5: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides` with explicit
+- T5 per plan v4 §T5: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides` with explicit
   `USING` + `WITH CHECK`, `FORCE ROW LEVEL SECURITY`, tenant-qualified composite FKs, and the negative suite run as
   `pospay_app`. Columns follow `packages/contracts` (e.g. `timezone`, `geo` as `geo_lat`/`geo_lng`, `opening_hours` jsonb).
 - T5 must also close **#16** (direct-privilege allowlist) and decide the owner-`BYPASSRLS` question (ADR-0006).
