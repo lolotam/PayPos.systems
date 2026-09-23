@@ -1,0 +1,27 @@
+{
+  "name": "@pospay/ids",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UUID v7 generation with injected time and entropy — shared by api, worker and the POS browser. Zero dependencies",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run && pnpm run test:node",
+    "test:node": "node --input-type=module -e \"import { systemUuidV7 } from '@pospay/ids'; if (!/^[0-9a-f]{8}-[0-9a-f]{4}-7/.test(systemUuidV7().newId())) process.exit(1);\""
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}

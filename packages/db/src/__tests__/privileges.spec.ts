@@ -8,6 +8,8 @@ import { createTestDatabase, type TestDatabase } from '../../test/test-database.
 // is not written here fails the suite, so a broad grant cannot authorise itself.
 const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_app: [
+    'audit_log:INSERT',
+    'audit_log:SELECT',
     'branches:DELETE',
     'branches:INSERT',
     'branches:SELECT',
@@ -20,12 +22,24 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'companies:SELECT',
     'companies:UPDATE',
     'company_feature_overrides:SELECT',
+    'idempotency_keys:INSERT',
+    'idempotency_keys:SELECT',
+    'idempotency_keys:UPDATE',
+    'outbox:INSERT',
     'plans:SELECT',
   ],
   // Global identity tables (ADR-0003 §2.1) arrive in T9a; until then pospay_auth holds no table grant.
   pospay_auth: [],
 };
-const TENANT_TABLES = ['companies', 'businesses', 'branches', 'company_feature_overrides'];
+const TENANT_TABLES = [
+  'companies',
+  'businesses',
+  'branches',
+  'company_feature_overrides',
+  'outbox',
+  'audit_log',
+  'idempotency_keys',
+];
 const APP_ROLES = ['pospay_app', 'pospay_auth'];
 
 let testDb: TestDatabase;
@@ -192,13 +206,14 @@ describe('effective access', () => {
 });
 
 describe('function inventory', () => {
-  it('the only functions are the two context helpers, and neither is SECURITY DEFINER', async () => {
+  it('the only functions are the context helpers and the idempotency commit check, none SECURITY DEFINER', async () => {
     const rows = await owner`
       SELECT proname, prosecdef FROM pg_proc
       WHERE pronamespace = 'public'::regnamespace ORDER BY proname`;
     expect(Array.from(rows)).toEqual([
       { proname: 'app_company_id', prosecdef: false },
       { proname: 'app_user_id', prosecdef: false },
+      { proname: 'idempotency_keys_require_response', prosecdef: false },
     ]);
   });
 });

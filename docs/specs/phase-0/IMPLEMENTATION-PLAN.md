@@ -249,7 +249,26 @@ logged PIN and token do not appear in the output (tested); an invalid body retur
 
 ---
 
-### T7 — Cross-cutting write primitives · Size M · depends: T6b
+### T7 — Cross-cutting write primitives · Size M · depends: T6b · ✅ done
+
+**As built**
+- `packages/ids`: `createUuidV7({ now, fillRandom })` (RFC 9562, monotonic within one generator, zero dependencies) and
+  `systemUuidV7()` on the system clock and Web Crypto; bound to `@pospay/db`'s `IdGenerator` in `apps/api/src/main.ts`.
+- Migrations `0003_…_cross-cutting.sql` (tables) and `0004_…_cross-cutting-rls.sql` (RLS, grants, commit check).
+- `outbox`: PK `(company_id, id)` — `id` is the stable event id T7b dedupes on; `pospay_app` may only `INSERT`.
+- `audit_log`: insert-only (`SELECT`, `INSERT`); the actor is `app_user_id()` (NULL = a system action). `before` /
+  `after` pass through `redactSecrets` (secret-named keys and URL credentials removed; phone numbers kept whole —
+  the audit trail is a business record, not a technical log; Waleed, 2026-09-23).
+- `idempotency_keys`: PK `(scope_type, scope_id, operation, key)` instead of a surrogate `id`; `UPDATE` reaches only a
+  row whose response is still NULL; a deferred constraint trigger refuses to commit a claim without its response.
+  A `USER` row carries no `company_id` (an FK check would reveal whether a company exists). The claim restores the
+  caller's own `lock_timeout` afterwards.
+  No `DELETE` grant — the 24 h sweep moves to T7b (the worker). An expired row still replays until it is swept.
+- `@pospay/db` exports `appendOutboxEvent`, `appendAuditLog` and `runIdempotent`; company and actor always come from
+  the transaction's context, never from the caller.
+- `apps/api`: `Clock`, `OutboxWriter` and `AuditTrail` ports (no Drizzle type) with `transactionWriters(tx, ids)` as
+  their adapter; `@Idempotency()` param decorator (header → 400, sha256 fingerprint of method + route pattern + path
+  parameters + query + canonical body); `IDEMPOTENCY_KEY_REUSED` (422) and `IDEMPOTENCY_KEY_IN_PROGRESS` (409).
 
 **Deliverable:** the machinery every later write depends on.
 
@@ -342,7 +361,7 @@ to read anything, so it cannot drain every company's outbox, and there is no byp
 
 - `NOSUPERUSER NOBYPASSRLS NOINHERIT`, owns nothing, member of nothing; created by `bootstrapRoles`.
 - Grants on the `outbox` table **only**: `SELECT`, and `UPDATE` of the delivery-metadata columns only
-  (`published_at`, `attempts`, `last_error`). `event_id`, `company_id` and `payload` are immutable to it.
+  (`published_at`, `attempts`, `last_error`). `id` (the event id), `company_id` and `payload` are immutable to it.
 - RLS stays **forced** on `outbox`; role-scoped policies `FOR SELECT TO pospay_dispatcher USING (true)` and
   `FOR UPDATE TO pospay_dispatcher USING (true) WITH CHECK (true)` — the one documented exception to the
   helper-based tenant policy rule.
@@ -358,7 +377,7 @@ parking, alerting) are business/ops decisions — stop and ask.
 **Done when:** tests prove a committed event is delivered and a rolled-back one never is; retries after a failure;
 two concurrent dispatchers do not double-apply an effect; a crash after publish and before marking leads to redelivery
 with the effect applied once; `pospay_dispatcher` can read `outbox` across tenants and **nothing else**, cannot change
-`payload` / `company_id` / `event_id`, and no application role can assume it.
+`payload` / `company_id` / `id`, and no application role can assume it.
 
 ---
 

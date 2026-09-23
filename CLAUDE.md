@@ -13,6 +13,7 @@
 > If a rule here conflicts with a request, **stop and ask** — do not silently break a rule.
 >
 > **Changelog**
+> - **V3.4 (2026-09-23)** — §2.1: `packages/ids` (UUID v7, plan v4 T7 / debate C4).
 > - **V3.3 (2026-09-23)** — §5: tenant tables key on `(company_id, id)` (ADR-0007).
 > - **V3.2 (2026-09-23)** — §5: `companies` is exempt from the `company_id` column rule (tenant root); "no BYPASSRLS" covers runtime roles; the outbox dispatcher is the second named exception to "every tenant access through `withTenant()`" (plan v4 T7b, ADR-0003 §3).
 > - **V3.1 (2026-09-23)** — §9: integration tests run on the T2 compose Postgres with one cloned database per spec file, not testcontainers (ADR-0006).
@@ -47,6 +48,7 @@ apps/
 packages/
   domain          Shared kernel: Money, Percentage, TaxRule, Quantity/UoM, KWD rounding.
                   PURE TypeScript, ZERO dependencies — imported by api, worker AND the POS browser.
+  ids             UUID v7 generator with injected time + entropy. ZERO dependencies — api, worker, POS.
   db              Drizzle schema (TS) + drizzle-kit migrations + RLS policies (SQL) + seed
                   /sql/reports/*.sql  raw SQL for heavy reports (tested + EXPLAIN-checked)
   contracts       Zod schemas + TS types shared by api/admin/pos/menu (+ generated OpenAPI)

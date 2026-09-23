@@ -107,16 +107,10 @@ export function maskPhone(value: unknown): string {
   return digits.length > 3 ? `***${digits.slice(-3)}` : '***';
 }
 
-/**
- * Returns an inert copy of a log object with every secret replaced, at any depth and inside arrays.
- * Only data survives: functions (including a `toJSON` hook, which JSON serialisation would call and
- * which could return anything) are dropped, dates become ISO strings, errors become diagnostics.
- * Cycles and anything deeper than MAX_DEPTH are replaced rather than walked.
- *
- * @param value the object about to be logged
- * @returns a sanitised copy safe to write
- */
-export function sanitize(value: unknown): unknown {
+// One walk for both entry points. Only data survives: functions (including a `toJSON` hook, which JSON
+// serialisation would call and which could return anything) are dropped, dates become ISO strings, errors
+// become diagnostics. Cycles and anything deeper than MAX_DEPTH are replaced rather than walked.
+function scrub(value: unknown, maskPhones: boolean): unknown {
   const seen = new WeakSet<object>();
   const walk = (node: unknown, depth: number): unknown => {
     if (typeof node === 'function' || typeof node === 'symbol') return undefined;
@@ -135,11 +129,33 @@ export function sanitize(value: unknown): unknown {
     for (const [key, child] of Object.entries(node)) {
       if (typeof child === 'function') continue;
       if (isSecretKey(key)) out[key] = REDACTED;
-      else if (isPhoneKey(key))
+      else if (maskPhones && isPhoneKey(key))
         out[key] = Array.isArray(child) ? child.map(maskPhone) : maskPhone(child);
       else out[key] = walk(child, depth + 1);
     }
     return out;
   };
   return walk(value, 0);
+}
+
+/**
+ * Returns an inert copy of a log object with every secret replaced, at any depth and inside arrays, and
+ * every phone number reduced to its last 3 digits (CLAUDE.md §8).
+ *
+ * @param value the object about to be logged
+ * @returns a sanitised copy safe to write
+ */
+export function sanitize(value: unknown): unknown {
+  return scrub(value, true);
+}
+
+/**
+ * The same walk for a business record that is kept, not a technical log: secrets and URL credentials are
+ * replaced, phone numbers are kept as they are. Used for the audit trail's before/after snapshots.
+ *
+ * @param value the snapshot about to be stored
+ * @returns a copy with no secret in it
+ */
+export function redactSecrets(value: unknown): unknown {
+  return scrub(value, false);
 }

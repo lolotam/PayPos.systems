@@ -12,6 +12,7 @@ describe('@pospay/observability public surface', () => {
       'createLogger',
       'errorDiagnostic',
       'maskPhone',
+      'redactSecrets',
       'requestDiagnostic',
       'responseDiagnostic',
       'sanitize',

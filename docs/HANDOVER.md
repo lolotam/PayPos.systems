@@ -115,16 +115,18 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 | T6a contracts | ✅ done | PR #17 |
 | Plan v4 (debate with Codex) | ✅ done | PR #18 — `DEBATE-2026-09-23.md` |
 | T5 tenancy schema + RLS suite | ✅ done | PR #21 — ADR-0007, closed #16 |
-| T6b `apps/api` foundation | 🟡 **PR open** | ADR-0008 |
-| **T7 write primitives** (next) → T7b worker + dispatcher → **T9a-1…4 → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
+| T6b `apps/api` foundation | ✅ done | PR #22 — ADR-0008 |
+| T7 write primitives (outbox, audit_log, idempotency, `packages/ids`, `Clock`) | 🟡 **PR open** | plan v4 T7 "As built" |
+| **T7b worker + dispatcher** (next) → **T9a-1…4 → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
 
 **Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → T9a-1 → T9a-2 → T9a-3 → T9a-4 → T8 → T9b → T12b → T13.
 
-### 4.1 Next action — finish T6b, then T7
+### 4.1 Next action — finish T7, then T7b
 
-- T6b: get the PR through Codex (CLI + GitHub) and merge it.
-- T7 per plan v4: `outbox`, `audit_log`, `idempotency_keys` (one transaction, unique-key coordination, no
-  `IN_FLIGHT`), `Clock` port, UUID v7 in `packages/ids` bound to `@pospay/db`'s `IdGenerator`.
+- T7: get the PR through Codex (CLI + GitHub) and merge it.
+- T7b per plan v4: `apps/worker`, `pospay_dispatcher` role + `createOutboxDispatcherDatabase`, at-least-once delivery
+  deduped on `outbox.id`, and the 24 h `idempotency_keys` sweep. Event ordering scope and poison-event handling are
+  `TODO(spec)` — ask Waleed before deciding them.
 - Local dev database: its `0001`/`0002` tenancy migrations predate ADR-0007 and must be reset (drop + `pnpm db:migrate`
   + `pnpm db:seed`) — ask Waleed first; it holds only the seeded plan. Tests use cloned databases and are unaffected.
 

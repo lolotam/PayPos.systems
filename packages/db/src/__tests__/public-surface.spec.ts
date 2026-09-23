@@ -4,8 +4,15 @@ import pkg from '../../package.json' with { type: 'json' };
 import * as db from '../index.ts';
 
 describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
-  it('exports only the createDatabase factory at runtime', () => {
-    expect(Object.keys(db).sort()).toEqual(['createDatabase']);
+  it('exports the factory and the transaction-scoped writers — every writer needs a Tx', () => {
+    expect(Object.keys(db).sort()).toEqual([
+      'IdempotencyKeyBusyError',
+      'IdempotencyKeyReusedError',
+      'appendAuditLog',
+      'appendOutboxEvent',
+      'createDatabase',
+      'runIdempotent',
+    ]);
   });
 
   it('hands out the three wrappers, ping and close — nothing that can run a query outside them', () => {

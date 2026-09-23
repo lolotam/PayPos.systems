@@ -29,7 +29,7 @@ export interface TenantWrappers {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // id غلط لازم يقع هنا برسالة واضحة، مش جوه policy كـ 22P02 من غير ما نعرف مين بعته.
-function assertUuid(value: string, name: string): string {
+export function assertUuid(value: string, name: string): string {
   if (!UUID.test(value)) {
     throw new TypeError(`${name} must be a UUID`);
   }
