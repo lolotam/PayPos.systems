@@ -14,12 +14,28 @@ export interface RequestContext {
 const storage = new AsyncLocalStorage<RequestContext>();
 
 /**
- * Starts the context for the rest of the current async execution — called once per request, first thing.
+ * Starts the context for the rest of the current async execution — called once per request, first thing. The
+ * returned object is the request's own context: keep it on the request, because a callback that runs for this
+ * request later (a response flushed by another request on the same connection) may run in someone else's context.
  *
  * @param requestId the request's id
+ * @returns the context object the guards will fill in
  */
-export function enterRequestContext(requestId: string): void {
-  storage.enterWith({ requestId });
+export function enterRequestContext(requestId: string): RequestContext {
+  const context: RequestContext = { requestId };
+  storage.enterWith(context);
+  return context;
+}
+
+/**
+ * Runs fn in exactly this request's context, whatever context the caller happens to be in.
+ *
+ * @param context the request's own context, from enterRequestContext
+ * @param fn      the work to run — typically one log line
+ * @returns what fn returns
+ */
+export function withRequestContext<T>(context: RequestContext, fn: () => T): T {
+  return storage.run(context, fn);
 }
 
 /**

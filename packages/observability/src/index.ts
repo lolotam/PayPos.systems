@@ -12,5 +12,6 @@ export {
   enterRequestContext,
   requestContextFields,
   updateRequestContext,
+  withRequestContext,
   type RequestContext,
 } from './request-context.ts';

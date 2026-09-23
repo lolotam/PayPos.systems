@@ -19,6 +19,7 @@ describe('@pospay/observability public surface', () => {
       'responseDiagnostic',
       'sanitize',
       'updateRequestContext',
+      'withRequestContext',
     ]);
   });
 });
