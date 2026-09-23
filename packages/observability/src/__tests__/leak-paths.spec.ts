@@ -339,7 +339,7 @@ describe('credentials inside URLs', () => {
     for (const leak of ['pg_pw_leak', 'redis_pw_leak', 'link_pw_leak', 'pospay_app:']) {
       expect(raw).not.toContain(leak);
     }
-    expect(line).toMatchObject({ DATABASE_URL: 'postgres://***@127.0.0.1:5432/pospay' });
+    expect(line).toMatchObject({ DATABASE_URL: 'postgres://***@127.0.0.1:5432/[REDACTED]' });
   });
 
   it('dsn and connectionString keys are redacted whole', () => {
@@ -367,20 +367,39 @@ describe('URLs are parsed, not pattern-matched', () => {
     expect(raw).toContain('db.example');
   });
 
-  it('secret query parameters are redacted — presigned signatures, tokens, api keys', () => {
+  it('query strings are withheld — presigned signatures, tokens, api keys, bare tokens', () => {
     const raw = capture((log) =>
       log.info(
         {
           url: 'https://r2.example/obj?X-Amz-Signature=sig_leak&X-Amz-Credential=cred_leak&width=200',
           callback: 'see https://hooks.example/cb?token=tok_q_leak&api_key=key_q_leak for details',
+          bare: 'https://hooks.example/?bare_tok_leak',
         },
         'event',
       ),
     );
-    for (const leak of ['sig_leak', 'cred_leak', 'tok_q_leak', 'key_q_leak']) {
+    for (const leak of ['sig_leak', 'cred_leak', 'tok_q_leak', 'key_q_leak', 'bare_tok_leak']) {
       expect(raw).not.toContain(leak);
     }
-    expect(raw).toContain('width=200');
+    expect(raw).toContain('https://r2.example/[REDACTED]?[REDACTED]');
+  });
+
+  it('paths and fragments are withheld — reset tokens, OAuth fragments, phone numbers', () => {
+    const raw = capture((log) =>
+      log.info(
+        {
+          reset: 'https://app.example/reset/path_tok_leak',
+          oauth: 'https://app.example/callback#access_token=frag_tok_leak',
+          sms: 'https://sms.example/send/96550001234',
+          root: 'https://app.example/',
+        },
+        'event',
+      ),
+    );
+    for (const leak of ['path_tok_leak', 'frag_tok_leak', '96550001234'])
+      expect(raw).not.toContain(leak);
+    expect(raw).toContain('https://app.example/[REDACTED]#[REDACTED]');
+    expect(raw).toContain('"root":"https://app.example/"');
   });
 
   it('an embedded URL with an ambiguous end, or an unparseable URL, keeps nothing of its credentials', () => {
@@ -395,6 +414,6 @@ describe('URLs are parsed, not pattern-matched', () => {
       ),
     );
     for (const leak of ['space_tail_leak', 'word_leak', 'pw_leak']) expect(raw).not.toContain(leak);
-    expect(raw).toContain('see https://***@db.example/app for details');
+    expect(raw).toContain('see https://***@db.example/[REDACTED] for details');
   });
 });

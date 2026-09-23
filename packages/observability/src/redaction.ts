@@ -59,23 +59,20 @@ const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 
 // URLs are checked in every string value, because their key (DATABASE_URL, url, link) looks harmless. A URL
 // is PARSED, not pattern-matched: the parser knows that the last "@" before the host ends the userinfo (a
-// password may contain "@"), and it exposes the query string, where presigned URLs carry signatures and
-// tokens. The userinfo becomes "***"; every query parameter whose name is secret-like is redacted.
+// password may contain "@"). Only scheme, host and port survive; userinfo, path, query and fragment are
+// withheld: a reset link carries its token in the path, an OAuth callback in the fragment, an SMS webhook a
+// phone number in the query (even a bare `?token`), and no name or pattern tells those from harmless ones.
 const URL_START = /^\s*[a-z][a-z0-9+.-]*:\/\//i;
 const URL_IN_TEXT = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
-const URL_REDACTED_VALUE = 'REDACTED';
 
 function scrubUrl(candidate: string): string {
   try {
     const url = new URL(candidate);
-    if (url.username !== '' || url.password !== '') {
-      url.username = '***';
-      url.password = '';
-    }
-    for (const name of [...url.searchParams.keys()]) {
-      if (isSecretKey(name) || isPhoneKey(name)) url.searchParams.set(name, URL_REDACTED_VALUE);
-    }
-    return url.toString();
+    const userinfo = url.username !== '' || url.password !== '' ? '***@' : '';
+    const path = url.pathname === '' || url.pathname === '/' ? url.pathname : '/[REDACTED]';
+    const query = url.search === '' ? '' : '?[REDACTED]';
+    const fragment = url.hash === '' ? '' : '#[REDACTED]';
+    return `${url.protocol}//${userinfo}${url.host}${path}${query}${fragment}`;
   } catch {
     // Unparseable: no pattern can tell where its userinfo ends, so only the scheme survives.
     return candidate.replace(/^(\s*[a-z][a-z0-9+.-]*:\/\/)[\s\S]*$/i, '$1[REDACTED]');
