@@ -94,6 +94,18 @@ describe('bootstrap re-run (pnpm db:migrate on a persistent cluster)', () => {
     });
   });
 
+  it('migrating again clears a stale connection limit and an expired password', async () => {
+    const env = readPgTestEnv();
+    const rows = await withClusterRoleLock('exclusive', async () => {
+      await owner`ALTER ROLE pospay_auth CONNECTION LIMIT 0 VALID UNTIL '2000-01-01'`;
+      await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
+      return owner`
+        SELECT rolconnlimit, rolvaliduntil = 'infinity' AS forever
+        FROM pg_roles WHERE rolname = 'pospay_auth'`;
+    });
+    expect(rows).toEqual([{ rolconnlimit: -1, forever: true }]);
+  });
+
   it('migrating again is a no-op that keeps the roles restricted', async () => {
     const env = readPgTestEnv();
     const [row] = await withClusterRoleLock('exclusive', async () => {
