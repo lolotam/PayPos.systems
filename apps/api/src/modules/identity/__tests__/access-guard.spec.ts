@@ -22,7 +22,7 @@ import {
 } from '../../../../../../packages/db/test/test-database.ts';
 import { seedReferenceData } from '../../../../../../packages/db/src/seed.ts';
 import { createApp } from '../../../app.ts';
-import { Require, RequirePlatform, RequiresFeature } from '../index.ts';
+import { Require, RequirePlatform, RequiresFeature } from '../../../shared/access.decorators.ts';
 
 // T9a-2 against real Postgres: memberships decide which companies a user may switch to, the permission is
 // evaluated at the route's target with DENY winning, and a disabled feature is refused.

@@ -59,7 +59,7 @@ describe('business', () => {
 
 describe('branch', () => {
   it('accepts a minimal create input and a full stored branch', () => {
-    expect(createBranchInput.safeParse({ business_id: ID, name_en: 'Hawalli' }).success).toBe(true);
+    expect(createBranchInput.safeParse({ name_en: 'Hawalli' }).success).toBe(true);
     const row = {
       id: ID,
       company_id: ID,
@@ -76,8 +76,12 @@ describe('branch', () => {
     expect(branch.parse(row)).toEqual(row);
   });
 
+  it('refuses a business_id in the body — the business comes from the path', () => {
+    expect(createBranchInput.safeParse({ business_id: ID, name_en: 'x' }).success).toBe(false);
+  });
+
   it('rejects coordinates out of range', () => {
-    const input = { business_id: ID, name_en: 'x', geo: { lat: 91, lng: 0 } };
+    const input = { name_en: 'x', geo: { lat: 91, lng: 0 } };
     expect(createBranchInput.safeParse(input).success).toBe(false);
   });
 });

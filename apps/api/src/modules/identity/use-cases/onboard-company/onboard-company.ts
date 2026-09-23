@@ -53,7 +53,7 @@ export class OnboardCompany {
         name_en: company.nameEn,
         owner_user_id: userId,
         plan_id: company.planId,
-        created_at: createdAt.toISOString(),
+        created_at: createdAt,
         deleted_at: null,
       };
       await scope.audit.record({

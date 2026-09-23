@@ -10,7 +10,8 @@ export interface RegisterCompanyInput {
 }
 
 export interface RegisteredCompany extends RegisterCompanyInput {
-  readonly createdAt: Date;
+  /** ISO 8601 as Postgres writes it — the same text every read of this company returns. */
+  readonly createdAt: string;
 }
 
 /**
@@ -26,10 +27,10 @@ export async function registerCompany(
   tx: Tx,
   input: RegisterCompanyInput,
 ): Promise<RegisteredCompany> {
-  const [row] = await tx.execute<{ created_at: string | Date }>(sql`
+  const [row] = await tx.execute<{ created_at: string }>(sql`
     INSERT INTO companies (id, name_en, name_ar, owner_user_id, plan_id)
     VALUES (${input.id}, ${input.nameEn}, ${input.nameAr}, ${input.ownerUserId}, ${input.planId})
-    RETURNING created_at`);
+    RETURNING to_json(created_at) #>> '{}' AS created_at`);
   if (row === undefined) throw new Error('companies insert returned no row');
-  return { ...input, createdAt: new Date(row.created_at) };
+  return { ...input, createdAt: row.created_at };
 }

@@ -6,10 +6,10 @@ import type { NewCompany, Transaction } from './onboarding.port.ts';
  */
 export interface CompanyRegistry {
   /**
-   * بيضيف صف الشركة جوه transaction الـ onboarding ويرجّع وقت الإنشاء.
+   * بيضيف صف الشركة جوه transaction الـ onboarding ويرجّع وقت الإنشاء (ISO زي ما Postgres كتبه).
    *
    * @param tx      transaction الـ onboarding
    * @param company الشركة الجديدة
    */
-  register(tx: Transaction, company: NewCompany): Promise<{ createdAt: Date }>;
+  register(tx: Transaction, company: NewCompany): Promise<{ createdAt: string }>;
 }

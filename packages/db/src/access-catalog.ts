@@ -7,6 +7,10 @@
 export const PERMISSIONS = [
   'read:memberships:company',
   'manage:memberships:company',
+  'read:businesses:company',
+  'create:businesses:company',
+  'create:branches:business',
+  'read:branches:branch',
   // صلاحية منصة: بتتدي بـ pnpm platform:grant بس، وعمرها ما بتبقى في role شركة (ADR-0003 §3).
   'create:companies:platform',
 ] as const;

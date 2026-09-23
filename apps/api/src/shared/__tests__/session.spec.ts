@@ -9,7 +9,7 @@ import type { FastifyRequest } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApp } from '../../app.ts';
-import { Authenticated } from '../../modules/identity/index.ts';
+import { Authenticated } from '../access.decorators.ts';
 import { API_LOG_EVENTS } from '../log-events.ts';
 
 // T9a-1: deny by default. Better Auth itself (login, cookies, sign-out) is proven against Postgres in

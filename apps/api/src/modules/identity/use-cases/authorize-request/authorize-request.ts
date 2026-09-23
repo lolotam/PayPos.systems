@@ -1,4 +1,4 @@
-import { evaluateAccess, permissionScope, type AccessTarget } from '../../domain/access.ts';
+import { evaluateAccess, type AccessTarget } from '../../domain/access.ts';
 import type {
   AccessReader,
   ActiveMembership,
@@ -29,32 +29,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Anything that is not one well-formed UUID is refused as if it were not the caller's — never an oracle.
 const asUuid = (value: unknown): string | null =>
   typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : null;
-
-/**
- * Whether a route's declared target matches the scope its permission names: `:company` needs no target,
- * `:business` a business parameter, `:branch` a branch parameter; a `:platform` permission is never a route's.
- *
- * @param permission the 'action:resource:scope' permission
- * @param target     which target parameters the route declares
- * @param target.business whether a business parameter is declared
- * @param target.branch   whether a branch parameter is declared
- * @returns true when the declaration is consistent
- */
-export function targetFitsPermission(
-  permission: string,
-  target: { business: boolean; branch: boolean },
-): boolean {
-  switch (permissionScope(permission)) {
-    case 'company':
-      return !target.business && !target.branch;
-    case 'business':
-      return target.business && !target.branch;
-    case 'branch':
-      return target.branch && !target.business;
-    default:
-      return false;
-  }
-}
 
 // Authorizes one request for a user (ADR-0003 §4, path A): company membership first, then the permission at the target.
 export class AuthorizeRequest {
@@ -90,7 +64,11 @@ export class AuthorizeRequest {
     }
     if (input.businessParam !== undefined) {
       const businessId = asUuid(input.businessParam);
-      return businessId === null ? null : { companyId, businessId };
+      if (businessId === null) return null;
+      // Another company's business, or an unknown one, is refused here — the same 403 as no permission.
+      return (await this.#reader.businessInCompany(companyId, businessId))
+        ? { companyId, businessId }
+        : null;
     }
     return { companyId };
   }

@@ -1,8 +1,8 @@
 import { SetMetadata } from '@nestjs/common';
 import type { FeatureFlag, PlatformPermission, TenantPermission } from '@pospay/db';
 
-import { targetFitsPermission } from '../use-cases/authorize-request/authorize-request.ts';
-
+// The access metadata every module's routes declare (ADR-0003 §4). It lives here, beside @Public, because any module
+// may guard its routes and none may import identity (module-map.md §6); identity's guards read these keys.
 export const REQUIRE_ACCESS = 'pospay:require-access';
 export const AUTHENTICATED_ONLY = 'pospay:authenticated-only';
 export const REQUIRES_FEATURE = 'pospay:requires-feature';
@@ -36,10 +36,13 @@ export function Require(
   permission: TenantPermission,
   target: AccessTargetParams = {},
 ): MethodDecorator {
-  const expected = targetFitsPermission(permission, {
-    business: target.business !== undefined,
-    branch: target.branch !== undefined,
-  });
+  const scope = permission.split(':')[2];
+  const business = target.business !== undefined;
+  const branch = target.branch !== undefined;
+  const expected =
+    (scope === 'company' && !business && !branch) ||
+    (scope === 'business' && business && !branch) ||
+    (scope === 'branch' && branch && !business);
   if (!expected) {
     throw new TypeError(`@Require('${permission}') needs exactly the target its scope names`);
   }

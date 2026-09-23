@@ -2,7 +2,11 @@ import type { Type } from '@nestjs/common';
 import { PATH_METADATA } from '@nestjs/common/constants.js';
 
 import { PUBLIC_ROUTE } from '../../../shared/public.decorator.ts';
-import { AUTHENTICATED_ONLY, REQUIRE_ACCESS, REQUIRE_PLATFORM } from './access.decorators.ts';
+import {
+  AUTHENTICATED_ONLY,
+  REQUIRE_ACCESS,
+  REQUIRE_PLATFORM,
+} from '../../../shared/access.decorators.ts';
 
 const MARKERS = [PUBLIC_ROUTE, AUTHENTICATED_ONLY, REQUIRE_ACCESS, REQUIRE_PLATFORM];
 
