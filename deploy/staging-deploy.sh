@@ -9,6 +9,8 @@ env_file="$here/.env"
 compose() { docker compose -f "$here/docker-compose.staging-shared.yml" --env-file "$env_file" "$@"; }
 tag="${1:?usage: staging-deploy.sh <image-sha>}"
 sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$tag/" "$env_file"
+# An IMAGE_TAG inherited from the calling shell would beat .env; this one is the SHA asked for.
+export IMAGE_TAG="$tag"
 compose config -q
 compose up -d --remove-orphans
 compose wait migrate >/dev/null || true
