@@ -20,12 +20,43 @@ const FACADES = {
   createOutboxDispatcherDatabase:
     'the pospay_dispatcher facade belongs to apps/worker (ADR-0003 §3).',
 };
-const facadeRule = (allowed) => [
+// CLAUDE.md §8, plan T9b: only packages/auth issues or verifies a session, hashes a password or hashes a PIN. The
+// hashing libraries, the password-grade node:crypto functions and Better Auth itself are refused everywhere else.
+const CREDENTIALS = 'hashing a password or a PIN, and Better Auth itself, belong to packages/auth (CLAUDE.md §8).';
+export const CREDENTIAL_PACKAGES = [
+  'bcrypt',
+  'bcryptjs',
+  'argon2',
+  '@node-rs/argon2',
+  '@node-rs/bcrypt',
+  'scrypt-js',
+  'better-auth',
+];
+const CREDENTIAL_PATHS = [
+  ...CREDENTIAL_PACKAGES.map((name) => ({ name, message: CREDENTIALS })),
+  ...['node:crypto', 'crypto'].map((name) => ({
+    name,
+    importNames: ['scrypt', 'scryptSync', 'pbkdf2', 'pbkdf2Sync'],
+    message: CREDENTIALS,
+  })),
+];
+const CREDENTIAL_PATTERNS = [
+  {
+    group: ['better-auth/*', '@better-auth/*', '@noble/hashes/scrypt*', '@noble/hashes/argon2*'],
+    message: CREDENTIALS,
+  },
+];
+
+const facadeRule = (allowed, credentials = false) => [
   'error',
   {
-    paths: Object.entries(FACADES)
-      .filter(([name]) => name !== allowed)
-      .map(([name, message]) => ({ name: '@pospay/db', importNames: [name], message })),
+    paths: [
+      ...Object.entries(FACADES)
+        .filter(([name]) => name !== allowed)
+        .map(([name, message]) => ({ name: '@pospay/db', importNames: [name], message })),
+      ...(credentials ? [] : CREDENTIAL_PATHS),
+    ],
+    patterns: credentials ? [] : CREDENTIAL_PATTERNS,
   },
 ];
 
@@ -33,10 +64,11 @@ const facadeRule = (allowed) => [
  * The override a facade's owner adds: every other facade stays refused.
  *
  * @param {keyof typeof FACADES} allowed the facade this package owns
+ * @param {{ credentials?: boolean }} [options] credentials: true only for packages/auth, the one owner of hashing
  * @returns {import('eslint').Linter.Config} the override
  */
-export const allowDatabaseFacade = (allowed) => ({
-  rules: { 'no-restricted-imports': facadeRule(allowed) },
+export const allowDatabaseFacade = (allowed, options = {}) => ({
+  rules: { 'no-restricted-imports': facadeRule(allowed, options.credentials === true) },
 });
 
 /** Shared flat config. Every app and package re-exports this from its own eslint.config.js. */

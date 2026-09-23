@@ -45,7 +45,7 @@ Owned by Better Auth and reached **only** through `packages/auth`, on the dedica
 | `two_factor` | `two-factor` plugin | TOTP secret + backup codes, encrypted at rest |
 | `platform_grants` | ours | global permissions not tied to a company, today only `create:companies:platform` (§3) |
 | `platform_audit_log` | ours | audit trail for platform grants and revocations; insert-only, no updates or deletes (§3) |
-| `apikey` | `api-key` plugin | installed in T9b, wired in Phase 5; carries a non-updatable **`company_id` column** and its own scopes (§4 path C) — an API key never bypasses tenant resolution |
+| `apikey` | `api-key` plugin | created with the plugin in Phase 5 (P5-T7) — in Better Auth 1.7 it is the separate package `@better-auth/api-key`, so installing it earlier would add an unused dependency (ADR-0009, T9b); carries a non-updatable **`company_id` column** and its own scopes (§4 path C) — an API key never bypasses tenant resolution |
 
 **Not enabled:** the `organization` plugin. Its `organization`, `member` and `invitation` tables are not created. See §5.1.
 

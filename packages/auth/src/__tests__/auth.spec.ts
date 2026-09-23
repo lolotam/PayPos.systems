@@ -133,6 +133,14 @@ describe('login', () => {
   });
 });
 
+describe('plugins installed later (T9b)', () => {
+  it('exposes no phone-number or api-key endpoint until a delivery channel or the public API wires them', async () => {
+    for (const path of ['/phone-number/send-otp', '/phone-number/verify', '/api-key/create']) {
+      expect((await post(path, { phoneNumber: '+96550000001' })).status).toBe(404);
+    }
+  });
+});
+
 describe('the auth database', () => {
   it('answers as pospay_auth, and refuses to start on any other role — the owner included', async () => {
     await expect(auth.ping()).resolves.toBeUndefined();

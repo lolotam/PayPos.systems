@@ -30,10 +30,16 @@ export const user = pgTable(
     image: text('image'),
     // two-factor plugin
     twoFactorEnabled: boolean('two_factor_enabled').notNull().default(false),
+    // phone-number plugin (ADR-0003 §2.1) — the columns exist from T9b; the plugin is registered only with a delivery
+    // channel (P1-T7), so nothing can set them yet. E.164, stored whole: this is the auth database, never a log.
+    phoneNumber: text('phone_number'),
+    phoneNumberVerified: boolean('phone_number_verified'),
     ...timestamps,
   },
   (t) => [
     uniqueIndex('user_email_key').on(t.email),
+    uniqueIndex('user_phone_number_key').on(t.phoneNumber),
+    check('user_phone_number_e164', sql`${t.phoneNumber} IS NULL OR ${t.phoneNumber} ~ '^[+][1-9][0-9]{6,14}$'`),
     check('user_email_length', sql`char_length(${t.email}) BETWEEN 3 AND 320`),
     check('user_name_length', sql`char_length(${t.name}) BETWEEN 1 AND 255`),
   ],

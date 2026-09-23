@@ -50,3 +50,18 @@ here (`CLAUDE.md` §11: a new library needs an ADR).
   minimum password length (8), and rate limiting (in-memory — Redis-backed limits for login are CLAUDE.md §8 and come
   with the lockout work).
 - Upgrading Better Auth is a deliberate PR that re-checks the table shape with `getAuthTables` and updates this ADR.
+
+## Amendment — 2026-09-23, T9b
+
+- **`phone-number`:** its columns (`user.phone_number` unique and E.164-checked, `user.phone_number_verified`) are
+  created now (migration 0014), so the identity schema is complete; the plugin is **registered** only when a delivery
+  channel exists (P1-T7). Registering it earlier would expose `/v1/auth/phone-number/*`, whose `sendOTP` has nowhere
+  to send. A test asserts those routes answer 404.
+- **`api-key`:** in 1.7 it is no longer part of `better-auth` but the separate package `@better-auth/api-key`.
+  Installing it before the public API (P5-T7) would add an unused dependency and supply-chain surface for two phases,
+  so it is pinned (same version as `better-auth`) and its `apikey` table (with the fixed `company_id`, ADR-0003 §4 path
+  C) created in P5-T7.
+- **Only `packages/auth` hashes:** ESLint refuses `bcrypt`, `bcryptjs`, `argon2`, `@node-rs/argon2`,
+  `@node-rs/bcrypt`, `scrypt-js`, `@noble/hashes` scrypt/argon2, `node:crypto` `scrypt`/`pbkdf2` and `better-auth` /
+  `@better-auth/*` everywhere except `packages/auth` (`allowDatabaseFacade('createAuthDatabase', { credentials: true })`),
+  including `use-cases/`, whose own import rule would otherwise replace the ban.

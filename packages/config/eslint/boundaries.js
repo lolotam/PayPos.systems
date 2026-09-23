@@ -137,7 +137,7 @@ export const boundariesConfig = [
           patterns: [
             {
               regex:
-                '^(drizzle-orm|@nestjs/platform-.*|bullmq|ioredis|axios|node:.*|@pospay/db)(/.*)?$',
+                '^(drizzle-orm|@nestjs/platform-.*|bullmq|ioredis|axios|node:.*|@pospay/db|bcrypt|bcryptjs|argon2|@node-rs/.*|scrypt-js|better-auth|@better-auth/.*|@noble/hashes)(/.*)?$',
               message: 'use-cases/ reach infrastructure only through ports/ (CLAUDE.md §4.2).',
             },
           ],
