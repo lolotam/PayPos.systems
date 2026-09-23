@@ -14,7 +14,7 @@ const capture = (log: (logger: pino.Logger) => void): string => {
       done();
     },
   });
-  log(pino(loggerOptions('info'), sink));
+  log(pino(loggerOptions('info', ['probe', 'boom', 'incoming request']), sink));
   return written;
 };
 

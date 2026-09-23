@@ -5,12 +5,21 @@ import type { Logger } from '@pospay/observability';
 // would print initialisation errors and their stacks raw. Framework info lines (route mapping, module
 // init) keep their text; warnings and errors keep only their context — their text can be an exception
 // message carrying a connection string.
-// Nest's error(message, stack) overload puts a stack where a context would be, so only a string that
-// looks like a class name ("InstanceLoader") is kept as context; anything else is discarded.
-const CONTEXT = /^[A-Z][A-Za-z0-9]{0,60}$/;
+// Nest's error(message, stack) overload puts a stack where a context would be, and any string can look
+// like a class name, so only Nest's own context labels are kept; anything else is discarded.
+const NEST_CONTEXTS = new Set([
+  'NestFactory',
+  'NestApplication',
+  'InstanceLoader',
+  'RoutesResolver',
+  'RouterExplorer',
+  'ExceptionHandler',
+  'ExceptionsHandler',
+  'NestApplicationContext',
+]);
 const contextOf = (params: unknown[]): string | undefined => {
   const last = params.at(-1);
-  return typeof last === 'string' && CONTEXT.test(last) ? last : undefined;
+  return typeof last === 'string' && NEST_CONTEXTS.has(last) ? last : undefined;
 };
 
 /**
@@ -24,7 +33,9 @@ export class PinoNestLogger implements LoggerService {
   }
 
   log(message: unknown, ...params: unknown[]): void {
-    this.#logger.debug({ nest: contextOf(params) }, typeof message === 'string' ? message : 'nest');
+    // Framework text is not a catalogued event, so the logger withholds it; only the context survives.
+    void message;
+    this.#logger.debug({ nest: contextOf(params) }, 'nest');
   }
 
   warn(_message: unknown, ...params: unknown[]): void {

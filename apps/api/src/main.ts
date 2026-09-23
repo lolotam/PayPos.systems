@@ -3,10 +3,11 @@ import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
 import { createApp } from './app.ts';
+import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { readConfig } from './shared/config.ts';
 
 const config = readConfig(process.env);
-const logger = createLogger(config.LOG_LEVEL);
+const logger = createLogger(config.LOG_LEVEL, { events: API_LOG_EVENTS });
 
 // The UUID v7 generator arrives with packages/ids in T7; nothing calls withNewTenant before then.
 const database = createDatabase({

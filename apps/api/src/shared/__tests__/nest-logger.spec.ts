@@ -4,6 +4,7 @@ import { createLogger } from '@pospay/observability';
 import { describe, expect, it } from 'vitest';
 
 import { PinoNestLogger } from '../nest-logger.ts';
+import { API_LOG_EVENTS } from '../log-events.ts';
 
 describe('PinoNestLogger', () => {
   it('never prints the text or stack of a Nest error or warning', () => {
@@ -14,7 +15,9 @@ describe('PinoNestLogger', () => {
         done();
       },
     });
-    const logger = new PinoNestLogger(createLogger('debug', sink));
+    const logger = new PinoNestLogger(
+      createLogger('debug', { destination: sink, events: API_LOG_EVENTS }),
+    );
     logger.error(
       'connect postgres://app:leaked-password@db failed',
       'at stack-frame',
@@ -22,7 +25,13 @@ describe('PinoNestLogger', () => {
     );
     logger.error(new Error('token=tok_nest_secret'), 'ExceptionHandler');
     logger.warn('using key key_live_nest', 'Bootstrap');
-    for (const secret of ['leaked-password', 'tok_nest_secret', 'key_live_nest']) {
+    logger.error('connection failed', 'TokSecretContext');
+    for (const secret of [
+      'leaked-password',
+      'tok_nest_secret',
+      'key_live_nest',
+      'TokSecretContext',
+    ]) {
       expect(written).not.toContain(secret);
     }
     expect(written).toContain('"nest":"InstanceLoader"');
@@ -36,7 +45,7 @@ describe('PinoNestLogger', () => {
         done();
       },
     });
-    new PinoNestLogger(createLogger('debug', sink)).error(
+    new PinoNestLogger(createLogger('debug', { destination: sink, events: API_LOG_EVENTS })).error(
       'connection failed',
       'Error: token=tok_stack_secret\n    at connect (/app/x.js:1:1)',
     );

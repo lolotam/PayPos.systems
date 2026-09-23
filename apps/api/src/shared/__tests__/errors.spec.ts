@@ -10,6 +10,7 @@ import { createLogger } from '@pospay/observability';
 
 import { createApp } from '../../app.ts';
 import { ZodValidationPipe } from '../zod-validation.pipe.ts';
+import { API_LOG_EVENTS } from '../log-events.ts';
 
 // Test-only routes: a contract-validated body, a deliberate crash, and a route that logs secrets.
 @Controller('probe')
@@ -58,7 +59,10 @@ beforeAll(async () => {
   });
   app = await createApp(
     { readiness: [] },
-    { controllers: [ProbeController], logger: createLogger('info', sink) },
+    {
+      controllers: [ProbeController],
+      logger: createLogger('info', { destination: sink, events: [...API_LOG_EVENTS, 'probe'] }),
+    },
   );
 });
 

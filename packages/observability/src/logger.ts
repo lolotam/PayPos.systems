@@ -6,32 +6,12 @@ import { errorDiagnostic, requestDiagnostic, responseDiagnostic } from './serial
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
-// Messages are meant to be constant event names ("redis connection error"); dynamic data belongs in
-// fields, where the sanitiser can see it. A message that could be carrying data — outside this charset,
-// longer than 120 characters, or holding a run of 6+ digits (a PIN, a phone) — is withheld. The lint rule
-// in @pospay/config also rejects template literals and concatenation as a log message.
-const SAFE_MESSAGE = /^[A-Za-z0-9 _.,:'()/-]{1,120}$/;
-const DIGIT_RUN = /\d{6,}/;
+// A message is an event NAME from a finite catalogue — these base events plus the ones each process
+// registers. Any other message, however harmless it looks, is replaced: a message is free text, and no
+// pattern can tell "PIN 4821" or an error's message from a real event name. Dynamic data goes in fields,
+// where the sanitiser can see it. The lint rule in @pospay/config also rejects built-up messages.
+export const BASE_LOG_EVENTS = ['error', 'log', 'request completed', 'unhandled error'] as const;
 export const WITHHELD_MESSAGE = 'log message withheld';
-
-const safeMessage = (message: unknown, fallback: string): string => {
-  if (typeof message !== 'string') return fallback;
-  return SAFE_MESSAGE.test(message) && !DIGIT_RUN.test(message) ? message : WITHHELD_MESSAGE;
-};
-
-// A log call keeps at most one object and one message. An Error (or any thrown value under `err`)
-// becomes its diagnostic BEFORE pino sees it — pino would otherwise copy `err.message` into `msg`.
-// Extra arguments are dropped: pino would interpolate them into `msg` (`log.info('user %s', token)`).
-function normalizeArgs(args: unknown[]): [object, string] {
-  const [first, second] = args;
-  if (first instanceof Error)
-    return [{ err: errorDiagnostic(first) }, safeMessage(second, 'error')];
-  if (typeof first === 'string') return [{}, safeMessage(first, 'log')];
-  const object = (
-    first !== null && typeof first === 'object' ? sanitize(reduce(first)) : {}
-  ) as object;
-  return [object, safeMessage(second, 'log')];
-}
 
 // Fastify logs its own lines with req/res/err. They are reduced to safe diagnostics BEFORE the
 // sanitiser walks anything: a Fastify request is large and keeps routeOptions on its prototype.
@@ -43,8 +23,25 @@ function reduce(object: object): object {
   return reduced;
 }
 
+function normalizer(events: ReadonlySet<string>): (args: unknown[]) => [object, string] {
+  const message = (value: unknown, fallback: string): string =>
+    typeof value !== 'string' ? fallback : events.has(value) ? value : WITHHELD_MESSAGE;
+  // One object and one message per call. An Error (or any thrown value under `err`) becomes its
+  // diagnostic BEFORE pino sees it — pino would copy `err.message` into `msg`. Extra arguments are
+  // dropped: pino would interpolate them into `msg` (`log.info('user %s', token)`).
+  return (args) => {
+    const [first, second] = args;
+    if (first instanceof Error) return [{ err: errorDiagnostic(first) }, message(second, 'error')];
+    if (typeof first === 'string') return [{}, message(first, 'log')];
+    const object = (
+      first !== null && typeof first === 'object' ? sanitize(reduce(first)) : {}
+    ) as object;
+    return [object, message(second, 'log')];
+  };
+}
+
 // A second, idempotent pass on the final object — belt and braces for anything that reached pino
-// without going through normalizeArgs.
+// without going through the normaliser.
 const formatLog = (object: Record<string, unknown>): Record<string, unknown> =>
   sanitize(object) as Record<string, unknown>;
 
@@ -66,14 +63,16 @@ function harden(root: Logger): Logger {
 }
 
 /**
- * The one pino configuration for api and worker. Every argument is sanitised before pino reads it,
- * every line again before it is written, and bindings on every child logger. The level is validated by
- * the caller's config — this never reads the environment.
+ * The one pino configuration for api and worker. Every argument is reduced and sanitised before pino
+ * reads it, every message must be a catalogued event, every line is sanitised again before it is
+ * written. The level is validated by the caller's config — this never reads the environment.
  *
- * @param level a validated log level
+ * @param level  a validated log level
+ * @param events the event names this process may log, added to BASE_LOG_EVENTS
  * @returns pino options
  */
-export function loggerOptions(level: LogLevel): LoggerOptions {
+export function loggerOptions(level: LogLevel, events: Iterable<string> = []): LoggerOptions {
+  const normalizeArgs = normalizer(new Set<string>([...BASE_LOG_EVENTS, ...events]));
   return {
     level,
     base: null,
@@ -91,14 +90,16 @@ export function loggerOptions(level: LogLevel): LoggerOptions {
  * A pino logger built from `loggerOptions`, with sanitised bindings on it and on every child. Fastify
  * takes it as `loggerInstance`, so request logs and application logs share one configuration.
  *
- * @param level       a validated log level
- * @param destination where lines are written — stdout by default; tests pass a stream to read them
+ * @param level   a validated log level
+ * @param options the event names this process logs, and (tests) where lines are written
  * @returns the logger
  */
-export function createLogger(level: LogLevel, destination?: DestinationStream): Logger {
+export function createLogger(
+  level: LogLevel,
+  options: { events?: Iterable<string>; destination?: DestinationStream } = {},
+): Logger {
+  const settings = loggerOptions(level, options.events);
   return harden(
-    destination === undefined
-      ? pino(loggerOptions(level))
-      : pino(loggerOptions(level), destination),
+    options.destination === undefined ? pino(settings) : pino(settings, options.destination),
   );
 }

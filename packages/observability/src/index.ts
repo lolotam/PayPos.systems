@@ -2,6 +2,7 @@ export {
   createLogger,
   LOG_LEVELS,
   loggerOptions,
+  BASE_LOG_EVENTS,
   WITHHELD_MESSAGE,
   type LogLevel,
 } from './logger.ts';

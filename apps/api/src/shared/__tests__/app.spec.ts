@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createLogger } from '@pospay/observability';
 
 import { createApp } from '../../app.ts';
+import { API_LOG_EVENTS } from '../log-events.ts';
 import type { ReadinessCheck } from '../readiness.ts';
 
 const up: ReadinessCheck = { name: 'database', check: async () => undefined };
@@ -30,7 +31,10 @@ const start = async (readiness: ReadinessCheck[]) => {
       done();
     },
   });
-  app = await createApp({ readiness }, { logger: createLogger('info', sink) });
+  app = await createApp(
+    { readiness },
+    { logger: createLogger('info', { destination: sink, events: [...API_LOG_EVENTS, 'probe'] }) },
+  );
   return app;
 };
 
@@ -106,7 +110,11 @@ describe('shutdown', () => {
     let released = 0;
     app = await createApp(
       { readiness: [], onShutdown: async () => void (released += 1) },
-      { logger: createLogger('info', new Writable({ write: (_c, _e, done) => done() })) },
+      {
+        logger: createLogger('info', {
+          destination: new Writable({ write: (_c, _e, done) => done() }),
+        }),
+      },
     );
     await app.close();
     app = undefined;

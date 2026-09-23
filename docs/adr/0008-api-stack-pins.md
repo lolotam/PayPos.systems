@@ -25,9 +25,19 @@ it would need SWC just for tests and would make tests and production compile dif
 ports need anyway — a port is an interface, which has no runtime type to inject by. `experimentalDecorators` stays
 on, because NestJS still uses legacy decorators.
 
-**Logging.** `@pospay/observability` owns the pino options and the redaction list (plan v4 T6b); the API never
-configures pino itself. Fastify's default request serializer logs no headers or bodies, and the redaction list
-covers them anyway.
+**Logging — nothing is printed that a value could smuggle through** (CLAUDE.md §8; four Codex review rounds).
+`@pospay/observability` owns the logger; the API never configures pino itself.
+
+- **Messages are catalogued event names.** Each process registers its events (`API_LOG_EVENTS`); any other message
+  is replaced by "log message withheld". Dynamic values go in fields. A lint rule rejects built-up messages.
+- **Fields are sanitised at any depth** (secret keys in any casing, arrays, cycles); phone numbers keep 3 digits;
+  functions and `toJSON` hooks are dropped. It runs at pino's entry (`hooks.logMethod`), on every line, and on the
+  bindings of every child logger (wrapping pino's prototype methods, so children keep their own bindings).
+- **Errors are a recognised type and a recognised code only.** Names and codes come from finite lists. **No message,
+  cause or stack trace is logged** — stack text starts with the message and a multiline message can imitate any
+  frame. Trade-off: production logs carry no stack traces; proper error capture with scrubbing is T11's job.
+- **Requests are one line:** method, route **pattern**, status, duration. Fastify's own request logging (raw URL) is
+  off (`LogController`); Nest logs through a sanitising adapter; ioredis errors go through an `error` listener.
 
 ## Consequences
 

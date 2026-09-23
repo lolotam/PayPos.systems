@@ -16,6 +16,7 @@ import { LogController, type FastifyReply } from 'fastify';
 import { ApiError } from './shared/errors.ts';
 import { EnvelopeExceptionFilter } from './shared/exception.filter.ts';
 import { HealthController } from './shared/health.controller.ts';
+import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { PinoNestLogger } from './shared/nest-logger.ts';
 import { READINESS_CHECKS, singleFlight, type ReadinessCheck } from './shared/readiness.ts';
 
@@ -83,7 +84,7 @@ export async function createApp(
   deps: AppDependencies,
   options: AppOptions = {},
 ): Promise<NestFastifyApplication> {
-  const logger = options.logger ?? createLogger('info');
+  const logger = options.logger ?? createLogger('info', { events: API_LOG_EVENTS });
   const adapter = new FastifyAdapter({
     loggerInstance: logger,
     bodyLimit: 1_048_576,

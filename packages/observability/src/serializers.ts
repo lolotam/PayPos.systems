@@ -1,12 +1,11 @@
 /**
- * Log serializers. The defaults would print an error's message, its causes and every enumerable
- * property, and a request's full URL — each can carry a secret the key-based sanitizer cannot see
- * (`new Error('token=…')`, `/login?token=…`). These print only safe, structural facts.
+ * Log serializers. The defaults would print an error's message, its causes, its stack and every
+ * enumerable property, and a request's full URL — each can carry a secret the key-based sanitizer cannot
+ * see. These print only values from finite lists: nothing an error or a request carries is copied as-is.
  */
 
-const MAX_FRAMES = 12;
-
-// Names are printed only if they are on this list; anything else becomes "Error".
+// Names and codes are printed only if they are on these lists — a pattern would admit any secret shaped
+// to fit it. Anything else is replaced ("Error") or omitted.
 const KNOWN_NAMES = new Set([
   'Error',
   'AggregateError',
@@ -26,28 +25,27 @@ const KNOWN_NAMES = new Set([
   'BadRequestException',
 ]);
 
-// Codes are printed only in two recognised shapes: Node system codes (ECONNREFUSED) and Fastify codes
-// (FST_ERR_…). All-digit values are never printed — a PIN or a phone number would fit a looser rule.
-const KNOWN_CODE = /^E[A-Z]{2,20}$|^FST_ERR_[A-Z_]{1,40}$/;
-
-// A frame must look like a real V8 frame — `at fn (path:line:col)` or `at path:line:col` — with a file
-// path. The stack's text is not trusted just for following the message: `.message` can change after
-// `.stack` was captured, so a line is kept only if its own shape proves it is a frame.
-const FRAME =
-  /^at (?:[\w$.<>[\] ]{1,120} \()?(?:file:\/\/\/|node:|[A-Za-z]:[\\/]|\/)[^\s()]{1,300}:\d+:\d+\)?$/;
-
-function framesOf(error: Error): string[] {
-  return (error.stack ?? '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => FRAME.test(line))
-    .slice(0, MAX_FRAMES);
-}
+const KNOWN_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ECONNABORTED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EPIPE',
+  'EADDRINUSE',
+  'FST_ERR_BAD_URL',
+  'FST_ERR_CTP_BODY_TOO_LARGE',
+  'FST_ERR_CTP_INVALID_MEDIA_TYPE',
+  'FST_ERR_NOT_FOUND',
+]);
 
 /**
- * Any thrown value as a recognised type, a recognised code and its verified stack frames — never the
- * message, the causes or any other property. A non-Error (a thrown string or object) is reduced to a
- * fixed label: its content is never printed.
+ * Any thrown value as a recognised type and a recognised code. The message, the causes, the stack and
+ * every other property are never printed: stack text starts with the message and a multiline message can
+ * imitate any frame, so no line of it can be trusted. A non-Error becomes a fixed label.
  *
  * @param error whatever was thrown
  * @returns a diagnostic safe to log
@@ -57,8 +55,7 @@ export function errorDiagnostic(error: unknown): Record<string, unknown> {
   const code = (error as { code?: unknown }).code;
   return {
     type: KNOWN_NAMES.has(error.name) ? error.name : 'Error',
-    ...(typeof code === 'string' && KNOWN_CODE.test(code) ? { code } : {}),
-    frames: framesOf(error),
+    ...(typeof code === 'string' && KNOWN_CODES.has(code) ? { code } : {}),
   };
 }
 

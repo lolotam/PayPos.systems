@@ -15,7 +15,24 @@ const capture = (log: (logger: Logger) => void): string => {
       done();
     },
   });
-  log(createLogger('info', sink));
+  log(
+    createLogger('info', {
+      destination: sink,
+      events: [
+        'probe',
+        'boom',
+        'x',
+        'event',
+        'grandchild',
+        'child',
+        'sibling',
+        'root',
+        'after setBindings',
+        'incoming request',
+        'redis connection error',
+      ],
+    }),
+  );
   return written;
 };
 
@@ -150,5 +167,36 @@ describe('binding ownership', () => {
     expect(lines[1]).toMatchObject({ requestId: 'r1-updated', msg: 'child' });
     expect(lines[2]).toMatchObject({ requestId: 'r2', msg: 'sibling' });
     expect(lines[3]).not.toHaveProperty('requestId');
+  });
+});
+
+describe('round 4 — finite allowlists, no stack text', () => {
+  it('a message line shaped exactly like a frame is not logged — stacks are never printed', () => {
+    const line = capture((log) =>
+      log.error({ err: new Error('failure\n    at /tok_test_secret:1:1') }, 'x'),
+    );
+    expect(line).not.toContain('tok_test_secret');
+    expect(JSON.parse(line).err).not.toHaveProperty('frames');
+  });
+
+  it('only listed codes are printed — look-alikes of the accepted shapes are dropped', () => {
+    const line = capture((log) => {
+      log.error({ err: Object.assign(new Error('x'), { code: 'ESECRET' }) }, 'x');
+      log.error({ err: Object.assign(new Error('x'), { code: 'FST_ERR_SECRET_TOKEN' }) }, 'x');
+      log.error({ err: Object.assign(new Error('x'), { code: 'ECONNREFUSED' }) }, 'x');
+    });
+    expect(line).not.toContain('ESECRET');
+    expect(line).not.toContain('FST_ERR_SECRET_TOKEN');
+    expect(line).toContain('"code":"ECONNREFUSED"');
+  });
+
+  it('a message that is not a catalogued event is withheld, whatever it looks like', () => {
+    const error = new Error('PIN 4821');
+    const line = capture((log) => {
+      log.error(error, error.message);
+      log.info('tok_live_leak');
+      log.info('965 5001 2345');
+    });
+    for (const leak of ['4821', 'tok_live_leak', '5001']) expect(line).not.toContain(leak);
   });
 });
