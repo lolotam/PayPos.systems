@@ -954,7 +954,7 @@
       "checkConstraints": {
         "idempotency_keys_scope": {
           "name": "idempotency_keys_scope",
-          "value": "(\"idempotency_keys\".\"scope_type\" = 'COMPANY' AND \"idempotency_keys\".\"company_id\" IS NOT NULL AND \"idempotency_keys\".\"scope_id\" = \"idempotency_keys\".\"company_id\")\n          OR (\"idempotency_keys\".\"scope_type\" = 'USER' AND \"idempotency_keys\".\"user_id\" IS NOT NULL AND \"idempotency_keys\".\"scope_id\" = \"idempotency_keys\".\"user_id\")"
+          "value": "(\"idempotency_keys\".\"scope_type\" = 'COMPANY' AND \"idempotency_keys\".\"company_id\" IS NOT NULL AND \"idempotency_keys\".\"scope_id\" = \"idempotency_keys\".\"company_id\")\n          OR (\"idempotency_keys\".\"scope_type\" = 'USER' AND \"idempotency_keys\".\"user_id\" IS NOT NULL AND \"idempotency_keys\".\"company_id\" IS NULL AND \"idempotency_keys\".\"scope_id\" = \"idempotency_keys\".\"user_id\")"
         },
         "idempotency_keys_key_format": {
           "name": "idempotency_keys_key_format",

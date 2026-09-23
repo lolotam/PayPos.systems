@@ -91,14 +91,14 @@ describe('outbox', () => {
   });
 });
 
-describe('audit_log', () => {
-  const entry = {
-    entity: 'business',
-    entityId: TENANT.A.business,
-    action: 'created',
-    after: { a: 1 },
-  };
+const entry = {
+  entity: 'business',
+  entityId: TENANT.A.business,
+  action: 'created',
+  after: { a: 1 },
+};
 
+describe('audit_log', () => {
   it('records the context company and acting user, and NULL for a system action', async () => {
     const [withUser, system] = [nextId(), nextId()];
     await database.withTenant(TENANT.A.company, (tx) => appendAuditLog(tx, withUser, entry), {
@@ -143,6 +143,25 @@ describe('audit_log', () => {
     } finally {
       await app.end();
     }
+  });
+});
+
+describe('audit_log snapshots', () => {
+  it('never stores a secret in a snapshot — the row is kept forever', async () => {
+    const id = nextId();
+    await database.withTenant(TENANT.A.company, (tx) =>
+      appendAuditLog(tx, id, {
+        ...entry,
+        before: { pinHash: 'argon2-leak', device: { token: 'tok_leak' }, name: 'Old' },
+        after: { name: 'New' },
+      }),
+    );
+    const [row] = await owner`SELECT before FROM audit_log WHERE id = ${id}`;
+    expect(row?.['before']).toEqual({
+      pinHash: '[REDACTED]',
+      device: { token: '[REDACTED]' },
+      name: 'Old',
+    });
   });
 });
 

@@ -30,22 +30,34 @@ function canonicalJson(value: unknown): string {
 }
 
 /**
- * The fingerprint of one request: method, route pattern and canonical body, hashed. The route pattern,
- * not the URL, so a path parameter is compared through the body the use case actually receives.
+ * The fingerprint of one request: method, route pattern, path parameters, query and canonical body,
+ * hashed. Everything that selects or shapes the command is in it — `/orders/A/refund` and
+ * `/orders/B/refund` with one body and one key are two different requests (422), never a replay.
  *
- * @param request method, route pattern and parsed body
+ * @param request the parts of the request that define the command
  * @param request.method the HTTP method
- * @param request.route  the route pattern (`/v1/businesses`)
+ * @param request.route  the route pattern (`/v1/orders/:id/refund`)
+ * @param request.params the resolved path parameters
+ * @param request.query  the parsed query string
  * @param request.body   the parsed body
  * @returns sha256 hex
  */
 export function requestFingerprint(request: {
   method: string;
   route: string;
+  params: unknown;
+  query: unknown;
   body: unknown;
 }): string {
+  const parts = [
+    request.method.toUpperCase(),
+    request.route,
+    request.params,
+    request.query,
+    request.body,
+  ];
   return createHash('sha256')
-    .update(canonicalJson([request.method.toUpperCase(), request.route, request.body ?? null]))
+    .update(canonicalJson(parts.map((part) => part ?? null)))
     .digest('hex');
 }
 
@@ -65,6 +77,8 @@ export const Idempotency = createParamDecorator(
       fingerprint: requestFingerprint({
         method: request.method,
         route: request.routeOptions.url ?? request.url,
+        params: request.params,
+        query: request.query,
         body: request.body,
       }),
     };

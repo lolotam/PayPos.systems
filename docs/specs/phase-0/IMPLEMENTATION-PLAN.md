@@ -256,14 +256,19 @@ logged PIN and token do not appear in the output (tested); an invalid body retur
   `systemUuidV7()` on the system clock and Web Crypto; bound to `@pospay/db`'s `IdGenerator` in `apps/api/src/main.ts`.
 - Migrations `0003_…_cross-cutting.sql` (tables) and `0004_…_cross-cutting-rls.sql` (RLS, grants, commit check).
 - `outbox`: PK `(company_id, id)` — `id` is the stable event id T7b dedupes on; `pospay_app` may only `INSERT`.
-- `audit_log`: insert-only (`SELECT`, `INSERT`); the actor is `app_user_id()` (NULL = a system action).
+- `audit_log`: insert-only (`SELECT`, `INSERT`); the actor is `app_user_id()` (NULL = a system action). `before` /
+  `after` pass through `redactSecrets` (secret-named keys and URL credentials removed; phone numbers kept —
+  `TODO(spec)`: should the audit trail mask phones too?).
 - `idempotency_keys`: PK `(scope_type, scope_id, operation, key)` instead of a surrogate `id`; `UPDATE` reaches only a
   row whose response is still NULL; a deferred constraint trigger refuses to commit a claim without its response.
+  A `USER` row carries no `company_id` (an FK check would reveal whether a company exists). The claim restores the
+  caller's own `lock_timeout` afterwards.
   No `DELETE` grant — the 24 h sweep moves to T7b (the worker). An expired row still replays until it is swept.
 - `@pospay/db` exports `appendOutboxEvent`, `appendAuditLog` and `runIdempotent`; company and actor always come from
   the transaction's context, never from the caller.
-- `apps/api`: `Clock` port + `systemClock`; `@Idempotency()` param decorator (header → 400, sha256 fingerprint of
-  method + route pattern + canonical body); `IDEMPOTENCY_KEY_REUSED` (422) and `IDEMPOTENCY_KEY_IN_PROGRESS` (409).
+- `apps/api`: `Clock`, `OutboxWriter` and `AuditTrail` ports (no Drizzle type) with `transactionWriters(tx, ids)` as
+  their adapter; `@Idempotency()` param decorator (header → 400, sha256 fingerprint of method + route pattern + path
+  parameters + query + canonical body); `IDEMPOTENCY_KEY_REUSED` (422) and `IDEMPOTENCY_KEY_IN_PROGRESS` (409).
 
 **Deliverable:** the machinery every later write depends on.
 

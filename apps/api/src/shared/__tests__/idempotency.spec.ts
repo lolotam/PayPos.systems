@@ -14,6 +14,11 @@ import { Idempotency, requestFingerprint, type IdempotencyInput } from '../idemp
 // 422 on a different body, concurrency — is proven in packages/db against real Postgres.
 @Controller('probe')
 class IdempotentProbe {
+  @Post('orders/:id/refund')
+  refund(@Idempotency() idempotency: IdempotencyInput): IdempotencyInput {
+    return idempotency;
+  }
+
   @Post('echo')
   echo(@Idempotency() idempotency: IdempotencyInput): IdempotencyInput {
     return idempotency;
@@ -78,6 +83,8 @@ describe('requestFingerprint', () => {
   const base = {
     method: 'POST',
     route: '/v1/businesses',
+    params: {},
+    query: {},
     body: { name_en: 'Main', tags: ['a', 'b'] },
   };
 
@@ -91,6 +98,24 @@ describe('requestFingerprint', () => {
     );
     expect(requestFingerprint({ ...base, route: '/v1/branches' })).not.toBe(reference);
     expect(requestFingerprint({ ...base, method: 'PUT' })).not.toBe(reference);
+    expect(requestFingerprint({ ...base, query: { dry_run: 'true' } })).not.toBe(reference);
+  });
+
+  it('two targets of one route with the same key and body are different requests', async () => {
+    const headers = { 'idempotency-key': 'refund-1' };
+    const a = await post('/v1/probe/orders/0194aaaa-0000-7000-8000-00000000000a/refund', headers, {
+      amount: '1.000',
+    });
+    const b = await post('/v1/probe/orders/0194bbbb-0000-7000-8000-00000000000b/refund', headers, {
+      amount: '1.000',
+    });
+    const again = await post(
+      '/v1/probe/orders/0194aaaa-0000-7000-8000-00000000000a/refund',
+      headers,
+      { amount: '1.000' },
+    );
+    expect(b.body['fingerprint']).not.toBe(a.body['fingerprint']);
+    expect(again.body['fingerprint']).toBe(a.body['fingerprint']);
   });
 });
 

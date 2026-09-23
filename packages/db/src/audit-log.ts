@@ -1,3 +1,4 @@
+import { redactSecrets } from '@pospay/observability';
 import { sql } from 'drizzle-orm';
 
 import { toJsonb } from './outbox.ts';
@@ -20,6 +21,8 @@ export interface AuditEntry {
  * بيكتب صف في الـ audit_log جوه نفس transaction التغيير. الشركة والمستخدم بييجوا من الـ context
  * (app_company_id() و app_user_id()) مش من الـ caller، فمحدش يقدر يسجّل تغيير باسم حد تاني؛
  * لو مفيش مستخدم (job في الـ worker) الـ actor بيبقى NULL = النظام.
+ * الـ before والـ after بيعدّوا على redactSecrets الأول: الصف ده بيفضل للأبد، فأي PIN أو token أو hash
+ * جه بالغلط في snapshot بيتشال قبل ما يتكتب (CLAUDE.md §8). أرقام التليفون بتفضل زي ما هي.
  *
  * @param tx    transaction من withTenant أو withNewTenant
  * @param id    UUID v7 من الـ IdGenerator
@@ -28,7 +31,7 @@ export interface AuditEntry {
  */
 export async function appendAuditLog(tx: Tx, id: string, entry: AuditEntry): Promise<void> {
   const json = (value: unknown, name: string) =>
-    value === undefined ? sql`NULL` : sql`${toJsonb(value, name)}::jsonb`;
+    value === undefined ? sql`NULL` : sql`${toJsonb(redactSecrets(value), name)}::jsonb`;
   await tx.execute(sql`
     INSERT INTO audit_log (company_id, id, actor_user_id, entity, entity_id, action, before, after)
     VALUES (app_company_id(), ${assertUuid(id, 'id')}, app_user_id(), ${entry.entity},

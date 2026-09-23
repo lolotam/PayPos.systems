@@ -44,7 +44,7 @@ CREATE TABLE "idempotency_keys" (
 	"expires_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "idempotency_keys_pkey" PRIMARY KEY("scope_type","scope_id","operation","key"),
 	CONSTRAINT "idempotency_keys_scope" CHECK (("idempotency_keys"."scope_type" = 'COMPANY' AND "idempotency_keys"."company_id" IS NOT NULL AND "idempotency_keys"."scope_id" = "idempotency_keys"."company_id")
-          OR ("idempotency_keys"."scope_type" = 'USER' AND "idempotency_keys"."user_id" IS NOT NULL AND "idempotency_keys"."scope_id" = "idempotency_keys"."user_id")),
+          OR ("idempotency_keys"."scope_type" = 'USER' AND "idempotency_keys"."user_id" IS NOT NULL AND "idempotency_keys"."company_id" IS NULL AND "idempotency_keys"."scope_id" = "idempotency_keys"."user_id")),
 	CONSTRAINT "idempotency_keys_key_format" CHECK ("idempotency_keys"."key" ~ '^[!-~]{1,255}$'),
 	CONSTRAINT "idempotency_keys_operation_format" CHECK ("idempotency_keys"."operation" ~ '^[a-z][a-z0-9-]{1,62}$'),
 	CONSTRAINT "idempotency_keys_fingerprint_format" CHECK ("idempotency_keys"."request_fingerprint" ~ '^[0-9a-f]{64}$'),

@@ -80,10 +80,13 @@ function validate(request: IdempotencyRequest): number {
 }
 
 // الـ claim: INSERT … ON CONFLICT DO NOTHING. لو فيه transaction تانية عاملة claim لنفس المفتاح ولسه
-// مخلصتش، الـ INSERT ده بيستنى عليها — lock_timeout بيحدد الانتظار ده بس، وبعده بيرجع لـ DEFAULT.
+// مخلصتش، الـ INSERT ده بيستنى عليها — lock_timeout بيحدد الانتظار ده بس، وبعده بيرجع للقيمة اللي كانت
+// قبله بالظبط (مش DEFAULT)، عشان حد الانتظار اللي الـ caller حاطه لباقي الـ transaction ميضيعش.
 async function claim(tx: Tx, request: IdempotencyRequest, timeoutMs: number): Promise<boolean> {
   const company = request.scope === 'COMPANY' ? sql`app_company_id()` : sql`NULL`;
-  await tx.execute(sql`SELECT set_config('lock_timeout', ${`${timeoutMs}ms`}, true)`);
+  const [previous] = await tx.execute<{ timeout: string }>(sql`
+    SELECT current_setting('lock_timeout') AS timeout,
+           set_config('lock_timeout', ${`${timeoutMs}ms`}, true)`);
   try {
     const rows = await tx.execute(sql`
       INSERT INTO idempotency_keys
@@ -99,7 +102,10 @@ async function claim(tx: Tx, request: IdempotencyRequest, timeoutMs: number): Pr
     if (isLockTimeout(error)) throw new IdempotencyKeyBusyError({ cause: error });
     throw error;
   } finally {
-    await tx.execute(sql`SET LOCAL lock_timeout TO DEFAULT`).catch(() => undefined);
+    // After a lock timeout the transaction is aborted and this fails too — it is rolled back anyway.
+    await tx
+      .execute(sql`SELECT set_config('lock_timeout', ${previous?.timeout ?? '0'}, true)`)
+      .catch(() => undefined);
   }
 }
 

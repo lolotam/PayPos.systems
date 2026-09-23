@@ -138,4 +138,36 @@ describe('scopes', () => {
       ),
     ).rejects.toThrow(TypeError);
   });
+
+  it('a USER-scoped row cannot name a company — existing or not, the answer is the same', async () => {
+    const insert = (companyId: string) =>
+      database.withUser(USER, (tx) =>
+        tx.execute(`
+          INSERT INTO idempotency_keys
+            (scope_type, scope_id, company_id, user_id, operation, key, request_fingerprint,
+             response_status, response_body, expires_at)
+          VALUES ('USER', app_user_id(), '${companyId}', app_user_id(), 'onboard-company',
+                  'probe-${companyId}', '${'e'.repeat(64)}', 201, '{}', now() + interval '1 day')`),
+      );
+    const scopeViolation = { cause: { constraint_name: 'idempotency_keys_scope' } };
+    await expect(insert(TENANT.B.company)).rejects.toMatchObject(scopeViolation);
+    await expect(insert('01940000-0000-7000-8000-00000000dead')).rejects.toMatchObject(
+      scopeViolation,
+    );
+  });
+});
+
+describe("the caller's lock_timeout", () => {
+  const lockTimeoutAfter = (key: string) =>
+    inA(async (tx) => {
+      await tx.execute(`SET LOCAL lock_timeout = '250ms'`);
+      await runIdempotent(tx, request({ key }), async () => ({ status: 200, body: null }));
+      const [row] = await tx.execute<{ lock_timeout: string }>('SHOW lock_timeout');
+      return row?.lock_timeout;
+    });
+
+  it('is restored after a fresh claim and after a replay', async () => {
+    expect(await lockTimeoutAfter('timeout-kept')).toBe('250ms');
+    expect(await lockTimeoutAfter('timeout-kept')).toBe('250ms');
+  });
 });

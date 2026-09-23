@@ -19,6 +19,7 @@ export const idempotencyKeys = pgTable(
   'idempotency_keys',
   {
     // COMPANY لكل كتابة جوه شركة؛ USER لكتابات قبل ما الشركة توجد (onboard-company بس النهارده).
+    // صف USER مالوش company_id: الـ FK كان هيكشف لأي مستخدم إن شركة معينة موجودة (فحص الـ FK مبيعدّيش على الـ RLS).
     scopeType: text('scope_type').notNull(),
     scopeId: uuid('scope_id').notNull(),
     companyId: uuid('company_id').references(() => companies.id),
@@ -46,7 +47,7 @@ export const idempotencyKeys = pgTable(
     check(
       'idempotency_keys_scope',
       sql`(${t.scopeType} = 'COMPANY' AND ${t.companyId} IS NOT NULL AND ${t.scopeId} = ${t.companyId})
-          OR (${t.scopeType} = 'USER' AND ${t.userId} IS NOT NULL AND ${t.scopeId} = ${t.userId})`,
+          OR (${t.scopeType} = 'USER' AND ${t.userId} IS NOT NULL AND ${t.companyId} IS NULL AND ${t.scopeId} = ${t.userId})`,
     ),
     // ASCII ظاهر بس (من ! لـ ~)، من غير مسافات ولا حروف تحكم — نفس اللي الـ API بيقبله في الـ header.
     check('idempotency_keys_key_format', sql`${t.key} ~ '^[!-~]{1,255}$'`),

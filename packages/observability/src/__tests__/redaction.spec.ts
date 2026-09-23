@@ -4,6 +4,7 @@ import type { Logger } from 'pino';
 import { describe, expect, it } from 'vitest';
 
 import { createLogger } from '../logger.ts';
+import { REDACTED, redactSecrets } from '../redaction.ts';
 
 // Logs through the real pino config and returns exactly what pino wrote.
 const capture = (log: (logger: Logger) => void): string => {
@@ -107,5 +108,18 @@ describe('requests are logged as method and route pattern — never the raw URL'
       expect(line).not.toContain(secret);
     }
     expect(JSON.parse(line)).toMatchObject({ req: { method: 'GET', route: '/v1/reset/:token' } });
+  });
+});
+
+describe('redactSecrets — for kept business records', () => {
+  it('replaces secrets at any depth but keeps phone numbers whole', () => {
+    expect(
+      redactSecrets({ pinHash: 'h', device: { token: 't' }, phone: '96550012345', name: 'Main' }),
+    ).toEqual({
+      pinHash: REDACTED,
+      device: { token: REDACTED },
+      phone: '96550012345',
+      name: 'Main',
+    });
   });
 });
