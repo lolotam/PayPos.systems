@@ -26,6 +26,8 @@ const SECRET_SUFFIXES = [
   'passphrase',
   // a connection string carries its password inline
   'dsn',
+  // presigned-URL and webhook signatures (X-Amz-Signature, sig)
+  'signature',
   'connectionstring',
 ];
 const STRUCTURAL_KEYS = new Set([
@@ -55,10 +57,37 @@ const isSecretKey = (key: string): boolean =>
   endsWithAny(key, SECRET_SUFFIXES) && !STRUCTURAL_KEYS.has(normalizeKey(key));
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 
-// A URL with credentials (postgres://user:pass@host, redis://:pass@host) keeps its scheme and host but loses
-// its userinfo — checked on every string value, because the key (DATABASE_URL, REDIS_URL) looks harmless.
-const URL_USERINFO = /([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
-const scrubUrlCredentials = (text: string): string => text.replace(URL_USERINFO, '$1***@');
+// URLs are checked in every string value, because their key (DATABASE_URL, url, link) looks harmless. A URL
+// is PARSED, not pattern-matched: the parser knows that the last "@" before the host ends the userinfo (a
+// password may contain "@"), and it exposes the query string, where presigned URLs carry signatures and
+// tokens. The userinfo becomes "***"; every query parameter whose name is secret-like is redacted.
+const URL_START = /^\s*[a-z][a-z0-9+.-]*:\/\//i;
+const URL_IN_TEXT = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
+const URL_REDACTED_VALUE = 'REDACTED';
+
+function scrubUrl(candidate: string): string {
+  try {
+    const url = new URL(candidate);
+    if (url.username !== '' || url.password !== '') {
+      url.username = '***';
+      url.password = '';
+    }
+    for (const name of [...url.searchParams.keys()]) {
+      if (isSecretKey(name) || isPhoneKey(name)) url.searchParams.set(name, URL_REDACTED_VALUE);
+    }
+    return url.toString();
+  } catch {
+    // Unparseable: redact everything up to the LAST "@" before the path, and drop the query string.
+    return candidate
+      .replace(/^(\s*[a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/i, '$1***@')
+      .replace(/\?.*$/, '?[REDACTED]');
+  }
+}
+
+// A value that IS a URL is parsed whole (a password may even contain whitespace); a URL embedded in longer
+// text is found and parsed on its own.
+const scrubUrlCredentials = (text: string): string =>
+  URL_START.test(text) ? scrubUrl(text.trim()) : text.replace(URL_IN_TEXT, scrubUrl);
 
 const MAX_DEPTH = 8;
 export const REDACTED = '[REDACTED]';

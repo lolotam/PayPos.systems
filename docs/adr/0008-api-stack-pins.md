@@ -34,8 +34,10 @@ stays a review concern (per-event field schemas are T11's to decide).
 - **Messages are catalogued event names.** Each process registers its events (`API_LOG_EVENTS`); any other message
   is replaced by "log message withheld". Dynamic values go in fields. A lint rule rejects built-up messages.
 - **Fields are sanitised at any depth** — a key is secret if, ignoring case and separators, it ends in token, secret,
-  password, apikey, credential(s), cookie, authorization, pin, otp or cvv (arrays, cycles); phone numbers keep 3 digits;
-  functions and `toJSON` hooks are dropped. It runs at pino's entry (`hooks.logMethod`), on every line, and on the
+  password, apikey, credential(s), cookie, authorization, pin, otp, cvv, hash, key (unless structural, e.g. sortKey),
+  passphrase, dsn, signature or connection string (arrays, cycles); phone numbers keep 3 digits; functions and
+  `toJSON` hooks are dropped. Every string is scanned for URLs, which are parsed: userinfo becomes `***` and
+  secret-named query parameters (token, api_key, X-Amz-Signature) are redacted. It runs at pino's entry (`hooks.logMethod`), on every line, and on the
   bindings of every child logger (wrapping pino's prototype methods, so children keep their own bindings). Child
   options (`msgPrefix`, serializer overrides) are never forwarded.
 - **Errors are a recognised type and a recognised code only.** Names and codes come from finite lists. **No message,

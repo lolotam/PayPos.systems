@@ -350,3 +350,36 @@ describe('credentials inside URLs', () => {
     expect(raw).not.toContain('cs_leak');
   });
 });
+
+describe('URLs are parsed, not pattern-matched', () => {
+  it('a password containing @ or whitespace does not leak its tail', () => {
+    const raw = capture((log) =>
+      log.info(
+        {
+          DATABASE_URL: 'postgres://user:first@remaining_leak@db.example/app',
+          other: 'postgres://user:with space_leak@db.example/app',
+        },
+        'event',
+      ),
+    );
+    expect(raw).not.toContain('remaining_leak');
+    expect(raw).not.toContain('space_leak');
+    expect(raw).toContain('db.example');
+  });
+
+  it('secret query parameters are redacted — presigned signatures, tokens, api keys', () => {
+    const raw = capture((log) =>
+      log.info(
+        {
+          url: 'https://r2.example/obj?X-Amz-Signature=sig_leak&X-Amz-Credential=cred_leak&width=200',
+          callback: 'see https://hooks.example/cb?token=tok_q_leak&api_key=key_q_leak for details',
+        },
+        'event',
+      ),
+    );
+    for (const leak of ['sig_leak', 'cred_leak', 'tok_q_leak', 'key_q_leak']) {
+      expect(raw).not.toContain(leak);
+    }
+    expect(raw).toContain('width=200');
+  });
+});
