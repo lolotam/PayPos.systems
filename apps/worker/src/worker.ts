@@ -29,7 +29,9 @@ export interface WorkerDependencies {
 type Shutdown = Pick<WorkerDependencies, 'stopPolling' | 'release'>;
 
 const SHUTDOWN = Symbol('SHUTDOWN');
-const SHUTDOWN_TIMEOUT_MS = 10_000;
+// Longer than one delivery's budget (60 s) plus its grace, so SIGTERM lets the batch in flight finish and record
+// its outcomes instead of leaving its events leased. The orchestrator's stop grace period must exceed this (T13).
+const SHUTDOWN_TIMEOUT_MS = 75_000;
 
 // Through Nest's shutdown path, the one SIGTERM triggers. The order is the point: no batch may still be
 // running when its database pool closes.

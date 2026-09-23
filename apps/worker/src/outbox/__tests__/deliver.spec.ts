@@ -115,6 +115,14 @@ describe('createDeliverer', () => {
   });
 });
 
+describe('consumer registration', () => {
+  it('refuses two consumers with one id — the second would never apply its effect', () => {
+    const { app, logger } = harness();
+    const twins = [consumer('a.one', ['BusinessCreated']), consumer('a.one', ['BranchCreated'])];
+    expect(() => createDeliverer(app, twins, logger, KNOWN)).toThrow(/share the id a.one/);
+  });
+});
+
 describe('an event type this worker does not know', () => {
   it('is never acknowledged — it fails with backoff so a newer worker can take it', async () => {
     const { app, tenants, logger } = harness();

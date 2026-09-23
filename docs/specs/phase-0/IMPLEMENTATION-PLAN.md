@@ -345,7 +345,9 @@ duplicate executes, (f) a key-acquisition lock timeout returns a retryable `409`
   transaction the time left of a 60 s budget and starts no consumer after it.
 - The worker lists every event type its version publishes (`KNOWN_EVENT_TYPES`, consumed or not); an unknown type
   is never acknowledged — it fails with backoff so a newer worker takes it.
-- **Deploy rule (T13):** worker versions never overlap — the worker is deployed stop-then-start, not rolling.
+- **Deploy rule (T13):** worker versions never overlap — the worker is deployed stop-then-start, not rolling. Its
+  shutdown waits up to 75 s for the batch in flight (one delivery budget is 60 s), so the orchestrator's stop grace
+  period must be longer than 75 s. Consumer ids are unique (checked at startup).
   Publication is per event, not per consumer: a consumer added for an existing event type receives events published
   after it is deployed; applying it to older events is an explicit backfill, never a side effect of redelivery.
   **Consumer rule:** consumers do database work only; a handler awaiting anything else cannot be cancelled.

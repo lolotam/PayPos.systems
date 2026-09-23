@@ -2,6 +2,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { TENANT, seedTwoTenants } from '../../test/tenancy-fixtures.ts';
+import { withClusterRoleLock } from '../../test/role-lock.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { createDatabase, createOutboxDispatcherDatabase } from '../index.ts';
 
@@ -70,15 +71,18 @@ describe('pospay_dispatcher', () => {
 });
 
 describe('the facade refuses any other role', () => {
+  // Shared role lock: roles.spec changes these roles' passwords and validity under the exclusive one.
   it('ping() answers as pospay_dispatcher and refuses any other role — /ready uses it', async () => {
-    const right = createOutboxDispatcherDatabase({ url: testDb.dispatcherUrl });
-    const wrong = createOutboxDispatcherDatabase({ url: testDb.appUrl });
-    try {
-      await expect(right.ping()).resolves.toBeUndefined();
-      await expect(wrong.ping()).rejects.toThrow(/must connect as pospay_dispatcher/);
-    } finally {
-      await Promise.all([right.close(), wrong.close()]);
-    }
+    await withClusterRoleLock('shared', async () => {
+      const right = createOutboxDispatcherDatabase({ url: testDb.dispatcherUrl });
+      const wrong = createOutboxDispatcherDatabase({ url: testDb.appUrl });
+      try {
+        await expect(right.ping()).resolves.toBeUndefined();
+        await expect(wrong.ping()).rejects.toThrow(/must connect as pospay_dispatcher/);
+      } finally {
+        await Promise.all([right.close(), wrong.close()]);
+      }
+    });
   });
 
   it('pospay_app behind the dispatcher facade is refused before any work', async () => {
@@ -127,18 +131,21 @@ describe('the idempotency sweep', () => {
 
 describe('the application ping', () => {
   it('is ready only as pospay_app — another restricted role is refused', async () => {
-    const app = createDatabase({ url: testDb.appUrl, ids: { newId: () => EVENT } });
-    const auth = createDatabase({ url: testDb.authUrl, ids: { newId: () => EVENT } });
-    const dispatcherAsApp = createDatabase({
-      url: testDb.dispatcherUrl,
-      ids: { newId: () => EVENT },
+    // Shared role lock: roles.spec changes these roles' passwords and validity under the exclusive one.
+    await withClusterRoleLock('shared', async () => {
+      const app = createDatabase({ url: testDb.appUrl, ids: { newId: () => EVENT } });
+      const auth = createDatabase({ url: testDb.authUrl, ids: { newId: () => EVENT } });
+      const asDispatcher = createDatabase({
+        url: testDb.dispatcherUrl,
+        ids: { newId: () => EVENT },
+      });
+      try {
+        await expect(app.ping()).resolves.toBeUndefined();
+        await expect(auth.ping()).rejects.toThrow(/must connect as pospay_app/);
+        await expect(asDispatcher.ping()).rejects.toThrow(/must connect as pospay_app/);
+      } finally {
+        await Promise.all([app.close(), auth.close(), asDispatcher.close()]);
+      }
     });
-    try {
-      await expect(app.ping()).resolves.toBeUndefined();
-      await expect(auth.ping()).rejects.toThrow(/must connect as pospay_app/);
-      await expect(dispatcherAsApp.ping()).rejects.toThrow(/must connect as pospay_app/);
-    } finally {
-      await Promise.all([app.close(), auth.close(), dispatcherAsApp.close()]);
-    }
   });
 });

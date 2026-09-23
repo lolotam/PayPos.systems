@@ -10,6 +10,8 @@ import type { OutboxConsumer } from './consumer.ts';
 import { retryDelayMs } from './retry-policy.ts';
 
 const GRACE_MS = 1_000;
+/** One delivery's whole budget; shutdown waits longer than this (worker.ts). */
+export const DELIVERY_TIMEOUT_MS = 60_000;
 
 // TypeError: a known diagnostic name; last_error then reads 'TypeError' for an event this version cannot place.
 const unknownEventType = (): Error => new TypeError('unknown event type');
@@ -47,7 +49,12 @@ export function createDeliverer(
   logger: Logger,
   options: { knownEventTypes: readonly string[]; timeoutMs?: number },
 ): (event: ClaimedEvent) => Promise<DeliveryOutcome> {
-  const timeoutMs = options.timeoutMs ?? 60_000;
+  const timeoutMs = options.timeoutMs ?? DELIVERY_TIMEOUT_MS;
+  // Two consumers sharing an id share a dedupe row: the second would see the event as already applied and its
+  // effect would be skipped for good. A registration mistake must stop the worker, not lose effects.
+  const ids = consumers.map((consumer) => consumer.id);
+  const duplicate = ids.find((id, index) => ids.indexOf(id) !== index);
+  if (duplicate !== undefined) throw new Error(`Two outbox consumers share the id ${duplicate}`);
   const known = new Set([...options.knownEventTypes, ...consumers.flatMap((c) => c.eventTypes)]);
   const applyAll = async (event: ClaimedEvent, endsAt: number): Promise<void> => {
     for (const consumer of consumers) {
