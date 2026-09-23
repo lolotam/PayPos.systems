@@ -77,6 +77,9 @@ describe('the module-map gate — what passes', () => {
           'export const adapter = () => registerCompany();',
           'export const unrelated = (registerCompany: number) => registerCompany + 1;',
           'export function block() { const registerCompany = 2; return registerCompany; }',
+          'export function loop() { for (const registerCompany of [1]) { return registerCompany; } return 0; }',
+          'export function caught() { try { return 1; } catch (registerCompany) { return registerCompany; } }',
+          'export class Plain { run() { return registerCompany(); } }',
           '',
         ].join('\n'),
       }),
@@ -126,6 +129,17 @@ describe('the module-map gate — what it blocks', () => {
     'passing the write on inside an object': [
       { [ADAPTER]: "import { registerCompany } from '../../tenancy/index.ts';\nexport const box = { registerCompany };\n" },
       /registerCompany came from another module/,
+    ],
+    "passing the write into a class's extends expression, which runs": [
+      {
+        [ADAPTER]: [
+          "import { registerCompany } from '../../tenancy/index.ts';",
+          'const capture = (f: unknown) => class { static f = f; };',
+          'export class Bridge extends capture(registerCompany) {}',
+          '',
+        ].join(String.fromCharCode(10)),
+      },
+      /registerCompany came from another module and may only be called here/,
     ],
     'a dynamic import with a computed specifier': [
       { 'apps/api/src/modules/identity/use-cases/computed.ts': "const target = '../../tenancy/index.ts';\nexport const load = () => import(target);\n" },

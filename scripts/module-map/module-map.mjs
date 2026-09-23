@@ -169,10 +169,19 @@ export function dependenciesOf(file) {
 }
 
 // A value imported from another module may only be CALLED where it was imported — never aliased, exported, passed on
-// or stored — so the one permitted file cannot hand the capability to anyone else. Erased type positions
-// (`typeof x` inside a type) carry nothing at runtime, and a local that shadows the name is a different binding.
-function inTypePosition(node) {
+// or stored — so the one permitted file cannot hand the capability to anyone else. References are resolved with the
+// TypeScript checker, so a local that merely shares the name (parameter, loop variable, catch binding…) is not one.
+// Erased type positions carry nothing at runtime — except a class's `extends` expression, which runs.
+function inErasedType(node) {
   for (let current = node.parent; current !== undefined; current = current.parent) {
+    if (
+      ts.isExpressionWithTypeArguments(current) &&
+      ts.isHeritageClause(current.parent) &&
+      current.parent.token === ts.SyntaxKind.ExtendsKeyword &&
+      ts.isClassLike(current.parent.parent)
+    ) {
+      return false;
+    }
     if (ts.isTypeNode(current) || ts.isTypeAliasDeclaration(current) || ts.isInterfaceDeclaration(current)) {
       return true;
     }
@@ -181,49 +190,39 @@ function inTypePosition(node) {
   return false;
 }
 
-// Names a scope node declares itself: parameters, and variables, functions and classes declared directly in it.
-function declaredIn(scope) {
-  const names = new Set();
-  const bind = (name) => {
-    if (ts.isIdentifier(name)) names.add(name.text);
-    else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
-      for (const element of name.elements) if (!ts.isOmittedExpression(element)) bind(element.name);
-    }
+function leakedUses(program, file, locals) {
+  const checker = program.getTypeChecker();
+  const source = program.getSourceFile(file);
+  if (source === undefined) return [...locals];
+  // What an identifier really refers to: through `export { x }` and `{ x }` shorthand, and through import aliases.
+  const target = (node) => {
+    const parent = node.parent;
+    const symbol = ts.isExportSpecifier(parent)
+      ? checker.getExportSpecifierLocalTargetSymbol(parent)
+      : ts.isShorthandPropertyAssignment(parent)
+        ? checker.getShorthandAssignmentValueSymbol(parent)
+        : checker.getSymbolAtLocation(node);
+    return symbol !== undefined && symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
   };
-  if (ts.isFunctionLike(scope)) scope.parameters.forEach((p) => bind(p.name));
-  const statements = ts.isBlock(scope) || ts.isSourceFile(scope) ? scope.statements : [];
-  for (const statement of statements) {
-    if (ts.isVariableStatement(statement)) statement.declarationList.declarations.forEach((d) => bind(d.name));
-    if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) {
-      names.add(statement.name.text);
+  const imported = new Set();
+  for (const statement of source.statements) {
+    const clause = ts.isImportDeclaration(statement) ? statement.importClause : undefined;
+    if (clause === undefined || clause.isTypeOnly) continue;
+    const names = [clause.name, clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)
+      ? clause.namedBindings.name : undefined,
+      ...(clause.namedBindings && ts.isNamedImports(clause.namedBindings)
+        ? clause.namedBindings.elements.filter((e) => !e.isTypeOnly).map((e) => e.name) : [])];
+    for (const name of names) {
+      if (name !== undefined && locals.has(name.text)) imported.add(target(name));
     }
   }
-  return names;
-}
-
-function isShadowed(node) {
-  for (let scope = node.parent; scope !== undefined && !ts.isSourceFile(scope); scope = scope.parent) {
-    if ((ts.isFunctionLike(scope) || ts.isBlock(scope)) && declaredIn(scope).has(node.text)) return true;
-  }
-  return false;
-}
-
-function leakedUses(source, locals) {
   const leaks = [];
   const visit = (node) => {
-    if (ts.isIdentifier(node) && locals.has(node.text)) {
+    if (ts.isIdentifier(node) && locals.has(node.text) && imported.has(target(node))) {
       const parent = node.parent;
-      const declaring =
-        ts.isImportSpecifier(parent) || ts.isImportClause(parent) || ts.isNamespaceImport(parent);
-      const nameOnly =
-        (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
-        (ts.isPropertyAssignment(parent) && parent.name === node) ||
-        ((ts.isParameter(parent) || ts.isVariableDeclaration(parent) || ts.isBindingElement(parent)) &&
-          parent.name === node);
+      const declaring = ts.isImportSpecifier(parent) || ts.isImportClause(parent) || ts.isNamespaceImport(parent);
       const called = ts.isCallExpression(parent) && parent.expression === node;
-      if (!declaring && !nameOnly && !called && !inTypePosition(node) && !isShadowed(node)) {
-        leaks.push(node.text);
-      }
+      if (!declaring && !called && !inErasedType(node)) leaks.push(node.text);
     }
     ts.forEachChild(node, visit);
   };
@@ -295,6 +294,7 @@ export function checkModules(root, map) {
   const allowed = [...map.syncWrites, ...map.reads];
   for (const project of projects(root)) {
     const options = compilerOptions(project);
+    let program;
     for (const file of walk(join(project, 'src'))) {
       const rel = relative(root, file).split(sep).join('/');
       const from = place(root, file);
@@ -347,7 +347,9 @@ export function checkModules(root, map) {
         }
         dep.locals.forEach((local) => crossLocals.add(local));
       }
-      for (const local of leakedUses(deps.source, crossLocals)) {
+      if (crossLocals.size === 0) continue;
+      program ??= ts.createProgram(walk(join(project, 'src')), { ...options, noEmit: true });
+      for (const local of leakedUses(program, file, crossLocals)) {
         problems.push(`${rel}: ${local} came from another module and may only be called here, not passed on`);
       }
     }
