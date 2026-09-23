@@ -100,6 +100,7 @@ const createCompany = async (cookie: string, key: string, body: object) => {
   return {
     status: res.statusCode,
     body: res.json() as Record<string, unknown>,
+    text: res.body,
     headers: res.headers,
   };
 };
@@ -173,7 +174,8 @@ describe('ONB-03 — a replayed key', () => {
     const body = { name_en: 'Onb Three', plan_id: PROVISIONAL_PLAN_ID };
     const first = await createCompany(operator.cookie, 'onb-03', body);
     const again = await createCompany(operator.cookie, 'onb-03', body);
-    expect([again.status, again.body]).toEqual([first.status, first.body]);
+    // Byte for byte, not just equal objects: the first response is what the key stored.
+    expect([again.status, again.text]).toEqual([first.status, first.text]);
     expect(again.headers['idempotent-replayed']).toBe('true');
     expect(await companyNamed('Onb Three')).toHaveLength(1);
     const reused = await createCompany(operator.cookie, 'onb-03', { ...body, name_en: 'Other' });

@@ -9,7 +9,9 @@ import { createDatabase, type Database } from '../index.ts';
 
 // Last-owner protection (ADR-0003 §5.3, plan T9a-4), run as pospay_app inside withTenant: whatever a transaction
 // does to owner memberships, it cannot commit a company that had an owner and now has none.
-const { A } = TENANT;
+const { A, B } = TENANT;
+const B1 = '01920000-0000-7000-8000-0000000000c3';
+const B2 = '01920000-0000-7000-8000-0000000000c4';
 const FIRST = '01920000-0000-7000-8000-0000000000c1';
 const SECOND = '01920000-0000-7000-8000-0000000000c2';
 const U1 = '01920000-0000-7000-8000-0000000000f4';
@@ -32,6 +34,13 @@ beforeAll(async () => {
   }
   await owner`INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
               VALUES (${A.company}, ${FIRST}, ${U1}, ${OWNER_ROLE_ID}, 'global', 'COMPANY', ${A.company})`;
+  for (const [membership, user] of [
+    [B1, U1],
+    [B2, U2],
+  ] as const) {
+    await owner`INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
+                VALUES (${B.company}, ${membership}, ${user}, ${OWNER_ROLE_ID}, 'global', 'COMPANY', ${B.company})`;
+  }
   db = createDatabase({ url: testDb.appUrl, ids: { newId: () => SECOND } });
 });
 
@@ -58,6 +67,14 @@ describe('the last owner cannot leave', () => {
     await expect(
       inA(sql`UPDATE memberships SET role_id = ${VIEWER} WHERE id = ${FIRST}`),
     ).rejects.toThrow(refusedAtCommit);
+    await expect(
+      inA(sql`UPDATE memberships SET starts_at = now() + interval '1 day' WHERE id = ${FIRST}`),
+    ).rejects.toThrow(refusedAtCommit);
+    await expect(
+      inA(
+        sql`UPDATE memberships SET scope_type = 'BUSINESS', scope_id = ${A.business} WHERE id = ${FIRST}`,
+      ),
+    ).rejects.toThrow(refusedAtCommit);
     expect(await owner`SELECT ends_at, role_id FROM memberships WHERE id = ${FIRST}`).toEqual([
       { ends_at: null, role_id: OWNER_ROLE_ID },
     ]);
@@ -73,5 +90,34 @@ describe('the last owner cannot leave', () => {
     expect(await owner`SELECT user_id FROM memberships WHERE company_id = ${A.company}`).toEqual([
       { user_id: U2 },
     ]);
+  });
+});
+
+describe('two transactions removing different owners at once', () => {
+  it('cannot both commit — the check is serialised per company', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    const removed: Promise<void>[] = [];
+    const remove = (membership: string) => {
+      let signal!: () => void;
+      removed.push(new Promise<void>((done) => (signal = done)));
+      return db.withTenant(B.company, async (tx) => {
+        await tx.execute(sql`DELETE FROM memberships WHERE id = ${membership}`);
+        signal();
+        await gate;
+      });
+    };
+    const outcomes = Promise.allSettled([remove(B1), remove(B2)]);
+    await Promise.all(removed);
+    release();
+    const results = await outcomes;
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    const rejected = results.find((r) => r.status === 'rejected');
+    expect(String((rejected as PromiseRejectedResult).reason)).toMatch(refusedAtCommit);
+    expect(
+      await owner`SELECT count(*)::int AS n FROM memberships WHERE company_id = ${B.company}`,
+    ).toEqual([{ n: 1 }]);
   });
 });
