@@ -1,3 +1,4 @@
+import { LOG_LEVELS } from '@pospay/observability';
 import { z } from 'zod';
 
 // Read once at startup; a missing or malformed value stops the process instead of failing later.
@@ -6,6 +7,8 @@ const schema = z.object({
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
+  // Validated here so an invalid value never reaches pino, whose error message would print it.
+  LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
 });
 
 export type ApiConfig = z.output<typeof schema>;

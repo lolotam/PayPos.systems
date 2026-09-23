@@ -19,23 +19,32 @@ const database = createDatabase({
 // No offline queue: while Redis is down a command fails at once, so /ready reports it instead of hanging.
 const redis = new Redis(config.REDIS_URL, { enableOfflineQueue: false, maxRetriesPerRequest: 1 });
 
-const app = await createApp({
-  readiness: [
-    { name: 'database', check: () => database.ping() },
-    {
-      name: 'redis',
-      check: async () => {
-        await redis.ping();
-      },
-    },
-  ],
-});
-
-app.enableShutdownHooks();
-const close = app.close.bind(app);
-app.close = async () => {
-  await close();
+const release = async (): Promise<void> => {
   await Promise.allSettled([database.close(), redis.quit()]);
 };
 
-await app.listen({ host: config.API_HOST, port: config.API_PORT });
+try {
+  const app = await createApp(
+    {
+      readiness: [
+        { name: 'database', check: () => database.ping() },
+        {
+          name: 'redis',
+          check: async () => {
+            await redis.ping();
+          },
+        },
+      ],
+      onShutdown: release,
+    },
+    { logLevel: config.LOG_LEVEL },
+  );
+  app.enableShutdownHooks();
+  await app.listen({ host: config.API_HOST, port: config.API_PORT });
+} catch (error) {
+  // Startup failed after resources were opened: release them, and report only the error's type — its
+  // message can carry a connection string.
+  await release();
+  console.error(`API failed to start: ${error instanceof Error ? error.name : typeof error}`);
+  process.exit(1);
+}

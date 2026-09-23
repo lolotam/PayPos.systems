@@ -75,3 +75,34 @@ describe('/health and /ready', () => {
     });
   });
 });
+
+describe('readiness under a stalled dependency', () => {
+  it('keeps at most one probe outstanding however many times /ready is called', async () => {
+    let calls = 0;
+    const stalled: ReadinessCheck = {
+      name: 'redis',
+      check: () => {
+        calls += 1;
+        return new Promise(() => undefined);
+      },
+    };
+    await start([up, stalled]);
+    const results = await Promise.all([request('GET', '/ready'), request('GET', '/ready')]);
+    await request('GET', '/ready');
+    expect(results.map((r) => r.status)).toEqual([503, 503]);
+    expect(calls).toBe(1);
+  });
+});
+
+describe('shutdown', () => {
+  it('releases the dependencies through the lifecycle hook when the app closes', async () => {
+    let released = 0;
+    app = await createApp(
+      { readiness: [], onShutdown: async () => void (released += 1) },
+      { logDestination: new Writable({ write: (_c, _e, done) => done() }) },
+    );
+    await app.close();
+    app = undefined;
+    expect(released).toBe(1);
+  });
+});

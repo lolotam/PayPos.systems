@@ -7,6 +7,7 @@ const CATALOG = {
     ar: 'البيانات المرسلة غير صحيحة',
     en: 'The request is not valid',
   },
+  BAD_REQUEST: { status: 400, ar: 'الطلب غير صالح', en: 'The request is malformed' },
   NOT_FOUND: { status: 404, ar: 'المسار غير موجود', en: 'Not found' },
   METHOD_NOT_ALLOWED: { status: 405, ar: 'الطريقة غير مسموحة', en: 'Method not allowed' },
   PAYLOAD_TOO_LARGE: { status: 413, ar: 'حجم الطلب كبير جداً', en: 'Payload too large' },
@@ -65,5 +66,5 @@ export function codeForStatus(status: number): ErrorCode {
   const found = (Object.keys(CATALOG) as ErrorCode[]).find(
     (code) => CATALOG[code].status === status && code !== 'VALIDATION_FAILED',
   );
-  return found ?? (status === 400 ? 'VALIDATION_FAILED' : 'INTERNAL_ERROR');
+  return found ?? 'INTERNAL_ERROR';
 }

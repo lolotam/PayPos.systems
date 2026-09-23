@@ -10,6 +10,27 @@ export const READINESS_CHECKS = Symbol('READINESS_CHECKS');
 
 const TIMEOUT_MS = 2_000;
 
+/**
+ * Wraps a check so at most one probe per dependency is ever outstanding. A stalled dependency makes each
+ * /ready return after the timeout while its ping stays pending; without this, every request would start
+ * another ping and pile up connections and queued commands.
+ *
+ * @param check the dependency check
+ * @returns the same check, sharing one in-flight probe between concurrent and repeated callers
+ */
+export function singleFlight(check: ReadinessCheck): ReadinessCheck {
+  let inFlight: Promise<void> | undefined;
+  return {
+    name: check.name,
+    check: () => {
+      inFlight ??= check.check().finally(() => {
+        inFlight = undefined;
+      });
+      return inFlight;
+    },
+  };
+}
+
 // A dependency that hangs must not hang /ready: an orchestrator polls it and needs a prompt answer.
 async function within<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined;

@@ -19,7 +19,7 @@ class ProbeController {
 
   @Get('crash')
   crash(): never {
-    throw new Error('SELECT * FROM companies — internal detail that must not leak');
+    throw new Error('SELECT * FROM companies WHERE token = tok_crash_secret — must not leak');
   }
 
   @Get('log-secrets')
@@ -92,6 +92,9 @@ describe('every error is the bilingual envelope', () => {
     expect(errorEnvelope.parse(res.body).code).toBe('INTERNAL_ERROR');
     expect(JSON.stringify(res.body)).not.toContain('SELECT');
     expect(logs).toContain('unhandled error');
+    // The message and its secret stay out of the logs too — only type, code and stack frames are logged.
+    expect(logs).not.toContain('tok_crash_secret');
+    expect(logs).not.toContain('SELECT');
   });
 
   it('an unknown route is 404 NOT_FOUND in the envelope', async () => {
@@ -113,5 +116,26 @@ describe('request logs go through the redaction list', () => {
       expect(logs).not.toContain(secret);
     }
     expect(logs).toContain('***345');
+  });
+});
+
+describe('secrets in the URL never reach the logs', () => {
+  it('a token and a phone number in the path or query string are not logged — only the route pattern', async () => {
+    await app.inject({ method: 'GET', url: '/health?token=tok_query_secret&phone=96550012345' });
+    await app.inject({ method: 'GET', url: '/v1/reset/tok_path_secret' });
+    for (const secret of ['tok_query_secret', '96550012345', 'tok_path_secret']) {
+      expect(logs).not.toContain(secret);
+    }
+    expect(logs).toContain('"route":"/health"');
+    expect(logs).toContain('"route":"[unmatched]"');
+  });
+});
+
+describe('errors Fastify raises before Nest runs', () => {
+  it('a malformed URL is 400 BAD_REQUEST in the envelope and the input is not echoed', async () => {
+    const res = await app.inject({ method: 'GET', url: '/%ZZ_echo_me' });
+    expect(res.statusCode).toBe(400);
+    expect(errorEnvelope.parse(res.json()).code).toBe('BAD_REQUEST');
+    expect(res.body).not.toContain('echo_me');
   });
 });

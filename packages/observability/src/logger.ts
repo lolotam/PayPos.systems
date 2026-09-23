@@ -1,20 +1,36 @@
 import pino, { type DestinationStream, type Logger, type LoggerOptions } from 'pino';
 
-import { censor, REDACTED_PATHS } from './redaction.ts';
+import { sanitize } from './redaction.ts';
+import { errorDiagnostic, requestDiagnostic, responseDiagnostic } from './serializers.ts';
+
+export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
+
+// pino calls formatters.log BEFORE its serializers, so the reduction happens here: req, res and err
+// become their safe diagnostics first (a Fastify request is large and keeps routeOptions on its
+// prototype), then everything left is sanitised at any depth.
+function formatLog(object: Record<string, unknown>): Record<string, unknown> {
+  const reduced: Record<string, unknown> = { ...object };
+  if (reduced['req'] !== undefined) reduced['req'] = requestDiagnostic(reduced['req'] as object);
+  if (reduced['res'] !== undefined) reduced['res'] = responseDiagnostic(reduced['res'] as object);
+  if (reduced['err'] !== undefined) reduced['err'] = errorDiagnostic(reduced['err']);
+  return sanitize(reduced) as Record<string, unknown>;
+}
 
 /**
- * The one pino configuration for api and worker. Fastify takes these options directly, so request
- * logs go through the same redaction as application logs. Bodies are never logged in normal operation.
+ * The one pino configuration for api and worker. Errors, requests and responses are reduced to safe
+ * diagnostics and every other field is sanitised at any depth. The level is validated by the caller's
+ * config — this never reads the environment, so an invalid value cannot reach pino's error message.
  *
- * @param level minimum level, from the environment (defaults to `info`)
- * @returns pino options with redaction applied
+ * @param level a validated log level
+ * @returns pino options
  */
-export function loggerOptions(level: string = process.env['LOG_LEVEL'] ?? 'info'): LoggerOptions {
+export function loggerOptions(level: LogLevel): LoggerOptions {
   return {
     level,
-    redact: { paths: [...REDACTED_PATHS], censor },
     base: null,
     timestamp: () => `,"time":"${new Date().toISOString()}"`,
+    formatters: { log: formatLog },
   };
 }
 
@@ -22,9 +38,12 @@ export function loggerOptions(level: string = process.env['LOG_LEVEL'] ?? 'info'
  * A pino logger built from `loggerOptions`. Fastify takes it as `loggerInstance`, so request logs and
  * application logs share one configuration.
  *
- * @param destination where lines are written — stdout by default; tests pass a stream to inspect output
+ * @param level       a validated log level
+ * @param destination where lines are written — stdout by default; tests pass a stream to read them
  * @returns the logger
  */
-export function createLogger(destination?: DestinationStream): Logger {
-  return destination === undefined ? pino(loggerOptions()) : pino(loggerOptions(), destination);
+export function createLogger(level: LogLevel, destination?: DestinationStream): Logger {
+  return destination === undefined
+    ? pino(loggerOptions(level))
+    : pino(loggerOptions(level), destination);
 }

@@ -1,53 +1,52 @@
-/**
- * Paths pino must never print (CLAUDE.md §8): PINs, passwords, tokens, secrets and credentials,
- * wherever they sit in a log object — top level, one level deep, or in request headers.
- * Extended as integrations arrive (gateway and messaging credentials — plan v4 T11).
- */
-const SECRET_KEYS = [
-  'pin',
-  'password',
-  'passwordHash',
-  'token',
-  'accessToken',
-  'refreshToken',
-  'secret',
-  'apiKey',
-  'credentials',
-  'cookie',
-  'authorization',
-];
+import { errorDiagnostic } from './serializers.ts';
 
-const PHONE_KEYS = ['phone', 'phoneNumber', 'mobile'];
+// CLAUDE.md §8: never log PINs, tokens, credentials, or a full phone number (last 3 digits only).
+// Keys are matched case-insensitively at ANY depth and inside arrays — pino's own `redact` paths only
+// reach the levels they name, so a secret one level deeper than expected would be printed.
+const SECRET_KEY =
+  /^(pin|password|passwordhash|token|accesstoken|refreshtoken|idtoken|secret|clientsecret|apikey|x-api-key|credentials?|cookie|set-cookie|authorization)$/i;
+const PHONE_KEY = /^(phone|phonenumber|mobile)$/i;
 
-const everywhere = (key: string): string[] => [key, `*.${key}`];
-
-export const REDACTED_PATHS: readonly string[] = [
-  ...SECRET_KEYS.flatMap(everywhere),
-  ...PHONE_KEYS.flatMap(everywhere),
-  'req.headers.authorization',
-  'req.headers.cookie',
-  'req.headers["x-api-key"]',
-  'res.headers["set-cookie"]',
-];
-
-const PHONE_PATH = new RegExp(`(^|\\.)(${PHONE_KEYS.join('|')})$`);
+const MAX_DEPTH = 8;
+export const REDACTED = '[REDACTED]';
 
 /**
- * pino `redact.censor`: a phone number keeps its last 3 digits (CLAUDE.md §8), every other secret is
- * replaced entirely. Non-string phone values are replaced too — never printed as-is.
+ * A phone number keeps its last 3 digits; anything else under a phone key is replaced entirely.
  *
- * @param value the value found at a redacted path
- * @param path  the path segments pino matched
+ * @param value the value found under a phone key
  * @returns what is printed instead
  */
-export function censor(value: unknown, path: readonly unknown[]): string {
-  // pino can pass Symbol segments; String() converts them where an implicit join would throw.
-  if (
-    PHONE_PATH.test(path.map((segment) => String(segment)).join('.')) &&
-    typeof value === 'string'
-  ) {
-    const digits = value.replace(/\D/g, '');
-    return digits.length > 3 ? `***${digits.slice(-3)}` : '***';
-  }
-  return '[REDACTED]';
+export function maskPhone(value: unknown): string {
+  if (typeof value !== 'string') return REDACTED;
+  const digits = value.replace(/\D/g, '');
+  return digits.length > 3 ? `***${digits.slice(-3)}` : '***';
+}
+
+/**
+ * Returns a copy of a log object with every secret replaced, at any depth and inside arrays. Cycles and
+ * anything deeper than MAX_DEPTH are replaced rather than walked, so a hostile object cannot hang logging.
+ *
+ * @param value the object about to be logged
+ * @returns a sanitised copy safe to write
+ */
+export function sanitize(value: unknown): unknown {
+  const seen = new WeakSet<object>();
+  const walk = (node: unknown, depth: number): unknown => {
+    if (node === null || typeof node !== 'object') return node;
+    // pino runs this before its serializers, so an Error anywhere in the object is reduced here — its
+    // message, causes and extra properties can all carry secrets.
+    if (node instanceof Error) return errorDiagnostic(node);
+    if (seen.has(node)) return '[Circular]';
+    if (depth >= MAX_DEPTH) return '[Truncated]';
+    seen.add(node);
+    if (Array.isArray(node)) return node.map((item) => walk(item, depth + 1));
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(node)) {
+      if (SECRET_KEY.test(key)) out[key] = REDACTED;
+      else if (PHONE_KEY.test(key)) out[key] = maskPhone(child);
+      else out[key] = walk(child, depth + 1);
+    }
+    return out;
+  };
+  return walk(value, 0);
 }
