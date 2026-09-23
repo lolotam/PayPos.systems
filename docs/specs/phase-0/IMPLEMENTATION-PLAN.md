@@ -393,12 +393,14 @@ company B that must never appear in any response nor change. These are complemen
 
 ### T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · 4 PRs · depends: T7b · **before T8**
 
-**First platform user.** Sign-up is closed (ADR-0003 §6) and `platform:grant` needs an existing user, so a clean
-deployment needs one explicit bootstrap: `pnpm platform:bootstrap-user --email …`, run as an operator, creates the user
-through Better Auth's server API in `packages/auth` (never a hand-written insert or password hash), issues a one-time
-set-password link, grants `create:companies:platform`, and writes both actions to `platform_audit_log`. It refuses to
-run when any platform grant already exists; later users arrive by invitation (T9a) and are granted with
-`platform:grant`. Tests use the same path to create the two users `ONB-04` needs.
+**Creating users in Phase 0.** Sign-up is closed (ADR-0003 §6) and a platform grant needs an existing user, so users
+are provisioned by two audited operator scripts in T9a-3:
+- `pnpm platform:create-user --email …` creates a user through Better Auth's server API in `packages/auth` (never a
+  hand-written insert or password hash) and issues a one-time set-password link. Usable any time, for any number of users.
+- `pnpm platform:grant --email … --permission create:companies:platform` grants a platform permission.
+Both write to `platform_audit_log` and run only as an operator (`pospay_owner` / `pospay_auth`), never through the API.
+A clean deployment runs both once for the first operator; tests use the same scripts to create the two users `ONB-04`
+needs. Inviting users **into a company** (membership invitations) is not part of Phase 0 — issue #19.
 
 **Four sequential PRs (debate C7)** — each passes its own gates and leaves unfinished business routes unavailable;
 none may commit a company without its owner membership. T8 depends on all four.
@@ -407,7 +409,7 @@ none may commit a company without its owner membership. T8 depends on all four.
 |---|---|
 | **T9a-1** | Better Auth (email + password, TOTP), the `pospay_auth` pool in `packages/auth`, sessions, principal skeleton, public-route list |
 | **T9a-2** | `memberships` / `roles` / `permissions` / `role_permissions` / `permission_overrides` schema; `@Require` guard with DENY-wins at the target scope; `@RequiresFeature` |
-| **T9a-3** | `platform_grants` + `platform_audit_log`; the audited **first-user bootstrap** (below) and `pnpm platform:grant`; `@RequirePlatform` |
+| **T9a-3** | `platform_grants` + `platform_audit_log`; the audited `platform:create-user` and `platform:grant` scripts (below); `@RequirePlatform` |
 | **T9a-4** | the complete `onboard-company` slice (below) and its scenarios; **persistent demo companies** (generic names, one per vertical) are created here, through `onboard-company`, never by a raw seed |
 
 **Why split.** T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. v2 scheduled all of identity after T8, which made T8 unprovable. Full sub-tasks: `docs/PRD.md` P0-T9a.

@@ -178,7 +178,7 @@ Because the id is generated inside the wrapper and never accepted from outside, 
 | `platform_grants` | global identity (§2.1) | `user_id`, `permission` (e.g. `create:companies:platform`), `granted_by`, `granted_at`, `expires_at`, `revoked_at` | read by `pospay_auth` only; written only by `pnpm platform:grant` run as `pospay_owner` — no API writes it in Phase 0 |
 
 - The guard `@RequirePlatform('create:companies:platform')` reads `principal.grants` (§4), which path A fills from the user's active platform grants.
-- **The first user and grant** are created by `pnpm platform:bootstrap-user` (plan v4 T9a-3): it creates the user through Better Auth's server API in `packages/auth`, issues a one-time set-password link, grants `create:companies:platform`, audits both, and refuses to run once any platform grant exists. Later grants use the `platform:grant` script. Every grant and revocation writes a row to **`platform_audit_log`** — a global table (no `company_id`, no RLS), insert-only for `pospay_owner` and `pospay_auth`, readable only by the owner. `AuditLog` is tenant data and would force the script to invent a company, so platform actions never go there.
+- **Users and grants in Phase 0** are created by two audited operator scripts (plan v4 T9a-3): `platform:create-user` creates a user through Better Auth's server API in `packages/auth` and issues a one-time set-password link; `platform:grant` grants a platform permission. Both write `platform_audit_log`; neither is reachable through the API. Every grant and revocation writes a row to **`platform_audit_log`** — a global table (no `company_id`, no RLS), insert-only for `pospay_owner` and `pospay_auth`, readable only by the owner. `AuditLog` is tenant data and would force the script to invent a company, so platform actions never go there.
 - This is the **Phase 0** answer. Whether merchants may later onboard themselves is PRD **D-34**; if they may, a self-serve route gets its own grant and rate limit — it does not reopen this one.
 - The `Platform` module and its UI still arrive in Phase 5; T9a ships only the table, the script, the guard and the one permission.
 
@@ -317,7 +317,7 @@ Controller guard scanning cannot see routes mounted by Better Auth's handler, so
 | `POST /v1/webhooks/*` | signature-verified, tenant resolved from the payload (`CLAUDE.md` §6) |
 | `GET  /health` · `GET /ready` | probes |
 
-Every public route is rate-limited in Redis **except `/health`**, which must report process liveness even when Redis is down or the limit is exhausted — otherwise an orchestrator restarts a healthy API during a Redis incident. `/ready` still reports Redis. Sign-up is **not** public: companies are created by `onboard-company`, invited users by an invitation flow in T9a.
+Every public route is rate-limited in Redis **except `/health`**, which must report process liveness even when Redis is down or the limit is exhausted — otherwise an orchestrator restarts a healthy API during a Redis incident. `/ready` still reports Redis. Sign-up is **not** public: companies are created by `onboard-company`; users by the operator script `platform:create-user` in Phase 0. Inviting users into a company is a later deliverable (issue #19).
 
 ## 6a. Revisions
 
