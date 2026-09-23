@@ -136,20 +136,36 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: build api · migrate · worker
+      # Decoy env files are planted before the build, so the check below proves .dockerignore keeps them out — of the
+      # build stage too, whose layers hold the whole context — rather than passing because none existed.
+      - name: plant decoy env files
+        run: |
+          for file in .env .env.production apps/api/.env apps/api/.env.production packages/db/.env.local; do
+            echo "DECOY=never-in-an-image" > "$file"
+          done
+
+      - name: build api · migrate · worker (and the build stage)
         run: |
           registry="$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')"
+          docker build -f deploy/Dockerfile.api --target build -t pospay-build-stage:check .
           docker build -f deploy/Dockerfile.api --target api -t "$registry/pospay-api:$SHA" .
           docker build -f deploy/Dockerfile.api --target migrate -t "$registry/pospay-migrate:$SHA" .
           docker build -f deploy/Dockerfile.worker -t "$registry/pospay-worker:$SHA" .
           echo "REGISTRY_LC=$registry" >> "$GITHUB_ENV"
 
-      # No .env reaches an image: the build context excludes it (.dockerignore), and this proves it.
-      - name: no env file in any image
+      - name: no env file in any image or build stage
         run: |
-          for image in api migrate worker; do
-            ! docker run --rm --entrypoint sh "$REGISTRY_LC/pospay-$image:$SHA" -c 'find / -name ".env" -not -path "/proc/*" 2>/dev/null | grep -q .'
+          set -euo pipefail
+          leaked=0
+          images="pospay-build-stage:check $REGISTRY_LC/pospay-api:$SHA"
+          images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-worker:$SHA"
+          search='find / \( -name ".env" -o -name ".env.*" \) ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
+          for image in $images; do
+            # A failed inspection fails the step (set -e); it never counts as "nothing found".
+            found="$(docker run --rm --entrypoint sh "$image" -c "$search")"
+            if [ -n "$found" ]; then echo "::error::$image contains: $found"; leaked=1; fi
           done
+          [ "$leaked" -eq 0 ]
 
       - name: push (main only)
         if: env.PUSH == 'true'
