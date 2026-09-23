@@ -139,3 +139,37 @@ describe('settings are transaction-local on a pooled connection', () => {
     expect(await database.withUser(USER_1, readContext)).toMatchObject({ company: null });
   });
 });
+
+describe('withTenant timeoutMs', () => {
+  it('cancels a statement that runs too long, and the pool of one is usable right after', async () => {
+    const started = Date.now();
+    await expect(
+      database.withTenant(COMPANY_A, (tx) => tx.execute(sql`SELECT pg_sleep(5)`), {
+        timeoutMs: 200,
+      }),
+    ).rejects.toMatchObject({ name: 'TimeoutError' });
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(await database.withTenant(COMPANY_A, readContext)).toMatchObject({ company: COMPANY_A });
+  });
+
+  it('a transaction left idle past the deadline never commits', async () => {
+    await expect(
+      database.withTenant(
+        COMPANY_A,
+        async (tx) => {
+          await tx.execute(sql`SELECT 1`);
+          await new Promise((done) => setTimeout(done, 600));
+          await tx.execute(sql`SELECT 1`);
+        },
+        { timeoutMs: 200 },
+      ),
+    ).rejects.toThrow();
+    expect(await database.withTenant(COMPANY_A, readContext)).toMatchObject({ company: COMPANY_A });
+  });
+
+  it('rejects a timeout that is not a whole number of milliseconds', async () => {
+    await expect(database.withTenant(COMPANY_A, readContext, { timeoutMs: 0 })).rejects.toThrow(
+      TypeError,
+    );
+  });
+});

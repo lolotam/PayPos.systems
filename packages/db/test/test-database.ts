@@ -12,6 +12,7 @@ export interface TestDatabase {
   readonly name: string;
   readonly appUrl: string;
   readonly authUrl: string;
+  readonly dispatcherUrl: string;
   readonly ownerUrl: string;
   drop(): Promise<void>;
 }
@@ -42,6 +43,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
     name,
     appUrl: pgUrl(pg, 'pospay_app', pg.appPassword, name),
     authUrl: pgUrl(pg, 'pospay_auth', pg.authPassword, name),
+    dispatcherUrl: pgUrl(pg, 'pospay_dispatcher', pg.dispatcherPassword, name),
     ownerUrl: pgUrl(pg, pg.ownerUser, pg.ownerPassword, name),
     drop: async () => {
       await maintenance.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);

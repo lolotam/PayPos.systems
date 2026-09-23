@@ -16,7 +16,7 @@ export interface DatabaseOptions {
  * اللي الـ app بتاخده من الداتابيز: الـ wrappers التلاتة و ping و close — مفيش client خام.
  */
 export interface Database extends TenantWrappers {
-  /** بيتأكد إن الداتابيز بترد (SELECT 1) — لـ /ready، ومبيقراش أي بيانات شركة. */
+  /** بيتأكد إن الداتابيز بترد وإن الاتصال بـ pospay_app بالظبط — لـ /ready، ومبيقراش أي بيانات شركة. */
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -35,8 +35,15 @@ export function createDatabase(options: DatabaseOptions): Database {
   });
   return {
     ...createTenantWrappers(drizzle(client), options.ids),
+    // /ready: the database answers AND the URL is the restricted application role — a DATABASE_URL pointing at
+    // pospay_auth or pospay_dispatcher would pass SELECT 1 and then fail every tenant query.
     ping: async () => {
-      await client`SELECT 1`;
+      const [row] = await client<{ role: string; privileged: boolean }[]>`
+        SELECT current_user AS role,
+               (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) AS privileged`;
+      if (row?.role !== 'pospay_app' || row.privileged !== false) {
+        throw new Error('DATABASE_URL must connect as pospay_app');
+      }
     },
     // A bounded close: after 5 s postgres.js terminates the connections instead of waiting forever.
     close: () => client.end({ timeout: 5 }),

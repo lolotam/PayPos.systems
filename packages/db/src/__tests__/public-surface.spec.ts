@@ -11,6 +11,8 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'appendAuditLog',
       'appendOutboxEvent',
       'createDatabase',
+      'createOutboxDispatcherDatabase',
+      'markEventConsumed',
       'runIdempotent',
     ]);
   });

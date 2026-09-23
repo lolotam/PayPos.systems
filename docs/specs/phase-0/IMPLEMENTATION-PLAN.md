@@ -319,7 +319,47 @@ duplicate executes, (f) a key-acquisition lock timeout returns a retryable `409`
 
 ---
 
-### T7b — Worker bootstrap + outbox dispatcher · Size M · depends: T7 · **NEW in v4** · before T9a-1
+### T7b — Worker bootstrap + outbox dispatcher · Size M · depends: T7 · **NEW in v4** · before T9a-1 · ✅ done
+
+**As built**
+- Decisions (Waleed, 2026-09-23): ordering is **per aggregate**; a poison event is retried **10 times** with
+  exponential backoff (5 s doubling, capped at 1 h) and then **parked** with an error-level log. A parked or waiting
+  event holds the later events of its aggregate; other aggregates keep flowing.
+- `pospay_dispatcher` is created by `bootstrapRoles` (`POSTGRES_DISPATCHER_PASSWORD`). Migrations
+  `0005_…_outbox-dispatcher.sql` (`seq`, `next_attempt_at`, `parked_at`, `consumed_events`) and `0006_…_outbox-dispatcher-rls.sql`
+  (role-scoped policies, column grants, `consumed_events` RLS, the sweep function).
+- `createOutboxDispatcherDatabase({ url })` → `dispatchBatch(limit, deliver, { leaseMs })`,
+  `sweepExpiredIdempotencyKeys(n)`, `ping()`, `close()`. **Lease model:** a short claim transaction takes the head
+  event of each aggregate (`FOR UPDATE SKIP LOCKED`), counts the attempt and leases it (`next_attempt_at`, default
+  5 min), and commits; delivery runs outside any transaction; each outcome is recorded with `clock_timestamp()` and
+  **fenced to its own claim** (`attempts` must still equal its attempt number, event neither published nor parked).
+  A crash leaves the event leased until the lease ends, then it is redelivered; an event whose attempts are used up
+  that way is parked by the next claim (`last_error = 'LeaseExpired'`) and logged.
+- `withTenant(…, { timeoutMs })` is **one absolute deadline for the caller** — pool wait, every statement, commit.
+  Past it the call rejects with `TimeoutError`, work still waiting for a connection never starts, and nothing commits
+  (checked before `COMMIT`). On the server, `statement_timeout` and `idle_in_transaction_session_timeout` bound every
+  statement and every idle gap. The backend is **not** terminated from outside: in PG16 a pid-based
+  `pg_terminate_backend` cannot be made atomic with "still the same transaction" and could end another request that
+  took over the connection (review of T7b; a reserved-connection variant broke postgres.js). Residual: code that keeps
+  issuing short statements after its deadline holds its connection until it returns — but can never commit. The deliverer gives each consumer
+  transaction the time left of a 60 s budget and starts no consumer after it.
+- The worker lists every event type its version publishes (`KNOWN_EVENT_TYPES`, consumed or not); an unknown type
+  is never acknowledged — it fails with backoff so a newer worker takes it.
+- **Deploy rule (T13):** worker versions never overlap — the worker is deployed stop-then-start, not rolling. Its
+  shutdown waits up to 75 s for the batch in flight (one delivery budget is 60 s), so the orchestrator's stop grace
+  period must be longer than 75 s. Consumer ids are unique (checked at startup).
+  Publication is per event, not per consumer: a consumer added for an existing event type receives events published
+  after it is deployed; applying it to older events is an explicit backfill, never a side effect of redelivery.
+  **Consumer rule:** consumers do database work only; a handler awaiting anything else cannot be cancelled.
+- Ordering is by `seq` (an identity column: insertion order), not `created_at` (transaction start).
+  `appendOutboxEvent` itself takes a transaction-level advisory lock on the aggregate before inserting, so a second
+  producer of the same aggregate waits for the first to end: `seq` order is commit order, enforced, not a convention.
+- Consumers call `markEventConsumed(tx, consumerId, eventId)` in the effect's transaction. The event id is `outbox.id`.
+- `apps/worker`: NestJS + Fastify for `/health` and `/ready` (app pool, dispatcher pool + role, Redis);
+  `createDispatchLoop` (poll 1 s, drain, sweep due-checked between batches, every 10 min); a delivery over 60 s is a
+  failed attempt; shutdown stops polling before closing the pools. No consumer is registered yet.
+- **Deferred:** BullMQ. Nothing enqueues a job in Phase 0 yet, so the worker holds a plain `ioredis` connection for
+  `/ready`; the BullMQ dependency, its ADR pin and its connection arrive with the first job.
 
 **Why here, not in T13 (debate C3).** T8 and T9a publish events; with no dispatcher until T13, delivery bugs would
 surface at the very end. The worker's image and deployment stay in T13.

@@ -11,6 +11,7 @@ export interface PgTestEnv {
   readonly ownerPassword: string;
   readonly appPassword: string;
   readonly authPassword: string;
+  readonly dispatcherPassword: string;
 }
 
 const ROOT_ENV = fileURLToPath(new URL('../../../.env', import.meta.url));
@@ -37,6 +38,7 @@ export function readPgTestEnv(): PgTestEnv {
     ownerPassword: required('POSTGRES_OWNER_PASSWORD'),
     appPassword: required('POSTGRES_APP_PASSWORD'),
     authPassword: required('POSTGRES_AUTH_PASSWORD'),
+    dispatcherPassword: required('POSTGRES_DISPATCHER_PASSWORD'),
   };
 }
 

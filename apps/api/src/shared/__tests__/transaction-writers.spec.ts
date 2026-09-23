@@ -25,7 +25,8 @@ describe('transactionWriters', () => {
       action: 'created',
     });
 
-    expect(statements).toHaveLength(2);
+    // The outbox write is two statements (the aggregate lock, then the insert); the audit record is one.
+    expect(statements).toHaveLength(3);
     expect(next).toBe(2);
   });
 });
