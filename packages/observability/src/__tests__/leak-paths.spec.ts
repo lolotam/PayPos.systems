@@ -225,3 +225,29 @@ describe('round 5 — reserved keys and binding reduction', () => {
     expect(raw).toContain('"type":"NonError"');
   });
 });
+
+describe('round 6 — child options and key spellings', () => {
+  it('child options are not forwarded — a msgPrefix cannot reach the output', () => {
+    const raw = capture((log) => log.child({}, { msgPrefix: `${SECRET} ` } as never).info('event'));
+    expect(raw).not.toContain(SECRET);
+  });
+
+  it.each([
+    'access_token',
+    'refresh-token',
+    'client_secret',
+    'X-Api-Key',
+    'sessionToken',
+    'otp',
+    'card_cvv',
+  ])('the key %s is redacted', (key) => {
+    expect(capture((log) => log.info({ [key]: SECRET }, 'event'))).not.toContain(SECRET);
+  });
+
+  it('an ordinary key that merely contains a secret word is kept (shipping, openingHours)', () => {
+    const line = JSON.parse(
+      capture((log) => log.info({ shipping: 'fast', openingHours: 'late' }, 'event')),
+    );
+    expect(line).toMatchObject({ shipping: 'fast', openingHours: 'late' });
+  });
+});

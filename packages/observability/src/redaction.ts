@@ -3,9 +3,30 @@ import { errorDiagnostic } from './serializers.ts';
 // CLAUDE.md §8: never log PINs, tokens, credentials, or a full phone number (last 3 digits only).
 // Keys are matched case-insensitively at ANY depth and inside arrays — pino's own `redact` paths only
 // reach the levels they name, so a secret one level deeper than expected would be printed.
-const SECRET_KEY =
-  /^(pin|password|passwordhash|token|accesstoken|refreshtoken|idtoken|secret|clientsecret|apikey|x-api-key|credentials?|cookie|set-cookie|authorization)$/i;
-const PHONE_KEY = /^(phone|phonenumber|mobile)$/i;
+// Keys are compared after removing case and separators, so accessToken, access_token and ACCESS-TOKEN are
+// one key, and by suffix, so sessionToken, bearer_token or card_cvv are caught without being listed.
+const SECRET_SUFFIXES = [
+  'token',
+  'secret',
+  'password',
+  'passwordhash',
+  'apikey',
+  'credential',
+  'credentials',
+  'cookie',
+  'authorization',
+  'pin',
+  'otp',
+  'cvv',
+];
+const PHONE_SUFFIXES = ['phone', 'phonenumber', 'mobile'];
+const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
+const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
+  const normalized = normalizeKey(key);
+  return suffixes.some((suffix) => normalized.endsWith(suffix));
+};
+const isSecretKey = (key: string): boolean => endsWithAny(key, SECRET_SUFFIXES);
+const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 
 const MAX_DEPTH = 8;
 export const REDACTED = '[REDACTED]';
@@ -50,8 +71,8 @@ export function sanitize(value: unknown): unknown {
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(node)) {
       if (typeof child === 'function') continue;
-      if (SECRET_KEY.test(key)) out[key] = REDACTED;
-      else if (PHONE_KEY.test(key)) out[key] = maskPhone(child);
+      if (isSecretKey(key)) out[key] = REDACTED;
+      else if (isPhoneKey(key)) out[key] = maskPhone(child);
       else out[key] = walk(child, depth + 1);
     }
     return out;

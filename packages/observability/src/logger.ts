@@ -61,8 +61,10 @@ function harden(root: Logger): Logger {
   const proto = Object.getPrototypeOf(root) as Logger;
   const originalChild = proto.child;
   const originalSetBindings = proto.setBindings;
-  root.child = function child(this: Logger, bindings: Bindings, options?: object) {
-    return originalChild.call(this, prepare(bindings) as Bindings, options);
+  // Child OPTIONS are never forwarded: msgPrefix would be prepended after the message is checked, and
+  // serializer or formatter overrides would bypass the sanitiser. Nothing here needs them.
+  root.child = function child(this: Logger, bindings: Bindings) {
+    return originalChild.call(this, prepare(bindings) as Bindings);
   } as Logger['child'];
   root.setBindings = function setBindings(this: Logger, bindings: Bindings) {
     originalSetBindings.call(this, prepare(bindings) as Bindings);
