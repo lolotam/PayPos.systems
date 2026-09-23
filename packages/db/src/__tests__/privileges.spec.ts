@@ -27,8 +27,25 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'idempotency_keys:INSERT',
     'idempotency_keys:SELECT',
     'idempotency_keys:UPDATE',
+    'memberships:DELETE',
+    'memberships:INSERT',
+    'memberships:SELECT',
+    'memberships:UPDATE',
     'outbox:INSERT',
+    'permission_overrides:DELETE',
+    'permission_overrides:INSERT',
+    'permission_overrides:SELECT',
+    'permission_overrides:UPDATE',
+    'permissions:SELECT',
     'plans:SELECT',
+    'role_permissions:DELETE',
+    'role_permissions:INSERT',
+    'role_permissions:SELECT',
+    'role_permissions:UPDATE',
+    'roles:DELETE',
+    'roles:INSERT',
+    'roles:SELECT',
+    'roles:UPDATE',
   ],
   // Global identity (ADR-0003 §2.1): Better Auth's tables, and nothing else.
   pospay_auth: [
@@ -73,6 +90,10 @@ const TENANT_TABLES = [
   'audit_log',
   'idempotency_keys',
   'consumed_events',
+  'memberships',
+  'permission_overrides',
+  'roles',
+  'role_permissions',
 ];
 const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
 const IDENTITY_TABLES = ['user', 'session', 'account', 'verification', 'two_factor'];
@@ -226,7 +247,7 @@ describe('effective access', () => {
     const rows = await withClusterRoleLock(
       'shared',
       () => owner<{ table: string }[]>`
-      SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans']}::text[]) AS t
+      SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans', 'permissions']}::text[]) AS t
       WHERE has_table_privilege('pospay_auth', t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
     );
     expect(rows).toEqual([]);

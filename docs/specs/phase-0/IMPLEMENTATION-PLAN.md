@@ -472,6 +472,19 @@ through the restricted `createAuthDatabase` facade (ESLint-enforced); tables `us
 `/v1/auth/*` mounted on Fastify; a global `SessionGuard` denies every route without a session unless `@Public()`.
 Open `TODO(spec)`: session lifetime, minimum password length, login rate limiting (ADR-0009).
 
+**T9a-2 as built:** tables `permissions` (catalogue), `roles` (PK `(id, owner_key)`), `role_permissions`,
+`memberships` and `permission_overrides` (migrations 0009/0010) with the split policies of ADR-0003 §2.2–§2.3;
+scopes are `scope_type` + `scope_id`, with generated `scope_business_id` / `scope_branch_id` columns carrying
+tenant-qualified FKs. The catalogue and the 13 provisional system roles are seeded from code
+(`packages/db/src/access-catalog.ts`, `seedReferenceData`); Owner receives every non-platform permission, the other 12
+roles none (`TODO(spec)` D-07); each later slice adds its own permissions there. `apps/api/src/modules/identity`:
+`evaluateAccess` (DENY wins at the target, pure), the `AccessReader` port and its Postgres adapter, and three global
+guards in order — session, `@Require(permission, { business | branch })` (company from `x-company-id` or the session
+hint, refused before any `withTenant` unless an active membership covers it), `@RequiresFeature(flag)`
+(`FEATURE_DISABLED`). `@Authenticated()` marks session-only routes; `createApp` refuses to start if a route has none of
+`@Public` / `@Authenticated` / `@Require`. **Deferred:** the Redis permission cache (ADR-0003 §4.1) arrives with the
+first membership-changing use case (T9a-4), which must invalidate it — until then grants are read per request.
+
 **Four sequential PRs (debate C7)** — each passes its own gates and leaves unfinished business routes unavailable;
 none may commit a company without its owner membership. T8 depends on all four.
 

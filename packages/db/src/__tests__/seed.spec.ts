@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import templates from '../../seed/vertical-templates.json' with { type: 'json' };
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
+import { OWNER_ROLE_ID, PERMISSIONS, SYSTEM_ROLES } from '../access-catalog.ts';
 import { FEATURE_FLAGS, seedReferenceData } from '../seed.ts';
 
 let testDb: TestDatabase;
@@ -27,6 +28,23 @@ describe('seedReferenceData', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.code).toBe('provisional');
     expect(rows[0]?.feature_flags).toEqual(Object.fromEntries(FEATURE_FLAGS.map((f) => [f, true])));
+  });
+
+  it('seeds the permission catalogue and the 13 provisional system roles from code', async () => {
+    const perms = await owner<{ code: string }[]>`SELECT code FROM permissions ORDER BY code`;
+    expect(perms.map((p) => p.code)).toEqual([...PERMISSIONS].sort());
+    const roles = await owner<{ code: string }[]>`SELECT code FROM roles WHERE company_id IS NULL`;
+    expect(roles.map((r) => r.code).sort()).toEqual(SYSTEM_ROLES.map((r) => r.code).sort());
+    expect(SYSTEM_ROLES).toHaveLength(13);
+  });
+
+  it('gives Owner every tenant permission and every other system role none (TODO(spec) D-07)', async () => {
+    const owned = await owner<{ role_id: string; permission_code: string }[]>`
+      SELECT role_id, permission_code FROM role_permissions ORDER BY permission_code`;
+    expect(owned.every((r) => r.role_id === OWNER_ROLE_ID)).toBe(true);
+    expect(owned.map((r) => r.permission_code)).toEqual(
+      PERMISSIONS.filter((p) => !p.endsWith(':platform')).sort(),
+    );
   });
 
   it('creates no company — an owner-less company is forbidden (ADR-0003 §5.3)', async () => {

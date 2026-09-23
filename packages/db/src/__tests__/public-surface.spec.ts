@@ -6,8 +6,12 @@ import * as db from '../index.ts';
 describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
   it('exports the factory and the transaction-scoped writers — every writer needs a Tx', () => {
     expect(Object.keys(db).sort()).toEqual([
+      'FEATURE_FLAGS',
       'IdempotencyKeyBusyError',
       'IdempotencyKeyReusedError',
+      'OWNER_ROLE_ID',
+      'PERMISSIONS',
+      'SYSTEM_ROLES',
       'appendAuditLog',
       'appendOutboxEvent',
       'createAuthDatabase',

@@ -70,6 +70,7 @@ try {
       ],
       onShutdown: release,
       auth: { service, baseURL: config.BETTER_AUTH_URL },
+      database,
       corsOrigins: config.AUTH_TRUSTED_ORIGINS,
     },
     { logger },
