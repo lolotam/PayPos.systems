@@ -733,13 +733,13 @@ T6a 5. Each remaining task is therefore costed as *build* plus an explicit *revi
 | T7b | 1.5 d | 1.5 d | new role + delivery guarantees + crash tests |
 | T9a-1 … T9a-4 | 5 d | 4 d | auth and authorization — the plan's top risk |
 | T8 | 2 d | 1 d | first tenancy slices + isolation proof |
-| T9b | 2 d | 2 d | PINs, devices, rate limits — blocked on D-08 / D-09 |
-| T10 · T11 | 2 d | 1 d | T10 blocked on D-02 / D-10 |
+| T9b | 2 d | 2 d | PINs, devices, rate limits — D-08 / D-09 decided 2026-09-23 |
+| T10 · T11 | 2 d | 1 d | D-02 / D-10 decided 2026-09-23 |
 | T12b | 1 d | 0.5 d | gates + fixture PR |
-| T13 | 2.5 d | 1.5 d | staging, PITR rehearsal — blocked on D-11 |
+| T13 | 2.5 d | 1.5 d | staging, PITR rehearsal — D-11 decided 2026-09-23 |
 
-**Remaining ≈ 20.5 build days + 15.5 review days = 36 working days ≈ 7 weeks** from 2026-09-23, *excluding* time waiting on
-open decisions (D-02, D-08, D-09, D-10, D-11). D-34 (merchant self-onboarding) does not block Phase 0: ADR-0003
+**Remaining ≈ 20.5 build days + 15.5 review days = 36 working days ≈ 7 weeks** from 2026-09-23. The decisions it once waited on
+(D-02, D-08, D-09, D-10, D-11) were all taken on 2026-09-23. D-34 (merchant self-onboarding) does not block Phase 0: ADR-0003
 already authorises Phase 0 onboarding through `create:companies:platform`. This is an estimate, not a commitment; re-forecast after T5 and
 after T9a-4 with actuals.
 

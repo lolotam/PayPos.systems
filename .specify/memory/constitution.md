@@ -205,8 +205,8 @@ Kuwait: point of sale, inventory, appointments, staff attendance and commissions
 and loyalty, and reporting. Verticals are `restaurant`, `salon`, `laundry`, `retail` and
 `services`, selected per business and expressed as a settings template plus feature flags.
 Target scale is 10k to 50k organisations at roughly 50 KWD per shop per month. The name
-"PosPay" is under legal review because the platform follows a bring-your-own-gateway model
-and does not hold merchant funds.
+"PosPay" stands: the platform follows a bring-your-own-gateway model and does not hold
+merchant funds, and on 2026-09-23 the lawyer saw no objection to the name (D-02).
 
 The tenant hierarchy is `Company` (tenant root, owner, billing) → `Business`
 (`vertical_type`, currency default KWD, timezone default Asia/Kuwait, settings) → `Branch`
