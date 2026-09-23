@@ -1,3 +1,6 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
 import { createUuidV7, systemUuidV7 } from '@pospay/ids';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -10,6 +13,7 @@ import {
 import { seedReferenceData } from '../../../db/src/seed.ts';
 import {
   createAuth,
+  OperatorInputError,
   createPlatformUser,
   type AuthLogEntry,
   type AuthOptions,
@@ -236,5 +240,69 @@ describe('platform:create-user and platform grants (T9a-3)', () => {
     ]);
     await revokePlatformPermission(testDb.ownerUrl, grant, systemUuidV7());
     expect((await auth.getSession(new Headers({ cookie })))?.platformPermissions).toEqual([]);
+  });
+});
+
+describe('platform:create-user failures leave nothing half-done and leak nothing', () => {
+  const input = (email: string) => ({
+    email,
+    name: 'Half',
+    operator: 'waleed',
+    redirectTo: `${ORIGIN}/set-password`,
+  });
+  const userCount = async (email: string) =>
+    (await owner`SELECT count(*)::int AS n FROM "user" WHERE email = ${email}`)[0]?.['n'];
+
+  it('refuses bad input before writing anything', async () => {
+    await expect(
+      createPlatformUser(auth, { ...input('bad@example.test'), operator: ' ' }),
+    ).rejects.toBeInstanceOf(OperatorInputError);
+    expect(await userCount('bad@example.test')).toBe(0);
+  });
+
+  it('removes the new user when its audit row cannot be written', async () => {
+    await owner`REVOKE INSERT ON platform_audit_log FROM pospay_auth`;
+    try {
+      await expect(createPlatformUser(auth, input('half@example.test'))).rejects.toThrow();
+    } finally {
+      await owner`GRANT INSERT ON platform_audit_log TO pospay_auth`;
+    }
+    expect(await userCount('half@example.test')).toBe(0);
+  });
+
+  it('the script reports a database failure by class and code only — no query, no email, no hash', () => {
+    const run = () =>
+      spawnSync(
+        process.execPath,
+        [
+          'scripts/create-user.ts',
+          '--email',
+          'twice@example.test',
+          '--name',
+          'Twice',
+          '--operator',
+          'waleed',
+          '--redirect-to',
+          `${ORIGIN}/set-password`,
+        ],
+        {
+          cwd: fileURLToPath(new URL('../..', import.meta.url)),
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            AUTH_DATABASE_URL: testDb.authUrl,
+            BETTER_AUTH_SECRET: 'test-secret-that-is-long-enough-for-hmac',
+            BETTER_AUTH_URL: BASE,
+            AUTH_TRUSTED_ORIGINS: ORIGIN,
+          },
+        },
+      );
+    expect(run().status).toBe(0);
+    const second = run();
+    expect(second.status).toBe(1);
+    expect(second.stderr).toMatch(/platform:create-user failed:/);
+    expect(second.stderr).not.toMatch(
+      /twice@example\.test|Failed query|\$argon|\$scrypt|insert into/i,
+    );
   });
 });

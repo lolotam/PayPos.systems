@@ -70,6 +70,8 @@ export interface AuthService {
    * للـ operator ومبيتكتبش في أي log.
    */
   issuePasswordSetLink(userId: string, redirectTo: string): Promise<string>;
+  /** بيمسح يوزر لسه متعمل ومفيش له سجل — التعويض لو خطوة بعد الإنشاء فشلت (createPlatformUser). */
+  discardUser(userId: string): Promise<void>;
   /** بيسجل فعل على مستوى المنصة (إنشاء يوزر مثلاً) في platform_audit_log. */
   recordPlatformAction(entry: {
     actor: string;
@@ -121,6 +123,9 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
     provisionUser: async (input) => provision(await auth.$context, input),
     issuePasswordSetLink: async (userId, redirectTo) =>
       issueSetPasswordLink(await auth.$context, userId, redirectTo),
+    discardUser: async (userId) => {
+      await (await auth.$context).internalAdapter.deleteUser(userId);
+    },
     recordPlatformAction: (entry) =>
       database.recordPlatformAction({ id: options.ids.newId(), ...entry }),
     ping: () => database.ping(),

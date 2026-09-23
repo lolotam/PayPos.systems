@@ -13,4 +13,8 @@ export {
   type Principal,
   type ResolvedPrincipal,
 } from './principal.ts';
-export { createPlatformUser, type CreatePlatformUserInput } from './create-platform-user.ts';
+export {
+  OperatorInputError,
+  createPlatformUser,
+  type CreatePlatformUserInput,
+} from './create-platform-user.ts';

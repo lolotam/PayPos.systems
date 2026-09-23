@@ -91,6 +91,7 @@ const fakeAuth: AuthService = {
   provisionUser: async () => OWNER,
   issuePasswordSetLink: async () => 'http://api.test/unused',
   recordPlatformAction: async () => undefined,
+  discardUser: async () => undefined,
   ping: async () => undefined,
   close: async () => undefined,
 };

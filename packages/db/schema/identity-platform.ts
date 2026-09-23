@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import {
+  check,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 import { user } from './identity-auth.ts';
 import { permissions } from './identity-access.ts';
@@ -27,10 +36,7 @@ export const platformGrants = pgTable(
   (t) => [
     check('platform_grants_permission_scope', sql`${t.permission} LIKE '%:platform'`),
     check('platform_grants_granted_by_length', sql`char_length(${t.grantedBy}) BETWEEN 1 AND 255`),
-    check(
-      'platform_grants_revocation',
-      sql`(${t.revokedAt} IS NULL) = (${t.revokedBy} IS NULL)`,
-    ),
+    check('platform_grants_revocation', sql`(${t.revokedAt} IS NULL) = (${t.revokedBy} IS NULL)`),
     // صلاحية واحدة سارية بس لكل يوزر؛ السحب بيسيب الصف ويسجل مين ومتى.
     uniqueIndex('platform_grants_active_key')
       .on(t.userId, t.permission)

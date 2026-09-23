@@ -72,6 +72,24 @@ describe('grant and revoke, each with its audit row', () => {
   });
 });
 
+describe('an expired grant', () => {
+  it('is replaced by a regrant — the old row closed and audited, the new one active', async () => {
+    const past = new Date(Date.now() - 60_000);
+    expect(
+      await grantPlatformPermission(testDb.ownerUrl, { ...request, expiresAt: past }, ids),
+    ).toMatchObject({ status: 'granted' });
+    expect(await grantPlatformPermission(testDb.ownerUrl, request, ids)).toMatchObject({
+      status: 'granted',
+    });
+    const rows = await owner`
+      SELECT revoked_at IS NULL AS active, expires_at IS NULL AS open_ended FROM platform_grants
+      WHERE revoked_by IS NULL OR expires_at IS NOT NULL ORDER BY granted_at`;
+    expect(rows.at(-1)).toEqual({ active: true, open_ended: true });
+    const actions = (await audit()).map((r) => r.action);
+    expect(actions.slice(-3)).toEqual(['grant.granted', 'grant.revoked', 'grant.granted']);
+  });
+});
+
 describe('runtime roles cannot write grants or rewrite the audit trail', () => {
   const as = (url: string) => postgres(url, { max: 1, onnotice: () => undefined });
 

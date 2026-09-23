@@ -26,8 +26,14 @@ async function userIdOf(tx: postgres.TransactionSql, email: string): Promise<str
   const [row] = await tx<
     { id: string }[]
   >`SELECT id FROM "user" WHERE email = ${email.toLowerCase()}`;
-  if (row === undefined)
-    throw new Error('no user with that email — run pnpm platform:create-user first');
+  if (row === undefined) {
+    throw Object.assign(
+      new Error('no user with that email — run pnpm platform:create-user first'),
+      {
+        name: 'OperatorInputError',
+      },
+    );
+  }
   return row.id;
 }
 
@@ -49,6 +55,19 @@ export async function grantPlatformPermission(
   try {
     return await sql.begin(async (tx) => {
       const userId = await userIdOf(tx, request.email);
+      // An expired grant is still the "active" row for the unique index; it is closed (and audited) first, so a
+      // regrant replaces it instead of reporting already-granted while authorization refuses.
+      const expired = await tx<{ id: string }[]>`
+        UPDATE platform_grants SET revoked_at = now(), revoked_by = ${request.operator}
+        WHERE user_id = ${userId} AND permission = ${request.permission}
+          AND revoked_at IS NULL AND expires_at <= now()
+        RETURNING id`;
+      for (const { id } of expired) {
+        await tx`
+          INSERT INTO platform_audit_log (id, actor, action, target_user_id, details)
+          VALUES (${ids.newId()}, ${request.operator}, 'grant.revoked', ${userId},
+                  ${tx.json({ grant_id: id, permission: request.permission, reason: 'expired' })})`;
+      }
       const grantId = ids.newId();
       const inserted = await tx<{ id: string }[]>`
         INSERT INTO platform_grants (id, user_id, permission, granted_by, expires_at)
