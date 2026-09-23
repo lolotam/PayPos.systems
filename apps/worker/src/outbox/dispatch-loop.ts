@@ -19,6 +19,16 @@ export interface DispatchLoopOptions {
   readonly now?: () => number;
 }
 
+// An event whose every claim crashed is parked by the claim itself; it is logged here like any other park.
+const logExhausted =
+  (logger: Logger) =>
+  (events: readonly ClaimedEvent[]): void => {
+    for (const event of events) {
+      const fields = { id: event.id, type: event.eventType, companyId: event.companyId };
+      logger.error({ event: fields, attempt: event.attempt }, 'outbox event parked');
+    }
+  };
+
 /**
  * The polling loop: drain the outbox batch by batch, wait, repeat; sweep expired idempotency keys every
  * `sweepIntervalMs`. `stop()` stops scheduling and waits for the batch in flight — shutdown calls it
@@ -55,16 +65,7 @@ export function createDispatchLoop(options: DispatchLoopOptions): {
     logger.info({ swept }, 'idempotency keys swept');
   };
 
-  // An event whose every claim crashed is parked by the claim itself; it is logged here like any other park.
-  const dispatchOptions = {
-    maxAttempts: MAX_ATTEMPTS,
-    onExhausted: (events: readonly ClaimedEvent[]) => {
-      for (const event of events) {
-        const fields = { id: event.id, type: event.eventType, companyId: event.companyId };
-        logger.error({ event: fields, attempt: event.attempt }, 'outbox event parked');
-      }
-    },
-  };
+  const dispatchOptions = { maxAttempts: MAX_ATTEMPTS, onExhausted: logExhausted(logger) };
 
   const tick = async (): Promise<void> => {
     try {
