@@ -49,9 +49,10 @@ export class SessionGuard implements CanActivate {
     if (isPublic === true) return true;
     const http = context.switchToHttp();
     const request = http.getRequest<FastifyRequest>();
-    const authorization = request.headers.authorization;
-    if (typeof authorization === 'string' && authorization.startsWith('Device ')) {
-      return this.#device(request, authorization.slice('Device '.length));
+    // The scheme is case-insensitive (RFC 9110 §11.1): `device <token>` must never fall back to a cookie session.
+    const authorization = request.headers.authorization ?? '';
+    if (/^device(\s|$)/i.test(authorization)) {
+      return this.#device(request, authorization.slice('device'.length).trim());
     }
     // No auth configured (a test app without it) means no session can exist — refused like any other.
     const resolved =

@@ -138,6 +138,22 @@ describe('approval and the one-time token', () => {
   });
 });
 
+describe('the Device scheme', () => {
+  it('is case-insensitive and wins over a session cookie', async () => {
+    const device = await registered('Lowercase till');
+    await approve(device.device_id);
+    const token = ((await claim(device)).json() as { device_token: string }).device_token;
+    const res = await json('GET', '/v1/devices/me', undefined, {
+      authorization: `device ${token}`,
+      cookie: owner,
+    });
+    expect([res.statusCode, (res.json() as { device_id: string }).device_id]).toEqual([
+      200,
+      device.device_id,
+    ]);
+  });
+});
+
 describe('revocation', () => {
   it('a revoked device is refused on its next contact, with an audit trail and DeviceRevoked', async () => {
     const device = await registered('Revoked till');
