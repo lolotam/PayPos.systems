@@ -201,6 +201,17 @@ describe('cursor validation through HTTP', () => {
         `{"at":"2026-09-23T10:00:00","id":"${'0'.repeat(8)}-0000-7000-8000-${'0'.repeat(12)}"}`,
       ).toString('base64url'),
     ],
+    ...[
+      '2026-02-30T10:00:00+00:00',
+      '2025-02-29T10:00:00+00:00',
+      '2026-04-31T10:00:00+00:00',
+      '2026-01-01T24:00:00+00:00',
+    ].map((at) => [
+      `an impossible time ${at}`,
+      Buffer.from(JSON.stringify({ at, id: '01920000-0000-7000-8000-000000000001' })).toString(
+        'base64url',
+      ),
+    ]),
   ])('%s is 400 VALIDATION_FAILED, never a 500', async (_label, cursor) => {
     const res = await h.send('GET', `/v1/businesses?cursor=${cursor}`, {
       cookie: ownerA,

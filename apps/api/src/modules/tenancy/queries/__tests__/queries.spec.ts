@@ -92,6 +92,16 @@ describe('list-businesses.query', () => {
     expect([...first.items, ...third.items].every((b) => b.company_id === A.company)).toBe(true);
   });
 
+  it('accepts a cursor whose time has no fraction — Postgres omits it when the microseconds are zero', async () => {
+    const cursor = Buffer.from(
+      JSON.stringify({
+        at: '2999-01-01T00:00:00+00:00',
+        id: 'ffffffff-ffff-7fff-bfff-ffffffffffff',
+      }),
+    ).toString('base64url');
+    expect((await listBusinesses(db, access, { limit: 5, cursor })).items).toHaveLength(5);
+  });
+
   it('refuses a cursor it did not issue', async () => {
     await expect(
       listBusinesses(db, access, { limit: 5, cursor: 'garbage' }),

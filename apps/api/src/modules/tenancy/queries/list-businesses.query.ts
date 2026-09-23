@@ -12,7 +12,40 @@ interface Cursor {
   readonly id: string;
 }
 
-const ISSUED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?[+-]\d{2}:\d{2}$/;
+const ISSUED_AT =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,6})?[+-](\d{2}):(\d{2})$/;
+
+// Date.parse rolls 2026-02-30 over to March; Postgres refuses it. Every calendar field is checked as Postgres would.
+function isIssuedAt(value: string): boolean {
+  const parts = ISSUED_AT.exec(value)
+    ?.slice(1, 10)
+    // The fraction group is optional and not a calendar field: drop it whether present or absent.
+    .filter((p): p is string => p !== undefined && !p.startsWith('.'))
+    .map(Number);
+  if (parts === undefined || parts.length !== 8) return false;
+  const [year, month, day, hour, minute, second, offsetHours, offsetMinutes] = parts as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return (
+    month >= 1 &&
+    month <= 12 &&
+    day >= 1 &&
+    day <= daysInMonth &&
+    hour <= 23 &&
+    minute <= 59 &&
+    second <= 59 &&
+    offsetHours <= 15 &&
+    offsetMinutes <= 59
+  );
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const encode = (cursor: Cursor): string =>
@@ -25,8 +58,7 @@ function decode(value: string): Cursor {
     // would reach the ::timestamptz / ::uuid casts and fail as a 500 instead of a 400.
     if (
       typeof parsed.at === 'string' &&
-      ISSUED_AT.test(parsed.at) &&
-      !Number.isNaN(Date.parse(parsed.at)) &&
+      isIssuedAt(parsed.at) &&
       typeof parsed.id === 'string' &&
       UUID.test(parsed.id)
     ) {
