@@ -642,6 +642,16 @@ its business's. `create-branch` accepts an optional `timezone` (the contract's c
 400 before any write); `Branch` carries `timezone` and `effective_timezone`, computed by `domain/time-zone.ts` on write
 and by the same rule in SQL on read. T10-3 (the `settings` module) follows.
 
+**T10-3 as built:** the `settings` module. `business_settings` (tenant data, RLS, PK `(company_id, business_id)` with
+a tenant-qualified FK, no DELETE; migrations 0022/0023) holds only what a business changed — every null column means
+"the template's", so a template change reaches every business that kept it (Waleed 2026-09-23). The template today is
+Arabic and Gregorian for every vertical (`TODO(spec)`: the default calendar). `GET /v1/businesses/:id/settings`
+(`read:settings:business`) is `queries/business-settings.query.ts` behind a 60-second Redis cache;
+`PATCH` (`manage:settings:business`) sets a value, or returns it to the template with `null`, audits before and after,
+and drops the cache once committed — the next read sees it (tested, and the test fails without the drop). `tax_rule`
+is stored and read (null = no tax) but has no write route until P2-T4 (PRD D-27). `TODO(spec)` for their own slices:
+invoice template, order rules, payment methods, delivery zones (P1/P2); opening hours already live on the branch.
+
 ---
 
 ### T11 — `packages/observability` · Size M · depends: T6b

@@ -52,3 +52,12 @@ export {
   type CashierPinVerified,
   type VerifyCashierPinInput,
 } from './identity/cashier-pin.js';
+export {
+  businessSettings,
+  calendar,
+  language,
+  taxRule,
+  updateBusinessSettingsInput,
+  type BusinessSettings,
+  type UpdateBusinessSettingsInput,
+} from './settings/business-settings.js';

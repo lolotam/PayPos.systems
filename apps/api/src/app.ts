@@ -29,6 +29,7 @@ import {
   identityControllers,
   identityProviders,
 } from './modules/identity/index.ts';
+import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
@@ -110,6 +111,7 @@ class AppModule {
         },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
+        ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
       ],
     };
   }
@@ -205,6 +207,7 @@ export async function createApp(
     HealthController,
     ...identityControllers,
     ...tenancyControllers,
+    ...settingsControllers,
     ...(options.controllers ?? []),
   ];
   assertEveryRouteGuarded(controllers);
