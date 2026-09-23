@@ -106,3 +106,28 @@ describe('work that meets the deadline', () => {
     expect([await audited(id), after]).toEqual([1, 'survived']);
   });
 });
+
+describe('a deadline that fires while the connection changes hands', () => {
+  it('never ends the next transaction on the same connection', async () => {
+    const outcomes: string[] = [];
+    // A's work ends just before, at, or just after its deadline, and B is already queued for the only
+    // connection: whatever A's fate, B must complete.
+    for (const sleepMs of [80, 90, 95, 100, 105, 110, 120]) {
+      const a = pool
+        .withTenant(TENANT.A.company, (tx) => tx.execute(sql`SELECT pg_sleep(${sleepMs / 1000})`), {
+          timeoutMs: 100,
+        })
+        .then(
+          () => 'a committed',
+          () => 'a timed out',
+        );
+      const b = pool.withTenant(TENANT.A.company, async (tx) => {
+        await tx.execute(sql`SELECT pg_sleep(0.05)`);
+        return 'b survived';
+      });
+      outcomes.push(await b);
+      await a;
+    }
+    expect(outcomes).toEqual(Array.from({ length: 7 }, () => 'b survived'));
+  });
+});

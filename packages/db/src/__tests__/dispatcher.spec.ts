@@ -334,3 +334,54 @@ describe('stale outcomes and exhausted leases', () => {
     });
   });
 });
+
+describe('producers of one aggregate', () => {
+  it('are serialised by appendOutboxEvent itself, so a later event can never be published first', async () => {
+    const aggregate = nextId();
+    const [first, second] = [nextId(), nextId()];
+    let firstAppended!: () => void;
+    const appended = new Promise<void>((done) => {
+      firstAppended = done;
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    const event = {
+      aggregateType: 'business',
+      aggregateId: aggregate,
+      eventType: 'BusinessUpdated',
+      payload: {},
+    };
+    const slow = app.withTenant(TENANT.A.company, async (tx) => {
+      await appendOutboxEvent(tx, first, event);
+      firstAppended();
+      await gate;
+    });
+    await appended;
+    let secondDone = false;
+    const fast = app
+      .withTenant(TENANT.A.company, (tx) => appendOutboxEvent(tx, second, event))
+      .then(() => {
+        secondDone = true;
+      });
+    // The second producer must be blocked on the aggregate's advisory lock — seen in pg_locks, not guessed
+    // from timing (a new pooled connection alone can take longer than any fixed wait).
+    let waiting = 0;
+    for (let tries = 0; tries < 100 && waiting === 0; tries += 1) {
+      const [row] = await owner`
+        SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
+      waiting = Number(row?.['n']);
+      if (waiting === 0) await new Promise((done) => setTimeout(done, 20));
+    }
+    expect([waiting, secondDone]).toEqual([1, false]);
+    release();
+    await Promise.all([slow, fast]);
+    const seen: string[] = [];
+    await drain(async (claimed) => {
+      seen.push(claimed.id);
+      return delivered()(claimed);
+    });
+    expect(seen.filter((id) => id === first || id === second)).toEqual([first, second]);
+  });
+});

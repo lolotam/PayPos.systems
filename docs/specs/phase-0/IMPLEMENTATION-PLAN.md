@@ -335,17 +335,23 @@ duplicate executes, (f) a key-acquisition lock timeout returns a retryable `409`
   **fenced to its own claim** (`attempts` must still equal its attempt number, event neither published nor parked).
   A crash leaves the event leased until the lease ends, then it is redelivered; an event whose attempts are used up
   that way is parked by the next claim (`last_error = 'LeaseExpired'`) and logged.
-- `withTenant(…, { timeoutMs })` is **one absolute deadline** — pool wait, every statement, commit. Past it the call
-  rejects with `TimeoutError`, nothing commits (checked before `COMMIT`), and a watchdog connection outside the pool
-  runs `pg_terminate_backend` on that backend only while it is still in the same transaction (pid + `xact_start`);
-  `statement_timeout` / `idle_in_transaction_session_timeout` are set too. The deliverer gives each consumer
+- `withTenant(…, { timeoutMs })` is **one absolute deadline for the caller** — pool wait, every statement, commit.
+  Past it the call rejects with `TimeoutError`, work still waiting for a connection never starts, and nothing commits
+  (checked before `COMMIT`). On the server, `statement_timeout` and `idle_in_transaction_session_timeout` bound every
+  statement and every idle gap. The backend is **not** terminated from outside: in PG16 a pid-based
+  `pg_terminate_backend` cannot be made atomic with "still the same transaction" and could end another request that
+  took over the connection (review of T7b; a reserved-connection variant broke postgres.js). Residual: code that keeps
+  issuing short statements after its deadline holds its connection until it returns — but can never commit. The deliverer gives each consumer
   transaction the time left of a 60 s budget and starts no consumer after it.
 - The worker lists every event type its version publishes (`KNOWN_EVENT_TYPES`, consumed or not); an unknown type
-  is never acknowledged — it fails with backoff so a newer worker takes it during a rolling deploy.
+  is never acknowledged — it fails with backoff so a newer worker takes it.
+- **Deploy rule (T13):** worker versions never overlap — the worker is deployed stop-then-start, not rolling.
+  Publication is per event, not per consumer: a consumer added for an existing event type receives events published
+  after it is deployed; applying it to older events is an explicit backfill, never a side effect of redelivery.
   **Consumer rule:** consumers do database work only; a handler awaiting anything else cannot be cancelled.
-- Ordering is by `seq` (an identity column: insertion order), not `created_at` (transaction start). **Producer rule:**
-  a use case that emits an event for an existing aggregate locks that aggregate's row first, so insertion order
-  matches commit order.
+- Ordering is by `seq` (an identity column: insertion order), not `created_at` (transaction start).
+  `appendOutboxEvent` itself takes a transaction-level advisory lock on the aggregate before inserting, so a second
+  producer of the same aggregate waits for the first to end: `seq` order is commit order, enforced, not a convention.
 - Consumers call `markEventConsumed(tx, consumerId, eventId)` in the effect's transaction. The event id is `outbox.id`.
 - `apps/worker`: NestJS + Fastify for `/health` and `/ready` (app pool, dispatcher pool + role, Redis);
   `createDispatchLoop` (poll 1 s, drain, sweep due-checked between batches, every 10 min); a delivery over 60 s is a

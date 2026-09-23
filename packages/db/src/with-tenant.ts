@@ -21,7 +21,8 @@ export interface TenantOptions {
   readonly userId?: string;
   /**
    * أقصى عمر للشغل ده كله، من أول انتظار connection لحد الـ commit. بعده الـ promise بيترفض بـ TimeoutError،
-   * والـ transaction بتتقفل من الـ server (مفيش commit متأخر ولا lock فاضل) — حتى لو الكود عمل statements كتير قصيرة.
+   * الشغل اللي لسه مستني connection مبيبدأش، واللي بدأ مبيعملش COMMIT أبداً. على الـ server كل statement وكل
+   * فترة سكون جوه الـ transaction محدودين بنفس المدة.
    */
   readonly timeoutMs?: number;
 }
@@ -37,23 +38,9 @@ export interface TenantWrappers {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * الـ backend اللي شغّال عليه transaction معينة، ووقت بدايتها — عشان الـ deadline يقفل هي بس.
- */
-export interface Backend {
-  readonly pid: number;
-  readonly started: string;
-}
-
-/**
- * بيقفل الـ backend ده لو لسه في نفس الـ transaction — مش لو الـ connection رجعت للـ pool وبدأت شغل تاني.
- */
-export type Terminate = (backend: Backend) => Promise<void>;
-
-// What a transaction under a deadline checks: when it starts (record the backend, or refuse if too late)
-// and just before it commits (refuse if too late).
+// What a transaction under a deadline checks: when it starts and just before it commits (refuse if too late).
 interface DeadlineGate {
-  onStart(backend: Backend): void;
+  onStart(): void;
   beforeCommit(): void;
 }
 const OPEN_GATE: DeadlineGate = { onStart: () => undefined, beforeCommit: () => undefined };
@@ -77,37 +64,36 @@ export function assertUuid(value: string, name: string): string {
   return value;
 }
 
-// statement_timeout بيتعاد مع كل statement، فشغل فيه statements كتير قصيرة كان هيعدّي الحد (PG16 مفيهوش
-// transaction_timeout). فالـ deadline هنا مطلق: بعده الـ promise بيترفض، ولو الـ transaction بدأت الـ backend بتاعها
-// بيتقفل من connection تانية؛ ولو لسه مستنية connection، أول statement بيرمي ومبتعملش حاجة.
-function withDeadline<T>(
-  timeoutMs: number,
-  terminate: Terminate,
-  start: (gate: DeadlineGate) => Promise<T>,
-): Promise<T> {
+// statement_timeout بيتعاد مع كل statement (PG16 مفيهوش transaction_timeout)، فالـ deadline هنا مطلق من ناحية
+// الـ caller: بعده الـ promise بيترفض، الشغل اللي لسه مستني connection مبيبدأش، واللي بدأ مبيعملش COMMIT أبداً.
+// مفيش إنهاء للـ backend من بره: pg_terminate_backend بالـ pid مينفعش يبقى atomic مع التأكد إن الـ connection لسه
+// في نفس الـ transaction، فممكن يقتل شغل تاني استلم الـ connection. اللي بيحد الـ backend على الـ server:
+// statement_timeout و idle_in_transaction_session_timeout (limits)، والـ connection بترجع أول ما الكود يخلص.
+function withDeadline<T>(timeoutMs: number, start: (gate: DeadlineGate) => Promise<T>): Promise<T> {
   let expired = false;
-  let backend: Backend | undefined;
   let timer: NodeJS.Timeout | undefined;
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       expired = true;
-      if (backend !== undefined) void terminate(backend).catch(() => undefined);
       reject(timeoutError());
     }, timeoutMs);
   });
-  const work = start({
-    onStart: (started) => {
-      if (expired) throw timeoutError();
-      backend = started;
-    },
-    // Checked after the work and before COMMIT: once the deadline has passed nothing commits, even when the
-    // work only finished late and the termination has not reached the backend yet.
-    beforeCommit: () => {
-      if (expired) throw timeoutError();
-    },
-  });
+  const refuseIfLate = (): void => {
+    if (expired) throw timeoutError();
+  };
+  // beforeCommit runs after the work and before COMMIT: work that finished late rolls back.
+  const work = start({ onStart: refuseIfLate, beforeCommit: refuseIfLate });
   work.catch(() => undefined);
   return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+}
+
+// statement_timeout يلغي الـ statement الطويل، و idle_in_transaction_session_timeout يقفل الـ session لو الـ transaction
+// فضلت مستنية كود JavaScript واقف — الاتنين على الـ server، فبيشتغلوا حتى لو الكود علّق.
+function limits(timeoutMs: number | undefined) {
+  return timeoutMs === undefined
+    ? sql``
+    : sql`, set_config('statement_timeout', ${`${timeoutMs}ms`}, true),
+           set_config('idle_in_transaction_session_timeout', ${`${timeoutMs}ms`}, true)`;
 }
 
 /**
@@ -115,26 +101,14 @@ function withDeadline<T>(
  * كل wrapper بيحط الإعدادين الاتنين في كل مرة — اللي مش مستخدم بيبقى '' —
  * عشان connection راجعة من الـ pool متورّثش company أو user من الـ transaction اللي قبلها.
  *
- * @param db        الـ Drizzle client — بيفضل جوه الـ closure
- * @param ids       مولّد الـ ids لـ withNewTenant
- * @param terminate بيقفل backend بعينه لما الـ deadline بتاع timeoutMs يعدّي (على connection منفصلة)
+ * @param db  الـ Drizzle client — بيفضل جوه الـ closure
+ * @param ids مولّد الـ ids لـ withNewTenant
  * @returns withTenant و withUser و withNewTenant
  */
-export function createTenantWrappers(
-  db: PostgresJsDatabase,
-  ids: IdGenerator,
-  terminate: Terminate = async () => undefined,
-): TenantWrappers {
+export function createTenantWrappers(db: PostgresJsDatabase, ids: IdGenerator): TenantWrappers {
   // superuser أو BYPASSRLS بيتجاهل الـ RLS كله، فـ DATABASE_URL غلط كان هيشيل العزل بين الشركات
   // من غير أي خطأ. الفحص في نفس الـ statement اللي بيحط الـ context، فمفيش round-trip زيادة،
   // وبيتكرر في كل transaction عشان يغطي أي reconnect.
-  // timeoutMs: statement_timeout يلغي الـ statement الطويل، و idle_in_transaction_session_timeout يقفل الـ session
-  // لو الـ transaction فضلت مستنية كود JavaScript واقف — الاتنين على الـ server، فبيشتغلوا حتى لو الكود علّق.
-  const limits = (timeoutMs: number | undefined) =>
-    timeoutMs === undefined
-      ? sql``
-      : sql`, set_config('statement_timeout', ${`${timeoutMs}ms`}, true),
-             set_config('idle_in_transaction_session_timeout', ${`${timeoutMs}ms`}, true)`;
   const run = <T>(
     companyId: string,
     userId: string,
@@ -143,10 +117,10 @@ export function createTenantWrappers(
     gate: DeadlineGate = OPEN_GATE,
   ): Promise<T> =>
     db.transaction(async (tx) => {
-      const [row] = await tx.execute<{ privileged: boolean; pid: number; started: string }>(
+      gate.onStart();
+      const [row] = await tx.execute<{ privileged: boolean }>(
         sql`SELECT set_config('app.company_id', ${companyId}, true),
                    set_config('app.user_id', ${userId}, true)${limits(timeoutMs)},
-                   pg_backend_pid() AS pid, now()::text AS started,
                    (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) AS privileged`,
       );
       if (row?.privileged !== false) {
@@ -154,7 +128,6 @@ export function createTenantWrappers(
           'Refusing to run tenant work as a role that bypasses RLS — check DATABASE_URL',
         );
       }
-      gate.onStart({ pid: row.pid, started: row.started });
       const result = await fn(tx);
       gate.beforeCommit();
       return result;
@@ -168,7 +141,7 @@ export function createTenantWrappers(
       const timeoutMs = validTimeout(options.timeoutMs);
       return timeoutMs === undefined
         ? run(company, user, fn)
-        : withDeadline(timeoutMs, terminate, (gate) => run(company, user, fn, timeoutMs, gate));
+        : withDeadline(timeoutMs, (gate) => run(company, user, fn, timeoutMs, gate));
     },
     withUser: async (userId, fn) => run('', assertUuid(userId, 'userId'), fn),
     withNewTenant: async (userId, fn) => {
