@@ -10,6 +10,7 @@ import type { OutboxConsumer } from './consumer.ts';
 import { retryDelayMs } from './retry-policy.ts';
 
 const GRACE_MS = 1_000;
+const CONSUMER_ID = /^[a-z][a-z0-9.-]{1,99}$/;
 /** One delivery's whole budget; shutdown waits longer than this (worker.ts). */
 export const DELIVERY_TIMEOUT_MS = 60_000;
 
@@ -55,6 +56,11 @@ export function createDeliverer(
   const ids = consumers.map((consumer) => consumer.id);
   const duplicate = ids.find((id, index) => ids.indexOf(id) !== index);
   if (duplicate !== undefined) throw new Error(`Two outbox consumers share the id ${duplicate}`);
+  // The same format consumed_events.consumer_id enforces: an id the table rejects would fail every delivery
+  // and park every event of its type, so it stops the worker at startup instead.
+  const invalid = ids.find((id) => !CONSUMER_ID.test(id));
+  if (invalid !== undefined)
+    throw new Error(`Outbox consumer id ${invalid} is not a valid consumer id`);
   const known = new Set([...options.knownEventTypes, ...consumers.flatMap((c) => c.eventTypes)]);
   const applyAll = async (event: ClaimedEvent, endsAt: number): Promise<void> => {
     for (const consumer of consumers) {

@@ -121,6 +121,16 @@ describe('consumer registration', () => {
     const twins = [consumer('a.one', ['BusinessCreated']), consumer('a.one', ['BranchCreated'])];
     expect(() => createDeliverer(app, twins, logger, KNOWN)).toThrow(/share the id a.one/);
   });
+
+  it.each(['orders_handler', 'a', 'Orders.handler'])(
+    'refuses the id %s, which consumed_events would reject',
+    (id) => {
+      const { app, logger } = harness();
+      expect(() =>
+        createDeliverer(app, [consumer(id, ['BusinessCreated'])], logger, KNOWN),
+      ).toThrow(/not a valid consumer id/);
+    },
+  );
 });
 
 describe('an event type this worker does not know', () => {
