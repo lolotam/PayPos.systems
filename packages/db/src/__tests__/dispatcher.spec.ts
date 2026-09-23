@@ -337,7 +337,8 @@ describe('stale outcomes and exhausted leases', () => {
 
 describe('producers of one aggregate', () => {
   it('are serialised by appendOutboxEvent itself, so a later event can never be published first', async () => {
-    const aggregate = nextId();
+    // Hex letters, so the upper-case spelling below really differs from this one.
+    const aggregate = '0197abcd-0000-7000-8000-00000000beef';
     const [first, second] = [nextId(), nextId()];
     let firstAppended!: () => void;
     const appended = new Promise<void>((done) => {
@@ -361,7 +362,10 @@ describe('producers of one aggregate', () => {
     await appended;
     let secondDone = false;
     const fast = app
-      .withTenant(TENANT.A.company, (tx) => appendOutboxEvent(tx, second, event))
+      // The same aggregate spelled in upper case: one UUID, so one lock.
+      .withTenant(TENANT.A.company, (tx) =>
+        appendOutboxEvent(tx, second, { ...event, aggregateId: aggregate.toUpperCase() }),
+      )
       .then(() => {
         secondDone = true;
       });

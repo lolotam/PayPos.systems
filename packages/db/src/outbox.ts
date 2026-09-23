@@ -38,9 +38,10 @@ export async function appendOutboxEvent(tx: Tx, id: string, event: OutboxEvent):
   // Lock the aggregate for the rest of this transaction before its seq is taken: a second transaction emitting
   // for the same aggregate waits here until this one ends, so seq order is commit order and the dispatcher can
   // never see a later event while an earlier one is still uncommitted. Enforced here, not left to callers.
+  // ::uuid::text canonicalises the id: an upper- and a lower-case spelling of one UUID must take one lock.
   await tx.execute(sql`
     SELECT pg_advisory_xact_lock(hashtextextended(
-      app_company_id()::text || ':' || ${event.aggregateType} || ':' || ${aggregateId}, 0))`);
+      app_company_id()::text || ':' || ${event.aggregateType} || ':' || ${aggregateId}::uuid::text, 0))`);
   await tx.execute(sql`
     INSERT INTO outbox (company_id, id, aggregate_type, aggregate_id, event_type, payload)
     VALUES (app_company_id(), ${assertUuid(id, 'id')}, ${event.aggregateType},
