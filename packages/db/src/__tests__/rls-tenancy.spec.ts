@@ -85,6 +85,17 @@ describe('cross-tenant writes are refused', () => {
     );
   });
 
+  it("a branch INSERT with B's company and business is rejected — the pair satisfies the FK, not RLS", async () => {
+    await rejectsWith(
+      rows(
+        A.company,
+        sql`INSERT INTO branches (id, company_id, business_id, name_en)
+            VALUES ('01920000-0000-7000-8000-0000000000a6', ${B.company}, ${B.business}, 'x')`,
+      ),
+      RLS,
+    );
+  });
+
   it("UPDATE of B's row as A affects 0 rows and leaves it unchanged", async () => {
     const updated = await rows(
       A.company,

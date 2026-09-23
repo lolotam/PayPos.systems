@@ -126,6 +126,32 @@ describe('effective privileges match the reviewed allowlist', () => {
   });
 });
 
+// A role the application can SET ROLE to is a way around every check above, even without inheritance.
+const settableRoles = async (role: string): Promise<string[]> => {
+  const rows = await owner<{ name: string }[]>`
+    SELECT rolname AS name FROM pg_roles
+    WHERE rolname <> ${role} AND pg_has_role(${role}, oid, 'SET') ORDER BY 1`;
+  return rows.map((r) => r.name);
+};
+
+describe('no application role can switch to another role', () => {
+  it.each(APP_ROLES)('%s can SET ROLE to no other role, directly or indirectly', async (role) => {
+    expect(await settableRoles(role)).toEqual([]);
+  });
+
+  it('a non-inheriting membership is caught — INHERIT FALSE, SET TRUE', async () => {
+    await withClusterRoleLock('exclusive', async () => {
+      try {
+        await owner`CREATE ROLE pospay_test_settable NOLOGIN`;
+        await owner`GRANT pospay_test_settable TO pospay_app WITH INHERIT FALSE, SET TRUE`;
+        expect(await settableRoles('pospay_app')).toEqual(['pospay_test_settable']);
+      } finally {
+        await owner`DROP ROLE IF EXISTS pospay_test_settable`;
+      }
+    });
+  });
+});
+
 describe('effective access', () => {
   it('pospay_auth reaches no tenant table and no reference table', async () => {
     const rows = await owner<{ table: string }[]>`
