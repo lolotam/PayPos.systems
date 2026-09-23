@@ -66,6 +66,13 @@ export const openingHours = z
   .refine((days) => !hasOverlap(weeklySpans(days)), {
     message: 'Opening intervals overlap',
   })
-  .meta({ id: 'OpeningHours' });
+  // القاعدتين دول مينفعش يتكتبوا JSON Schema، فبيتنشروا كـ description في OpenAPI بدل ما يتخبّوا.
+  .meta({
+    id: 'OpeningHours',
+    description:
+      'Each ISO weekday (1 = Monday … 7 = Sunday) appears at most once; a missing weekday is closed. ' +
+      'closes < opens means the interval crosses midnight. Intervals must not overlap, including across ' +
+      'midnight and from Sunday into Monday. Enforced by the API.',
+  });
 
 export type OpeningHours = z.infer<typeof openingHours>;

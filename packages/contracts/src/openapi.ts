@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { errorEnvelope } from './common/errors.js';
 import { pageQuery } from './common/pagination.js';
+import { currency, timeZone } from './common/primitives.js';
 import { business, createBusinessInput, verticalType } from './tenancy/business.js';
 import { branch, createBranchInput, geo } from './tenancy/branch.js';
 import { company, createCompanyInput } from './tenancy/company.js';
@@ -20,6 +21,8 @@ const SCHEMAS = [
   createBranchInput,
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,
+  currency,
+  timeZone,
   geo,
   openingHours,
 ];

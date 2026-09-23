@@ -16,11 +16,10 @@ export const nameAr = z.string().trim().min(1).max(255);
 // مش من Intl: بيانات Intl بتختلف من runtime للتاني، فالـ API كان ممكن يقبل حاجة الـ POS يرفضها.
 
 // اسم IANA بس (Asia/Kuwait)، مش offset زي +03:00 — الـ offset الثابت مبيتبعش قواعد التوقيت الصيفي.
-export const timeZone = z
-  .string()
-  .refine((value) => TIME_ZONES.has(value), { message: 'Unknown IANA time zone' });
+// z.enum مش refine: الـ refine مبيظهرش في OpenAPI، فأي client متولّد كان هيقبل قيم الـ API بيرفضها.
+export const timeZone = z.enum([...TIME_ZONES] as [string, ...string[]]).meta({ id: 'TimeZone' });
 
 // أي كود ISO 4217 (قرار Waleed). Money في packages/domain لسه بـ 3 خانات، فالحساب صح لـ KWD بس لحد multi-currency.
 export const currency = z
-  .string()
-  .refine((code) => ISO_4217_MINOR_UNITS.has(code), { message: 'Unknown ISO 4217 currency code' });
+  .enum([...ISO_4217_MINOR_UNITS.keys()] as [string, ...string[]])
+  .meta({ id: 'Currency' });

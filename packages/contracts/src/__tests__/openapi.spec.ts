@@ -18,15 +18,27 @@ describe('openapi/openapi.json', () => {
       'CreateBranchInput',
       'CreateBusinessInput',
       'CreateCompanyInput',
+      'Currency',
       'ErrorEnvelope',
       'GeoPoint',
       'OpeningHours',
       'PageQuery',
       'Plan',
+      'TimeZone',
       'VerticalType',
     ]);
     for (const schema of Object.values(schemas)) {
       expect(schema).not.toHaveProperty('$id');
     }
+  });
+
+  it('publishes currency and timezone as closed enums, so generated clients reject unknown values', () => {
+    const schemas = (
+      buildOpenApiDocument()['components'] as { schemas: Record<string, { enum?: string[] }> }
+    ).schemas;
+    expect(schemas['Currency']?.enum).toContain('KWD');
+    expect(schemas['Currency']?.enum).not.toContain('ZZZ');
+    expect(schemas['TimeZone']?.enum).toContain('Asia/Kuwait');
+    expect(schemas['TimeZone']?.enum).not.toContain('Asia/Atlantis');
   });
 });
