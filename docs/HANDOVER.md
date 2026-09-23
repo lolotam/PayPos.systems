@@ -108,7 +108,7 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 |---|---|---|
 | T0 Auth ↔ RLS decision | ✅ done | ADR-0003 **Accepted** 2026-09-23 (PR #5) |
 | T1 Workspace skeleton | ✅ done | PR #1, #2 |
-| T12a Minimal CI | ✅ done (branch protection still to do) | `.github/workflows/ci.yml` |
+| T12a Minimal CI | 🟡 CI live — **branch protection due before T5 merges** (plan v4) | `.github/workflows/ci.yml` |
 | T2 Local infra | ✅ done | PR #12 — `deploy/docker-compose.dev.yml` |
 | T3 `packages/domain` (Money, rounding, Percentage, TaxRule) | ✅ done | PR #14 — ADR-0004, ADR-0005 |
 | T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | ✅ done | PR #15 — ADR-0006 (+ issue #16 for T5) |

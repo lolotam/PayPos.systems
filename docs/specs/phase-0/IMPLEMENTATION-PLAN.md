@@ -1,6 +1,6 @@
 # Phase 0 — Implementation Plan
 
-> **Status:** v4 · 2026-09-23 · after the Claude ↔ Codex debate (`DEBATE-2026-09-23.md`) · **done:** T0 T1 T2 T3 T4 T6a T12a
+> **Status:** v4 · 2026-09-23 · after the Claude ↔ Codex debate (`DEBATE-2026-09-23.md`) · **done:** T0 T1 T2 T3 T4 T6a · T12a CI live (branch protection due before T5)
 > v3 · 2026-09-22 · synced with `docs/PRD.md` v1.1 (§13 item 22)
 > **Reads with:** `SPEC.md` in this folder
 > **Audience:** the implementing agent (Codex `gpt-6-astra`, reasoning effort `high`) and Waleed
@@ -131,7 +131,7 @@ packages/domain/src/__tests__/*.spec.ts
 
 ---
 
-### T5 — `tenancy` schema + RLS ⭐ · Size L · depends: T4, **T6a merged and green**
+### T5 — `tenancy` schema + RLS ⭐ · Size L · depends: T4, **T6a merged and green**, **branch protection on `main`**
 
 **Deliverable:** the phase's success criterion, proven.
 
@@ -210,7 +210,8 @@ Run the whole suite **as the restricted application role**, not as the owner or 
 > **What RLS cannot do:** `withTenant(B, …)` legitimately reaches company B. The database cannot tell an authorised company id from an attacker-supplied one. That check belongs to the API layer and is tested in **T8**, not here.
 
 **Done when:** every assertion above passes as the restricted role, runs in `pnpm test`, and is a **required CI check**
-(CI already runs `pnpm check` on the compose stack since T4).
+(CI already runs `pnpm check` on the compose stack since T4). **Before T5 merges**, branch protection on `main` must
+require that check and block direct pushes (T12a) — otherwise "required" is only a convention.
 
 ---
 
@@ -483,12 +484,14 @@ packages/i18n/src/{ar.ts,en.ts,format-kwd.ts,dates.ts,index.ts}
 
 ---
 
-### T12a — Minimal CI · Size S · depends: T1 · ✅ done (grows with each task)
+### T12a — Minimal CI · Size S · depends: T1 · 🟡 CI live — branch protection due before T5 merges
 
 `.github/workflows/ci.yml` runs **`pnpm check`** on every PR and on `main`: `turbo run typecheck lint test` (lint
 includes `max-lines`, `boundaries` and the Arabic JSDoc rules) then `pnpm lint:docs`. Since T4 it starts the T2
 compose stack first (ADR-0006), so every package's database tests — T5's isolation and privilege suites included —
-are **required** on every PR from the moment they exist. Branch protection is **not** done yet — it moves to T12b.
+are **required** on every PR from the moment they exist. **Still open, and due before T5 merges:** branch protection on
+`main` requiring this check and blocking direct pushes. Because CI skips docs-only PRs (`paths-ignore`), a lightweight
+job that always runs must report the required status on those PRs, or they could never merge.
 
 ---
 
@@ -515,8 +518,8 @@ build all apps → docker images
 - Images tagged by **commit SHA**, never `latest`, pushed to GHCR. A deliberately-broken fixture PR confirms the
   boundary and module-map steps actually block.
 
-**Done when:** branch protection on `main` requires the CI check and blocks direct pushes; and a PR violating a module
-boundary, adding an undeclared arrow, or making a second synchronous
+**Done when:** the required checks on `main` cover every gate above (T12a made the first one required before T5); and
+a PR violating a module boundary, adding an undeclared arrow, or making a second synchronous
 cross-module write is blocked by CI.
 
 ---
@@ -562,8 +565,7 @@ T0 ─ T1 ─┬─ T2 ─┐
             T1 ─ T12a (runs on every PR, grows with each task)                  T8 ─ T12b ─ T13
 ```
 
-- **v4:** T7b (worker + outbox dispatcher) moves up from T13 and runs **before** T9a (serial, like everything else); T9a is four PRs; T12a is live and already gates T5's
-  suites; T12b switches the remaining gates on (`DEBATE-2026-09-23.md`). Done so far: T0–T4, T6a, T12a.
+- **v4:** T7b (worker + outbox dispatcher) moves up from T13 and runs **before** T9a (serial, like everything else); T9a is four PRs; T12a's CI is live and branch protection lands before T5 merges; T12b switches the remaining gates on (`DEBATE-2026-09-23.md`). Done so far: T0–T4, T6a; T12a's CI is live, its branch protection is not.
 
 - **T0** now precedes everything. The auth ↔ RLS boundary is a schema decision, not a T9 detail.
 - **T6 splits.** `CLAUDE.md` §1 mandates *contract → migration*, and the first draft had the schema (T5) before the contracts (T6), contradicting the project's own rule. **T6a** (Zod contracts for tenancy) moves **before** T5; **T6b** (the NestJS app, filter, health, OpenAPI) stays after it.
