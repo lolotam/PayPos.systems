@@ -518,7 +518,8 @@ build all apps → docker images
 - Images tagged by **commit SHA**, never `latest`, pushed to GHCR. A deliberately-broken fixture PR confirms the
   boundary and module-map steps actually block.
 
-**Done when:** the required checks on `main` cover every gate above (T12a made the first one required before T5); and
+**Done when:** the required checks on `main` cover every gate activated up to T12b — all of the above except docker
+images, which T13 activates (T12a made the first check required before T5); and
 a PR violating a module boundary, adding an undeclared arrow, or making a second synchronous
 cross-module write is blocked by CI.
 
@@ -551,7 +552,7 @@ cross-module write is blocked by CI.
 
 **Blocked on:** `SPEC.md` §8 question 6 (which host).
 
-**Done when:** a staging deploy succeeds from a SHA-tagged image, the previous image still runs against the new schema, and **one PITR restore has actually been performed** to a chosen timestamp and queried.
+**Done when:** the docker-image build is a required check on `main` (the last gate from T12b's list); a staging deploy succeeds from a SHA-tagged image, the previous image still runs against the new schema, and **one PITR restore has actually been performed** to a chosen timestamp and queried.
 
 ---
 
