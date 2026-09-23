@@ -1,11 +1,16 @@
 # Staging on the existing server's shared Postgres and Redis (plan T13-2, Waleed 2026-09-24): the "paypossystem"
 # Dokploy project already runs Postgres 18 and Redis 8 on dokploy-network, so this file brings only the migrate step,
-# the API and the worker, and joins that network. Run over SSH with `docker compose --env-file .env up -d` from the
-# directory holding the server's .env (mode 600, generated on the server — never in Git). Every image is pinned to a
-# commit SHA; rolling back is redeploying the previous IMAGE_TAG.
+# the API and the worker, and joins that network. Deploy with deploy/staging-deploy.sh, never by hand: the server's
+# .env (mode 600, generated on the server — never in Git) is interpolated here, so `docker compose config` WITHOUT -q
+# prints every secret; the script only ever validates with -q.
 #
-# Versions: Postgres 18 and Redis 8 here, where CI tests 16 and 7 — accepted for staging by Waleed; the smoke tests
-# below run against them on every deploy.
+# Rollback: redeploy the previous IMAGE_TAG. That restores the code, not the schema — it is safe only because every
+# migration is expand/contract (CLAUDE.md §10), and T13-2 proves it by running the previous image on the new schema.
+#
+# Accepted for staging (Waleed): Postgres 18 and Redis 8 here, where CI tests 16 and 7 — the deploy's smoke test runs
+# against them every time; and dokploy-network is shared with the server's other projects, which can reach the API's
+# port directly (every route still needs a session or a device token) and the shared database (password-protected).
+# Production gets its own networks on the new server (D-11).
 
 name: pospay-staging
 
