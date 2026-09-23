@@ -57,22 +57,8 @@ export interface SettingsTransactions {
  */
 export interface SettingsCache {
   /**
-   * الرد المتخزن كـ JSON، أو null لو مش موجود أو خلص.
-   *
-   * @param companyId  الشركة
-   * @param businessId النشاط
-   */
-  get(companyId: string, businessId: string): Promise<string | null>;
-  /**
-   * بيخزن الرد لمدة قصيرة — لو المسح فات، القيمة القديمة بتفضل دقيقة بالكتير.
-   *
-   * @param companyId  الشركة
-   * @param businessId النشاط
-   * @param json       الرد
-   */
-  set(companyId: string, businessId: string, json: string): Promise<void>;
-  /**
-   * بيمسح الرد بعد أي تغيير اتكتب، عشان القراية الجاية تيجي من الداتابيز.
+   * بيخلّي أي قيمة متخزنة قديمة بعد تغيير اتكتب: القراية الجاية تيجي من الداتابيز، وأي قراية كانت شغالة قبل التغيير
+   * ما تقدرش تخزن القيمة القديمة بعده.
    *
    * @param companyId  الشركة
    * @param businessId النشاط

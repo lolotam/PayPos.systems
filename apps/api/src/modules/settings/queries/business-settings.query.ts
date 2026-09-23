@@ -2,10 +2,13 @@ import type { BusinessSettings } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-/** What this read needs from the cache — the Redis adapter satisfies it (a query may not import ports/). */
+/**
+ * What this read needs from the cache — the Redis adapter satisfies it (a query may not import ports/). A read names
+ * the generation it saw, and fills only under it, so a write in between wins.
+ */
 export interface SettingsReadCache {
-  get(companyId: string, businessId: string): Promise<string | null>;
-  set(companyId: string, businessId: string, json: string): Promise<void>;
+  read(companyId: string, businessId: string): Promise<{ generation: string; json: string | null }>;
+  fill(companyId: string, businessId: string, generation: string, json: string): Promise<void>;
 }
 
 /** The template values the read falls back to — handed in by the module wiring, from domain/business-settings.ts. */
@@ -31,8 +34,8 @@ export async function businessSettingsQuery(
   access: { companyId: string; userId: string },
   businessId: string,
 ): Promise<BusinessSettings> {
-  const cached = await cache.get(access.companyId, businessId);
-  if (cached !== null) return JSON.parse(cached) as BusinessSettings;
+  const cached = await cache.read(access.companyId, businessId);
+  if (cached.json !== null) return JSON.parse(cached.json) as BusinessSettings;
   // Screen: admin › business settings. One business by its key; no row yet means every value is the template's.
   const [row] = await db.withTenant(
     access.companyId,
@@ -55,6 +58,6 @@ export async function businessSettingsQuery(
     { userId: access.userId },
   );
   if (row === undefined) throw new Error('settings query returned no row');
-  await cache.set(access.companyId, businessId, JSON.stringify(row));
+  await cache.fill(access.companyId, businessId, cached.generation, JSON.stringify(row));
   return row;
 }

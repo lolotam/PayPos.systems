@@ -19,7 +19,10 @@ import { businessSettingsQuery, type SettingsReadCache } from '../business-setti
 const { A, B } = TENANT;
 const access = { companyId: A.company, userId: USER };
 const TEMPLATE = { defaultLanguage: 'ar', calendar: 'gregorian' };
-const noCache: SettingsReadCache = { get: async () => null, set: async () => undefined };
+const noCache: SettingsReadCache = {
+  read: async () => ({ generation: '0', json: null }),
+  fill: async () => undefined,
+};
 
 let testDb: TestDatabase;
 let db: Database;

@@ -28,11 +28,18 @@ function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): SettingsScope {
   return {
     audit: transactionWriters(tx, ids).audit,
     findForUpdate: async (businessId) => {
+      // A row that does not exist cannot be locked: two first writes would both read "nothing yet" and audit a wrong
+      // before. Creating the empty row first (every value the template's) gives the second writer a row to wait on.
+      const created = await tx.execute<{ business_id: string }>(sql`
+        INSERT INTO business_settings (company_id, business_id)
+        VALUES (${companyId}, ${businessId})
+        ON CONFLICT (company_id, business_id) DO NOTHING
+        RETURNING business_id`);
       const [row] = await tx.execute<Row>(sql`
         SELECT ${COLUMNS} FROM business_settings
         WHERE company_id = ${companyId} AND business_id = ${businessId}
         FOR UPDATE`);
-      return row === undefined ? null : toStored(row);
+      return row === undefined || created.length > 0 ? null : toStored(row);
     },
     save: async (businessId, change: SettingsChange, updatedBy) => {
       const updates: SQL[] = [

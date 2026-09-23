@@ -1,7 +1,11 @@
 import { businessSettings as settingsSchema, errorEnvelope } from '@pospay/contracts';
+import { createDatabase } from '@pospay/db';
+import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
+import { createRedisSettingsCache } from '../persistence/redis-settings-cache.ts';
+import { createSettingsTransactions } from '../persistence/settings-transactions.ts';
 
 // T10-3 through the API with real Postgres and Redis: a business reads the template until it changes a value, a
 // change is audited and seen by the very next read (the cache is dropped), null returns a value to the template, and
@@ -10,6 +14,7 @@ let h: Harness;
 let owner: string;
 let stranger: string;
 let company: string;
+let strangerCompany: string;
 let business: string;
 
 beforeAll(async () => {
@@ -17,7 +22,7 @@ beforeAll(async () => {
   owner = await h.signedInOperator('settings-owner@example.test');
   stranger = await h.signedInOperator('settings-stranger@example.test');
   company = await h.onboard(owner, 'Settings Co');
-  await h.onboard(stranger, 'Stranger Co');
+  strangerCompany = await h.onboard(stranger, 'Stranger Co');
   const created = await h.send('POST', '/v1/businesses', {
     cookie: owner,
     company,
@@ -96,16 +101,70 @@ describe('business settings', () => {
       ]);
     }
   });
+});
 
-  it("another company's owner is refused on both routes, and nothing changes", async () => {
+describe('another company', () => {
+  it("another company's owner, in their own company, is refused this business on both routes", async () => {
     const before = await read();
-    const asStranger = await h.app.inject({
-      method: 'GET',
-      url: url(),
-      headers: { cookie: stranger, 'x-company-id': company },
-    });
-    expect(asStranger.statusCode).toBe(403);
-    expect((await change({ calendar: 'hijri' }, stranger)).statusCode).toBe(403);
+    const [audits] =
+      await h.owner`SELECT count(*)::int AS n FROM audit_log WHERE entity_id = ${business}`;
+    const asStranger = (method: 'GET' | 'PATCH') =>
+      h.app.inject({
+        method,
+        url: url(),
+        headers: { cookie: stranger, 'x-company-id': strangerCompany },
+        ...(method === 'PATCH' ? { payload: { calendar: 'hijri' } } : {}),
+      });
+    expect((await asStranger('GET')).statusCode).toBe(403);
+    expect((await asStranger('PATCH')).statusCode).toBe(403);
     expect(await read()).toEqual(before);
+    const [after] =
+      await h.owner`SELECT count(*)::int AS n FROM audit_log WHERE entity_id = ${business}`;
+    expect(after?.['n']).toBe(audits?.['n']);
+  });
+});
+
+describe('concurrency', () => {
+  it('a second first write waits for the first, and sees its value as before', async () => {
+    const created = await h.send('POST', '/v1/businesses', {
+      cookie: owner,
+      company,
+      key: 'settings-race',
+      body: { vertical_type: 'retail', name_en: 'Race' },
+    });
+    const raced = created.body['id'] as string;
+    const [row] = await h.owner`SELECT id FROM "user" WHERE email = 'settings-owner@example.test'`;
+    const userId = row?.['id'] as string;
+    const database = createDatabase({ url: h.urls.app, ids: systemUuidV7() });
+    const transactions = createSettingsTransactions(database, systemUuidV7());
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    try {
+      const first = transactions.run(company, userId, async (scope) => {
+        await scope.findForUpdate(raced);
+        await gate;
+        return scope.save(raced, { defaultLanguage: 'en' }, userId);
+      });
+      await new Promise((done) => setTimeout(done, 200));
+      const second = transactions.run(company, userId, (scope) => scope.findForUpdate(raced));
+      await new Promise((done) => setTimeout(done, 200));
+      open();
+      await first;
+      expect(await second).toMatchObject({ defaultLanguage: 'en', calendar: null });
+    } finally {
+      open();
+      await database.close();
+    }
+  });
+
+  it('a read that raced a write cannot cache the value from before it', async () => {
+    const cache = createRedisSettingsCache(h.redis);
+    const seen = await cache.read(company, business);
+    await cache.invalidate(company, business);
+    await cache.fill(company, business, seen.generation, '{"stale":true}');
+    expect((await cache.read(company, business)).json).toBeNull();
+    expect(await read()).not.toHaveProperty('stale');
   });
 });
