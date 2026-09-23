@@ -181,3 +181,30 @@ describe('events whose every claim crashed', () => {
     });
   });
 });
+
+describe('a large expiry backlog', () => {
+  it('sweeps batch after batch until one comes back short', async () => {
+    const batches = [1_000, 1_000, 1_000, 12];
+    let calls = 0;
+    let clock = 0;
+    const loop = createDispatchLoop({
+      dispatcher: {
+        // One step past the interval, then the clock stands still: exactly one sweep cycle is due.
+        dispatchBatch: async () => {
+          clock = 20 * 60 * 1000;
+          return 0;
+        },
+        sweepExpiredIdempotencyKeys: async () => batches[calls++] ?? 0,
+      },
+      deliver,
+      logger,
+      pollIntervalMs: 1,
+      now: () => clock,
+    });
+    loop.start();
+    await until(() => calls >= 4);
+    await wait(30);
+    await loop.stop();
+    expect(calls).toBe(4);
+  });
+});

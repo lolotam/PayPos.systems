@@ -3,6 +3,9 @@ import type { Logger } from '@pospay/observability';
 
 import { MAX_ATTEMPTS } from './retry-policy.ts';
 
+const SWEEP_BATCH = 1_000;
+const SWEEP_MAX_BATCHES = 100;
+
 export interface DispatchLoopOptions {
   readonly dispatcher: Pick<
     OutboxDispatcherDatabase,
@@ -38,10 +41,17 @@ export function createDispatchLoop(options: DispatchLoopOptions): {
   let inFlight: Promise<void> | undefined;
   let lastSweep = now();
 
+  // Batch after batch until one comes back short, so cleanup keeps up with any request rate; capped per cycle
+  // so one sweep never starves delivery.
   const sweepIfDue = async (): Promise<void> => {
     if (stopped || now() - lastSweep < sweepIntervalMs) return;
     lastSweep = now();
-    const swept = await dispatcher.sweepExpiredIdempotencyKeys(1_000);
+    let swept = 0;
+    for (let batch = 0; batch < SWEEP_MAX_BATCHES && !stopped; batch += 1) {
+      const deleted = await dispatcher.sweepExpiredIdempotencyKeys(SWEEP_BATCH);
+      swept += deleted;
+      if (deleted < SWEEP_BATCH) break;
+    }
     logger.info({ swept }, 'idempotency keys swept');
   };
 

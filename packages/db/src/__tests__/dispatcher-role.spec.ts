@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { TENANT, seedTwoTenants } from '../../test/tenancy-fixtures.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
-import { createOutboxDispatcherDatabase } from '../index.ts';
+import { createDatabase, createOutboxDispatcherDatabase } from '../index.ts';
 
 // ADR-0003 §3: pospay_dispatcher reads outbox across tenants and nothing else, may change only the delivery
 // metadata, and runs the idempotency sweep through its one SECURITY DEFINER function.
@@ -121,6 +121,24 @@ describe('the idempotency sweep', () => {
       );
     } finally {
       await appSql.end();
+    }
+  });
+});
+
+describe('the application ping', () => {
+  it('is ready only as pospay_app — another restricted role is refused', async () => {
+    const app = createDatabase({ url: testDb.appUrl, ids: { newId: () => EVENT } });
+    const auth = createDatabase({ url: testDb.authUrl, ids: { newId: () => EVENT } });
+    const dispatcherAsApp = createDatabase({
+      url: testDb.dispatcherUrl,
+      ids: { newId: () => EVENT },
+    });
+    try {
+      await expect(app.ping()).resolves.toBeUndefined();
+      await expect(auth.ping()).rejects.toThrow(/must connect as pospay_app/);
+      await expect(dispatcherAsApp.ping()).rejects.toThrow(/must connect as pospay_app/);
+    } finally {
+      await Promise.all([app.close(), auth.close(), dispatcherAsApp.close()]);
     }
   });
 });
