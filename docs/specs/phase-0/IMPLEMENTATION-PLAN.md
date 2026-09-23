@@ -659,6 +659,16 @@ images, which T13 activates (T12a made the first check required before T5); and
 a PR violating a module boundary, adding an undeclared arrow, or making a second synchronous
 cross-module write is blocked by CI.
 
+**As built:** `ci.yml` runs the gates as separate steps in this order — typecheck → lint (max-lines + boundaries) →
+lint:docs → cycles · module-map → unit (domain) → integration · RLS negative · EXPLAIN → build all apps — inside the
+one job `ci-gate` requires, so branch protection needs no new check. `scripts/module-map/`: `pnpm module-map:generate`
+writes `docs/module-map.yaml` from the §6 block; `pnpm module-map:check` fails on a stale YAML, a deep import, an
+undeclared arrow, a restricted package outside its owners, a cycle, or any cross-module **value** import that is not
+the declared `sync_writes` entry (or a declared `reads` entry) for that exact file — so a second synchronous write
+cannot land without a row in §3.1. `node --test scripts/module-map` proves each of those blocks, and lints violating
+files through the API's real ESLint config (http → domain, a deep import) to prove the boundaries rules block too.
+Docker images remain T13.
+
 ---
 
 ### T13 — Staging deploy + backups · Size L · depends: T9b, T10, T11, T12b
