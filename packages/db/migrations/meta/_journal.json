@@ -50,6 +50,20 @@
       "when": 1790150433362,
       "tag": "0006_2026-09-23_outbox-dispatcher-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790156643631,
+      "tag": "0007_2026-09-23_identity-auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790156653411,
+      "tag": "0008_2026-09-23_identity-auth-grants",
+      "breakpoints": true
     }
   ]
 }

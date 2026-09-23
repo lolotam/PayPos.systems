@@ -1,0 +1,188 @@
+import { createUuidV7, systemUuidV7 } from '@pospay/ids';
+import postgres from 'postgres';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+
+import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
+import { createAuth, type AuthLogEntry, type AuthOptions, type AuthService } from '../index.ts';
+
+// T9a-1: a real login produces a session, on pospay_auth, with sign-up closed and nothing stored in clear.
+const BASE = 'http://api.test';
+const ORIGIN = 'http://admin.test';
+const PASSWORD = 'correct-horse-battery';
+let testDb: TestDatabase;
+let auth: AuthService;
+let owner: postgres.Sql;
+const logged: AuthLogEntry[] = [];
+
+const optionsFor = (databaseUrl: string): AuthOptions => ({
+  databaseUrl,
+  secret: 'test-secret-that-is-long-enough-for-hmac',
+  baseURL: BASE,
+  trustedOrigins: [ORIGIN],
+  ids: systemUuidV7(),
+  secureCookies: false,
+  onLog: (entry) => logged.push(entry),
+});
+
+beforeAll(async () => {
+  testDb = await createTestDatabase();
+  auth = await createAuth(optionsFor(testDb.authUrl));
+  owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+});
+
+afterAll(async () => {
+  await auth.close();
+  await owner.end();
+  await testDb.drop();
+});
+
+const post = (path: string, body: unknown, cookie?: string) =>
+  auth.handler(
+    new Request(`${BASE}/v1/auth${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: ORIGIN,
+        ...(cookie === undefined ? {} : { cookie }),
+      },
+      body: JSON.stringify(body),
+    }),
+  );
+const cookieOf = (response: Response): string =>
+  response.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0])
+    .join('; ');
+
+describe('provisioning', () => {
+  it('stores a hash, never the password, under a UUID v7 id', async () => {
+    const id = await auth.provisionUser({
+      email: 'Owner@Example.test',
+      name: 'Owner',
+      password: PASSWORD,
+    });
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7/);
+    const [row] = await owner`
+      SELECT u.email, a.password FROM "user" u JOIN account a ON a.user_id = u.id WHERE u.id = ${id}`;
+    expect(row?.['email']).toBe('owner@example.test');
+    expect(String(row?.['password'])).not.toContain(PASSWORD);
+  });
+
+  it('keeps sign-up closed — users come only from the operator path', async () => {
+    const response = await post('/sign-up/email', {
+      email: 'x@example.test',
+      name: 'X',
+      password: PASSWORD,
+    });
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(await owner`SELECT 1 FROM "user" WHERE email = 'x@example.test'`).toHaveLength(0);
+  });
+});
+
+describe('login', () => {
+  it('a real login produces a session that getSession verifies, and sign-out ends it', async () => {
+    const id = await auth.provisionUser({
+      email: 'login@example.test',
+      name: 'Login',
+      password: PASSWORD,
+    });
+    const signIn = await post('/sign-in/email', {
+      email: 'login@example.test',
+      password: PASSWORD,
+    });
+    expect(signIn.status).toBe(200);
+    const cookie = cookieOf(signIn);
+    expect(cookie).toContain('pospay.session_token=');
+    const session = await auth.getSession(new Headers({ cookie }));
+    expect(session?.userId).toBe(id);
+    expect((await post('/sign-out', {}, cookie)).status).toBe(200);
+    expect(await auth.getSession(new Headers({ cookie }))).toBeNull();
+  });
+
+  it('a wrong password is refused and sets no session', async () => {
+    await auth.provisionUser({ email: 'wrong@example.test', name: 'Wrong', password: PASSWORD });
+    const response = await post('/sign-in/email', {
+      email: 'wrong@example.test',
+      password: 'not-the-password',
+    });
+    expect(response.status).toBe(401);
+    expect(response.headers.getSetCookie()).toEqual([]);
+  });
+
+  it('a forged or missing cookie is no session', async () => {
+    expect(await auth.getSession(new Headers())).toBeNull();
+    expect(
+      await auth.getSession(new Headers({ cookie: 'pospay.session_token=forged.value' })),
+    ).toBeNull();
+  });
+});
+
+describe('the auth database', () => {
+  it('answers as pospay_auth, and refuses to start on any other role — the owner included', async () => {
+    await expect(auth.ping()).resolves.toBeUndefined();
+    await expect(createAuth(optionsFor(testDb.appUrl))).rejects.toThrow(
+      /must connect as pospay_auth/,
+    );
+    await expect(createAuth(optionsFor(testDb.ownerUrl))).rejects.toThrow(
+      /must connect as pospay_auth/,
+    );
+  });
+
+  it('refuses a secret too short to sign cookies', async () => {
+    const ids = createUuidV7({ now: () => 1, fillRandom: () => undefined });
+    await expect(
+      createAuth({ ...optionsFor(testDb.authUrl), secret: 'short', ids }),
+    ).rejects.toThrow(/at least 32/);
+  });
+});
+
+describe('session renewal and library logging', () => {
+  it('logs a rejected callback by its phrase only — never the URL or a short secret in it', async () => {
+    await auth.provisionUser({ email: 'cb@example.test', name: 'Cb', password: PASSWORD });
+    logged.length = 0;
+    const response = await post('/sign-in/email', {
+      email: 'cb@example.test',
+      password: PASSWORD,
+      callbackURL: '//bad.test/?otp=123456',
+    });
+    expect(response.status).toBe(403);
+    expect(logged).toContainEqual(expect.objectContaining({ message: 'Invalid callbackURL' }));
+    expect(JSON.stringify(logged)).not.toMatch(/123456|bad\.test/);
+  });
+
+  const signedIn = async (email: string): Promise<string> => {
+    await auth.provisionUser({ email, name: 'Renew', password: PASSWORD });
+    return cookieOf(await post('/sign-in/email', { email, password: PASSWORD }));
+  };
+
+  it('returns the renewed cookie once the session is old enough to be extended', async () => {
+    const cookie = await signedIn('renew@example.test');
+    expect((await auth.getSession(new Headers({ cookie })))?.setCookies).toEqual([]);
+    await owner`UPDATE session SET expires_at = now() + interval '5 days'`;
+    const renewed = await auth.getSession(new Headers({ cookie }));
+    expect(renewed?.setCookies.some((c) => c.startsWith('pospay.session_token='))).toBe(true);
+  });
+
+  it('a database failure reaches onLog without the token, and nothing goes to the console', async () => {
+    const cookie = await signedIn('leak@example.test');
+    const token = /pospay\.session_token=([^.;]+)/.exec(cookie)?.[1] ?? '';
+    expect(token).not.toBe('');
+    const consoles = (['log', 'warn', 'error', 'info', 'debug'] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation(() => undefined),
+    );
+    logged.length = 0;
+    await owner`REVOKE SELECT ON session FROM pospay_auth`;
+    try {
+      await expect(auth.getSession(new Headers({ cookie }))).rejects.toThrow();
+      // Checked before mockRestore, which clears what the spies recorded.
+      consoles.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+    } finally {
+      await owner`GRANT SELECT ON session TO pospay_auth`;
+      consoles.forEach((spy) => spy.mockRestore());
+    }
+    expect(logged).toContainEqual(
+      expect.objectContaining({ level: 'error', message: 'INTERNAL_SERVER_ERROR' }),
+    );
+    expect(JSON.stringify(logged)).not.toContain(token);
+  });
+});

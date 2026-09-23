@@ -2,6 +2,7 @@
 // replaced by "log message withheld"; dynamic values belong in the log object's fields.
 export const API_LOG_EVENTS = [
   'api failed to start',
+  'auth library event',
   'redis connection error',
   'nest',
   'nest error',

@@ -4,3 +4,4 @@ export * from './outbox.ts';
 export * from './audit-log.ts';
 export * from './idempotency.ts';
 export * from './consumed-events.ts';
+export * from './identity-auth.ts';

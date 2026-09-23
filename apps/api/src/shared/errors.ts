@@ -8,6 +8,17 @@ const CATALOG = {
     en: 'The request is not valid',
   },
   BAD_REQUEST: { status: 400, ar: 'الطلب غير صالح', en: 'The request is malformed' },
+  UNAUTHENTICATED: {
+    status: 401,
+    ar: 'يجب تسجيل الدخول',
+    en: 'Authentication is required',
+  },
+  AUTHENTICATION_FAILED: {
+    status: 401,
+    ar: 'تعذّر تسجيل الدخول بهذه البيانات',
+    en: 'Authentication failed',
+  },
+  FORBIDDEN: { status: 403, ar: 'غير مسموح بهذا الإجراء', en: 'This action is not allowed' },
   NOT_FOUND: { status: 404, ar: 'المسار غير موجود', en: 'Not found' },
   METHOD_NOT_ALLOWED: { status: 405, ar: 'الطريقة غير مسموحة', en: 'Method not allowed' },
   PAYLOAD_TOO_LARGE: { status: 413, ar: 'حجم الطلب كبير جداً', en: 'Payload too large' },
@@ -16,6 +27,11 @@ const CATALOG = {
     status: 415,
     ar: 'نوع المحتوى غير مدعوم',
     en: 'Unsupported media type',
+  },
+  TOO_MANY_REQUESTS: {
+    status: 429,
+    ar: 'طلبات كثيرة، حاول بعد قليل',
+    en: 'Too many requests — try again shortly',
   },
   IDEMPOTENCY_KEY_REQUIRED: {
     status: 400,
@@ -50,6 +66,7 @@ export type ErrorCode = keyof typeof CATALOG;
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'VALIDATION_FAILED',
+  'AUTHENTICATION_FAILED',
   'IDEMPOTENCY_KEY_REQUIRED',
   'IDEMPOTENCY_KEY_IN_PROGRESS',
   'IDEMPOTENCY_KEY_REUSED',

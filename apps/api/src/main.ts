@@ -1,3 +1,4 @@
+import { createAuth, type AuthService } from '@pospay/auth';
 import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
@@ -12,6 +13,8 @@ const logger = createLogger(config.LOG_LEVEL, { events: API_LOG_EVENTS });
 
 // UUID v7 on the system clock and Web Crypto — bound to @pospay/db's IdGenerator here, at the composition root.
 const database = createDatabase({ url: config.DATABASE_URL, ids: systemUuidV7() });
+// Built inside the try below: createAuth refuses a pool that is not pospay_auth before anything listens.
+let auth: AuthService | undefined;
 
 // No offline queue: while Redis is down a command fails at once, so /ready reports it instead of hanging.
 const redis = new Redis(config.REDIS_URL, { enableOfflineQueue: false, maxRetriesPerRequest: 1 });
@@ -30,16 +33,34 @@ const release = async (): Promise<void> => {
   const deadline = new Promise<void>((resolve) => {
     timer = setTimeout(resolve, RELEASE_DEADLINE_MS);
   });
-  await Promise.race([Promise.allSettled([database.close(), redis.quit()]), deadline]);
+  await Promise.race([
+    Promise.allSettled([database.close(), auth?.close(), redis.quit()]),
+    deadline,
+  ]);
   clearTimeout(timer);
   redis.disconnect();
 };
 
 try {
+  auth = await createAuth({
+    databaseUrl: config.AUTH_DATABASE_URL,
+    secret: config.BETTER_AUTH_SECRET,
+    baseURL: config.BETTER_AUTH_URL,
+    trustedOrigins: config.AUTH_TRUSTED_ORIGINS,
+    ids: systemUuidV7(),
+    secureCookies: config.BETTER_AUTH_URL.startsWith('https:'),
+    cookieDomain: config.COOKIE_DOMAIN,
+    // Already stripped of error objects and long values inside packages/auth.
+    onLog: ({ level, message, errorNames }) => {
+      logger[level]({ auth: { message, errorNames } }, 'auth library event');
+    },
+  });
+  const service = auth;
   const app = await createApp(
     {
       readiness: [
         { name: 'database', check: () => database.ping() },
+        { name: 'auth', check: () => service.ping() },
         {
           name: 'redis',
           check: async () => {
@@ -48,6 +69,8 @@ try {
         },
       ],
       onShutdown: release,
+      auth: { service, baseURL: config.BETTER_AUTH_URL },
+      corsOrigins: config.AUTH_TRUSTED_ORIGINS,
     },
     { logger },
   );

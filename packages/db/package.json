@@ -6,8 +6,8 @@
   "description": "The only sanctioned path to PostgreSQL — withTenant / withUser / withNewTenant over Drizzle, roles bootstrap and migrations",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
     }
   },
   "scripts": {

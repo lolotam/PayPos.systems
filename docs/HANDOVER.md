@@ -117,17 +117,20 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 | T5 tenancy schema + RLS suite | ✅ done | PR #21 — ADR-0007, closed #16 |
 | T6b `apps/api` foundation | ✅ done | PR #22 — ADR-0008 |
 | T7 write primitives (outbox, audit_log, idempotency, `packages/ids`, `Clock`) | ✅ done | PR #23 |
-| T7b worker + outbox dispatcher | 🟡 **PR open** | plan v4 T7b "As built" |
-| **T9a-1…4** (next) → **T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
+| T7b worker + outbox dispatcher | ✅ done | PR #24 |
+| T9a-1 Better Auth, `pospay_auth` pool, session guard | 🟡 **PR open** | ADR-0009 |
+| **T9a-2…4** (next) → **T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
 
 **Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → T9a-1 → T9a-2 → T9a-3 → T9a-4 → T8 → T9b → T12b → T13.
 
-### 4.1 Next action — finish T7b, then T9a-1
+### 4.1 Next action — finish T9a-1, then T9a-2
 
-- T7b: get the PR through Codex (CLI + GitHub) and merge it.
+- T9a-1: get the PR through Codex and merge it. The GitHub Codex bot hit its usage limit on 2026-09-23; the Codex
+  CLI review (gpt-6-astra, high) plus green gates is the merge bar until credits are added.
+- Every `.env` needs `AUTH_DATABASE_URL`, `BETTER_AUTH_SECRET` (32+), `BETTER_AUTH_URL`, `AUTH_TRUSTED_ORIGINS`.
 - Every developer's `.env` needs `POSTGRES_DISPATCHER_PASSWORD` (16+ chars) and `DISPATCHER_DATABASE_URL` before
   `pnpm db:migrate` / `pnpm test`.
-- T9a-1 per plan v4 (Better Auth, identity tables in ADR-0003 §2.1).
+- T9a-2 per plan v4: memberships / roles / permissions / overrides, `@Require` with DENY-wins, `@RequiresFeature`.
 - Local dev database: its `0001`/`0002` tenancy migrations predate ADR-0007 and must be reset (drop + `pnpm db:migrate`
   + `pnpm db:seed`) — ask Waleed first; it holds only the seeded plan. Tests use cloned databases and are unaffected.
 

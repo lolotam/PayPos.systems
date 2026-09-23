@@ -9,10 +9,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createLogger } from '@pospay/observability';
 
 import { createApp } from '../../app.ts';
+import { Public } from '../public.decorator.ts';
 import { ZodValidationPipe } from '../zod-validation.pipe.ts';
 import { API_LOG_EVENTS } from '../log-events.ts';
 
 // Test-only routes: a contract-validated body, a deliberate crash, and a route that logs secrets.
+// Public: this probe tests the envelope and idempotency mechanics, not authentication.
+@Public()
 @Controller('probe')
 class ProbeController {
   @Post('business')

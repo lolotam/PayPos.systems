@@ -30,8 +30,29 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'outbox:INSERT',
     'plans:SELECT',
   ],
-  // Global identity tables (ADR-0003 §2.1) arrive in T9a; until then pospay_auth holds no table grant.
-  pospay_auth: [],
+  // Global identity (ADR-0003 §2.1): Better Auth's tables, and nothing else.
+  pospay_auth: [
+    'account:DELETE',
+    'account:INSERT',
+    'account:SELECT',
+    'account:UPDATE',
+    'session:DELETE',
+    'session:INSERT',
+    'session:SELECT',
+    'session:UPDATE',
+    'two_factor:DELETE',
+    'two_factor:INSERT',
+    'two_factor:SELECT',
+    'two_factor:UPDATE',
+    'user:DELETE',
+    'user:INSERT',
+    'user:SELECT',
+    'user:UPDATE',
+    'verification:DELETE',
+    'verification:INSERT',
+    'verification:SELECT',
+    'verification:UPDATE',
+  ],
   // Cross-tenant reader of outbox only (ADR-0003 §3); its UPDATE is column-level, listed in OUTBOX_COLUMN_GRANTS.
   pospay_dispatcher: ['outbox:SELECT'],
 };
@@ -54,6 +75,7 @@ const TENANT_TABLES = [
   'consumed_events',
 ];
 const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
+const IDENTITY_TABLES = ['user', 'session', 'account', 'verification', 'two_factor'];
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -189,6 +211,17 @@ describe('no application role can switch to another role', () => {
 });
 
 describe('effective access', () => {
+  it('neither pospay_app nor pospay_dispatcher can reach a global-identity table', async () => {
+    const rows = await withClusterRoleLock(
+      'shared',
+      () => owner<{ role: string; table: string }[]>`
+      SELECT r AS role, t AS table
+      FROM unnest(${['pospay_app', 'pospay_dispatcher']}::text[]) AS r, unnest(${IDENTITY_TABLES}::text[]) AS t
+      WHERE has_table_privilege(r, quote_ident(t), 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
+    );
+    expect(rows).toEqual([]);
+  });
+
   it('pospay_auth reaches no tenant table and no reference table', async () => {
     const rows = await withClusterRoleLock(
       'shared',
