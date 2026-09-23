@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import templates from '../../seed/vertical-templates.json' with { type: 'json' };
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
-import { OWNER_ROLE_ID, PERMISSIONS, SYSTEM_ROLES } from '../access-catalog.ts';
+import { OWNER_ROLE_ID, PERMISSIONS, PLATFORM_ROLES, SYSTEM_ROLES } from '../access-catalog.ts';
 import { FEATURE_FLAGS, seedReferenceData } from '../seed.ts';
 
 let testDb: TestDatabase;
@@ -45,6 +45,15 @@ describe('seedReferenceData', () => {
     expect(owned.map((r) => r.permission_code)).toEqual(
       PERMISSIONS.filter((p) => !p.endsWith(':platform')).sort(),
     );
+  });
+
+  it('seeds the five provisional platform roles into platform_roles, never into the tenant roles table', async () => {
+    await seedReferenceData(testDb.ownerUrl);
+    const platform = await owner<{ code: string }[]>`SELECT code FROM platform_roles ORDER BY code`;
+    expect(platform.map((r) => r.code)).toEqual(PLATFORM_ROLES.map((r) => r.code).sort());
+    const leaked = await owner`
+      SELECT 1 FROM roles WHERE code = ANY(${PLATFORM_ROLES.map((r) => r.code)}::text[])`;
+    expect(leaked).toHaveLength(0);
   });
 
   it('creates no company — an owner-less company is forbidden (ADR-0003 §5.3)', async () => {

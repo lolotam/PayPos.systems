@@ -39,7 +39,10 @@ export const user = pgTable(
   (t) => [
     uniqueIndex('user_email_key').on(t.email),
     uniqueIndex('user_phone_number_key').on(t.phoneNumber),
-    check('user_phone_number_e164', sql`${t.phoneNumber} IS NULL OR ${t.phoneNumber} ~ '^[+][1-9][0-9]{6,14}$'`),
+    check(
+      'user_phone_number_e164',
+      sql`${t.phoneNumber} IS NULL OR ${t.phoneNumber} ~ '^[+][1-9][0-9]{6,14}$'`,
+    ),
     check('user_email_length', sql`char_length(${t.email}) BETWEEN 3 AND 320`),
     check('user_name_length', sql`char_length(${t.name}) BETWEEN 1 AND 255`),
   ],

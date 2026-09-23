@@ -60,14 +60,14 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   { id: '01920000-0000-7000-8000-00000000010d', code: 'viewer', nameEn: 'Viewer' },
 ];
 
-// TODO(spec): the platform staff roles (PRD P0-T9b.4, D-07) — codes seeded now in the catalogue, unused until the
-// Platform module (Phase 5) gives them permissions. Platform authority today is platform_grants alone (ADR-0003 §3).
-export const PLATFORM_ROLE_CODES = [
-  'super_admin',
-  'support',
-  'billing',
-  'developer',
-  'break_glass',
+// TODO(spec): the platform staff roles (PRD P0-T9b.4, D-07) — seeded into platform_roles (never the tenant roles
+// table), with no permissions until the Platform module (Phase 5). Platform authority today is platform_grants alone.
+export const PLATFORM_ROLES = [
+  { code: 'super_admin', nameEn: 'Super Admin' },
+  { code: 'support', nameEn: 'Support' },
+  { code: 'billing', nameEn: 'Billing' },
+  { code: 'developer', nameEn: 'Developer' },
+  { code: 'break_glass', nameEn: 'Break-glass' },
 ] as const;
 
 export const OWNER_ROLE_ID = '01920000-0000-7000-8000-000000000101';

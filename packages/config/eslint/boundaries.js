@@ -1,5 +1,7 @@
 import boundaries from 'eslint-plugin-boundaries';
 
+import { CREDENTIAL_PATHS, CREDENTIAL_PATTERNS } from './credentials.js';
+
 /**
  * Layer rules inside a backend module — CLAUDE.md §2.2 and §4.2.
  * Every layer is an element; `default: 'disallow'` means any arrow not listed here fails lint.
@@ -131,13 +133,16 @@ export const boundariesConfig = [
           checkGlobalObject: true,
         },
       ],
+      // This replaces the base rule for use-cases/, so the credential ban is composed back in, not dropped.
       'no-restricted-imports': [
         'error',
         {
+          paths: CREDENTIAL_PATHS,
           patterns: [
+            ...CREDENTIAL_PATTERNS,
             {
               regex:
-                '^(drizzle-orm|@nestjs/platform-.*|bullmq|ioredis|axios|node:.*|@pospay/db|bcrypt|bcryptjs|argon2|@node-rs/.*|scrypt-js|better-auth|@better-auth/.*|@noble/hashes)(/.*)?$',
+                '^(drizzle-orm|@nestjs/platform-.*|bullmq|ioredis|axios|node:.*|@pospay/db)(/.*)?$',
               message: 'use-cases/ reach infrastructure only through ports/ (CLAUDE.md §4.2).',
             },
           ],

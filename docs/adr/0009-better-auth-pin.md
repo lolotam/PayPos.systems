@@ -61,7 +61,9 @@ here (`CLAUDE.md` §11: a new library needs an ADR).
   Installing it before the public API (P5-T7) would add an unused dependency and supply-chain surface for two phases,
   so it is pinned (same version as `better-auth`) and its `apikey` table (with the fixed `company_id`, ADR-0003 §4 path
   C) created in P5-T7.
-- **Only `packages/auth` hashes:** ESLint refuses `bcrypt`, `bcryptjs`, `argon2`, `@node-rs/argon2`,
-  `@node-rs/bcrypt`, `scrypt-js`, `@noble/hashes` scrypt/argon2, `node:crypto` `scrypt`/`pbkdf2` and `better-auth` /
-  `@better-auth/*` everywhere except `packages/auth` (`allowDatabaseFacade('createAuthDatabase', { credentials: true })`),
-  including `use-cases/`, whose own import rule would otherwise replace the ban.
+- **Only `packages/auth` hashes:** `packages/config/eslint/credentials.js` lists what could hash a password or a PIN
+  — `bcrypt`, `bcryptjs`, `argon2`, `@node-rs/argon2*`, `@node-rs/bcrypt*`, `scrypt-js`, `@noble/hashes` scrypt /
+  argon2 / pbkdf2, `better-auth` and `@better-auth/*`, and from `node:crypto` / `crypto` the `scrypt`, `pbkdf2` and
+  `argon2` functions plus default and namespace imports (either reaches them). ESLint refuses them in static imports,
+  `import()` and `require()` everywhere except `packages/auth` (`allowDatabaseFacade('createAuthDatabase',
+  { credentials: true })`); the `use-cases/` rule, which replaces the base import rule, composes the same list back in.

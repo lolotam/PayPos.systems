@@ -4,6 +4,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 import { boundariesConfig } from './boundaries.js';
+import { CREDENTIAL_PATHS, CREDENTIAL_PATTERNS, CREDENTIAL_SYNTAX } from './credentials.js';
 import { jsdocConfig } from './jsdoc.js';
 
 const sizeLimitExcludes = [
@@ -20,33 +21,6 @@ const FACADES = {
   createOutboxDispatcherDatabase:
     'the pospay_dispatcher facade belongs to apps/worker (ADR-0003 §3).',
 };
-// CLAUDE.md §8, plan T9b: only packages/auth issues or verifies a session, hashes a password or hashes a PIN. The
-// hashing libraries, the password-grade node:crypto functions and Better Auth itself are refused everywhere else.
-const CREDENTIALS = 'hashing a password or a PIN, and Better Auth itself, belong to packages/auth (CLAUDE.md §8).';
-export const CREDENTIAL_PACKAGES = [
-  'bcrypt',
-  'bcryptjs',
-  'argon2',
-  '@node-rs/argon2',
-  '@node-rs/bcrypt',
-  'scrypt-js',
-  'better-auth',
-];
-const CREDENTIAL_PATHS = [
-  ...CREDENTIAL_PACKAGES.map((name) => ({ name, message: CREDENTIALS })),
-  ...['node:crypto', 'crypto'].map((name) => ({
-    name,
-    importNames: ['scrypt', 'scryptSync', 'pbkdf2', 'pbkdf2Sync'],
-    message: CREDENTIALS,
-  })),
-];
-const CREDENTIAL_PATTERNS = [
-  {
-    group: ['better-auth/*', '@better-auth/*', '@noble/hashes/scrypt*', '@noble/hashes/argon2*'],
-    message: CREDENTIALS,
-  },
-];
-
 const facadeRule = (allowed, credentials = false) => [
   'error',
   {
@@ -96,6 +70,7 @@ export const config = tseslint.config(
       // (@pospay/observability) can redact it. The logger also withholds messages that look like data.
       'no-restricted-syntax': [
         'error',
+        ...CREDENTIAL_SYNTAX,
         {
           selector:
             'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > TemplateLiteral[expressions.length>0]',
