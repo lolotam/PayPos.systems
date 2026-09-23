@@ -70,6 +70,17 @@ describe('pospay_dispatcher', () => {
 });
 
 describe('the facade refuses any other role', () => {
+  it('ping() answers as pospay_dispatcher and refuses any other role — /ready uses it', async () => {
+    const right = createOutboxDispatcherDatabase({ url: testDb.dispatcherUrl });
+    const wrong = createOutboxDispatcherDatabase({ url: testDb.appUrl });
+    try {
+      await expect(right.ping()).resolves.toBeUndefined();
+      await expect(wrong.ping()).rejects.toThrow(/must connect as pospay_dispatcher/);
+    } finally {
+      await Promise.all([right.close(), wrong.close()]);
+    }
+  });
+
   it('pospay_app behind the dispatcher facade is refused before any work', async () => {
     const wrong = createOutboxDispatcherDatabase({ url: testDb.appUrl });
     try {

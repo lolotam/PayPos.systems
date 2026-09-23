@@ -33,6 +33,8 @@ try {
     {
       readiness: [
         { name: 'database', check: () => app.ping() },
+        // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
+        { name: 'dispatcher', check: () => dispatcher.ping() },
         {
           name: 'redis',
           check: async () => {

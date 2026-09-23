@@ -18,7 +18,7 @@ const EVENT: ClaimedEvent = {
   aggregateId: '01990000-0000-7000-8000-0000000000a1',
   eventType: 'BusinessCreated',
   payload: { secret_token: 'tok_payload_leak' },
-  attempts: 0,
+  attempt: 1,
 };
 
 const harness = (firstTime = true) => {
@@ -95,7 +95,7 @@ describe('createDeliverer', () => {
     const failing = consumer('a.one', ['BusinessCreated'], async () => {
       throw new Error('still failing');
     });
-    const last = { ...EVENT, attempts: MAX_ATTEMPTS - 1 };
+    const last = { ...EVENT, attempt: MAX_ATTEMPTS };
     expect(await createDeliverer(app, [failing], logger)(last)).toEqual({
       delivered: false,
       error: 'Error',
@@ -105,6 +105,22 @@ describe('createDeliverer', () => {
       level: 50,
       msg: 'outbox event parked',
       attempt: 10,
+    });
+  });
+});
+
+describe('a delivery that hangs', () => {
+  it('counts as a failed attempt after the timeout instead of holding the batch', async () => {
+    const { app, logger } = harness();
+    const hanging = consumer(
+      'a.one',
+      ['BusinessCreated'],
+      () => new Promise<undefined>(() => undefined),
+    );
+    expect(await createDeliverer(app, [hanging], logger, 20)(EVENT)).toEqual({
+      delivered: false,
+      error: 'TimeoutError',
+      retryInMs: retryDelayMs(1),
     });
   });
 });

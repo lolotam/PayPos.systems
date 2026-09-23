@@ -103,3 +103,33 @@ describe('sweeping and failures', () => {
     expect(sweeps).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('a sustained backlog', () => {
+  it('still sweeps expired idempotency keys between full batches', async () => {
+    let clock = 0;
+    let sweeps = 0;
+    const loop = createDispatchLoop({
+      dispatcher: {
+        // Real batches do I/O; the yield keeps this fake from starving the timers the test waits on.
+        dispatchBatch: async () => {
+          await new Promise((done) => setImmediate(done));
+          clock += 60_000;
+          return 50;
+        },
+        sweepExpiredIdempotencyKeys: async () => {
+          sweeps += 1;
+          return 0;
+        },
+      },
+      deliver,
+      logger,
+      batchSize: 50,
+      sweepIntervalMs: 10 * 60 * 1000,
+      now: () => clock,
+    });
+    loop.start();
+    await until(() => sweeps >= 2);
+    await loop.stop();
+    expect(sweeps).toBeGreaterThanOrEqual(2);
+  });
+});

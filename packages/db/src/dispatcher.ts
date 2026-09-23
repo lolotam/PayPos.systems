@@ -12,8 +12,8 @@ export interface ClaimedEvent {
   readonly aggregateId: string;
   readonly eventType: string;
   readonly payload: unknown;
-  /** عدد المحاولات اللي فاتت قبل المحاولة دي. */
-  readonly attempts: number;
+  /** رقم المحاولة دي، من 1 — بيتحسب وقت الـ claim، فحتى المحاولة اللي وقعت في النص بتتعد. */
+  readonly attempt: number;
 }
 
 /**
@@ -24,15 +24,17 @@ export type DeliveryOutcome =
   | { readonly delivered: false; readonly error: string; readonly retryInMs: number | null };
 
 /**
- * الـ facade المحدود بتاع الـ dispatcher (ADR-0003 §3): ياخد batch، يسجّل النتيجة، ينضّف مفاتيح الـ idempotency
- * القديمة، ويقفل الـ pool — ومفيش أي طريقة تانية يوصل بيها لأي جدول.
+ * الـ facade المحدود بتاع الـ dispatcher (ADR-0003 §3): ياخد batch ويوصّله ويسجّل النتيجة، ينضّف مفاتيح
+ * الـ idempotency القديمة، يتأكد إن الاتصال شغال، ويقفل الـ pool — ومفيش أي طريقة تانية يوصل بيها لأي جدول.
  */
 export interface OutboxDispatcherDatabase {
   dispatchBatch(
     limit: number,
     deliver: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
+    options?: { leaseMs?: number },
   ): Promise<number>;
   sweepExpiredIdempotencyKeys(batchSize: number): Promise<number>;
+  ping(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -47,32 +49,59 @@ interface Row extends Record<string, unknown> {
 }
 
 const MAX_BATCH = 100;
+const DEFAULT_LEASE_MS = 5 * 60 * 1000;
 
-// أقدم event لسه متنشرش لكل aggregate بس (الترتيب per aggregate — Waleed، 2026-09-23): لو فيه event أقدم لنفس
-// الـ aggregate لسه متنشرش — مستني retry أو parked — اللي بعده مبيتاخدش. SKIP LOCKED بيخلي dispatcherين مع بعض
-// ياخدوا batches مختلفة من غير ما حد يستنى التاني، والـ lock بيفضل لحد ما النتيجة تتسجل في نفس الـ transaction.
-const claimQuery = (limit: number) => sql`
-  SELECT o.company_id, o.id, o.aggregate_type, o.aggregate_id, o.event_type, o.payload, o.attempts
-  FROM outbox o
-  WHERE o.published_at IS NULL AND o.parked_at IS NULL AND o.next_attempt_at <= now()
-    AND NOT EXISTS (
-      SELECT 1 FROM outbox e
-      WHERE e.company_id = o.company_id AND e.aggregate_type = o.aggregate_type
-        AND e.aggregate_id = o.aggregate_id AND e.published_at IS NULL
-        AND (e.created_at, e.id) < (o.created_at, o.id))
-  ORDER BY o.created_at, o.id
-  LIMIT ${limit}
-  FOR UPDATE OF o SKIP LOCKED`;
+// الـ claim بيتعمل commit على طول، مش بيفضل مفتوح طول التوصيل: consumer واقف كان هيمنع الـ batch يسجّل أي نتيجة،
+// والمحاولة مكانتش هتتعد فمكانش هيوصل لحد الـ parking أبداً. فالـ claim بيعد المحاولة ويحجز الـ event لمدة lease
+// (next_attempt_at)، ولو الـ dispatcher وقع الـ lease بيخلص والـ event بيتوصل تاني.
+// بياخد أقدم event لسه متنشرش لكل aggregate بس، بالـ seq (ترتيب الإدخال) مش created_at (بداية الـ transaction).
+// اللي بعده لنفس الـ aggregate مبيتاخدش طول ما ده متنشرش — محجوز أو مستني retry أو parked.
+const claimQuery = (limit: number, leaseMs: number) => sql`
+  WITH heads AS (
+    SELECT o.company_id, o.id FROM outbox o
+    WHERE o.published_at IS NULL AND o.parked_at IS NULL AND o.next_attempt_at <= clock_timestamp()
+      AND NOT EXISTS (
+        SELECT 1 FROM outbox e
+        WHERE e.company_id = o.company_id AND e.aggregate_type = o.aggregate_type
+          AND e.aggregate_id = o.aggregate_id AND e.published_at IS NULL AND e.seq < o.seq)
+    ORDER BY o.seq
+    LIMIT ${limit}
+    FOR UPDATE OF o SKIP LOCKED)
+  UPDATE outbox o
+  SET attempts = o.attempts + 1,
+      next_attempt_at = clock_timestamp() + ${`${leaseMs} milliseconds`}::interval
+  FROM heads h
+  WHERE o.company_id = h.company_id AND o.id = h.id
+  RETURNING o.company_id, o.id, o.aggregate_type, o.aggregate_id, o.event_type, o.payload, o.attempts`;
 
+// clock_timestamp(): وقت التسجيل الفعلي، فالـ backoff بيبدأ من لحظة الفشل. published_at IS NULL: لو الـ lease خلص
+// و dispatcher تاني وصّل الـ event، نتيجة متأخرة من الأول متلغيش النشر.
 const recordQuery = (event: ClaimedEvent, outcome: DeliveryOutcome) =>
   outcome.delivered
-    ? sql`UPDATE outbox SET published_at = now(), attempts = attempts + 1, last_error = NULL
-          WHERE company_id = ${event.companyId} AND id = ${event.id}`
+    ? sql`UPDATE outbox SET published_at = clock_timestamp(), last_error = NULL
+          WHERE company_id = ${event.companyId} AND id = ${event.id} AND published_at IS NULL`
     : sql`UPDATE outbox
-          SET attempts = attempts + 1, last_error = ${outcome.error.slice(0, 500)},
-              next_attempt_at = now() + ${`${outcome.retryInMs ?? 0} milliseconds`}::interval,
-              parked_at = ${outcome.retryInMs === null ? sql`now()` : sql`NULL`}
-          WHERE company_id = ${event.companyId} AND id = ${event.id}`;
+          SET last_error = ${outcome.error.slice(0, 500)},
+              next_attempt_at = clock_timestamp() + ${`${outcome.retryInMs ?? 0} milliseconds`}::interval,
+              parked_at = ${outcome.retryInMs === null ? sql`clock_timestamp()` : sql`NULL`}
+          WHERE company_id = ${event.companyId} AND id = ${event.id} AND published_at IS NULL`;
+
+const toEvent = (row: Row): ClaimedEvent => ({
+  companyId: row.company_id,
+  id: row.id,
+  aggregateType: row.aggregate_type,
+  aggregateId: row.aggregate_id,
+  eventType: row.event_type,
+  payload: row.payload,
+  attempt: row.attempts,
+});
+
+const validate = (limit: number, leaseMs: number): void => {
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_BATCH) {
+    throw new TypeError(`limit must be 1–${MAX_BATCH}`);
+  }
+  if (!Number.isInteger(leaseMs) || leaseMs < 1) throw new TypeError('leaseMs must be > 0');
+};
 
 /**
  * بيفتح pool على pospay_dispatcher ويرجّع الـ facade بس — الـ client بيفضل جوه الـ closure (CLAUDE.md §5).
@@ -93,8 +122,8 @@ export function createOutboxDispatcherDatabase(options: {
   });
   const db = drizzle(client);
 
-  const assertRole = async (tx: { execute: typeof db.execute }) => {
-    const [row] = await tx.execute<{ role: string; privileged: boolean }>(sql`
+  const assertRole = async (runner: { execute: typeof db.execute }): Promise<void> => {
+    const [row] = await runner.execute<{ role: string; privileged: boolean }>(sql`
       SELECT current_user AS role,
              (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) AS privileged`);
     if (row?.role !== 'pospay_dispatcher' || row.privileged !== false) {
@@ -103,35 +132,25 @@ export function createOutboxDispatcherDatabase(options: {
   };
 
   return {
-    dispatchBatch: (limit, deliver) => {
-      if (!Number.isInteger(limit) || limit < 1 || limit > MAX_BATCH) {
-        return Promise.reject(new TypeError(`limit must be 1–${MAX_BATCH}`));
-      }
-      return db.transaction(async (tx) => {
+    dispatchBatch: async (limit, deliver, dispatchOptions = {}) => {
+      const leaseMs = dispatchOptions.leaseMs ?? DEFAULT_LEASE_MS;
+      validate(limit, leaseMs);
+      const rows = await db.transaction(async (tx) => {
         await assertRole(tx);
-        const rows = await tx.execute<Row>(claimQuery(limit));
-        const events: ClaimedEvent[] = rows.map((row) => ({
-          companyId: row.company_id,
-          id: row.id,
-          aggregateType: row.aggregate_type,
-          aggregateId: row.aggregate_id,
-          eventType: row.event_type,
-          payload: row.payload,
-          attempts: row.attempts,
-        }));
-        // One event per aggregate per batch, so deliveries run side by side. `deliver` reports a consumer's failure
-        // as an outcome; a throw means the dispatcher itself failed (a crash) and rolls the batch back unrecorded:
-        // every event in it is redelivered, and the consumers' dedupe rows stop committed effects applying twice.
-        // allSettled: the batch ends only when every delivery has, so none is still running after the rollback.
-        const settled = await Promise.allSettled(events.map((event) => deliver(event)));
-        const crashed = settled.find((result) => result.status === 'rejected');
-        if (crashed !== undefined) throw crashed.reason;
-        for (const [index, event] of events.entries()) {
-          const result = settled[index];
-          if (result?.status === 'fulfilled') await tx.execute(recordQuery(event, result.value));
-        }
-        return events.length;
+        return tx.execute<Row>(claimQuery(limit, leaseMs));
       });
+      const events = rows.map(toEvent);
+      // One event per aggregate per batch, so deliveries run side by side. `deliver` reports a consumer's
+      // failure as an outcome; a throw means the dispatcher itself failed (a crash): that event stays leased
+      // and is redelivered when the lease ends, while the other outcomes are still recorded.
+      const settled = await Promise.allSettled(events.map((event) => deliver(event)));
+      for (const [index, event] of events.entries()) {
+        const result = settled[index];
+        if (result?.status === 'fulfilled') await db.execute(recordQuery(event, result.value));
+      }
+      const crashed = settled.find((result) => result.status === 'rejected');
+      if (crashed !== undefined) throw crashed.reason;
+      return events.length;
     },
     sweepExpiredIdempotencyKeys: async (batchSize) => {
       const [row] = await db.transaction(async (tx) => {
@@ -142,6 +161,8 @@ export function createOutboxDispatcherDatabase(options: {
       });
       return row?.swept ?? 0;
     },
+    // /ready: the connection answers AND it is the dispatcher role — a wrong URL or password is not ready.
+    ping: () => assertRole(db),
     close: () => client.end({ timeout: 5 }),
   };
 }

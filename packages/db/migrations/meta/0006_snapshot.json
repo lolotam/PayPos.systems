@@ -1,6 +1,6 @@
 {
-  "id": "d2ea8ad1-526a-481e-bc40-3f2d1967c07d",
-  "prevId": "b48e6383-406e-4780-b1f2-222e77f4089f",
+  "id": "c4871cbe-436a-4b1f-9602-71287b6e075b",
+  "prevId": "7b40ee95-3b66-48c3-92eb-2196a0d7582e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -570,6 +570,23 @@
           "notNull": true,
           "default": "now()"
         },
+        "seq": {
+          "name": "seq",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "name": "outbox_seq_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
         "published_at": {
           "name": "published_at",
           "type": "timestamp with time zone",
@@ -608,13 +625,7 @@
           "name": "outbox_unpublished_idx",
           "columns": [
             {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
+              "expression": "seq",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -648,13 +659,7 @@
               "nulls": "last"
             },
             {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
+              "expression": "seq",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

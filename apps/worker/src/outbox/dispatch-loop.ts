@@ -36,14 +36,21 @@ export function createDispatchLoop(options: DispatchLoopOptions): {
   let inFlight: Promise<void> | undefined;
   let lastSweep = now();
 
+  const sweepIfDue = async (): Promise<void> => {
+    if (stopped || now() - lastSweep < sweepIntervalMs) return;
+    lastSweep = now();
+    const swept = await dispatcher.sweepExpiredIdempotencyKeys(1_000);
+    logger.info({ swept }, 'idempotency keys swept');
+  };
+
   const tick = async (): Promise<void> => {
     try {
-      // A full batch means more may be waiting; a short one means the outbox is drained for now.
-      while (!stopped && (await dispatcher.dispatchBatch(batchSize, deliver)) === batchSize);
-      if (!stopped && now() - lastSweep >= sweepIntervalMs) {
-        lastSweep = now();
-        const swept = await dispatcher.sweepExpiredIdempotencyKeys(1_000);
-        logger.info({ swept }, 'idempotency keys swept');
+      // A full batch means more may be waiting; a short one means the outbox is drained for now. The sweep
+      // is checked between batches too, so a sustained backlog cannot postpone it forever.
+      let full = true;
+      while (!stopped && full) {
+        full = (await dispatcher.dispatchBatch(batchSize, deliver)) === batchSize;
+        await sweepIfDue();
       }
     } catch (error) {
       logger.error({ err: error }, 'outbox dispatch failed');

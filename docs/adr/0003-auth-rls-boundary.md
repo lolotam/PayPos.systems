@@ -333,7 +333,7 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 
 **2026-09-23, after the plan v4 debate:** bootstrap-owner exception; `pospay_dispatcher` role for the outbox dispatcher; `onboard-company` idempotency coordinated by the unique key with no persisted `IN_FLIGHT` state.
 
-**2026-09-23, T7b:** the dispatcher's delivery metadata gains `next_attempt_at` and `parked_at` (retry then park, per-aggregate ordering — Waleed); consumers dedupe on `consumed_events (company_id, consumer_id, event_id)` as `pospay_app`; the 24 h idempotency sweep is `sweep_expired_idempotency_keys(batch_size)`, `SECURITY DEFINER` with a pinned `search_path`, executable by `pospay_dispatcher` only — it deletes expired keys and nothing else.
+**2026-09-23, T7b:** the dispatcher's delivery metadata gains `next_attempt_at` (backoff and claim lease) and `parked_at` (retry then park, per-aggregate ordering — Waleed); consumers dedupe on `consumed_events (company_id, consumer_id, event_id)` as `pospay_app`; the 24 h idempotency sweep is `sweep_expired_idempotency_keys(batch_size)`, `SECURITY DEFINER` with a pinned `search_path`, executable by `pospay_dispatcher` only — it deletes expired keys and nothing else.
 
 **2026-09-23, after Codex round 6:** `withNewTenant` is context-only and the idempotency claim precedes the company insert; the synchronous `identity → tenancy` write is recorded as the one exception to `module-map.md` §3; offline money-moving actions without an operator credential are quarantined until P2-T9.
 

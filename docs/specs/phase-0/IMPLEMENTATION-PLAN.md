@@ -326,14 +326,20 @@ duplicate executes, (f) a key-acquisition lock timeout returns a retryable `409`
   exponential backoff (5 s doubling, capped at 1 h) and then **parked** with an error-level log. A parked or waiting
   event holds the later events of its aggregate; other aggregates keep flowing.
 - `pospay_dispatcher` is created by `bootstrapRoles` (`POSTGRES_DISPATCHER_PASSWORD`). Migrations
-  `0005_…_outbox-dispatcher.sql` (`next_attempt_at`, `parked_at`, `consumed_events`) and `0006_…_outbox-dispatcher-rls.sql`
+  `0005_…_outbox-dispatcher.sql` (`seq`, `next_attempt_at`, `parked_at`, `consumed_events`) and `0006_…_outbox-dispatcher-rls.sql`
   (role-scoped policies, column grants, `consumed_events` RLS, the sweep function).
-- `createOutboxDispatcherDatabase({ url })` → `dispatchBatch(limit, deliver)`, `sweepExpiredIdempotencyKeys(n)`,
-  `close()`. A batch claims the head event of each aggregate with `FOR UPDATE SKIP LOCKED` and records the outcomes in
-  the same transaction; a throwing `deliver` (a crash) rolls the batch back and it is redelivered.
+- `createOutboxDispatcherDatabase({ url })` → `dispatchBatch(limit, deliver, { leaseMs })`,
+  `sweepExpiredIdempotencyKeys(n)`, `ping()`, `close()`. **Lease model:** a short claim transaction takes the head
+  event of each aggregate (`FOR UPDATE SKIP LOCKED`), counts the attempt and leases it (`next_attempt_at`, default
+  5 min), and commits; delivery runs outside any transaction; each outcome is recorded with `clock_timestamp()` and
+  never overwrites a publication. A crash leaves the event leased until the lease ends, then it is redelivered.
+- Ordering is by `seq` (an identity column: insertion order), not `created_at` (transaction start). **Producer rule:**
+  a use case that emits an event for an existing aggregate locks that aggregate's row first, so insertion order
+  matches commit order.
 - Consumers call `markEventConsumed(tx, consumerId, eventId)` in the effect's transaction. The event id is `outbox.id`.
-- `apps/worker`: NestJS + Fastify for `/health` and `/ready` only; `createDispatchLoop` (poll 1 s, drain, sweep every
-  10 min); shutdown stops polling before closing the pools. No consumer is registered yet.
+- `apps/worker`: NestJS + Fastify for `/health` and `/ready` (app pool, dispatcher pool + role, Redis);
+  `createDispatchLoop` (poll 1 s, drain, sweep due-checked between batches, every 10 min); a delivery over 60 s is a
+  failed attempt; shutdown stops polling before closing the pools. No consumer is registered yet.
 - **Deferred:** BullMQ. Nothing enqueues a job in Phase 0 yet, so the worker holds a plain `ioredis` connection for
   `/ready`; the BullMQ dependency, its ADR pin and its connection arrive with the first job.
 

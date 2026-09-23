@@ -128,7 +128,7 @@ const claimedShape = async (id: string): Promise<ClaimedEvent> => {
     aggregateId: String(row?.['aggregate_id']),
     eventType: 'BusinessCreated',
     payload: {},
-    attempts: 0,
+    attempt: 1,
   };
 };
 
@@ -180,12 +180,19 @@ describe('ordering, crashes and concurrency', () => {
   it('a crash after the effect and before the mark redelivers, and the effect stays single', async () => {
     const id = await publish(TENANT.A.company, nextId());
     await expect(
-      dispatcher.dispatchBatch(50, async (event) => {
-        await consume('test-a')(event);
-        throw new Error('dispatcher crashed before recording the delivery');
-      }),
+      dispatcher.dispatchBatch(
+        50,
+        async (event) => {
+          await consume('test-a')(event);
+          throw new Error('dispatcher crashed before recording the delivery');
+        },
+        { leaseMs: 200 },
+      ),
     ).rejects.toThrow('crashed');
-    expect(await state(id)).toMatchObject({ published: false, attempts: 0 });
+    // The claim committed: the attempt counts, and the event stays leased until the lease ends.
+    expect(await state(id)).toMatchObject({ published: false, attempts: 1 });
+    expect(await dispatcher.dispatchBatch(50, delivered())).toBe(0);
+    await new Promise((done) => setTimeout(done, 300));
     await drain();
     expect(await state(id)).toMatchObject({ published: true });
     expect(await effects(id)).toBe(1);
@@ -206,5 +213,73 @@ describe('ordering, crashes and concurrency', () => {
       expect(counts.get(id)).toBe(1);
       expect(await effects(id)).toBe(1);
     }
+  });
+});
+
+describe('the lease and the clock', () => {
+  it('orders an aggregate by insertion, not by when the producing transaction began', async () => {
+    const aggregate = nextId();
+    let early = '';
+    let later = '';
+    let resume!: () => void;
+    const paused = new Promise<void>((done) => {
+      resume = done;
+    });
+    // A starts first (its now() is earlier) but inserts its event after B has committed its own.
+    const slowProducer = app.withTenant(TENANT.A.company, async (tx) => {
+      await tx.execute('SELECT 1');
+      await paused;
+      later = nextId();
+      await appendOutboxEvent(tx, later, {
+        aggregateType: 'business',
+        aggregateId: aggregate,
+        eventType: 'BusinessUpdated',
+        payload: {},
+      });
+    });
+    await new Promise((done) => setTimeout(done, 50));
+    early = await publish(TENANT.A.company, aggregate);
+    resume();
+    await slowProducer;
+    const seen: string[] = [];
+    await drain(async (event) => {
+      seen.push(event.id);
+      return delivered()(event);
+    });
+    expect(seen.filter((id) => id === early || id === later)).toEqual([early, later]);
+  });
+});
+
+describe('slow deliveries', () => {
+  it('a slow delivery holds no lock: the claim is committed and other aggregates keep flowing', async () => {
+    const slow = await publish(TENANT.A.company, nextId());
+    let release!: () => void;
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    const running = dispatcher.dispatchBatch(50, async (event) => {
+      if (event.id === slow) await gate;
+      return delivered()(event);
+    });
+    await new Promise((done) => setTimeout(done, 100));
+    expect(await state(slow)).toMatchObject({ published: false, attempts: 1 });
+    const other = await publish(TENANT.A.company, nextId());
+    await dispatcher.dispatchBatch(50, delivered());
+    expect(await state(other)).toMatchObject({ published: true });
+    release();
+    await running;
+    expect(await state(slow)).toMatchObject({ published: true, attempts: 1 });
+  });
+
+  it('backs off from the moment the failure is recorded, not from when the batch began', async () => {
+    const id = await publish(TENANT.A.company, nextId());
+    await dispatcher.dispatchBatch(50, async () => {
+      await new Promise((done) => setTimeout(done, 300));
+      return { delivered: false, error: 'Error', retryInMs: 1_000 };
+    });
+    const [row] = await owner`
+      SELECT next_attempt_at > clock_timestamp() + interval '600 milliseconds' AS backs_off
+      FROM outbox WHERE id = ${id}`;
+    expect(row).toEqual({ backs_off: true });
   });
 });
