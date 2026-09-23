@@ -36,7 +36,7 @@ Solo developer (Waleed) building entirely with AI agents.
 
 ADRs: `0001` domain/subdomain topology · `0002` workspace tooling baseline · `0003` auth ↔ RLS boundary ·
 `0004` test runner (Vitest) · `0005` money rounding (half away from zero) and percentage precision (4 dp) ·
-`0006` database tests on the compose Postgres, postgres.js driver, migration naming.
+`0006` database tests on the compose Postgres, postgres.js driver, migration naming · `0007` tenant tables key on `(company_id, id)`.
 
 ## 3. How work is done here
 

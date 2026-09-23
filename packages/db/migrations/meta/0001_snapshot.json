@@ -1,5 +1,5 @@
 {
-  "id": "a82c2355-b910-46c7-a070-ad0901be4c2a",
+  "id": "6dc20411-5037-454d-9a9c-8dda2cf49874",
   "prevId": "e237835c-adc8-4e84-b82d-088ea529049a",
   "version": "7",
   "dialect": "postgresql",
@@ -11,7 +11,7 @@
         "id": {
           "name": "id",
           "type": "uuid",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "company_id": {
@@ -123,17 +123,16 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "branches_company_id_id_key": {
-          "name": "branches_company_id_id_key",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "branches_pkey": {
+          "name": "branches_pkey",
           "columns": [
             "company_id",
             "id"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
         "branches_geo_pair": {
@@ -174,7 +173,7 @@
         "id": {
           "name": "id",
           "type": "uuid",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true
         },
         "company_id": {
@@ -268,17 +267,16 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "businesses_company_id_id_key": {
-          "name": "businesses_company_id_id_key",
-          "nullsNotDistinct": false,
+      "compositePrimaryKeys": {
+        "businesses_pkey": {
+          "name": "businesses_pkey",
           "columns": [
             "company_id",
             "id"
           ]
         }
       },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
         "businesses_vertical_type": {

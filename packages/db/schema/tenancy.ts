@@ -10,7 +10,6 @@ import {
   primaryKey,
   text,
   timestamp,
-  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -62,7 +61,7 @@ export const companies = pgTable(
 export const businesses = pgTable(
   'businesses',
   {
-    id: uuid('id').primaryKey(),
+    id: uuid('id').notNull(),
     companyId: uuid('company_id')
       .notNull()
       .references(() => companies.id),
@@ -77,8 +76,9 @@ export const businesses = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // الـ FK المركّب في branches بيشاور على (company_id, id)، فلازم يبقى unique.
-    unique('businesses_company_id_id_key').on(t.companyId, t.id),
+    // الـ PK (company_id, id) مش id لوحده (ADR-0007): unique على id لوحده كان هيكشف لشركة A إن id موجود عند B
+    // من رسالة الـ duplicate، لأن فحص الـ unique مبيعدّيش على الـ RLS.
+    primaryKey({ name: 'businesses_pkey', columns: [t.companyId, t.id] }),
     index('businesses_company_id_created_at_idx').on(t.companyId, t.createdAt),
     check(
       'businesses_vertical_type',
@@ -92,7 +92,7 @@ export const businesses = pgTable(
 export const branches = pgTable(
   'branches',
   {
-    id: uuid('id').primaryKey(),
+    id: uuid('id').notNull(),
     companyId: uuid('company_id').notNull(),
     businessId: uuid('business_id').notNull(),
     nameAr: text('name_ar'),
@@ -112,7 +112,7 @@ export const branches = pgTable(
       columns: [t.companyId, t.businessId],
       foreignColumns: [businesses.companyId, businesses.id],
     }),
-    unique('branches_company_id_id_key').on(t.companyId, t.id),
+    primaryKey({ name: 'branches_pkey', columns: [t.companyId, t.id] }),
     index('branches_company_id_business_id_idx').on(t.companyId, t.businessId),
     check('branches_geo_pair', sql`(${t.geoLat} IS NULL) = (${t.geoLng} IS NULL)`),
     check('branches_geo_lat_range', sql`${t.geoLat} IS NULL OR ${t.geoLat} BETWEEN -90 AND 90`),

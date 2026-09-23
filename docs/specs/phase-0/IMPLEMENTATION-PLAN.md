@@ -160,7 +160,8 @@ The overrides table is here, not in `identity`, because `tenancy` owns plans and
 - `ENABLE` **and** `FORCE ROW LEVEL SECURITY` on every tenant table. On tenant **child** tables, composite indexes start
   with `company_id` and a same-tenant `UPDATE` of `company_id` is rejected; `companies` (no `company_id`) gets its own
   root-table assertions below.
-- Tenant-qualified composite foreign keys (below).
+- Tenant-qualified composite foreign keys (below), and primary keys `(company_id, id)` on tenant tables — never `id`
+  alone, whose uniqueness check would reveal another tenant's rows (ADR-0007).
 
 **Seeds vs fixtures (debate C2).** `seed.ts` writes only the **provisional plan** — every module flag enabled
 (Waleed, 2026-09-23), renamed when D-06 is decided — and the **vertical templates** as JSON, from `PRD.md` §7.1.

@@ -40,23 +40,31 @@ afterAll(async () => {
   await testDb.drop();
 });
 
+// Reads the ACLs themselves: information_schema.role_table_grants leaves out grants to PUBLIC, and
+// a PUBLIC TRUNCATE would bypass RLS on every tenant's rows.
+const aclGrants = (grantee: string) => {
+  // 0 is PUBLIC in an ACL. A role is looked up by name and must exist — an unknown name is an error,
+  // never silently treated as PUBLIC.
+  const who = grantee === 'PUBLIC' ? owner`0::oid` : owner`${grantee}::regrole::oid`;
+  return owner<{ grant: string }[]>`
+    SELECT c.relname || ':' || a.privilege_type AS grant
+    FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) a
+    WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+      AND a.grantee = ${who}
+    ORDER BY 1`;
+};
+
 describe('direct privileges match the reviewed allowlist', () => {
-  it.each(APP_ROLES)('%s holds exactly the listed table grants', async (role) => {
-    const rows = await owner<{ grant: string }[]>`
-      SELECT table_name || ':' || privilege_type AS grant FROM information_schema.role_table_grants
-      WHERE grantee = ${role} AND table_schema = 'public' ORDER BY 1`;
-    expect(rows.map((r) => r.grant)).toEqual(ALLOWED_TABLE_GRANTS[role]);
+  it.each(APP_ROLES)('%s holds exactly the listed table and sequence grants', async (role) => {
+    expect((await aclGrants(role)).map((r) => r.grant)).toEqual(ALLOWED_TABLE_GRANTS[role]);
   });
 
-  it('no table, column or sequence privilege is granted to PUBLIC or held per column', async () => {
-    const [counts] = await owner`
-      SELECT (SELECT count(*) FROM information_schema.role_table_grants
-              WHERE grantee = 'PUBLIC' AND table_schema = 'public')::int AS public_tables,
-             (SELECT count(*) FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
-              WHERE c.relnamespace = 'public'::regnamespace AND a.attacl IS NOT NULL)::int AS column_acls,
-             (SELECT count(*) FROM information_schema.role_usage_grants
-              WHERE object_schema = 'public' AND object_type = 'SEQUENCE')::int AS sequence_grants`;
-    expect(counts).toEqual({ public_tables: 0, column_acls: 0, sequence_grants: 0 });
+  it('PUBLIC holds no privilege on any table, view or sequence, and no column has its own ACL', async () => {
+    expect(await aclGrants('PUBLIC')).toEqual([]);
+    const [row] = await owner`
+      SELECT count(*)::int AS column_acls FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+      WHERE c.relnamespace = 'public'::regnamespace AND a.attacl IS NOT NULL`;
+    expect(row).toEqual({ column_acls: 0 });
   });
 
   it.each(APP_ROLES)(
@@ -75,7 +83,14 @@ describe('effective access', () => {
   it('pospay_auth reaches no tenant table and no reference table', async () => {
     const rows = await owner<{ table: string }[]>`
       SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans']}::text[]) AS t
-      WHERE has_table_privilege('pospay_auth', t, 'SELECT, INSERT, UPDATE, DELETE')`;
+      WHERE has_table_privilege('pospay_auth', t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`;
+    expect(rows).toEqual([]);
+  });
+
+  it('pospay_app cannot TRUNCATE, REFERENCE or TRIGGER any table — each would bypass or outlive RLS', async () => {
+    const rows = await owner<{ table: string }[]>`
+      SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans']}::text[]) AS t
+      WHERE has_table_privilege('pospay_app', t, 'TRUNCATE, REFERENCES, TRIGGER')`;
     expect(rows).toEqual([]);
   });
 

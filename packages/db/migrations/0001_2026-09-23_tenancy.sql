@@ -1,5 +1,5 @@
 CREATE TABLE "branches" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid NOT NULL,
 	"company_id" uuid NOT NULL,
 	"business_id" uuid NOT NULL,
 	"name_ar" text,
@@ -11,7 +11,7 @@ CREATE TABLE "branches" (
 	"opening_hours" jsonb,
 	"is_active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "branches_company_id_id_key" UNIQUE("company_id","id"),
+	CONSTRAINT "branches_pkey" PRIMARY KEY("company_id","id"),
 	CONSTRAINT "branches_geo_pair" CHECK (("branches"."geo_lat" IS NULL) = ("branches"."geo_lng" IS NULL)),
 	CONSTRAINT "branches_geo_lat_range" CHECK ("branches"."geo_lat" IS NULL OR "branches"."geo_lat" BETWEEN -90 AND 90),
 	CONSTRAINT "branches_geo_lng_range" CHECK ("branches"."geo_lng" IS NULL OR "branches"."geo_lng" BETWEEN -180 AND 180),
@@ -22,7 +22,7 @@ CREATE TABLE "branches" (
 );
 --> statement-breakpoint
 CREATE TABLE "businesses" (
-	"id" uuid PRIMARY KEY NOT NULL,
+	"id" uuid NOT NULL,
 	"company_id" uuid NOT NULL,
 	"vertical_type" text NOT NULL,
 	"name_ar" text,
@@ -31,7 +31,7 @@ CREATE TABLE "businesses" (
 	"timezone" text DEFAULT 'Asia/Kuwait' NOT NULL,
 	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "businesses_company_id_id_key" UNIQUE("company_id","id"),
+	CONSTRAINT "businesses_pkey" PRIMARY KEY("company_id","id"),
 	CONSTRAINT "businesses_vertical_type" CHECK ("businesses"."vertical_type" IN ('restaurant', 'salon', 'laundry', 'retail', 'services')),
 	CONSTRAINT "businesses_currency_format" CHECK ("businesses"."currency" ~ '^[A-Z]{3}$'),
 	CONSTRAINT "businesses_name_en_length" CHECK (char_length("businesses"."name_en") BETWEEN 1 AND 255),

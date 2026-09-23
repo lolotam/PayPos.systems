@@ -115,20 +115,33 @@ describe('cross-tenant writes are refused', () => {
       RLS,
     );
   });
+});
 
-  it("UPSERT cannot overwrite B's row through ON CONFLICT", async () => {
+describe('branch updates stay inside the tenant', () => {
+  it('a same-tenant update succeeds, so a deny-all policy cannot pass this suite', async () => {
+    const renamed = await rows(
+      A.company,
+      sql`UPDATE branches SET name_en = 'Branch A renamed' WHERE id = ${A.branch} RETURNING id`,
+    );
+    expect(renamed).toEqual([{ id: A.branch }]);
+  });
+
+  it("moving A's branch to B's company and business is rejected by WITH CHECK", async () => {
     await rejectsWith(
       rows(
         A.company,
-        sql`INSERT INTO businesses (id, company_id, vertical_type, name_en)
-        VALUES (${B.business}, ${A.company}, 'salon', 'upserted')
-        ON CONFLICT (id) DO UPDATE SET name_en = EXCLUDED.name_en`,
+        sql`UPDATE branches SET company_id = ${B.company}, business_id = ${B.business}
+            WHERE id = ${A.branch}`,
       ),
       RLS,
     );
-    expect(await rows(B.company, sql`SELECT name_en FROM businesses`)).toEqual([
-      { name_en: 'Business B' },
-    ]);
+  });
+
+  it("re-pointing A's branch at B's business is rejected by the tenant-qualified FK", async () => {
+    await rejectsWith(
+      rows(A.company, sql`UPDATE branches SET business_id = ${B.business} WHERE id = ${A.branch}`),
+      /branches_business_fk/,
+    );
   });
 });
 
@@ -185,5 +198,22 @@ describe('plans — global reference data', () => {
 
   it('is not writable by the app role', async () => {
     await rejectsWith(rows(A.company, sql`UPDATE plans SET name_en = 'x'`), /permission denied/);
+  });
+});
+
+// Runs last: it leaves an A row that reuses B's business id.
+describe('identifiers are scoped to the tenant (ADR-0007)', () => {
+  it("inserting B's business id under A succeeds — no duplicate-key error reveals B's row", async () => {
+    const created = await rows(
+      A.company,
+      sql`INSERT INTO businesses (id, company_id, vertical_type, name_en)
+          VALUES (${B.business}, ${A.company}, 'salon', 'same id, other tenant')
+          ON CONFLICT (company_id, id) DO UPDATE SET name_en = EXCLUDED.name_en
+          RETURNING company_id`,
+    );
+    expect(created).toEqual([{ company_id: A.company }]);
+    expect(await rows(B.company, sql`SELECT name_en FROM businesses`)).toEqual([
+      { name_en: 'Business B' },
+    ]);
   });
 });
