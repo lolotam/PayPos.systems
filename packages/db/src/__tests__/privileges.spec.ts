@@ -108,7 +108,10 @@ const effectiveGrants = async (role: string): Promise<string[]> => {
 
 describe('effective privileges match the reviewed allowlist', () => {
   it.each(APP_ROLES)('%s can do exactly what the allowlist says, no more', async (role) => {
-    expect(await effectiveGrants(role)).toEqual(ALLOWED_TABLE_GRANTS[role]);
+    // Shared lock: another spec file may be holding a temporary membership under the exclusive one.
+    expect(await withClusterRoleLock('shared', () => effectiveGrants(role))).toEqual(
+      ALLOWED_TABLE_GRANTS[role],
+    );
   });
 
   it('an inherited grant is caught — DELETE on plans through a helper role', async () => {
@@ -136,7 +139,7 @@ const settableRoles = async (role: string): Promise<string[]> => {
 
 describe('no application role can switch to another role', () => {
   it.each(APP_ROLES)('%s can SET ROLE to no other role, directly or indirectly', async (role) => {
-    expect(await settableRoles(role)).toEqual([]);
+    expect(await withClusterRoleLock('shared', () => settableRoles(role))).toEqual([]);
   });
 
   it('a non-inheriting membership is caught — INHERIT FALSE, SET TRUE', async () => {
@@ -154,16 +157,22 @@ describe('no application role can switch to another role', () => {
 
 describe('effective access', () => {
   it('pospay_auth reaches no tenant table and no reference table', async () => {
-    const rows = await owner<{ table: string }[]>`
+    const rows = await withClusterRoleLock(
+      'shared',
+      () => owner<{ table: string }[]>`
       SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans']}::text[]) AS t
-      WHERE has_table_privilege('pospay_auth', t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`;
+      WHERE has_table_privilege('pospay_auth', t, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')`,
+    );
     expect(rows).toEqual([]);
   });
 
   it('pospay_app cannot TRUNCATE, REFERENCE or TRIGGER any table — each would bypass or outlive RLS', async () => {
-    const rows = await owner<{ table: string }[]>`
+    const rows = await withClusterRoleLock(
+      'shared',
+      () => owner<{ table: string }[]>`
       SELECT t AS table FROM unnest(${[...TENANT_TABLES, 'plans']}::text[]) AS t
-      WHERE has_table_privilege('pospay_app', t, 'TRUNCATE, REFERENCES, TRIGGER')`;
+      WHERE has_table_privilege('pospay_app', t, 'TRUNCATE, REFERENCES, TRIGGER')`,
+    );
     expect(rows).toEqual([]);
   });
 
