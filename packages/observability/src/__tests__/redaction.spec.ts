@@ -1,12 +1,12 @@
 import { Writable } from 'node:stream';
 
-import pino from 'pino';
+import type { Logger } from 'pino';
 import { describe, expect, it } from 'vitest';
 
-import { loggerOptions } from '../logger.ts';
+import { createLogger } from '../logger.ts';
 
 // Logs through the real pino config and returns exactly what pino wrote.
-const capture = (log: (logger: pino.Logger) => void): string => {
+const capture = (log: (logger: Logger) => void): string => {
   let written = '';
   const sink = new Writable({
     write(chunk, _encoding, done) {
@@ -14,7 +14,7 @@ const capture = (log: (logger: pino.Logger) => void): string => {
       done();
     },
   });
-  log(pino(loggerOptions('info', ['probe', 'boom', 'incoming request']), sink));
+  log(createLogger('info', { destination: sink, events: ['probe', 'boom', 'incoming request'] }));
   return written;
 };
 
