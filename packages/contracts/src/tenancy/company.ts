@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-import { id, nameAr, nameEn, timestamp } from '../common/primitives.js';
+import { nameAr, nameEn } from '../bilingual/names.js';
+import { id } from '../scalars/id.js';
+import { timestamp } from '../scalars/timestamp.js';
 
 // الـ tenant root: الـ id بتاعها هو مفتاح الشركة نفسه، فمفيش company_id (ADR-0003 §2.4).
 export const company = z
@@ -26,4 +28,4 @@ export const createCompanyInput = z
   .meta({ id: 'CreateCompanyInput' });
 
 export type Company = z.infer<typeof company>;
-export type CreateCompanyInput = z.infer<typeof createCompanyInput>;
+export type CreateCompanyInput = z.input<typeof createCompanyInput>;

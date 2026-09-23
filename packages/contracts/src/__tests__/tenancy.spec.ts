@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { branch, createBranchInput } from '../tenancy/branch.js';
-import { createBusinessInput } from '../tenancy/business.js';
+import { pageQuery, type PageQuery, type PageQueryRequest } from '../pagination/cursor.js';
+import {
+  createBusinessInput,
+  type CreateBusinessInput,
+  type CreateBusinessRequest,
+} from '../tenancy/business.js';
 import { company, createCompanyInput } from '../tenancy/company.js';
 import { plan } from '../tenancy/plan.js';
 
@@ -88,5 +93,19 @@ describe('plan', () => {
     };
     expect(plan.parse(row)).toEqual(row);
     expect(plan.safeParse({ ...row, feature_flags: { 'POS.Offline': true } }).success).toBe(false);
+  });
+});
+
+describe('request types accept what the API accepts', () => {
+  it('a minimal business request type-checks and parses to the full input', () => {
+    const request: CreateBusinessRequest = { vertical_type: 'retail', name_en: 'Shop' };
+    const parsed: CreateBusinessInput = createBusinessInput.parse(request);
+    expect(parsed.currency).toBe('KWD');
+  });
+
+  it('a page request may omit the limit', () => {
+    const request: PageQueryRequest = {};
+    const parsed: PageQuery = pageQuery.parse(request);
+    expect(parsed.limit).toBe(20);
   });
 });

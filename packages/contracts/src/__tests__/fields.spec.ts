@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { errorEnvelope } from '../common/errors.js';
-import { pageQuery } from '../common/pagination.js';
-import { currency, nameAr, nameEn, timeZone } from '../common/primitives.js';
+import { nameAr, nameEn } from '../bilingual/names.js';
+import { errorEnvelope } from '../errors/envelope.js';
+import { pageQuery } from '../pagination/cursor.js';
+import { currency } from '../reference/currency.js';
+import { timeZone } from '../reference/time-zone.js';
 import { ISO_4217_MINOR_UNITS, ISO_4217_PUBLISHED } from '../generated/iso-4217.js';
 import { TZDB_VERSION } from '../generated/time-zones.js';
 

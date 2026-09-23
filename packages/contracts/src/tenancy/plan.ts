@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { id, nameAr, nameEn } from '../common/primitives.js';
+import { nameAr, nameEn } from '../bilingual/names.js';
+import { id } from '../scalars/id.js';
 
 // بيانات مرجعية على مستوى المنصة (ADR-0003 §2.3) — مفيش company_id، والـ app بيقراها بس.
 export const plan = z

@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
-import { errorEnvelope } from './common/errors.js';
-import { pageQuery } from './common/pagination.js';
-import { currency, timeZone } from './common/primitives.js';
+import { errorEnvelope } from './errors/envelope.js';
+import { pageQuery } from './pagination/cursor.js';
+import { currency } from './reference/currency.js';
+import { timeZone } from './reference/time-zone.js';
 import { business, createBusinessInput, verticalType } from './tenancy/business.js';
 import { branch, createBranchInput, geo } from './tenancy/branch.js';
 import { company, createCompanyInput } from './tenancy/company.js';

@@ -8,7 +8,9 @@ export const pageQuery = z
   })
   .meta({ id: 'PageQuery' });
 
-export type PageQuery = z.infer<typeof pageQuery>;
+// الـ limit اختياري في الطلب وليه default بعد الـ parse، فالنوعين مختلفين.
+export type PageQueryRequest = z.input<typeof pageQuery>;
+export type PageQuery = z.output<typeof pageQuery>;
 
 /**
  * بيلف schema العنصر في envelope الصفحة: العناصر والـ cursor بتاع الصفحة الجاية (null لو دي الأخيرة).

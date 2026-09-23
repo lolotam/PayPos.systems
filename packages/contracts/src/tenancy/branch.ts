@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-import { id, nameAr, nameEn, timestamp } from '../common/primitives.js';
+import { nameAr, nameEn } from '../bilingual/names.js';
+import { id } from '../scalars/id.js';
+import { timestamp } from '../scalars/timestamp.js';
 import { openingHours } from './opening-hours.js';
 
 // العنوان نص حر بالعربي والإنجليزي (قرار Waleed 2026-09-23)، مش عنوان كويتي منظم.
@@ -44,4 +46,4 @@ export const createBranchInput = z
   .meta({ id: 'CreateBranchInput' });
 
 export type Branch = z.infer<typeof branch>;
-export type CreateBranchInput = z.infer<typeof createBranchInput>;
+export type CreateBranchInput = z.input<typeof createBranchInput>;

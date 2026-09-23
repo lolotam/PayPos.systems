@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { currency, id, nameAr, nameEn, timeZone, timestamp } from '../common/primitives.js';
+import { nameAr, nameEn } from '../bilingual/names.js';
+import { currency } from '../reference/currency.js';
+import { timeZone } from '../reference/time-zone.js';
+import { id } from '../scalars/id.js';
+import { timestamp } from '../scalars/timestamp.js';
 
 export const verticalType = z
   .enum(['restaurant', 'salon', 'laundry', 'retail', 'services'])
@@ -38,4 +42,6 @@ export const createBusinessInput = z
 
 export type VerticalType = z.infer<typeof verticalType>;
 export type Business = z.infer<typeof business>;
-export type CreateBusinessInput = z.infer<typeof createBusinessInput>;
+// اللي الـ client بيبعته (الحقول اللي ليها default اختيارية) غير اللي الـ API بياخده بعد الـ parse.
+export type CreateBusinessRequest = z.input<typeof createBusinessInput>;
+export type CreateBusinessInput = z.output<typeof createBusinessInput>;
