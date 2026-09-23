@@ -330,6 +330,12 @@ out to several consumers (`docs/module-map.md`), and one consumer's row must nev
 event to two consumers and asserts each applies it exactly once. Publication tracking and consumer deduplication are
 separate records.
 
+**Scope of "effect-once": database effects only.** An external send (WhatsApp, SMS, e-mail, push, SSE) cannot commit
+atomically with a Postgres row. A consumer with an external effect instead writes a **delivery record** in its
+transaction (its own outbox) and a sender delivers it with the provider's idempotency key where the provider supports one;
+where it does not, the send is **at-least-once** and the delivery record makes a resend visible and bounded. No Phase 0
+consumer sends externally; this is the rule `notifications` and `realtime` inherit.
+
 **Cross-tenant access — the `pospay_dispatcher` role (debate N2, ADR-0003 amendment).** `pospay_app` needs a tenant
 to read anything, so it cannot drain every company's outbox, and there is no bypass role. A fourth role:
 
@@ -387,6 +393,13 @@ company B that must never appear in any response nor change. These are complemen
 
 ### T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · 4 PRs · depends: T7b · **before T8**
 
+**First platform user.** Sign-up is closed (ADR-0003 §6) and `platform:grant` needs an existing user, so a clean
+deployment needs one explicit bootstrap: `pnpm platform:bootstrap-user --email …`, run as an operator, creates the user
+through Better Auth's server API in `packages/auth` (never a hand-written insert or password hash), issues a one-time
+set-password link, grants `create:companies:platform`, and writes both actions to `platform_audit_log`. It refuses to
+run when any platform grant already exists; later users arrive by invitation (T9a) and are granted with
+`platform:grant`. Tests use the same path to create the two users `ONB-04` needs.
+
 **Four sequential PRs (debate C7)** — each passes its own gates and leaves unfinished business routes unavailable;
 none may commit a company without its owner membership. T8 depends on all four.
 
@@ -394,7 +407,7 @@ none may commit a company without its owner membership. T8 depends on all four.
 |---|---|
 | **T9a-1** | Better Auth (email + password, TOTP), the `pospay_auth` pool in `packages/auth`, sessions, principal skeleton, public-route list |
 | **T9a-2** | `memberships` / `roles` / `permissions` / `role_permissions` / `permission_overrides` schema; `@Require` guard with DENY-wins at the target scope; `@RequiresFeature` |
-| **T9a-3** | `platform_grants` + `platform_audit_log`, the audited `pnpm platform:grant` script, `@RequirePlatform` |
+| **T9a-3** | `platform_grants` + `platform_audit_log`; the audited **first-user bootstrap** (below) and `pnpm platform:grant`; `@RequirePlatform` |
 | **T9a-4** | the complete `onboard-company` slice (below) and its scenarios; **persistent demo companies** (generic names, one per vertical) are created here, through `onboard-company`, never by a raw seed |
 
 **Why split.** T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. v2 scheduled all of identity after T8, which made T8 unprovable. Full sub-tasks: `docs/PRD.md` P0-T9a.
