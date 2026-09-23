@@ -1,6 +1,7 @@
 # Phase 0 — Implementation Plan
 
-> **Status:** v3 · 2026-09-22 · synced with `docs/PRD.md` v1.1 (§13 item 22)
+> **Status:** v4 · 2026-09-23 · after the Claude ↔ Codex debate (`DEBATE-2026-09-23.md`) · **done:** T0 T1 T2 T3 T4 T6a T12a
+> v3 · 2026-09-22 · synced with `docs/PRD.md` v1.1 (§13 item 22)
 > **Reads with:** `SPEC.md` in this folder
 > **Audience:** the implementing agent (Codex `gpt-6-astra`, reasoning effort `high`) and Waleed
 
@@ -28,7 +29,7 @@ Each task lists its deliverable, the files it touches, and the condition that cl
 
 ---
 
-### T0 — Auth ↔ RLS bootstrap decision · Size S · depends: — · **NEW, blocks T5**
+### T0 — Auth ↔ RLS bootstrap decision · Size S · depends: — · ✅ done (ADR-0003, PR #5)
 
 **Why this exists.** The adversarial review found a hole that scheduling cannot fix: **login happens before a tenant is known.** A user signs in, *then* we discover which companies they belong to. So Better Auth's own queries cannot run inside `withTenant()` — there is no company id yet. And a user may belong to several companies, so stamping one `company_id` on an auth row misrepresents the relationship.
 
@@ -59,7 +60,7 @@ Deciding this *after* the schema is written means rewriting the schema. It is th
 
 ---
 
-### T1 — Workspace skeleton · Size S · depends: —
+### T1 — Workspace skeleton · Size S · depends: — · ✅ done (PR #1, #2)
 
 **Deliverable:** an installable, checkable, empty monorepo.
 
@@ -79,7 +80,7 @@ packages/config/tsconfig/{base.json,node.json}
 
 ---
 
-### T2 — Local infrastructure · Size S · depends: T1
+### T2 — Local infrastructure · Size S · depends: T1 · ✅ done (PR #12)
 
 **Deliverable:** Postgres 16 and Redis 7 running locally.
 
@@ -91,7 +92,7 @@ packages/config/tsconfig/{base.json,node.json}
 
 ---
 
-### T3 — `packages/domain` · Size M · depends: T1
+### T3 — `packages/domain` · Size M · depends: T1 · ✅ done (PR #14, ADR-0004, ADR-0005)
 
 **Deliverable:** the shared kernel, pure and dependency-free.
 
@@ -110,50 +111,70 @@ packages/domain/src/__tests__/*.spec.ts
 
 ---
 
-### T4 — `packages/db` foundation · Size M · depends: T2, T3
+### T4 — `packages/db` foundation · Size M · depends: T2, T3 · ✅ done (PR #15, ADR-0006)
 
 **Deliverable:** the only sanctioned path to the database.
 
-**Files**
-```
-packages/db/drizzle.config.ts
-packages/db/src/{client.ts,with-tenant.ts,index.ts}
-packages/db/scripts/{migrate.ts,seed.ts}
-```
-
-**Required behaviour**
-- `withTenant(companyId, fn)` opens a transaction and sets `app.company_id` via `set_config(..., true)` so it is transaction-local.
-- **`index.ts` must not export the raw Drizzle client.** Modules receive `tx` only. A test asserts this.
-- **No** role bypasses RLS. The platform bypass role is deferred (ADR-0003 §3, review finding #14); T4 creates only `pospay_app` and `pospay_auth`.
-
-**Done when:** a throwaway migration applies, and a test proves the raw client is not reachable from outside the package.
+**As built**
+- `createDatabase({ url, ids })` is the package's only runtime export. It returns `withTenant` / `withUser` /
+  `withNewTenant` / `close`; the postgres.js + Drizzle client never leaves the closure (a test asserts the exports).
+- Every wrapper sets **both** `app.company_id` and `app.user_id` transaction-locally on every call, and refuses to run
+  on a connection whose role is superuser or `BYPASSRLS` (a misconfigured `DATABASE_URL` cannot silently disable RLS).
+- `IdGenerator` is an interface injected into `createDatabase`; its implementation arrives in T7 (`packages/ids`).
+- `bootstrapRoles` creates `pospay_app` / `pospay_auth` and re-applies their attributes, revokes every role membership
+  and resets connection limit and password validity on each `pnpm db:migrate`, under a cluster-wide lock.
+- The first migration (`0000_2026-09-22_context-helpers.sql`) creates `app_company_id()` / `app_user_id()`.
+- **Bootstrap-owner exception (Waleed, 2026-09-23):** the compose image makes `pospay_owner` its bootstrap superuser,
+  so it has `BYPASSRLS`. It only runs migrations. Every **runtime** role stays `NOSUPERUSER NOBYPASSRLS`, and the
+  "no BYPASSRLS" assertions cover the application roles.
+- No platform bypass role (ADR-0003 §3, review finding #14). `scripts/seed.ts` arrives with its first data in T5.
 
 ---
 
-### T5 — `tenancy` schema + RLS ⭐ · Size L · depends: T4
+### T5 — `tenancy` schema + RLS ⭐ · Size L · depends: T4, **T6a merged and green**
 
 **Deliverable:** the phase's success criterion, proven.
 
 **Files**
 ```
 packages/db/schema/tenancy.ts
-packages/db/migrations/0001_tenancy.sql
+packages/db/migrations/<generated>_tenancy.sql      ← name produced by `pnpm db:generate tenancy` (ADR-0006)
+packages/db/scripts/seed.ts
 packages/db/src/__tests__/rls-tenancy.spec.ts
+packages/db/src/__tests__/privileges.spec.ts
 ```
 
-**Tables:** `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides` — per `SPEC.md` §4. The overrides table is here, not in `identity`, because `tenancy` owns plans and feature flags (`SPEC.md` §3); T9a's `@RequiresFeature()` guard only reads it.
+**Tables:** `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides` — per `SPEC.md` §4, with column
+names following `packages/contracts` (e.g. `timezone`; `geo` stored as `geo_lat` / `geo_lng`; `opening_hours` jsonb).
+The overrides table is here, not in `identity`, because `tenancy` owns plans and feature flags (`SPEC.md` §3); T9a's
+`@RequiresFeature()` guard only reads it.
 
-**Every table gets:** `company_id uuid NOT NULL`, an RLS policy `USING (company_id = current_setting('app.company_id')::uuid)`, `FORCE ROW LEVEL SECURITY`, and a composite index starting with `company_id`.
+**Policies follow ADR-0003 exactly — do not restate them differently here:**
+- Classification per ADR-0003 §2: `plans` is global reference data (no `company_id`, no RLS, `SELECT` only for
+  `pospay_app`) — already decided there, no new ADR needed. `companies` is the **tenant root** (§2.4): no
+  `company_id` column; its policies key on `id`; `pospay_app` has no `DELETE` grant. Every other table is tenant data.
+- Every policy reads context through `app_company_id()` (migration 0000), **never** a raw
+  `current_setting(...)::uuid` cast — an empty setting on a pooled connection would raise `22P02`.
+- Policies are split by command: `FOR SELECT … USING`, `FOR INSERT … WITH CHECK`, `FOR UPDATE … USING … WITH CHECK`,
+  `FOR DELETE … USING`. Every write policy declares `WITH CHECK` explicitly.
+- `ENABLE` **and** `FORCE ROW LEVEL SECURITY` on every tenant table; composite indexes start with `company_id`.
+- Tenant-qualified composite foreign keys (below).
 
-> `plans` is the one exception — it is platform-level reference data, not tenant data. It carries no `company_id` and no RLS policy. Call this out in an ADR so the exception is deliberate and visible.
+**Seeds vs fixtures (debate C2).** `seed.ts` writes only the **provisional plan** — every module flag enabled
+(Waleed, 2026-09-23), renamed when D-06 is decided — and the **vertical templates** as JSON, from `PRD.md` §7.1.
+It creates **no company**: memberships do not exist until T9a, and a company without an owner is forbidden
+(ADR-0003 §5.3). Persistent demo companies are created in T9a through `onboard-company`. The RLS suite's companies are
+**test fixtures** inside a cloned test database, dropped after the run — an explicit, test-only exception to §5.3.
 
 **Negative tests (real Postgres — the compose stack, ADR-0006) — revised after review:**
 
 Run the whole suite **as the restricted application role**, not as the owner or a superuser.
 
 *Role assertions*
-- the app role is `NOSUPERUSER`, `NOBYPASSRLS`, owns no tenant table, and cannot `SET ROLE` to a privileged role
+- `pospay_app` and `pospay_auth` are `NOSUPERUSER`, `NOBYPASSRLS`, own no table, and cannot `SET ROLE` to a privileged
+  role (the bootstrap owner is exempt — T4)
 - `plans` is readable but **not** writable by the app role
+- `companies`: `DELETE` fails with **permission denied** (there is no grant), not "0 rows"
 
 *Row assertions*
 - cross-tenant `SELECT` returns 0 rows
@@ -177,49 +198,74 @@ Run the whole suite **as the restricted application role**, not as the owner or 
 *Inventory assertion*
 - no `SECURITY DEFINER` function exists on tenant tables; if one is ever added it must pin `search_path` and restrict `EXECUTE`
 
+*Privilege inventory (closes issue #16, debate C9)*
+- A **reviewed allowlist** in the test file lists every direct privilege each application role may hold (table,
+  column, sequence, function, schema, database). The test fails on any privilege not in the list — a broad grant added
+  by a migration does not authorise itself.
+- Effective access is tested separately: through role membership, `PUBLIC`, ownership, and schema/function privileges.
+- `pospay_auth` can read **no** tenant table; `pospay_app` can read no global-identity table.
+
 > **What RLS cannot do:** `withTenant(B, …)` legitimately reaches company B. The database cannot tell an authorised company id from an attacker-supplied one. That check belongs to the API layer and is tested in **T8**, not here.
 
-**Done when:** every assertion above passes as the restricted role and is wired into `pnpm test`.
+**Done when:** every assertion above passes as the restricted role, runs in `pnpm test`, and is a **required CI check**
+(CI already runs `pnpm check` on the compose stack since T4).
 
 ---
 
-### T6 — `packages/contracts` + `apps/api` skeleton · Size M · depends: T5
+### T6a — `packages/contracts` for tenancy · Size S · depends: T4 · ✅ done (PR #17)
 
-**Deliverable:** a running API with a typed contract layer.
+Zod 4 schemas for plan, company, business, branch (entity + strict create input); error envelope; cursor pagination;
+opening hours; currency and timezone as enums over lists bundled from SIX ISO 4217 and IANA tzdb;
+`pnpm contracts:openapi` writes the committed `openapi/openapi.json` and a test fails when it is stale.
+Decisions (Waleed, 2026-09-23): names 1–255, free-text ar/en address, intervals per ISO weekday, any ISO 4217 code.
+
+---
+
+### T6b — `apps/api` foundation · Size M · depends: T5
+
+**Deliverable:** a running API that consumes `@pospay/contracts` and `@pospay/db`, and never logs a secret.
 
 **Files**
 ```
-packages/contracts/src/{tenancy/*.ts,errors.ts,index.ts}
 apps/api/src/{main.ts,app.module.ts}
-apps/api/src/shared/{exception.filter.ts,health.controller.ts}
+apps/api/src/shared/{exception.filter.ts,health.controller.ts,request-logger.ts}
+packages/observability/src/{pino.ts,redaction.ts,index.ts}
 ```
 
 **Required behaviour**
-- NestJS on the **Fastify** adapter.
-- Global exception filter emitting `{ code, message_ar, message_en, details? }`.
-- `/health` (process alive) and `/ready` (DB + Redis reachable) — they are different checks.
-- `pnpm contracts:openapi` generates the spec from the Zod schemas.
+- NestJS on the **Fastify** adapter; request validation with the Zod contracts.
+- Global exception filter emitting `errorEnvelope` from `@pospay/contracts`.
+- `/health` (process alive, no dependency checks) and `/ready` (DB + Redis reachable) — different checks.
+- **The shared pino config and redaction list land here** (review finding #13), before the first real request is logged:
+  PINs, tokens, credentials, full phone numbers (last 3 digits only), employee-document content.
+- The database is reached only through `createDatabase` on `DATABASE_URL` (`pospay_app`).
 
-**Done when:** `GET /health` returns 200 and the OpenAPI file is generated.
+**Done when:** `/health` returns 200; `/ready` returns non-200 when Postgres or Redis is down (tested); a deliberately
+logged PIN and token do not appear in the output (tested); an invalid body returns the error envelope.
 
 ---
 
-### T7 — Cross-cutting write primitives · Size M · depends: T6
+### T7 — Cross-cutting write primitives · Size M · depends: T6b
 
 **Deliverable:** the machinery every later write depends on.
 
 **Files**
 ```
 packages/db/schema/{outbox.ts,audit-log.ts,idempotency.ts}
-packages/db/migrations/0002_cross_cutting.sql
-apps/api/src/shared/ports/{clock.port.ts,id-generator.port.ts}
-apps/api/src/shared/adapters/{system-clock.ts,uuid-v7-generator.ts}
+packages/db/migrations/<generated>_cross-cutting.sql
+packages/ids/src/{uuid-v7.ts,index.ts}               ← shared by api, worker and the POS
+apps/api/src/shared/ports/clock.port.ts
+apps/api/src/shared/adapters/system-clock.ts
 apps/api/src/shared/idempotency.middleware.ts
 ```
 
 **Required behaviour**
 - `OutboxWriter` port; the event row is written **inside the caller's transaction**.
 - `Clock` and `IdGenerator` are ports. A use case calling `Date.now()` or `crypto.randomUUID()` directly fails review.
+- **UUID v7 lives in `packages/ids` (debate C4)**, not in an api-only adapter: the POS generates ids offline in the
+  browser and the worker needs them too. The generator takes its time source and secure entropy as parameters (so tests
+  are deterministic) and is bound to `@pospay/db`'s existing `IdGenerator` interface at each app's composition root.
+  Prefer an already-approved implementation; a new dependency needs an ADR (`CLAUDE.md` §11).
 
 **Idempotency — corrected after review.** A response *hash* cannot reconstruct a response; the first draft of this plan was wrong. The store keeps the **actual replayable response**:
 
@@ -227,18 +273,69 @@ apps/api/src/shared/idempotency.middleware.ts
 |---|---|
 | `scope_type` + `scope_id` + `operation` + `key` | uniqueness is scoped, not global. `scope_type` is `COMPANY` (every tenant write) or `USER` (bootstrap writes that run before a tenant exists — today only `onboard-company`, whose caller cannot know the new company id). `CHECK` ties `scope_id` to `company_id` / `user_id`; RLS shows `COMPANY` rows by `app_company_id()` and `USER` rows by `app_user_id()` |
 | `request_fingerprint` | same key with a **different** body → reject `422`, never replay |
-| `status` | `IN_FLIGHT` \| `COMPLETED` \| `FAILED` |
 | `response_status`, `response_body` | what a replay actually returns |
 | `created_at`, `expires_at` | 24 h retention, swept by a job |
 
-- The key row is claimed and the business effect committed in **one transaction**. A crash mid-flight leaves `IN_FLIGHT`, which expires rather than blocking forever.
-- A concurrent duplicate hitting `IN_FLIGHT` gets `409`, not a second execution.
+**Coordination — corrected in v4 (debate N1).** v3 said "a crash leaves `IN_FLIGHT`", which contradicts a claim made
+inside the business transaction: a crash rolls the claim back with everything else. The mechanism is:
 
-**Done when:** tests prove (a) a rolled-back transaction leaves no outbox row, (b) a replayed key returns the identical stored response, (c) the same key with a different body is rejected, (d) two concurrent identical requests produce exactly one effect.
+- Claim, business effect, outbox row and stored response commit in **one transaction** (`READ COMMITTED`).
+- The claim is `INSERT … ON CONFLICT DO NOTHING` on the scoped unique key. A concurrent duplicate **waits** on the
+  uncommitted index entry. When the first commits, the duplicate reads the completed row in a **subsequent statement**,
+  checks the fingerprint (different body → `422`) and replays the stored response. When the first rolls back, the
+  duplicate proceeds as the first. There is **no persisted `IN_FLIGHT` state** and no crash-recovery sweep.
+- Waits are bounded by `lock_timeout`; a lock timeout **while acquiring the key** is rolled back and mapped to a
+  retryable `409`. No other database failure is mapped to `409`. These timeouts bound single statements, not the
+  whole request. ADR-0003 §3 (`onboard-company`) is amended to match.
+- Rows expire after 24 h and are swept by a job.
+
+**Done when:** tests prove (a) a rolled-back transaction leaves no outbox row, (b) a replayed key returns the identical
+stored response, (c) the same key with a different body is rejected with `422`, (d) two concurrent identical requests
+produce exactly one effect and the second replays the first's response, (e) when the first request rolls back, the waiting
+duplicate executes, (f) a key-acquisition lock timeout returns a retryable `409`.
 
 ---
 
-### T8 — `tenancy` use cases · Size L · depends: T9a
+### T7b — Worker bootstrap + outbox dispatcher · Size M · depends: T7 · **NEW in v4**
+
+**Why here, not in T13 (debate C3).** T8 and T9a publish events; with no dispatcher until T13, delivery bugs would
+surface at the very end. The worker's image and deployment stay in T13.
+
+**Files**
+```
+apps/worker/src/{main.ts,worker.module.ts,health.controller.ts}
+apps/worker/src/outbox/**                          ← dispatcher: poll → publish → mark published
+packages/db/migrations/<generated>_outbox-dispatcher.sql
+```
+
+**Delivery guarantee — at-least-once, effect-once.** A crash between "published" and "marked published" redelivers.
+Every event carries a stable `event_id`; consumers dedupe by it and apply each effect once. Publication tracking and
+consumer deduplication are separate records.
+
+**Cross-tenant access — the `pospay_dispatcher` role (debate N2, ADR-0003 amendment).** `pospay_app` needs a tenant
+to read anything, so it cannot drain every company's outbox, and there is no bypass role. A fourth role:
+
+- `NOSUPERUSER NOBYPASSRLS NOINHERIT`, owns nothing, member of nothing; created by `bootstrapRoles`.
+- Grants on the `outbox` table **only**: `SELECT`, and `UPDATE` of the delivery-metadata columns only
+  (`published_at`, `attempts`, `last_error`). `event_id`, `company_id` and `payload` are immutable to it.
+- RLS stays **forced** on `outbox`; role-scoped policies `FOR SELECT TO pospay_dispatcher USING (true)` and
+  `FOR UPDATE TO pospay_dispatcher USING (true) WITH CHECK (true)` — the one documented exception to the
+  helper-based tenant policy rule.
+- Reached only through a dedicated dispatcher pool/adapter in `apps/worker`, never available to HTTP handlers. No
+  membership or `PUBLIC` path lets an application role acquire it.
+- Handlers that apply an event's effect run as `pospay_app` inside `withTenant(event.company_id)`.
+
+**Blocked on (`TODO(spec)`):** ordering scope (per aggregate? per company?) and poison-event handling (attempt limit,
+parking, alerting) are business/ops decisions — stop and ask.
+
+**Done when:** tests prove a committed event is delivered and a rolled-back one never is; retries after a failure;
+two concurrent dispatchers do not double-apply an effect; a crash after publish and before marking leads to redelivery
+with the effect applied once; `pospay_dispatcher` can read `outbox` across tenants and **nothing else**, cannot change
+`payload` / `company_id` / `event_id`, and no application role can assume it.
+
+---
+
+### T8 — `tenancy` use cases · Size L · depends: T9a-4, T7b
 
 **Deliverable:** the first real vertical slices.
 
@@ -259,11 +356,26 @@ apps/api/src/modules/tenancy/
 
 **API-level isolation proof:** with a real session of company A, requesting company B's id is refused **before** `withTenant(B)` is ever called (asserted by a spy on the wrapper). This is the second half of the phase's success criterion and needs the real sessions from T9a.
 
+The spy alone proves the wrapper was not called with B, not that no other path reached B (debate C11). It is paired with
+instrumentation at the sanctioned database boundary asserting that **no tenant-business query executes** for the refused
+request; a CI rule that no code outside `packages/db` / `packages/auth` imports a database client; and sentinel rows in
+company B that must never appear in any response nor change. These are complementary controls, not a row-level audit.
+
 **Done when:** `TEN-01`…`TEN-05` pass as integration tests against real Postgres with real sessions, and `pnpm lint:boundaries` passes.
 
 ---
 
-### T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · Size L · depends: T7 · **before T8**
+### T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · 4 PRs · depends: T7 · **before T8**
+
+**Four sequential PRs (debate C7)** — each passes its own gates and leaves unfinished business routes unavailable;
+none may commit a company without its owner membership. T8 depends on all four.
+
+| PR | Scope |
+|---|---|
+| **T9a-1** | Better Auth (email + password, TOTP), the `pospay_auth` pool in `packages/auth`, sessions, principal skeleton, public-route list |
+| **T9a-2** | `memberships` / `roles` / `permissions` / `role_permissions` / `permission_overrides` schema; `@Require` guard with DENY-wins at the target scope; `@RequiresFeature` |
+| **T9a-3** | `platform_grants` + `platform_audit_log`, the audited `pnpm platform:grant` script, `@RequirePlatform` |
+| **T9a-4** | the complete `onboard-company` slice (below) and its scenarios; **persistent demo companies** (generic names, one per vertical) are created here, through `onboard-company`, never by a raw seed |
 
 **Why split.** T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. v2 scheduled all of identity after T8, which made T8 unprovable. Full sub-tasks: `docs/PRD.md` P0-T9a.
 
@@ -271,7 +383,7 @@ apps/api/src/modules/tenancy/
 ```
 packages/auth/src/{config.ts,principal.ts,client.ts,index.ts}
 packages/db/schema/identity.ts
-packages/db/migrations/NNNN_identity_bootstrap.sql   ← Better Auth tables, memberships, roles,
+packages/db/migrations/<generated>_identity-*.sql    ← Better Auth tables, memberships, roles,
                                                        permissions, role_permissions, overrides,
 apps/api/src/modules/identity/**
 apps/api/src/modules/identity/ports/company-registry.port.ts             ← owned by the consumer
@@ -308,7 +420,7 @@ This lives in T9a, not T8, because T8 depends on T9a.
 
 **Full sub-tasks:** `docs/PRD.md` P0-T9b.
 
-**Files:** `packages/db/schema/identity.ts` (extended), `packages/db/migrations/NNNN_devices_pins.sql`, `apps/api/src/modules/identity/**`, `packages/auth/src/{config.ts,plugins.ts}` (phone-number and api-key plugins), `packages/config/eslint/index.js` (hashing-library import ban outside `packages/auth`)
+**Files:** `packages/db/schema/identity.ts` (extended), `packages/db/migrations/<generated>_devices-pins.sql`, `apps/api/src/modules/identity/**`, `packages/auth/src/{config.ts,plugins.ts}` (phone-number and api-key plugins), `packages/config/eslint/index.js` (hashing-library import ban outside `packages/auth`)
 
 **Required behaviour**
 - `packages/auth` is the **only** code that issues or verifies a session, hashes a password, or hashes a PIN — enforced by `no-restricted-imports` on hashing libraries outside the package.
@@ -327,7 +439,7 @@ This lives in T9a, not T8, because T8 depends on T9a.
 
 **Files**
 ```
-packages/db/schema/settings.ts · packages/db/migrations/0004_settings.sql
+packages/db/schema/settings.ts · packages/db/migrations/<generated>_settings.sql
 apps/api/src/modules/settings/**
 packages/i18n/src/{ar.ts,en.ts,format-kwd.ts,dates.ts,index.ts}
 ```
@@ -340,13 +452,13 @@ packages/i18n/src/{ar.ts,en.ts,format-kwd.ts,dates.ts,index.ts}
 
 ---
 
-### T11 — `packages/observability` · Size M · depends: T6
+### T11 — `packages/observability` · Size M · depends: T6b
 
-**Files:** `packages/observability/src/{pino.ts,redaction.ts,request-context.ts,otel.ts,index.ts}`
+**Files:** `packages/observability/src/{request-context.ts,otel.ts}` (pino and redaction already exist from T6b)
 
 **Required behaviour**
 - Every log line carries `request_id`, `company_id`, `branch_id` (when present), `user_id`.
-- Redaction list, configured once: PINs, tokens, gateway and messaging credentials, full customer phone numbers (last 3 digits only), employee-document content.
+- Extends the T6b redaction list with gateway and messaging credentials as those integrations arrive; it is still configured once.
 - No request/response bodies in normal operation — only on error, after redaction.
 - Trace sampling: 10% of normal requests, 100% of anything that errored or took over a second.
 
@@ -354,9 +466,18 @@ packages/i18n/src/{ar.ts,en.ts,format-kwd.ts,dates.ts,index.ts}
 
 ---
 
-### T12 — CI pipeline · Size M · depends: T5 (grows with each later task)
+### T12a — Minimal CI · Size S · depends: T1 · ✅ done (grows with each task)
 
-**Files:** `.github/workflows/ci.yml`, `.github/workflows/build.yml`
+`.github/workflows/ci.yml` runs **`pnpm check`** on every PR and on `main`: `turbo run typecheck lint test` (lint
+includes `max-lines`, `boundaries` and the Arabic JSDoc rules) then `pnpm lint:docs`. Since T4 it starts the T2
+compose stack first (ADR-0006), so every package's database tests — T5's isolation and privilege suites included —
+are **required** on every PR from the moment they exist. Branch protection making this check required is still to do.
+
+---
+
+### T12b — Full gate · Size M · depends: T8, T7b
+
+**Files:** `.github/workflows/ci.yml` (extended), `.github/workflows/build.yml`, `scripts/module-map/*`
 
 **Gate order — exactly this:**
 ```
@@ -365,9 +486,18 @@ unit (domain) → integration → RLS negative tests → EXPLAIN checks →
 build all apps → docker images
 ```
 
-**Notes:** images tagged by **commit SHA**, never `latest`, pushed to GHCR. Add a deliberately-broken fixture PR once to confirm the boundary step actually blocks.
+- **Activation:** each gate becomes required in the PR that first gives it something to check — cycles and module-map
+  with T8 (the first cross-module arrows), EXPLAIN checks with the first `queries/` file, build and images with T6b's
+  first app. T12b turns the remaining ones on and fixes the order.
+- **Module map (debate C6):** `docs/module-map.md` stays authoritative; `docs/module-map.yaml` is **generated** from it
+  deterministically and CI fails when the committed YAML is stale. The single synchronous write exception
+  (`identity`'s `CompanyRegistry` → `tenancy`'s `registerCompany`) is represented as its own entry — an
+  `identity → tenancy` arrow alone does not authorise any synchronous write.
+- Images tagged by **commit SHA**, never `latest`, pushed to GHCR. A deliberately-broken fixture PR confirms the
+  boundary and module-map steps actually block.
 
-**Done when:** a PR violating a module boundary is blocked by CI.
+**Done when:** a PR violating a module boundary, adding an undeclared arrow, or making a second synchronous
+cross-module write is blocked by CI.
 
 ---
 
@@ -380,7 +510,7 @@ build all apps → docker images
 **Required behaviour**
 - Dokploy + Traefik. Migrations run as **their own step before** new containers start.
 - Multi-stage builds on `node:24-alpine` (ADR-0002), production dependencies only.
-- **`apps/worker` bootstrap ships here** — `main.ts`, `/health`, `/ready`, BullMQ connection and the outbox dispatcher (poll → publish → mark published, with retry and consumer-side dedupe by `event_id`). Without a dispatcher the outbox writer from T7 delivers nothing, and Phase 1 commissions would consume an empty stream.
+- The **worker image and deployment** ship here; the worker itself and the outbox dispatcher were built in **T7b**.
 - **No Chromium and no Arabic fonts in the worker image yet** — document rendering is out of scope for Phase 0 (`SPEC.md` §2). They arrive in Phase 5 with `packages/documents`, and the memory limit is set then.
 
 **Backups — corrected after review.** `pg_dump` + archived WAL is **not** point-in-time recovery: WAL replay needs a *physical* base backup, not a logical dump. The two are different recovery paths and both are specified:
@@ -402,15 +532,18 @@ build all apps → docker images
 
 ---
 
-## 2. Dependency order — revised
+## 2. Dependency order — revised (v4)
 
 ```
 T0 ─ T1 ─┬─ T2 ─┐
-         └─ T3 ─┴─ T4 ─ T6a ─ T5 ─ T6b ─┬─ T7 ─ T9a ─ T8 ─┬─ T9b
-                                        │                  └─ T10
-                                        └─ T11
-                                 T1 ─ T12a        T12b ─ T13
+         └─ T3 ─┴─ T4 ─ T6a ─ T5 ─ T6b ─┬─ T7 ─┬─ T7b ────────────────┐
+                                        │      └─ T9a-1 ─ T9a-2 ─ T9a-3 ─ T9a-4 ─┴─ T8 ─┬─ T9b
+                                        └─ T11                                          └─ T10
+            T1 ─ T12a (runs on every PR, grows with each task)          T8 + T7b ─ T12b ─ T13
 ```
+
+- **v4:** T7b (worker + outbox dispatcher) moves up from T13; T9a is four PRs; T12a is live and already gates T5's
+  suites; T12b switches the remaining gates on (`DEBATE-2026-09-23.md`). Done so far: T0–T4, T6a, T12a.
 
 - **T0** now precedes everything. The auth ↔ RLS boundary is a schema decision, not a T9 detail.
 - **T6 splits.** `CLAUDE.md` §1 mandates *contract → migration*, and the first draft had the schema (T5) before the contracts (T6), contradicting the project's own rule. **T6a** (Zod contracts for tenancy) moves **before** T5; **T6b** (the NestJS app, filter, health, OpenAPI) stays after it.
@@ -419,7 +552,8 @@ T0 ─ T1 ─┬─ T2 ─┐
 - **T13 depends on T9b, T10 and T11**, not only on T12. Staging must not be declared done while the worker, i18n and observability are missing.
 - **Redaction moves earlier.** The pino redaction list lands with **T6b**, not T11. Adding it after real requests have been logged means the exposure already happened.
 
-**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → **T9a → T8** → T9b → T12b → T13
+**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → **T9a-1 → T9a-2 → T9a-3 → T9a-4** → T8 → T9b → T12b → T13
+(T7b runs beside the T9a PRs and must be green before T8.)
 
 T11 can run in parallel with T7–T8; it touches no module code.
 
@@ -442,13 +576,38 @@ The first draft said 4 weeks. The review rejected that as "an optimistic coding 
 | 7 | T12b · T13 |
 | 8 | buffer — open questions, rework, the PITR rehearsal |
 
-≈ **6–8 weeks**, against the 3–4 weeks in `06_Tech_Stack_Architecture_EN.md` §7. **That doc's estimate is optimistic and should be updated**, or Phase 0's acceptance bar lowered deliberately — but not silently.
+≈ **6–8 weeks**, against the 3–4 weeks in `06_Tech_Stack_Architecture_EN.md` §7.
+
+> **v4 — this is an unvalidated target, not a forecast (debate C10).** T4 needed 9 review rounds (shared-cluster test
+> races, role-membership escalation, `CASCADE`, stale role attributes, the BYPASSRLS guard); T6a needed 5. The cost
+> driver is verification, not typing. Re-forecast after T5 from actual elapsed effort, adding T7b, the four T9a PRs,
+> the open `TODO(spec)` decisions and an explicit review/rework allowance per task — not a flat increment. **That doc's estimate is optimistic and should be updated**, or Phase 0's acceptance bar lowered deliberately — but not silently.
 
 **Most likely to overrun: T9a + T9b** (Better Auth + identity). Estimated 7–12 working days together rather than 2–3. AI accelerates writing code far more reliably than it accelerates verifying security.
 
 ---
 
 ## 4. Revision log
+
+**v4 — 2026-09-23.** Claude ↔ Codex `gpt-6-astra` (high) debate after building T1–T4 and T6a; full record in
+`DEBATE-2026-09-23.md`. Nothing left disputed.
+
+| Change | Why |
+|---|---|
+| T5 policies defer to ADR-0003 (helpers, split policies, explicit `WITH CHECK`, `companies` keyed on `id`, no DELETE) | v3's blanket `current_setting(...)::uuid` rule contradicted ADR-0003 and raises `22P02` |
+| T5 seeds only the provisional plan + vertical templates; demo companies move to T9a-4 via `onboard-company` | an owner-less company violates ADR-0003 §5.3 |
+| T5 closes #16 with a reviewed privilege allowlist + effective-access tests; its suites are required CI checks | a migration's own grant must not authorise itself |
+| Migrations named by purpose; files generated as `NNNN_<UTC date>_<name>.sql` | ADR-0006; drizzle-kit owns the number |
+| T6 → T6a (done) + a real T6b section; pino + redaction in T6b, T11 no longer owns it | the old T6 section was stale |
+| T7: UUID v7 in `packages/ids` with injected time/entropy | the POS and worker need ids too |
+| T7 idempotency: one transaction, unique-index coordination, no persisted `IN_FLIGHT`, lock-timeout → `409` | v3's crash-leaves-`IN_FLIGHT` contradicted its own single transaction |
+| **New T7b**: worker + outbox dispatcher (at-least-once, effect-once) and the `pospay_dispatcher` role | delivery bugs would otherwise surface only in T13; `pospay_app` cannot discover tenants |
+| T9a → four PRs | too large to review as one |
+| T8 isolation proof: spy + DB-boundary instrumentation + no-other-client rule + sentinel rows | a spy alone proves too little |
+| T12a / T12b real sections; generated `module-map.yaml` with the write exception as its own entry | `module-map.yaml` did not exist; gates had no activation points |
+| T13 keeps the worker image/deploy only | the worker moved to T7b |
+| Schedule: 6–8 weeks is an unvalidated target, re-forecast after T5 | T4 took 9 review rounds |
+
 
 **v3 — 2026-09-22.** Synced with `docs/PRD.md` v1.1 §13 items 4, 7, 12 and 22 (itself revised after a second Codex review, `docs/PRD-CODEX-REVIEW.md`).
 

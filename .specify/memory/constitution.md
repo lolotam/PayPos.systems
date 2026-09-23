@@ -1,5 +1,7 @@
 <!--
 Sync Impact Report
+- 2.0.2 (2026-09-23, PATCH): Principle V's idempotency clause corrected per plan v4 T7 — a concurrent
+  duplicate waits on the unique key and replays; no persisted IN_FLIGHT state (DEBATE-2026-09-23.md).
 - 2.0.1 (2026-09-23, PATCH): Principle V names the database-test mechanism — the compose
   Postgres with a cloned database per spec file (ADR-0006) — instead of testcontainers. The rule
   itself (real Postgres, never mocks) is unchanged.
@@ -142,7 +144,8 @@ not survive across pooled connections, exceptions, rollbacks or concurrent trans
 B's rows through a foreign key. Endpoints that create money or stock effects MUST require
 `Idempotency-Key`, run in one transaction and write their outbox event inside it; the
 idempotency store keeps the replayable response, rejects a reused key with a different body
-with `422`, returns `409` for a concurrent duplicate, and expires `IN_FLIGHT` rows. Every
+with `422`, makes a concurrent duplicate wait on the key and replay (a key-acquisition lock
+timeout returns a retryable `409`), and keeps no persisted `IN_FLIGHT` state. Every
 controller method MUST carry a permission guard; a route without one fails CI, and auth
 handler routes are listed explicitly as public.
 
@@ -402,4 +405,4 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.0.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23
+**Version**: 2.0.2 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23

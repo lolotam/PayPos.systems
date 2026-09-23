@@ -125,8 +125,25 @@ Every other tenant table is unchanged from `CLAUDE.md` §5: `company_id uuid NOT
 | `pospay_owner` | owns every table, runs migrations | everything | `pnpm db:migrate` only — never a running container |
 | `pospay_app` | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing | tenant + bridge tables under RLS; `SELECT` on `plans` and `permissions`; `SELECT, INSERT, UPDATE, DELETE` on `roles` and `role_permissions` (the split policies in §2.3 decide which rows) | `api`, `worker` |
 | `pospay_auth` | `NOSUPERUSER`, `NOBYPASSRLS`, owns nothing | **only** the §2.1 tables, table-level grants | `packages/auth` |
+| `pospay_dispatcher` (added 2026-09-23, T7b) | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error` | the outbox dispatcher in `apps/worker`, through its own pool |
 
-No role has `BYPASSRLS`. The platform bypass role stays deferred (review finding #14).
+No **runtime** role has `BYPASSRLS`. The platform bypass role stays deferred (review finding #14).
+
+**Bootstrap-owner exception (2026-09-23).** In the compose image `pospay_owner` is the bootstrap superuser, so it
+has `BYPASSRLS`. It runs migrations only and never serves a request; `packages/db` refuses any superuser or
+`BYPASSRLS` connection at runtime, and the "no `BYPASSRLS`" assertions cover the runtime roles.
+
+**`pospay_dispatcher` — the one cross-tenant reader (2026-09-23).** `pospay_app` needs a tenant to read anything, so
+it cannot drain every company's outbox. The dispatcher role can, on `outbox` **only**:
+- RLS stays forced on `outbox`. Its policies are role-scoped — `FOR SELECT TO pospay_dispatcher USING (true)` and
+  `FOR UPDATE TO pospay_dispatcher USING (true) WITH CHECK (true)` — the one documented exception to the rule that
+  every policy reads context through `app_company_id()` / `app_user_id()`.
+- Column grants make `event_id`, `company_id` and `payload` immutable to it.
+- It is reached only through a dedicated pool in `apps/worker`, never from an HTTP handler, and no membership or
+  `PUBLIC` path lets another role acquire it. Handlers apply each event's effect as `pospay_app` inside
+  `withTenant(event.company_id)`.
+- T7b tests: it reads `outbox` across tenants and nothing else, cannot change the immutable columns, and no
+  application role can assume it.
 
 `packages/db` exports exactly three entry points, all transaction-local (`set_config(…, true)`):
 
@@ -145,7 +162,7 @@ withNewTenant(userId, company, fn)      // bootstrap only — see below
 
 Inside `fn`, `onboard-company` performs, in this order:
 
-1. **claim the idempotency key in the `USER` scope** (caller's user id + operation + key). A replay finds the completed record and returns the stored response; a concurrent duplicate finds `IN_FLIGHT` and gets `409`. Nothing else has been written yet, so neither can create a second company;
+1. **claim the idempotency key in the `USER` scope** (caller's user id + operation + key) with `INSERT … ON CONFLICT DO NOTHING`, inside the same transaction. A replay finds the completed record and returns the stored response. A concurrent duplicate **waits** on the uncommitted key, then replays the first request's response — or proceeds as the first if that one rolled back; a lock timeout while waiting returns a retryable `409`. There is no persisted `IN_FLIGHT` state (amended 2026-09-23, plan v4 T7). Nothing else has been written yet, so neither can create a second company;
 2. `CompanyRegistry.register(tx, company)` — the only insert of the company row;
 3. owner membership, `AuditLog` row, `CompanyCreated` outbox event, and the completed idempotency record.
 
@@ -310,6 +327,8 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 **2026-09-23, after Codex round 4:** `platform_grants` + `@RequirePlatform` authorize onboarding before any membership exists; `Principal.grants` carries every credential's permissions so the guard has one code path.
 
 **2026-09-23, after Codex round 5:** grants keep their `effect` and are evaluated at the target scope (branch-level DENY under a business-level ALLOW); ALLOW overrides included; cache invalidation covers role and platform-grant changes; `platform_audit_log` for non-tenant audit.
+
+**2026-09-23, after the plan v4 debate:** bootstrap-owner exception; `pospay_dispatcher` role for the outbox dispatcher; `onboard-company` idempotency coordinated by the unique key with no persisted `IN_FLIGHT` state.
 
 **2026-09-23, after Codex round 6:** `withNewTenant` is context-only and the idempotency claim precedes the company insert; the synchronous `identity → tenancy` write is recorded as the one exception to `module-map.md` §3; offline money-moving actions without an operator credential are quarantined until P2-T9.
 
