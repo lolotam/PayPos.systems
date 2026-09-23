@@ -24,7 +24,11 @@
           },
           "details": {}
         },
-        "required": ["code", "message_ar", "message_en"]
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ]
       },
       "PageQuery": {
         "type": "object",
@@ -72,7 +76,13 @@
             }
           }
         },
-        "required": ["id", "code", "name_ar", "name_en", "feature_flags"]
+        "required": [
+          "id",
+          "code",
+          "name_ar",
+          "name_en",
+          "feature_flags"
+        ]
       },
       "Company": {
         "type": "object",
@@ -144,7 +154,10 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           }
         },
-        "required": ["name_en", "plan_id"],
+        "required": [
+          "name_en",
+          "plan_id"
+        ],
         "additionalProperties": false
       },
       "Business": {
@@ -175,12 +188,10 @@
             "maxLength": 255
           },
           "currency": {
-            "type": "string",
-            "pattern": "^[A-Z]{3}$"
+            "type": "string"
           },
           "timezone": {
-            "type": "string",
-            "pattern": "^[A-Za-z][A-Za-z0-9_+-]*(?:\\/[A-Za-z0-9_+-]+)*$"
+            "type": "string"
           },
           "settings": {
             "type": "object",
@@ -222,13 +233,11 @@
           },
           "currency": {
             "default": "KWD",
-            "type": "string",
-            "pattern": "^[A-Z]{3}$"
+            "type": "string"
           },
           "timezone": {
             "default": "Asia/Kuwait",
-            "type": "string",
-            "pattern": "^[A-Za-z][A-Za-z0-9_+-]*(?:\\/[A-Za-z0-9_+-]+)*$"
+            "type": "string"
           },
           "settings": {
             "default": {},
@@ -236,7 +245,10 @@
             "additionalProperties": {}
           }
         },
-        "required": ["vertical_type", "name_en"],
+        "required": [
+          "vertical_type",
+          "name_en"
+        ],
         "additionalProperties": false
       },
       "Branch": {
@@ -362,12 +374,21 @@
             ]
           }
         },
-        "required": ["business_id", "name_en"],
+        "required": [
+          "business_id",
+          "name_en"
+        ],
         "additionalProperties": false
       },
       "VerticalType": {
         "type": "string",
-        "enum": ["restaurant", "salon", "laundry", "retail", "services"]
+        "enum": [
+          "restaurant",
+          "salon",
+          "laundry",
+          "retail",
+          "services"
+        ]
       },
       "GeoPoint": {
         "type": "object",
@@ -383,7 +404,10 @@
             "maximum": 180
           }
         },
-        "required": ["lat", "lng"]
+        "required": [
+          "lat",
+          "lng"
+        ]
       },
       "OpeningHours": {
         "maxItems": 7,
@@ -412,11 +436,17 @@
                     "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
                   }
                 },
-                "required": ["opens", "closes"]
+                "required": [
+                  "opens",
+                  "closes"
+                ]
               }
             }
           },
-          "required": ["weekday", "intervals"]
+          "required": [
+            "weekday",
+            "intervals"
+          ]
         }
       }
     }

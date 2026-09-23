@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "test": "vitest run && pnpm run test:node",
     "test:node": "node --input-type=module -e \"import { errorEnvelope } from '@pospay/contracts'; if (!errorEnvelope.safeParse({ code: 'X', message_ar: 'خطأ', message_en: 'Error' }).success) process.exit(1);\"",
-    "contracts:openapi": "tsc -p tsconfig.build.json && node scripts/write-openapi.mjs"
+    "contracts:openapi": "tsc -p tsconfig.build.json && node scripts/write-openapi.mjs",
+    "reference:update": "node scripts/update-reference-data.mjs"
   },
   "dependencies": {
     "zod": "4.6.5"
