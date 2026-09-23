@@ -202,6 +202,37 @@ describe('companies — the tenant root, keyed on id', () => {
   });
 });
 
+describe('companies — the write policies allow the legitimate path', () => {
+  // A company with no children, so a foreign-key error can never stand in for the expected RLS rejection.
+  const NEW = '01920000-0000-7000-8000-0000000000c0';
+
+  it('withNewTenant creates the company, and its own context can rename it', async () => {
+    const created = await db.withNewTenant(USER, async (tx, companyId) =>
+      Array.from(
+        await tx.execute(sql`INSERT INTO companies (id, name_en, owner_user_id, plan_id)
+          SELECT ${companyId}, 'Created', ${USER}, id FROM plans LIMIT 1 RETURNING id`),
+      ),
+    );
+    expect(created).toEqual([{ id: NEW }]);
+    expect(
+      await rows(
+        NEW,
+        sql`UPDATE companies SET name_en = 'Renamed' WHERE id = ${NEW} RETURNING name_en`,
+      ),
+    ).toEqual([{ name_en: 'Renamed' }]);
+  });
+
+  it("changing the company's own id is rejected by the UPDATE WITH CHECK", async () => {
+    await rejectsWith(
+      rows(
+        NEW,
+        sql`UPDATE companies SET id = '01920000-0000-7000-8000-0000000000c9' WHERE id = ${NEW}`,
+      ),
+      RLS,
+    );
+  });
+});
+
 describe('plans — global reference data', () => {
   it('is readable by the app role', async () => {
     expect(await rows(A.company, sql`SELECT code FROM plans`)).toEqual([{ code: 'provisional' }]);
@@ -225,6 +256,19 @@ describe('identifiers are scoped to the tenant (ADR-0007)', () => {
     expect(created).toEqual([{ company_id: A.company }]);
     expect(await rows(B.company, sql`SELECT name_en FROM businesses`)).toEqual([
       { name_en: 'Business B' },
+    ]);
+  });
+
+  it("inserting B's branch id under A succeeds and leaves B's branch untouched", async () => {
+    const created = await rows(
+      A.company,
+      sql`INSERT INTO branches (id, company_id, business_id, name_en)
+          VALUES (${B.branch}, ${A.company}, ${A.business}, 'same id, other tenant')
+          RETURNING company_id`,
+    );
+    expect(created).toEqual([{ company_id: A.company }]);
+    expect(await rows(B.company, sql`SELECT name_en FROM branches`)).toEqual([
+      { name_en: 'Branch B' },
     ]);
   });
 });
