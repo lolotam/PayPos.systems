@@ -13,9 +13,11 @@ export interface DatabaseOptions {
 }
 
 /**
- * اللي الـ app بتاخده من الداتابيز: الـ wrappers التلاتة و close — مفيش client خام.
+ * اللي الـ app بتاخده من الداتابيز: الـ wrappers التلاتة و ping و close — مفيش client خام.
  */
 export interface Database extends TenantWrappers {
+  /** بيتأكد إن الداتابيز بترد (SELECT 1) — لـ /ready، ومبيقراش أي بيانات شركة. */
+  ping(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -24,7 +26,7 @@ export interface Database extends TenantWrappers {
  * فمفيش module يقدر يعمل query من غير ما يعدّي على withTenant أو withUser (CLAUDE.md §5).
  *
  * @param options الـ url ومولّد الـ ids وحجم الـ pool
- * @returns الـ wrappers التلاتة و close
+ * @returns الـ wrappers التلاتة و ping و close
  */
 export function createDatabase(options: DatabaseOptions): Database {
   const client = postgres(options.url, {
@@ -33,6 +35,10 @@ export function createDatabase(options: DatabaseOptions): Database {
   });
   return {
     ...createTenantWrappers(drizzle(client), options.ids),
-    close: () => client.end(),
+    ping: async () => {
+      await client`SELECT 1`;
+    },
+    // A bounded close: after 5 s postgres.js terminates the connections instead of waiting forever.
+    close: () => client.end({ timeout: 5 }),
   };
 }

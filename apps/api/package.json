@@ -1,0 +1,35 @@
+{
+  "name": "@pospay/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PosPay HTTP API — NestJS on the Fastify adapter",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "start": "node --env-file-if-exists=../../.env dist/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.0.3",
+    "@nestjs/core": "12.0.3",
+    "@nestjs/platform-fastify": "12.0.3",
+    "@pospay/contracts": "workspace:*",
+    "@pospay/db": "workspace:*",
+    "@pospay/observability": "workspace:*",
+    "fastify": "5.12.4",
+    "ioredis": "6.0.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "12.0.3",
+    "@pospay/config": "workspace:*",
+    "@types/node": "24.13.6",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}

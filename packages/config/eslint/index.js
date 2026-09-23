@@ -31,6 +31,23 @@ export const config = tseslint.config(
       'no-warning-comments': ['error', { terms: ['fixme', 'hack', 'xxx'], location: 'anywhere' }],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
+      // NestJS modules are empty classes that exist to carry @Module(); undecorated ones stay banned.
+      '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
+      // CLAUDE.md §8 — a log message is a constant event name; data goes in fields, where the sanitiser
+      // (@pospay/observability) can redact it. The logger also withholds messages that look like data.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > TemplateLiteral[expressions.length>0]',
+          message: 'Log messages are constant event names — put dynamic values in the log object.',
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > BinaryExpression[operator='+']",
+          message: 'Log messages are constant event names — put dynamic values in the log object.',
+        },
+      ],
     },
   },
   {

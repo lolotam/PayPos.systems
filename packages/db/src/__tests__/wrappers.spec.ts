@@ -60,6 +60,24 @@ describe('withTenant', () => {
   });
 });
 
+describe('ping', () => {
+  it('resolves when the database answers — no tenant context needed', async () => {
+    await expect(database.ping()).resolves.toBeUndefined();
+  });
+
+  it('rejects when the database cannot be reached', async () => {
+    const unreachable = createDatabase({
+      url: 'postgres://pospay_app:unused@127.0.0.1:1/none',
+      ids: { newId: () => NEW_COMPANY },
+    });
+    try {
+      await expect(unreachable.ping()).rejects.toThrow();
+    } finally {
+      await unreachable.close();
+    }
+  });
+});
+
 describe('withUser', () => {
   it('sets only the user', async () => {
     expect(await database.withUser(USER_1, readContext)).toMatchObject({
