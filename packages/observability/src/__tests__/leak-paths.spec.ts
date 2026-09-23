@@ -200,3 +200,28 @@ describe('round 4 — finite allowlists, no stack text', () => {
     for (const leak of ['4821', 'tok_live_leak', '5001']) expect(line).not.toContain(leak);
   });
 });
+
+describe('round 5 — reserved keys and binding reduction', () => {
+  it('a msg field inside the logged object never reaches the raw output', () => {
+    const raw = capture((log) => {
+      log.info({ msg: SECRET });
+      log.info({ msg: SECRET, level: SECRET }, 'probe');
+    });
+    expect(raw).not.toContain(SECRET);
+  });
+
+  it('bindings get the same reduction as log objects — err, req and msg included', () => {
+    const raw = capture((log) => {
+      const child = log.child({
+        err: `token=${SECRET}`,
+        req: { method: 'GET', url: `/reset/${SECRET}` },
+        msg: SECRET,
+      });
+      child.info('event');
+      child.setBindings({ err: { message: SECRET } });
+      child.info('event');
+    });
+    expect(raw).not.toContain(SECRET);
+    expect(raw).toContain('"type":"NonError"');
+  });
+});

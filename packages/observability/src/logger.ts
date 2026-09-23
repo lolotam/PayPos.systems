@@ -23,6 +23,16 @@ function reduce(object: object): object {
   return reduced;
 }
 
+// pino writes these itself; a caller's value under the same key would be printed too (as a duplicate key).
+const RESERVED_KEYS: ReadonlySet<string> = new Set(['msg', 'level', 'time', 'pid', 'hostname']);
+
+// The one preparation every object pino prints goes through — log objects AND bindings: reduce req/res/err,
+// sanitise at any depth, drop pino's reserved keys.
+function prepare(object: object): Record<string, unknown> {
+  const prepared = sanitize(reduce(object)) as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(prepared).filter(([key]) => !RESERVED_KEYS.has(key)));
+}
+
 function normalizer(events: ReadonlySet<string>): (args: unknown[]) => [object, string] {
   const message = (value: unknown, fallback: string): string =>
     typeof value !== 'string' ? fallback : events.has(value) ? value : WITHHELD_MESSAGE;
@@ -33,9 +43,7 @@ function normalizer(events: ReadonlySet<string>): (args: unknown[]) => [object, 
     const [first, second] = args;
     if (first instanceof Error) return [{ err: errorDiagnostic(first) }, message(second, 'error')];
     if (typeof first === 'string') return [{}, message(first, 'log')];
-    const object = (
-      first !== null && typeof first === 'object' ? sanitize(reduce(first)) : {}
-    ) as object;
+    const object = first !== null && typeof first === 'object' ? prepare(first) : {};
     return [object, message(second, 'log')];
   };
 }
@@ -54,10 +62,10 @@ function harden(root: Logger): Logger {
   const originalChild = proto.child;
   const originalSetBindings = proto.setBindings;
   root.child = function child(this: Logger, bindings: Bindings, options?: object) {
-    return originalChild.call(this, sanitize(bindings) as Bindings, options);
+    return originalChild.call(this, prepare(bindings) as Bindings, options);
   } as Logger['child'];
   root.setBindings = function setBindings(this: Logger, bindings: Bindings) {
-    originalSetBindings.call(this, sanitize(bindings) as Bindings);
+    originalSetBindings.call(this, prepare(bindings) as Bindings);
   };
   return root;
 }
