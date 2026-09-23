@@ -322,8 +322,10 @@ credentials and wires it; no other app imports it, and the "no database client o
 `packages/auth`" rule stays intact.
 
 **Delivery guarantee — at-least-once, effect-once.** A crash between "published" and "marked published" redelivers.
-Every event carries a stable `event_id`; consumers dedupe by it and apply each effect once. Publication tracking and
-consumer deduplication are separate records.
+Every event carries a stable `event_id`. A consumer records its dedupe row **in the same `withTenant(event.company_id)`
+transaction as the business effect** — both commit or neither does, so a crash can neither apply an effect twice nor lose
+it. Tests crash the consumer on both sides of that commit. Publication tracking and consumer deduplication are separate
+records.
 
 **Cross-tenant access — the `pospay_dispatcher` role (debate N2, ADR-0003 amendment).** `pospay_app` needs a tenant
 to read anything, so it cannot drain every company's outbox, and there is no bypass role. A fourth role:
@@ -486,7 +488,7 @@ packages/i18n/src/{ar.ts,en.ts,format-kwd.ts,dates.ts,index.ts}
 `.github/workflows/ci.yml` runs **`pnpm check`** on every PR and on `main`: `turbo run typecheck lint test` (lint
 includes `max-lines`, `boundaries` and the Arabic JSDoc rules) then `pnpm lint:docs`. Since T4 it starts the T2
 compose stack first (ADR-0006), so every package's database tests — T5's isolation and privilege suites included —
-are **required** on every PR from the moment they exist. Branch protection making this check required is still to do.
+are **required** on every PR from the moment they exist. Branch protection is **not** done yet — it moves to T12b.
 
 ---
 
@@ -513,7 +515,8 @@ build all apps → docker images
 - Images tagged by **commit SHA**, never `latest`, pushed to GHCR. A deliberately-broken fixture PR confirms the
   boundary and module-map steps actually block.
 
-**Done when:** a PR violating a module boundary, adding an undeclared arrow, or making a second synchronous
+**Done when:** branch protection on `main` requires the CI check and blocks direct pushes; and a PR violating a module
+boundary, adding an undeclared arrow, or making a second synchronous
 cross-module write is blocked by CI.
 
 ---

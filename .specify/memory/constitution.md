@@ -1,5 +1,7 @@
 <!--
 Sync Impact Report
+- 2.1.0 (2026-09-23, MINOR): Principle III names the outbox dispatcher as a second, narrow
+  exception to withTenant()-only tenant access (plan v4 T7b, ADR-0003 §3).
 - 2.0.2 (2026-09-23, PATCH): Principle V's idempotency clause corrected per plan v4 T7 — a concurrent
   duplicate waits on the unique key and replays; no persisted IN_FLIGHT state (DEBATE-2026-09-23.md).
 - 2.0.1 (2026-09-23, PATCH): Principle V names the database-test mechanism — the compose
@@ -82,7 +84,10 @@ PR. Child tables MUST use tenant-qualified composite foreign keys such as
 business-data access MUST go through `withTenant(companyId, tx => …)`, which sets the GUC
 transaction-locally; exporting the raw Drizzle client from `packages/db` is forbidden and a
 test asserts it. Session-less entry points (gateway webhooks, messaging callbacks, worker
-jobs) resolve the tenant from an identifier and use the same wrapper. The application role
+jobs) resolve the tenant from an identifier and use the same wrapper. A second named
+exception is the outbox dispatcher (ADR-0003 §3): the `pospay_dispatcher` role reads and marks
+`outbox` rows only, across tenants, through a restricted `packages/db` facade; every event
+effect still runs as the application role inside `withTenant()`. The application role
 is `NOSUPERUSER`, `NOBYPASSRLS`, owns no tenant table and has read-only access to shared
 reference data such as `plans`.
 
@@ -405,4 +410,4 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.0.2 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23
+**Version**: 2.1.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23

@@ -30,7 +30,7 @@ Solo developer (Waleed) building entirely with AI agents.
 | `docs/specs/phase-0/IMPLEMENTATION-PLAN.md` (**v4**, after `DEBATE-2026-09-23.md`) | Phase 0 tasks T0–T13, order, "done when" | Phase 0 sequencing |
 | `docs/specs/phase-0/SPEC.md` (v2) | Phase 0 scope and domain model | Phase 0 scope |
 | `docs/PRD.md` (v1.1) | whole product: phases, tasks P0–P6, open decisions D-01…D-34 | product scope |
-| `.specify/memory/constitution.md` (v2.0.2) | spec-kit constitution | — |
+| `.specify/memory/constitution.md` (v2.1.0) | spec-kit constitution | — |
 | `.specify/PROJECT-OVERRIDES.md` | local changes to spec-kit defaults | — |
 | `AGENTS.md` | index for Codex and other agents; review guidelines | — |
 
