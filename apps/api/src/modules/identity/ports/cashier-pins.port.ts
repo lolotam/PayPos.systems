@@ -64,28 +64,37 @@ export interface PinHasher {
 }
 
 /**
- * عدّاد محاولات الـ PIN لكل موظف في Redis (CLAUDE.md §8) — القفل لازم يبان لكل الـ API instances مع بعض.
+ * عدّادات محاولات الـ PIN لكل موظف في Redis (CLAUDE.md §8) — القفل لازم يبان لكل الـ API instances، وكل عملية ذرّية
+ * عشان الطلبات اللي بتيجي مع بعض ما تعدّيش الحد ولا تمسح قفل أحدث منها.
  */
 export interface PinAttempts {
   /**
-   * بيحجز محاولة قبل المقارنة ويرجّع رقمها في الـ window الحالي (15 دقيقة من أول غلطة).
+   * بيحجز مكان لمقارنة قبل ما تبدأ: 'locked' لو مقفول، و'busy' لو الغلطات + المقارنات الشغالة وصلوا 5 — فمفيش أكتر
+   * من 5 غلطات ممكنة قبل القفل مهما جت طلبات مع بعض.
    *
    * @param companyId الشركة
    * @param employeeId الموظف
    */
-  reserve(companyId: string, employeeId: string): Promise<number>;
+  reserve(companyId: string, employeeId: string): Promise<'ok' | 'locked' | 'busy'>;
   /**
-   * بيبدأ الـ 15 دقيقة من اللحظة دي — بعد الغلطة الخامسة.
+   * بيسجل غلطة ويفك الحجز؛ الغلطة الخامسة في الـ window بتعمل قفل ليه مدته الخاصة (15 دقيقة من اللحظة دي).
    *
    * @param companyId الشركة
    * @param employeeId الموظف
    */
-  lock(companyId: string, employeeId: string): Promise<void>;
+  failed(companyId: string, employeeId: string): Promise<'failed' | 'locked'>;
   /**
-   * بيمسح العدّاد بعد PIN صح، فالغلطات القديمة ما تتجمعش مع اللي بعدها.
+   * بيفك الحجز ويمسح الغلطات بعد PIN صح — إلا لو فيه قفل اتعمل بعد ما المقارنة دي بدأت، ساعتها بيفضل.
    *
    * @param companyId الشركة
    * @param employeeId الموظف
    */
-  clear(companyId: string, employeeId: string): Promise<void>;
+  succeeded(companyId: string, employeeId: string): Promise<void>;
+  /**
+   * بيفك الحجز من غير ما يعد غلطة — لما المقارنة ما كملتش بسبب خطأ مش بسبب PIN.
+   *
+   * @param companyId الشركة
+   * @param employeeId الموظف
+   */
+  release(companyId: string, employeeId: string): Promise<void>;
 }

@@ -10,8 +10,10 @@ const KEY_BYTES = 32;
 const FORMAT = /^pbkdf2-sha256\$(\d{1,7})\$([A-Za-z0-9_-]{22})\$([A-Za-z0-9_-]{43})$/;
 const derive = promisify(pbkdf2);
 
-// PIN مالوش hash بيتقارن بـ hash ثابت عشان الوقت ما يكشفش إن الموظف ده مالوش PIN.
-let placeholder: Promise<string> | undefined;
+// موظف مالوش PIN بيتقارن بالـ hash ده عشان الوقت ما يكشفش إنه مالوش: hash لقيمة عشوائية اترمت، مش سر. ثابت ومحسوب
+// مسبقاً، عشان أول طلب في الـ process ما ياخدش وقت زيادة وهو بيعمله.
+const PLACEHOLDER =
+  'pbkdf2-sha256$600000$rpsPl_wobQjJhlnTKTOKvA$i9QxsF0PBkaW9UuPL9_uqevHAXC_OtNk92gyXjfpJ4U';
 
 /**
  * بيعمل hash للـ PIN بملح عشوائي.
@@ -33,8 +35,7 @@ export async function hashCashierPin(pin: string): Promise<string> {
  * @returns true لو مطابق
  */
 export async function verifyCashierPin(pin: string, stored: string | null): Promise<boolean> {
-  placeholder ??= hashCashierPin(randomBytes(8).toString('hex'));
-  const match = FORMAT.exec(stored ?? (await placeholder));
+  const match = FORMAT.exec(stored ?? PLACEHOLDER);
   if (match === null) return false;
   const [, iterations = '', salt = '', expected = ''] = match;
   if (Number(iterations) < 1) return false;

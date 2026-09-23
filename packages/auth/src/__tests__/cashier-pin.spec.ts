@@ -16,6 +16,7 @@ describe('cashier PIN hash', () => {
     expect(await verifyCashierPin('4821', hash)).toBe(true);
     expect(await verifyCashierPin('4822', hash)).toBe(false);
     expect(await verifyCashierPin('4821', null)).toBe(false);
+    expect(await verifyCashierPin('0000', null)).toBe(false);
     expect(await verifyCashierPin('4821', 'not-a-hash')).toBe(false);
     expect(await verifyCashierPin('4821', hash.replace('$600000$', '$0$'))).toBe(false);
   });

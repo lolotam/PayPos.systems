@@ -46,6 +46,7 @@ export class CashierPinsController {
       pin: input.pin,
     });
     if (outcome.kind === 'locked') throw new ApiError('PIN_LOCKED');
+    if (outcome.kind === 'busy') throw new ApiError('TOO_MANY_REQUESTS');
     if (outcome.kind === 'refused') throw new ApiError('PIN_INVALID');
     return { employee_id: outcome.employeeId };
   }

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 import { CASHIER_PIN_USE_CASES, type CashierPinUseCases } from '../http/cashier-pins.controller.ts';
+import { createRedisPinAttempts } from '../persistence/redis-pin-attempts.ts';
 import { CashierPinMalformedError } from '../use-cases/set-cashier-pin/set-cashier-pin.ts';
 
 // T9b-3 through the API with real Postgres and Redis: a manager sets an employee's PIN (only its hash is stored), an
@@ -93,7 +94,9 @@ const code = (res: Awaited<ReturnType<typeof verify>>) =>
   [res.statusCode, res.statusCode === 200 ? 'OK' : errorEnvelope.parse(res.json()).code] as const;
 const setPin = (employeeId: string, pin: string, companyId = company) =>
   pins.setCashierPin.execute({ companyId, userId: managerId, employeeId, pin });
-const unlock = (employeeId: string) => h.redis.del(`pin-attempts:${company}:${employeeId}`);
+const pinKey = (employeeId: string, part: string) => `pin:${company}:${employeeId}:${part}`;
+const unlock = (employeeId: string) =>
+  h.redis.del(...['failures', 'pending', 'lock'].map((part) => pinKey(employeeId, part)));
 
 describe('setting a PIN', () => {
   it('stores only a salted hash, and audits the first set and every change', async () => {
@@ -151,7 +154,7 @@ describe('verifying a PIN on a device', () => {
       payload: { employee_id: EMPLOYEE, pin: PIN },
     });
     expect(asUser.statusCode).toBe(403);
-    expect(await h.redis.get(`pin-attempts:${company}:${EMPLOYEE}`)).toBeNull();
+    expect(await h.redis.get(pinKey(EMPLOYEE, 'failures'))).toBeNull();
   });
 });
 
@@ -163,7 +166,7 @@ describe('lockout (PRD D-08)', () => {
     }
     expect(statuses).toEqual([...Array<string>(4).fill('PIN_INVALID'), 'PIN_LOCKED']);
     expect(code(await verify({ employee_id: EMPLOYEE, pin: PIN }))).toEqual([423, 'PIN_LOCKED']);
-    const ttl = await h.redis.ttl(`pin-attempts:${company}:${EMPLOYEE}`);
+    const ttl = await h.redis.ttl(pinKey(EMPLOYEE, 'lock'));
     expect(ttl).toBeGreaterThan(890);
     expect(ttl).toBeLessThanOrEqual(900);
     const [locked] =
@@ -174,14 +177,19 @@ describe('lockout (PRD D-08)', () => {
   });
 
   it('a burst of ten wrong PINs gets five comparisons, never more', async () => {
+    const [before] =
+      await h.owner`SELECT count(*)::int AS n FROM audit_log WHERE entity_id = ${EMPLOYEE} AND action = 'cashier_pin.locked'`;
     const burst = await Promise.all(
       Array.from({ length: 10 }, () => verify({ employee_id: EMPLOYEE, pin: '0000' })),
     );
-    const codes = burst.map((res) => code(res)[1]).sort();
-    expect(codes).toEqual([
-      ...Array<string>(4).fill('PIN_INVALID'),
-      ...Array<string>(6).fill('PIN_LOCKED'),
-    ]);
+    const codes = burst.map((res) => code(res)[1]);
+    expect(codes.filter((c) => c === 'PIN_INVALID')).toHaveLength(4);
+    expect(
+      codes.filter((c) => c === 'PIN_INVALID' || c === 'TOO_MANY_REQUESTS' || c === 'PIN_LOCKED'),
+    ).toHaveLength(10);
+    const [after] =
+      await h.owner`SELECT count(*)::int AS n FROM audit_log WHERE entity_id = ${EMPLOYEE} AND action = 'cashier_pin.locked'`;
+    expect(Number(after?.['n']) - Number(before?.['n'])).toBe(1);
     await unlock(EMPLOYEE);
   });
 
@@ -195,6 +203,41 @@ describe('lockout (PRD D-08)', () => {
       ]);
     }
     await unlock(EMPLOYEE);
+  });
+});
+
+describe('the attempt counters under concurrency', () => {
+  const attempts = () => createRedisPinAttempts(h.redis);
+  const ID = '01920000-0000-7000-8000-0000000000f9';
+  const k = (part: string) => `pin:${company}:${ID}:${part}`;
+
+  it('no more than five comparisons can be in flight or failed at once', async () => {
+    const a = attempts();
+    for (let i = 0; i < 5; i += 1) expect(await a.reserve(company, ID)).toBe('ok');
+    expect(await a.reserve(company, ID)).toBe('busy');
+    await a.release(company, ID);
+    expect(await a.reserve(company, ID)).toBe('ok');
+    await h.redis.del(k('pending'));
+  });
+
+  it('a success that finishes after a lock was made does not remove it', async () => {
+    const a = attempts();
+    expect(await a.reserve(company, ID)).toBe('ok');
+    await h.redis.set(k('lock'), '1', 'EX', 900);
+    await a.succeeded(company, ID);
+    expect(await a.reserve(company, ID)).toBe('locked');
+    await h.redis.del(k('lock'), k('pending'), k('failures'));
+  });
+
+  it('the lock has its own 15 minutes, whatever is left of the failure window', async () => {
+    const a = attempts();
+    await h.redis.set(k('failures'), '4', 'EX', 1);
+    expect(await a.reserve(company, ID)).toBe('ok');
+    expect(await a.failed(company, ID)).toBe('locked');
+    expect(await h.redis.ttl(k('lock'))).toBeGreaterThan(890);
+    await new Promise((done) => setTimeout(done, 1100));
+    expect(await a.reserve(company, ID)).toBe('locked');
+    await h.redis.del(k('lock'), k('pending'), k('failures'));
   });
 });
 
