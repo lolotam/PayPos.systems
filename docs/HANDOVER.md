@@ -111,18 +111,19 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 | T12a Minimal CI | ✅ done (branch protection still to do) | `.github/workflows/ci.yml` |
 | T2 Local infra | ✅ done | PR #12 — `deploy/docker-compose.dev.yml` |
 | T3 `packages/domain` (Money, rounding, Percentage, TaxRule) | ✅ done | PR #14 — ADR-0004, ADR-0005 |
-| T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | 🟡 **PR open** — `pnpm check` green, 16 db tests on real Postgres | ADR-0006 |
-| **T6a contracts** (next) → T5 tenancy schema + RLS suite → T6b api → T7 write primitives → **T9a → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v3 §2 |
+| T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | ✅ done | PR #15 — ADR-0006 (+ issue #16 for T5) |
+| T6a contracts | 🟡 **PR open** — 47 contract tests | `packages/contracts` |
+| **T5 tenancy schema + RLS suite** (next) → T6b api → T7 write primitives → **T9a → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v3 §2 |
 
 **Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T9a → T8 → T9b → T12b → T13.
 
-### 4.1 Next action — finish T4, then T6a
+### 4.1 Next action — finish T6a, then T5
 
-- T4: get the PR through Codex review and merge it.
-- T6a: Zod contracts for tenancy in `packages/contracts`, before T5's schema (plan v3 §2 — contract → migration).
-- Open for T5 (ADR-0006, last consequence): the compose `pospay_owner` is the image's bootstrap superuser, so it has
-  `BYPASSRLS`. Decide whether T5's "no role has BYPASSRLS" assertion covers only the application roles, or whether
-  the owner is replaced by a non-superuser.
+- T6a: get the PR through review and merge it.
+- T5 per plan v3 §T5: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides` with explicit
+  `USING` + `WITH CHECK`, `FORCE ROW LEVEL SECURITY`, tenant-qualified composite FKs, and the negative suite run as
+  `pospay_app`. Columns follow `packages/contracts` (e.g. `timezone`, `geo` as `geo_lat`/`geo_lng`, `opening_hours` jsonb).
+- T5 must also close **#16** (direct-privilege allowlist) and decide the owner-`BYPASSRLS` question (ADR-0006).
 
 ### 4.2 Package facts worth knowing
 
@@ -137,6 +138,11 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
   `node scripts/migrate.ts` runs the source directly with Node 24 type stripping and `tsc` still emits `.js`.
 - Tests that need Postgres: `createTestDatabase()` from `packages/db/test/test-database.ts` clones the migrated
   template for one spec file; connect with `appUrl` (`pospay_app`) and drop it in `afterAll`.
+- `packages/contracts`: API fields are snake_case; every published schema carries `.meta({ id })` and is listed in
+  `src/openapi.ts`. `pnpm contracts:openapi` rewrites the committed `openapi/openapi.json`; a test fails if it is stale.
+  Decisions (Waleed 2026-09-23): names 1–255 chars, branch address free text ar/en, opening hours = intervals per
+  ISO weekday (overnight allowed, no overlap), currency any ISO 4217 code — **`Money` is still 3-dp, so arithmetic is
+  correct for KWD only until multi-currency**.
 - A package linted from its own folder does not match the shared `packages/<name>/src/**` globs. It re-scopes
   `requireArabicJsdoc` (exported from `@pospay/config/eslint/jsdoc`) to `src/**` — see `packages/domain/eslint.config.js`.
 
