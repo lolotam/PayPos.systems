@@ -11,22 +11,30 @@ export const READINESS_CHECKS = Symbol('READINESS_CHECKS');
 const TIMEOUT_MS = 2_000;
 
 /**
- * Wraps a check so at most one probe per dependency is ever outstanding. A stalled dependency makes each
- * /ready return after the timeout while its ping stays pending; without this, every request would start
- * another ping and pile up connections and queued commands.
+ * Wraps a check so each dependency has at most one probe outstanding, bounded by the timeout. Every caller
+ * shares the same bounded promise, so a stalled dependency never collects one pending reaction per /ready
+ * call; while the stalled operation is still running, callers get its already-settled timeout failure.
  *
  * @param check the dependency check
- * @returns the same check, sharing one in-flight probe between concurrent and repeated callers
+ * @returns the same check, sharing one bounded in-flight probe
  */
 export function singleFlight(check: ReadinessCheck): ReadinessCheck {
-  let inFlight: Promise<void> | undefined;
+  let bounded: Promise<void> | undefined;
   return {
     name: check.name,
     check: () => {
-      inFlight ??= check.check().finally(() => {
-        inFlight = undefined;
-      });
-      return inFlight;
+      if (bounded === undefined) {
+        const underlying = check.check();
+        bounded = within(underlying, TIMEOUT_MS);
+        // Suppress the unhandled rejection on the shared promise; each caller still sees its outcome.
+        bounded.catch(() => undefined);
+        void underlying
+          .catch(() => undefined)
+          .finally(() => {
+            bounded = undefined;
+          });
+      }
+      return bounded;
     },
   };
 }
@@ -56,7 +64,7 @@ export async function probe(
   const results = await Promise.all(
     checks.map(async ({ name, check }) => {
       try {
-        await within(check(), TIMEOUT_MS);
+        await check();
         return [name, 'up'] as const;
       } catch {
         return [name, 'down'] as const;

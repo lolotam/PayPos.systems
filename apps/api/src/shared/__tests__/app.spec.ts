@@ -4,6 +4,8 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { errorEnvelope } from '@pospay/contracts';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { createLogger } from '@pospay/observability';
+
 import { createApp } from '../../app.ts';
 import type { ReadinessCheck } from '../readiness.ts';
 
@@ -28,7 +30,7 @@ const start = async (readiness: ReadinessCheck[]) => {
       done();
     },
   });
-  app = await createApp({ readiness }, { logDestination: sink });
+  app = await createApp({ readiness }, { logger: createLogger('info', sink) });
   return app;
 };
 
@@ -91,6 +93,11 @@ describe('readiness under a stalled dependency', () => {
     await request('GET', '/ready');
     expect(results.map((r) => r.status)).toEqual([503, 503]);
     expect(calls).toBe(1);
+    // While the stalled probe is still pending, /ready answers from the settled timeout at once.
+    const started = Date.now();
+    expect((await request('GET', '/ready')).status).toBe(503);
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(calls).toBe(1);
   });
 });
 
@@ -99,7 +106,7 @@ describe('shutdown', () => {
     let released = 0;
     app = await createApp(
       { readiness: [], onShutdown: async () => void (released += 1) },
-      { logDestination: new Writable({ write: (_c, _e, done) => done() }) },
+      { logger: createLogger('info', new Writable({ write: (_c, _e, done) => done() })) },
     );
     await app.close();
     app = undefined;

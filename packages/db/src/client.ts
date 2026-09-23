@@ -38,6 +38,7 @@ export function createDatabase(options: DatabaseOptions): Database {
     ping: async () => {
       await client`SELECT 1`;
     },
-    close: () => client.end(),
+    // A bounded close: after 5 s postgres.js terminates the connections instead of waiting forever.
+    close: () => client.end({ timeout: 5 }),
   };
 }

@@ -10,12 +10,13 @@ import {
 } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createLogger, type DestinationStream, type LogLevel } from '@pospay/observability';
-import type { FastifyReply } from 'fastify';
+import { createLogger, type Logger } from '@pospay/observability';
+import { LogController, type FastifyReply } from 'fastify';
 
 import { ApiError } from './shared/errors.ts';
 import { EnvelopeExceptionFilter } from './shared/exception.filter.ts';
 import { HealthController } from './shared/health.controller.ts';
+import { PinoNestLogger } from './shared/nest-logger.ts';
 import { READINESS_CHECKS, singleFlight, type ReadinessCheck } from './shared/readiness.ts';
 
 export interface AppDependencies {
@@ -25,11 +26,10 @@ export interface AppDependencies {
 }
 
 export interface AppOptions {
-  readonly logLevel?: LogLevel;
+  /** The shared sanitising logger — main.ts builds it from the validated LOG_LEVEL; tests pass a sink. */
+  readonly logger?: Logger;
   /** Test-only: extra controllers mounted beside the real ones. */
   readonly controllers?: readonly Type<unknown>[];
-  /** Test-only: where log lines go, so a test can read them. */
-  readonly logDestination?: DestinationStream;
 }
 
 const SHUTDOWN = Symbol('SHUTDOWN');
@@ -83,11 +83,13 @@ export async function createApp(
   deps: AppDependencies,
   options: AppOptions = {},
 ): Promise<NestFastifyApplication> {
+  const logger = options.logger ?? createLogger('info');
   const adapter = new FastifyAdapter({
-    loggerInstance: createLogger(options.logLevel ?? 'info', options.logDestination),
+    loggerInstance: logger,
     bodyLimit: 1_048_576,
     // Fastify's own request log serialises the raw URL; we log one safe line per request instead (below).
-    disableRequestLogging: true,
+    // Its per-request error lines go too — the envelope filter logs unhandled errors through the sanitiser.
+    logController: new LogController({ disableRequestLogging: true }),
     // A malformed URL (e.g. `/%ZZ`) is rejected by Fastify's router before Nest runs; answer with the
     // envelope instead of Fastify's default body, which echoes the malformed input.
     frameworkErrors: (_error: unknown, _request: unknown, reply: FastifyReply) => {
@@ -112,7 +114,9 @@ export async function createApp(
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot(deps, options.controllers ?? []),
     adapter,
-    { logger: ['error', 'warn'] },
+    // abortOnError: false — an initialisation error is thrown to the caller (main.ts releases resources
+    // and exits) instead of Nest exiting the process itself.
+    { logger: new PinoNestLogger(logger), abortOnError: false },
   );
   app.setGlobalPrefix('v1', { exclude: ['health', 'ready'] });
   app.useGlobalFilters(new EnvelopeExceptionFilter());

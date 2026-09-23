@@ -5,27 +5,38 @@
  */
 
 const MAX_FRAMES = 12;
+const SAFE_NAME = /^[A-Z][A-Za-z]{0,40}Error$|^Error$/;
+const SAFE_CODE = /^[A-Z0-9_]{1,32}$/;
+const FRAME = /^at \S.*$/;
+
+// V8 stacks start with `${name}: ${message}`. Frames are read only after that exact prefix, so a
+// multiline message cannot pose as a frame; if the prefix is not there, no frame is trusted.
+function framesOf(error: Error): string[] {
+  const stack = error.stack ?? '';
+  const header = error.message === '' ? error.name : `${error.name}: ${error.message}`;
+  if (!stack.startsWith(header)) return [];
+  return stack
+    .slice(header.length)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => FRAME.test(line))
+    .slice(0, MAX_FRAMES);
+}
 
 /**
- * An error as type, code and stack frames — never the message, never the causes, never other properties.
- * The first stack line repeats the message, so it is dropped too.
+ * An error as an allowlisted type, an allowlisted code and its stack frames — never the message, the
+ * causes or any other property. A name or code outside the allowlist is dropped, not printed.
  *
  * @param error whatever was thrown
  * @returns a diagnostic safe to log
  */
 export function errorDiagnostic(error: unknown): Record<string, unknown> {
-  if (!(error instanceof Error)) return { type: typeof error };
+  if (!(error instanceof Error)) return { type: 'NonError' };
   const code = (error as { code?: unknown }).code;
-  const frames = (error.stack ?? '')
-    .split('\n')
-    .slice(1)
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('at '))
-    .slice(0, MAX_FRAMES);
   return {
-    type: error.name,
-    ...(typeof code === 'string' || typeof code === 'number' ? { code } : {}),
-    frames,
+    type: SAFE_NAME.test(error.name) ? error.name : 'Error',
+    ...(typeof code === 'string' && SAFE_CODE.test(code) ? { code } : {}),
+    frames: framesOf(error),
   };
 }
 

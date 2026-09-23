@@ -6,6 +6,8 @@ import { createBusinessInput, errorEnvelope } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { createLogger } from '@pospay/observability';
+
 import { createApp } from '../../app.ts';
 import { ZodValidationPipe } from '../zod-validation.pipe.ts';
 
@@ -46,7 +48,7 @@ beforeAll(async () => {
   });
   app = await createApp(
     { readiness: [] },
-    { controllers: [ProbeController], logDestination: sink },
+    { controllers: [ProbeController], logger: createLogger('info', sink) },
   );
 });
 
