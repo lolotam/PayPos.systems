@@ -8,7 +8,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "check": "turbo run typecheck lint test && pnpm lint:docs",
+    "check": "turbo run typecheck lint test && pnpm lint:docs && node --test \"scripts/module-map/*.test.mjs\" && pnpm module-map:check",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "lint:docs": "node packages/config/scripts/lint-docs.mjs",
@@ -25,7 +25,9 @@
     "infra:ps": "docker compose --env-file .env -f deploy/docker-compose.dev.yml ps",
     "infra:logs": "docker compose --env-file .env -f deploy/docker-compose.dev.yml logs -f --tail=100",
     "platform:grant": "pnpm --filter @pospay/db platform:grant",
-    "platform:create-user": "pnpm --filter @pospay/auth platform:create-user"
+    "platform:create-user": "pnpm --filter @pospay/auth platform:create-user",
+    "module-map:generate": "node scripts/module-map/cli.mjs generate",
+    "module-map:check": "node scripts/module-map/cli.mjs check"
   },
   "devDependencies": {
     "@pospay/config": "workspace:*",

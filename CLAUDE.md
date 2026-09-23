@@ -272,4 +272,4 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - Guess business rules — ask, or mark `TODO(spec)` and stop.
 
 ## 12. Useful commands
-`pnpm dev` · `pnpm check` · `pnpm test` · `pnpm lint:docs` · `pnpm lint:boundaries` · `pnpm lint:cycles` · `pnpm db:generate` · `pnpm db:migrate` · `pnpm db:seed` · `pnpm contracts:openapi` · `pnpm e2e`
+`pnpm dev` · `pnpm check` · `pnpm test` · `pnpm lint:docs` · `pnpm module-map:check` (boundaries in `lint`; cycles, arrows and the one synchronous write here) · `pnpm db:generate` · `pnpm db:migrate` · `pnpm db:seed` · `pnpm contracts:openapi` · `pnpm e2e`

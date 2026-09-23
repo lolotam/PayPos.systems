@@ -159,9 +159,20 @@ packages_restricted:
   storage:       [files]
   notifications: [notifications]
   documents:     [reporting]
+
+# Every VALUE a module imports from another module's index.ts is one of these (type-only imports need only the
+# arrow above). §3.1: the one synchronous write. A read port's adapter calling another module's exported read is
+# added under reads, one line per symbol, in the PR that introduces it.
+sync_writes:
+  - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
+reads: []
 ```
 
-The check: for every `import` between `modules/*`, assert the target is the module's `index.ts` **and** the edge appears in `imports`. Then assert the whole graph is acyclic.
+The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be
+current; for every `import` between `modules/*`, the target is the module's `index.ts` **and** the edge appears in
+`imports`; every value (not type-only) import across modules is a `sync_writes` or `reads` entry for exactly that
+file; a `packages_restricted` package is imported only by its owners; and the graph of imports actually used is
+acyclic.
 
 ---
 
