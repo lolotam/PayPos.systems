@@ -99,7 +99,7 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 - **`.claude/` and `.github/` are write-protected for remote/agent file tools** in Waleed's setup. If you cannot write there, prepare the file elsewhere and ask Waleed to copy it.
 - **spec-kit** runs on Windows PowerShell only. Its defaults were changed (specs under `docs/specs/NNN-<module>-<use-case>/`, tests mandatory, business rules never guessed, mandatory *Slice design* section). A spec-kit refresh overwrites the skill copies — re-apply per `.specify/PROJECT-OVERRIDES.md`.
 - `.agents/skills/` contains a personal skill library that is git-ignored except `speckit-*`. 186 unrelated skills were moved to `E:\PosPay.systems\_skills-archive`.
-- CI (`.github/workflows/ci.yml`) ignores `docs/**` and `*.md`, so docs-only PRs show no CI run — that is expected.
+- CI (`.github/workflows/ci.yml`) runs on every PR. A `changes` job skips the heavy `check` job when only `docs/**` or `*.md` changed; the small `ci-gate` job always reports, and **`ci-gate` is the check branch protection requires** on `main` (plan v4 T12a).
 - `lint:docs` fails on closing JSX comments, `FIXME`/`HACK`/`XXX`, commented-out code, and on any JSDoc in `domain/**`, `ports/**`, `events/published.ts` that has no Arabic **letter**.
 
 ## 4. Status — Phase 0

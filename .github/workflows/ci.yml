@@ -1,16 +1,12 @@
 name: CI
 
+# No paths-ignore: branch protection requires `ci-gate`, and a workflow skipped by paths-ignore
+# never reports it, so a docs-only PR could never merge. The `changes` job decides instead.
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
 
 # A newer push to the same branch cancels the older run — saves Actions minutes on the private repo.
 concurrency:
@@ -21,8 +17,37 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: detect code changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Anything outside docs/** and *.md counts as code. Unknown ranges (first push, force push)
+      # count as code too, so a missing base can only cause an extra run, never a skipped one.
+      - id: diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if git diff --name-only "$BASE" "$HEAD_SHA" | grep -v -E '^docs/|\.md$' | grep -q .; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
   check:
     name: typecheck · lint · test · lint:docs
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -59,3 +84,21 @@ jobs:
 
       - name: pnpm check
         run: pnpm check
+
+  # The one check branch protection requires. It passes when `check` passed, or when `check` was
+  # skipped because only docs changed — and fails on anything else, including a failed `changes`.
+  gate:
+    name: ci-gate
+    needs: [changes, check]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          CHECK: ${{ needs.check.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+        run: |
+          echo "changes=$CHANGES check=$CHECK code=$CODE"
+          [ "$CHANGES" = "success" ] || exit 1
+          if [ "$CODE" = "true" ]; then [ "$CHECK" = "success" ]; else [ "$CHECK" = "skipped" ]; fi
