@@ -257,8 +257,8 @@ logged PIN and token do not appear in the output (tested); an invalid body retur
 - Migrations `0003_…_cross-cutting.sql` (tables) and `0004_…_cross-cutting-rls.sql` (RLS, grants, commit check).
 - `outbox`: PK `(company_id, id)` — `id` is the stable event id T7b dedupes on; `pospay_app` may only `INSERT`.
 - `audit_log`: insert-only (`SELECT`, `INSERT`); the actor is `app_user_id()` (NULL = a system action). `before` /
-  `after` pass through `redactSecrets` (secret-named keys and URL credentials removed; phone numbers kept —
-  `TODO(spec)`: should the audit trail mask phones too?).
+  `after` pass through `redactSecrets` (secret-named keys and URL credentials removed; phone numbers kept whole —
+  the audit trail is a business record, not a technical log; Waleed, 2026-09-23).
 - `idempotency_keys`: PK `(scope_type, scope_id, operation, key)` instead of a surrogate `id`; `UPDATE` reaches only a
   row whose response is still NULL; a deferred constraint trigger refuses to commit a claim without its response.
   A `USER` row carries no `company_id` (an FK check would reveal whether a company exists). The claim restores the
