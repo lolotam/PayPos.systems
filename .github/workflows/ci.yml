@@ -1,16 +1,12 @@
 name: CI
 
+# No paths-ignore: branch protection requires `ci-gate`, and a workflow skipped by paths-ignore
+# never reports it, so a docs-only PR could never merge. The `changes` job decides instead.
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
 
 # A newer push to the same branch cancels the older run — saves Actions minutes on the private repo.
 concurrency:
@@ -21,8 +17,45 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: detect code changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Only a pull request may skip the heavy job. Every push to main runs it, so a run cancelled by a
+      # later docs-only push cannot leave a code commit on main untested.
+      # Fails closed: an unknown base or any git error counts as code. --no-renames makes a rename out of
+      # src/ into docs/ show its deleted source path; -z reads raw file names, which git would otherwise quote.
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          code=true
+          files="$(mktemp)"
+          if [ "$EVENT" = "pull_request" ] && [ -n "$BASE" ] \
+            && git diff --no-renames --name-only -z "$BASE" "$HEAD_SHA" > "$files"; then
+            code=false
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                docs/*|*.md) ;;
+                *) code=true; break ;;
+              esac
+            done < "$files"
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   check:
     name: typecheck · lint · test · lint:docs
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -59,3 +92,21 @@ jobs:
 
       - name: pnpm check
         run: pnpm check
+
+  # The one check branch protection requires. It passes when `check` passed, or when `check` was
+  # skipped because only docs changed — and fails on anything else, including a failed `changes`.
+  gate:
+    name: ci-gate
+    needs: [changes, check]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          CHECK: ${{ needs.check.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+        run: |
+          echo "changes=$CHANGES check=$CHECK code=$CODE"
+          [ "$CHANGES" = "success" ] || exit 1
+          if [ "$CODE" = "true" ]; then [ "$CHECK" = "success" ]; else [ "$CHECK" = "skipped" ]; fi
