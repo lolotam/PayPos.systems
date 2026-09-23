@@ -110,12 +110,11 @@ function compilerOptions(project) {
  * (namespace, dynamic import, require, side-effect import).
  *
  * @param {string} file absolute path
- * @returns {{ spec: string, kind: string, typeOnly: boolean, names: string[], locals: string[] }[] & { exported: Set<string> }}
+ * @returns {{ spec: string | null, kind: string, typeOnly: boolean, names: string[], locals: string[] }[] & { source: ts.SourceFile }}
  */
 export function dependenciesOf(file) {
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
   const found = [];
-  const exported = new Set();
   const visit = (node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       const clause = node.importClause;
@@ -138,29 +137,19 @@ export function dependenciesOf(file) {
               locals.push(element.name.text);
             }
           }
+          // verbatimModuleSyntax keeps `import {} from` and `import { type A } from`: they run the module.
+          if (names.length === 0) names.push('*');
         }
-        found.push({ spec, kind: 'import', typeOnly: names.length === 0, names, locals });
+        found.push({ spec, kind: 'import', typeOnly: clause.isTypeOnly, names, locals });
       }
     } else if (ts.isExportDeclaration(node)) {
       if (node.moduleSpecifier !== undefined && ts.isStringLiteral(node.moduleSpecifier)) {
         const elements = node.exportClause !== undefined && ts.isNamedExports(node.exportClause)
           ? node.exportClause.elements.filter((e) => !e.isTypeOnly)
           : null;
-        const names = node.isTypeOnly ? [] : elements === null ? ['*'] : elements.map((e) => (e.propertyName ?? e.name).text);
-        found.push({ spec: node.moduleSpecifier.text, kind: 're-export', typeOnly: names.length === 0, names, locals: [] });
-      } else if (node.exportClause !== undefined && ts.isNamedExports(node.exportClause) && !node.isTypeOnly) {
-        for (const element of node.exportClause.elements) exported.add((element.propertyName ?? element.name).text);
-      }
-    } else if (ts.isExportAssignment(node) && ts.isIdentifier(node.expression)) {
-      exported.add(node.expression.text);
-    } else if (
-      ts.isVariableStatement(node) &&
-      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
-    ) {
-      for (const declaration of node.declarationList.declarations) {
-        if (declaration.initializer !== undefined && ts.isIdentifier(declaration.initializer)) {
-          exported.add(declaration.initializer.text);
-        }
+        const listed = elements === null ? ['*'] : elements.map((e) => (e.propertyName ?? e.name).text);
+        const names = node.isTypeOnly ? [] : listed.length === 0 ? ['*'] : listed;
+        found.push({ spec: node.moduleSpecifier.text, kind: 're-export', typeOnly: node.isTypeOnly, names, locals: [] });
       }
     } else if (ts.isCallExpression(node)) {
       const [argument] = node.arguments;
@@ -168,12 +157,36 @@ export function dependenciesOf(file) {
       const required = ts.isIdentifier(node.expression) && node.expression.text === 'require';
       if ((dynamic || required) && argument !== undefined && ts.isStringLiteralLike(argument)) {
         found.push({ spec: argument.text, kind: dynamic ? 'dynamic' : 'require', typeOnly: false, names: ['*'], locals: [] });
+      } else if (dynamic || required) {
+        // A computed specifier cannot be checked, so it is refused outright.
+        found.push({ spec: null, kind: dynamic ? 'dynamic' : 'require', typeOnly: false, names: ['*'], locals: [] });
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(source);
-  return Object.assign(found, { exported });
+  return Object.assign(found, { source });
+}
+
+// A value imported from another module may only be CALLED where it was imported — never aliased, exported, passed on
+// or stored — so the one permitted file cannot hand the capability to anyone else.
+function leakedUses(source, locals) {
+  const leaks = [];
+  const visit = (node) => {
+    if (ts.isIdentifier(node) && locals.has(node.text)) {
+      const parent = node.parent;
+      const declaring =
+        ts.isImportSpecifier(parent) || ts.isImportClause(parent) || ts.isNamespaceImport(parent);
+      const propertyName =
+        (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
+        (ts.isPropertyAssignment(parent) && parent.name === node);
+      const called = ts.isCallExpression(parent) && parent.expression === node;
+      if (!declaring && !propertyName && !called) leaks.push(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return [...new Set(leaks)];
 }
 
 function resolveTo(spec, file, options) {
@@ -246,6 +259,10 @@ export function checkModules(root, map) {
       const deps = dependenciesOf(file);
       const crossLocals = new Set();
       for (const dep of deps) {
+        if (dep.spec === null) {
+          problems.push(`${rel}: ${dep.kind} import with a computed specifier — use a string literal`);
+          continue;
+        }
         const target = resolveTo(dep.spec, file, options);
         if (target !== null && !dep.typeOnly) {
           fileGraph.set(file, new Set([...(fileGraph.get(file) ?? []), target]));
@@ -257,12 +274,12 @@ export function checkModules(root, map) {
         }
         if (target === null) continue;
         const to = place(root, target);
-        if (to.module === null || to.app !== from.app || to.module === from.module) {
-          if (from.module !== null && to.top) {
-            problems.push(`${rel}: a module imports the composition root (${dep.spec})`);
-          }
+        // The composition root is imported only by the composition root: nothing can forward a module through it.
+        if (to.top && !from.top) {
+          problems.push(`${rel}: imports the composition root (${dep.spec}) — only app.ts / main.ts may`);
           continue;
         }
+        if (to.module === null || to.app !== from.app || to.module === from.module) continue;
         if (from.module === null) {
           if (!from.top) problems.push(`${rel}: only the composition root may import a module (${dep.spec})`);
           continue;
@@ -288,8 +305,8 @@ export function checkModules(root, map) {
         }
         dep.locals.forEach((local) => crossLocals.add(local));
       }
-      for (const local of crossLocals) {
-        if (deps.exported.has(local)) problems.push(`${rel}: exports ${local}, which it imported from another module`);
+      for (const local of leakedUses(deps.source, crossLocals)) {
+        problems.push(`${rel}: ${local} came from another module and may only be called here, not passed on`);
       }
     }
   }

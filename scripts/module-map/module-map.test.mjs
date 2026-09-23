@@ -101,7 +101,35 @@ describe('the module-map gate — what it blocks', () => {
     ],
     'forwarding the write from the allowed file': [
       { [ADAPTER]: "import { registerCompany } from '../../tenancy/index.ts';\nexport { registerCompany };\n" },
-      /exports registerCompany, which it imported from another module/,
+      /registerCompany came from another module and may only be called here/,
+    ],
+    'forwarding the write through a local alias': [
+      { [ADAPTER]: "import { registerCompany } from '../../tenancy/index.ts';\nconst forwarded = registerCompany;\nexport { forwarded };\n" },
+      /registerCompany came from another module and may only be called here/,
+    ],
+    'passing the write on inside an object': [
+      { [ADAPTER]: "import { registerCompany } from '../../tenancy/index.ts';\nexport const box = { registerCompany };\n" },
+      /registerCompany came from another module/,
+    ],
+    'a dynamic import with a computed specifier': [
+      { 'apps/api/src/modules/identity/use-cases/computed.ts': "const target = '../../tenancy/index.ts';\nexport const load = () => import(target);\n" },
+      /dynamic import with a computed specifier/,
+    ],
+    'an empty import, which still runs the module': [
+      { 'apps/api/src/modules/identity/use-cases/empty.ts': "import {} from '../../tenancy/index.ts';\n" },
+      /value import tenancy\.\* \(import\)/,
+    ],
+    'an inline type-only import, which verbatimModuleSyntax keeps': [
+      { 'apps/api/src/modules/identity/use-cases/inline.ts': "import { type Company } from '../../tenancy/index.ts';\nexport type C = Company;\n" },
+      /value import tenancy\.\* \(import\)/,
+    ],
+    'forwarding through the composition root': [
+      {
+        'apps/api/src/registry.ts': "export { registerCompany } from './modules/tenancy/index.ts';\n",
+        'apps/api/src/shared/registry.ts': "export { registerCompany } from '../registry.ts';\n",
+        'apps/api/src/modules/identity/use-cases/root.ts': "import { registerCompany } from '../../../shared/registry.ts';\nregisterCompany();\n",
+      },
+      /shared\/registry\.ts: imports the composition root/,
     ],
     're-exporting another module': [
       { [ADAPTER]: "export { registerCompany } from '../../tenancy/index.ts';\n" },
