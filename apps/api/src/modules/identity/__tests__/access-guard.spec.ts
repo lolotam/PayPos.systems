@@ -355,7 +355,9 @@ describe('conflicting or inherited access declarations', () => {
       ).rejects.toThrow(/\.hidden \(conflicting\)/);
     }
   });
+});
 
+describe('inherited handlers', () => {
   it('an undecorated override hides the inherited route, as Nest does — no false conflict', async () => {
     class Base {
       @Require('read:memberships:company')
