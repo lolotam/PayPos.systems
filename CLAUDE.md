@@ -13,6 +13,7 @@
 > If a rule here conflicts with a request, **stop and ask** — do not silently break a rule.
 >
 > **Changelog**
+> - **V3.1 (2026-09-23)** — §9: integration tests run on the T2 compose Postgres with one cloned database per spec file, not testcontainers (ADR-0006).
 > - **V3 (2026-09-16)** — Added **§3.1 Comments & documentation**: Arabic JSDoc is mandatory on `domain/**`, `ports/**` and `events/published.ts`; closing comments, `FIXME`, `HACK` and commented-out code are banned; a doc comment must move in the same commit as the code it describes. Enforced by a new `pnpm lint:docs` CI gate (§10) and three new entries in §11.
 > - **V2 (2026-09-15)** — Synced with `06` V1.4 and `CLAUDE.architecture.md` A1.0. **Prisma → Drizzle** everywhere; **MinIO → Cloudflare R2**; module folder layout replaced with the Screaming Architecture / vertical-slice shape (§2.2); added `packages/domain`, `packages/auth`, `packages/payments`, `packages/storage`, `packages/notifications`, `packages/documents`, `packages/observability`; added the read-path rule (§6.4), the boundary-enforcement CI gates (§10) and the money/time/ID rules (§5, §4.3).
 > - V1 — initial rules.
@@ -236,7 +237,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 
 ## 9. Testing (required to merge)
 - **Unit tests for every pure `domain/` function**, exhaustive, with no database: totals, tax, discounts, tips, commissions (all rule types), moving-average cost, attendance lateness, unit conversion, status transitions.
-- **Integration tests for each use case** (happy path + listed edge cases) against a real Postgres (testcontainers).
+- **Integration tests for each use case** (happy path + listed edge cases) against a real Postgres — the T2 compose stack, one cloned database per spec file (ADR-0006).
 - **RLS negative tests for every tenant table** (cross-tenant read = 0 rows, write = error).
 - **Every `queries/` file has a result-shape test and an `EXPLAIN ANALYZE` assertion.**
 - E2E (Playwright) for the POS critical path: open shift → order → split payment → print → close shift, including the offline toggle.

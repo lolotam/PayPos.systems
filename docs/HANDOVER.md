@@ -30,12 +30,13 @@ Solo developer (Waleed) building entirely with AI agents.
 | `docs/specs/phase-0/IMPLEMENTATION-PLAN.md` (v3) | Phase 0 tasks T0–T13, order, "done when" | Phase 0 sequencing |
 | `docs/specs/phase-0/SPEC.md` (v2) | Phase 0 scope and domain model | Phase 0 scope |
 | `docs/PRD.md` (v1.1) | whole product: phases, tasks P0–P6, open decisions D-01…D-34 | product scope |
-| `.specify/memory/constitution.md` (v2.0.0) | spec-kit constitution | — |
+| `.specify/memory/constitution.md` (v2.0.1) | spec-kit constitution | — |
 | `.specify/PROJECT-OVERRIDES.md` | local changes to spec-kit defaults | — |
 | `AGENTS.md` | index for Codex and other agents; review guidelines | — |
 
 ADRs: `0001` domain/subdomain topology · `0002` workspace tooling baseline · `0003` auth ↔ RLS boundary ·
-`0004` test runner (Vitest) · `0005` money rounding (half away from zero) and percentage precision (4 dp).
+`0004` test runner (Vitest) · `0005` money rounding (half away from zero) and percentage precision (4 dp) ·
+`0006` database tests on the compose Postgres, postgres.js driver, migration naming.
 
 ## 3. How work is done here
 
@@ -85,10 +86,13 @@ pnpm infra:up      # Postgres 16 + Redis 7, waits until both are healthy
 pnpm infra:ps      # status
 pnpm infra:logs
 pnpm infra:down    # stops; data volumes are kept
+pnpm db:migrate    # roles bootstrap + every migration, as pospay_owner (ADR-0006 §4)
+pnpm db:generate <kebab-name> [--custom]   # new migration: NNNN_<UTC date>_<name>.sql
 ```
 
 `.env` at the repo root (git-ignored) was generated with random local passwords; `.env.example` lists the keys.
-Postgres is reached as `pospay_owner` until T4 creates `pospay_app` and `pospay_auth` (ADR-0003 §3).
+`MIGRATION_DATABASE_URL` is `pospay_owner` (migrations only); `DATABASE_URL` is `pospay_app`. `pnpm check` needs Docker
+running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-0006).
 
 ### 3.4 Things that bite
 
@@ -106,18 +110,19 @@ Postgres is reached as `pospay_owner` until T4 creates `pospay_app` and `pospay_
 | T1 Workspace skeleton | ✅ done | PR #1, #2 |
 | T12a Minimal CI | ✅ done (branch protection still to do) | `.github/workflows/ci.yml` |
 | T2 Local infra | ✅ done | PR #12 — `deploy/docker-compose.dev.yml` |
-| T3 `packages/domain` (Money, rounding, Percentage, TaxRule) | 🟡 **PR open** — `pnpm check` green, 93 tests | ADR-0004, ADR-0005 |
-| T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | ⬜ **next** | ADR-0003 §2–§3 |
-| T6a contracts → T5 tenancy schema + RLS suite → T6b api → T7 write primitives → **T9a → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v3 §2 |
+| T3 `packages/domain` (Money, rounding, Percentage, TaxRule) | ✅ done | PR #14 — ADR-0004, ADR-0005 |
+| T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | 🟡 **PR open** — `pnpm check` green, 16 db tests on real Postgres | ADR-0006 |
+| **T6a contracts** (next) → T5 tenancy schema + RLS suite → T6b api → T7 write primitives → **T9a → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v3 §2 |
 
 **Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T9a → T8 → T9b → T12b → T13.
 
-### 4.1 Next action — finish T3, then T4
+### 4.1 Next action — finish T4, then T6a
 
-- T3: get the PR through Codex review and merge it.
-- T4 `packages/db` per plan v3 and ADR-0003 §2–§3: Drizzle client, `withTenant` / `withUser` / `withNewTenant`,
-  the `pospay_app` and `pospay_auth` roles, migrate/seed scripts; the raw client is never exported (a test proves it).
-- T4 is the first package that needs Postgres in tests — decide testcontainers vs the T2 compose stack, in an ADR.
+- T4: get the PR through Codex review and merge it.
+- T6a: Zod contracts for tenancy in `packages/contracts`, before T5's schema (plan v3 §2 — contract → migration).
+- Open for T5 (ADR-0006, last consequence): the compose `pospay_owner` is the image's bootstrap superuser, so it has
+  `BYPASSRLS`. Decide whether T5's "no role has BYPASSRLS" assertion covers only the application roles, or whether
+  the owner is replaced by a non-superuser.
 
 ### 4.2 Package facts worth knowing
 
@@ -127,6 +132,11 @@ Postgres is reached as `pospay_owner` until T4 creates `pospay_app` and `pospay_
   with plain Node to catch a broken export. Relative imports in `src/` use `.js` extensions.
 - `packages/domain` may import only files inside its own `src/` — a local lint rule (`kernel/own-files-only`)
   checks the resolved path, not the spelling.
+- `packages/db` exports only `createDatabase`, which returns `withTenant` / `withUser` / `withNewTenant` / `close` — the
+  Drizzle client stays in a closure. Its `src/` uses `.ts` import extensions (`rewriteRelativeImportExtensions`), so
+  `node scripts/migrate.ts` runs the source directly with Node 24 type stripping and `tsc` still emits `.js`.
+- Tests that need Postgres: `createTestDatabase()` from `packages/db/test/test-database.ts` clones the migrated
+  template for one spec file; connect with `appUrl` (`pospay_app`) and drop it in `afterAll`.
 - A package linted from its own folder does not match the shared `packages/<name>/src/**` globs. It re-scopes
   `requireArabicJsdoc` (exported from `@pospay/config/eslint/jsdoc`) to `src/**` — see `packages/domain/eslint.config.js`.
 

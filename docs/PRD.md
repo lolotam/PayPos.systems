@@ -321,7 +321,7 @@ pino structured logs with `request_id`, `company_id`, `branch_id` (when present)
 
 ### 8.7 Documentation and testing gates
 
-Every `domain/` function has exhaustive unit tests with no database; every use case has integration tests on real Postgres (testcontainers); every tenant table has a negative RLS test; every `queries/` file has a result-shape test and an `EXPLAIN` assertion (index usage, not timings); Playwright E2E for the POS critical path including the offline toggle; Arabic JSDoc coverage is a CI gate; every architectural decision is an ADR.
+Every `domain/` function has exhaustive unit tests with no database; every use case has integration tests on real Postgres (the compose stack, a cloned database per spec file — ADR-0006); every tenant table has a negative RLS test; every `queries/` file has a result-shape test and an `EXPLAIN` assertion (index usage, not timings); Playwright E2E for the POS critical path including the offline toggle; Arabic JSDoc coverage is a CI gate; every architectural decision is an ADR.
 
 ---
 
@@ -422,7 +422,7 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 - [ ] P0-T5.2b `company_feature_overrides` lives in the tenancy schema (tenancy owns plans and flags); T9a's feature guard only reads it.
 - [ ] P0-T5.3 `plans` exception: no `company_id`, no RLS, read-only for the app role — recorded in an ADR.
 - [ ] P0-T5.4 Define the tenant-root rule for `companies` (`id` vs `company_id` relationship enforced).
-- [ ] P0-T5.5 Negative isolation suite (`packages/db/src/__tests__/rls-tenancy.spec.ts`, testcontainers, **run as the restricted app role**): role assertions (`NOSUPERUSER`, `NOBYPASSRLS`, no ownership, cannot `SET ROLE`); cross-tenant `SELECT` = 0 rows; cross-tenant `INSERT` rejected by `WITH CHECK`; cross-tenant `UPDATE`/`DELETE` affect 0 rows; same-tenant `UPDATE` changing `company_id` rejected; `UPSERT` cannot cross tenants; query outside `withTenant()` returns 0 rows.
+- [ ] P0-T5.5 Negative isolation suite (`packages/db/src/__tests__/rls-tenancy.spec.ts`, compose Postgres per ADR-0006, **run as the restricted app role**): role assertions (`NOSUPERUSER`, `NOBYPASSRLS`, no ownership, cannot `SET ROLE`); cross-tenant `SELECT` = 0 rows; cross-tenant `INSERT` rejected by `WITH CHECK`; cross-tenant `UPDATE`/`DELETE` affect 0 rows; same-tenant `UPDATE` changing `company_id` rejected; `UPSERT` cannot cross tenants; query outside `withTenant()` returns 0 rows.
 - [ ] P0-T5.6 Context-leak assertions: reuse one pooled connection A → B → no tenant; after an exception; after a rollback; two concurrent transactions do not see each other's setting; session-level settings do not survive under transaction-local overrides.
 - [ ] P0-T5.7 Referential-integrity assertion: A cannot create a branch whose `business_id` belongs to B.
 - [ ] P0-T5.8 Inventory assertion: no `SECURITY DEFINER` function on tenant tables; if ever added it pins `search_path` and restricts `EXECUTE`.
@@ -503,7 +503,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 
 #### P0-T12b — Full CI gate · M · ⬜ · grows with T5, T8, T13
 
-- [ ] P0-T12b.1 Gate order exactly: `typecheck → lint → lint:docs → boundaries → cycles (dependency-cruiser + madge) → module-map check (script reads docs/module-map.yaml) → unit → integration (testcontainers) → RLS negative → EXPLAIN checks → build all apps → docker images`.
+- [ ] P0-T12b.1 Gate order exactly: `typecheck → lint → lint:docs → boundaries → cycles (dependency-cruiser + madge) → module-map check (script reads docs/module-map.yaml) → unit → integration (compose Postgres, ADR-0006) → RLS negative → EXPLAIN checks → build all apps → docker images`.
 - [ ] P0-T12b.2 Extract `docs/module-map.yaml` from `module-map.md` §6 and write the check script.
 - [ ] P0-T12b.3 Images tagged by commit SHA, pushed to GHCR; never `latest`.
 - [ ] P0-T12b.4 A deliberately broken fixture PR once, to confirm the boundary step actually blocks.

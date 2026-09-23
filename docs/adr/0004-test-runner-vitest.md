@@ -26,4 +26,4 @@ TypeScript 6, `moduleResolution: Bundler`, and `apps/pos` is already a Vite app 
 - Tests live in `src/__tests__/*.spec.ts`; ESLint and `lint:docs` already exclude `*.spec.ts` from the JSDoc rules.
 - `packages/domain` sets `"types": []` in its tsconfig, so source code cannot use Node globals by
   accident; the tests only import from `vitest`.
-- Integration tests (testcontainers, T4/T5) will use the same runner with a separate project config.
+- Integration tests (T4/T5 onward) use the same runner against the T2 compose Postgres, one cloned database per spec file — see ADR-0006.

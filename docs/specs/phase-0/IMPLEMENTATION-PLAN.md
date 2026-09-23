@@ -124,7 +124,7 @@ packages/db/scripts/{migrate.ts,seed.ts}
 **Required behaviour**
 - `withTenant(companyId, fn)` opens a transaction and sets `app.company_id` via `set_config(..., true)` so it is transaction-local.
 - **`index.ts` must not export the raw Drizzle client.** Modules receive `tx` only. A test asserts this.
-- A separate DB role that bypasses RLS exists for the future `platform` module but is **not** wired to anything yet.
+- **No** role bypasses RLS. The platform bypass role is deferred (ADR-0003 §3, review finding #14); T4 creates only `pospay_app` and `pospay_auth`.
 
 **Done when:** a throwaway migration applies, and a test proves the raw client is not reachable from outside the package.
 
@@ -147,7 +147,7 @@ packages/db/src/__tests__/rls-tenancy.spec.ts
 
 > `plans` is the one exception — it is platform-level reference data, not tenant data. It carries no `company_id` and no RLS policy. Call this out in an ADR so the exception is deliberate and visible.
 
-**Negative tests (testcontainers, real Postgres) — revised after review:**
+**Negative tests (real Postgres — the compose stack, ADR-0006) — revised after review:**
 
 Run the whole suite **as the restricted application role**, not as the owner or a superuser.
 

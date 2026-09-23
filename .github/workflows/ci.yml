@@ -38,6 +38,18 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # ADR-0006 — CI runs the same compose Postgres as dev, not `services: postgres`,
+      # so statement_timeout and lock_timeout match. Throwaway passwords, never secrets.
+      - name: Local infra (Postgres 16 + Redis 7)
+        run: |
+          {
+            echo "POSTGRES_OWNER_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_APP_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_AUTH_PASSWORD=$(openssl rand -hex 24)"
+            echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
+          } > .env
+          pnpm infra:up
+
       - name: Turbo cache
         uses: actions/cache@v6
         with:

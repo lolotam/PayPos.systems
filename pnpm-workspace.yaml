@@ -2,6 +2,7 @@ packages:
   - 'apps/*'
   - 'packages/*'
 allowBuilds:
+  esbuild: false
   unrs-resolver: false
 minimumReleaseAgeExclude:
   - '@typescript-eslint/eslint-plugin@8.70.1'
