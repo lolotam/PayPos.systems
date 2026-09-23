@@ -8,22 +8,27 @@ describe('openapi/openapi.json', () => {
     expect(buildOpenApiDocument()).toEqual(committed);
   });
 
-  it('publishes every tenancy schema with no $id inside a component', () => {
+  it('publishes every schema with no $id inside a component', () => {
     const schemas = (buildOpenApiDocument()['components'] as { schemas: Record<string, object> })
       .schemas;
     expect(Object.keys(schemas).sort()).toEqual([
       'Branch',
       'Business',
+      'ClaimDeviceInput',
       'Company',
       'CreateBranchInput',
       'CreateBusinessInput',
       'CreateCompanyInput',
       'Currency',
+      'DeviceRegistration',
+      'DeviceToken',
       'ErrorEnvelope',
       'GeoPoint',
       'OpeningHours',
       'PageQuery',
+      'PairingCode',
       'Plan',
+      'RegisterDeviceInput',
       'TimeZone',
       'VerticalType',
     ]);

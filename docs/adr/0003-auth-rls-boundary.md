@@ -314,7 +314,7 @@ Controller guard scanning cannot see routes mounted by Better Auth's handler, so
 | `POST /v1/auth/two-factor/verify-totp` | second factor |
 | `POST /v1/auth/forget-password` · `POST /v1/auth/reset-password` | recovery |
 | `GET  /v1/auth/verify-email` | email verification |
-| `POST /v1/devices/pair` | device pairing with a short-lived code (T9b) |
+| `POST /v1/devices/register` · `POST /v1/devices/claim` | device pairing with a single-use code valid 10 minutes, then a one-time token claim after a manager approves (T9b-2) |
 | `POST /v1/webhooks/*` | signature-verified, tenant resolved from the payload (`CLAUDE.md` §6) |
 | `GET  /health` · `GET /ready` | probes |
 

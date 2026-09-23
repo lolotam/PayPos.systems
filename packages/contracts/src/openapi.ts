@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
 import { errorEnvelope } from './errors/envelope.js';
+import {
+  claimDeviceInput,
+  deviceRegistration,
+  deviceToken,
+  pairingCode,
+  registerDeviceInput,
+} from './identity/devices.js';
 import { pageQuery } from './pagination/cursor.js';
 import { currency } from './reference/currency.js';
 import { timeZone } from './reference/time-zone.js';
@@ -20,6 +27,11 @@ const SCHEMAS = [
   createBusinessInput,
   branch,
   createBranchInput,
+  pairingCode,
+  registerDeviceInput,
+  deviceRegistration,
+  claimDeviceInput,
+  deviceToken,
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,
   currency,

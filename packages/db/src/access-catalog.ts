@@ -11,6 +11,7 @@ export const PERMISSIONS = [
   'create:businesses:company',
   'create:branches:business',
   'read:branches:branch',
+  'manage:devices:branch',
   // صلاحية منصة: بتتدي بـ pnpm platform:grant بس، وعمرها ما بتبقى في role شركة (ADR-0003 §3).
   'create:companies:platform',
 ] as const;
@@ -58,6 +59,9 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   { id: '01920000-0000-7000-8000-00000000010b', code: 'staff', nameEn: 'Staff' },
   { id: '01920000-0000-7000-8000-00000000010c', code: 'marketing', nameEn: 'Marketing' },
   { id: '01920000-0000-7000-8000-00000000010d', code: 'viewer', nameEn: 'Viewer' },
+  // The fixed role of an approved POS device before a PIN (ADR-0003 §4 path B) — sync, catalogue, clock-in. Its
+  // permissions arrive with those slices (Phase 1–2); until then a device can prove who it is and nothing more.
+  { id: '01920000-0000-7000-8000-00000000010e', code: 'device', nameEn: 'Device' },
 ];
 
 // TODO(spec): the platform staff roles (PRD P0-T9b.4, D-07) — seeded into platform_roles (never the tenant roles

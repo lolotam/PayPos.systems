@@ -12,6 +12,7 @@ import { APP_GUARD, NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService } from '@pospay/auth';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import type { Redis } from 'ioredis';
 import { systemUuidV7 } from '@pospay/ids';
 import {
   createLogger,
@@ -31,6 +32,8 @@ import {
 import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
+import { RATE_LIMITER } from './shared/device-authenticator.ts';
+import { createRedisRateLimiter } from './shared/adapters/redis-rate-limiter.ts';
 import { ApiError, codeForStatus } from './shared/errors.ts';
 import { EnvelopeExceptionFilter } from './shared/exception.filter.ts';
 import { HealthController } from './shared/health.controller.ts';
@@ -49,6 +52,8 @@ export interface AppDependencies {
   readonly database?: TenantWrappers;
   /** UUID v7 for rows the use cases create; the system clock and Web Crypto unless a test injects its own. */
   readonly ids?: IdGenerator;
+  /** Redis — pairing codes and rate limits. Without it those routes answer NOT_READY. */
+  readonly redis?: Redis;
   /** Browser origins allowed to call the API with credentials (admin, POS). Empty: no CORS headers at all. */
   readonly corsOrigins?: readonly string[];
 }
@@ -98,7 +103,11 @@ class AppModule {
         // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
-        ...identityProviders(deps.database, deps.ids ?? systemUuidV7()),
+        ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
+        {
+          provide: RATE_LIMITER,
+          useValue: deps.redis === undefined ? null : createRedisRateLimiter(deps.redis),
+        },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
       ],

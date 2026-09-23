@@ -4,6 +4,7 @@ import { resolveUserPrincipal, type AuthService, type Principal } from '@pospay/
 import { updateRequestContext } from '@pospay/observability';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+import { DEVICE_AUTHENTICATOR, type DeviceAuthenticator } from './device-authenticator.ts';
 import { ApiError } from './errors.ts';
 import { PUBLIC_ROUTE } from './public.decorator.ts';
 import { toWebHeaders } from './web-headers.ts';
@@ -28,13 +29,16 @@ declare module 'fastify' {
 export class SessionGuard implements CanActivate {
   readonly #reflector: Reflector;
   readonly #auth: AuthService | null;
+  readonly #devices: DeviceAuthenticator | null;
 
   constructor(
     @Inject(Reflector) reflector: Reflector,
     @Inject(AUTH_SERVICE) auth: AuthService | null,
+    @Inject(DEVICE_AUTHENTICATOR) devices: DeviceAuthenticator | null,
   ) {
     this.#reflector = reflector;
     this.#auth = auth;
+    this.#devices = devices;
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -45,6 +49,11 @@ export class SessionGuard implements CanActivate {
     if (isPublic === true) return true;
     const http = context.switchToHttp();
     const request = http.getRequest<FastifyRequest>();
+    // The scheme is case-insensitive (RFC 9110 §11.1): `device <token>` must never fall back to a cookie session.
+    const authorization = request.headers.authorization ?? '';
+    if (/^device(\s|$)/i.test(authorization)) {
+      return this.#device(request, authorization.slice('device'.length).trim());
+    }
     // No auth configured (a test app without it) means no session can exist — refused like any other.
     const resolved =
       this.#auth === null ? null : await resolveUserPrincipal(this.#auth, toWebHeaders(request));
@@ -57,6 +66,24 @@ export class SessionGuard implements CanActivate {
     if (resolved.principal.userId !== null)
       updateRequestContext({ userId: resolved.principal.userId });
     request.companyHint = resolved.companyHint;
+    return true;
+  }
+
+  // ADR-0003 §4 path B: the token names its company and is proven inside it. A device principal carries no user and
+  // no company role — only its branch; @Require routes, which need a user's membership, refuse it.
+  async #device(request: FastifyRequest, token: string): Promise<boolean> {
+    const device = this.#devices === null ? null : await this.#devices.authenticate(token);
+    if (device === null) throw new ApiError('UNAUTHENTICATED');
+    request.principal = {
+      kind: 'device',
+      userId: null,
+      employeeId: null,
+      companyId: device.companyId,
+      deviceId: device.deviceId,
+      memberships: [{ companyId: device.companyId, scopeType: 'BRANCH', scopeId: device.branchId }],
+      grants: [],
+    };
+    updateRequestContext({ companyId: device.companyId, branchId: device.branchId });
     return true;
   }
 }
