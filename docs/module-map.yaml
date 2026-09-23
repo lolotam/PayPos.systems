@@ -1,0 +1,32 @@
+# GENERATED from docs/module-map.md §6 by `pnpm module-map:generate` — edit the markdown, not this file.
+imports:
+  appointments: [tenancy]
+  cash: [identity]
+  catalog: [tenancy]
+  channels: [tenancy]
+  commissions: [staff]
+  customers: [tenancy]
+  expenses: [tenancy]
+  files: [tenancy]
+  identity: [tenancy]
+  inventory: [tenancy]
+  kitchen: []
+  loyalty: [customers]
+  notifications: []
+  orders: [tenancy]
+  payments: [tenancy]
+  platform: [tenancy]
+  realtime: [identity]
+  reporting: []
+  settings: [tenancy]
+  staff: [tenancy, identity]
+  tenancy: []
+packages_restricted:
+  auth: [identity]
+  documents: [reporting]
+  notifications: [notifications]
+  payments: [payments]
+  storage: [files]
+sync_writes:
+  - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
+reads: []

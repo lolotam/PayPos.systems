@@ -45,6 +45,8 @@ jobs:
             code=false
             while IFS= read -r -d '' path; do
               case "$path" in
+                # The module map is an executable input of the gate: its markdown generates the checked YAML.
+                docs/module-map.md|docs/module-map.yaml) code=true; break ;;
                 docs/*|*.md) ;;
                 *) code=true; break ;;
               esac
@@ -57,7 +59,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -91,8 +93,30 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: turbo-${{ runner.os }}-
 
-      - name: pnpm check
-        run: pnpm check
+      # The gate order of plan v4 T12b / CLAUDE.md §10, one step each so a failure names its gate. RLS negative
+      # suites and EXPLAIN assertions run inside the integration step (packages/db, apps/api queries/).
+      - name: typecheck
+        run: pnpm turbo run typecheck
+
+      - name: lint (incl. max-lines and boundaries)
+        run: pnpm turbo run lint
+
+      - name: lint:docs
+        run: pnpm lint:docs
+
+      - name: cycles · module-map
+        run: |
+          node --test "scripts/module-map/*.test.mjs"
+          pnpm module-map:check
+
+      - name: unit (domain)
+        run: pnpm turbo run test --filter=@pospay/domain
+
+      - name: integration · RLS negative · EXPLAIN
+        run: pnpm turbo run test --filter=!@pospay/domain
+
+      - name: build all apps
+        run: pnpm turbo run build
 
   # The one check branch protection requires. It passes when `check` passed, or when `check` was
   # skipped because only docs changed — and fails on anything else, including a failed `changes`.
