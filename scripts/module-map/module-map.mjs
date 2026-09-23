@@ -169,7 +169,45 @@ export function dependenciesOf(file) {
 }
 
 // A value imported from another module may only be CALLED where it was imported — never aliased, exported, passed on
-// or stored — so the one permitted file cannot hand the capability to anyone else.
+// or stored — so the one permitted file cannot hand the capability to anyone else. Erased type positions
+// (`typeof x` inside a type) carry nothing at runtime, and a local that shadows the name is a different binding.
+function inTypePosition(node) {
+  for (let current = node.parent; current !== undefined; current = current.parent) {
+    if (ts.isTypeNode(current) || ts.isTypeAliasDeclaration(current) || ts.isInterfaceDeclaration(current)) {
+      return true;
+    }
+    if (ts.isStatement(current) || ts.isSourceFile(current)) return false;
+  }
+  return false;
+}
+
+// Names a scope node declares itself: parameters, and variables, functions and classes declared directly in it.
+function declaredIn(scope) {
+  const names = new Set();
+  const bind = (name) => {
+    if (ts.isIdentifier(name)) names.add(name.text);
+    else if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+      for (const element of name.elements) if (!ts.isOmittedExpression(element)) bind(element.name);
+    }
+  };
+  if (ts.isFunctionLike(scope)) scope.parameters.forEach((p) => bind(p.name));
+  const statements = ts.isBlock(scope) || ts.isSourceFile(scope) ? scope.statements : [];
+  for (const statement of statements) {
+    if (ts.isVariableStatement(statement)) statement.declarationList.declarations.forEach((d) => bind(d.name));
+    if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) {
+      names.add(statement.name.text);
+    }
+  }
+  return names;
+}
+
+function isShadowed(node) {
+  for (let scope = node.parent; scope !== undefined && !ts.isSourceFile(scope); scope = scope.parent) {
+    if ((ts.isFunctionLike(scope) || ts.isBlock(scope)) && declaredIn(scope).has(node.text)) return true;
+  }
+  return false;
+}
+
 function leakedUses(source, locals) {
   const leaks = [];
   const visit = (node) => {
@@ -177,11 +215,15 @@ function leakedUses(source, locals) {
       const parent = node.parent;
       const declaring =
         ts.isImportSpecifier(parent) || ts.isImportClause(parent) || ts.isNamespaceImport(parent);
-      const propertyName =
+      const nameOnly =
         (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
-        (ts.isPropertyAssignment(parent) && parent.name === node);
+        (ts.isPropertyAssignment(parent) && parent.name === node) ||
+        ((ts.isParameter(parent) || ts.isVariableDeclaration(parent) || ts.isBindingElement(parent)) &&
+          parent.name === node);
       const called = ts.isCallExpression(parent) && parent.expression === node;
-      if (!declaring && !propertyName && !called) leaks.push(node.text);
+      if (!declaring && !nameOnly && !called && !inTypePosition(node) && !isShadowed(node)) {
+        leaks.push(node.text);
+      }
     }
     ts.forEachChild(node, visit);
   };

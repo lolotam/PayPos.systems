@@ -67,6 +67,22 @@ describe('the module-map gate — what passes', () => {
       '',
     );
   });
+
+  it('the write used in an erased type, and an unrelated local that shadows its name', () => {
+    assert.equal(
+      problems({
+        [ADAPTER]: [
+          "import { registerCompany } from '../../tenancy/index.ts';",
+          'export type Result = ReturnType<typeof registerCompany>;',
+          'export const adapter = () => registerCompany();',
+          'export const unrelated = (registerCompany: number) => registerCompany + 1;',
+          'export function block() { const registerCompany = 2; return registerCompany; }',
+          '',
+        ].join('\n'),
+      }),
+      '',
+    );
+  });
 });
 
 describe('the module-map gate — what it blocks', () => {
