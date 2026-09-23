@@ -495,6 +495,14 @@ role). Sessions carry active platform grants into `Principal.grants`; `@RequireP
 `platform` grant, resolves no company, and is one of the four access declarations `createApp` requires. The
 boundaries ESLint rules were found inert during T9a-2 review (globs rooted at `apps/`) and now run.
 
+**T9a-4 as built** (spec `docs/specs/001-identity-onboard-company/spec.md`): `POST /v1/companies` under
+`@RequirePlatform('create:companies:platform')` with `Idempotency-Key`. The `OnboardCompany` use case runs inside
+`withNewTenant` → USER-scoped claim → plan check → `CompanyRegistry.register` (adapter → tenancy's `registerCompany`,
+the one synchronous cross-module write) → owner membership → `AuditLog` → `CompanyCreated`, one transaction. Migration
+0013 adds last-owner protection as a deferred constraint trigger. ONB-01…04 run through the API with real Better Auth
+sessions and users made by the operator scripts. The Redis permission cache stays deferred: no use case changes an
+existing membership yet, so there is nothing to invalidate; it arrives with the first one.
+
 **Four sequential PRs (debate C7)** — each passes its own gates and leaves unfinished business routes unavailable;
 none may commit a company without its owner membership. T8 depends on all four.
 

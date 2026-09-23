@@ -92,6 +92,13 @@
       "when": 1790173294911,
       "tag": "0012_2026-09-23_identity-platform-grants",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790191108023,
+      "tag": "0013_2026-09-23_identity-last-owner",
+      "breakpoints": true
     }
   ]
 }
