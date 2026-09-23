@@ -325,8 +325,10 @@ credentials and wires it; no other app imports it, and the "no database client o
 **Delivery guarantee — at-least-once, effect-once.** A crash between "published" and "marked published" redelivers.
 Every event carries a stable `event_id`. A consumer records its dedupe row **in the same `withTenant(event.company_id)`
 transaction as the business effect** — both commit or neither does, so a crash can neither apply an effect twice nor lose
-it. Tests crash the consumer on both sides of that commit. Publication tracking and consumer deduplication are separate
-records.
+it. Tests crash the consumer on both sides of that commit. The dedupe key is **`(consumer_id, event_id)`**: most events fan
+out to several consumers (`docs/module-map.md`), and one consumer's row must never suppress another. A test sends one
+event to two consumers and asserts each applies it exactly once. Publication tracking and consumer deduplication are
+separate records.
 
 **Cross-tenant access — the `pospay_dispatcher` role (debate N2, ADR-0003 amendment).** `pospay_app` needs a tenant
 to read anything, so it cannot drain every company's outbox, and there is no bypass role. A fourth role:

@@ -1,7 +1,8 @@
 <!--
 Sync Impact Report
 - 2.1.0 (2026-09-23, MINOR): Principle III names the outbox dispatcher as a second, narrow
-  exception to withTenant()-only tenant access (plan v4 T7b, ADR-0003 §3).
+  exception to withTenant()-only tenant access (plan v4 T7b, ADR-0003 §3); the roadmap follows
+  plan v4 (T7b before identity, T9a in four PRs).
 - 2.0.2 (2026-09-23, PATCH): Principle V's idempotency clause corrected per plan v4 T7 — a concurrent
   duplicate waits on the unique key and replays; no persisted IN_FLIGHT state (DEBATE-2026-09-23.md).
 - 2.0.1 (2026-09-23, PATCH): Principle V names the database-test mechanism — the compose
@@ -382,9 +383,9 @@ system), then Phase 1 staff → QR attendance → commissions (salon pilot), Pha
 orders → payments → cash shifts → POS PWA → realtime (restaurant pilot), Phase 3 inventory
 → recipes → kitchen, Phase 4 appointments → e-menu → loyalty → channels, Phase 5 reporting →
 documents → platform admin → subscriptions. Phase 0 runs slices T0 to T13 on the critical
-path T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T8 → T9 → T12b → T13 over a forecast six to
-eight weeks, with the auth-RLS boundary decided before any schema is generated and the
-worker bootstrap plus outbox dispatcher shipping with staging. The `packages/ui` foundation
+path T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → T9a (four PRs) → T8 → T9b → T12b → T13
+(plan v4; re-forecast from actuals), with the auth-RLS boundary decided before any schema is
+generated and the worker bootstrap plus outbox dispatcher (T7b) shipping before identity. The `packages/ui` foundation
 described in Principle VI is its own phase-scoped slice after Phase 0.
 
 Open product decisions that block specific slices and MUST be answered by the owner, never

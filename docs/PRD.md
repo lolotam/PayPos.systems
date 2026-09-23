@@ -443,11 +443,19 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 - [ ] P0-T7.1 `outbox` table + `OutboxWriter` port; event row written inside the caller's transaction; test proves a rolled-back transaction leaves no outbox row.
 - [ ] P0-T7.2 `audit_log` table + writer; field allowlists for `before`/`after`; DB privileges prevent runtime modification or deletion of audit rows.
 - [ ] P0-T7.3 Idempotency store: `scope_type` (`COMPANY` | `USER`) + `scope_id` + `operation` + `key` uniqueness (`USER` scope for bootstrap writes such as `onboard-company`, which cannot know the new company id), `request_fingerprint`, `response_status`, `response_body`, `expires_at` (24 h, swept by a job); claim (`INSERT … ON CONFLICT DO NOTHING`) + business effect in one transaction; same key different body → 422; a concurrent duplicate waits on the key and replays, or proceeds if the first rolled back; key-acquisition lock timeout → retryable 409; no persisted `IN_FLIGHT` state (plan v4).
-- [ ] P0-T7.4 `Clock` and `IdGenerator` ports + `SystemClock`, `UuidV7Generator`; CI grep rejects `Date.now()` / `randomUUID()` in `use-cases/`.
+- [ ] P0-T7.4 `Clock` port + `SystemClock`; UUID v7 in `packages/ids` (time and entropy injected), bound to `@pospay/db`'s `IdGenerator` at each composition root; CI grep rejects `Date.now()` / `randomUUID()` in `use-cases/`.
 - [ ] P0-T7.5 Worker transaction/context entry point: a job resolves `company_id` from its payload and calls `withTenant()`; nothing non-serialisable crosses into a job.
 - **Done when:** tests prove (a) rollback leaves no outbox row, (b) a replayed key returns the identical stored response, (c) same key + different body is rejected, (d) two concurrent identical requests produce exactly one effect.
 
-#### P0-T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · L · ⬜ · depends T7 · **moved before T8**
+#### P0-T7b — Worker bootstrap + outbox dispatcher · M · ⬜ · depends T7 · **new in plan v4, before P0-T9a**
+
+- [ ] P0-T7b.1 `apps/worker` bootstrap: `main.ts`, `/health`, `/ready` (Postgres + Redis, tested down), BullMQ connection, graceful shutdown (stop polling, then close pools).
+- [ ] P0-T7b.2 Outbox dispatcher: poll → publish → mark published; **at-least-once** delivery with a stable `event_id`; retries; concurrent dispatchers safe; ordering scope and poison-event handling are `TODO(spec)`.
+- [ ] P0-T7b.3 `pospay_dispatcher` role (ADR-0003 §3): `outbox` only — `SELECT` + metadata-column `UPDATE`, role-scoped forced-RLS policies, reached only through `createOutboxDispatcherDatabase` in `packages/db`.
+- [ ] P0-T7b.4 Consumers: dedupe row keyed `(consumer_id, event_id)` committed in the same `withTenant(event.company_id)` transaction as the effect.
+- **Done when:** a rolled-back event is never delivered; a crash after publish and before marking redelivers with each effect applied once; one event reaching two consumers is applied once by each; `pospay_dispatcher` reads `outbox` across tenants and nothing else.
+
+#### P0-T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · L (four PRs, plan v4) · ⬜ · depends T7b · **moved before T8**
 
 T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. Both come from T9 in the Phase 0 plan v2, which schedules T9 after T8. This PRD splits T9. **`IMPLEMENTATION-PLAN.md` §2 must be amended to match.**
 
@@ -510,10 +518,10 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P0-T12b.4 A deliberately broken fixture PR once, to confirm the boundary step actually blocks.
 - **Done when:** a PR violating a module boundary is blocked by CI.
 
-#### P0-T13 — Staging deploy + backups + worker bootstrap · L · ⛔ D-11 (staging host) · depends T9b, T10, T11, T12b
+#### P0-T13 — Staging deploy + backups + worker image · L · ⛔ D-11 (staging host) · depends T9b, T10, T11, T12b
 
 - [ ] P0-T13.1 `deploy/docker-compose.staging.yml`, `Dockerfile.api`, `Dockerfile.worker`: multi-stage on `node:24-alpine` (ADR-0002 says Node 24; the plan says 22 — align), production deps only; **no Chromium, no Arabic fonts** in the worker yet.
-- [ ] P0-T13.2 `apps/worker` bootstrap: `main.ts`, `/health`, `/ready`, BullMQ connection, **outbox dispatcher** (poll → publish → mark published, retry, consumer dedupe by `event_id`).
+- [ ] P0-T13.2 Worker **image and deployment** only — the worker itself and the outbox dispatcher are built in P0-T7b (plan v4).
 - [ ] P0-T13.3 Dokploy + Traefik on the chosen host; subdomains and cookie domain per ADR-0001 §6; secrets injected from Dokploy; test keys only.
 - [ ] P0-T13.4 Migrations run as their own step before containers start; after every migration run the **previous** image against the **new** schema and confirm it serves.
 - [ ] P0-T13.5 Backups: nightly `pg_dump` encrypted to B2 via restic **and** pgBackRest/wal-g base backup + continuous WAL; RPO ≤ 5 min, RTO ≤ 2 h; both check in to Healthchecks.io.
@@ -535,7 +543,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 
 **Phase 0 schedule (revised, weeks):** 1: T0 T1 T2 T3 T12a · 2: T4 T6a T5 · 3: T5 T6b T7 · 4: T7 T9a · 5: T9a T8 · 6: T9b T10 T11 · 7: T12b T13 · 8: buffer + PITR rehearsal.
 
-**Critical path (revised):** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → **T9a → T8** → T9b → T12b → T13.
+**Critical path (plan v4):** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → **T9a-1 → T9a-2 → T9a-3 → T9a-4 → T8** → T9b → T12b → T13.
 
 ---
 
