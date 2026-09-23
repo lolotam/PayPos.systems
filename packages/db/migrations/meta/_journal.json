@@ -120,6 +120,20 @@
       "when": 1790197063093,
       "tag": "0016_2026-09-23_identity-platform-roles-grants",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790197646135,
+      "tag": "0017_2026-09-23_identity-devices",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790197647564,
+      "tag": "0018_2026-09-23_identity-devices-rls",
+      "breakpoints": true
     }
   ]
 }

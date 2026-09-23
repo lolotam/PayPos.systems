@@ -18,3 +18,11 @@ export {
   createPlatformUser,
   type CreatePlatformUserInput,
 } from './create-platform-user.ts';
+export {
+  formatDeviceToken,
+  hashDeviceSecret,
+  newDeviceSecret,
+  parseDeviceToken,
+  verifyDeviceSecret,
+  type DeviceToken,
+} from './device-credentials.ts';

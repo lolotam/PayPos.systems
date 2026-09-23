@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDemoData, type DemoDependencies } from '../../../../scripts/demo-data.ts';
 import { assertDevelopmentTarget } from '../../../../scripts/demo-guard.ts';
 import { demoReads } from '../../../../scripts/demo-reads.ts';
-import { startHarness, type Harness } from './harness.ts';
+import { startHarness, type Harness } from '../../../../test/harness.ts';
 
 // Plan v4 T8: the demo data goes through the production routes — one company per vertical, each with its business
 // of that vertical and one branch — only on a local development database, and a re-run completes what a failed run

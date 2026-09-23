@@ -34,3 +34,15 @@ export {
   type OpeningHours,
 } from './tenancy/opening-hours.js';
 export { plan, type Plan } from './tenancy/plan.js';
+export {
+  claimDeviceInput,
+  deviceRegistration,
+  deviceToken,
+  pairingCode,
+  registerDeviceInput,
+  type ClaimDeviceInput,
+  type DeviceRegistration,
+  type DeviceToken,
+  type PairingCode,
+  type RegisterDeviceInput,
+} from './identity/devices.js';

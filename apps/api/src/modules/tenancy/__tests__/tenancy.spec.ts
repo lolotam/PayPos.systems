@@ -7,7 +7,7 @@ import {
 import { verticalTemplate } from '@pospay/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { startHarness, type Harness } from './harness.ts';
+import { startHarness, type Harness } from '../../../../test/harness.ts';
 
 // T8 scenarios TEN-01…05 and the API-level isolation proof (plan v4 T8, debate C11), through the API with real
 // sessions: owners of company A (and A2) and of company B, each onboarded through POST /v1/companies.

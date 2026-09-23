@@ -11,15 +11,15 @@ import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger, type DestinationStream } from '@pospay/observability';
+import { randomBytes } from 'node:crypto';
+
+import { Redis } from 'ioredis';
 import postgres from 'postgres';
 
-import { grantPlatformPermission } from '../../../../../../packages/db/src/platform-grants.ts';
-import { PROVISIONAL_PLAN_ID, seedReferenceData } from '../../../../../../packages/db/src/seed.ts';
-import {
-  createTestDatabase,
-  type TestDatabase,
-} from '../../../../../../packages/db/test/test-database.ts';
-import { createApp } from '../../../app.ts';
+import { grantPlatformPermission } from '../../../packages/db/src/platform-grants.ts';
+import { PROVISIONAL_PLAN_ID, seedReferenceData } from '../../../packages/db/src/seed.ts';
+import { createTestDatabase, type TestDatabase } from '../../../packages/db/test/test-database.ts';
+import { createApp } from '../src/app.ts';
 
 // A real API over a cloned database with real Better Auth sessions. Users are made the way an operator makes them,
 // and every company goes through POST /v1/companies — the production path, never a raw insert.
@@ -31,6 +31,7 @@ export interface Harness {
   readonly app: NestFastifyApplication;
   readonly owner: postgres.Sql;
   readonly auth: AuthService;
+  readonly redis: Redis;
   readonly ownerUrl: string;
   readonly urls: { readonly app: string; readonly auth: string; readonly owner: string };
   /**
@@ -73,6 +74,18 @@ function recording(tx: Tx, wrapper: 'tenant' | 'user' | 'new-tenant', calls: Har
   });
 }
 
+// The compose Redis (T2): REDIS_URL when set, otherwise built from REDIS_PASSWORD as CI writes it.
+// A key prefix per harness: rate-limit counters and pairing codes never leak between spec files or runs.
+function testRedis(): Redis {
+  const configured = process.env['REDIS_URL'];
+  const password = encodeURIComponent(process.env['REDIS_PASSWORD'] ?? '');
+  const url =
+    configured !== undefined && configured !== ''
+      ? configured
+      : `redis://:${password}@${process.env['REDIS_HOST'] ?? '127.0.0.1'}:${process.env['REDIS_PORT'] ?? '6379'}`;
+  return new Redis(url, { keyPrefix: `test:${randomBytes(6).toString('hex')}:` });
+}
+
 function spied(database: Database, calls: Harness['calls']): TenantWrappers {
   return {
     withUser: (userId, fn) => {
@@ -104,7 +117,7 @@ function sender(app: NestFastifyApplication): Harness['send'] {
     });
     return {
       status: res.statusCode,
-      body: res.json() as Record<string, unknown>,
+      body: (res.body === '' ? {} : res.json()) as Record<string, unknown>,
       text: res.body,
       headers: res.headers,
     };
@@ -160,6 +173,7 @@ export async function startHarness(options: { logs?: DestinationStream } = {}): 
     onLog: () => undefined,
   });
   const database = createDatabase({ url: testDb.appUrl, ids });
+  const redis = testRedis();
   const calls: Harness['calls'] = { tenant: [], user: [], newTenant: [], statements: [] };
   const app = await createApp(
     {
@@ -167,6 +181,7 @@ export async function startHarness(options: { logs?: DestinationStream } = {}): 
       auth: { service: auth, baseURL: BASE },
       database: spied(database, calls),
       ids,
+      redis,
     },
     {
       logger:
@@ -176,16 +191,16 @@ export async function startHarness(options: { logs?: DestinationStream } = {}): 
     },
   );
   const send = sender(app);
-  const operator = operatorMaker(app, auth, testDb.ownerUrl, ids);
   return {
     app,
     owner,
     auth,
+    redis,
     ownerUrl: testDb.ownerUrl,
     urls: { app: testDb.appUrl, auth: testDb.authUrl, owner: testDb.ownerUrl },
     calls,
     send,
-    signedInOperator: operator,
+    signedInOperator: operatorMaker(app, auth, testDb.ownerUrl, ids),
     onboard: async (cookie, name) => {
       const res = await send('POST', '/v1/companies', {
         cookie,
@@ -197,7 +212,7 @@ export async function startHarness(options: { logs?: DestinationStream } = {}): 
     },
     close: async () => {
       await app.close();
-      await Promise.all([database.close(), auth.close()]);
+      await Promise.all([database.close(), auth.close(), redis.quit()]);
       await owner.end();
       await testDb.drop();
     },

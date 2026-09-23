@@ -191,7 +191,9 @@ describe('ordering, crashes and concurrency', () => {
     ).rejects.toThrow('crashed');
     // The claim committed: the attempt counts, and the event stays leased until the lease ends.
     expect(await state(id)).toMatchObject({ published: false, attempts: 1 });
-    expect(await dispatcher.dispatchBatch(50, delivered())).toBe(0);
+    // Only this event is asserted: an earlier test's retry can come due in the same batch.
+    await dispatcher.dispatchBatch(50, delivered());
+    expect(await state(id)).toMatchObject({ published: false, attempts: 1 });
     await new Promise((done) => setTimeout(done, 300));
     await drain();
     expect(await state(id)).toMatchObject({ published: true });

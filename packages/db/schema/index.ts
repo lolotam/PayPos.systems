@@ -7,3 +7,4 @@ export * from './consumed-events.ts';
 export * from './identity-auth.ts';
 export * from './identity-access.ts';
 export * from './identity-platform.ts';
+export * from './identity-devices.ts';

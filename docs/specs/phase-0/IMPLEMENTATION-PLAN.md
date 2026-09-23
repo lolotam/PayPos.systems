@@ -585,6 +585,17 @@ channel in P1-T7 — its routes are 404 until then); the `api-key` plugin deferr
 is a separate package (ADR-0009 amendment); the five platform role codes seeded into their own `platform_roles` table —
 never the tenant `roles`, so no company can assign them (`TODO(spec)` D-07, no permissions until Phase 5). Devices (T9b-2) and cashier PINs (T9b-3) follow.
 
+**T9b-2 as built:** `devices` (tenant data, RLS, no DELETE — a device is revoked and kept; migrations 0017/0018) holding
+only hashes. A manager with `manage:devices:branch` issues a pairing code (8 characters, single use, **10 minutes** —
+Waleed 2026-09-23, Redis `GETDEL`); `POST /v1/devices/register` (public, rate-limited) records the device PENDING and
+returns a one-time claim secret; the manager approves; `POST /v1/devices/claim` (public, rate-limited) returns the token
+`pd_<company>.<device>.<secret>` exactly once. Every request with `Authorization: Device …` is proven inside the
+company it names (a forged company finds no row), refused unless ACTIVE and unexpired, and renewed for 30 days (D-09);
+revocation erases the token, so the next contact is 401. Secrets are made and checked in `packages/auth`. Audit rows for
+every step; `DeviceRegistered` / `DeviceRevoked` in the outbox. The fixed `device` system role is seeded without
+permissions until sync, catalogue and clock-in exist. `TODO(spec)`: the public-route rate limit (10 per minute per
+client address until decided).
+
 ---
 
 ### T10 — `settings` + `packages/i18n` · Size M · depends: T8

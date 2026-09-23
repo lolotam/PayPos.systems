@@ -35,7 +35,8 @@ describe('seedReferenceData', () => {
     expect(perms.map((p) => p.code)).toEqual([...PERMISSIONS].sort());
     const roles = await owner<{ code: string }[]>`SELECT code FROM roles WHERE company_id IS NULL`;
     expect(roles.map((r) => r.code).sort()).toEqual(SYSTEM_ROLES.map((r) => r.code).sort());
-    expect(SYSTEM_ROLES).toHaveLength(13);
+    // the 13 provisional tenant roles (D-07) and the fixed Device role (ADR-0003 §4 path B)
+    expect(SYSTEM_ROLES).toHaveLength(14);
   });
 
   it('gives Owner every tenant permission and every other system role none (TODO(spec) D-07)', async () => {

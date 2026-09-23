@@ -2,7 +2,7 @@ import { Writable } from 'node:stream';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { startHarness, type Harness } from './harness.ts';
+import { startHarness, type Harness } from '../../../../test/harness.ts';
 
 // T11 through the real API: every request has an id (a caller's plain X-Request-Id is kept, anything else replaced),
 // it is returned in the response, and the request's log line carries the verified user, company and branch.
