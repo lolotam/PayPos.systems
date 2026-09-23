@@ -47,12 +47,14 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'roles:SELECT',
     'roles:UPDATE',
   ],
-  // Global identity (ADR-0003 §2.1): Better Auth's tables, and nothing else.
+  // Global identity (ADR-0003 §2.1): Better Auth's tables, reading platform grants and appending to their audit log.
   pospay_auth: [
     'account:DELETE',
     'account:INSERT',
     'account:SELECT',
     'account:UPDATE',
+    'platform_audit_log:INSERT',
+    'platform_grants:SELECT',
     'session:DELETE',
     'session:INSERT',
     'session:SELECT',
@@ -96,7 +98,15 @@ const TENANT_TABLES = [
   'role_permissions',
 ];
 const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
-const IDENTITY_TABLES = ['user', 'session', 'account', 'verification', 'two_factor'];
+const IDENTITY_TABLES = [
+  'user',
+  'session',
+  'account',
+  'verification',
+  'two_factor',
+  'platform_grants',
+  'platform_audit_log',
+];
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;

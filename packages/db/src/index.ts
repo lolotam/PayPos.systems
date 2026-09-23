@@ -3,9 +3,16 @@ export {
   PERMISSIONS,
   SYSTEM_ROLES,
   type Permission,
+  type PlatformPermission,
+  type TenantPermission,
   type SystemRole,
 } from './access-catalog.ts';
-export { createAuthDatabase, type AuthDatabase, type IdentitySchema } from './auth-database.ts';
+export {
+  createAuthDatabase,
+  type AuthDatabase,
+  type IdentitySchema,
+  type PlatformAuditEntry,
+} from './auth-database.ts';
 export { appendAuditLog, type AuditEntry } from './audit-log.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { markEventConsumed } from './consumed-events.ts';

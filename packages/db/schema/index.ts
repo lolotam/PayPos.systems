@@ -6,3 +6,4 @@ export * from './idempotency.ts';
 export * from './consumed-events.ts';
 export * from './identity-auth.ts';
 export * from './identity-access.ts';
+export * from './identity-platform.ts';

@@ -1,9 +1,24 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
 import { createUuidV7, systemUuidV7 } from '@pospay/ids';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
-import { createAuth, type AuthLogEntry, type AuthOptions, type AuthService } from '../index.ts';
+import {
+  grantPlatformPermission,
+  revokePlatformPermission,
+} from '../../../db/src/platform-grants.ts';
+import { seedReferenceData } from '../../../db/src/seed.ts';
+import {
+  createAuth,
+  OperatorInputError,
+  createPlatformUser,
+  type AuthLogEntry,
+  type AuthOptions,
+  type AuthService,
+} from '../index.ts';
 
 // T9a-1: a real login produces a session, on pospay_auth, with sign-up closed and nothing stored in clear.
 const BASE = 'http://api.test';
@@ -26,6 +41,7 @@ const optionsFor = (databaseUrl: string): AuthOptions => ({
 
 beforeAll(async () => {
   testDb = await createTestDatabase();
+  await seedReferenceData(testDb.ownerUrl);
   auth = await createAuth(optionsFor(testDb.authUrl));
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
 });
@@ -184,5 +200,121 @@ describe('session renewal and library logging', () => {
       expect.objectContaining({ level: 'error', message: 'INTERNAL_SERVER_ERROR' }),
     );
     expect(JSON.stringify(logged)).not.toContain(token);
+  });
+});
+
+describe('platform:create-user and platform grants (T9a-3)', () => {
+  const grant = {
+    email: 'op@example.test',
+    permission: 'create:companies:platform',
+    operator: 'waleed',
+  };
+
+  it('creates a user with an audit row and a one-time link that sets the password', async () => {
+    const { userId, link } = await createPlatformUser(auth, {
+      email: grant.email,
+      name: 'Operator',
+      operator: 'waleed',
+      redirectTo: `${ORIGIN}/set-password`,
+    });
+    const [audit] = await owner`SELECT actor, action, target_user_id FROM platform_audit_log`;
+    expect(audit).toEqual({ actor: 'waleed', action: 'user.created', target_user_id: userId });
+    const token = new URL(link).pathname.split('/').pop() ?? '';
+    const reset = () => post('/reset-password', { token, newPassword: 'operator-chosen-pass' });
+    expect((await reset()).status).toBe(200);
+    expect((await reset()).status).toBe(400);
+    expect(
+      (await post('/sign-in/email', { email: grant.email, password: 'operator-chosen-pass' }))
+        .status,
+    ).toBe(200);
+  });
+
+  it("a session carries the user's active platform grants — and loses them when revoked", async () => {
+    const cookie = cookieOf(
+      await post('/sign-in/email', { email: grant.email, password: 'operator-chosen-pass' }),
+    );
+    expect((await auth.getSession(new Headers({ cookie })))?.platformPermissions).toEqual([]);
+    await grantPlatformPermission(testDb.ownerUrl, grant, systemUuidV7());
+    expect((await auth.getSession(new Headers({ cookie })))?.platformPermissions).toEqual([
+      'create:companies:platform',
+    ]);
+    await revokePlatformPermission(testDb.ownerUrl, grant, systemUuidV7());
+    expect((await auth.getSession(new Headers({ cookie })))?.platformPermissions).toEqual([]);
+  });
+});
+
+const input = (email: string) => ({
+  email,
+  name: 'Half',
+  operator: 'waleed',
+  redirectTo: `${ORIGIN}/set-password`,
+});
+const userCount = async (email: string) =>
+  (await owner`SELECT count(*)::int AS n FROM "user" WHERE email = ${email}`)[0]?.['n'];
+
+describe('platform:create-user failures leave nothing half-done', () => {
+  it('refuses bad input before writing anything', async () => {
+    await expect(
+      createPlatformUser(auth, { ...input('bad@example.test'), operator: ' ' }),
+    ).rejects.toBeInstanceOf(OperatorInputError);
+    expect(await userCount('bad@example.test')).toBe(0);
+  });
+
+  it('removes the new user when its audit row cannot be written', async () => {
+    await owner`REVOKE INSERT ON platform_audit_log FROM pospay_auth`;
+    try {
+      await expect(createPlatformUser(auth, input('half@example.test'))).rejects.toThrow();
+    } finally {
+      await owner`GRANT INSERT ON platform_audit_log TO pospay_auth`;
+    }
+    expect(await userCount('half@example.test')).toBe(0);
+  });
+
+  it('removes the new user when its credential account cannot be written', async () => {
+    await owner`REVOKE INSERT ON account FROM pospay_auth`;
+    try {
+      await expect(createPlatformUser(auth, input('noacct@example.test'))).rejects.toThrow();
+    } finally {
+      await owner`GRANT INSERT ON account TO pospay_auth`;
+    }
+    expect(await userCount('noacct@example.test')).toBe(0);
+  });
+});
+
+describe('platform:create-user failures leak nothing', () => {
+  it('the script reports a database failure by class and code only — no query, no email, no hash', () => {
+    const run = () =>
+      spawnSync(
+        process.execPath,
+        [
+          'scripts/create-user.ts',
+          '--email',
+          'twice@example.test',
+          '--name',
+          'Twice',
+          '--operator',
+          'waleed',
+          '--redirect-to',
+          `${ORIGIN}/set-password`,
+        ],
+        {
+          cwd: fileURLToPath(new URL('../..', import.meta.url)),
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            AUTH_DATABASE_URL: testDb.authUrl,
+            BETTER_AUTH_SECRET: 'test-secret-that-is-long-enough-for-hmac',
+            BETTER_AUTH_URL: BASE,
+            AUTH_TRUSTED_ORIGINS: ORIGIN,
+          },
+        },
+      );
+    expect(run().status).toBe(0);
+    const second = run();
+    expect(second.status).toBe(1);
+    expect(second.stderr).toMatch(/platform:create-user failed:/);
+    expect(second.stderr).not.toMatch(
+      /twice@example\.test|Failed query|\$argon|\$scrypt|insert into/i,
+    );
   });
 });

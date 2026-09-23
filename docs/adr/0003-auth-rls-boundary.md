@@ -344,6 +344,11 @@ tenant-qualified FK. `permission_overrides` reach the user branch through their 
 from the `x-company-id` header or the session hint and is refused before any `withTenant` unless an active membership
 covers it. The Redis permission cache is deferred to the first membership-changing use case (T9a-4).
 
+**2026-09-23, T9a-3:** `platform_grants.granted_by` / `revoked_by` name the operator (text) — the first grant exists
+before any user holds a platform permission. Revocation keeps the row. `platform_audit_log` rows: `user.created`,
+`grant.granted`, `grant.revoked`. The set-password link reuses Better Auth's reset verification row and is printed once
+to the operator.
+
 ## 7. Consequences
 
 - **`CLAUDE.md` §5 is amended** in the same PR: the "no fourth way to reach the DB" sentence names the auth path as the one exception, reachable only from `packages/auth` on `pospay_auth`.

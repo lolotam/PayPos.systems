@@ -4,9 +4,18 @@
 /**
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
  */
-export const PERMISSIONS = ['read:memberships:company', 'manage:memberships:company'] as const;
+export const PERMISSIONS = [
+  'read:memberships:company',
+  'manage:memberships:company',
+  // صلاحية منصة: بتتدي بـ pnpm platform:grant بس، وعمرها ما بتبقى في role شركة (ADR-0003 §3).
+  'create:companies:platform',
+] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
+/** صلاحية على مستوى المنصة — بتتدي بـ platform_grants بس. */
+export type PlatformPermission = Extract<Permission, `${string}:platform`>;
+/** صلاحية جوه شركة — بتتدي بالـ roles والـ overrides. */
+export type TenantPermission = Exclude<Permission, PlatformPermission>;
 
 /**
  * role نظام واحد: id ثابت عشان الـ seed يتعاد من غير ما يكرر، والـ code اللي بيتقارن بيه في الكود.

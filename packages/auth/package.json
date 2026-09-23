@@ -14,7 +14,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "platform:create-user": "node --env-file-if-exists=../../.env scripts/create-user.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.5",

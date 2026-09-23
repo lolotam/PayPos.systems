@@ -485,6 +485,16 @@ hint, refused before any `withTenant` unless an active membership covers it), `@
 `@Public` / `@Authenticated` / `@Require`. **Deferred:** the Redis permission cache (ADR-0003 §4.1) arrives with the
 first membership-changing use case (T9a-4), which must invalidate it — until then grants are read per request.
 
+**T9a-3 as built:** `platform_grants` (active grant unique per user and permission; revocation keeps the row with
+`revoked_by`/`revoked_at`) and `platform_audit_log` (migrations 0011/0012) — `pospay_auth` reads grants and only
+inserts audit rows; grants are written only by `pnpm platform:grant [--revoke]` as `pospay_owner`, grant/revoke and its
+audit row in one transaction. `pnpm platform:create-user` creates the user through `packages/auth` with a random,
+never-shown password, writes `user.created` to the audit log and prints a one-time set-password link (Better Auth's
+reset verification row, `TODO(spec)` lifetime: 1 h). `create:companies:platform` joins the catalogue (never in a tenant
+role). Sessions carry active platform grants into `Principal.grants`; `@RequirePlatform(permission)` accepts only a
+`platform` grant, resolves no company, and is one of the four access declarations `createApp` requires. The
+boundaries ESLint rules were found inert during T9a-2 review (globs rooted at `apps/`) and now run.
+
 **Four sequential PRs (debate C7)** — each passes its own gates and leaves unfinished business routes unavailable;
 none may commit a company without its owner membership. T8 depends on all four.
 

@@ -1,11 +1,12 @@
 import { SetMetadata } from '@nestjs/common';
-import type { FeatureFlag, Permission } from '@pospay/db';
+import type { FeatureFlag, PlatformPermission, TenantPermission } from '@pospay/db';
 
 import { targetFitsPermission } from '../use-cases/authorize-request/authorize-request.ts';
 
 export const REQUIRE_ACCESS = 'pospay:require-access';
 export const AUTHENTICATED_ONLY = 'pospay:authenticated-only';
 export const REQUIRES_FEATURE = 'pospay:requires-feature';
+export const REQUIRE_PLATFORM = 'pospay:require-platform';
 
 /**
  * Where the guard finds the business or branch a route touches: the name of a route parameter. The company
@@ -17,7 +18,7 @@ export interface AccessTargetParams {
 }
 
 export interface RequiredAccess {
-  readonly permission: Permission;
+  readonly permission: TenantPermission;
   readonly target: AccessTargetParams;
 }
 
@@ -31,7 +32,10 @@ export interface RequiredAccess {
  * @param target     the route parameters naming the business or branch, when the scope needs one
  * @returns the metadata decorator
  */
-export function Require(permission: Permission, target: AccessTargetParams = {}): MethodDecorator {
+export function Require(
+  permission: TenantPermission,
+  target: AccessTargetParams = {},
+): MethodDecorator {
   const expected = targetFitsPermission(permission, {
     business: target.business !== undefined,
     branch: target.branch !== undefined,
@@ -59,3 +63,14 @@ export const Authenticated = (): MethodDecorator => SetMetadata(AUTHENTICATED_ON
  */
 export const RequiresFeature = (flag: FeatureFlag): MethodDecorator =>
   SetMetadata(REQUIRES_FEATURE, flag);
+
+/**
+ * Guards a platform-level route (ADR-0003 §3) — creating a company, for one — with a platform grant from
+ * `platform_grants`, issued only by `pnpm platform:grant`. No company is resolved and no membership, role or
+ * override can satisfy it.
+ *
+ * @param permission the catalogued ':platform' permission
+ * @returns the metadata decorator
+ */
+export const RequirePlatform = (permission: PlatformPermission): MethodDecorator =>
+  SetMetadata(REQUIRE_PLATFORM, permission);

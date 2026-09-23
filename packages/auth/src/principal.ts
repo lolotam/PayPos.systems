@@ -44,8 +44,8 @@ export interface ResolvedPrincipal {
 }
 
 /**
- * بيتحقق من الـ session cookie ويرجّع الـ principal بتاع المستخدم (path A) من غير شركة ولا صلاحيات — الـ access
- * guard في apps/api بيملاهم بعد ما يتأكد من العضوية في الشركة المطلوبة.
+ * بيتحقق من الـ session cookie ويرجّع الـ principal بتاع المستخدم (path A) بصلاحيات المنصة بس ومن غير شركة —
+ * الـ access guard في apps/api بيضيف صلاحيات الشركة بعد ما يتأكد من العضوية فيها.
  *
  * @param auth    الـ AuthService
  * @param headers headers الطلب (فيها الـ cookie)
@@ -65,7 +65,14 @@ export async function resolveUserPrincipal(
       companyId: null,
       deviceId: null,
       memberships: [],
-      grants: [],
+      // Platform grants are not tied to a company; tenant grants are added once a membership is verified.
+      grants: session.platformPermissions.map((permission): Grant => ({
+        permission,
+        effect: 'ALLOW',
+        source: 'platform',
+        scopeType: 'PLATFORM',
+        scopeId: null,
+      })),
     },
     companyHint: session.activeCompanyId,
     setCookies: session.setCookies,

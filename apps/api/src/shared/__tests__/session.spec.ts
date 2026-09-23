@@ -58,10 +58,14 @@ const fakeAuth: AuthService = {
       userId: USER,
       sessionId: '019c0000-0000-7000-8000-000000000002',
       activeCompanyId: null,
+      platformPermissions: [],
       setCookies,
     };
   },
   provisionUser: async () => USER,
+  issuePasswordSetLink: async () => 'http://api.test/unused',
+  recordPlatformAction: async () => undefined,
+  discardUser: async () => undefined,
   ping: async () => undefined,
   close: async () => undefined,
 };

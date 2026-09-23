@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { createAuthDatabase } from '@pospay/db';
 import { betterAuth } from 'better-auth';
@@ -35,6 +37,8 @@ export interface AuthLogEntry {
 }
 
 export const AUTH_BASE_PATH = '/v1/auth';
+// TODO(spec): how long a set-password link lives — Better Auth's reset default (1 h) until decided.
+const SET_PASSWORD_LINK_TTL_MS = 60 * 60 * 1000;
 
 /**
  * الـ session اللي اتأكدنا منها — الـ ids بس، ومفيش token.
@@ -44,6 +48,8 @@ export interface VerifiedSession {
   readonly sessionId: string;
   /** الشركة اللي اليوزر اختارها آخر مرة — hint بس، الـ guard بيتأكد من العضوية في كل طلب (ADR-0003 §4.1). */
   readonly activeCompanyId: string | null;
+  /** صلاحيات المنصة السارية لليوزر (platform_grants) — مش مرتبطة بشركة. */
+  readonly platformPermissions: readonly string[];
   /** الـ Set-Cookie اللي Better Auth طلّعها وهو بيجدد الـ session — لازم توصل للمتصفح وإلا الـ cookie يخلص في ميعاده القديم. */
   readonly setCookies: readonly string[];
 }
@@ -59,6 +65,20 @@ export interface AuthService {
   getSession(headers: Headers): Promise<VerifiedSession | null>;
   /** بيعمل مستخدم بباسورد — للسكريبت بتاع الـ operator بس (التسجيل مقفول). */
   provisionUser(input: { email: string; name: string; password: string }): Promise<string>;
+  /**
+   * رابط يستخدمه اليوزر مرة واحدة يحط بيه الباسورد بتاعه — للسكريبت بتاع الـ operator بس. الرابط فيه token، فبيتسلم
+   * للـ operator ومبيتكتبش في أي log.
+   */
+  issuePasswordSetLink(userId: string, redirectTo: string): Promise<string>;
+  /** بيمسح يوزر لسه متعمل ومفيش له سجل — التعويض لو خطوة بعد الإنشاء فشلت (createPlatformUser). */
+  discardUser(userId: string): Promise<void>;
+  /** بيسجل فعل على مستوى المنصة (إنشاء يوزر مثلاً) في platform_audit_log. */
+  recordPlatformAction(entry: {
+    actor: string;
+    action: string;
+    targetUserId: string | null;
+    details: Record<string, unknown>;
+  }): Promise<void>;
   /** /ready: the pool answers AND it is pospay_auth. */
   ping(): Promise<void>;
   close(): Promise<void>;
@@ -93,37 +113,70 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
       });
       if (response === null) return null;
       return {
+        platformPermissions: await database.activePlatformPermissions(response.user.id),
         userId: response.user.id,
         sessionId: response.session.id,
         activeCompanyId: response.session.activeCompanyId ?? null,
         setCookies: out.getSetCookie(),
       };
     },
-    provisionUser: async (input) => {
-      const context = await auth.$context;
-      const { minPasswordLength, maxPasswordLength } = context.password.config;
-      if (input.password.length < minPasswordLength || input.password.length > maxPasswordLength) {
-        throw new RangeError(
-          `password must be ${minPasswordLength}–${maxPasswordLength} characters`,
-        );
-      }
-      const hash = await context.password.hash(input.password);
-      // 'admin': provisioned by an operator, not by the user signing up.
-      const user = await context.internalAdapter.createUser(
-        { email: input.email.toLowerCase(), name: input.name, emailVerified: true },
-        { method: 'admin' },
-      );
-      await context.internalAdapter.linkAccount({
-        userId: user.id,
-        providerId: 'credential',
-        accountId: user.id,
-        password: hash,
-      });
-      return user.id;
+    provisionUser: async (input) => provision(await auth.$context, input),
+    issuePasswordSetLink: async (userId, redirectTo) =>
+      issueSetPasswordLink(await auth.$context, userId, redirectTo),
+    discardUser: async (userId) => {
+      await (await auth.$context).internalAdapter.deleteUser(userId);
     },
+    recordPlatformAction: (entry) =>
+      database.recordPlatformAction({ id: options.ids.newId(), ...entry }),
     ping: () => database.ping(),
     close: () => database.close(),
   };
+}
+
+type AuthContext = Awaited<ReturnType<typeof buildBetterAuth>['$context']>;
+
+async function provision(
+  context: AuthContext,
+  input: { email: string; name: string; password: string },
+): Promise<string> {
+  const { minPasswordLength, maxPasswordLength } = context.password.config;
+  if (input.password.length < minPasswordLength || input.password.length > maxPasswordLength) {
+    throw new RangeError(`password must be ${minPasswordLength}–${maxPasswordLength} characters`);
+  }
+  const hash = await context.password.hash(input.password);
+  // 'admin': provisioned by an operator, not by the user signing up.
+  const user = await context.internalAdapter.createUser(
+    { email: input.email.toLowerCase(), name: input.name, emailVerified: true },
+    { method: 'admin' },
+  );
+  try {
+    await context.internalAdapter.linkAccount({
+      userId: user.id,
+      providerId: 'credential',
+      accountId: user.id,
+      password: hash,
+    });
+  } catch (error) {
+    // The user row is already committed; without its credential it could never sign in and would block a retry.
+    await context.internalAdapter.deleteUser(user.id);
+    throw error;
+  }
+  return user.id;
+}
+
+async function issueSetPasswordLink(
+  context: AuthContext,
+  userId: string,
+  redirectTo: string,
+): Promise<string> {
+  const token = randomBytes(24).toString('base64url');
+  // The same verification row Better Auth's own reset flow writes, consumed once by POST /reset-password.
+  await context.internalAdapter.createVerificationValue({
+    value: userId,
+    identifier: `reset-password:${token}`,
+    expiresAt: new Date(Date.now() + SET_PASSWORD_LINK_TTL_MS),
+  });
+  return `${context.baseURL}/reset-password/${token}?callbackURL=${encodeURIComponent(redirectTo)}`;
 }
 
 function buildBetterAuth(options: AuthOptions, database: ReturnType<typeof createAuthDatabase>) {

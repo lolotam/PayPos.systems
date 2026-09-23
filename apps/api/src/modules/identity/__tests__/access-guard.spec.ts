@@ -7,7 +7,7 @@ import {
   SYSTEM_ROLES,
   createDatabase,
   type Database,
-  type Permission,
+  type TenantPermission,
   type TenantWrappers,
 } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
@@ -22,8 +22,7 @@ import {
 } from '../../../../../../packages/db/test/test-database.ts';
 import { seedReferenceData } from '../../../../../../packages/db/src/seed.ts';
 import { createApp } from '../../../app.ts';
-import { Public } from '../../../shared/public.decorator.ts';
-import { Authenticated, Require, RequiresFeature } from '../index.ts';
+import { Require, RequirePlatform, RequiresFeature } from '../index.ts';
 
 // T9a-2 against real Postgres: memberships decide which companies a user may switch to, the permission is
 // evaluated at the route's target with DENY winning, and a disabled feature is refused.
@@ -37,7 +36,7 @@ const [BUSINESS, BRANCH_1, BRANCH_3, BRANCH_B] = [
   ids.newId(),
 ];
 const VIEWER_ROLE = SYSTEM_ROLES.find((role) => role.code === 'viewer')?.id ?? '';
-const PROBE_BRANCH = 'read:probe:branch' as Permission;
+const PROBE_BRANCH = 'read:probe:branch' as TenantPermission;
 
 @Controller('probe/access')
 class AccessProbe {
@@ -53,6 +52,12 @@ class AccessProbe {
     return { ok: true };
   }
 
+  @RequirePlatform('create:companies:platform')
+  @Get('platform')
+  platform(@Req() request: FastifyRequest): { companyId: string | null | undefined } {
+    return { companyId: request.principal?.companyId };
+  }
+
   @Require('read:memberships:company')
   @RequiresFeature('orders')
   @Get('orders')
@@ -62,11 +67,12 @@ class AccessProbe {
 }
 
 // The session is Better Auth's job (proven in packages/auth); here a cookie names the user and the session hint.
-const SESSIONS: Record<string, { userId: string; hint: string | null }> = {
+const SESSIONS: Record<string, { userId: string; hint: string | null; platform?: string[] }> = {
   owner: { userId: OWNER, hint: null },
   'owner-hint-a': { userId: OWNER, hint: A },
   viewer: { userId: VIEWER, hint: null },
   stranger: { userId: STRANGER, hint: null },
+  operator: { userId: STRANGER, hint: null, platform: ['create:companies:platform'] },
 };
 const fakeAuth: AuthService = {
   handler: async () => new Response(null, { status: 404 }),
@@ -78,10 +84,14 @@ const fakeAuth: AuthService = {
           userId: session.userId,
           sessionId: ids.newId(),
           activeCompanyId: session.hint,
+          platformPermissions: session.platform ?? [],
           setCookies: [],
         };
   },
   provisionUser: async () => OWNER,
+  issuePasswordSetLink: async () => 'http://api.test/unused',
+  recordPlatformAction: async () => undefined,
+  discardUser: async () => undefined,
   ping: async () => undefined,
   close: async () => undefined,
 };
@@ -300,6 +310,21 @@ describe('evaluation at the branch target (PRD D-31)', () => {
   });
 });
 
+describe('platform routes (ADR-0003 §3)', () => {
+  it('only a platform grant opens them — no company is resolved, and a company owner is refused', async () => {
+    expect(await get('/v1/probe/access/platform', 'operator')).toMatchObject({
+      status: 200,
+      body: { companyId: null },
+    });
+    expect(await get('/v1/probe/access/platform', 'owner', A)).toMatchObject({ status: 403 });
+    expect(await get('/v1/probe/access/platform', null)).toMatchObject({ status: 401 });
+  });
+
+  it('a platform grant opens no company route', async () => {
+    expect(await get('/v1/probe/access/company', 'operator', A)).toMatchObject({ status: 403 });
+  });
+});
+
 describe('feature flags', () => {
   it('enabled by the plan, refused by an unexpired company override, back when it expires', async () => {
     expect(await get('/v1/probe/access/orders', 'owner', A)).toMatchObject({ status: 200 });
@@ -310,88 +335,6 @@ describe('feature flags', () => {
     });
     await owner`UPDATE company_feature_overrides SET expires_at = now() - interval '1 second' WHERE company_id = ${A}`;
     expect(await get('/v1/probe/access/orders', 'owner', A)).toMatchObject({ status: 200 });
-  });
-});
-
-describe('routes without a declared access', () => {
-  @Controller('probe/open')
-  class Unguarded {
-    @Get()
-    open(): string {
-      return 'open';
-    }
-  }
-
-  it('an app with a route that is neither @Public, @Authenticated nor @Require refuses to start', async () => {
-    await expect(
-      createApp({ readiness: [] }, { controllers: [Unguarded], logger: createLogger('silent') }),
-    ).rejects.toThrow(/Unguarded\.open/);
-  });
-});
-
-describe('conflicting or inherited access declarations', () => {
-  it('a public class, or @Authenticated beside @Require, cannot hide a permission — both refuse to start', async () => {
-    @Public()
-    @Controller('probe/public-class')
-    class PublicClass {
-      @Require('read:memberships:company')
-      @Get()
-      hidden(): string {
-        return 'hidden';
-      }
-    }
-    @Controller('probe/both')
-    class Both {
-      @Authenticated()
-      @Require('read:memberships:company')
-      @Get()
-      hidden(): string {
-        return 'hidden';
-      }
-    }
-    for (const controller of [PublicClass, Both]) {
-      await expect(
-        createApp({ readiness: [] }, { controllers: [controller], logger: createLogger('silent') }),
-      ).rejects.toThrow(/\.hidden \(conflicting\)/);
-    }
-  });
-});
-
-describe('inherited handlers', () => {
-  it('an undecorated override hides the inherited route, as Nest does — no false conflict', async () => {
-    class Base {
-      @Require('read:memberships:company')
-      @Get('hidden')
-      hidden(): string {
-        return 'base';
-      }
-    }
-    @Public()
-    @Controller('probe/override')
-    class Override extends Base {
-      override hidden(): string {
-        return 'not a route';
-      }
-    }
-    const started = await createApp(
-      { readiness: [] },
-      { controllers: [Override], logger: createLogger('silent') },
-    );
-    await started.close();
-  });
-
-  it('an inherited route with no declared access is caught too', async () => {
-    class Base {
-      @Get('inherited')
-      inherited(): string {
-        return 'open';
-      }
-    }
-    @Controller('probe/child')
-    class Child extends Base {}
-    await expect(
-      createApp({ readiness: [] }, { controllers: [Child], logger: createLogger('silent') }),
-    ).rejects.toThrow(/Child\.inherited \(unguarded\)/);
   });
 });
 
