@@ -457,7 +457,7 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 
 #### P0-T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · L (four PRs, plan v4) · ⬜ · depends T7b · **moved before T8**
 
-T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. Both come from T9 in the Phase 0 plan v2, which schedules T9 after T8. This PRD splits T9. **`IMPLEMENTATION-PLAN.md` §2 must be amended to match.**
+T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. Both come from T9 in the Phase 0 plan v2, which schedules T9 after T8. This PRD splits T9; plan v4 (`IMPLEMENTATION-PLAN.md` §2) implements it, with T9a as four PRs after T7b.
 
 - [ ] P0-T9a.0 Company-registry boundary: port `identity/ports/company-registry.port.ts` and adapter `identity/persistence/tenancy-company-registry.adapter.ts` (the consumer owns both, `module-map.md` §3); the adapter calls `registerCompany(tx, input)`, the one write `tenancy` exports from `index.ts`. Lives here, not in T8, because T8 depends on T9a.
 - [ ] P0-T9a.1 Better Auth self-hosted on the Drizzle adapter with email + password and the `two-factor` (TOTP) plugin; tables per the ADR-0003 classification; migration `NNNN_identity_bootstrap.sql` creates every T9a table and its RLS.
@@ -520,7 +520,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 
 #### P0-T13 — Staging deploy + backups + worker image · L · ⛔ D-11 (staging host) · depends T9b, T10, T11, T12b
 
-- [ ] P0-T13.1 `deploy/docker-compose.staging.yml`, `Dockerfile.api`, `Dockerfile.worker`: multi-stage on `node:24-alpine` (ADR-0002 says Node 24; the plan says 22 — align), production deps only; **no Chromium, no Arabic fonts** in the worker yet.
+- [ ] P0-T13.1 `deploy/docker-compose.staging.yml`, `Dockerfile.api`, `Dockerfile.worker`: multi-stage on `node:24-alpine` (Node 24, ADR-0002), production deps only; **no Chromium, no Arabic fonts** in the worker yet.
 - [ ] P0-T13.2 Worker **image and deployment** only — the worker itself and the outbox dispatcher are built in P0-T7b (plan v4).
 - [ ] P0-T13.3 Dokploy + Traefik on the chosen host; subdomains and cookie domain per ADR-0001 §6; secrets injected from Dokploy; test keys only.
 - [ ] P0-T13.4 Migrations run as their own step before containers start; after every migration run the **previous** image against the **new** schema and confirm it serves.
@@ -541,7 +541,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] Staging deploys from a SHA image; old image serves on the new schema; PITR and logical restores rehearsed
 - [ ] `pnpm check` green on `main`
 
-**Phase 0 schedule (revised, weeks):** 1: T0 T1 T2 T3 T12a · 2: T4 T6a T5 · 3: T5 T6b T7 · 4: T7 T9a · 5: T9a T8 · 6: T9b T10 T11 · 7: T12b T13 · 8: buffer + PITR rehearsal.
+**Phase 0 schedule:** the authoritative forecast is `IMPLEMENTATION-PLAN.md` §3 (v4) — re-forecast from actual effort on 2026-09-23: ≈ 36 working days remaining after T6a (20.5 build + 15.5 review), excluding waits on open decisions. The earlier 8-week table is superseded.
 
 **Critical path (plan v4):** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → **T9a-1 → T9a-2 → T9a-3 → T9a-4 → T8** → T9b → T12b → T13.
 
