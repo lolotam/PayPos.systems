@@ -366,7 +366,9 @@ describe('URLs are parsed, not pattern-matched', () => {
     expect(raw).not.toContain('space_leak');
     expect(raw).toContain('db.example');
   });
+});
 
+describe('a URL keeps only scheme, host and port', () => {
   it('query strings are withheld — presigned signatures, tokens, api keys, bare tokens', () => {
     const raw = capture((log) =>
       log.info(
