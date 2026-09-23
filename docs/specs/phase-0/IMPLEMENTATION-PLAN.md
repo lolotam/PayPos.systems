@@ -165,7 +165,7 @@ The overrides table is here, not in `identity`, because `tenancy` owns plans and
 **Seeds vs fixtures (debate C2).** `seed.ts` writes only the **provisional plan** — every module flag enabled
 (Waleed, 2026-09-23), renamed when D-06 is decided — and the **vertical templates** as JSON, from `PRD.md` §7.1.
 It creates **no company**: memberships do not exist until T9a, and a company without an owner is forbidden
-(ADR-0003 §5.3). Persistent demo companies are created in T9a through `onboard-company`. The RLS suite's companies are
+(ADR-0003 §5.3). Persistent demo companies are created in T8, through `onboard-company` then `create-business` (below). The RLS suite's companies are
 **test fixtures** inside a cloned test database, dropped after the run — an explicit, test-only exception to §5.3.
 
 **Negative tests (real Postgres — the compose stack, ADR-0006) — revised after review:**
@@ -387,7 +387,11 @@ instrumentation at the sanctioned database boundary asserting that **no tenant-b
 request; a CI rule that no code outside `packages/db` / `packages/auth` imports a database client; and sentinel rows in
 company B that must never appear in any response nor change. These are complementary controls, not a row-level audit.
 
-**Done when:** `TEN-01`…`TEN-05` pass as integration tests against real Postgres with real sessions, and `pnpm lint:boundaries` passes.
+**Demo data (after T8).** One demo company per vertical, generic names: each is created through `onboard-company`
+(company + owner membership) and then `create-business` with its `vertical_type` and `create-branch` — the same audited,
+idempotent paths as production, never a raw seed. It needs `create-business`, so it lands with T8, not T9a-4.
+
+**Done when:** `TEN-01`…`TEN-05` pass as integration tests against real Postgres with real sessions, `pnpm lint:boundaries` passes, and the demo data above exists in the dev database.
 
 ---
 
@@ -410,7 +414,7 @@ none may commit a company without its owner membership. T8 depends on all four.
 | **T9a-1** | Better Auth (email + password, TOTP), the `pospay_auth` pool in `packages/auth`, sessions, principal skeleton, public-route list |
 | **T9a-2** | `memberships` / `roles` / `permissions` / `role_permissions` / `permission_overrides` schema; `@Require` guard with DENY-wins at the target scope; `@RequiresFeature` |
 | **T9a-3** | `platform_grants` + `platform_audit_log`; the audited `platform:create-user` and `platform:grant` scripts (below); `@RequirePlatform` |
-| **T9a-4** | the complete `onboard-company` slice (below) and its scenarios; **persistent demo companies** (generic names, one per vertical) are created here, through `onboard-company`, never by a raw seed |
+| **T9a-4** | the complete `onboard-company` slice (below) and its scenarios |
 
 **Why split.** T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. v2 scheduled all of identity after T8, which made T8 unprovable. Full sub-tasks: `docs/PRD.md` P0-T9a.
 
@@ -653,7 +657,7 @@ The 3–4 weeks in `06_Tech_Stack_Architecture_EN.md` §7 was optimistic and sho
 | Change | Why |
 |---|---|
 | T5 policies defer to ADR-0003 (helpers, split policies, explicit `WITH CHECK`, `companies` keyed on `id`, no DELETE) | v3's blanket `current_setting(...)::uuid` rule contradicted ADR-0003 and raises `22P02` |
-| T5 seeds only the provisional plan + vertical templates; demo companies move to T9a-4 via `onboard-company` | an owner-less company violates ADR-0003 §5.3 |
+| T5 seeds only the provisional plan + vertical templates; demo companies move to T8, via `onboard-company` then `create-business` | an owner-less company violates ADR-0003 §5.3 |
 | T5 closes #16 with a reviewed privilege allowlist + effective-access tests; its suites are required CI checks | a migration's own grant must not authorise itself |
 | Migrations named by purpose; files generated as `NNNN_<UTC date>_<name>.sql` | ADR-0006; drizzle-kit owns the number |
 | T6 → T6a (done) + a real T6b section; pino + redaction in T6b, T11 no longer owns it | the old T6 section was stale |

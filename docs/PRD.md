@@ -426,7 +426,7 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 - [ ] P0-T5.6 Context-leak assertions: reuse one pooled connection A → B → no tenant; after an exception; after a rollback; two concurrent transactions do not see each other's setting; session-level settings do not survive under transaction-local overrides.
 - [ ] P0-T5.7 Referential-integrity assertion: A cannot create a branch whose `business_id` belongs to B.
 - [ ] P0-T5.8 Inventory assertion: no `SECURITY DEFINER` function on tenant tables; if ever added it pins `search_path` and restricts `EXECUTE`.
-- [ ] P0-T5.9 Seed: one **provisional** plan with every module flag enabled (renamed when D-06 is decided — the decision must not block the schema) and the vertical templates as JSON. **No company** — demo companies are created in P0-T9a through `onboard-company` (plan v4).
+- [ ] P0-T5.9 Seed: one **provisional** plan with every module flag enabled (renamed when D-06 is decided — the decision must not block the schema) and the vertical templates as JSON. **No company** — demo companies are created in P0-T8 through `onboard-company` then `create-business` (plan v4).
 - **Done when:** every assertion passes as the restricted role and is wired into `pnpm test`.
 
 #### P0-T6b — `apps/api` skeleton · M · ⬜ · depends T5
@@ -466,13 +466,13 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P0-T9a.4 **Tenant feature-flag enforcement now:** `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI). `09` §12 requires flags from Phase 0 even though the `platform` module and its screens stay in Phase 5 (SPEC §3 forbids the module now). Tests prove a disabled feature is refused server-side.
 - [ ] P0-T9a.5 `onboard-company` as a **complete slice**: spec, Zod contract, `POST /v1/companies` (caller: a `create:companies:platform` platform grant, ADR-0003 §3 — merchant self-onboarding is D-34, not a Phase 0 blocker), `Idempotency-Key`, company + owner membership + audit row + `CompanyCreated` outbox event in one transaction; scenarios `ONB-01` happy path, `ONB-02` failed membership insert leaves no company and no outbox row, `ONB-03` replay, `ONB-04` two companies created through the API; last-owner protection.
 - [ ] P0-T9a.8 Audited operator scripts (plan v4 T9a-3): `platform:create-user` (through Better Auth in `packages/auth`, one-time set-password link, any number of users) and `platform:grant`; both write `platform_audit_log` and are unreachable through the API. `ONB-04` creates its two users with them. Company invitations: issue #19.
-- [ ] P0-T9a.7 Persistent demo companies — one per vertical, generic names — created through `onboard-company`, never by a raw seed (plan v4, T9a-4).
 - [ ] P0-T9a.6 Seed role bundles as **provisional codes** (renamed when D-07 is decided): Owner, General Manager, Accountant, Business Manager, Branch Manager, Shift Supervisor, Cashier, Waiter, Kitchen, Storekeeper, Staff, Marketing, Viewer.
 - **Done when:** a real login produces a session; a user with two company memberships can switch only between those two; a guard-less route and a disabled feature are both refused in tests.
 
 #### P0-T8 — `tenancy` use cases · L · ⬜ · depends T9a
 
 - [ ] P0-T8.1 Module shape exactly per `CLAUDE.architecture.md` §5; slice specs in `docs/specs/tenancy/{create-business,create-branch}.md` (company creation is `identity`'s `onboard-company`).
+- [ ] P0-T8.7 Demo data: one company per vertical (generic names) created through `onboard-company`, then `create-business` with its `vertical_type` and `create-branch` — never a raw seed (plan v4).
 - [ ] P0-T8.2 Use cases `create-business`, `create-branch` (`registerCompany` already exists from P0-T9a.0): one transaction, `Idempotency-Key`, outbox event inside the transaction, audit row; events `BusinessCreated`, `BranchCreated` documented in `events/published.ts`. A new business copies its vertical template into `business.settings`.
 - [ ] P0-T8.3 Scenario IDs written into the slice specs before code: `TEN-01` happy path per use case, `TEN-02` duplicate `Idempotency-Key` replay, `TEN-03` cross-company `business_id` on branch creation, `TEN-04` user switching to a company they belong to, `TEN-05` user requesting a company they do not belong to.
 - [ ] P0-T8.4 Queries `list-businesses.query.ts`, `branch-detail.query.ts` with result-shape tests and `EXPLAIN` index-usage assertions on a seeded dataset.
@@ -533,7 +533,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 
 - [ ] Two companies exist; the negative isolation suite proves zero cross-tenant reads and rejected/no-op cross-tenant writes
 - [ ] The API-level test proves A cannot resolve B
-- [ ] No module reaches the DB except through `withTenant()` (or the named auth exception); raw client not exported
+- [ ] No module reaches the DB except through `withTenant()`, the named auth exception, or the outbox dispatcher's restricted `createOutboxDispatcherDatabase` facade (`outbox` only); raw client not exported
 - [ ] Every endpoint declares a guard; a guard-less route fails CI
 - [ ] `pnpm lint:docs` green; every `domain/`, `ports/`, `events/published.ts` export has its Arabic doc comment
 - [ ] A write use case appends its outbox event inside its transaction, proven by a test; the worker dispatches it
