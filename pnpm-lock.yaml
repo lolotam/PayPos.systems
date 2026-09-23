@@ -199,6 +199,9 @@ importers:
       '@pospay/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@pospay/ids':
+        specifier: workspace:*
+        version: link:../../packages/ids
       '@pospay/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -316,6 +319,21 @@ importers:
         version: 5.0.1(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(tsx@4.23.15))
 
   packages/domain:
+    devDependencies:
+      '@pospay/config':
+        specifier: workspace:*
+        version: link:../config
+      eslint:
+        specifier: 10.11.0
+        version: 10.11.0(supports-color@7.2.0)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(tsx@4.23.15))
+
+  packages/ids:
     devDependencies:
       '@pospay/config':
         specifier: workspace:*

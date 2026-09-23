@@ -1,4 +1,5 @@
 import { createDatabase } from '@pospay/db';
+import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
@@ -9,15 +10,8 @@ import { readConfig } from './shared/config.ts';
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: API_LOG_EVENTS });
 
-// The UUID v7 generator arrives with packages/ids in T7; nothing calls withNewTenant before then.
-const database = createDatabase({
-  url: config.DATABASE_URL,
-  ids: {
-    newId: () => {
-      throw new Error('IdGenerator is not wired yet (plan v4 T7)');
-    },
-  },
-});
+// UUID v7 on the system clock and Web Crypto — bound to @pospay/db's IdGenerator here, at the composition root.
+const database = createDatabase({ url: config.DATABASE_URL, ids: systemUuidV7() });
 
 // No offline queue: while Redis is down a command fails at once, so /ready reports it instead of hanging.
 const redis = new Redis(config.REDIS_URL, { enableOfflineQueue: false, maxRetriesPerRequest: 1 });

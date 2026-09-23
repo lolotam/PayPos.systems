@@ -138,7 +138,7 @@ it cannot drain every company's outbox. The dispatcher role can, on `outbox` **o
 - RLS stays forced on `outbox`. Its policies are role-scoped — `FOR SELECT TO pospay_dispatcher USING (true)` and
   `FOR UPDATE TO pospay_dispatcher USING (true) WITH CHECK (true)` — the one documented exception to the rule that
   every policy reads context through `app_company_id()` / `app_user_id()`.
-- Column grants make `event_id`, `company_id` and `payload` immutable to it.
+- Column grants make `id` (the event id), `company_id` and `payload` immutable to it.
 - It is reached only through a restricted facade in `packages/db` (`createOutboxDispatcherDatabase`) wired by
   `apps/worker`, never from an HTTP handler, and no membership or `PUBLIC` path lets another role acquire it.
 - Schema access: an explicit `GRANT USAGE ON SCHEMA public`; `CONNECT` through the database's default `PUBLIC`

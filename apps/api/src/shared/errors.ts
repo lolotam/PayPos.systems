@@ -17,6 +17,21 @@ const CATALOG = {
     ar: 'نوع المحتوى غير مدعوم',
     en: 'Unsupported media type',
   },
+  IDEMPOTENCY_KEY_REQUIRED: {
+    status: 400,
+    ar: 'رأس Idempotency-Key مطلوب ويجب أن يكون من 1 إلى 255 حرفاً مرئياً',
+    en: 'An Idempotency-Key header of 1–255 visible ASCII characters is required',
+  },
+  IDEMPOTENCY_KEY_IN_PROGRESS: {
+    status: 409,
+    ar: 'طلب بنفس المفتاح ما زال قيد التنفيذ، أعد المحاولة بعد قليل',
+    en: 'A request with this Idempotency-Key is still in progress — retry shortly',
+  },
+  IDEMPOTENCY_KEY_REUSED: {
+    status: 422,
+    ar: 'تم استخدام مفتاح Idempotency-Key مع طلب مختلف',
+    en: 'This Idempotency-Key was already used with a different request',
+  },
   NOT_READY: {
     status: 503,
     ar: 'الخدمة غير جاهزة حالياً',
@@ -30,6 +45,15 @@ const CATALOG = {
 } as const;
 
 export type ErrorCode = keyof typeof CATALOG;
+
+// Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
+// 422 from somewhere else) must never be reported as one of them.
+const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'VALIDATION_FAILED',
+  'IDEMPOTENCY_KEY_REQUIRED',
+  'IDEMPOTENCY_KEY_IN_PROGRESS',
+  'IDEMPOTENCY_KEY_REUSED',
+]);
 
 /**
  * An error that reaches the client as the bilingual envelope. `details` must never carry secrets or
@@ -71,7 +95,7 @@ export class ApiError extends Error {
  */
 export function codeForStatus(status: number): ErrorCode {
   const found = (Object.keys(CATALOG) as ErrorCode[]).find(
-    (code) => CATALOG[code].status === status && code !== 'VALIDATION_FAILED',
+    (code) => CATALOG[code].status === status && !RAISED_BY_THE_API_ONLY.has(code),
   );
   if (found !== undefined) return found;
   return status >= 400 && status < 500 ? 'BAD_REQUEST' : 'INTERNAL_ERROR';
