@@ -10,12 +10,15 @@ describe('@pospay/observability public surface', () => {
       'REDACTED',
       'WITHHELD_MESSAGE',
       'createLogger',
+      'enterRequestContext',
       'errorDiagnostic',
       'maskPhone',
       'redactSecrets',
+      'requestContextFields',
       'requestDiagnostic',
       'responseDiagnostic',
       'sanitize',
+      'updateRequestContext',
     ]);
   });
 });

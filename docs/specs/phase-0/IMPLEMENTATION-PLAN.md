@@ -610,6 +610,14 @@ packages/i18n/src/{ar.ts,en.ts,format-kwd.ts,dates.ts,index.ts}
 
 **Done when:** a test asserts that a deliberately logged PIN does not appear in the output.
 
+**As built:** `packages/observability/src/request-context.ts` — an `AsyncLocalStorage` context entered in the API's
+`onRequest` hook; pino's `mixin` adds `request_id` to every line, and `company_id`, `branch_id`, `user_id` once the
+session and access guards verify them. The request id is the caller's `X-Request-Id` when it is a plain token
+(`[A-Za-z0-9._-]{8,128}`), otherwise a UUID v7, and is echoed in the response. The PIN test found a real gap —
+`pin_code` was not redacted — so `*pincode`, `*passcode`, `*otpcode`, `*securitycode`, `*verificationcode` joined the
+secret suffixes (`error_code` / `status_code` stay visible). **Deferred:** `otel.ts` and the trace-sampling rule —
+`06` §2 says "OpenTelemetry later", and `06` wins on technology; they arrive with an ADR when `06` schedules them.
+
 ---
 
 ### T12a — Minimal CI · Size S · depends: T1 · 🟡 CI live — branch protection due before T5 merges
