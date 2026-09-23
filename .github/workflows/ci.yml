@@ -28,21 +28,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Anything outside docs/** and *.md counts as code. Unknown ranges (first push, force push)
-      # count as code too, so a missing base can only cause an extra run, never a skipped one.
+      # Only a pull request may skip the heavy job. Every push to main runs it, so a run cancelled by a
+      # later docs-only push cannot leave a code commit on main untested.
+      # Fails closed: an unknown base or any git error counts as code. --no-renames makes a rename out of
+      # src/ into docs/ show its deleted source path; -z reads raw file names, which git would otherwise quote.
       - id: diff
         env:
-          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.sha }}
         run: |
-          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
-            echo "code=true" >> "$GITHUB_OUTPUT"; exit 0
+          code=true
+          files="$(mktemp)"
+          if [ "$EVENT" = "pull_request" ] && [ -n "$BASE" ] \
+            && git diff --no-renames --name-only -z "$BASE" "$HEAD_SHA" > "$files"; then
+            code=false
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                docs/*|*.md) ;;
+                *) code=true; break ;;
+              esac
+            done < "$files"
           fi
-          if git diff --name-only "$BASE" "$HEAD_SHA" | grep -v -E '^docs/|\.md$' | grep -q .; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "code=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
 
   check:
     name: typecheck · lint · test · lint:docs
