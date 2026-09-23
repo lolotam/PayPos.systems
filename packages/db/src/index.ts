@@ -1,5 +1,12 @@
 export { appendAuditLog, type AuditEntry } from './audit-log.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
+export { markEventConsumed } from './consumed-events.ts';
+export {
+  createOutboxDispatcherDatabase,
+  type ClaimedEvent,
+  type DeliveryOutcome,
+  type OutboxDispatcherDatabase,
+} from './dispatcher.ts';
 export {
   IdempotencyKeyBusyError,
   IdempotencyKeyReusedError,

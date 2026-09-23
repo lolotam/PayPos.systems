@@ -125,7 +125,7 @@ Every other tenant table is unchanged from `CLAUDE.md` §5: `company_id uuid NOT
 | `pospay_owner` | owns every table, runs migrations | everything | `pnpm db:migrate` only — never a running container |
 | `pospay_app` | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing | tenant + bridge tables under RLS; `SELECT` on `plans` and `permissions`; `SELECT, INSERT, UPDATE, DELETE` on `roles` and `role_permissions` (the split policies in §2.3 decide which rows) | `api`, `worker` |
 | `pospay_auth` | `NOSUPERUSER`, `NOBYPASSRLS`, owns nothing | **only** the §2.1 tables, table-level grants | `packages/auth` |
-| `pospay_dispatcher` (added 2026-09-23, T7b) | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error` | the outbox dispatcher in `apps/worker`, through its own pool |
+| `pospay_dispatcher` (added 2026-09-23, T7b) | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error`, `next_attempt_at`, `parked_at`; plus `EXECUTE` on the one `SECURITY DEFINER` sweep of expired idempotency keys (T7b) | the outbox dispatcher in `apps/worker`, through its own pool |
 
 No **runtime** role has `BYPASSRLS`. The platform bypass role stays deferred (review finding #14).
 
@@ -332,6 +332,8 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 **2026-09-23, after Codex round 5:** grants keep their `effect` and are evaluated at the target scope (branch-level DENY under a business-level ALLOW); ALLOW overrides included; cache invalidation covers role and platform-grant changes; `platform_audit_log` for non-tenant audit.
 
 **2026-09-23, after the plan v4 debate:** bootstrap-owner exception; `pospay_dispatcher` role for the outbox dispatcher; `onboard-company` idempotency coordinated by the unique key with no persisted `IN_FLIGHT` state.
+
+**2026-09-23, T7b:** the dispatcher's delivery metadata gains `next_attempt_at` and `parked_at` (retry then park, per-aggregate ordering — Waleed); consumers dedupe on `consumed_events (company_id, consumer_id, event_id)` as `pospay_app`; the 24 h idempotency sweep is `sweep_expired_idempotency_keys(batch_size)`, `SECURITY DEFINER` with a pinned `search_path`, executable by `pospay_dispatcher` only — it deletes expired keys and nothing else.
 
 **2026-09-23, after Codex round 6:** `withNewTenant` is context-only and the idempotency claim precedes the company insert; the synchronous `identity → tenancy` write is recorded as the one exception to `module-map.md` §3; offline money-moving actions without an operator credential are quarantined until P2-T9.
 

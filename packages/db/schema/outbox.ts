@@ -29,16 +29,25 @@ export const outbox = pgTable(
     eventType: text('event_type').notNull(),
     payload: jsonb('payload').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    // الأعمدة التلاتة دي بس اللي الـ dispatcher يقدر يغيّرها (ADR-0003 §3، T7b).
+    // أعمدة التوصيل دي بس اللي الـ dispatcher يقدر يغيّرها (ADR-0003 §3، T7b).
     publishedAt: timestamp('published_at', { withTimezone: true }),
     attempts: integer('attempts').notNull().default(0),
+    // نوع الخطأ وكوده بس (مفيش message) — نفس قاعدة الـ logs.
     lastError: text('last_error'),
+    // المحاولة الجاية مش قبل الوقت ده (exponential backoff بعد كل فشل).
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    // بعد آخر محاولة فاشلة الـ event بيقف هنا ومحدش بيعيده لوحده؛ الـ events اللي بعده لنفس الـ aggregate بتستنى.
+    parkedAt: timestamp('parked_at', { withTimezone: true }),
   },
   (t) => [
     primaryKey({ name: 'outbox_pkey', columns: [t.companyId, t.id] }),
     // الـ dispatcher بيدوّر على اللي لسه متنشرش بالترتيب، عبر كل الشركات.
     index('outbox_unpublished_idx')
       .on(t.createdAt, t.id)
+      .where(sql`${t.publishedAt} IS NULL`),
+    // الترتيب per aggregate: الـ dispatcher بيدوّر إذا كان فيه event أقدم لسه متنشرش لنفس الـ aggregate.
+    index('outbox_unpublished_aggregate_idx')
+      .on(t.companyId, t.aggregateType, t.aggregateId, t.createdAt, t.id)
       .where(sql`${t.publishedAt} IS NULL`),
     check('outbox_event_type_format', sql`${t.eventType} ~ '^[A-Z][A-Za-z0-9]{1,99}$'`),
     check('outbox_aggregate_type_format', sql`${t.aggregateType} ~ '^[a-z][a-z0-9_]{1,62}$'`),

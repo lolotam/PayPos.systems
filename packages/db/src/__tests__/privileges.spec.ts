@@ -22,6 +22,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'companies:SELECT',
     'companies:UPDATE',
     'company_feature_overrides:SELECT',
+    'consumed_events:INSERT',
+    'consumed_events:SELECT',
     'idempotency_keys:INSERT',
     'idempotency_keys:SELECT',
     'idempotency_keys:UPDATE',
@@ -30,7 +32,17 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   ],
   // Global identity tables (ADR-0003 §2.1) arrive in T9a; until then pospay_auth holds no table grant.
   pospay_auth: [],
+  // Cross-tenant reader of outbox only (ADR-0003 §3); its UPDATE is column-level, listed in OUTBOX_COLUMN_GRANTS.
+  pospay_dispatcher: ['outbox:SELECT'],
 };
+// The dispatcher may change delivery metadata only — id, company_id and payload stay immutable to it.
+const OUTBOX_COLUMN_GRANTS = [
+  'outbox.attempts:pospay_dispatcher:UPDATE',
+  'outbox.last_error:pospay_dispatcher:UPDATE',
+  'outbox.next_attempt_at:pospay_dispatcher:UPDATE',
+  'outbox.parked_at:pospay_dispatcher:UPDATE',
+  'outbox.published_at:pospay_dispatcher:UPDATE',
+];
 const TENANT_TABLES = [
   'companies',
   'businesses',
@@ -39,8 +51,9 @@ const TENANT_TABLES = [
   'outbox',
   'audit_log',
   'idempotency_keys',
+  'consumed_events',
 ];
-const APP_ROLES = ['pospay_app', 'pospay_auth'];
+const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -74,12 +87,18 @@ describe('direct privileges match the reviewed allowlist', () => {
     expect((await aclGrants(role)).map((r) => r.grant)).toEqual(ALLOWED_TABLE_GRANTS[role]);
   });
 
-  it('PUBLIC holds no privilege on any table, view or sequence, and no column has its own ACL', async () => {
+  it('PUBLIC holds no privilege on any table, view or sequence', async () => {
     expect(await aclGrants('PUBLIC')).toEqual([]);
-    const [row] = await owner`
-      SELECT count(*)::int AS column_acls FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
-      WHERE c.relnamespace = 'public'::regnamespace AND a.attacl IS NOT NULL`;
-    expect(row).toEqual({ column_acls: 0 });
+  });
+
+  it('the only column-level grants are the delivery metadata of outbox, to the dispatcher', async () => {
+    const rows = await owner<{ grant: string }[]>`
+      SELECT c.relname || '.' || a.attname || ':' || coalesce(r.rolname, 'PUBLIC') || ':' || x.privilege_type AS grant
+      FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+      CROSS JOIN LATERAL aclexplode(a.attacl) x LEFT JOIN pg_roles r ON r.oid = x.grantee
+      WHERE c.relnamespace = 'public'::regnamespace AND a.attacl IS NOT NULL
+      ORDER BY 1`;
+    expect(rows.map((r) => r.grant)).toEqual(OUTBOX_COLUMN_GRANTS);
   });
 
   it.each(APP_ROLES)(
@@ -206,14 +225,33 @@ describe('effective access', () => {
 });
 
 describe('function inventory', () => {
-  it('the only functions are the context helpers and the idempotency commit check, none SECURITY DEFINER', async () => {
+  it('lists every function; the one SECURITY DEFINER pins its search_path', async () => {
     const rows = await owner`
-      SELECT proname, prosecdef FROM pg_proc
+      SELECT proname, prosecdef, proconfig FROM pg_proc
       WHERE pronamespace = 'public'::regnamespace ORDER BY proname`;
     expect(Array.from(rows)).toEqual([
-      { proname: 'app_company_id', prosecdef: false },
-      { proname: 'app_user_id', prosecdef: false },
-      { proname: 'idempotency_keys_require_response', prosecdef: false },
+      { proname: 'app_company_id', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
+      { proname: 'app_user_id', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
+      {
+        proname: 'idempotency_keys_require_response',
+        prosecdef: false,
+        proconfig: ['search_path=public, pg_temp'],
+      },
+      {
+        proname: 'sweep_expired_idempotency_keys',
+        prosecdef: true,
+        proconfig: ['search_path=pg_catalog, pg_temp'],
+      },
     ]);
+  });
+
+  it('only pospay_dispatcher may execute the SECURITY DEFINER sweep', async () => {
+    const rows = await withClusterRoleLock(
+      'shared',
+      () => owner<{ role: string }[]>`
+      SELECT r AS role FROM unnest(${APP_ROLES}::text[]) AS r
+      WHERE has_function_privilege(r, 'sweep_expired_idempotency_keys(integer)', 'EXECUTE')`,
+    );
+    expect(rows.map((r) => r.role)).toEqual(['pospay_dispatcher']);
   });
 });

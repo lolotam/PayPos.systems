@@ -30,12 +30,12 @@ afterAll(async () => {
 });
 
 describe('application roles (ADR-0003 §3)', () => {
-  it('pospay_app and pospay_auth are restricted login roles', async () => {
+  it('pospay_app, pospay_auth and pospay_dispatcher are restricted login roles', async () => {
     const rows = await withClusterRoleLock(
       'shared',
       () => owner<RoleRow[]>`
       SELECT rolname, rolsuper, rolbypassrls, rolinherit, rolcreatedb, rolcreaterole, rolcanlogin
-      FROM pg_roles WHERE rolname IN ('pospay_app', 'pospay_auth') ORDER BY rolname`,
+      FROM pg_roles WHERE rolname IN ('pospay_app', 'pospay_auth', 'pospay_dispatcher') ORDER BY rolname`,
     );
     const restricted = {
       rolsuper: false,
@@ -48,6 +48,7 @@ describe('application roles (ADR-0003 §3)', () => {
     expect(rows).toEqual([
       { rolname: 'pospay_app', ...restricted },
       { rolname: 'pospay_auth', ...restricted },
+      { rolname: 'pospay_dispatcher', ...restricted },
     ]);
   });
 
@@ -56,7 +57,7 @@ describe('application roles (ADR-0003 §3)', () => {
       'shared',
       () => owner`
       SELECT m.member FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member
-      WHERE r.rolname IN ('pospay_app', 'pospay_auth')`,
+      WHERE r.rolname IN ('pospay_app', 'pospay_auth', 'pospay_dispatcher')`,
     );
     expect(rows).toHaveLength(0);
   });
@@ -83,10 +84,14 @@ describe('bootstrap re-run (pnpm db:migrate on a persistent cluster)', () => {
           await tx`SET LOCAL ROLE pospay_app`;
           await tx`GRANT pg_read_all_data TO pospay_auth`;
         });
-        await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
+        await migrateDatabase(testDb.ownerUrl, {
+          app: env.appPassword,
+          auth: env.authPassword,
+          dispatcher: env.dispatcherPassword,
+        });
         const rows = await owner`
           SELECT 1 FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member
-          WHERE r.rolname IN ('pospay_app', 'pospay_auth')`;
+          WHERE r.rolname IN ('pospay_app', 'pospay_auth', 'pospay_dispatcher')`;
         expect(rows).toHaveLength(0);
       } finally {
         await owner`REVOKE pg_read_all_data FROM pospay_app CASCADE`;
@@ -99,7 +104,11 @@ describe('bootstrap re-run (pnpm db:migrate on a persistent cluster)', () => {
     const rows = await withClusterRoleLock('exclusive', async () => {
       try {
         await owner`ALTER ROLE pospay_auth CONNECTION LIMIT 0 VALID UNTIL '2000-01-01'`;
-        await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
+        await migrateDatabase(testDb.ownerUrl, {
+          app: env.appPassword,
+          auth: env.authPassword,
+          dispatcher: env.dispatcherPassword,
+        });
         return await owner`
           SELECT rolconnlimit, rolvaliduntil = 'infinity' AS forever
           FROM pg_roles WHERE rolname = 'pospay_auth'`;
@@ -113,7 +122,11 @@ describe('bootstrap re-run (pnpm db:migrate on a persistent cluster)', () => {
   it('migrating again is a no-op that keeps the roles restricted', async () => {
     const env = readPgTestEnv();
     const [row] = await withClusterRoleLock('exclusive', async () => {
-      await migrateDatabase(testDb.ownerUrl, { app: env.appPassword, auth: env.authPassword });
+      await migrateDatabase(testDb.ownerUrl, {
+        app: env.appPassword,
+        auth: env.authPassword,
+        dispatcher: env.dispatcherPassword,
+      });
       return owner<{ rolbypassrls: boolean }[]>`
         SELECT rolbypassrls FROM pg_roles WHERE rolname = 'pospay_app'`;
     });

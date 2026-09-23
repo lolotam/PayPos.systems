@@ -6,6 +6,7 @@ import type { Sql } from 'postgres';
 export interface RolePasswords {
   readonly app: string;
   readonly auth: string;
+  readonly dispatcher: string;
 }
 
 // الـ roles على مستوى الـ cluster كله، مش الداتابيز، فالسكريبت لازم يتعاد تشغيله من غير ما يقع.
@@ -20,7 +21,8 @@ DECLARE r record; m record;
 BEGIN
   FOR r IN SELECT * FROM (VALUES
     ('pospay_app', 'pospay.app_password'),
-    ('pospay_auth', 'pospay.auth_password')
+    ('pospay_auth', 'pospay.auth_password'),
+    ('pospay_dispatcher', 'pospay.dispatcher_password')
   ) AS v(name, setting) LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r.name) THEN
       EXECUTE format('CREATE ROLE %I', r.name);
@@ -40,7 +42,7 @@ BEGIN
 END $$`;
 
 /**
- * بيعمل pospay_app و pospay_auth لو مش موجودين، ويثبّت صفاتهم حسب ADR-0003 §3.
+ * بيعمل pospay_app و pospay_auth و pospay_dispatcher لو مش موجودين، ويثبّت صفاتهم حسب ADR-0003 §3.
  * لازم يتشغّل كـ pospay_owner قبل الـ migrations، لأن الـ GRANTs فيها بتشاور على الـ roles دي.
  *
  * @param sql       اتصال كـ pospay_owner
@@ -48,15 +50,16 @@ END $$`;
  * @returns بيخلص لما الـ roles تبقى جاهزة
  */
 export async function bootstrapRoles(sql: Sql, passwords: RolePasswords): Promise<void> {
-  if (passwords.app.length < 16 || passwords.auth.length < 16) {
+  if ([passwords.app, passwords.auth, passwords.dispatcher].some((p) => p.length < 16)) {
     throw new Error(
-      'POSTGRES_APP_PASSWORD and POSTGRES_AUTH_PASSWORD must be at least 16 characters',
+      'POSTGRES_APP_PASSWORD, POSTGRES_AUTH_PASSWORD and POSTGRES_DISPATCHER_PASSWORD must be at least 16 characters',
     );
   }
   await sql.begin(async (tx) => {
     await tx`SELECT pg_advisory_xact_lock(hashtext('pospay:bootstrap-roles'))`;
     await tx`SELECT set_config('pospay.app_password', ${passwords.app}, true),
-                    set_config('pospay.auth_password', ${passwords.auth}, true)`;
+                    set_config('pospay.auth_password', ${passwords.auth}, true),
+                    set_config('pospay.dispatcher_password', ${passwords.dispatcher}, true)`;
     await tx.unsafe(ROLES_SQL);
   });
 }

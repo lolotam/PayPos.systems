@@ -80,6 +80,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
     await migrateDatabase(pgUrl(env, env.ownerUser, env.ownerPassword, template), {
       app: env.appPassword,
       auth: env.authPassword,
+      dispatcher: env.dispatcherPassword,
     });
   } finally {
     await sql`SELECT pg_advisory_unlock(hashtext(${ROLE_TEST_LOCK}))`;

@@ -319,7 +319,23 @@ duplicate executes, (f) a key-acquisition lock timeout returns a retryable `409`
 
 ---
 
-### T7b — Worker bootstrap + outbox dispatcher · Size M · depends: T7 · **NEW in v4** · before T9a-1
+### T7b — Worker bootstrap + outbox dispatcher · Size M · depends: T7 · **NEW in v4** · before T9a-1 · ✅ done
+
+**As built**
+- Decisions (Waleed, 2026-09-23): ordering is **per aggregate**; a poison event is retried **10 times** with
+  exponential backoff (5 s doubling, capped at 1 h) and then **parked** with an error-level log. A parked or waiting
+  event holds the later events of its aggregate; other aggregates keep flowing.
+- `pospay_dispatcher` is created by `bootstrapRoles` (`POSTGRES_DISPATCHER_PASSWORD`). Migrations
+  `0005_…_outbox-dispatcher.sql` (`next_attempt_at`, `parked_at`, `consumed_events`) and `0006_…_outbox-dispatcher-rls.sql`
+  (role-scoped policies, column grants, `consumed_events` RLS, the sweep function).
+- `createOutboxDispatcherDatabase({ url })` → `dispatchBatch(limit, deliver)`, `sweepExpiredIdempotencyKeys(n)`,
+  `close()`. A batch claims the head event of each aggregate with `FOR UPDATE SKIP LOCKED` and records the outcomes in
+  the same transaction; a throwing `deliver` (a crash) rolls the batch back and it is redelivered.
+- Consumers call `markEventConsumed(tx, consumerId, eventId)` in the effect's transaction. The event id is `outbox.id`.
+- `apps/worker`: NestJS + Fastify for `/health` and `/ready` only; `createDispatchLoop` (poll 1 s, drain, sweep every
+  10 min); shutdown stops polling before closing the pools. No consumer is registered yet.
+- **Deferred:** BullMQ. Nothing enqueues a job in Phase 0 yet, so the worker holds a plain `ioredis` connection for
+  `/ready`; the BullMQ dependency, its ADR pin and its connection arrive with the first job.
 
 **Why here, not in T13 (debate C3).** T8 and T9a publish events; with no dispatcher until T13, delivery bugs would
 surface at the very end. The worker's image and deployment stay in T13.

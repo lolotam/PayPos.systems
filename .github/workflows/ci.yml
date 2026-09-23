@@ -79,6 +79,7 @@ jobs:
             echo "POSTGRES_OWNER_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_APP_PASSWORD=$(openssl rand -hex 24)"
             echo "POSTGRES_AUTH_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_DISPATCHER_PASSWORD=$(openssl rand -hex 24)"
             echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
           } > .env
           pnpm infra:up

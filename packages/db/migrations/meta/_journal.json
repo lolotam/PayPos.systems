@@ -36,6 +36,20 @@
       "when": 1790146792597,
       "tag": "0004_2026-09-23_cross-cutting-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790149463530,
+      "tag": "0005_2026-09-23_outbox-dispatcher",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790149470131,
+      "tag": "0006_2026-09-23_outbox-dispatcher-rls",
+      "breakpoints": true
     }
   ]
 }

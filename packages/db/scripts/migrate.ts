@@ -11,5 +11,6 @@ function requireEnv(name: string): string {
 await migrateDatabase(requireEnv('MIGRATION_DATABASE_URL'), {
   app: requireEnv('POSTGRES_APP_PASSWORD'),
   auth: requireEnv('POSTGRES_AUTH_PASSWORD'),
+  dispatcher: requireEnv('POSTGRES_DISPATCHER_PASSWORD'),
 });
 console.log('migrations applied');
