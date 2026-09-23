@@ -12,13 +12,24 @@ interface Cursor {
   readonly id: string;
 }
 
+const ISSUED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?[+-]\d{2}:\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const encode = (cursor: Cursor): string =>
   Buffer.from(JSON.stringify(cursor)).toString('base64url');
 
 function decode(value: string): Cursor {
   try {
     const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<Cursor>;
-    if (typeof parsed.at === 'string' && typeof parsed.id === 'string') {
+    // Only what this query issues: Postgres' own timestamptz text (microseconds kept) and a UUID. Anything else
+    // would reach the ::timestamptz / ::uuid casts and fail as a 500 instead of a 400.
+    if (
+      typeof parsed.at === 'string' &&
+      ISSUED_AT.test(parsed.at) &&
+      !Number.isNaN(Date.parse(parsed.at)) &&
+      typeof parsed.id === 'string' &&
+      UUID.test(parsed.id)
+    ) {
       return { at: parsed.at, id: parsed.id };
     }
   } catch {

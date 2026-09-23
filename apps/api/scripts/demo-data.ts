@@ -4,19 +4,33 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createPlatformUser, type AuthService } from '@pospay/auth';
 
 // Demo data (plan v4 T8): one company per vertical, generic names, created through the same audited, idempotent
-// routes as production — POST /v1/companies, /v1/businesses, /v1/businesses/:id/branches — never a raw seed.
+// routes as production — POST /v1/companies, /v1/businesses, /v1/businesses/:id/branches — never a raw seed. Each run
+// reconciles: whatever a failed run left out is created, nothing is created twice.
 export const DEMO_OPERATOR = 'demo-operator@pospay.local';
-const VERTICALS = ['restaurant', 'salon', 'laundry', 'retail', 'services'] as const;
-const title = (vertical: string) => vertical[0]?.toUpperCase() + vertical.slice(1);
+export const DEMO_VERTICALS = ['restaurant', 'salon', 'laundry', 'retail', 'services'] as const;
+const title = (vertical: string) => (vertical[0]?.toUpperCase() ?? '') + vertical.slice(1);
+export const demoName = (vertical: string) => `Demo ${title(vertical)}`;
+
+/** What already exists for one vertical, read by the caller as the operator (pospay_owner). */
+export interface DemoState {
+  readonly companyId: string | null;
+  readonly businessId: string | null;
+  readonly hasBranch: boolean;
+}
 
 export interface DemoDependencies {
   readonly app: NestFastifyApplication;
   readonly auth: AuthService;
-  /** Grants the demo operator create:companies:platform — pnpm platform:grant's function, as pospay_owner. */
+  /** Grants the demo operator create:companies:platform — idempotent, as pospay_owner. */
   readonly grant: (email: string) => Promise<void>;
+  /** The demo operator's user id, or null before the first run. */
+  readonly operatorId: () => Promise<string | null>;
+  readonly state: (operatorId: string, vertical: string) => Promise<DemoState>;
   /** An origin the API trusts, for the set-password and sign-in calls. */
   readonly origin: string;
   readonly planId: string;
+  /** Test hook: called after each write, so a test can stop a run half-way. */
+  readonly afterStep?: (step: string) => void;
 }
 
 async function post(
@@ -30,63 +44,84 @@ async function post(
   return res.json() as Record<string, unknown>;
 }
 
-async function signIn(deps: DemoDependencies): Promise<string> {
-  const { link } = await createPlatformUser(deps.auth, {
-    email: DEMO_OPERATOR,
-    name: 'Demo Operator',
-    operator: 'demo-data',
-    redirectTo: `${deps.origin}/set-password`,
-  });
-  // Nobody signs in as the demo operator afterwards: its password is random and never shown.
+// A fresh one-time link each run: the password is random, never shown, and replaced every time.
+async function signIn(deps: DemoDependencies): Promise<{ operatorId: string; cookie: string }> {
+  const existing = await deps.operatorId();
+  const redirectTo = `${deps.origin}/set-password`;
+  const { userId, link } =
+    existing === null
+      ? await createPlatformUser(deps.auth, {
+          email: DEMO_OPERATOR,
+          name: 'Demo Operator',
+          operator: 'demo-data',
+          redirectTo,
+        })
+      : { userId: existing, link: await deps.auth.issuePasswordSetLink(existing, redirectTo) };
   const password = randomBytes(24).toString('base64url');
   const token = new URL(link).pathname.split('/').pop() ?? '';
-  const auth = { origin: deps.origin };
-  await post(deps, '/v1/auth/reset-password', auth, { token, newPassword: password });
+  const headers = { origin: deps.origin };
+  await post(deps, '/v1/auth/reset-password', headers, { token, newPassword: password });
   await deps.grant(DEMO_OPERATOR);
   const res = await deps.app.inject({
     method: 'POST',
     url: '/v1/auth/sign-in/email',
-    headers: auth,
+    headers,
     payload: { email: DEMO_OPERATOR, password },
   });
   const cookies = res.headers['set-cookie'];
-  return (Array.isArray(cookies) ? cookies : [cookies ?? ''])
+  const cookie = (Array.isArray(cookies) ? cookies : [cookies ?? ''])
     .map((c) => c.split(';')[0])
     .join('; ');
+  return { operatorId: userId, cookie };
+}
+
+async function completeVertical(
+  deps: DemoDependencies,
+  cookie: string,
+  state: DemoState,
+  vertical: string,
+): Promise<number> {
+  const name = demoName(vertical);
+  let written = 0;
+  let companyId = state.companyId;
+  if (companyId === null) {
+    const key = { cookie, 'idempotency-key': `demo-company-${vertical}` };
+    const company = await post(deps, '/v1/companies', key, { name_en: name, plan_id: deps.planId });
+    companyId = company['id'] as string;
+    written += 1;
+    deps.afterStep?.(`${vertical}:company`);
+  }
+  const headers = { cookie, 'x-company-id': companyId };
+  let businessId = state.businessId;
+  if (businessId === null) {
+    const key = { ...headers, 'idempotency-key': `demo-business-${vertical}` };
+    const body = { vertical_type: vertical, name_en: name };
+    businessId = (await post(deps, '/v1/businesses', key, body))['id'] as string;
+    written += 1;
+    deps.afterStep?.(`${vertical}:business`);
+  }
+  if (!state.hasBranch) {
+    const key = { ...headers, 'idempotency-key': `demo-branch-${vertical}` };
+    const url = `/v1/businesses/${businessId}/branches`;
+    await post(deps, url, key, { name_en: `${name} — Main Branch` });
+    written += 1;
+    deps.afterStep?.(`${vertical}:branch`);
+  }
+  return written;
 }
 
 /**
- * Creates the demo companies. Run once: the demo operator's email is the marker, so a second run finds it and
- * stops before writing anything.
+ * Makes sure every demo vertical has its company, business and branch, creating only what is missing.
  *
- * @param deps the in-process API, its auth service, the grant function, a trusted origin and the plan
- * @returns the ids of the companies created
+ * @param deps the in-process API, its auth service, the operator reads, the grant function, an origin and the plan
+ * @returns how many rows (companies, businesses, branches) this run created
  */
-export async function createDemoData(deps: DemoDependencies): Promise<string[]> {
-  const cookie = await signIn(deps);
-  const companies: string[] = [];
-  for (const vertical of VERTICALS) {
-    const name = `Demo ${title(vertical)}`;
-    const company = await post(
-      deps,
-      '/v1/companies',
-      { cookie, 'idempotency-key': `demo-company-${vertical}` },
-      { name_en: name, plan_id: deps.planId },
-    );
-    const headers = { cookie, 'x-company-id': company['id'] as string };
-    const business = await post(
-      deps,
-      '/v1/businesses',
-      { ...headers, 'idempotency-key': `demo-business-${vertical}` },
-      { vertical_type: vertical, name_en: name },
-    );
-    await post(
-      deps,
-      `/v1/businesses/${business['id'] as string}/branches`,
-      { ...headers, 'idempotency-key': `demo-branch-${vertical}` },
-      { name_en: `${name} — Main Branch` },
-    );
-    companies.push(company['id'] as string);
+export async function createDemoData(deps: DemoDependencies): Promise<number> {
+  const session = await signIn(deps);
+  let written = 0;
+  for (const vertical of DEMO_VERTICALS) {
+    const state = await deps.state(session.operatorId, vertical);
+    written += await completeVertical(deps, session.cookie, state, vertical);
   }
-  return companies;
+  return written;
 }

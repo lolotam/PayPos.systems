@@ -151,7 +151,7 @@ describe('TEN-04 — switching to a company the user belongs to', () => {
 describe('TEN-05 and the isolation proof — a company the user does not belong to', () => {
   it('is refused before withTenant(B) is entered, runs no tenant query, and leaves B untouched', async () => {
     const before = await rowsOf(B);
-    h.calls.tenant.length = 0;
+    for (const list of Object.values(h.calls)) list.length = 0;
     const attempts = [
       await h.send('GET', '/v1/businesses', { cookie: ownerA, company: B }),
       await h.send('GET', `/v1/branches/${branchB}`, { cookie: ownerA, company: B }),
@@ -166,8 +166,14 @@ describe('TEN-05 and the isolation proof — a company the user does not belong 
       expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([403, 'FORBIDDEN']);
       expect(res.text).not.toMatch(/Sentinel/);
     }
-    // No tenant was entered at all: the refusal came from the withUser membership read alone.
-    expect(h.calls.tenant).toEqual([]);
+    // No tenant was entered at all, and the only statements that ran were the caller's membership reads.
+    expect([h.calls.tenant, h.calls.newTenant]).toEqual([[], []]);
+    expect(h.calls.statements.length).toBeGreaterThan(0);
+    for (const statement of h.calls.statements) {
+      expect(statement.wrapper).toBe('user');
+      expect(statement.sql).toMatch(/FROM memberships m WHERE m.user_id = \$1/);
+      expect(statement.sql).not.toMatch(/businesses|branches|companies/);
+    }
     expect(await rowsOf(B)).toEqual(before);
   });
 
@@ -178,6 +184,39 @@ describe('TEN-05 and the isolation proof — a company the user does not belong 
       page(businessSchema)
         .parse(list.body)
         .items.every((b) => b.company_id === A),
+    ).toBe(true);
+  });
+});
+
+describe('cursor validation through HTTP', () => {
+  it.each([
+    ['not base64 JSON', 'garbage'],
+    [
+      'strings that are not a time and an id',
+      Buffer.from('{"at":"invalid","id":"invalid"}').toString('base64url'),
+    ],
+    [
+      'a date without its offset',
+      Buffer.from(
+        `{"at":"2026-09-23T10:00:00","id":"${'0'.repeat(8)}-0000-7000-8000-${'0'.repeat(12)}"}`,
+      ).toString('base64url'),
+    ],
+  ])('%s is 400 VALIDATION_FAILED, never a 500', async (_label, cursor) => {
+    const res = await h.send('GET', `/v1/businesses?cursor=${cursor}`, {
+      cookie: ownerA,
+      company: A,
+    });
+    expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([400, 'VALIDATION_FAILED']);
+  });
+});
+
+describe('the isolation instrument itself', () => {
+  it('would see a business query — so an empty record means none ran', async () => {
+    for (const list of Object.values(h.calls)) list.length = 0;
+    await h.send('GET', '/v1/businesses', { cookie: ownerA, company: A });
+    expect(h.calls.tenant).toContain(A);
+    expect(
+      h.calls.statements.some((s) => s.wrapper === 'tenant' && /FROM businesses/.test(s.sql)),
     ).toBe(true);
   });
 });

@@ -1,6 +1,14 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createAuth, createPlatformUser, type AuthService } from '@pospay/auth';
-import { createDatabase, type Database, type IdGenerator, type TenantWrappers } from '@pospay/db';
+import {
+  createDatabase,
+  type Database,
+  type IdGenerator,
+  type TenantWrappers,
+  type Tx,
+} from '@pospay/db';
+import type { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import postgres from 'postgres';
@@ -24,8 +32,17 @@ export interface Harness {
   readonly owner: postgres.Sql;
   readonly auth: AuthService;
   readonly ownerUrl: string;
-  /** Every tenant the API entered, and every withUser read, in order — the isolation proof reads these. */
-  readonly calls: { tenant: string[]; user: string[] };
+  readonly urls: { readonly app: string; readonly auth: string; readonly owner: string };
+  /**
+   * What reached the database boundary, in order: every wrapper entered (with its tenant or user) and every SQL
+   * statement executed inside it — the isolation proof asserts on the statements, not only on the wrapper calls.
+   */
+  readonly calls: {
+    tenant: string[];
+    user: string[];
+    newTenant: string[];
+    statements: { wrapper: 'tenant' | 'user' | 'new-tenant'; sql: string }[];
+  };
   signedInOperator(email: string): Promise<string>;
   onboard(cookie: string, name: string): Promise<string>;
   send(
@@ -41,16 +58,34 @@ export interface Harness {
   close(): Promise<void>;
 }
 
+const dialect = new PgDialect();
+
+// Every statement a wrapper's transaction executes is recorded with the wrapper that opened it.
+function recording(tx: Tx, wrapper: 'tenant' | 'user' | 'new-tenant', calls: Harness['calls']): Tx {
+  return new Proxy(tx, {
+    get: (target, property, receiver) =>
+      property === 'execute'
+        ? (query: SQL) => {
+            calls.statements.push({ wrapper, sql: dialect.sqlToQuery(query).sql });
+            return target.execute(query);
+          }
+        : Reflect.get(target, property, receiver),
+  });
+}
+
 function spied(database: Database, calls: Harness['calls']): TenantWrappers {
   return {
     withUser: (userId, fn) => {
       calls.user.push(userId);
-      return database.withUser(userId, fn);
+      return database.withUser(userId, (tx) => fn(recording(tx, 'user', calls)));
     },
-    withNewTenant: (userId, fn) => database.withNewTenant(userId, fn),
+    withNewTenant: (userId, fn) => {
+      calls.newTenant.push(userId);
+      return database.withNewTenant(userId, (tx, id) => fn(recording(tx, 'new-tenant', calls), id));
+    },
     withTenant: (companyId, fn, options) => {
       calls.tenant.push(companyId);
-      return database.withTenant(companyId, fn, options);
+      return database.withTenant(companyId, (tx) => fn(recording(tx, 'tenant', calls)), options);
     },
   };
 }
@@ -123,7 +158,7 @@ export async function startHarness(): Promise<Harness> {
     onLog: () => undefined,
   });
   const database = createDatabase({ url: testDb.appUrl, ids });
-  const calls = { tenant: [] as string[], user: [] as string[] };
+  const calls: Harness['calls'] = { tenant: [], user: [], newTenant: [], statements: [] };
   const app = await createApp(
     {
       readiness: [],
@@ -140,6 +175,7 @@ export async function startHarness(): Promise<Harness> {
     owner,
     auth,
     ownerUrl: testDb.ownerUrl,
+    urls: { app: testDb.appUrl, auth: testDb.authUrl, owner: testDb.ownerUrl },
     calls,
     send,
     signedInOperator: operator,
