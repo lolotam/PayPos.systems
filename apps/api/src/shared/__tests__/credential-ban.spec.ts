@@ -16,7 +16,9 @@ async function errors(file: string, source: string, app: 'api' | 'worker' = 'api
   return (result?.messages ?? []).filter((m) => m.severity === 2).map((m) => m.message);
 }
 const banned = (messages: string[]) =>
-  messages.some((m) => /belong to packages\/auth|restricted from being used/.test(m));
+  messages.some((m) =>
+    /belong to packages\/auth|restricted from being used|take a plain string/.test(m),
+  );
 const lines = (...parts: string[]) => `${parts.join('\n')}\n`;
 
 describe('credential hashing belongs to packages/auth', () => {
@@ -57,6 +59,11 @@ describe('credential hashing belongs to packages/auth', () => {
     ],
     ['a dynamic import of node:crypto', lines("export const load = () => import('node:crypto');")],
     ['a dynamic import of bcrypt', lines("export const load = () => import('bcrypt');")],
+    ['a template-literal import', lines('export const load = () => import(`node:crypto`);')],
+    [
+      'a computed import',
+      lines("const name = 'node:crypto';", 'export const load = () => import(name);'),
+    ],
   ])('refuses %s', async (_label, source) => {
     expect(banned(await errors('src/shared/probe.ts', source))).toBe(true);
   });
@@ -77,6 +84,11 @@ describe('the credential ban has no gaps', () => {
   ])('refuses them inside use-cases/ too, with the credential message: %s', async (source) => {
     const found = await errors('src/modules/identity/use-cases/probe/probe.ts', source);
     expect(found.some((m) => m.includes('belong to packages/auth'))).toBe(true);
+  });
+
+  it('refuses a template-literal import in the worker too', async () => {
+    const source = lines('export const load = () => import(`bcrypt`);');
+    expect(banned(await errors('src/probe.ts', source, 'worker'))).toBe(true);
   });
 
   it('refuses them in the worker too', async () => {

@@ -43,8 +43,20 @@ export const CREDENTIAL_PATTERNS = [{ group: PATTERNS, message: MESSAGE }];
 const DYNAMIC =
   '/^((node:)?crypto|bcrypt|bcryptjs|argon2|scrypt-js|better-auth(\\/.*)?|@better-auth\\/.*|@node-rs\\/(argon2|bcrypt).*|@noble\\/hashes\\/(scrypt|argon2|pbkdf2).*)$/';
 
-/** no-restricted-syntax entries for dynamic imports and require() of the credential modules. */
+const PLAIN =
+  'import() and require() take a plain string: a template or a variable cannot be checked.';
+
+/**
+ * no-restricted-syntax entries: dynamic imports and require() of the credential modules, and any import() / require()
+ * whose specifier is not a plain string — a template or a variable would hide the module from every check.
+ */
 export const CREDENTIAL_SYNTAX = [
+  { selector: "ImportExpression:not([source.type='Literal'])", message: PLAIN },
+  {
+    selector:
+      "CallExpression[callee.name='require'][arguments.length>0]:not([arguments.0.type='Literal'])",
+    message: PLAIN,
+  },
   { selector: `ImportExpression[source.value=${DYNAMIC}]`, message: MESSAGE },
   {
     selector: `CallExpression[callee.name='require'][arguments.0.value=${DYNAMIC}]`,
