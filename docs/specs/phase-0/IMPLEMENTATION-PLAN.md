@@ -335,8 +335,13 @@ duplicate executes, (f) a key-acquisition lock timeout returns a retryable `409`
   **fenced to its own claim** (`attempts` must still equal its attempt number, event neither published nor parked).
   A crash leaves the event leased until the lease ends, then it is redelivered; an event whose attempts are used up
   that way is parked by the next claim (`last_error = 'LeaseExpired'`) and logged.
-- `withTenant(…, { timeoutMs })` sets `statement_timeout` and `idle_in_transaction_session_timeout` locally: the
-  deliverer gives each consumer transaction the time left of a 60 s budget and starts no consumer after it.
+- `withTenant(…, { timeoutMs })` is **one absolute deadline** — pool wait, every statement, commit. Past it the call
+  rejects with `TimeoutError`, nothing commits (checked before `COMMIT`), and a watchdog connection outside the pool
+  runs `pg_terminate_backend` on that backend only while it is still in the same transaction (pid + `xact_start`);
+  `statement_timeout` / `idle_in_transaction_session_timeout` are set too. The deliverer gives each consumer
+  transaction the time left of a 60 s budget and starts no consumer after it.
+- The worker lists every event type its version publishes (`KNOWN_EVENT_TYPES`, consumed or not); an unknown type
+  is never acknowledged — it fails with backoff so a newer worker takes it during a rolling deploy.
   **Consumer rule:** consumers do database work only; a handler awaiting anything else cannot be cancelled.
 - Ordering is by `seq` (an identity column: insertion order), not `created_at` (transaction start). **Producer rule:**
   a use case that emits an event for an existing aggregate locks that aggregate's row first, so insertion order

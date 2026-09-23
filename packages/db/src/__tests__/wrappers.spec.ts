@@ -147,7 +147,7 @@ describe('withTenant timeoutMs', () => {
       database.withTenant(COMPANY_A, (tx) => tx.execute(sql`SELECT pg_sleep(5)`), {
         timeoutMs: 200,
       }),
-    ).rejects.toMatchObject({ cause: { code: '57014' } });
+    ).rejects.toMatchObject({ name: 'TimeoutError' });
     expect(Date.now() - started).toBeLessThan(2_000);
     expect(await database.withTenant(COMPANY_A, readContext)).toMatchObject({ company: COMPANY_A });
   });

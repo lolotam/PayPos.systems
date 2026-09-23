@@ -11,6 +11,9 @@ import { retryDelayMs } from './retry-policy.ts';
 
 const GRACE_MS = 1_000;
 
+// TypeError: a known diagnostic name; last_error then reads 'TypeError' for an event this version cannot place.
+const unknownEventType = (): Error => new TypeError('unknown event type');
+
 // Named TimeoutError, a name the log diagnostics already recognise, so last_error says what happened.
 const deliveryTimeout = (): Error =>
   Object.assign(new Error('delivery timed out'), { name: 'TimeoutError' });
@@ -26,18 +29,26 @@ const deliveryTimeout = (): Error =>
  * no consumer starts once the time is up, and the attempt counts as failed. Consumers do database work only
  * (plan v4 T7b): a handler awaiting something else cannot be cancelled from outside.
  *
+ * An event type this worker does not know is never acknowledged: during a rolling deploy an older worker
+ * may claim an event a newer version introduced, and publishing it here would skip its new handler forever.
+ * It fails like any delivery — with backoff, so a newer worker takes it — and is parked if none ever does.
+ *
  * @param app       the pospay_app database (only withTenant is used)
  * @param consumers the registered consumers
  * @param logger    the worker logger
- * @param timeoutMs how long one delivery may take; must stay below the dispatcher's lease
+ * @param options   the event types this worker knows (with or without a consumer), and the delivery budget
+ * @param options.knownEventTypes every event type published in this version, consumed or not
+ * @param options.timeoutMs       how long one delivery may take; must stay below the dispatcher's lease
  * @returns the deliver function for dispatchBatch
  */
 export function createDeliverer(
   app: Pick<Database, 'withTenant'>,
   consumers: readonly OutboxConsumer[],
   logger: Logger,
-  timeoutMs = 60_000,
+  options: { knownEventTypes: readonly string[]; timeoutMs?: number },
 ): (event: ClaimedEvent) => Promise<DeliveryOutcome> {
+  const timeoutMs = options.timeoutMs ?? 60_000;
+  const known = new Set([...options.knownEventTypes, ...consumers.flatMap((c) => c.eventTypes)]);
   const applyAll = async (event: ClaimedEvent, endsAt: number): Promise<void> => {
     for (const consumer of consumers) {
       if (!consumer.eventTypes.includes(event.eventType)) continue;
@@ -61,6 +72,7 @@ export function createDeliverer(
       timer = setTimeout(() => reject(deliveryTimeout()), timeoutMs + GRACE_MS);
     });
     try {
+      if (!known.has(event.eventType)) throw unknownEventType();
       await Promise.race([applyAll(event, endsAt), deadline]);
       return { delivered: true };
     } catch (error) {

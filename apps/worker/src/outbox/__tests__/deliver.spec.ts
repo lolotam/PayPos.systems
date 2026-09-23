@@ -21,6 +21,8 @@ const EVENT: ClaimedEvent = {
   attempt: 1,
 };
 
+const KNOWN = { knownEventTypes: ['BusinessCreated', 'BranchCreated'] };
+
 const harness = (firstTime = true) => {
   const tenants: string[] = [];
   const limits: (number | undefined)[] = [];
@@ -68,7 +70,9 @@ describe('createDeliverer', () => {
       consumer('a.one', ['BusinessCreated']),
       consumer('b.two', ['BranchCreated']),
     ];
-    expect(await createDeliverer(app, [match, other], logger)(EVENT)).toEqual({ delivered: true });
+    expect(await createDeliverer(app, [match, other], logger, KNOWN)(EVENT)).toEqual({
+      delivered: true,
+    });
     expect([match.calls, other.calls]).toEqual([1, 0]);
     expect(tenants).toEqual([EVENT.companyId]);
   });
@@ -76,7 +80,7 @@ describe('createDeliverer', () => {
   it('skips a consumer that already applied the event', async () => {
     const { app, logger } = harness(false);
     const match = consumer('a.one', ['BusinessCreated']);
-    expect(await createDeliverer(app, [match], logger)(EVENT)).toEqual({ delivered: true });
+    expect(await createDeliverer(app, [match], logger, KNOWN)(EVENT)).toEqual({ delivered: true });
     expect(match.calls).toBe(0);
   });
 
@@ -85,7 +89,7 @@ describe('createDeliverer', () => {
     const failing = consumer('a.one', ['BusinessCreated'], async () => {
       throw new TypeError('bad tok_message_leak');
     });
-    const outcome = await createDeliverer(app, [failing], logger)(EVENT);
+    const outcome = await createDeliverer(app, [failing], logger, KNOWN)(EVENT);
     expect(outcome).toEqual({ delivered: false, error: 'TypeError', retryInMs: retryDelayMs(1) });
     expect(logs()).toContain('outbox delivery failed');
     expect(logs()).not.toContain('tok_payload_leak');
@@ -98,7 +102,7 @@ describe('createDeliverer', () => {
       throw new Error('still failing');
     });
     const last = { ...EVENT, attempt: MAX_ATTEMPTS };
-    expect(await createDeliverer(app, [failing], logger)(last)).toEqual({
+    expect(await createDeliverer(app, [failing], logger, KNOWN)(last)).toEqual({
       delivered: false,
       error: 'Error',
       retryInMs: null,
@@ -111,6 +115,20 @@ describe('createDeliverer', () => {
   });
 });
 
+describe('an event type this worker does not know', () => {
+  it('is never acknowledged — it fails with backoff so a newer worker can take it', async () => {
+    const { app, tenants, logger } = harness();
+    const outcome = await createDeliverer(app, [], logger, { knownEventTypes: [] })(EVENT);
+    expect(outcome).toEqual({ delivered: false, error: 'TypeError', retryInMs: retryDelayMs(1) });
+    expect(tenants).toEqual([]);
+  });
+
+  it('a known type with no consumer is delivered', async () => {
+    const { app, logger } = harness();
+    expect(await createDeliverer(app, [], logger, KNOWN)(EVENT)).toEqual({ delivered: true });
+  });
+});
+
 describe('a delivery that hangs', () => {
   it('runs each consumer under a server-side limit and starts none once the time is up', async () => {
     const { app, limits, logger } = harness();
@@ -120,7 +138,9 @@ describe('a delivery that hangs', () => {
       () => new Promise<undefined>((done) => setTimeout(() => done(undefined), 60)),
     );
     const next = consumer('b.two', ['BusinessCreated']);
-    const outcome = await createDeliverer(app, [slow, next], logger, 40)(EVENT);
+    const outcome = await createDeliverer(app, [slow, next], logger, { ...KNOWN, timeoutMs: 40 })(
+      EVENT,
+    );
     expect(outcome).toMatchObject({ delivered: false, error: 'TimeoutError' });
     expect(limits).toHaveLength(1);
     expect(limits[0]).toBeGreaterThan(0);
@@ -135,7 +155,9 @@ describe('a delivery that hangs', () => {
       ['BusinessCreated'],
       () => new Promise<undefined>(() => undefined),
     );
-    expect(await createDeliverer(app, [hanging], logger, 20)(EVENT)).toEqual({
+    expect(
+      await createDeliverer(app, [hanging], logger, { ...KNOWN, timeoutMs: 20 })(EVENT),
+    ).toEqual({
       delivered: false,
       error: 'TimeoutError',
       retryInMs: retryDelayMs(1),

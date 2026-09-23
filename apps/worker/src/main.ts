@@ -20,8 +20,11 @@ redis.on('error', (error: unknown) => {
   logger.warn({ err: error }, 'redis connection error');
 });
 
-// No consumer exists yet in Phase 0; each module registers its handlers here as it gains them.
-const loop = createDispatchLoop({ dispatcher, deliver: createDeliverer(app, [], logger), logger });
+// Every event type this version publishes, consumed or not, and the consumers; each module adds its own as
+// it gains them. Phase 0 has neither yet, so every event would wait (and park) — none is published before T8.
+const KNOWN_EVENT_TYPES: readonly string[] = [];
+const deliver = createDeliverer(app, [], logger, { knownEventTypes: KNOWN_EVENT_TYPES });
+const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
 const release = async (): Promise<void> => {
   await Promise.allSettled([dispatcher.close(), app.close(), redis.quit()]);
