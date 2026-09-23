@@ -382,4 +382,19 @@ describe('URLs are parsed, not pattern-matched', () => {
     }
     expect(raw).toContain('width=200');
   });
+
+  it('an embedded URL with an ambiguous end, or an unparseable URL, keeps nothing of its credentials', () => {
+    const raw = capture((log) =>
+      log.info(
+        {
+          note: 'connect postgres://user:with space_tail_leak@db.example/app now',
+          broken: 'postgres://user:pass/word_leak@db.example:99999/app',
+          fine: 'see https://user:pw_leak@db.example/app for details',
+        },
+        'event',
+      ),
+    );
+    for (const leak of ['space_tail_leak', 'word_leak', 'pw_leak']) expect(raw).not.toContain(leak);
+    expect(raw).toContain('see https://***@db.example/app for details');
+  });
 });

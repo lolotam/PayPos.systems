@@ -77,17 +77,21 @@ function scrubUrl(candidate: string): string {
     }
     return url.toString();
   } catch {
-    // Unparseable: redact everything up to the LAST "@" before the path, and drop the query string.
-    return candidate
-      .replace(/^(\s*[a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/i, '$1***@')
-      .replace(/\?.*$/, '?[REDACTED]');
+    // Unparseable: no pattern can tell where its userinfo ends, so only the scheme survives.
+    return candidate.replace(/^(\s*[a-z][a-z0-9+.-]*:\/\/)[\s\S]*$/i, '$1[REDACTED]');
   }
 }
 
-// A value that IS a URL is parsed whole (a password may even contain whitespace); a URL embedded in longer
-// text is found and parsed on its own.
-const scrubUrlCredentials = (text: string): string =>
-  URL_START.test(text) ? scrubUrl(text.trim()) : text.replace(URL_IN_TEXT, scrubUrl);
+// A value that IS a URL is parsed whole (a password may even contain whitespace). A URL embedded in longer
+// text is found and parsed on its own — but in text its end is a guess: "postgres://user:with space@db" is
+// matched only up to the space. If an "@" still follows a "://" once every parsed userinfo is masked, the
+// boundary was ambiguous and the whole value is withheld.
+const AMBIGUOUS_USERINFO = /:\/\/[\s\S]*@/;
+function scrubUrlCredentials(text: string): string {
+  if (URL_START.test(text)) return scrubUrl(text.trim());
+  const scrubbed = text.replace(URL_IN_TEXT, scrubUrl);
+  return AMBIGUOUS_USERINFO.test(scrubbed.replaceAll('://***@', '://')) ? '[REDACTED]' : scrubbed;
+}
 
 const MAX_DEPTH = 8;
 export const REDACTED = '[REDACTED]';
