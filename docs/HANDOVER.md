@@ -108,25 +108,22 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 |---|---|---|
 | T0 Auth ↔ RLS decision | ✅ done | ADR-0003 **Accepted** 2026-09-23 (PR #5) |
 | T1 Workspace skeleton | ✅ done | PR #1, #2 |
-| T12a Minimal CI | 🟡 CI live — **branch protection due before T5 merges** (plan v4) | `.github/workflows/ci.yml` |
+| T12a Minimal CI | ✅ done — `ci-gate` required on `main`, PRs required, enforced for admins (PR #20) | `.github/workflows/ci.yml` |
 | T2 Local infra | ✅ done | PR #12 — `deploy/docker-compose.dev.yml` |
 | T3 `packages/domain` (Money, rounding, Percentage, TaxRule) | ✅ done | PR #14 — ADR-0004, ADR-0005 |
 | T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | ✅ done | PR #15 — ADR-0006 (+ issue #16 for T5) |
 | T6a contracts | ✅ done | PR #17 |
-| Plan v4 (debate with Codex) | 🟡 **PR open** | `docs/specs/phase-0/DEBATE-2026-09-23.md` |
-| **T5 tenancy schema + RLS suite** (next) → T6b api → T7 write primitives → T7b worker + dispatcher → **T9a-1…4 → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
+| Plan v4 (debate with Codex) | ✅ done | PR #18 — `DEBATE-2026-09-23.md` |
+| T5 tenancy schema + RLS suite | 🟡 **PR open** — 54 db tests, closes #16 | `packages/db` |
+| **T6b api** (next) → T7 write primitives → T7b worker + dispatcher → **T9a-1…4 → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
 
 **Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → T9a-1 → T9a-2 → T9a-3 → T9a-4 → T8 → T9b → T12b → T13.
 
-### 4.1 Next action — merge plan v4, then T5
+### 4.1 Next action — finish T5, then T6b
 
-- Plan v4: get the docs PR through review and merge it. It changes T5 (policies per ADR-0003, no demo companies, #16
-  privilege allowlist), adds T7b and the `pospay_dispatcher` role, and splits T9a into four PRs.
-- T5 per plan v4 §T5: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides` with explicit
-  `USING` + `WITH CHECK`, `FORCE ROW LEVEL SECURITY`, tenant-qualified composite FKs, and the negative suite run as
-  `pospay_app`. Columns follow `packages/contracts` (e.g. `timezone`, `geo` as `geo_lat`/`geo_lng`, `opening_hours` jsonb).
-- T5 must also close **#16** (direct-privilege allowlist) and enforce the accepted rule: every **runtime** role is
-  `NOSUPERUSER NOBYPASSRLS`; the bootstrap owner is the recorded exception (ADR-0003 §3, decided 2026-09-23).
+- T5: get the PR through Codex (CLI + GitHub) and merge it. `main` is protected: every change needs a PR and a green `ci-gate`.
+- T6b per plan v4: `apps/api` on NestJS + Fastify, error-envelope filter, `/health` + `/ready` (tested down),
+  pino + redaction list (tested), consuming `@pospay/contracts` and `@pospay/db`.
 
 ### 4.2 Package facts worth knowing
 
@@ -139,6 +136,9 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 - `packages/db` exports only `createDatabase`, which returns `withTenant` / `withUser` / `withNewTenant` / `close` — the
   Drizzle client stays in a closure. Its `src/` uses `.ts` import extensions (`rewriteRelativeImportExtensions`), so
   `node scripts/migrate.ts` runs the source directly with Node 24 type stripping and `tsc` still emits `.js`.
+- Tenancy tests (T5): `test/tenancy-fixtures.ts` seeds two companies A/B as the owner inside a cloned test database (the
+  test-only exception to ADR-0003 §5.3). `privileges.spec.ts` holds the **reviewed grant allowlist** — a new table's grants
+  must be added there in the same PR, or the suite fails. `pnpm db:seed` writes the provisional plan only.
 - Tests that need Postgres: `createTestDatabase()` from `packages/db/test/test-database.ts` clones the migrated
   template for one spec file; connect with `appUrl` (`pospay_app`) and drop it in `afterAll`.
 - `packages/contracts`: API fields are snake_case; every published schema carries `.meta({ id })` and is listed in
