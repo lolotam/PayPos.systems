@@ -64,11 +64,21 @@ const LOG_SYNTAX = [
 // anywhere else; comments are not strings and stay Arabic (§3.1).
 const USER_TEXT =
   'Arabic text belongs in packages/i18n (CLAUDE.md §7) — add a catalog key and use t().';
-// Built from code points so this file holds no Arabic itself: the Arabic block, U+0600 to U+06FF.
-const ARABIC = `/[${String.fromCharCode(0x600)}-${String.fromCharCode(0x6ff)}]/`;
+// Built from code points so this file holds no Arabic itself: the Arabic blocks, the supplement, extended-A and both
+// presentation-form blocks (ligatures like lam-alef live there).
+const ARABIC_BLOCKS = [
+  [0x0600, 0x06ff],
+  [0x0750, 0x077f],
+  [0x08a0, 0x08ff],
+  [0xfb50, 0xfdff],
+  [0xfe70, 0xfeff],
+];
+const ARABIC = `/[${ARABIC_BLOCKS.map(([from, to]) => `${String.fromCharCode(from)}-${String.fromCharCode(to)}`).join('')}]/`;
+// value is the decoded string, so an escaped letter is caught too; JSXText is the text between tags.
 const USER_TEXT_SYNTAX = [
   { selector: `Literal[value=${ARABIC}]`, message: USER_TEXT },
-  { selector: `TemplateElement[value.raw=${ARABIC}]`, message: USER_TEXT },
+  { selector: `TemplateElement[value.cooked=${ARABIC}]`, message: USER_TEXT },
+  { selector: `JSXText[value=${ARABIC}]`, message: USER_TEXT },
 ];
 
 const restrictedSyntax = ({ userText }) => [
