@@ -305,13 +305,18 @@ describe('credential keys that end in "key"', () => {
     'MASTER_KEY',
     'webhookKey',
     'passphrase',
+    'hmac_key',
+    'merchant_key',
+    'key',
   ])('the key %s is redacted', (key) => {
     expect(capture((log) => log.info({ [key]: SECRET }, 'event'))).not.toContain(SECRET);
   });
 
-  it('an ordinary key ending in "key" is kept (sortKey)', () => {
-    expect(JSON.parse(capture((log) => log.info({ sortKey: 'name' }, 'event')))).toMatchObject({
-      sortKey: 'name',
-    });
+  it('structural names ending in "key" are kept (sortKey, cacheKey, i18nKey)', () => {
+    expect(
+      JSON.parse(
+        capture((log) => log.info({ sortKey: 'name', cacheKey: 'c1', i18nKey: 'k' }, 'event')),
+      ),
+    ).toMatchObject({ sortKey: 'name', cacheKey: 'c1', i18nKey: 'k' });
   });
 });

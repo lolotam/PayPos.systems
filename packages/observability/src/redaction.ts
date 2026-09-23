@@ -20,17 +20,25 @@ const SECRET_SUFFIXES = [
   'cvv',
   // a hash of a secret (pin_hash, token_hash, password_hash) is still sensitive
   'hash',
-  // credential keys used by gateway, messaging and encryption code (secret_key, private_key, …)
-  'secretkey',
-  'privatekey',
-  'accesskey',
-  'signingkey',
-  'encryptionkey',
-  'masterkey',
-  'clientkey',
-  'webhookkey',
+  // any key ending in "key" is a credential (secret_key, hmac_key, merchant_key, a bare key) unless it is
+  // one of the structural names below — enumerating credential prefixes always misses the next one
+  'key',
   'passphrase',
 ];
+const STRUCTURAL_KEYS = new Set([
+  'sortkey',
+  'cachekey',
+  'primarykey',
+  'foreignkey',
+  'partitionkey',
+  'groupkey',
+  'lookupkey',
+  'routekey',
+  'eventkey',
+  'messagekey',
+  'translationkey',
+  'i18nkey',
+]);
 const PHONE_SUFFIXES = ['phone', 'phones', 'phonenumber', 'phonenumbers', 'mobile', 'mobiles'];
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
 // A plural container ("passwords", "tokens", "hashes") holds secrets under ordinary child keys, so the key
@@ -40,7 +48,8 @@ const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
   const forms = [normalized, normalized.replace(/es$/, ''), normalized.replace(/s$/, '')];
   return forms.some((form) => suffixes.some((suffix) => form.endsWith(suffix)));
 };
-const isSecretKey = (key: string): boolean => endsWithAny(key, SECRET_SUFFIXES);
+const isSecretKey = (key: string): boolean =>
+  endsWithAny(key, SECRET_SUFFIXES) && !STRUCTURAL_KEYS.has(normalizeKey(key));
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 
 const MAX_DEPTH = 8;
