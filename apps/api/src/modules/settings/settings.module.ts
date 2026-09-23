@@ -28,7 +28,7 @@ export function settingsProviders(
   if (database === undefined || redis === undefined) {
     return [{ provide: SETTINGS_WIRING, useValue: null }];
   }
-  const cache = createRedisSettingsCache(redis);
+  const cache = createRedisSettingsCache(redis, ids);
   const update = new UpdateBusinessSettings(
     createSettingsTransactions(database, ids),
     cache,

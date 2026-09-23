@@ -124,6 +124,18 @@ describe('another company', () => {
   });
 });
 
+// Polls, for at most five seconds, until some session of the app is blocked on a row lock.
+async function waitingOnLock(): Promise<boolean> {
+  for (let i = 0; i < 50; i += 1) {
+    const [row] = await h.owner`
+      SELECT count(*)::int AS n FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+    if (Number(row?.['n']) > 0) return true;
+    await new Promise((done) => setTimeout(done, 100));
+  }
+  return false;
+}
+
 describe('concurrency', () => {
   it('a second first write waits for the first, and sees its value as before', async () => {
     const created = await h.send('POST', '/v1/businesses', {
@@ -141,15 +153,21 @@ describe('concurrency', () => {
     const gate = new Promise<void>((resolve) => {
       open = resolve;
     });
+    let held: () => void = () => undefined;
+    const holding = new Promise<void>((resolve) => {
+      held = resolve;
+    });
     try {
       const first = transactions.run(company, userId, async (scope) => {
         await scope.findForUpdate(raced);
+        held();
         await gate;
         return scope.save(raced, { defaultLanguage: 'en' }, userId);
       });
-      await new Promise((done) => setTimeout(done, 200));
+      await holding;
       const second = transactions.run(company, userId, (scope) => scope.findForUpdate(raced));
-      await new Promise((done) => setTimeout(done, 200));
+      // Released only once Postgres shows the second waiting on a lock — never on a guess about timing.
+      expect(await waitingOnLock()).toBe(true);
       open();
       await first;
       expect(await second).toMatchObject({ defaultLanguage: 'en', calendar: null });
@@ -159,8 +177,18 @@ describe('concurrency', () => {
     }
   });
 
+  it('a generation is never reused, even after its key expired while an entry of it is cached', async () => {
+    const cache = createRedisSettingsCache(h.redis, systemUuidV7());
+    await cache.invalidate(company, business);
+    const seen = await cache.read(company, business);
+    await cache.fill(company, business, seen.generation, '{"stale":true}');
+    await h.redis.del(`settings:${company}:${business}:generation`);
+    await cache.invalidate(company, business);
+    expect((await cache.read(company, business)).json).toBeNull();
+  });
+
   it('a read that raced a write cannot cache the value from before it', async () => {
-    const cache = createRedisSettingsCache(h.redis);
+    const cache = createRedisSettingsCache(h.redis, systemUuidV7());
     const seen = await cache.read(company, business);
     await cache.invalidate(company, business);
     await cache.fill(company, business, seen.generation, '{"stale":true}');

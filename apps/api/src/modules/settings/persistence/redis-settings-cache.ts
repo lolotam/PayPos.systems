@@ -1,14 +1,16 @@
+import type { IdGenerator } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
 import type { SettingsCache } from '../ports/settings.port.ts';
 
 // Short on purpose, and only a backstop: correctness comes from the generation below, not from the expiry.
 const TTL_SECONDS = 60;
-// Outlives every cached entry, so a generation never restarts while an entry of an older one could still be read.
+// Only tidies the key away for businesses nobody changes any more: a generation is a fresh UUID, never a counter, so a
+// write after it expires can never land on a generation whose entry is still cached.
 const GENERATION_TTL_SECONDS = 24 * 60 * 60;
 
-// The generation is part of every entry's key, and a write bumps it after it commits: a read that raced the write and
-// read the old row stores it under the generation it started with, where no later read looks.
+// The generation is part of every entry's key, and a write replaces it after it commits: a read that raced the write
+// and read the old row stores it under the generation it started with, where no later read looks.
 const keys = (companyId: string, businessId: string) => {
   const base = `settings:${companyId}:${businessId}`;
   return { generation: `${base}:generation`, entry: (g: string) => `${base}:entry:${g}` };
@@ -16,9 +18,13 @@ const keys = (companyId: string, businessId: string) => {
 
 /**
  * @param redis the API's Redis client
+ * @param ids   the UUID v7 generator, naming each generation
  * @returns the settings read cache, keyed by company, business and generation
  */
-export function createRedisSettingsCache(redis: Redis): SettingsCache & {
+export function createRedisSettingsCache(
+  redis: Redis,
+  ids: IdGenerator,
+): SettingsCache & {
   read(companyId: string, businessId: string): Promise<{ generation: string; json: string | null }>;
   fill(companyId: string, businessId: string, generation: string, json: string): Promise<void>;
 } {
@@ -34,7 +40,7 @@ export function createRedisSettingsCache(redis: Redis): SettingsCache & {
     },
     invalidate: async (companyId, businessId) => {
       const k = keys(companyId, businessId);
-      await redis.multi().incr(k.generation).expire(k.generation, GENERATION_TTL_SECONDS).exec();
+      await redis.set(k.generation, ids.newId(), 'EX', GENERATION_TTL_SECONDS);
     },
   };
 }
