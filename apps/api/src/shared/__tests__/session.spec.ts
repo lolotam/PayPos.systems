@@ -130,6 +130,7 @@ describe('the /v1/auth/* bridge', () => {
       payload: { email: 'owner@example.test', password: 'pw_auth_leak' },
     });
     expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^application\/json/);
     expect(seen).toMatchObject({
       method: 'POST',
       url: 'http://api.test/v1/auth/sign-in/email',
@@ -158,6 +159,7 @@ describe('refusals and cross-origin calls', () => {
   it('a Better Auth refusal leaves as the envelope, keeping its code and its cookies', async () => {
     const res = await app.inject({ method: 'POST', url: '/v1/auth/refuse', payload: {} });
     expect(res.statusCode).toBe(401);
+    expect(res.headers['content-type']).toMatch(/^application\/json/);
     expect(errorEnvelope.parse(res.json())).toMatchObject({
       code: 'AUTHENTICATION_FAILED',
       details: { auth_code: 'INVALID_EMAIL_OR_PASSWORD' },

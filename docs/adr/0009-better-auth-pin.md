@@ -32,8 +32,8 @@ here (`CLAUDE.md` §11: a new library needs an ADR).
 - **Surface:** `AuthService` (`handler`, `getSession`, `provisionUser`, `ping`, `close`) — no other package sees a
   Better Auth type. Telemetry off; cookie prefix `pospay`; cookies `Secure` when `BETTER_AUTH_URL` is https;
   `COOKIE_DOMAIN` (ADR-0001 §3, §6) turns on `crossSubDomainCookies` so `app.` and `api.` share the session.
-- **Logging:** Better Auth's own logger is replaced by a `log` function; `onLog` receives only the level, the message
-  with any long mixed-case run redacted, and error class names — never the error objects, whose Drizzle messages
+- **Logging:** Better Auth's own logger is replaced by a `log` function; `onLog` receives only the level, the fixed
+  phrase before the message's first `:` when it is plain words (otherwise `[withheld]`), and error class names — never the error objects, whose Drizzle messages
   carry SQL parameters (the session token). Nothing reaches `console.*` on the session path.
 - **Renewal:** `getSession` asks for Better Auth's response headers; the guard appends every renewal `Set-Cookie`
   to the reply, so a session extended in the database is extended in the browser too.

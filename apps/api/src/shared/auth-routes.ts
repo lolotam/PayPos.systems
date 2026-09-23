@@ -15,13 +15,17 @@ async function send(reply: FastifyReply, response: Response): Promise<FastifyRep
   });
   const cookies = response.headers.getSetCookie();
   if (cookies.length > 0) void reply.header('set-cookie', cookies);
-  if (response.status >= 400) return reply.send(await toEnvelope(response));
+  if (response.status >= 400) {
+    // The envelope is JSON of its own, whatever Better Auth said its body was.
+    void reply.removeHeader('content-type');
+    return reply.send(await toEnvelope(response));
+  }
   const body = response.body === null ? null : Buffer.from(await response.arrayBuffer());
   return reply.send(body);
 }
 
-// Fastify recomputes the length, and an envelope replaces the body with JSON of its own.
-const DROPPED_HEADERS = new Set(['set-cookie', 'content-length', 'content-type']);
+// Set-Cookie is copied as a list below; Fastify recomputes the length.
+const DROPPED_HEADERS = new Set(['set-cookie', 'content-length']);
 // Better Auth's error codes are fixed upper-case names (INVALID_EMAIL_OR_PASSWORD); nothing else is echoed.
 const AUTH_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
 

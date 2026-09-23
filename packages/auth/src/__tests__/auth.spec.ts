@@ -137,6 +137,19 @@ describe('the auth database', () => {
 });
 
 describe('session renewal and library logging', () => {
+  it('logs a rejected callback by its phrase only — never the URL or a short secret in it', async () => {
+    await auth.provisionUser({ email: 'cb@example.test', name: 'Cb', password: PASSWORD });
+    logged.length = 0;
+    const response = await post('/sign-in/email', {
+      email: 'cb@example.test',
+      password: PASSWORD,
+      callbackURL: '//bad.test/?otp=123456',
+    });
+    expect(response.status).toBe(403);
+    expect(logged).toContainEqual(expect.objectContaining({ message: 'Invalid callbackURL' }));
+    expect(JSON.stringify(logged)).not.toMatch(/123456|bad\.test/);
+  });
+
   const signedIn = async (email: string): Promise<string> => {
     await auth.provisionUser({ email, name: 'Renew', password: PASSWORD });
     return cookieOf(await post('/sign-in/email', { email, password: PASSWORD }));
@@ -161,6 +174,8 @@ describe('session renewal and library logging', () => {
     await owner`REVOKE SELECT ON session FROM pospay_auth`;
     try {
       await expect(auth.getSession(new Headers({ cookie }))).rejects.toThrow();
+      // Checked before mockRestore, which clears what the spies recorded.
+      consoles.forEach((spy) => expect(spy).not.toHaveBeenCalled());
     } finally {
       await owner`GRANT SELECT ON session TO pospay_auth`;
       consoles.forEach((spy) => spy.mockRestore());
@@ -169,6 +184,5 @@ describe('session renewal and library logging', () => {
       expect.objectContaining({ level: 'error', message: 'INTERNAL_SERVER_ERROR' }),
     );
     expect(JSON.stringify(logged)).not.toContain(token);
-    consoles.forEach((spy) => expect(spy).not.toHaveBeenCalled());
   });
 });

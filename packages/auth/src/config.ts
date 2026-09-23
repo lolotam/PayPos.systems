@@ -143,6 +143,8 @@ function buildBetterAuth(options: AuthOptions, database: ReturnType<typeof creat
     advanced: {
       cookiePrefix: 'pospay',
       useSecureCookies: options.secureCookies,
+      // Better Auth skips origin/callback checks when NODE_ENV is test; pinned on so tests run what production runs.
+      disableOriginCheck: false,
       ...(options.cookieDomain === undefined
         ? {}
         : { crossSubDomainCookies: { enabled: true, domain: options.cookieDomain } }),
@@ -158,21 +160,20 @@ function buildBetterAuth(options: AuthOptions, database: ReturnType<typeof creat
   });
 }
 
-// A run long enough to be a token, a hash or an id is dropped: a message is a fixed phrase, never a value.
-const LONG_RUN = /[A-Za-z0-9_\-+/=.]{16,}/g;
+// Better Auth's messages are a fixed phrase, then ": " and a value (a URL, an origin, an id). Only the phrase
+// survives, and only when it is plain words: no digit, no URL character, no word long enough to be a token.
+const PHRASE = /^[A-Za-z][A-Za-z '()_-]{0,99}$/;
+const LONG_WORD = /[A-Za-z_]{16,}/g;
 
 function toLogEntry(
   level: AuthLogEntry['level'],
   message: unknown,
   args: readonly unknown[],
 ): AuthLogEntry {
-  // An upper-case constant such as INTERNAL_SERVER_ERROR stays readable; any other long run is dropped.
-  const text =
-    typeof message === 'string'
-      ? message
-          .replace(LONG_RUN, (run) => (/^[A-Z_]+$/.test(run) ? run : '[redacted]'))
-          .slice(0, 200)
-      : '';
+  const phrase = typeof message === 'string' ? (message.split(':')[0] ?? '').trim() : '';
+  const safe =
+    PHRASE.test(phrase) && (phrase.match(LONG_WORD) ?? []).every((word) => /^[A-Z_]+$/.test(word));
+  const text = safe ? phrase : '[withheld]';
   const errorNames = [message, ...args]
     .filter((value): value is Error => value instanceof Error)
     .map((error) => error.name);
