@@ -1,6 +1,7 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { withClusterRoleLock } from '../../test/role-lock.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 
 // Privilege inventory (plan v4 T5, closes #16). This list is reviewed: a grant a migration adds that
@@ -77,6 +78,52 @@ describe('direct privileges match the reviewed allowlist', () => {
       expect(row).toEqual({ usage: true, create_in_schema: false, create_in_db: false });
     },
   );
+});
+
+// Effective privileges — what the role can actually do, including anything inherited through a role
+// membership. Compared with the same reviewed allowlist, so an inherited grant fails the suite too.
+const TABLE_PRIVILEGES = [
+  'DELETE',
+  'INSERT',
+  'REFERENCES',
+  'SELECT',
+  'TRIGGER',
+  'TRUNCATE',
+  'UPDATE',
+];
+const SEQUENCE_PRIVILEGES = ['SELECT', 'UPDATE', 'USAGE'];
+const effectiveGrants = async (role: string): Promise<string[]> => {
+  const rows = await owner<{ grant: string }[]>`
+    SELECT c.relname || ':' || p AS grant
+    FROM pg_class c CROSS JOIN unnest(${TABLE_PRIVILEGES}::text[]) AS p
+    WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+      AND has_table_privilege(${role}, c.oid, p)
+    UNION ALL
+    SELECT c.relname || ':' || p FROM pg_class c CROSS JOIN unnest(${SEQUENCE_PRIVILEGES}::text[]) AS p
+    WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'S'
+      AND has_sequence_privilege(${role}, c.oid, p)
+    ORDER BY 1`;
+  return rows.map((r) => r.grant);
+};
+
+describe('effective privileges match the reviewed allowlist', () => {
+  it.each(APP_ROLES)('%s can do exactly what the allowlist says, no more', async (role) => {
+    expect(await effectiveGrants(role)).toEqual(ALLOWED_TABLE_GRANTS[role]);
+  });
+
+  it('an inherited grant is caught — DELETE on plans through a helper role', async () => {
+    await withClusterRoleLock('exclusive', async () => {
+      try {
+        await owner`CREATE ROLE pospay_test_helper NOLOGIN`;
+        await owner`GRANT DELETE ON plans TO pospay_test_helper`;
+        await owner`GRANT pospay_test_helper TO pospay_app WITH INHERIT TRUE`;
+        expect(await effectiveGrants('pospay_app')).toContain('plans:DELETE');
+      } finally {
+        await owner`REVOKE ALL ON plans FROM pospay_test_helper`;
+        await owner`DROP ROLE IF EXISTS pospay_test_helper`;
+      }
+    });
+  });
 });
 
 describe('effective access', () => {

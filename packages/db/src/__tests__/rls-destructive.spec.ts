@@ -60,6 +60,22 @@ describe('unconditional UPDATE cannot move rows to another tenant', () => {
   });
 });
 
+describe('unconditional UPDATE touches only the current tenant’s rows', () => {
+  // Tests USING on its own: with USING (true) and a correct WITH CHECK, this statement would also rename B.
+  it.each(['branches', 'businesses'])(
+    'UPDATE %s SET name_en = … as A leaves B unchanged',
+    async (table) => {
+      await run(sql`UPDATE ${sql.identifier(table)} SET name_en = 'Renamed by A'`);
+      const names =
+        await owner`SELECT company_id, name_en FROM ${owner(table)} ORDER BY company_id`;
+      expect(Array.from(names)).toEqual([
+        { company_id: A.company, name_en: 'Renamed by A' },
+        { company_id: B.company, name_en: table === 'branches' ? 'Branch B' : 'Business B' },
+      ]);
+    },
+  );
+});
+
 describe('unconditional DELETE removes only the current tenant’s rows', () => {
   it('DELETE FROM branches, then businesses, as A leaves every row of B', async () => {
     await run(sql`DELETE FROM branches`);
