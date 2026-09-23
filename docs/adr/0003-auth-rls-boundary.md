@@ -282,6 +282,21 @@ So a business-wide ALLOW with a DENY on branch 3 permits branches 1, 2, 4 and re
 
 `cashier_pins.employee_id` and `memberships.employee_id` point at `staff.employees(id)` once `staff` exists (Phase 1), with a tenant-qualified FK `(company_id, employee_id)`. Until then they are plain columns with no FK, and T9b does not issue PINs to anything but test fixtures. An employee **may** be linked to a `user` (`module-map.md`: `staff → identity`), but a PIN never opens `app.`; it only identifies who is operating an already-approved device.
 
+**PIN hash and lockout (T9b-3, PRD D-08).** The stored hash is `pbkdf2-sha256$<iterations>$<salt>$<hash>` (600 000
+iterations, 16-byte salt), made and checked only in `packages/auth`. PBKDF2-SHA256 is chosen over scrypt/argon2
+because WebCrypto has it, so the POS can check the same hash offline (P2-T9); the iteration count lives in the hash,
+so it can change without breaking old ones. A four-digit PIN has 10 000 values, so the hash's slowness is not the
+defence — the Redis lockout is. Three keys per employee, changed only by atomic scripts on Redis's clock: failures (a
+15-minute window from the first), reservations (one per comparison in flight, each with its own one-minute deadline),
+and the lock. A comparison is reserved before it starts and refused (429) while failures plus live reservations reach
+five, so no burst can make a sixth failure possible. A comparison that outlives its reservation changes nothing and
+verifies nothing; a crashed one frees its slot on its own deadline, whatever traffic follows. The fifth failure sets
+the lock with its own 15 minutes, never extending one that exists, and no PIN verifies while a lock exists.
+An unknown employee is compared against a precomputed placeholder hash and counted like a wrong PIN, so neither the
+answer nor the time tells who has a PIN. Hashes that reach a device offline
+are brute-forceable there; that is accepted and bounded by device approval and revocation, and revisited with the
+offline operator credential in P2-T9.
+
 ## 5. Decisions on authority
 
 ### 5.1 One authorization authority: our `memberships`

@@ -7,6 +7,11 @@ import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { DEVICE_AUTHENTICATOR } from '../../shared/device-authenticator.ts';
 
 import { AccessGuard, FeatureGuard } from './http/access.guard.ts';
+import {
+  CASHIER_PIN_USE_CASES,
+  CashierPinsController,
+  type CashierPinUseCases,
+} from './http/cashier-pins.controller.ts';
 import { CompaniesController } from './http/companies.controller.ts';
 import {
   DEVICE_USE_CASES,
@@ -14,9 +19,12 @@ import {
   type DeviceUseCases,
 } from './http/devices.controller.ts';
 import { createAccessReader } from './persistence/access-reader.ts';
+import { authPinHasher } from './persistence/auth-pin-hasher.ts';
+import { createCashierPinTransactions } from './persistence/cashier-pin-transactions.ts';
 import { authDeviceSecrets } from './persistence/device-secrets.ts';
 import { createDeviceTransactions } from './persistence/device-transactions.ts';
 import { createRedisPairingCodes } from './persistence/redis-pairing-codes.ts';
+import { createRedisPinAttempts } from './persistence/redis-pin-attempts.ts';
 import { createOnboardingTransactions } from './persistence/onboarding-transactions.ts';
 import { tenancyCompanyRegistry } from './persistence/tenancy-company-registry.adapter.ts';
 import { AuthorizeRequest } from './use-cases/authorize-request/authorize-request.ts';
@@ -28,9 +36,11 @@ import { ClaimDeviceToken } from './use-cases/claim-device-token/claim-device-to
 import { IssuePairingCode } from './use-cases/issue-pairing-code/issue-pairing-code.ts';
 import { RegisterDevice } from './use-cases/register-device/register-device.ts';
 import { RevokeDevice } from './use-cases/revoke-device/revoke-device.ts';
+import { SetCashierPin } from './use-cases/set-cashier-pin/set-cashier-pin.ts';
+import { VerifyCashierPin } from './use-cases/verify-cashier-pin/verify-cashier-pin.ts';
 
 /** The controllers identity mounts. */
-export const identityControllers = [CompaniesController, DevicesController];
+export const identityControllers = [CompaniesController, DevicesController, CashierPinsController];
 
 /**
  * The identity wiring — the one place its port is bound to the Postgres adapter. The two guards are registered
@@ -39,7 +49,7 @@ export const identityControllers = [CompaniesController, DevicesController];
  *
  * @param database the tenant wrappers, when the app has a database
  * @param ids      the UUID v7 generator
- * @param redis    the API's Redis client, for pairing codes (devices need it)
+ * @param redis    the API's Redis client, for pairing codes and PIN attempts (devices and PINs need it)
  * @returns the providers to add to the root module, after the session guard
  */
 export function identityProviders(
@@ -61,6 +71,10 @@ export function identityProviders(
     { provide: OnboardCompany, useValue: onboard },
     { provide: DEVICE_USE_CASES, useValue: devices?.useCases ?? null },
     { provide: DEVICE_AUTHENTICATOR, useValue: devices?.authenticator ?? null },
+    {
+      provide: CASHIER_PIN_USE_CASES,
+      useValue: database === undefined ? null : cashierPinUseCases(database, ids, redis),
+    },
     { provide: AuthorizeRequest, useValue: reader === null ? null : new AuthorizeRequest(reader) },
     { provide: CheckFeature, useValue: reader === null ? null : new CheckFeature(reader) },
     { provide: APP_GUARD, useClass: AccessGuard },
@@ -82,4 +96,21 @@ function deviceUseCases(database: TenantWrappers, ids: IdGenerator, redis: Redis
     revokeDevice: new RevokeDevice(transactions, systemClock),
   };
   return { useCases, authenticator };
+}
+
+function cashierPinUseCases(
+  database: TenantWrappers,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+): CashierPinUseCases | null {
+  if (redis === undefined) return null;
+  const transactions = createCashierPinTransactions(database, ids);
+  return {
+    setCashierPin: new SetCashierPin(transactions, authPinHasher, systemClock),
+    verifyCashierPin: new VerifyCashierPin(
+      transactions,
+      authPinHasher,
+      createRedisPinAttempts(redis, ids),
+    ),
+  };
 }

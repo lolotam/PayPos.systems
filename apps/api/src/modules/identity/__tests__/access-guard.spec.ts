@@ -263,6 +263,14 @@ describe('membership window and overrides', () => {
     expect(await get('/v1/probe/access/company', 'stranger', B)).toMatchObject({ status: 403 });
   });
 
+  it('removing a membership takes effect on the very next request (ADR-0003 §4.1)', async () => {
+    // B keeps its other owner, so the last-owner rule does not stop the removal.
+    const membership = await member(STRANGER, B, OWNER_ROLE_ID, ['COMPANY', B]);
+    expect(await get('/v1/probe/access/company', 'stranger', B)).toMatchObject({ status: 200 });
+    await owner`UPDATE memberships SET ends_at = now() WHERE company_id = ${B} AND id = ${membership}`;
+    expect(await get('/v1/probe/access/company', 'stranger', B)).toMatchObject({ status: 403 });
+  });
+
   it("a DENY override beats the owner role's ALLOW; an expired DENY does not", async () => {
     const membership = await member(STRANGER, C, OWNER_ROLE_ID, ['COMPANY', C]);
     expect(await get('/v1/probe/access/company', 'stranger', C)).toMatchObject({ status: 200 });

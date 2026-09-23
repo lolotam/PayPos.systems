@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { errorEnvelope } from './errors/envelope.js';
+import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
 import {
   claimDeviceInput,
   deviceRegistration,
@@ -32,6 +33,8 @@ const SCHEMAS = [
   deviceRegistration,
   claimDeviceInput,
   deviceToken,
+  verifyCashierPinInput,
+  cashierPinVerified,
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,
   currency,
