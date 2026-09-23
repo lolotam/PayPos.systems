@@ -29,6 +29,8 @@ export interface AppDependencies {
   readonly onShutdown?: () => Promise<void>;
   /** Better Auth, and the public URL its routes resolve against. Without it no route but @Public() answers. */
   readonly auth?: { readonly service: AuthService; readonly baseURL: string };
+  /** Browser origins allowed to call the API with credentials (admin, POS). Empty: no CORS headers at all. */
+  readonly corsOrigins?: readonly string[];
 }
 
 export interface AppOptions {
@@ -141,6 +143,17 @@ export async function createApp(
     // and exits) instead of Nest exiting the process itself.
     { logger: new PinoNestLogger(logger), abortOnError: false },
   );
+  const corsOrigins = deps.corsOrigins ?? [];
+  if (corsOrigins.length > 0) {
+    // An exact allow-list with credentials — never a reflected or wildcard origin.
+    app.enableCors({
+      origin: [...corsOrigins],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      allowedHeaders: ['content-type', 'idempotency-key'],
+      maxAge: 600,
+    });
+  }
   app.setGlobalPrefix('v1', { exclude: ['health', 'ready'] });
   app.useGlobalFilters(new EnvelopeExceptionFilter());
   await app.init();

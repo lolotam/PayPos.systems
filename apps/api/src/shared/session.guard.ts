@@ -1,7 +1,7 @@
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { resolveUserPrincipal, type AuthService, type Principal } from '@pospay/auth';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { ApiError } from './errors.ts';
 import { PUBLIC_ROUTE } from './public.decorator.ts';
@@ -40,12 +40,17 @@ export class SessionGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic === true) return true;
-    const request = context.switchToHttp().getRequest<FastifyRequest>();
+    const http = context.switchToHttp();
+    const request = http.getRequest<FastifyRequest>();
     // No auth configured (a test app without it) means no session can exist — refused like any other.
-    const principal =
+    const resolved =
       this.#auth === null ? null : await resolveUserPrincipal(this.#auth, toWebHeaders(request));
-    if (principal === null) throw new ApiError('UNAUTHENTICATED');
-    request.principal = principal;
+    if (resolved === null) throw new ApiError('UNAUTHENTICATED');
+    // A renewed session re-issues its cookie; dropped here, the browser would lose it at the old expiry.
+    if (resolved.setCookies.length > 0) {
+      void http.getResponse<FastifyReply>().header('set-cookie', [...resolved.setCookies]);
+    }
+    request.principal = resolved.principal;
     return true;
   }
 }

@@ -14,6 +14,7 @@ import { API_LOG_EVENTS } from '../log-events.ts';
 // T9a-1: deny by default. Better Auth itself (login, cookies, sign-out) is proven against Postgres in
 // packages/auth; here the API's side — the guard, the principal, and the /v1/auth/* bridge.
 const USER = '019c0000-0000-7000-8000-000000000001';
+const ADMIN = 'http://admin.test';
 
 @Controller('probe')
 class ProtectedProbe {
@@ -33,15 +34,26 @@ const fakeAuth: AuthService = {
       cookie: request.headers.get('cookie'),
     };
     if (request.url.endsWith('/explode')) throw new Error('secret internals tok_auth_leak');
+    if (request.url.endsWith('/refuse')) {
+      const refused = new Headers({ 'content-type': 'application/json' });
+      refused.append('set-cookie', 'pospay.session_token=; Max-Age=0');
+      return new Response(
+        JSON.stringify({ code: 'INVALID_EMAIL_OR_PASSWORD', message: 'Invalid email or password' }),
+        { status: 401, headers: refused },
+      );
+    }
     const headers = new Headers({ 'content-type': 'application/json' });
     headers.append('set-cookie', 'pospay.session_token=abc; HttpOnly');
     headers.append('set-cookie', 'pospay.session_data=def; HttpOnly');
     return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
   },
-  getSession: async (headers) =>
-    headers.get('cookie')?.includes('pospay.session_token=good') === true
-      ? { userId: USER, sessionId: '019c0000-0000-7000-8000-000000000002' }
-      : null,
+  getSession: async (headers) => {
+    const cookie = headers.get('cookie') ?? '';
+    if (!/pospay\.session_token=(good|old)/.test(cookie)) return null;
+    // An "old" session is renewed, as Better Auth does once updateAge has passed.
+    const setCookies = cookie.includes('=old') ? ['pospay.session_token=renewed; HttpOnly'] : [];
+    return { userId: USER, sessionId: '019c0000-0000-7000-8000-000000000002', setCookies };
+  },
   provisionUser: async () => USER,
   ping: async () => undefined,
   close: async () => undefined,
@@ -60,7 +72,11 @@ beforeAll(async () => {
   });
   const logger = createLogger('info', { destination: sink, events: API_LOG_EVENTS });
   app = await createApp(
-    { readiness: [], auth: { service: fakeAuth, baseURL: 'http://api.test' } },
+    {
+      readiness: [],
+      auth: { service: fakeAuth, baseURL: 'http://api.test' },
+      corsOrigins: [ADMIN],
+    },
     { controllers: [ProtectedProbe], logger },
   );
   bare = await createApp(
@@ -87,6 +103,16 @@ describe('the session guard', () => {
       headers: { cookie: 'pospay.session_token=good' },
     });
     expect([res.statusCode, res.json()]).toEqual([200, { userId: USER }]);
+  });
+
+  it('forwards the cookie of a renewed session, so the browser keeps it past the old expiry', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/v1/probe/me',
+      headers: { cookie: 'pospay.session_token=old' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['set-cookie']).toEqual(['pospay.session_token=renewed; HttpOnly']);
   });
 
   it('without auth configured, only @Public() routes answer', async () => {
@@ -125,5 +151,33 @@ describe('the /v1/auth/* bridge', () => {
     expect(res.statusCode).toBe(500);
     expect(errorEnvelope.parse(res.json()).code).toBe('INTERNAL_ERROR');
     expect(res.body + logs).not.toContain('tok_auth_leak');
+  });
+});
+
+describe('refusals and cross-origin calls', () => {
+  it('a Better Auth refusal leaves as the envelope, keeping its code and its cookies', async () => {
+    const res = await app.inject({ method: 'POST', url: '/v1/auth/refuse', payload: {} });
+    expect(res.statusCode).toBe(401);
+    expect(errorEnvelope.parse(res.json())).toMatchObject({
+      code: 'AUTHENTICATION_FAILED',
+      details: { auth_code: 'INVALID_EMAIL_OR_PASSWORD' },
+    });
+    expect(res.body).not.toContain('Invalid email or password');
+    expect(res.headers['set-cookie']).toEqual(['pospay.session_token=; Max-Age=0']);
+  });
+
+  it('answers a preflight from an allowed origin with credentials, and ignores any other origin', async () => {
+    const preflight = (origin: string) =>
+      app.inject({
+        method: 'OPTIONS',
+        url: '/v1/auth/sign-in/email',
+        headers: { origin, 'access-control-request-method': 'POST' },
+      });
+    const allowed = await preflight(ADMIN);
+    expect(allowed.statusCode).toBe(204);
+    expect(allowed.headers['access-control-allow-origin']).toBe(ADMIN);
+    expect(allowed.headers['access-control-allow-credentials']).toBe('true');
+    const other = await preflight('http://evil.test');
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
   });
 });

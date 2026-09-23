@@ -24,12 +24,23 @@ here (`CLAUDE.md` §11: a new library needs an ADR).
   `packages/db/schema/identity-auth.ts`, snake_case columns under Better Auth's field names, `uuid` ids generated as
   UUID v7 (`advanced.database.generateId`). Migrations `0007_…_identity-auth` and `0008_…_identity-auth-grants`:
   `pospay_auth` holds `SELECT, INSERT, UPDATE, DELETE` on exactly these five; no other role holds anything.
-- **Pool:** `createAuthDatabase` in `packages/db` is a restricted facade (role checked by `ping`); ESLint
+- **Pool:** `createAuthDatabase` in `packages/db` is a restricted facade; `createAuth` is async and refuses to return
+  a service until `ping` has proved the pool is `pospay_auth` (not the owner, not `pospay_app`), so the API never
+  listens on a wrong-role URL. ESLint
   `no-restricted-imports` lets only `packages/auth` import it (and only `apps/worker` the dispatcher facade).
   `createAuth({ databaseUrl, … })` opens it, so the pool never leaves `packages/auth`.
 - **Surface:** `AuthService` (`handler`, `getSession`, `provisionUser`, `ping`, `close`) — no other package sees a
-  Better Auth type. Telemetry off; cookie prefix `pospay`; cookies `Secure` when `BETTER_AUTH_URL` is https.
-- **API:** Better Auth answers at `/v1/auth/*`, mounted on Fastify beside Nest; failures leave as the error envelope.
+  Better Auth type. Telemetry off; cookie prefix `pospay`; cookies `Secure` when `BETTER_AUTH_URL` is https;
+  `COOKIE_DOMAIN` (ADR-0001 §3, §6) turns on `crossSubDomainCookies` so `app.` and `api.` share the session.
+- **Logging:** Better Auth's own logger is replaced by a `log` function; `onLog` receives only the level, the message
+  with any long mixed-case run redacted, and error class names — never the error objects, whose Drizzle messages
+  carry SQL parameters (the session token). Nothing reaches `console.*` on the session path.
+- **Renewal:** `getSession` asks for Better Auth's response headers; the guard appends every renewal `Set-Cookie`
+  to the reply, so a session extended in the database is extended in the browser too.
+- **API:** Better Auth answers at `/v1/auth/*`, mounted on Fastify beside Nest; failures and refusals (4xx) leave as
+  the error envelope (401 → `AUTHENTICATION_FAILED`), Better Auth's upper-case code kept as `details.auth_code`,
+  cookies preserved. CORS allows exactly `AUTH_TRUSTED_ORIGINS` with credentials — one list for Better Auth's
+  trusted origins and the browser allow-list, so the two cannot drift (ADR-0001's `CORS_ORIGINS` is this list).
   A global `SessionGuard` denies every other route without a verified session unless it is `@Public()` (today
   `/health` and `/ready`); the principal is attached to the request. What it may do is T9a-2's `@Require`.
 

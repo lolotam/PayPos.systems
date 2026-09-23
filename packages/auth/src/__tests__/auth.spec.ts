@@ -1,9 +1,9 @@
 import { createUuidV7, systemUuidV7 } from '@pospay/ids';
 import postgres from 'postgres';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
-import { createAuth, type AuthService } from '../index.ts';
+import { createAuth, type AuthLogEntry, type AuthOptions, type AuthService } from '../index.ts';
 
 // T9a-1: a real login produces a session, on pospay_auth, with sign-up closed and nothing stored in clear.
 const BASE = 'http://api.test';
@@ -12,17 +12,21 @@ const PASSWORD = 'correct-horse-battery';
 let testDb: TestDatabase;
 let auth: AuthService;
 let owner: postgres.Sql;
+const logged: AuthLogEntry[] = [];
+
+const optionsFor = (databaseUrl: string): AuthOptions => ({
+  databaseUrl,
+  secret: 'test-secret-that-is-long-enough-for-hmac',
+  baseURL: BASE,
+  trustedOrigins: [ORIGIN],
+  ids: systemUuidV7(),
+  secureCookies: false,
+  onLog: (entry) => logged.push(entry),
+});
 
 beforeAll(async () => {
   testDb = await createTestDatabase();
-  auth = createAuth({
-    databaseUrl: testDb.authUrl,
-    secret: 'test-secret-that-is-long-enough-for-hmac',
-    baseURL: BASE,
-    trustedOrigins: [ORIGIN],
-    ids: systemUuidV7(),
-    secureCookies: false,
-  });
+  auth = await createAuth(optionsFor(testDb.authUrl));
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
 });
 
@@ -114,34 +118,57 @@ describe('login', () => {
 });
 
 describe('the auth database', () => {
-  it('answers as pospay_auth, and an auth service on another role is not ready', async () => {
+  it('answers as pospay_auth, and refuses to start on any other role — the owner included', async () => {
     await expect(auth.ping()).resolves.toBeUndefined();
-    const wrong = createAuth({
-      databaseUrl: testDb.appUrl,
-      secret: 'test-secret-that-is-long-enough-for-hmac',
-      baseURL: BASE,
-      trustedOrigins: [],
-      ids: systemUuidV7(),
-      secureCookies: false,
-    });
-    try {
-      await expect(wrong.ping()).rejects.toThrow(/must connect as pospay_auth/);
-    } finally {
-      await wrong.close();
-    }
+    await expect(createAuth(optionsFor(testDb.appUrl))).rejects.toThrow(
+      /must connect as pospay_auth/,
+    );
+    await expect(createAuth(optionsFor(testDb.ownerUrl))).rejects.toThrow(
+      /must connect as pospay_auth/,
+    );
   });
 
-  it('refuses a secret too short to sign cookies', () => {
+  it('refuses a secret too short to sign cookies', async () => {
     const ids = createUuidV7({ now: () => 1, fillRandom: () => undefined });
-    expect(() =>
-      createAuth({
-        databaseUrl: testDb.authUrl,
-        secret: 'short',
-        baseURL: BASE,
-        trustedOrigins: [],
-        ids,
-        secureCookies: false,
-      }),
-    ).toThrow(/at least 32/);
+    await expect(
+      createAuth({ ...optionsFor(testDb.authUrl), secret: 'short', ids }),
+    ).rejects.toThrow(/at least 32/);
+  });
+});
+
+describe('session renewal and library logging', () => {
+  const signedIn = async (email: string): Promise<string> => {
+    await auth.provisionUser({ email, name: 'Renew', password: PASSWORD });
+    return cookieOf(await post('/sign-in/email', { email, password: PASSWORD }));
+  };
+
+  it('returns the renewed cookie once the session is old enough to be extended', async () => {
+    const cookie = await signedIn('renew@example.test');
+    expect((await auth.getSession(new Headers({ cookie })))?.setCookies).toEqual([]);
+    await owner`UPDATE session SET expires_at = now() + interval '5 days'`;
+    const renewed = await auth.getSession(new Headers({ cookie }));
+    expect(renewed?.setCookies.some((c) => c.startsWith('pospay.session_token='))).toBe(true);
+  });
+
+  it('a database failure reaches onLog without the token, and nothing goes to the console', async () => {
+    const cookie = await signedIn('leak@example.test');
+    const token = /pospay\.session_token=([^.;]+)/.exec(cookie)?.[1] ?? '';
+    expect(token).not.toBe('');
+    const consoles = (['log', 'warn', 'error', 'info', 'debug'] as const).map((method) =>
+      vi.spyOn(console, method).mockImplementation(() => undefined),
+    );
+    logged.length = 0;
+    await owner`REVOKE SELECT ON session FROM pospay_auth`;
+    try {
+      await expect(auth.getSession(new Headers({ cookie }))).rejects.toThrow();
+    } finally {
+      await owner`GRANT SELECT ON session TO pospay_auth`;
+      consoles.forEach((spy) => spy.mockRestore());
+    }
+    expect(logged).toContainEqual(
+      expect.objectContaining({ level: 'error', message: 'INTERNAL_SERVER_ERROR' }),
+    );
+    expect(JSON.stringify(logged)).not.toContain(token);
+    consoles.forEach((spy) => expect(spy).not.toHaveBeenCalled());
   });
 });

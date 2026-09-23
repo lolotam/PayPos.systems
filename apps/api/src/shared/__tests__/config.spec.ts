@@ -29,6 +29,16 @@ describe('readConfig', () => {
     expect(attempt).not.toThrow(/short-secret-leak/);
   });
 
+  it('takes a parent cookie domain, treats an empty one as unset, and refuses a bare host', () => {
+    expect(readConfig({ ...valid, COOKIE_DOMAIN: '.pospay.systems' }).COOKIE_DOMAIN).toBe(
+      '.pospay.systems',
+    );
+    expect(readConfig({ ...valid, COOKIE_DOMAIN: '' }).COOKIE_DOMAIN).toBeUndefined();
+    expect(() => readConfig({ ...valid, COOKIE_DOMAIN: 'pospay.systems' })).toThrow(
+      /COOKIE_DOMAIN/,
+    );
+  });
+
   it('names the invalid keys but never echoes a value', () => {
     const attempt = () =>
       readConfig({

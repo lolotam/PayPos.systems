@@ -11,7 +11,8 @@ const schema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   // The API's public URL; https makes the cookies Secure.
   BETTER_AUTH_URL: z.url({ protocol: /^https?$/ }),
-  // Comma-separated origins allowed to call /v1/auth with a cookie (admin, POS).
+  // Comma-separated origins allowed to call the API with a cookie (admin, POS): Better Auth's trusted
+  // origins and the CORS allow-list are this one list, so they cannot drift apart (ADR-0001, consequences).
   AUTH_TRUSTED_ORIGINS: z
     .string()
     .default('')
@@ -21,6 +22,15 @@ const schema = z.object({
         .map((origin) => origin.trim())
         .filter((origin) => origin !== ''),
     ),
+  // The parent domain the session cookie is shared on (.pospay.systems, .staging.pospay.systems — ADR-0001 §3, §6).
+  // Unset in local development: the cookie stays host-only.
+  COOKIE_DOMAIN: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z
+      .string()
+      .regex(/^\.[a-z0-9-]+(\.[a-z0-9-]+)+$/)
+      .optional(),
+  ),
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   // Validated here so an invalid value never reaches pino, whose error message would print it.

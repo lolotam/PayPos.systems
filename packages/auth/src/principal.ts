@@ -34,26 +34,37 @@ export interface Principal {
 }
 
 /**
+ * الـ principal ومعاه الـ Set-Cookie اللي لازم ترجع مع الرد لو الـ session اتجددت.
+ */
+export interface ResolvedPrincipal {
+  readonly principal: Principal;
+  readonly setCookies: readonly string[];
+}
+
+/**
  * بيتحقق من الـ session cookie ويرجّع الـ principal بتاع المستخدم (path A). لحد T9a-2 الـ memberships والـ grants
  * فاضيين والشركة null — يعني مفيش صلاحية على أي حاجة غير إنه مسجّل دخول.
  *
  * @param auth    الـ AuthService
  * @param headers headers الطلب (فيها الـ cookie)
- * @returns الـ principal، أو null لو مفيش session صالحة
+ * @returns الـ principal وcookies التجديد، أو null لو مفيش session صالحة
  */
 export async function resolveUserPrincipal(
   auth: AuthService,
   headers: Headers,
-): Promise<Principal | null> {
+): Promise<ResolvedPrincipal | null> {
   const session = await auth.getSession(headers);
   if (session === null) return null;
   return {
-    kind: 'user',
-    userId: session.userId,
-    employeeId: null,
-    companyId: null,
-    deviceId: null,
-    memberships: [],
-    grants: [],
+    principal: {
+      kind: 'user',
+      userId: session.userId,
+      employeeId: null,
+      companyId: null,
+      deviceId: null,
+      memberships: [],
+      grants: [],
+    },
+    setCookies: session.setCookies,
   };
 }
