@@ -24,6 +24,9 @@ const SECRET_SUFFIXES = [
   // one of the structural names below — enumerating credential prefixes always misses the next one
   'key',
   'passphrase',
+  // a connection string carries its password inline
+  'dsn',
+  'connectionstring',
 ];
 const STRUCTURAL_KEYS = new Set([
   'sortkey',
@@ -51,6 +54,11 @@ const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
 const isSecretKey = (key: string): boolean =>
   endsWithAny(key, SECRET_SUFFIXES) && !STRUCTURAL_KEYS.has(normalizeKey(key));
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
+
+// A URL with credentials (postgres://user:pass@host, redis://:pass@host) keeps its scheme and host but loses
+// its userinfo — checked on every string value, because the key (DATABASE_URL, REDIS_URL) looks harmless.
+const URL_USERINFO = /([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
+const scrubUrlCredentials = (text: string): string => text.replace(URL_USERINFO, '$1***@');
 
 const MAX_DEPTH = 8;
 export const REDACTED = '[REDACTED]';
@@ -83,6 +91,7 @@ export function sanitize(value: unknown): unknown {
   const walk = (node: unknown, depth: number): unknown => {
     if (typeof node === 'function' || typeof node === 'symbol') return undefined;
     if (typeof node === 'bigint') return node.toString();
+    if (typeof node === 'string') return scrubUrlCredentials(node);
     if (node === null || typeof node !== 'object') return node;
     if (node instanceof Date) return Number.isNaN(node.getTime()) ? null : node.toISOString();
     // pino runs this before its serializers, so an Error anywhere in the object is reduced here — its

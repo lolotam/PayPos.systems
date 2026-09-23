@@ -320,3 +320,33 @@ describe('credential keys that end in "key"', () => {
     ).toMatchObject({ sortKey: 'name', cacheKey: 'c1', i18nKey: 'k' });
   });
 });
+
+describe('credentials inside URLs', () => {
+  it('a connection URL keeps its scheme and host but not its password, under any key and at any depth', () => {
+    const line = JSON.parse(
+      capture((log) =>
+        log.info(
+          {
+            DATABASE_URL: 'postgres://pospay_app:pg_pw_leak@127.0.0.1:5432/pospay',
+            config: { REDIS_URL: 'redis://:redis_pw_leak@127.0.0.1:6379' },
+            links: ['https://user:link_pw_leak@example.com/x'],
+          },
+          'event',
+        ),
+      ),
+    );
+    const raw = JSON.stringify(line);
+    for (const leak of ['pg_pw_leak', 'redis_pw_leak', 'link_pw_leak', 'pospay_app:']) {
+      expect(raw).not.toContain(leak);
+    }
+    expect(line).toMatchObject({ DATABASE_URL: 'postgres://***@127.0.0.1:5432/pospay' });
+  });
+
+  it('dsn and connectionString keys are redacted whole', () => {
+    const raw = capture((log) =>
+      log.info({ dsn: 'dsn_leak', connection_string: 'cs_leak' }, 'event'),
+    );
+    expect(raw).not.toContain('dsn_leak');
+    expect(raw).not.toContain('cs_leak');
+  });
+});
