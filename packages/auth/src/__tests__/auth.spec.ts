@@ -3,7 +3,18 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
-import { createAuth, type AuthLogEntry, type AuthOptions, type AuthService } from '../index.ts';
+import {
+  grantPlatformPermission,
+  revokePlatformPermission,
+} from '../../../db/src/platform-grants.ts';
+import { seedReferenceData } from '../../../db/src/seed.ts';
+import {
+  createAuth,
+  createPlatformUser,
+  type AuthLogEntry,
+  type AuthOptions,
+  type AuthService,
+} from '../index.ts';
 
 // T9a-1: a real login produces a session, on pospay_auth, with sign-up closed and nothing stored in clear.
 const BASE = 'http://api.test';
@@ -26,6 +37,7 @@ const optionsFor = (databaseUrl: string): AuthOptions => ({
 
 beforeAll(async () => {
   testDb = await createTestDatabase();
+  await seedReferenceData(testDb.ownerUrl);
   auth = await createAuth(optionsFor(testDb.authUrl));
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
 });
@@ -184,5 +196,45 @@ describe('session renewal and library logging', () => {
       expect.objectContaining({ level: 'error', message: 'INTERNAL_SERVER_ERROR' }),
     );
     expect(JSON.stringify(logged)).not.toContain(token);
+  });
+});
+
+describe('platform:create-user and platform grants (T9a-3)', () => {
+  const grant = {
+    email: 'op@example.test',
+    permission: 'create:companies:platform',
+    operator: 'waleed',
+  };
+
+  it('creates a user with an audit row and a one-time link that sets the password', async () => {
+    const { userId, link } = await createPlatformUser(auth, {
+      email: grant.email,
+      name: 'Operator',
+      operator: 'waleed',
+      redirectTo: `${ORIGIN}/set-password`,
+    });
+    const [audit] = await owner`SELECT actor, action, target_user_id FROM platform_audit_log`;
+    expect(audit).toEqual({ actor: 'waleed', action: 'user.created', target_user_id: userId });
+    const token = new URL(link).pathname.split('/').pop() ?? '';
+    const reset = () => post('/reset-password', { token, newPassword: 'operator-chosen-pass' });
+    expect((await reset()).status).toBe(200);
+    expect((await reset()).status).toBe(400);
+    expect(
+      (await post('/sign-in/email', { email: grant.email, password: 'operator-chosen-pass' }))
+        .status,
+    ).toBe(200);
+  });
+
+  it("a session carries the user's active platform grants — and loses them when revoked", async () => {
+    const cookie = cookieOf(
+      await post('/sign-in/email', { email: grant.email, password: 'operator-chosen-pass' }),
+    );
+    expect((await auth.getSession(new Headers({ cookie })))?.platformPermissions).toEqual([]);
+    await grantPlatformPermission(testDb.ownerUrl, grant, systemUuidV7());
+    expect((await auth.getSession(new Headers({ cookie })))?.platformPermissions).toEqual([
+      'create:companies:platform',
+    ]);
+    await revokePlatformPermission(testDb.ownerUrl, grant, systemUuidV7());
+    expect((await auth.getSession(new Headers({ cookie })))?.platformPermissions).toEqual([]);
   });
 });

@@ -78,6 +78,20 @@
       "when": 1790170861590,
       "tag": "0010_2026-09-23_identity-access-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790173293622,
+      "tag": "0011_2026-09-23_identity-platform",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790173294911,
+      "tag": "0012_2026-09-23_identity-platform-grants",
+      "breakpoints": true
     }
   ]
 }

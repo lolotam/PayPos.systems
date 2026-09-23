@@ -13,3 +13,4 @@ export {
   type Principal,
   type ResolvedPrincipal,
 } from './principal.ts';
+export { createPlatformUser, type CreatePlatformUserInput } from './create-platform-user.ts';

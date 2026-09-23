@@ -4,11 +4,13 @@ import type { FastifyRequest } from 'fastify';
 
 import { ApiError } from '../../../shared/errors.ts';
 import { PUBLIC_ROUTE } from '../../../shared/public.decorator.ts';
+import { AuthorizePlatform } from '../use-cases/authorize-platform/authorize-platform.ts';
 import { AuthorizeRequest } from '../use-cases/authorize-request/authorize-request.ts';
 import { CheckFeature } from '../use-cases/check-feature/check-feature.ts';
 import {
   AUTHENTICATED_ONLY,
   REQUIRE_ACCESS,
+  REQUIRE_PLATFORM,
   REQUIRES_FEATURE,
   type RequiredAccess,
 } from './access.decorators.ts';
@@ -26,6 +28,7 @@ export const COMPANY_HEADER = 'x-company-id';
 export class AccessGuard implements CanActivate {
   readonly #reflector: Reflector;
   readonly #authorize: AuthorizeRequest | null;
+  readonly #authorizePlatform = new AuthorizePlatform();
 
   constructor(
     @Inject(Reflector) reflector: Reflector,
@@ -37,6 +40,12 @@ export class AccessGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const handler = context.getHandler();
+    const platform = this.#reflector.get<string | undefined>(REQUIRE_PLATFORM, handler);
+    if (platform !== undefined) {
+      const grants = context.switchToHttp().getRequest<FastifyRequest>().principal?.grants ?? [];
+      if (this.#authorizePlatform.execute(grants, platform)) return true;
+      throw new ApiError('FORBIDDEN');
+    }
     const required = this.#reflector.get<RequiredAccess | undefined>(REQUIRE_ACCESS, handler);
     // @Require is never skipped: a public or session-only marker next to it is rejected at startup, and a
     // permission, when present, is always checked.
@@ -75,7 +84,11 @@ export class AccessGuard implements CanActivate {
       ...principal,
       companyId: authorized.companyId,
       memberships: authorized.memberships.map((m) => ({ companyId: authorized.companyId, ...m })),
-      grants: authorized.grants.map((g) => ({ ...g })),
+      // The platform grants the session guard resolved stay beside the company's.
+      grants: [
+        ...principal.grants.filter((g) => g.source === 'platform'),
+        ...authorized.grants.map((g) => ({ ...g })),
+      ],
     };
     return true;
   }

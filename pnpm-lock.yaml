@@ -387,6 +387,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@pospay/ids':
+        specifier: workspace:*
+        version: link:../ids
       '@pospay/observability':
         specifier: workspace:*
         version: link:../observability

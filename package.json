@@ -23,7 +23,9 @@
     "infra:up": "docker compose --env-file .env -f deploy/docker-compose.dev.yml up -d --wait",
     "infra:down": "docker compose --env-file .env -f deploy/docker-compose.dev.yml down",
     "infra:ps": "docker compose --env-file .env -f deploy/docker-compose.dev.yml ps",
-    "infra:logs": "docker compose --env-file .env -f deploy/docker-compose.dev.yml logs -f --tail=100"
+    "infra:logs": "docker compose --env-file .env -f deploy/docker-compose.dev.yml logs -f --tail=100",
+    "platform:grant": "pnpm --filter @pospay/db platform:grant",
+    "platform:create-user": "pnpm --filter @pospay/auth platform:create-user"
   },
   "devDependencies": {
     "@pospay/config": "workspace:*",

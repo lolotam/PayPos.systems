@@ -1,6 +1,7 @@
 export {
   Authenticated,
   Require,
+  RequirePlatform,
   RequiresFeature,
   type AccessTargetParams,
 } from './http/access.decorators.ts';
