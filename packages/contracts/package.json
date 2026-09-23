@@ -1,0 +1,31 @@
+{
+  "name": "@pospay/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Zod contracts shared by api, admin, pos and menu — request/response shapes, error and pagination envelopes, generated OpenAPI",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run && pnpm run test:node",
+    "test:node": "node --input-type=module -e \"import { errorEnvelope } from '@pospay/contracts'; if (!errorEnvelope.safeParse({ code: 'X', message_ar: 'خطأ', message_en: 'Error' }).success) process.exit(1);\"",
+    "contracts:openapi": "tsc -p tsconfig.build.json && node scripts/write-openapi.mjs",
+    "reference:update": "node scripts/update-reference-data.mjs"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}
