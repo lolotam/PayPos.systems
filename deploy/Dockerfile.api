@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+# apps/api (and its migration step) — multi-stage on node:24-alpine (ADR-0002), production dependencies only.
+# Built in CI and tagged by commit SHA, never `latest` (CLAUDE.md §10). No secret is baked in: every value comes from
+# the environment Dokploy injects at run time.
+
+FROM node:24-alpine AS build
+RUN npm install -g pnpm@12.5.1
+WORKDIR /repo
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm turbo run build --filter=@pospay/api...
+RUN pnpm --filter @pospay/api deploy --prod --legacy /out/api \
+ && pnpm --filter @pospay/db deploy --prod --legacy /out/migrate
+
+# Migrations run as their own step before new containers start (plan T13): one-shot, exits when done.
+FROM node:24-alpine AS migrate
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build --chown=node:node /out/migrate .
+USER node
+CMD ["node", "scripts/migrate.ts"]
+
+FROM node:24-alpine AS api
+ENV NODE_ENV=production API_HOST=0.0.0.0 API_PORT=3000
+WORKDIR /app
+COPY --from=build --chown=node:node /out/api .
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${API_PORT}/health" >/dev/null || exit 1
+CMD ["node", "dist/main.js"]

@@ -1,0 +1,12 @@
+# Build context for deploy/Dockerfile.* — secrets and local state never enter an image (CLAUDE.md §8). Every pattern
+# is recursive: an env file anywhere in the tree stays out, not only at the root.
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+.git
+.github
+*.log
