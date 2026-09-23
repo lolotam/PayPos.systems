@@ -19,6 +19,11 @@ const CATALOG = {
     en: 'Authentication failed',
   },
   FORBIDDEN: { status: 403, ar: 'غير مسموح بهذا الإجراء', en: 'This action is not allowed' },
+  FEATURE_DISABLED: {
+    status: 403,
+    ar: 'هذه الخاصية غير مفعّلة لشركتك',
+    en: 'This feature is not enabled for your company',
+  },
   NOT_FOUND: { status: 404, ar: 'المسار غير موجود', en: 'Not found' },
   METHOD_NOT_ALLOWED: { status: 405, ar: 'الطريقة غير مسموحة', en: 'Method not allowed' },
   PAYLOAD_TOO_LARGE: { status: 413, ar: 'حجم الطلب كبير جداً', en: 'Payload too large' },
@@ -67,6 +72,7 @@ export type ErrorCode = keyof typeof CATALOG;
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'VALIDATION_FAILED',
   'AUTHENTICATION_FAILED',
+  'FEATURE_DISABLED',
   'IDEMPOTENCY_KEY_REQUIRED',
   'IDEMPOTENCY_KEY_IN_PROGRESS',
   'IDEMPOTENCY_KEY_REUSED',

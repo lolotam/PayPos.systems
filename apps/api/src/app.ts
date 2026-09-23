@@ -11,9 +11,15 @@ import {
 import { APP_GUARD, NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService } from '@pospay/auth';
+import type { TenantWrappers } from '@pospay/db';
 import { createLogger, type Logger } from '@pospay/observability';
 import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 
+import {
+  COMPANY_HEADER,
+  assertEveryRouteGuarded,
+  identityProviders,
+} from './modules/identity/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { ApiError, codeForStatus } from './shared/errors.ts';
 import { EnvelopeExceptionFilter } from './shared/exception.filter.ts';
@@ -29,6 +35,8 @@ export interface AppDependencies {
   readonly onShutdown?: () => Promise<void>;
   /** Better Auth, and the public URL its routes resolve against. Without it no route but @Public() answers. */
   readonly auth?: { readonly service: AuthService; readonly baseURL: string };
+  /** The tenant wrappers the access guard reads memberships through. Without them no @Require route answers. */
+  readonly database?: TenantWrappers;
   /** Browser origins allowed to call the API with credentials (admin, POS). Empty: no CORS headers at all. */
   readonly corsOrigins?: readonly string[];
 }
@@ -68,14 +76,16 @@ class AppModule {
   static forRoot(deps: AppDependencies, controllers: readonly Type<unknown>[]): DynamicModule {
     return {
       module: AppModule,
-      controllers: [HealthController, ...controllers],
+      controllers: [...controllers],
       providers: [
         { provide: READINESS_CHECKS, useValue: deps.readiness.map(singleFlight) },
         { provide: SHUTDOWN, useValue: deps.onShutdown ?? (async () => undefined) },
         ShutdownHook,
         { provide: AUTH_SERVICE, useValue: deps.auth?.service ?? null },
-        // Deny by default: every route needs a session unless it is @Public() (ADR-0003 §4).
+        // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
+        // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
+        ...identityProviders(deps.database),
       ],
     };
   }
@@ -95,6 +105,8 @@ export async function createApp(
   options: AppOptions = {},
 ): Promise<NestFastifyApplication> {
   const logger = options.logger ?? createLogger('info', { events: API_LOG_EVENTS });
+  const controllers = [HealthController, ...(options.controllers ?? [])];
+  assertEveryRouteGuarded(controllers);
   const adapter = new FastifyAdapter({
     loggerInstance: logger,
     bodyLimit: 1_048_576,
@@ -137,7 +149,7 @@ export async function createApp(
     );
   });
   const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule.forRoot(deps, options.controllers ?? []),
+    AppModule.forRoot(deps, controllers),
     adapter,
     // abortOnError: false — an initialisation error is thrown to the caller (main.ts releases resources
     // and exits) instead of Nest exiting the process itself.
@@ -150,7 +162,7 @@ export async function createApp(
       origin: [...corsOrigins],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-      allowedHeaders: ['content-type', 'idempotency-key'],
+      allowedHeaders: ['content-type', 'idempotency-key', COMPANY_HEADER],
       maxAge: 600,
     });
   }

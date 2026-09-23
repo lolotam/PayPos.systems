@@ -208,6 +208,9 @@ importers:
       '@pospay/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(kysely@0.29.6)(postgres@3.4.9)
       fastify:
         specifier: 5.12.4
         version: 5.12.4
@@ -236,6 +239,9 @@ importers:
       eslint:
         specifier: 10.11.0
         version: 10.11.0(supports-color@7.2.0)
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -386,7 +392,7 @@ importers:
         version: link:../observability
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(postgres@3.4.9)
+        version: 0.45.2(kysely@0.29.6)(postgres@3.4.9)
       postgres:
         specifier: 3.4.9
         version: 3.4.9
@@ -3822,10 +3828,6 @@ snapshots:
   drizzle-orm@0.45.2(kysely@0.29.6)(postgres@3.4.9):
     optionalDependencies:
       kysely: 0.29.6
-      postgres: 3.4.9
-
-  drizzle-orm@0.45.2(postgres@3.4.9):
-    optionalDependencies:
       postgres: 3.4.9
 
   es-errors@1.3.0: {}

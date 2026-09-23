@@ -337,6 +337,13 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 
 **2026-09-23, after Codex round 6:** `withNewTenant` is context-only and the idempotency claim precedes the company insert; the synchronous `identity → tenancy` write is recorded as the one exception to `module-map.md` §3; offline money-moving actions without an operator credential are quarantined until P2-T9.
 
+**2026-09-23, T9a-2:** `roles` is keyed on `(id, owner_key)` — that pair is what the FKs reference, and no unique on
+`id` alone reveals another tenant's role. Membership and override scopes are `scope_type` + `scope_id` with generated
+`scope_business_id` / `scope_branch_id` columns, so a scope naming another company's business or branch fails a
+tenant-qualified FK. `permission_overrides` reach the user branch through their membership. The requested company comes
+from the `x-company-id` header or the session hint and is refused before any `withTenant` unless an active membership
+covers it. The Redis permission cache is deferred to the first membership-changing use case (T9a-4).
+
 ## 7. Consequences
 
 - **`CLAUDE.md` §5 is amended** in the same PR: the "no fourth way to reach the DB" sentence names the auth path as the one exception, reachable only from `packages/auth` on `pospay_auth`.

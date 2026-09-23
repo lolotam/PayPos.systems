@@ -27,7 +27,9 @@ const from = (type, ...allowed) => ({
 
 export const boundariesConfig = [
   {
-    files: ['apps/**/*.ts', 'apps/**/*.tsx'],
+    // Globs are relative to the package being linted (each app runs eslint from its own folder), so they must not
+    // start with apps/ — that prefix silently matched nothing and left every rule below unenforced.
+    files: ['**/*.ts', '**/*.tsx'],
     plugins: { boundaries },
     settings: {
       'import/resolver': { typescript: { alwaysTryTypes: true } },
@@ -99,7 +101,9 @@ export const boundariesConfig = [
   },
   {
     // CLAUDE.architecture.md §3.1 and §10.1 — the inner rings never see infrastructure.
-    files: ['apps/**/modules/*/domain/**/*.ts'],
+    files: ['**/modules/*/domain/**/*.ts'],
+    // A domain unit test imports its runner; the purity rule is for the code under test.
+    ignores: ['**/__tests__/**', '**/*.spec.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -115,7 +119,7 @@ export const boundariesConfig = [
     },
   },
   {
-    files: ['apps/**/modules/*/use-cases/**/*.ts'],
+    files: ['**/modules/*/use-cases/**/*.ts'],
     rules: {
       // Node exposes fetch as a global, so an import ban alone would miss it.
       'no-restricted-globals': [

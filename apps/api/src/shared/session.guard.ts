@@ -13,6 +13,8 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Set by the session guard on every non-public route; absent only on @Public() routes. */
     principal?: Principal;
+    /** The company the session last selected — a hint the access guard re-verifies, never trusted as is. */
+    companyHint?: string | null;
   }
 }
 
@@ -51,6 +53,7 @@ export class SessionGuard implements CanActivate {
       void http.getResponse<FastifyReply>().header('set-cookie', [...resolved.setCookies]);
     }
     request.principal = resolved.principal;
+    request.companyHint = resolved.companyHint;
     return true;
   }
 }

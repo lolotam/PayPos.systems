@@ -38,12 +38,14 @@ export interface Principal {
  */
 export interface ResolvedPrincipal {
   readonly principal: Principal;
+  /** الشركة اللي الـ session فاكرها — hint، مش companyId متأكد منه. */
+  readonly companyHint: string | null;
   readonly setCookies: readonly string[];
 }
 
 /**
- * بيتحقق من الـ session cookie ويرجّع الـ principal بتاع المستخدم (path A). لحد T9a-2 الـ memberships والـ grants
- * فاضيين والشركة null — يعني مفيش صلاحية على أي حاجة غير إنه مسجّل دخول.
+ * بيتحقق من الـ session cookie ويرجّع الـ principal بتاع المستخدم (path A) من غير شركة ولا صلاحيات — الـ access
+ * guard في apps/api بيملاهم بعد ما يتأكد من العضوية في الشركة المطلوبة.
  *
  * @param auth    الـ AuthService
  * @param headers headers الطلب (فيها الـ cookie)
@@ -65,6 +67,7 @@ export async function resolveUserPrincipal(
       memberships: [],
       grants: [],
     },
+    companyHint: session.activeCompanyId,
     setCookies: session.setCookies,
   };
 }

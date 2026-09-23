@@ -42,6 +42,8 @@ export const AUTH_BASE_PATH = '/v1/auth';
 export interface VerifiedSession {
   readonly userId: string;
   readonly sessionId: string;
+  /** الشركة اللي اليوزر اختارها آخر مرة — hint بس، الـ guard بيتأكد من العضوية في كل طلب (ADR-0003 §4.1). */
+  readonly activeCompanyId: string | null;
   /** الـ Set-Cookie اللي Better Auth طلّعها وهو بيجدد الـ session — لازم توصل للمتصفح وإلا الـ cookie يخلص في ميعاده القديم. */
   readonly setCookies: readonly string[];
 }
@@ -93,6 +95,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
       return {
         userId: response.user.id,
         sessionId: response.session.id,
+        activeCompanyId: response.session.activeCompanyId ?? null,
         setCookies: out.getSetCookie(),
       };
     },

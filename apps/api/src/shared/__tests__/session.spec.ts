@@ -9,6 +9,7 @@ import type { FastifyRequest } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApp } from '../../app.ts';
+import { Authenticated } from '../../modules/identity/index.ts';
 import { API_LOG_EVENTS } from '../log-events.ts';
 
 // T9a-1: deny by default. Better Auth itself (login, cookies, sign-out) is proven against Postgres in
@@ -18,6 +19,7 @@ const ADMIN = 'http://admin.test';
 
 @Controller('probe')
 class ProtectedProbe {
+  @Authenticated()
   @Get('me')
   me(@Req() request: FastifyRequest): { userId: string | null | undefined } {
     return { userId: request.principal?.userId };
@@ -52,7 +54,12 @@ const fakeAuth: AuthService = {
     if (!/pospay\.session_token=(good|old)/.test(cookie)) return null;
     // An "old" session is renewed, as Better Auth does once updateAge has passed.
     const setCookies = cookie.includes('=old') ? ['pospay.session_token=renewed; HttpOnly'] : [];
-    return { userId: USER, sessionId: '019c0000-0000-7000-8000-000000000002', setCookies };
+    return {
+      userId: USER,
+      sessionId: '019c0000-0000-7000-8000-000000000002',
+      activeCompanyId: null,
+      setCookies,
+    };
   },
   provisionUser: async () => USER,
   ping: async () => undefined,
