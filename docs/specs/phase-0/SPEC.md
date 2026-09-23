@@ -89,6 +89,7 @@ Business
 
 Branch
   id · company_id · business_id · name_ar · name_en
+  timezone? (NULL → the business's timezone; PRD D-10, decided 2026-09-23)
   address · geo_lat · geo_lng · opening_hours jsonb
   is_active · created_at
 
@@ -227,11 +228,12 @@ Dokploy staging: `api`, `worker`, `postgres`, `redis`, `traefik`. Migrations run
 
 These need Waleed's answer before the slice that depends on them:
 
-1. **Product name.** The product is **PosPay** (repo `pospay`, domain `pospay.systems`, ADR-0001). Still open: legal review of "Pay" in the name before it goes in the invoice header and the WABA verified name. *(blocks the S10 invoice header only)*
+1. ~~**Product name.**~~ ✅ Decided 2026-09-23 (PRD D-02): the lawyer sees no objection — the product keeps the name **PosPay**, in the invoice header and the WABA verified name.
 2. **Plans at launch.** How many, what are they called, and which feature flags separate them? *(does **not** block S5: seed one **provisional** plan; renaming later needs no schema change — PRD D-06)*
 3. **Role names.** `09_Dashboards_Roles_Permissions_AR.md` has the matrix — confirm the exact role codes. *(does **not** block S9: seed **provisional** codes; renaming is a data migration — PRD D-07. Final names needed before the Phase 1 pilot)*
-4. **PIN length.** 4 or 6 digits? Lockout after how many failures, and for how long? *(blocks S9)*
-5. **Device token lifetime.** 7 or 30 days, and what is the renewal window? *(blocks S9)*
-6. **Staging host.** Which existing VPS hosts staging, or is a new one provisioned? *(blocks S13)*
+4. ~~**PIN length.**~~ ✅ Decided 2026-09-23 (PRD D-08): 4 digits; locked after 5 failed attempts for 15 minutes.
+5. ~~**Device token lifetime.**~~ ✅ Decided 2026-09-23 (PRD D-09): 30 days, renewed on every contact, revocable instantly.
+6. ~~**Staging host.**~~ ✅ Decided 2026-09-23 (PRD D-11): the existing server for now, beside production; both move to a new server when it is bought.
+7. ✅ **Branch timezone** decided 2026-09-23 (PRD D-10): `branches.timezone`, falling back to the business's timezone.
 
 Codex must not guess any of these. Where one blocks progress, it stops and marks `TODO(spec)`.

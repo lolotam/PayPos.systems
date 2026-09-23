@@ -225,8 +225,8 @@ export const withTenant = <T>(companyId: string, fn: (tx: Tx) => Promise<T>) =>
 | Who | Where | How they sign in | Session life |
 |---|---|---|---|
 | Owner / manager | `admin` | Email + password + **TOTP 2FA** (Better Auth `two-factor`) | Normal web session, idle timeout |
-| Cashier | `pos` on a **shared** branch device | **PIN** (4–6 digits) on an already-registered device | Short "operator" session on top of a long device session; PIN re-prompt on shift change / idle |
-| Branch device | `pos` | **Device token**, issued once after a manager approves the device | Long-lived (e.g. 7–30 days, renewed on contact), revocable instantly |
+| Cashier | `pos` on a **shared** branch device | **PIN** (4 digits; 5 failed attempts lock it for 15 minutes — PRD D-08, 2026-09-23) on an already-registered device | Short "operator" session on top of a long device session; PIN re-prompt on shift change / idle |
+| Branch device | `pos` | **Device token**, issued once after a manager approves the device | 30 days, renewed on every contact, revocable instantly (PRD D-09, 2026-09-23) |
 | Employee | staff routes in `pos` | **Phone OTP** (Better Auth `phone-number`) on their own phone, for QR attendance | Medium; bound to employee, not to branch device |
 | Customer | `menu` | **Phone OTP** for booking / loyalty | Light, long-lived, no access to business data |
 | Integrations | API | **API key** with scopes (Better Auth `api-key`) | Per-company, revocable |

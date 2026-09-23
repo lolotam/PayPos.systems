@@ -1,5 +1,8 @@
 <!--
 Sync Impact Report
+- 2.1.1 (2026-09-23, PATCH): Waleed's decisions recorded — PIN of 4 digits locked after 5 failures for
+  15 minutes (D-08), 30-day device token renewed on contact (D-09), branch timezone with business
+  fallback (D-10), staging on the existing server for now (D-11), the name PosPay stands (D-02).
 - 2.1.0 (2026-09-23, MINOR): Principle III names the outbox dispatcher as a second, narrow
   exception to withTenant()-only tenant access (plan v4 T7b, ADR-0003 §3); the roadmap follows
   plan v4 (T7b before identity, T9a in four PRs).
@@ -300,7 +303,7 @@ second `api` container is on the scaling path.
 ## Identity & Access
 
 Six principals sign in six ways. Owners and managers use email, password and TOTP 2FA on
-`app.pospay.systems`. Cashiers use a 4 to 6 digit PIN on an already-registered shared branch
+`app.pospay.systems`. Cashiers use a 4-digit PIN (5 failed attempts lock it for 15 minutes) on an already-registered shared branch
 device, verified locally against a stored hash so a shift can open offline and re-verified
 on sync. Branch devices hold a long-lived revocable token issued once after a manager
 approves a one-time pairing code. Employees use phone OTP on their own phone for QR
@@ -389,11 +392,11 @@ generated and the worker bootstrap plus outbox dispatcher (T7b) shipping before 
 described in Principle VI is its own phase-scoped slice after Phase 0.
 
 Open product decisions that block specific slices and MUST be answered by the owner, never
-guessed: the product name for invoices and WABA (blocks templates); the launch plans and
-their feature flags (blocks the plan seed); the exact role codes (blocks identity); PIN
-length and lockout policy (blocks identity); device token lifetime and renewal window
-(blocks identity); the staging host (blocks deploy); and the canonical source of branch
-timezone versus business timezone (blocks attendance). The estimate in the stack doc's
+guessed: the launch plans and their feature flags (a provisional plan is seeded meanwhile) and
+the exact role codes (provisional codes are seeded meanwhile). Decided 2026-09-23 and no longer
+open: the product name (PosPay stands), the PIN policy (4 digits, 5 failures, 15 minutes), the
+device token (30 days, renewed on contact), the staging host (the existing server for now) and
+the branch timezone (per branch, falling back to the business). The estimate in the stack doc's
 delivery section is known to be optimistic and is superseded by the phase-0 plan.
 
 ## Governance
@@ -411,4 +414,4 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.1.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23
+**Version**: 2.1.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23

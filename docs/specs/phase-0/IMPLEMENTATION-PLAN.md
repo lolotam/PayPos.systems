@@ -575,7 +575,7 @@ This lives in T9a, not T8, because T8 depends on T9a.
 - Use cases: `register-device` (pairing code, short Redis TTL), `approve-device`, `revoke-device`, `set-cashier-pin`, `verify-cashier-pin`. Redis rate limits on PIN attempts and login.
 - Every sensitive action (PIN change, device approval/revocation, role change, override) writes an `AuditLog` row.
 
-**Blocked on:** `SPEC.md` §8 questions 4 and 5. Mark `TODO(spec)` and stop rather than choosing values.
+**Decided 2026-09-23** (PRD D-08, D-09; `SPEC.md` §8 q4–q5): cashier PIN of 4 digits, locked after 5 failed attempts for 15 minutes; device token valid 30 days, renewed on every contact, revocable instantly.
 
 **Done when:** PIN verification works against a stored hash, a revoked device is rejected on next contact, membership removal takes effect on the next request, and every sensitive action writes an `AuditLog` row.
 
@@ -592,7 +592,7 @@ packages/i18n/src/{ar.ts,en.ts,format-kwd.ts,dates.ts,index.ts}
 
 **Required behaviour:** `formatKwd(12500n) === '12.500'`. Dates follow the business's Gregorian/Hijri setting and the branch timezone. Error envelopes carry both languages.
 
-**Blocked on:** `SPEC.md` §8 question 1 (product name in templates).
+**Decided 2026-09-23** (PRD D-02, D-10): the name PosPay stands in the templates; the branch timezone is `branches.timezone`, falling back to the business's.
 
 **Done when:** the formatter tests pass and no hardcoded Arabic or English string exists outside `packages/i18n`.
 
@@ -686,7 +686,7 @@ cross-module write is blocked by CI.
 
 **Rollback — corrected after review.** A SHA-tagged image rollback does **not** undo a schema change. Expand/contract already forbids destructive migrations in the same release; T13 adds the proof: after every migration, run the **previous** image against the **new** schema in staging and confirm it still serves. If it cannot, the migration was not expand-safe.
 
-**Blocked on:** `SPEC.md` §8 question 6 (which host).
+**Decided 2026-09-23** (PRD D-11): staging runs on the existing server for now, beside production; both move to a new server when it is bought.
 
 **Done when:** the docker-image build is a required check on `main` (the last gate from T12b's list); a staging deploy succeeds from a SHA-tagged image, the previous image still runs against the new schema, and **one PITR restore has actually been performed** to a chosen timestamp and queried.
 

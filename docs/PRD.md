@@ -479,23 +479,23 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P0-T8.5 **API-level isolation proof:** with a real session of company A, requesting company B's id is refused **before** `withTenant(B)` is ever called (asserted by a spy on the wrapper).
 - **Done when:** scenarios `TEN-01`…`TEN-05` pass as integration tests against real Postgres with real sessions, and `pnpm lint:boundaries` passes.
 
-#### P0-T9b — Devices, cashier PINs, remaining auth plugins · L (T9a + T9b together: 7–12 working days, the likeliest Phase 0 overrun) · ⛔ D-08, D-09 · depends T8
+#### P0-T9b — Devices, cashier PINs, remaining auth plugins · L (T9a + T9b together: 7–12 working days, the likeliest Phase 0 overrun) · D-08, D-09 decided 2026-09-23 · depends T8
 
 - [ ] P0-T9b.1 `phone-number` and `api-key` plugins installed but not wired until a delivery channel (P1-T7) or the public API (P5-T7) exists; `organization` only if ADR-0003 assigns it a role.
 - [ ] P0-T9b.2 `packages/auth` is the only code that issues/verifies a session, hashes a password or a PIN — enforced by `no-restricted-imports` on hashing libraries outside the package.
 - [ ] P0-T9b.3 Schema `cashier_pins`, `devices` with tenant-qualified FKs to branches.
 - [ ] P0-T9b.4 Platform role codes (Super Admin, Support, Billing, Developer, Break-glass) seeded now, unused until Phase 5.
-- [ ] P0-T9b.5 Device flow: `register-device` (pairing code, short TTL in Redis) → `approve-device` → `revoke-device`; long-lived hashed device token (⛔ D-09 lifetime/renewal); `DeviceRegistered` / `DeviceRevoked` events.
-- [ ] P0-T9b.6 Cashier PIN: `set-cashier-pin`, `verify-cashier-pin` against a stored hash; Redis lockout (⛔ D-08 length, attempts, lock duration); PIN never opens `app.`; device pulls PIN **hashes** with the catalog snapshot (used offline in Phase 2).
+- [ ] P0-T9b.5 Device flow: `register-device` (pairing code, short TTL in Redis) → `approve-device` → `revoke-device`; long-lived hashed device token (D-09: 30 days, renewed on every contact, revocable instantly); `DeviceRegistered` / `DeviceRevoked` events.
+- [ ] P0-T9b.6 Cashier PIN: `set-cashier-pin`, `verify-cashier-pin` against a stored hash; Redis lockout (D-08: 4 digits, locked after 5 failed attempts for 15 minutes); PIN never opens `app.`; device pulls PIN **hashes** with the catalog snapshot (used offline in Phase 2).
 - [ ] P0-T9b.7 Every sensitive action (PIN change, device approval/revocation, role change, override) writes an audit row.
 - [ ] P0-T9b.8 Tests: membership removal takes effect on the next request, device revocation rejected on next contact, last-owner protection.
 - **Done when:** PIN verification works against a stored hash, a revoked device is rejected, every sensitive action is audited, and a guard-less route fails CI.
 
-#### P0-T10 — `settings` + `packages/i18n` · M · ⬜ · depends T8 (invoice header ⛔ D-02 legal check on the name)
+#### P0-T10 — `settings` + `packages/i18n` · M · ⬜ · depends T8 (invoice header: D-02 decided — the name PosPay stands)
 
 - [ ] P0-T10.1 `business_settings` table + RLS: `tax_rule`, `invoice_template`, `order_rules`, hours, payment methods, delivery zones, default language, calendar (Hijri/Gregorian).
 - [ ] P0-T10.2 `update-settings` use case with audit rows (tax and invoice template are dangerous permissions); reading settings is `queries/business-settings.query.ts`, never a use case (`CLAUDE.md` §6), with a Redis cache invalidated only by `settings`.
-- [ ] P0-T10.3 Canonical **branch timezone** source of truth (⛔ D-10): `branches.timezone` overriding `businesses.timezone`, used by attendance working-date assignment and reports.
+- [ ] P0-T10.3 Canonical **branch timezone** source of truth (D-10 decided): `branches.timezone` overriding `businesses.timezone`, used by attendance working-date assignment and reports.
 - [ ] P0-T10.4 `packages/i18n`: ar/en catalogs, `formatKwd`, Hijri/Gregorian, timezone helpers; error envelopes carry both languages; no hardcoded strings outside the package.
 - **Done when:** `formatKwd(12500n) === '12.500'` and formatter tests pass.
 
@@ -519,7 +519,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P0-T12b.4 A deliberately broken fixture PR once, to confirm the boundary step actually blocks.
 - **Done when:** a PR violating a module boundary is blocked by CI.
 
-#### P0-T13 — Staging deploy + backups + worker image · L · ⛔ D-11 (staging host) · depends T9b, T10, T11, T12b
+#### P0-T13 — Staging deploy + backups + worker image · L · D-11 decided (existing server for now) · depends T9b, T10, T11, T12b
 
 - [ ] P0-T13.1 `deploy/docker-compose.staging.yml`, `Dockerfile.api`, `Dockerfile.worker`: multi-stage on `node:24-alpine` (Node 24, ADR-0002), production deps only; **no Chromium, no Arabic fonts** in the worker yet.
 - [ ] P0-T13.2 Worker **image and deployment** only — the worker itself and the outbox dispatcher are built in P0-T7b (plan v4).
@@ -598,7 +598,7 @@ Shells come first so every later slice can ship its screen with it (`CLAUDE.md` 
 - [ ] P1-T5.6 `correct-attendance`: mandatory reason, approval, previous value kept, audit row. Missed punches become exceptions; they are never silently turned into deductions or hours (D-32).
 - [ ] P1-T5.7 Attendance, cashier login and cash-shift opening are **three different events**. The optional "no cash shift without attendance" link is a state-conditioned permission [V1].
 
-#### P1-T6 — Lateness, hours, working date · M · ⛔ D-10, D-32
+#### P1-T6 — Lateness, hours, working date · M · ⛔ D-32 (D-10 decided)
 
 - [ ] P1-T6.1 Domain: `lateMinutes(scheduledStart, actualClockIn, graceMinutes)`, `workedMinutes(session)`, `workingDate(clockIn, branchTimezone)` including overnight shifts, `overtimeMinutes(...)` [V1].
 - [ ] P1-T6.2 Lateness rules per business: grace minutes, deduction %, who approves exceptions.
@@ -607,7 +607,7 @@ Shells come first so every later slice can ship its screen with it (`CLAUDE.md` 
 #### P1-T7 — Minimal operational messaging and OTP · M · ⛔ D-16
 
 - [ ] P1-T7.1 `packages/notifications`: `Channel` interface + one adapter (WhatsApp Cloud API or SMS, D-16), templates ar/en, per-recipient Redis rate limits, callbacks resolved under the session-less tenant rule.
-- [ ] P1-T7.2 Employee phone OTP through Better Auth `phone-number`; medium-lived session bound to the employee, not the branch device. If WhatsApp is chosen, the WABA display-name approval (D-02) precedes this task.
+- [ ] P1-T7.2 Employee phone OTP through Better Auth `phone-number`; medium-lived session bound to the employee, not the branch device. If WhatsApp is chosen, the WABA display-name approval precedes this task (the name itself is settled, D-02).
 - [ ] P1-T7.3 Operational alerts as worker jobs: document expiring within 30 days, employee not clocked in N minutes after shift start, statement awaiting approval. Delivery failures retried and visible.
 - [ ] P1-T7.4 `own` permissions: `view:attendance:own`, `view:schedule:own`, `view:commissions:own`, `create:leave:own`.
 
@@ -937,21 +937,21 @@ Because the POS does not exist yet, the salon records completed services through
 
 ## 11. Open decisions — `TODO(spec)`
 
-Every item below blocks the task named in "Blocks". An implementing agent must not guess; it stops and marks `TODO(spec)`.
+Every open item below blocks the task named in "Blocks". An implementing agent must not guess; it stops and marks `TODO(spec)`. A row marked ✅ **Decided** no longer blocks anything; its "Blocks" cell records what it used to block.
 
 | ID | Decision | Options / current lean | Blocks | Owner |
 |---|---|---|---|---|
 | D-01 | **Phase order: attendance + commissions first** (this PRD, `06` §7, `05` §3, `10` §15, `08`) **vs POS first** (only the investor proposal `client-phased-proposal-ar.md` R1). | Engineering recommendation is settled: attendance first. What remains is the client's **written approval** of the phase order, recorded once, not reopened each phase. | P1 start | Client |
-| D-02 | Product name **PosPay** — legal exposure of "Pay" (suggests a payment provider; BYO chosen to stay outside CBK EPSP licensing, unconfirmed). The name itself is settled (repo, domain, ADR-0001, `SPEC.md` renamed 2026-09-22). Merged with the former D-05. | ✅ **Decided 2026-09-23 by Waleed:** the lawyer sees no objection — the product keeps the name **PosPay**, on invoices and the WABA display name alike. | P0-T10 invoice header; **P1-T7** if WhatsApp is the OTP channel | Waleed + lawyer/accountant |
+| D-02 | Product name **PosPay** — legal exposure of "Pay" (suggests a payment provider; BYO chosen to stay outside CBK EPSP licensing, unconfirmed). The name itself is settled (repo, domain, ADR-0001, `SPEC.md` renamed 2026-09-22). Merged with the former D-05. | ✅ **Decided 2026-09-23 by Waleed:** the lawyer sees no objection — the product keeps the name **PosPay**, on invoices and the WABA display name alike. | was: P0-T10 invoice header; **P1-T7** if WhatsApp is the OTP channel | Waleed + lawyer/accountant |
 | D-03 | Merchant money flow: BYO gateway per business (lean, no licence) vs platform collects and settles to merchants (needs a CBK arrangement and a financial partner). PosPay collecting **its own** subscription fees is a different flow and is not blocked by this. | Lean: BYO. Platform-collected model only as a future, separately approved module. | P2-T5 (merchant payments only) | Waleed + client + advisor |
 | D-04 | Pricing: ~50 KWD/shop/month everything included, free first month, no setup fee (transcript) vs one annual package (investor proposal) vs below Foodics Basic per branch (`05`). "No per-branch upcharge" and "per shop" must be reconciled. | Decide **before external onboarding** (P5-T5), confirm after the first two customers. | P5-T0, P5-T5 | Client |
 | D-05 | *(merged into D-02)* | — | — | — |
 | D-06 | Plans at launch: how many, names, which feature flags separate them, limits. | Lean: one plan + flags reserved for future tiers. A **provisional** seed unblocks P0-T5; the names change later without schema change. `SPEC.md` §8 must be amended to drop this as a blocker. | P5-T5 (not P0) | Client |
 | D-07 | Exact role codes to seed (from `09` §6). | Confirm the 13 tenant roles + 5 platform roles. **Provisional** codes seeded in P0-T9a; renaming is a data migration. `SPEC.md` §8 must be amended likewise. | final seed before P1-T12 pilot | Client |
-| D-08 | Cashier PIN: 4 or 6 digits; lockout after N failures; lock duration. | ✅ **Decided 2026-09-23 by Waleed:** 4 digits; locked after 5 failed attempts; locked for 15 minutes. | P0-T9b | Client |
-| D-09 | Device token lifetime and renewal window. | ✅ **Decided 2026-09-23 by Waleed:** 30 days, renewed on every contact, revocable instantly. | P0-T9b | Waleed |
-| D-10 | Canonical **branch timezone** source (schema has it on Business; requirements use branch). | ✅ **Decided 2026-09-23 by Waleed:** per branch — `branches.timezone`, falling back to the business's timezone when the branch has none. | P0-T10, P1-T6 | Waleed |
-| D-11 | Staging host: existing VPS or new; same server as production is discouraged. | ✅ **Decided 2026-09-23 by Waleed:** staging runs on the existing server for now, beside production; both move together to a new server when it is bought. | P0-T13 | Waleed |
+| D-08 | Cashier PIN: 4 or 6 digits; lockout after N failures; lock duration. | ✅ **Decided 2026-09-23 by Waleed:** 4 digits; locked after 5 failed attempts; locked for 15 minutes. | was: P0-T9b | Client |
+| D-09 | Device token lifetime and renewal window. | ✅ **Decided 2026-09-23 by Waleed:** 30 days, renewed on every contact, revocable instantly. | was: P0-T9b | Waleed |
+| D-10 | Canonical **branch timezone** source (schema has it on Business; requirements use branch). | ✅ **Decided 2026-09-23 by Waleed:** per branch — `branches.timezone`, falling back to the business's timezone when the branch has none. | was: P0-T10, P1-T6 | Waleed |
+| D-11 | Staging host: existing VPS or new; same server as production is discouraged. | ✅ **Decided 2026-09-23 by Waleed:** staging runs on the existing server for now, beside production; both move together to a new server when it is bought. | was: P0-T13 | Waleed |
 | D-12 | Attendance details: QR placement, who scans, geofence radius, selfie, fixed vs weekly shifts, grace minutes, deduction %, who approves exceptions. | From meeting 2 §3-ب. | P1-T5, P1-T6 | Client |
 | D-13 | Second attendance method: barcode ID card via reader/camera, per branch, alone or as double check (`10` §4.3). Also: does "بصمة" in marketing mean biometric hardware? (No — QR/barcode only unless decided otherwise.) | Lean: support both methods; no biometric. | P1-T5 | Client |
 | D-14 | Commission net-sales definition: before/after discount, returns, tax, service fee, participant split rule, period lock date; revenue % on employee vs branch, incl. products or not; tier mode MARGINAL vs WHOLE per employee; return after payout handling. | From meeting 2 §3-ج; worked example: 500 base, 5 % above 500. | P1-T9, P1-T10 | Client |
@@ -992,7 +992,7 @@ Every item below blocks the task named in "Blocks". An implementing agent must n
 | Backups configured but never restored | unrecoverable incident | P0-T13 not done until PITR and logical restores are performed |
 | Solo developer + One-Man-Show trap (the competitor's failure mode) | unhappy customers, no growth | strict rules make a second developer's onboarding possible; support and release cadence defined in P5-T10 |
 | Untested schedule estimates (`05`: 2 weeks for Phase 0; `06`: 4 weeks) | broken client expectations | this PRD's revised durations; correct the client-facing docs (§13) |
-| Name "PosPay" implies payments provider | regulatory exposure | D-02 legal review; BYO model |
+| Name "PosPay" implies payments provider | regulatory exposure | D-02 decided 2026-09-23 (lawyer: no objection); BYO model |
 | Two authorization authorities (Better Auth organizations vs memberships) | inconsistent access | P0-T0.4: memberships own authorization |
 | Two events describe the same service (order line, appointment) | duplicate commission entries that `event_id` dedupe cannot catch | single trigger `ServiceCompleted` from `orders` only, unique `(order_item_id, employee_id, rule_version_id)` (P1-T10.2) |
 | Commission, attendance deduction or channel fee counted twice across payroll and P&L | wrong salaries and profit | D-33; one source per cost (P5-T9.2) |
