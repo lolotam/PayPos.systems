@@ -26,6 +26,7 @@ export interface NewBranch {
   readonly addressEn: string | null;
   readonly geo: { lat: number; lng: number } | null;
   readonly openingHours: unknown;
+  readonly timeZone: string | null;
 }
 
 /**
@@ -42,11 +43,12 @@ export interface TenancyScope {
    */
   insertBusiness(business: NewBusiness): Promise<{ createdAt: string }>;
   /**
-   * بيضيف الفرع ويرجّع وقت الإنشاء (ISO زي ما Postgres كتبه) — الـ FK المركّب بيرفض business شركة تانية.
+   * بيضيف الفرع ويرجّع وقت الإنشاء (ISO زي ما Postgres كتبه) والـ time zone بتاع النشاط عشان الـ use case يحسب الفعلي
+   * — الـ FK المركّب بيرفض business شركة تانية.
    *
    * @param branch الفرع الجديد
    */
-  insertBranch(branch: NewBranch): Promise<{ createdAt: string }>;
+  insertBranch(branch: NewBranch): Promise<{ createdAt: string; businessTimeZone: string }>;
 }
 
 /**

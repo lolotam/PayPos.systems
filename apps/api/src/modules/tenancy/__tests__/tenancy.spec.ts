@@ -102,6 +102,52 @@ describe('TEN-01 — happy path per use case', () => {
   });
 });
 
+describe('D-10 — the branch time zone, falling back to the business', () => {
+  it("a branch without one uses its business's; a branch with one uses its own; both read back the same", async () => {
+    const business = await h.send('POST', '/v1/businesses', {
+      cookie: ownerA,
+      company: A,
+      key: 'd10-business',
+      body: { vertical_type: 'retail', name_en: 'Gulf Shop', timezone: 'Asia/Riyadh' },
+    });
+    const businessId = business.body['id'] as string;
+    const branchWith = async (key: string, extra: object) => {
+      const res = await h.send('POST', `/v1/businesses/${businessId}/branches`, {
+        cookie: ownerA,
+        company: A,
+        key,
+        body: { name_en: key, ...extra },
+      });
+      expect(res.status).toBe(201);
+      const created = branchSchema.parse(res.body);
+      const detail = await h.send('GET', `/v1/branches/${created.id}`, {
+        cookie: ownerA,
+        company: A,
+      });
+      expect(branchSchema.parse(detail.body)).toEqual(created);
+      return created;
+    };
+    expect(await branchWith('d10-inherits', {})).toMatchObject({
+      timezone: null,
+      effective_timezone: 'Asia/Riyadh',
+    });
+    expect(await branchWith('d10-own', { timezone: 'Asia/Dubai' })).toMatchObject({
+      timezone: 'Asia/Dubai',
+      effective_timezone: 'Asia/Dubai',
+    });
+  });
+
+  it('an unknown time zone is refused before anything is written', async () => {
+    const res = await h.send('POST', `/v1/businesses/${businessB}/branches`, {
+      cookie: ownerB,
+      company: B,
+      key: 'd10-bad-zone',
+      body: { name_en: 'Nowhere', timezone: 'Mars/Olympus' },
+    });
+    expect([res.status, errorEnvelope.parse(res.body).code]).toEqual([400, 'VALIDATION_FAILED']);
+  });
+});
+
 describe('TEN-02 — a duplicate Idempotency-Key', () => {
   it('replays the stored response byte for byte and writes one row', async () => {
     const request = {

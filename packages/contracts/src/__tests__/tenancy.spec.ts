@@ -70,10 +70,19 @@ describe('branch', () => {
       address_en: 'Tunis Street',
       geo: { lat: 29.33, lng: 48.03 },
       opening_hours: [{ weekday: 1, intervals: [{ opens: '09:00', closes: '22:00' }] }],
+      timezone: null,
+      effective_timezone: 'Asia/Kuwait',
       is_active: true,
       created_at: AT,
     };
     expect(branch.parse(row)).toEqual(row);
+  });
+
+  it('takes an optional IANA time zone on create, and refuses anything else (D-10)', () => {
+    expect(createBranchInput.safeParse({ name_en: 'x', timezone: 'Asia/Riyadh' }).success).toBe(
+      true,
+    );
+    expect(createBranchInput.safeParse({ name_en: 'x', timezone: '+03:00' }).success).toBe(false);
   });
 
   it('refuses a business_id in the body — the business comes from the path', () => {

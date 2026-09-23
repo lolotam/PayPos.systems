@@ -1,6 +1,7 @@
 import type { Branch, CreateBranchInput } from '@pospay/contracts';
 
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
+import { effectiveTimeZone } from '../../domain/time-zone.ts';
 import { BRANCH_CREATED, type BranchCreated } from '../../events/published.ts';
 import type { StoredResult, TenancyTransactions } from '../../ports/tenancy-transactions.port.ts';
 
@@ -40,8 +41,9 @@ export class CreateBranch {
         addressEn: input.address_en ?? null,
         geo: input.geo ?? null,
         openingHours: input.opening_hours ?? null,
+        timeZone: input.timezone ?? null,
       };
-      const { createdAt } = await scope.insertBranch(branch);
+      const { createdAt, businessTimeZone } = await scope.insertBranch(branch);
       const body: Branch = {
         id: branch.id,
         company_id: scope.companyId,
@@ -52,6 +54,8 @@ export class CreateBranch {
         address_en: branch.addressEn,
         geo: branch.geo,
         opening_hours: input.opening_hours ?? null,
+        timezone: branch.timeZone,
+        effective_timezone: effectiveTimeZone(branch.timeZone, businessTimeZone),
         is_active: true,
         created_at: createdAt,
       };

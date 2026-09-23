@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { nameAr, nameEn } from '../bilingual/names.js';
 import { id } from '../scalars/id.js';
+import { timeZone } from '../reference/time-zone.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { openingHours } from './opening-hours.js';
 
@@ -26,6 +27,9 @@ export const branch = z
     address_en: address.nullable(),
     geo: geo.nullable(),
     opening_hours: openingHours.nullable(),
+    // الـ time zone اللي اتحط للفرع، أو null لو بياخد بتاع النشاط؛ effective_timezone هو اللي بيتستخدم فعلاً (D-10).
+    timezone: timeZone.nullable(),
+    effective_timezone: timeZone,
     is_active: z.boolean(),
     created_at: timestamp,
   })
@@ -41,6 +45,7 @@ export const createBranchInput = z
     address_en: address.optional(),
     geo: geo.optional(),
     opening_hours: openingHours.optional(),
+    timezone: timeZone.optional(),
   })
   .strict()
   .meta({ id: 'CreateBranchInput' });

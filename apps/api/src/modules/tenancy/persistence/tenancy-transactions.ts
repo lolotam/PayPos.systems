@@ -22,15 +22,17 @@ async function insertBusiness(tx: Tx, companyId: string, b: NewBusiness) {
 }
 
 async function insertBranch(tx: Tx, companyId: string, b: NewBranch) {
-  const [row] = await tx.execute<{ created_at: string }>(sql`
+  const [row] = await tx.execute<{ created_at: string; business_timezone: string }>(sql`
     INSERT INTO branches (id, company_id, business_id, name_en, name_ar, address_ar, address_en,
-                          geo_lat, geo_lng, opening_hours)
+                          geo_lat, geo_lng, opening_hours, timezone)
     VALUES (${b.id}, ${companyId}, ${b.businessId}, ${b.nameEn}, ${b.nameAr}, ${b.addressAr}, ${b.addressEn},
             ${b.geo?.lat ?? null}, ${b.geo?.lng ?? null},
-            ${b.openingHours === null ? null : jsonb(b.openingHours)})
-    RETURNING to_json(created_at) #>> '{}' AS created_at`);
+            ${b.openingHours === null ? null : jsonb(b.openingHours)}, ${b.timeZone})
+    RETURNING to_json(created_at) #>> '{}' AS created_at,
+              (SELECT timezone FROM businesses
+               WHERE company_id = ${companyId} AND id = ${b.businessId}) AS business_timezone`);
   if (row === undefined) throw new Error('insert returned no row');
-  return { createdAt: row.created_at };
+  return { createdAt: row.created_at, businessTimeZone: row.business_timezone };
 }
 
 /**
