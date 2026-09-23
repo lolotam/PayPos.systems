@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "start": "node --env-file-if-exists=../../.env dist/main.js"
+    "start": "node --env-file-if-exists=../../.env dist/main.js",
+    "demo:seed": "tsc -p tsconfig.scripts.json && node --env-file-if-exists=../../.env dist/tools/scripts/seed-demo.js"
   },
   "dependencies": {
     "@nestjs/common": "12.0.3",

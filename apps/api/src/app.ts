@@ -22,7 +22,9 @@ import {
   identityControllers,
   identityProviders,
 } from './modules/identity/index.ts';
+import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
+import { DATABASE } from './shared/database.token.ts';
 import { ApiError, codeForStatus } from './shared/errors.ts';
 import { EnvelopeExceptionFilter } from './shared/exception.filter.ts';
 import { HealthController } from './shared/health.controller.ts';
@@ -90,9 +92,23 @@ class AppModule {
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
         ...identityProviders(deps.database, deps.ids ?? systemUuidV7()),
+        { provide: DATABASE, useValue: deps.database ?? null },
+        ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
       ],
     };
   }
+}
+
+// An exact allow-list with credentials — never a reflected or wildcard origin. Empty: no CORS headers at all.
+function enableCors(app: NestFastifyApplication, corsOrigins: readonly string[]): void {
+  if (corsOrigins.length === 0) return;
+  app.enableCors({
+    origin: [...corsOrigins],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['content-type', 'idempotency-key', COMPANY_HEADER],
+    maxAge: 600,
+  });
 }
 
 /**
@@ -109,7 +125,12 @@ export async function createApp(
   options: AppOptions = {},
 ): Promise<NestFastifyApplication> {
   const logger = options.logger ?? createLogger('info', { events: API_LOG_EVENTS });
-  const controllers = [HealthController, ...identityControllers, ...(options.controllers ?? [])];
+  const controllers = [
+    HealthController,
+    ...identityControllers,
+    ...tenancyControllers,
+    ...(options.controllers ?? []),
+  ];
   assertEveryRouteGuarded(controllers);
   const adapter = new FastifyAdapter({
     loggerInstance: logger,
@@ -159,17 +180,7 @@ export async function createApp(
     // and exits) instead of Nest exiting the process itself.
     { logger: new PinoNestLogger(logger), abortOnError: false },
   );
-  const corsOrigins = deps.corsOrigins ?? [];
-  if (corsOrigins.length > 0) {
-    // An exact allow-list with credentials — never a reflected or wildcard origin.
-    app.enableCors({
-      origin: [...corsOrigins],
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-      allowedHeaders: ['content-type', 'idempotency-key', COMPANY_HEADER],
-      maxAge: 600,
-    });
-  }
+  enableCors(app, deps.corsOrigins ?? []);
   app.setGlobalPrefix('v1', { exclude: ['health', 'ready'] });
   app.useGlobalFilters(new EnvelopeExceptionFilter());
   await app.init();

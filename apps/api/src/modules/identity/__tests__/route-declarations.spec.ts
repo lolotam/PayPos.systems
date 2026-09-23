@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createApp } from '../../../app.ts';
 import { Public } from '../../../shared/public.decorator.ts';
-import { Authenticated, Require } from '../index.ts';
+import { Authenticated, Require } from '../../../shared/access.decorators.ts';
 
 // createApp refuses any route that does not declare exactly one access (ADR-0003 §6, plan T9a-2): these need no
 // database, because the app never starts.

@@ -6,7 +6,7 @@ import { ApiError } from '../../../shared/errors.ts';
 import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { OnboardCompany, UnknownPlanError } from '../use-cases/onboard-company/onboard-company.ts';
-import { RequirePlatform } from './access.decorators.ts';
+import { RequirePlatform } from '../../../shared/access.decorators.ts';
 
 @Controller('companies')
 export class CompaniesController {

@@ -453,6 +453,16 @@ idempotent paths as production, never a raw seed. It needs `create-business`, so
 
 **Done when:** `TEN-01`…`TEN-05` pass as integration tests against real Postgres with real sessions, `pnpm lint:boundaries` passes, and the demo data above exists in the dev database.
 
+**As built** (specs `docs/specs/002-tenancy-create-business`, `003-tenancy-create-branch`): `POST /v1/businesses`,
+`GET /v1/businesses` (cursor), `POST /v1/businesses/:businessId/branches` (the business moved from the body to the path so
+the permission is evaluated at it; the guard refuses another company's business with the uniform 403),
+`GET /v1/branches/:branchId`. Settings = vertical template, then client overrides (Waleed). Permissions
+`read:businesses:company`, `create:businesses:company`, `create:branches:business`, `read:branches:branch` join the
+catalogue (Owner gets them). The access decorators moved to `apps/api/src/shared` — every module may guard its routes
+and none may import `identity`. Every write returns `created_at` as Postgres formats it, so a write and a later read
+agree byte for byte. The isolation proof spies on all three wrappers: a refused request enters no tenant at all.
+Demo data: `pnpm --filter @pospay/api demo:seed` creates one company per vertical through the production routes.
+
 ---
 
 ### T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · 4 PRs · depends: T7b · **before T8**

@@ -43,6 +43,13 @@ export interface AccessReader {
    */
   businessOfBranch(companyId: string, branchId: string): Promise<string | null>;
   /**
+   * هل الـ business ده موجود في الشركة دي — عشان business شركة تانية يترفض قبل تقييم الصلاحية (TEN-03).
+   *
+   * @param companyId الشركة المتأكد منها
+   * @param businessId الـ business اللي الـ route بيلمسه
+   */
+  businessInCompany(companyId: string, businessId: string): Promise<boolean>;
+  /**
    * هل الـ feature مفعّلة للشركة: override ساري لو موجود، وإلا flag الـ plan، وإلا مقفولة.
    *
    * @param companyId الشركة المتأكد منها

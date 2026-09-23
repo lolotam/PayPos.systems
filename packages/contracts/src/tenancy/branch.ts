@@ -31,10 +31,10 @@ export const branch = z
   })
   .meta({ id: 'Branch' });
 
-// الـ business_id لازم يبقى تبع نفس الشركة — ده بيتضمن في الداتابيز بـ FK مركّب (T5)، مش هنا.
+// الـ business جاي من الـ path (POST /v1/businesses/:businessId/branches) عشان الصلاحية تتقيّم عند الـ business ده،
+// والـ guard بيتأكد إنه تبع نفس الشركة قبل أي كتابة؛ الـ FK المركّب (T5) هو الخط التاني.
 export const createBranchInput = z
   .object({
-    business_id: id,
     name_en: nameEn,
     name_ar: nameAr.optional(),
     address_ar: address.optional(),

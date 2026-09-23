@@ -28,6 +28,13 @@ export function createAccessReader(db: TenantWrappers): AccessReader {
         return row?.business_id ?? null;
       }),
 
+    businessInCompany: (companyId, businessId) =>
+      db.withTenant(companyId, async (tx) => {
+        const rows = await tx.execute(sql`
+          SELECT 1 FROM businesses WHERE company_id = ${companyId} AND id = ${businessId}`);
+        return rows.length === 1;
+      }),
+
     isFeatureEnabled: (companyId, flag) =>
       db.withTenant(companyId, async (tx) => {
         const [row] = await tx.execute<{ enabled: boolean }>(sql`

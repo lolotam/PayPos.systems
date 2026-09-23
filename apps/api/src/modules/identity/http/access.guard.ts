@@ -13,7 +13,7 @@ import {
   REQUIRE_PLATFORM,
   REQUIRES_FEATURE,
   type RequiredAccess,
-} from './access.decorators.ts';
+} from '../../../shared/access.decorators.ts';
 
 /** The header a client uses to ask for a company; the session's own hint is the fallback. */
 export const COMPANY_HEADER = 'x-company-id';
