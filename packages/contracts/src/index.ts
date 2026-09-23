@@ -46,3 +46,9 @@ export {
   type PairingCode,
   type RegisterDeviceInput,
 } from './identity/devices.js';
+export {
+  cashierPinVerified,
+  verifyCashierPinInput,
+  type CashierPinVerified,
+  type VerifyCashierPinInput,
+} from './identity/cashier-pin.js';

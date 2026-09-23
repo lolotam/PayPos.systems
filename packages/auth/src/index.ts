@@ -26,3 +26,4 @@ export {
   verifyDeviceSecret,
   type DeviceToken,
 } from './device-credentials.ts';
+export { hashCashierPin, verifyCashierPin } from './cashier-pin.ts';

@@ -596,6 +596,18 @@ every step; `DeviceRegistered` / `DeviceRevoked` in the outbox. The fixed `devic
 permissions until sync, catalogue and clock-in exist. `TODO(spec)`: the public-route rate limit (10 per minute per
 client address until decided).
 
+**T9b-3 as built:** `cashier_pins` (tenant data, RLS, no DELETE — a PIN is replaced; migrations 0019/0020), one per
+employee per company, `employee_id` a plain column until `staff` exists (ADR-0003 §4.2). `set-cashier-pin` (use case
+only — no route until staff, so only fixtures get a PIN) stores a salted PBKDF2-SHA256 hash made in `packages/auth`
+and audits `cashier_pin.set` / `cashier_pin.changed`. `POST /v1/devices/me/cashier-pin/verify` answers an approved
+device only (a user session is 403) with the employee id; a wrong PIN and an unknown employee are the same 401
+`PIN_INVALID`, and another company's PIN is invisible under RLS. D-08 in Redis: every attempt is counted **before** the
+comparison, so a burst gets five comparisons at most; the fifth failure locks for 15 minutes (423 `PIN_LOCKED`, even
+for the right PIN) and is audited `cashier_pin.locked`; the right PIN clears earlier failures. The PIN never reaches a
+log line (tested). A test proves an ended membership is refused on the very next request. Still open: the principal
+taking the employee's memberships after a PIN (with the operator credential, P2-T9) and the device pulling PIN hashes
+with the catalog snapshot (P2).
+
 ---
 
 ### T10 — `settings` + `packages/i18n` · Size M · depends: T8

@@ -134,6 +134,20 @@
       "when": 1790197647564,
       "tag": "0018_2026-09-23_identity-devices-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790199145206,
+      "tag": "0019_2026-09-23_identity-cashier-pins",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790199146602,
+      "tag": "0020_2026-09-23_identity-cashier-pins-rls",
+      "breakpoints": true
     }
   ]
 }

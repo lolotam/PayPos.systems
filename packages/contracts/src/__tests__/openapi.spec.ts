@@ -14,6 +14,7 @@ describe('openapi/openapi.json', () => {
     expect(Object.keys(schemas).sort()).toEqual([
       'Branch',
       'Business',
+      'CashierPinVerified',
       'ClaimDeviceInput',
       'Company',
       'CreateBranchInput',
@@ -30,6 +31,7 @@ describe('openapi/openapi.json', () => {
       'Plan',
       'RegisterDeviceInput',
       'TimeZone',
+      'VerifyCashierPinInput',
       'VerticalType',
     ]);
     for (const schema of Object.values(schemas)) {
