@@ -86,3 +86,69 @@ describe('executable data', () => {
     expect(JSON.parse(line)).toMatchObject({ at: '2026-09-23T00:00:00.000Z', mills: '12500' });
   });
 });
+
+describe('round 3 — values that satisfied the earlier rules', () => {
+  it('a thrown string or plain object under err is reduced to a fixed label', () => {
+    const line = capture((log) => {
+      log.error({ err: `token=${SECRET}` }, 'x');
+      log.error({ err: { message: `token=${SECRET}` } }, 'x');
+    });
+    expect(line).not.toContain(SECRET);
+    expect(line).toContain('"type":"NonError"');
+  });
+
+  it('a PIN-shaped code or a crafted name is never printed', () => {
+    const error = Object.assign(new Error('x'), { code: '482193' });
+    error.name = 'LeakyTokError';
+    const line = capture((log) => log.error({ err: error }, 'x'));
+    expect(line).not.toContain('482193');
+    expect(line).not.toContain('LeakyTok');
+  });
+
+  it('a stale cached stack cannot smuggle a fake frame', () => {
+    const error = new Error(`failure\n    at token=${SECRET}`);
+    void error.stack;
+    error.message = 'failure';
+    expect(capture((log) => log.error({ err: error }, 'x'))).not.toContain(SECRET);
+  });
+
+  it('a message carrying data is withheld — interpolated text, an error message, a digit run', () => {
+    const error = new Error(`token=${SECRET}`);
+    const line = capture((log) => {
+      // eslint-disable-next-line no-restricted-syntax -- proves the runtime guard behind the lint rule
+      log.info(`token=${SECRET}`);
+      log.error(error, error.message);
+      log.info('customer 96550012345 paid');
+    });
+    expect(line).not.toContain(SECRET);
+    expect(line).not.toContain('96550012345');
+    expect(line.match(/log message withheld/g)).toHaveLength(3);
+  });
+
+  it('a constant event name is kept', () => {
+    expect(JSON.parse(capture((log) => log.info('redis connection error')))).toMatchObject({
+      msg: 'redis connection error',
+    });
+  });
+});
+
+describe('binding ownership', () => {
+  it('a grandchild inherits its parents; setBindings changes only its own logger', () => {
+    const lines = capture((log) => {
+      const child = log.child({ requestId: 'r1' });
+      const sibling = log.child({ requestId: 'r2' });
+      child.child({ step: 'inner' }).info('grandchild');
+      child.setBindings({ requestId: 'r1-updated' });
+      child.info('child');
+      sibling.info('sibling');
+      log.info('root');
+    })
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines[0]).toMatchObject({ requestId: 'r1', step: 'inner', msg: 'grandchild' });
+    expect(lines[1]).toMatchObject({ requestId: 'r1-updated', msg: 'child' });
+    expect(lines[2]).toMatchObject({ requestId: 'r2', msg: 'sibling' });
+    expect(lines[3]).not.toHaveProperty('requestId');
+  });
+});

@@ -5,18 +5,39 @@
  */
 
 const MAX_FRAMES = 12;
-const SAFE_NAME = /^[A-Z][A-Za-z]{0,40}Error$|^Error$/;
-const SAFE_CODE = /^[A-Z0-9_]{1,32}$/;
-const FRAME = /^at \S.*$/;
 
-// V8 stacks start with `${name}: ${message}`. Frames are read only after that exact prefix, so a
-// multiline message cannot pose as a frame; if the prefix is not there, no frame is trusted.
+// Names are printed only if they are on this list; anything else becomes "Error".
+const KNOWN_NAMES = new Set([
+  'Error',
+  'AggregateError',
+  'EvalError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'TypeError',
+  'URIError',
+  'AbortError',
+  'TimeoutError',
+  'ApiError',
+  'PostgresError',
+  'ZodError',
+  'HttpException',
+  'NotFoundException',
+  'BadRequestException',
+]);
+
+// Codes are printed only in two recognised shapes: Node system codes (ECONNREFUSED) and Fastify codes
+// (FST_ERR_…). All-digit values are never printed — a PIN or a phone number would fit a looser rule.
+const KNOWN_CODE = /^E[A-Z]{2,20}$|^FST_ERR_[A-Z_]{1,40}$/;
+
+// A frame must look like a real V8 frame — `at fn (path:line:col)` or `at path:line:col` — with a file
+// path. The stack's text is not trusted just for following the message: `.message` can change after
+// `.stack` was captured, so a line is kept only if its own shape proves it is a frame.
+const FRAME =
+  /^at (?:[\w$.<>[\] ]{1,120} \()?(?:file:\/\/\/|node:|[A-Za-z]:[\\/]|\/)[^\s()]{1,300}:\d+:\d+\)?$/;
+
 function framesOf(error: Error): string[] {
-  const stack = error.stack ?? '';
-  const header = error.message === '' ? error.name : `${error.name}: ${error.message}`;
-  if (!stack.startsWith(header)) return [];
-  return stack
-    .slice(header.length)
+  return (error.stack ?? '')
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => FRAME.test(line))
@@ -24,8 +45,9 @@ function framesOf(error: Error): string[] {
 }
 
 /**
- * An error as an allowlisted type, an allowlisted code and its stack frames — never the message, the
- * causes or any other property. A name or code outside the allowlist is dropped, not printed.
+ * Any thrown value as a recognised type, a recognised code and its verified stack frames — never the
+ * message, the causes or any other property. A non-Error (a thrown string or object) is reduced to a
+ * fixed label: its content is never printed.
  *
  * @param error whatever was thrown
  * @returns a diagnostic safe to log
@@ -34,8 +56,8 @@ export function errorDiagnostic(error: unknown): Record<string, unknown> {
   if (!(error instanceof Error)) return { type: 'NonError' };
   const code = (error as { code?: unknown }).code;
   return {
-    type: SAFE_NAME.test(error.name) ? error.name : 'Error',
-    ...(typeof code === 'string' && SAFE_CODE.test(code) ? { code } : {}),
+    type: KNOWN_NAMES.has(error.name) ? error.name : 'Error',
+    ...(typeof code === 'string' && KNOWN_CODE.test(code) ? { code } : {}),
     frames: framesOf(error),
   };
 }

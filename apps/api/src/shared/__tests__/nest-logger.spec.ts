@@ -27,4 +27,19 @@ describe('PinoNestLogger', () => {
     }
     expect(written).toContain('"nest":"InstanceLoader"');
   });
+
+  it('the two-argument error(message, stack) overload never prints the stack as context', () => {
+    let written = '';
+    const sink = new Writable({
+      write(chunk, _encoding, done) {
+        written += String(chunk);
+        done();
+      },
+    });
+    new PinoNestLogger(createLogger('debug', sink)).error(
+      'connection failed',
+      'Error: token=tok_stack_secret\n    at connect (/app/x.js:1:1)',
+    );
+    expect(written).not.toContain('tok_stack_secret');
+  });
 });

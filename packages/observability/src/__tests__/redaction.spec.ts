@@ -87,7 +87,9 @@ describe('errors are logged as type, code and frames — never the message or ca
     for (const secret of ['tok_live_abcdef', '96550012345', '4821', 'hunter2hunter2', 'SELECT']) {
       expect(line).not.toContain(secret);
     }
-    expect(JSON.parse(line)).toMatchObject({ err: { type: 'Error', code: '28P01' } });
+    // '28P01' is outside the code allowlist (only E… and FST_ERR_… shapes are printed), so it is dropped too.
+    expect(JSON.parse(line)).toMatchObject({ err: { type: 'Error' } });
+    expect(JSON.parse(line).err).not.toHaveProperty('code');
   });
 });
 

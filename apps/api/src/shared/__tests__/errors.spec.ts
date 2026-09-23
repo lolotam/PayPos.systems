@@ -24,6 +24,16 @@ class ProbeController {
     throw new Error('SELECT * FROM companies WHERE token = tok_crash_secret — must not leak');
   }
 
+  @Get('throw-string')
+  throwString(): never {
+    throw 'token=tok_thrown_string';
+  }
+
+  @Get('throw-object')
+  throwObject(): never {
+    throw { message: 'token=tok_thrown_object' };
+  }
+
   @Get('log-secrets')
   logSecrets(@Req() request: FastifyRequest): { logged: true } {
     request.log.info({ pin: '4821', token: 'tok_live_secret', phone: '96550012345' }, 'probe');
@@ -130,6 +140,19 @@ describe('secrets in the URL never reach the logs', () => {
     }
     expect(logs).toContain('"route":"/health"');
     expect(logs).toContain('"route":"[unmatched]"');
+  });
+});
+
+describe('non-Error throws', () => {
+  it('a thrown string or object is 500 INTERNAL_ERROR and its content never reaches the logs', async () => {
+    for (const url of ['/v1/probe/throw-string', '/v1/probe/throw-object']) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.statusCode).toBe(500);
+      expect(errorEnvelope.parse(res.json()).code).toBe('INTERNAL_ERROR');
+    }
+    expect(logs).not.toContain('tok_thrown_string');
+    expect(logs).not.toContain('tok_thrown_object');
+    expect(logs).toContain('"type":"NonError"');
   });
 });
 

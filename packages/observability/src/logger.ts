@@ -6,19 +6,31 @@ import { errorDiagnostic, requestDiagnostic, responseDiagnostic } from './serial
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
-// A log call keeps at most one object and one constant message. An Error becomes its diagnostic BEFORE
-// pino sees it — pino would otherwise copy `err.message` into `msg`. Extra arguments are dropped: pino
-// would interpolate them into `msg` (`log.info('user %s', token)`), where no key can be redacted.
-function normalizeArgs(args: unknown[]): [object, string?] {
+// Messages are meant to be constant event names ("redis connection error"); dynamic data belongs in
+// fields, where the sanitiser can see it. A message that could be carrying data — outside this charset,
+// longer than 120 characters, or holding a run of 6+ digits (a PIN, a phone) — is withheld. The lint rule
+// in @pospay/config also rejects template literals and concatenation as a log message.
+const SAFE_MESSAGE = /^[A-Za-z0-9 _.,:'()/-]{1,120}$/;
+const DIGIT_RUN = /\d{6,}/;
+export const WITHHELD_MESSAGE = 'log message withheld';
+
+const safeMessage = (message: unknown, fallback: string): string => {
+  if (typeof message !== 'string') return fallback;
+  return SAFE_MESSAGE.test(message) && !DIGIT_RUN.test(message) ? message : WITHHELD_MESSAGE;
+};
+
+// A log call keeps at most one object and one message. An Error (or any thrown value under `err`)
+// becomes its diagnostic BEFORE pino sees it — pino would otherwise copy `err.message` into `msg`.
+// Extra arguments are dropped: pino would interpolate them into `msg` (`log.info('user %s', token)`).
+function normalizeArgs(args: unknown[]): [object, string] {
   const [first, second] = args;
-  if (first instanceof Error) {
-    return [{ err: errorDiagnostic(first) }, typeof second === 'string' ? second : 'error'];
-  }
-  if (typeof first === 'string') return [{}, first];
+  if (first instanceof Error)
+    return [{ err: errorDiagnostic(first) }, safeMessage(second, 'error')];
+  if (typeof first === 'string') return [{}, safeMessage(first, 'log')];
   const object = (
     first !== null && typeof first === 'object' ? sanitize(reduce(first)) : {}
   ) as object;
-  return typeof second === 'string' ? [object, second] : [object];
+  return [object, safeMessage(second, 'log')];
 }
 
 // Fastify logs its own lines with req/res/err. They are reduced to safe diagnostics BEFORE the
@@ -27,7 +39,7 @@ function reduce(object: object): object {
   const reduced: Record<string, unknown> = { ...(object as Record<string, unknown>) };
   if (reduced['req'] !== undefined) reduced['req'] = requestDiagnostic(reduced['req'] as object);
   if (reduced['res'] !== undefined) reduced['res'] = responseDiagnostic(reduced['res'] as object);
-  if (reduced['err'] instanceof Error) reduced['err'] = errorDiagnostic(reduced['err']);
+  if ('err' in reduced) reduced['err'] = errorDiagnostic(reduced['err']);
   return reduced;
 }
 
@@ -36,17 +48,21 @@ function reduce(object: object): object {
 const formatLog = (object: Record<string, unknown>): Record<string, unknown> =>
   sanitize(object) as Record<string, unknown>;
 
-// Bindings are serialised by pino outside formatters.log, so they are sanitised here — for this logger
-// and for every child, including the per-request children Fastify creates.
-function harden(logger: Logger): Logger {
-  const child = logger.child.bind(logger);
-  const setBindings = logger.setBindings.bind(logger);
-  logger.child = ((bindings: Bindings, options?: Parameters<Logger['child']>[1]) =>
-    harden(
-      child(sanitize(bindings) as Bindings, options) as unknown as Logger,
-    )) as unknown as Logger['child'];
-  logger.setBindings = (bindings: Bindings) => setBindings(sanitize(bindings) as Bindings);
-  return logger;
+// Bindings are serialised by pino outside formatters.log, so they are sanitised here. The wrappers call
+// pino's ORIGINAL prototype methods with the real receiver: a pino child is created with the parent as its
+// prototype, so it inherits these unbound wrappers and each child keeps its own bindings — a wrapper bound
+// to the root would make child.setBindings() change the root and leak context between requests.
+function harden(root: Logger): Logger {
+  const proto = Object.getPrototypeOf(root) as Logger;
+  const originalChild = proto.child;
+  const originalSetBindings = proto.setBindings;
+  root.child = function child(this: Logger, bindings: Bindings, options?: object) {
+    return originalChild.call(this, sanitize(bindings) as Bindings, options);
+  } as Logger['child'];
+  root.setBindings = function setBindings(this: Logger, bindings: Bindings) {
+    originalSetBindings.call(this, sanitize(bindings) as Bindings);
+  };
+  return root;
 }
 
 /**
