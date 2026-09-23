@@ -36,7 +36,7 @@ Solo developer (Waleed) building entirely with AI agents.
 
 ADRs: `0001` domain/subdomain topology · `0002` workspace tooling baseline · `0003` auth ↔ RLS boundary ·
 `0004` test runner (Vitest) · `0005` money rounding (half away from zero) and percentage precision (4 dp) ·
-`0006` database tests on the compose Postgres, postgres.js driver, migration naming · `0007` tenant tables key on `(company_id, id)`.
+`0006` database tests on the compose Postgres, postgres.js driver, migration naming · `0007` tenant tables key on `(company_id, id)` · `0008` API stack pins, explicit `@Inject`.
 
 ## 3. How work is done here
 
@@ -114,16 +114,19 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 | T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | ✅ done | PR #15 — ADR-0006 (+ issue #16 for T5) |
 | T6a contracts | ✅ done | PR #17 |
 | Plan v4 (debate with Codex) | ✅ done | PR #18 — `DEBATE-2026-09-23.md` |
-| T5 tenancy schema + RLS suite | 🟡 **PR open** — 54 db tests, closes #16 | `packages/db` |
-| **T6b api** (next) → T7 write primitives → T7b worker + dispatcher → **T9a-1…4 → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
+| T5 tenancy schema + RLS suite | ✅ done | PR #21 — ADR-0007, closed #16 |
+| T6b `apps/api` foundation | 🟡 **PR open** | ADR-0008 |
+| **T7 write primitives** (next) → T7b worker + dispatcher → **T9a-1…4 → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
 
 **Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → T9a-1 → T9a-2 → T9a-3 → T9a-4 → T8 → T9b → T12b → T13.
 
-### 4.1 Next action — finish T5, then T6b
+### 4.1 Next action — finish T6b, then T7
 
-- T5: get the PR through Codex (CLI + GitHub) and merge it. `main` is protected: every change needs a PR and a green `ci-gate`.
-- T6b per plan v4: `apps/api` on NestJS + Fastify, error-envelope filter, `/health` + `/ready` (tested down),
-  pino + redaction list (tested), consuming `@pospay/contracts` and `@pospay/db`.
+- T6b: get the PR through Codex (CLI + GitHub) and merge it.
+- T7 per plan v4: `outbox`, `audit_log`, `idempotency_keys` (one transaction, unique-key coordination, no
+  `IN_FLIGHT`), `Clock` port, UUID v7 in `packages/ids` bound to `@pospay/db`'s `IdGenerator`.
+- Local dev database: its `0001`/`0002` tenancy migrations predate ADR-0007 and must be reset (drop + `pnpm db:migrate`
+  + `pnpm db:seed`) — ask Waleed first; it holds only the seeded plan. Tests use cloned databases and are unaffected.
 
 ### 4.2 Package facts worth knowing
 
@@ -136,6 +139,9 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 - `packages/db` exports only `createDatabase`, which returns `withTenant` / `withUser` / `withNewTenant` / `close` — the
   Drizzle client stays in a closure. Its `src/` uses `.ts` import extensions (`rewriteRelativeImportExtensions`), so
   `node scripts/migrate.ts` runs the source directly with Node 24 type stripping and `tsc` still emits `.js`.
+- `apps/api`: `createApp(deps, options)` builds the app (tests pass fakes and a log sink); `main.ts` wires the real
+  database, Redis and config. Inject with `@Inject(TOKEN)` only (ADR-0008). Errors: add a code to
+  `src/shared/errors.ts` — never inline a message. Start locally: `pnpm --filter @pospay/api build` then `start`.
 - Tenancy tests (T5): `test/tenancy-fixtures.ts` seeds two companies A/B as the owner inside a cloned test database (the
   test-only exception to ADR-0003 §5.3). `privileges.spec.ts` holds the **reviewed grant allowlist** — a new table's grants
   must be added there in the same PR, or the suite fails. `pnpm db:seed` writes the provisional plan only.

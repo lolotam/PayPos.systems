@@ -8,13 +8,14 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
     expect(Object.keys(db).sort()).toEqual(['createDatabase']);
   });
 
-  it('hands out the three wrappers and close — nothing that can run a query outside them', () => {
+  it('hands out the three wrappers, ping and close — nothing that can run a query outside them', () => {
     const database = db.createDatabase({
       url: 'postgres://nobody:unused@127.0.0.1:1/none',
       ids: { newId: () => '00000000-0000-7000-8000-000000000000' },
     });
     expect(Object.keys(database).sort()).toEqual([
       'close',
+      'ping',
       'withNewTenant',
       'withTenant',
       'withUser',
