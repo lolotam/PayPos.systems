@@ -1,11 +1,13 @@
 import { Writable } from 'node:stream';
 
 import { errorEnvelope } from '@pospay/contracts';
+import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 import { CASHIER_PIN_USE_CASES, type CashierPinUseCases } from '../http/cashier-pins.controller.ts';
 import { createRedisPinAttempts } from '../persistence/redis-pin-attempts.ts';
+import type { PinAttempts } from '../ports/cashier-pins.port.ts';
 import { CashierPinMalformedError } from '../use-cases/set-cashier-pin/set-cashier-pin.ts';
 
 // T9b-3 through the API with real Postgres and Redis: a manager sets an employee's PIN (only its hash is stored), an
@@ -96,7 +98,7 @@ const setPin = (employeeId: string, pin: string, companyId = company) =>
   pins.setCashierPin.execute({ companyId, userId: managerId, employeeId, pin });
 const pinKey = (employeeId: string, part: string) => `pin:${company}:${employeeId}:${part}`;
 const unlock = (employeeId: string) =>
-  h.redis.del(...['failures', 'pending', 'lock'].map((part) => pinKey(employeeId, part)));
+  h.redis.del(...['failures', 'reservations', 'lock'].map((part) => pinKey(employeeId, part)));
 
 describe('setting a PIN', () => {
   it('stores only a salted hash, and audits the first set and every change', async () => {
@@ -206,38 +208,77 @@ describe('lockout (PRD D-08)', () => {
   });
 });
 
-describe('the attempt counters under concurrency', () => {
-  const attempts = () => createRedisPinAttempts(h.redis);
-  const ID = '01920000-0000-7000-8000-0000000000f9';
-  const k = (part: string) => `pin:${company}:${ID}:${part}`;
+const COUNTED = '01920000-0000-7000-8000-0000000000f9';
+const target = () => ({ companyId: company, employeeId: COUNTED });
+const k = (part: string) => `pin:${company}:${COUNTED}:${part}`;
+const attempts = () => createRedisPinAttempts(h.redis, systemUuidV7());
+const reserve = async (a: PinAttempts) => {
+  const r = await a.reserve(target());
+  if (r.kind !== 'ok') throw new Error(`expected a reservation, got ${r.kind}`);
+  return r.reservation;
+};
+// A reservation whose deadline has passed, as if its request stalled for more than a minute.
+const expire = (reservation: string) => h.redis.zadd(k('reservations'), 'XX', 0, reservation);
+const reset = () => h.redis.del(k('lock'), k('reservations'), k('failures'));
 
+describe('the attempt counters under concurrency', () => {
   it('no more than five comparisons can be in flight or failed at once', async () => {
     const a = attempts();
-    for (let i = 0; i < 5; i += 1) expect(await a.reserve(company, ID)).toBe('ok');
-    expect(await a.reserve(company, ID)).toBe('busy');
-    await a.release(company, ID);
-    expect(await a.reserve(company, ID)).toBe('ok');
-    await h.redis.del(k('pending'));
+    const held = [];
+    for (let i = 0; i < 5; i += 1) held.push(await reserve(a));
+    expect((await a.reserve(target())).kind).toBe('busy');
+    await a.release(target(), held[0] ?? '');
+    expect((await a.reserve(target())).kind).toBe('ok');
+    await reset();
   });
 
-  it('a success that finishes after a lock was made does not remove it', async () => {
+  it('a success that finishes while a lock exists neither verifies nor removes it', async () => {
     const a = attempts();
-    expect(await a.reserve(company, ID)).toBe('ok');
+    const r = await reserve(a);
     await h.redis.set(k('lock'), '1', 'EX', 900);
-    await a.succeeded(company, ID);
-    expect(await a.reserve(company, ID)).toBe('locked');
-    await h.redis.del(k('lock'), k('pending'), k('failures'));
+    expect(await a.succeeded(target(), r)).toBe('locked');
+    expect((await a.reserve(target())).kind).toBe('locked');
+    await reset();
   });
 
-  it('the lock has its own 15 minutes, whatever is left of the failure window', async () => {
+  it('the lock has its own 15 minutes, and a later failure never extends it', async () => {
     const a = attempts();
     await h.redis.set(k('failures'), '4', 'EX', 1);
-    expect(await a.reserve(company, ID)).toBe('ok');
-    expect(await a.failed(company, ID)).toBe('locked');
+    expect(await a.failed(target(), await reserve(a))).toBe('locked');
     expect(await h.redis.ttl(k('lock'))).toBeGreaterThan(890);
     await new Promise((done) => setTimeout(done, 1100));
-    expect(await a.reserve(company, ID)).toBe('locked');
-    await h.redis.del(k('lock'), k('pending'), k('failures'));
+    expect((await a.reserve(target())).kind).toBe('locked');
+    await reset();
+    const inFlight = await reserve(a);
+    await h.redis.set(k('lock'), '1', 'EX', 100);
+    await h.redis.set(k('failures'), '4');
+    expect(await a.failed(target(), inFlight)).toBe('locked');
+    expect(await h.redis.ttl(k('lock'))).toBeLessThanOrEqual(100);
+    await reset();
+  });
+
+  it('an expired reservation completes as expired and changes nothing', async () => {
+    const a = attempts();
+    const stalled = await reserve(a);
+    await h.redis.set(k('failures'), '4');
+    await expire(stalled);
+    expect(await a.failed(target(), stalled)).toBe('expired');
+    expect(await a.succeeded(target(), stalled)).toBe('expired');
+    expect(await h.redis.get(k('failures'))).toBe('4');
+    expect(await h.redis.exists(k('lock'))).toBe(0);
+    await reset();
+  });
+
+  it('an abandoned reservation expires on its own, whatever traffic follows it', async () => {
+    const a = attempts();
+    const abandoned = await reserve(a);
+    await h.redis.set(k('failures'), '4');
+    expect((await a.reserve(target())).kind).toBe('busy');
+    await expire(abandoned);
+    const next = await reserve(a);
+    expect(await a.succeeded(target(), next)).toBe('ok');
+    expect(await h.redis.zcard(k('reservations'))).toBe(0);
+    await reset();
   });
 });
 

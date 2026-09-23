@@ -64,37 +64,48 @@ export interface PinHasher {
 }
 
 /**
+ * الموظف اللي بنعد محاولاته، جوه شركته.
+ */
+export interface PinTarget {
+  readonly companyId: string;
+  readonly employeeId: string;
+}
+
+/**
  * عدّادات محاولات الـ PIN لكل موظف في Redis (CLAUDE.md §8) — القفل لازم يبان لكل الـ API instances، وكل عملية ذرّية
  * عشان الطلبات اللي بتيجي مع بعض ما تعدّيش الحد ولا تمسح قفل أحدث منها.
  */
 export interface PinAttempts {
   /**
-   * بيحجز مكان لمقارنة قبل ما تبدأ: 'locked' لو مقفول، و'busy' لو الغلطات + المقارنات الشغالة وصلوا 5 — فمفيش أكتر
-   * من 5 غلطات ممكنة قبل القفل مهما جت طلبات مع بعض.
+   * بيحجز مكان لمقارنة قبل ما تبدأ، بـ id ومدة خاصة بيه: 'locked' لو مقفول، و'busy' لو الغلطات + الحجوزات الشغالة
+   * وصلوا 5 — فمفيش أكتر من 5 غلطات ممكنة قبل القفل مهما جت طلبات مع بعض.
    *
-   * @param companyId الشركة
-   * @param employeeId الموظف
+   * @param target الشركة والموظف
    */
-  reserve(companyId: string, employeeId: string): Promise<'ok' | 'locked' | 'busy'>;
+  reserve(
+    target: PinTarget,
+  ): Promise<{ kind: 'ok'; reservation: string } | { kind: 'locked' } | { kind: 'busy' }>;
   /**
-   * بيسجل غلطة ويفك الحجز؛ الغلطة الخامسة في الـ window بتعمل قفل ليه مدته الخاصة (15 دقيقة من اللحظة دي).
+   * بيسجل غلطة ويقفل الحجز؛ الغلطة الخامسة في الـ window بتعمل قفل ليه 15 دقيقة خاصة بيه، ومبتطوّلش قفل موجود.
+   * 'expired' لو الحجز خلص قبل ما المقارنة تخلص — ساعتها مفيش حاجة بتتغير.
    *
-   * @param companyId الشركة
-   * @param employeeId الموظف
+   * @param target      الشركة والموظف
+   * @param reservation الحجز اللي reserve رجّعه
    */
-  failed(companyId: string, employeeId: string): Promise<'failed' | 'locked'>;
+  failed(target: PinTarget, reservation: string): Promise<'failed' | 'locked' | 'expired'>;
   /**
-   * بيفك الحجز ويمسح الغلطات بعد PIN صح — إلا لو فيه قفل اتعمل بعد ما المقارنة دي بدأت، ساعتها بيفضل.
+   * بيقفل الحجز ويمسح الغلطات بعد PIN صح. 'locked' لو فيه قفل دلوقتي — PIN صح ما ينفعش وهو مقفول — و'expired' لو
+   * الحجز خلص؛ في الحالتين الـ PIN ما بيتحسبش.
    *
-   * @param companyId الشركة
-   * @param employeeId الموظف
+   * @param target      الشركة والموظف
+   * @param reservation الحجز اللي reserve رجّعه
    */
-  succeeded(companyId: string, employeeId: string): Promise<void>;
+  succeeded(target: PinTarget, reservation: string): Promise<'ok' | 'locked' | 'expired'>;
   /**
-   * بيفك الحجز من غير ما يعد غلطة — لما المقارنة ما كملتش بسبب خطأ مش بسبب PIN.
+   * بيقفل الحجز من غير ما يعد غلطة — لما المقارنة ما كملتش بسبب خطأ مش بسبب PIN.
    *
-   * @param companyId الشركة
-   * @param employeeId الموظف
+   * @param target      الشركة والموظف
+   * @param reservation الحجز اللي reserve رجّعه
    */
-  release(companyId: string, employeeId: string): Promise<void>;
+  release(target: PinTarget, reservation: string): Promise<void>;
 }

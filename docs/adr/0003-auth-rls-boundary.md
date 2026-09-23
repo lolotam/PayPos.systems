@@ -286,10 +286,12 @@ So a business-wide ALLOW with a DENY on branch 3 permits branches 1, 2, 4 and re
 iterations, 16-byte salt), made and checked only in `packages/auth`. PBKDF2-SHA256 is chosen over scrypt/argon2
 because WebCrypto has it, so the POS can check the same hash offline (P2-T9); the iteration count lives in the hash,
 so it can change without breaking old ones. A four-digit PIN has 10 000 values, so the hash's slowness is not the
-defence — the Redis lockout is. Three keys per employee, changed only by atomic scripts: failures (a 15-minute window
-from the first), comparisons in flight, and the lock. A comparison is reserved before it starts and refused (429) while
-failures plus comparisons in flight reach five, so no burst can make a sixth failure possible; the fifth failure sets
-the lock with its own 15 minutes, whatever remains of the window, and a success that finishes later never clears a lock.
+defence — the Redis lockout is. Three keys per employee, changed only by atomic scripts on Redis's clock: failures (a
+15-minute window from the first), reservations (one per comparison in flight, each with its own one-minute deadline),
+and the lock. A comparison is reserved before it starts and refused (429) while failures plus live reservations reach
+five, so no burst can make a sixth failure possible. A comparison that outlives its reservation changes nothing and
+verifies nothing; a crashed one frees its slot on its own deadline, whatever traffic follows. The fifth failure sets
+the lock with its own 15 minutes, never extending one that exists, and no PIN verifies while a lock exists.
 An unknown employee is compared against a precomputed placeholder hash and counted like a wrong PIN, so neither the
 answer nor the time tells who has a PIN. Hashes that reach a device offline
 are brute-forceable there; that is accepted and bounded by device approval and revocation, and revisited with the

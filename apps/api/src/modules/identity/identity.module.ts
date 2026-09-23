@@ -110,7 +110,7 @@ function cashierPinUseCases(
     verifyCashierPin: new VerifyCashierPin(
       transactions,
       authPinHasher,
-      createRedisPinAttempts(redis),
+      createRedisPinAttempts(redis, ids),
     ),
   };
 }

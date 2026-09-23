@@ -602,8 +602,9 @@ only — no route until staff, so only fixtures get a PIN) stores a salted PBKDF
 and audits `cashier_pin.set` / `cashier_pin.changed`. `POST /v1/devices/me/cashier-pin/verify` answers an approved
 device only (a user session is 403) with the employee id; a wrong PIN and an unknown employee are the same 401
 `PIN_INVALID`, and another company's PIN is invisible under RLS. D-08 in Redis, by atomic scripts: a comparison is
-reserved before it starts and refused (429) while failures plus comparisons in flight reach five, so a burst can never
-make more than five failures; the fifth failure sets a lock with its own 15 minutes (423 `PIN_LOCKED`, even for the
+reserved before it starts (each reservation expiring on its own after a minute) and refused (429) while failures plus
+live reservations reach five, so a burst can never make more than five failures, and a stalled comparison that outlives
+its reservation changes nothing; the fifth failure sets a lock with its own 15 minutes (423 `PIN_LOCKED`, even for the
 right PIN), audited `cashier_pin.locked`; the right PIN clears earlier failures but never a newer lock. The PIN never reaches a
 log line (tested). A test proves an ended membership is refused on the very next request. Still open: the principal
 taking the employee's memberships after a PIN (with the operator credential, P2-T9) and the device pulling PIN hashes

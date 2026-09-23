@@ -29,7 +29,7 @@ export class VerifyCashierPin {
    * @param command.companyId  the device's company
    * @param command.employeeId the employee claiming the till
    * @param command.pin        the PIN as typed
-   * @returns verified with the employee, refused, locked, or busy while five comparisons are already in flight
+   * @returns verified with the employee, refused, locked, or busy (five comparisons in flight, or this one expired)
    */
   async execute(command: {
     companyId: string;
@@ -37,8 +37,9 @@ export class VerifyCashierPin {
     pin: string;
   }): Promise<PinOutcome> {
     const { companyId, employeeId } = command;
-    const reserved = await this.#attempts.reserve(companyId, employeeId);
-    if (reserved !== 'ok') return { kind: reserved };
+    const target = { companyId, employeeId };
+    const reserved = await this.#attempts.reserve(target);
+    if (reserved.kind !== 'ok') return { kind: reserved.kind };
     let matches: boolean;
     try {
       const stored = await this.#transactions.run(companyId, null, (scope) =>
@@ -46,16 +47,18 @@ export class VerifyCashierPin {
       );
       matches = await this.#hasher.verify(command.pin, stored);
     } catch (error) {
-      await this.#attempts.release(companyId, employeeId);
+      await this.#attempts.release(target, reserved.reservation);
       throw error;
     }
+    // A comparison that outlived its reservation no longer counts either way — the caller tries again.
     if (matches) {
-      await this.#attempts.succeeded(companyId, employeeId);
-      return { kind: 'verified', employeeId };
+      const done = await this.#attempts.succeeded(target, reserved.reservation);
+      if (done === 'ok') return { kind: 'verified', employeeId };
+      return { kind: done === 'locked' ? 'locked' : 'busy' };
     }
-    if ((await this.#attempts.failed(companyId, employeeId)) === 'failed') {
-      return { kind: 'refused' };
-    }
+    const failed = await this.#attempts.failed(target, reserved.reservation);
+    if (failed === 'failed') return { kind: 'refused' };
+    if (failed === 'expired') return { kind: 'busy' };
     await this.#transactions.run(companyId, null, (scope) =>
       scope.audit.record({
         entity: 'cashier_pin',
