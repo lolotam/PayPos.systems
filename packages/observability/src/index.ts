@@ -8,3 +8,10 @@ export {
 export { maskPhone, REDACTED, redactSecrets, sanitize } from './redaction.ts';
 export { errorDiagnostic, requestDiagnostic, responseDiagnostic } from './serializers.ts';
 export type { DestinationStream, Logger } from 'pino';
+export {
+  enterRequestContext,
+  requestContextFields,
+  updateRequestContext,
+  withRequestContext,
+  type RequestContext,
+} from './request-context.ts';

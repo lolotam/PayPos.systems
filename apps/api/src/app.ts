@@ -13,7 +13,13 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import type { AuthService } from '@pospay/auth';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
-import { createLogger, type Logger } from '@pospay/observability';
+import {
+  createLogger,
+  enterRequestContext,
+  withRequestContext,
+  type Logger,
+  type RequestContext,
+} from '@pospay/observability';
 import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import {
@@ -55,6 +61,7 @@ export interface AppOptions {
 }
 
 const SHUTDOWN = Symbol('SHUTDOWN');
+const REQUEST_ID = /^[A-Za-z0-9._-]{8,128}$/;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 // A lifecycle provider, so cleanup runs through Nest's own shutdown path — the one SIGTERM triggers —
@@ -106,8 +113,68 @@ function enableCors(app: NestFastifyApplication, corsOrigins: readonly string[])
     origin: [...corsOrigins],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['content-type', 'idempotency-key', COMPANY_HEADER],
+    allowedHeaders: ['content-type', 'idempotency-key', 'x-request-id', COMPANY_HEADER],
+    // The admin app reads the id back to quote it in a support request.
+    exposedHeaders: ['x-request-id'],
     maxAge: 600,
+  });
+}
+
+// Each request's own log context, looked up by the request so a callback running elsewhere can restore it.
+const contexts = new WeakMap<FastifyRequest, RequestContext>();
+
+// One line per request with safe, structural fields only: the route PATTERN, never the raw URL, whose path segments
+// and query string can carry tokens or phone numbers.
+function logCompleted(request: FastifyRequest, reply: FastifyReply): void {
+  const write = () =>
+    request.log.info(
+      {
+        http: {
+          method: request.method,
+          route: request.routeOptions.url ?? '[unmatched]',
+          status: reply.statusCode,
+          ms: Math.round(reply.elapsedTime),
+        },
+      },
+      'request completed',
+    );
+  const context = contexts.get(request);
+  if (context === undefined) write();
+  else withRequestContext(context, write);
+}
+
+// Fastify with the shared sanitising logger, request ids, and the envelope for errors Fastify raises itself.
+function buildAdapter(logger: Logger, ids: IdGenerator): FastifyAdapter {
+  return new FastifyAdapter({
+    loggerInstance: logger,
+    // A caller's X-Request-Id is kept when it is a plain token (so a trace spans the admin app and the API);
+    // anything else — too long, or with characters that could forge a log line — is replaced with a UUID v7.
+    genReqId: (request: { headers: Record<string, string | string[] | undefined> }) => {
+      const given = request.headers['x-request-id'];
+      return typeof given === 'string' && REQUEST_ID.test(given) ? given : ids.newId();
+    },
+    bodyLimit: 1_048_576,
+    // Fastify's own request log serialises the raw URL; we log one safe line per request instead (below).
+    // Its per-request error lines go too — the envelope filter logs unhandled errors through the sanitiser.
+    logController: new LogController({ disableRequestLogging: true }),
+    // A malformed URL (e.g. `/%ZZ`) is rejected by Fastify's router before Nest runs; answer with the
+    // envelope instead of Fastify's default body, which echoes the malformed input.
+    frameworkErrors: (error: unknown, request: FastifyRequest, reply: FastifyReply) => {
+      const status = (error as { statusCode?: unknown }).statusCode;
+      // A catalogued Fastify status keeps its code (413, 414, 415…); another 4xx is BAD_REQUEST; a
+      // server-side failure stays a 500. A missing status (a malformed URL) is a bad request.
+      const apiError = new ApiError(
+        typeof status === 'number' ? codeForStatus(status) : 'BAD_REQUEST',
+      );
+      // The router rejected this request before any hook ran: give it its id and its log lines here.
+      const context = enterRequestContext(request.id);
+      contexts.set(request, context);
+      void reply.header('x-request-id', request.id);
+      // Fastify's own error logging is off, so a framework-side failure is logged here (type/code only).
+      if (apiError.code === 'INTERNAL_ERROR') request.log.error({ err: error }, 'unhandled error');
+      void reply.code(apiError.status).send(apiError.toEnvelope());
+      logCompleted(request, reply);
+    },
   });
 }
 
@@ -132,46 +199,22 @@ export async function createApp(
     ...(options.controllers ?? []),
   ];
   assertEveryRouteGuarded(controllers);
-  const adapter = new FastifyAdapter({
-    loggerInstance: logger,
-    bodyLimit: 1_048_576,
-    // Fastify's own request log serialises the raw URL; we log one safe line per request instead (below).
-    // Its per-request error lines go too — the envelope filter logs unhandled errors through the sanitiser.
-    logController: new LogController({ disableRequestLogging: true }),
-    // A malformed URL (e.g. `/%ZZ`) is rejected by Fastify's router before Nest runs; answer with the
-    // envelope instead of Fastify's default body, which echoes the malformed input.
-    frameworkErrors: (error: unknown, request: FastifyRequest, reply: FastifyReply) => {
-      const status = (error as { statusCode?: unknown }).statusCode;
-      // A catalogued Fastify status keeps its code (413, 414, 415…); another 4xx is BAD_REQUEST; a
-      // server-side failure stays a 500. A missing status (a malformed URL) is a bad request.
-      const apiError = new ApiError(
-        typeof status === 'number' ? codeForStatus(status) : 'BAD_REQUEST',
-      );
-      // Fastify's own error logging is off, so a framework-side failure is logged here (type/code only).
-      if (apiError.code === 'INTERNAL_ERROR') request.log.error({ err: error }, 'unhandled error');
-      void reply.code(apiError.status).send(apiError.toEnvelope());
-    },
-  });
-  // One line per request with safe, structural fields only: the route PATTERN, never the raw URL, whose
-  // path segments and query string can carry tokens or phone numbers.
+  const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7());
   if (deps.auth !== undefined) {
     mountAuthRoutes(adapter.getInstance(), deps.auth.service, {
       baseURL: deps.auth.baseURL,
       logger,
     });
   }
+  // Every log line of the request carries its id; the guards add the verified user and company (T11). The context
+  // is kept on the request: with HTTP pipelining, Node flushes a finished response from ANOTHER request's
+  // completion, so onResponse must log inside this request's own context, never whatever is current.
+  adapter.getInstance().addHook('onRequest', async (request, reply) => {
+    contexts.set(request, enterRequestContext(request.id));
+    void reply.header('x-request-id', request.id);
+  });
   adapter.getInstance().addHook('onResponse', async (request, reply) => {
-    request.log.info(
-      {
-        http: {
-          method: request.method,
-          route: request.routeOptions.url ?? '[unmatched]',
-          status: reply.statusCode,
-          ms: Math.round(reply.elapsedTime),
-        },
-      },
-      'request completed',
-    );
+    logCompleted(request, reply);
   });
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule.forRoot(deps, controllers),

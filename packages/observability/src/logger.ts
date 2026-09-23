@@ -1,6 +1,7 @@
 import pino, { type Bindings, type DestinationStream, type Logger, type LoggerOptions } from 'pino';
 
 import { sanitize } from './redaction.ts';
+import { requestContextFields } from './request-context.ts';
 import { errorDiagnostic, requestDiagnostic, responseDiagnostic } from './serializers.ts';
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
@@ -88,6 +89,8 @@ export function loggerOptions(level: LogLevel, events: Iterable<string> = []): L
     base: null,
     timestamp: () => `,"time":"${new Date().toISOString()}"`,
     formatters: { log: formatLog },
+    // request_id, company_id, branch_id, user_id on every line of a request (CLAUDE.md §8).
+    mixin: () => requestContextFields(),
     hooks: {
       logMethod(args, method) {
         method.apply(this, normalizeArgs(args) as Parameters<typeof method>);

@@ -1,6 +1,7 @@
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { resolveUserPrincipal, type AuthService, type Principal } from '@pospay/auth';
+import { updateRequestContext } from '@pospay/observability';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { ApiError } from './errors.ts';
@@ -53,6 +54,8 @@ export class SessionGuard implements CanActivate {
       void http.getResponse<FastifyReply>().header('set-cookie', [...resolved.setCookies]);
     }
     request.principal = resolved.principal;
+    if (resolved.principal.userId !== null)
+      updateRequestContext({ userId: resolved.principal.userId });
     request.companyHint = resolved.companyHint;
     return true;
   }

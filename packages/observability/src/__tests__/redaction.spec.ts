@@ -123,3 +123,26 @@ describe('redactSecrets — for kept business records', () => {
     });
   });
 });
+
+describe('code-named secrets (T11)', () => {
+  it('redacts a PIN, OTP or pass code under a *_code key, but keeps error and status codes', () => {
+    const redacted = redactSecrets({
+      pin_code: '4821',
+      passCode: '4821',
+      otp_code: '4821',
+      security_code: '4821',
+      verificationCode: '4821',
+      error_code: 'E42',
+      status_code: 201,
+    });
+    expect(redacted).toEqual({
+      pin_code: REDACTED,
+      passCode: REDACTED,
+      otp_code: REDACTED,
+      security_code: REDACTED,
+      verificationCode: REDACTED,
+      error_code: 'E42',
+      status_code: 201,
+    });
+  });
+});

@@ -1,5 +1,6 @@
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { updateRequestContext } from '@pospay/observability';
 import type { FastifyRequest } from 'fastify';
 
 import { ApiError } from '../../../shared/errors.ts';
@@ -80,6 +81,12 @@ export class AccessGuard implements CanActivate {
         : { branchParam: params[required.target.branch] ?? null }),
     });
     if (authorized === null) throw new ApiError('FORBIDDEN');
+    const branch =
+      required.target.branch === undefined ? undefined : params[required.target.branch];
+    updateRequestContext({
+      companyId: authorized.companyId,
+      ...(typeof branch === 'string' ? { branchId: branch.toLowerCase() } : {}),
+    });
     request.principal = {
       ...principal,
       companyId: authorized.companyId,

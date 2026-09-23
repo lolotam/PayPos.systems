@@ -10,7 +10,7 @@ import {
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { systemUuidV7 } from '@pospay/ids';
-import { createLogger } from '@pospay/observability';
+import { createLogger, type DestinationStream } from '@pospay/observability';
 import postgres from 'postgres';
 
 import { grantPlatformPermission } from '../../../../../../packages/db/src/platform-grants.ts';
@@ -141,9 +141,11 @@ function operatorMaker(
 }
 
 /**
+ * @param options where the API's log lines go (default: nowhere)
+ * @param options.logs a destination stream for the API's logger
  * @returns a started API, its database, and helpers that go through the real HTTP paths
  */
-export async function startHarness(): Promise<Harness> {
+export async function startHarness(options: { logs?: DestinationStream } = {}): Promise<Harness> {
   const testDb: TestDatabase = await createTestDatabase();
   await seedReferenceData(testDb.ownerUrl);
   const ids = systemUuidV7();
@@ -166,7 +168,12 @@ export async function startHarness(): Promise<Harness> {
       database: spied(database, calls),
       ids,
     },
-    { logger: createLogger('silent') },
+    {
+      logger:
+        options.logs === undefined
+          ? createLogger('silent')
+          : createLogger('info', { destination: options.logs }),
+    },
   );
   const send = sender(app);
   const operator = operatorMaker(app, auth, testDb.ownerUrl, ids);

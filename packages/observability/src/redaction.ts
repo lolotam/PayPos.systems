@@ -17,6 +17,12 @@ const SECRET_SUFFIXES = [
   'authorization',
   'pin',
   'otp',
+  // "code" alone is not a secret (error_code, status_code); a PIN, OTP or pass code under a code-named key is
+  'pincode',
+  'passcode',
+  'otpcode',
+  'securitycode',
+  'verificationcode',
   'cvv',
   // a hash of a secret (pin_hash, token_hash, password_hash) is still sensitive
   'hash',
