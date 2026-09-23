@@ -5,6 +5,7 @@ export {
   createOutboxDispatcherDatabase,
   type ClaimedEvent,
   type DeliveryOutcome,
+  type DispatchOptions,
   type OutboxDispatcherDatabase,
 } from './dispatcher.ts';
 export {
@@ -16,4 +17,4 @@ export {
   type StoredResponse,
 } from './idempotency.ts';
 export { appendOutboxEvent, type OutboxEvent } from './outbox.ts';
-export type { IdGenerator, TenantWrappers, Tx } from './with-tenant.ts';
+export type { IdGenerator, TenantOptions, TenantWrappers, Tx } from './with-tenant.ts';

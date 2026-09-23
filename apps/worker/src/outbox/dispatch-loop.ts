@@ -1,6 +1,8 @@
 import type { ClaimedEvent, DeliveryOutcome, OutboxDispatcherDatabase } from '@pospay/db';
 import type { Logger } from '@pospay/observability';
 
+import { MAX_ATTEMPTS } from './retry-policy.ts';
+
 export interface DispatchLoopOptions {
   readonly dispatcher: Pick<
     OutboxDispatcherDatabase,
@@ -43,13 +45,24 @@ export function createDispatchLoop(options: DispatchLoopOptions): {
     logger.info({ swept }, 'idempotency keys swept');
   };
 
+  // An event whose every claim crashed is parked by the claim itself; it is logged here like any other park.
+  const dispatchOptions = {
+    maxAttempts: MAX_ATTEMPTS,
+    onExhausted: (events: readonly ClaimedEvent[]) => {
+      for (const event of events) {
+        const fields = { id: event.id, type: event.eventType, companyId: event.companyId };
+        logger.error({ event: fields, attempt: event.attempt }, 'outbox event parked');
+      }
+    },
+  };
+
   const tick = async (): Promise<void> => {
     try {
       // A full batch means more may be waiting; a short one means the outbox is drained for now. The sweep
       // is checked between batches too, so a sustained backlog cannot postpone it forever.
       let full = true;
       while (!stopped && full) {
-        full = (await dispatcher.dispatchBatch(batchSize, deliver)) === batchSize;
+        full = (await dispatcher.dispatchBatch(batchSize, deliver, dispatchOptions)) === batchSize;
         await sweepIfDue();
       }
     } catch (error) {

@@ -14,19 +14,35 @@ export interface IdGenerator {
 }
 
 /**
+ * إعدادات اختيارية لـ withTenant.
+ */
+export interface TenantOptions {
+  /** المستخدم اللي بيعمل التغيير (app.user_id). */
+  readonly userId?: string;
+  /**
+   * أقصى عمر للشغل ده: الـ server بيلغي أي statement أطول، وبيقفل الـ transaction لو فضلت واقفة من غير
+   * statement أطول من كده — فشغل واقف ميمسكش connection من الـ pool ولا يعمل commit متأخر.
+   */
+  readonly timeoutMs?: number;
+}
+
+/**
  * نقط الدخول التلاتة للداتابيز (ADR-0003 §3) — كلها transaction-local.
  */
 export interface TenantWrappers {
-  withTenant<T>(
-    companyId: string,
-    fn: (tx: Tx) => Promise<T>,
-    options?: { userId?: string },
-  ): Promise<T>;
+  withTenant<T>(companyId: string, fn: (tx: Tx) => Promise<T>, options?: TenantOptions): Promise<T>;
   withUser<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T>;
   withNewTenant<T>(userId: string, fn: (tx: Tx, companyId: string) => Promise<T>): Promise<T>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const validTimeout = (timeoutMs: number | undefined): number | undefined => {
+  if (timeoutMs !== undefined && (!Number.isInteger(timeoutMs) || timeoutMs < 1)) {
+    throw new TypeError('timeoutMs must be a whole number of milliseconds > 0');
+  }
+  return timeoutMs;
+};
 
 // id غلط لازم يقع هنا برسالة واضحة، مش جوه policy كـ 22P02 من غير ما نعرف مين بعته.
 export function assertUuid(value: string, name: string): string {
@@ -49,11 +65,23 @@ export function createTenantWrappers(db: PostgresJsDatabase, ids: IdGenerator): 
   // superuser أو BYPASSRLS بيتجاهل الـ RLS كله، فـ DATABASE_URL غلط كان هيشيل العزل بين الشركات
   // من غير أي خطأ. الفحص في نفس الـ statement اللي بيحط الـ context، فمفيش round-trip زيادة،
   // وبيتكرر في كل transaction عشان يغطي أي reconnect.
-  const run = <T>(companyId: string, userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> =>
+  // timeoutMs: statement_timeout يلغي الـ statement الطويل، و idle_in_transaction_session_timeout يقفل الـ session
+  // لو الـ transaction فضلت مستنية كود JavaScript واقف — الاتنين على الـ server، فبيشتغلوا حتى لو الكود علّق.
+  const limits = (timeoutMs: number | undefined) =>
+    timeoutMs === undefined
+      ? sql``
+      : sql`, set_config('statement_timeout', ${`${timeoutMs}ms`}, true),
+             set_config('idle_in_transaction_session_timeout', ${`${timeoutMs}ms`}, true)`;
+  const run = <T>(
+    companyId: string,
+    userId: string,
+    fn: (tx: Tx) => Promise<T>,
+    timeoutMs?: number,
+  ): Promise<T> =>
     db.transaction(async (tx) => {
       const [row] = await tx.execute<{ privileged: boolean }>(
         sql`SELECT set_config('app.company_id', ${companyId}, true),
-                   set_config('app.user_id', ${userId}, true),
+                   set_config('app.user_id', ${userId}, true)${limits(timeoutMs)},
                    (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) AS privileged`,
       );
       if (row?.privileged !== false) {
@@ -71,6 +99,7 @@ export function createTenantWrappers(db: PostgresJsDatabase, ids: IdGenerator): 
         assertUuid(companyId, 'companyId'),
         options.userId === undefined ? '' : assertUuid(options.userId, 'userId'),
         fn,
+        validTimeout(options.timeoutMs),
       ),
     withUser: async (userId, fn) => run('', assertUuid(userId, 'userId'), fn),
     withNewTenant: async (userId, fn) => {

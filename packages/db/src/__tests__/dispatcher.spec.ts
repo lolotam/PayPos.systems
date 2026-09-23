@@ -283,3 +283,54 @@ describe('slow deliveries', () => {
     expect(row).toEqual({ backs_off: true });
   });
 });
+
+describe('stale outcomes and exhausted leases', () => {
+  it('an outcome from a claim whose lease was taken over cannot undo the newer decision', async () => {
+    const id = await publish(TENANT.A.company, nextId());
+    let release!: () => void;
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    const stale = dispatcher.dispatchBatch(
+      50,
+      async (event) => {
+        if (event.id === id) await gate;
+        return { delivered: false, error: 'Error', retryInMs: 0 };
+      },
+      { leaseMs: 100 },
+    );
+    await new Promise((done) => setTimeout(done, 250));
+    await dispatcher.dispatchBatch(50, async (event) =>
+      event.id === id ? { delivered: false, error: 'Error', retryInMs: null } : delivered()(event),
+    );
+    release();
+    await stale;
+    expect(await state(id)).toMatchObject({ published: false, parked: true, attempts: 2 });
+  });
+
+  it('parks an event whose every claim crashed, once its attempts are used up, and reports it', async () => {
+    const id = await publish(TENANT.A.company, nextId());
+    const crash = async (event: ClaimedEvent): Promise<DeliveryOutcome> => {
+      if (event.id === id) throw new Error('worker died');
+      return delivered()(event);
+    };
+    for (let claim = 1; claim <= 3; claim += 1) {
+      await dispatcher
+        .dispatchBatch(50, crash, { leaseMs: 20, maxAttempts: 3 })
+        .catch(() => undefined);
+      await new Promise((done) => setTimeout(done, 50));
+    }
+    const reported: string[] = [];
+    await dispatcher.dispatchBatch(50, delivered(), {
+      maxAttempts: 3,
+      onExhausted: (events) => reported.push(...events.map((event) => event.id)),
+    });
+    expect(reported).toEqual([id]);
+    expect(await state(id)).toMatchObject({
+      published: false,
+      parked: true,
+      attempts: 3,
+      last_error: 'LeaseExpired',
+    });
+  });
+});

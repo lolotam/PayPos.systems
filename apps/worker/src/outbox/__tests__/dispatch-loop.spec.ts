@@ -1,7 +1,21 @@
+import { Writable } from 'node:stream';
+
 import { createLogger } from '@pospay/observability';
 import { describe, expect, it } from 'vitest';
 
+import { WORKER_LOG_EVENTS } from '../../shared/log-events.ts';
 import { createDispatchLoop } from '../dispatch-loop.ts';
+import { MAX_ATTEMPTS } from '../retry-policy.ts';
+
+const EXHAUSTED = {
+  companyId: '01990000-0000-7000-8000-0000000000a0',
+  id: '01990000-0000-7000-8000-000000000009',
+  aggregateType: 'business',
+  aggregateId: '01990000-0000-7000-8000-0000000000a1',
+  eventType: 'BusinessCreated',
+  payload: {},
+  attempt: MAX_ATTEMPTS,
+};
 
 const logger = createLogger('silent');
 const deliver = async () => ({ delivered: true }) as const;
@@ -131,5 +145,39 @@ describe('a sustained backlog', () => {
     await until(() => sweeps >= 2);
     await loop.stop();
     expect(sweeps).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('events whose every claim crashed', () => {
+  it('are logged at error level when the claim parks them', async () => {
+    let logs = '';
+    const sink = new Writable({
+      write(chunk, _encoding, done) {
+        logs += String(chunk);
+        done();
+      },
+    });
+    const loop = createDispatchLoop({
+      dispatcher: {
+        dispatchBatch: async (_limit, _deliver, options) => {
+          expect(options?.maxAttempts).toBe(MAX_ATTEMPTS);
+          options?.onExhausted?.([{ ...EXHAUSTED }]);
+          return 0;
+        },
+        sweepExpiredIdempotencyKeys: async () => 0,
+      },
+      deliver,
+      logger: createLogger('info', { destination: sink, events: WORKER_LOG_EVENTS }),
+      pollIntervalMs: 1,
+    });
+    loop.start();
+    await until(() => logs.includes('outbox event parked'));
+    await loop.stop();
+    const [firstLine = ''] = logs.split(/\r?\n/);
+    expect(JSON.parse(firstLine)).toMatchObject({
+      level: 50,
+      msg: 'outbox event parked',
+      attempt: MAX_ATTEMPTS,
+    });
   });
 });

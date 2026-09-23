@@ -31,11 +31,23 @@ export interface OutboxDispatcherDatabase {
   dispatchBatch(
     limit: number,
     deliver: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
-    options?: { leaseMs?: number },
+    options?: DispatchOptions,
   ): Promise<number>;
   sweepExpiredIdempotencyKeys(batchSize: number): Promise<number>;
   ping(): Promise<void>;
   close(): Promise<void>;
+}
+
+/**
+ * إعدادات الـ batch: مدة الحجز، وأقصى عدد محاولات، ومين يتبلّغ لما event يقف لأن محاولاته خلصت وهو محجوز.
+ */
+export interface DispatchOptions {
+  /** مدة حجز الـ event للتوصيل؛ الافتراضي 5 دقايق. */
+  readonly leaseMs?: number;
+  /** بعد العدد ده من المحاولات، event حجزه خلص من غير نتيجة (crash) بيقف parked بدل ما يتاخد تاني. */
+  readonly maxAttempts?: number;
+  /** بيتنادى بالـ events اللي وقفت كده، عشان الـ worker يسجّل error log. */
+  readonly onExhausted?: (events: readonly ClaimedEvent[]) => void;
 }
 
 interface Row extends Record<string, unknown> {
@@ -50,6 +62,16 @@ interface Row extends Record<string, unknown> {
 
 const MAX_BATCH = 100;
 const DEFAULT_LEASE_MS = 5 * 60 * 1000;
+const DEFAULT_MAX_ATTEMPTS = 10;
+const RETURNING = sql`o.company_id, o.id, o.aggregate_type, o.aggregate_id, o.event_type, o.payload, o.attempts`;
+
+// event محاولاته خلصت وحجزه انتهى من غير نتيجة: الـ worker وقع في كل مرة قبل ما يسجّل، فمحدش هيعمل له park.
+// بيقف هنا في نفس transaction الـ claim، وبيفضل ماسك الـ aggregate زي أي event parked.
+const exhaustQuery = (maxAttempts: number) => sql`
+  UPDATE outbox o SET parked_at = clock_timestamp(), last_error = 'LeaseExpired'
+  WHERE o.published_at IS NULL AND o.parked_at IS NULL AND o.next_attempt_at <= clock_timestamp()
+    AND o.attempts >= ${maxAttempts}
+  RETURNING ${RETURNING}`;
 
 // الـ claim بيتعمل commit على طول، مش بيفضل مفتوح طول التوصيل: consumer واقف كان هيمنع الـ batch يسجّل أي نتيجة،
 // والمحاولة مكانتش هتتعد فمكانش هيوصل لحد الـ parking أبداً. فالـ claim بيعد المحاولة ويحجز الـ event لمدة lease
@@ -72,19 +94,22 @@ const claimQuery = (limit: number, leaseMs: number) => sql`
       next_attempt_at = clock_timestamp() + ${`${leaseMs} milliseconds`}::interval
   FROM heads h
   WHERE o.company_id = h.company_id AND o.id = h.id
-  RETURNING o.company_id, o.id, o.aggregate_type, o.aggregate_id, o.event_type, o.payload, o.attempts`;
+  RETURNING ${RETURNING}`;
 
-// clock_timestamp(): وقت التسجيل الفعلي، فالـ backoff بيبدأ من لحظة الفشل. published_at IS NULL: لو الـ lease خلص
-// و dispatcher تاني وصّل الـ event، نتيجة متأخرة من الأول متلغيش النشر.
-const recordQuery = (event: ClaimedEvent, outcome: DeliveryOutcome) =>
-  outcome.delivered
-    ? sql`UPDATE outbox SET published_at = clock_timestamp(), last_error = NULL
-          WHERE company_id = ${event.companyId} AND id = ${event.id} AND published_at IS NULL`
+// clock_timestamp(): وقت التسجيل الفعلي، فالـ backoff بيبدأ من لحظة الفشل. النتيجة بتتسجل بس لو الـ claim ده
+// لسه هو الأخير (attempts = رقم المحاولة) والـ event لسه مفتوح: لو الحجز خلص و dispatcher تاني خده، نتيجة متأخرة
+// من الأول متلغيش نشره ولا الـ park بتاعه ولا تقصّر حجزه.
+const recordQuery = (event: ClaimedEvent, outcome: DeliveryOutcome) => {
+  const fence = sql`company_id = ${event.companyId} AND id = ${event.id} AND attempts = ${event.attempt}
+                    AND published_at IS NULL AND parked_at IS NULL`;
+  return outcome.delivered
+    ? sql`UPDATE outbox SET published_at = clock_timestamp(), last_error = NULL WHERE ${fence}`
     : sql`UPDATE outbox
           SET last_error = ${outcome.error.slice(0, 500)},
               next_attempt_at = clock_timestamp() + ${`${outcome.retryInMs ?? 0} milliseconds`}::interval,
               parked_at = ${outcome.retryInMs === null ? sql`clock_timestamp()` : sql`NULL`}
-          WHERE company_id = ${event.companyId} AND id = ${event.id} AND published_at IS NULL`;
+          WHERE ${fence}`;
+};
 
 const toEvent = (row: Row): ClaimedEvent => ({
   companyId: row.company_id,
@@ -96,11 +121,14 @@ const toEvent = (row: Row): ClaimedEvent => ({
   attempt: row.attempts,
 });
 
-const validate = (limit: number, leaseMs: number): void => {
+const validate = (limit: number, leaseMs: number, maxAttempts: number): void => {
   if (!Number.isInteger(limit) || limit < 1 || limit > MAX_BATCH) {
     throw new TypeError(`limit must be 1–${MAX_BATCH}`);
   }
   if (!Number.isInteger(leaseMs) || leaseMs < 1) throw new TypeError('leaseMs must be > 0');
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+    throw new TypeError('maxAttempts must be > 0');
+  }
 };
 
 /**
@@ -134,11 +162,14 @@ export function createOutboxDispatcherDatabase(options: {
   return {
     dispatchBatch: async (limit, deliver, dispatchOptions = {}) => {
       const leaseMs = dispatchOptions.leaseMs ?? DEFAULT_LEASE_MS;
-      validate(limit, leaseMs);
-      const rows = await db.transaction(async (tx) => {
+      const maxAttempts = dispatchOptions.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+      validate(limit, leaseMs, maxAttempts);
+      const [exhausted, rows] = await db.transaction(async (tx) => {
         await assertRole(tx);
-        return tx.execute<Row>(claimQuery(limit, leaseMs));
+        const parked = await tx.execute<Row>(exhaustQuery(maxAttempts));
+        return [parked, await tx.execute<Row>(claimQuery(limit, leaseMs))] as const;
       });
+      if (exhausted.length > 0) dispatchOptions.onExhausted?.(exhausted.map(toEvent));
       const events = rows.map(toEvent);
       // One event per aggregate per batch, so deliveries run side by side. `deliver` reports a consumer's
       // failure as an outcome; a throw means the dispatcher itself failed (a crash): that event stays leased

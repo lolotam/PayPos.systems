@@ -9,6 +9,8 @@ import { errorDiagnostic, type Logger } from '@pospay/observability';
 import type { OutboxConsumer } from './consumer.ts';
 import { retryDelayMs } from './retry-policy.ts';
 
+const GRACE_MS = 1_000;
+
 // Named TimeoutError, a name the log diagnostics already recognise, so last_error says what happened.
 const deliveryTimeout = (): Error =>
   Object.assign(new Error('delivery timed out'), { name: 'TimeoutError' });
@@ -19,8 +21,10 @@ const deliveryTimeout = (): Error =>
  * which the dispatcher reserves for its own crash. Consumers that already succeeded are skipped on the
  * retry by their dedupe rows.
  *
- * A delivery that exceeds `timeoutMs` counts as a failed attempt. Its consumer transaction may still commit
- * later; the dedupe row keeps the retry from applying it twice.
+ * A delivery gets `timeoutMs` in total. Each consumer transaction runs with the time left as a server-side limit
+ * (withTenant timeoutMs), so a slow statement is cancelled and a stalled transaction is closed without committing;
+ * no consumer starts once the time is up, and the attempt counts as failed. Consumers do database work only
+ * (plan v4 T7b): a handler awaiting something else cannot be cancelled from outside.
  *
  * @param app       the pospay_app database (only withTenant is used)
  * @param consumers the registered consumers
@@ -34,21 +38,30 @@ export function createDeliverer(
   logger: Logger,
   timeoutMs = 60_000,
 ): (event: ClaimedEvent) => Promise<DeliveryOutcome> {
-  const applyAll = async (event: ClaimedEvent): Promise<void> => {
+  const applyAll = async (event: ClaimedEvent, endsAt: number): Promise<void> => {
     for (const consumer of consumers) {
       if (!consumer.eventTypes.includes(event.eventType)) continue;
-      await app.withTenant(event.companyId, async (tx) => {
-        if (await markEventConsumed(tx, consumer.id, event.id)) await consumer.handle(tx, event);
-      });
+      const left = endsAt - Date.now();
+      if (left < 1) throw deliveryTimeout();
+      await app.withTenant(
+        event.companyId,
+        async (tx) => {
+          if (await markEventConsumed(tx, consumer.id, event.id)) await consumer.handle(tx, event);
+        },
+        { timeoutMs: left },
+      );
     }
   };
   return async (event) => {
+    const endsAt = Date.now() + timeoutMs;
     let timer: NodeJS.Timeout | undefined;
+    // The server-side limits end the transaction; this deadline, a little later, ends the wait for a handler
+    // that is stuck in JavaScript, so the batch can record the failure.
     const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(deliveryTimeout()), timeoutMs);
+      timer = setTimeout(() => reject(deliveryTimeout()), timeoutMs + GRACE_MS);
     });
     try {
-      await Promise.race([applyAll(event), deadline]);
+      await Promise.race([applyAll(event, endsAt), deadline]);
       return { delivered: true };
     } catch (error) {
       const attempt = event.attempt;

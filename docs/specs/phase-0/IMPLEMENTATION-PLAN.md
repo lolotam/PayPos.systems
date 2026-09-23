@@ -332,7 +332,12 @@ duplicate executes, (f) a key-acquisition lock timeout returns a retryable `409`
   `sweepExpiredIdempotencyKeys(n)`, `ping()`, `close()`. **Lease model:** a short claim transaction takes the head
   event of each aggregate (`FOR UPDATE SKIP LOCKED`), counts the attempt and leases it (`next_attempt_at`, default
   5 min), and commits; delivery runs outside any transaction; each outcome is recorded with `clock_timestamp()` and
-  never overwrites a publication. A crash leaves the event leased until the lease ends, then it is redelivered.
+  **fenced to its own claim** (`attempts` must still equal its attempt number, event neither published nor parked).
+  A crash leaves the event leased until the lease ends, then it is redelivered; an event whose attempts are used up
+  that way is parked by the next claim (`last_error = 'LeaseExpired'`) and logged.
+- `withTenant(…, { timeoutMs })` sets `statement_timeout` and `idle_in_transaction_session_timeout` locally: the
+  deliverer gives each consumer transaction the time left of a 60 s budget and starts no consumer after it.
+  **Consumer rule:** consumers do database work only; a handler awaiting anything else cannot be cancelled.
 - Ordering is by `seq` (an identity column: insertion order), not `created_at` (transaction start). **Producer rule:**
   a use case that emits an event for an existing aggregate locks that aggregate's row first, so insertion order
   matches commit order.

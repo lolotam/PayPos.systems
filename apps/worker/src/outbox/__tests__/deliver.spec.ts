@@ -23,11 +23,13 @@ const EVENT: ClaimedEvent = {
 
 const harness = (firstTime = true) => {
   const tenants: string[] = [];
+  const limits: (number | undefined)[] = [];
   // markEventConsumed's INSERT … RETURNING: one row the first time, none on a redelivery.
   const tx = { execute: async () => (firstTime ? [{ first: 1 }] : []) } as unknown as Tx;
   const app: Pick<Database, 'withTenant'> = {
-    withTenant: async (companyId, fn) => {
+    withTenant: async (companyId, fn, options) => {
       tenants.push(companyId);
+      limits.push(options?.timeoutMs);
       return fn(tx);
     },
   };
@@ -39,7 +41,7 @@ const harness = (firstTime = true) => {
     },
   });
   const logger = createLogger('info', { destination: sink, events: WORKER_LOG_EVENTS });
-  return { app, tenants, logger, logs: () => logs };
+  return { app, tenants, limits, logger, logs: () => logs };
 };
 
 const consumer = (
@@ -110,6 +112,22 @@ describe('createDeliverer', () => {
 });
 
 describe('a delivery that hangs', () => {
+  it('runs each consumer under a server-side limit and starts none once the time is up', async () => {
+    const { app, limits, logger } = harness();
+    const slow = consumer(
+      'a.one',
+      ['BusinessCreated'],
+      () => new Promise<undefined>((done) => setTimeout(() => done(undefined), 60)),
+    );
+    const next = consumer('b.two', ['BusinessCreated']);
+    const outcome = await createDeliverer(app, [slow, next], logger, 40)(EVENT);
+    expect(outcome).toMatchObject({ delivered: false, error: 'TimeoutError' });
+    expect(limits).toHaveLength(1);
+    expect(limits[0]).toBeGreaterThan(0);
+    expect(limits[0]).toBeLessThanOrEqual(40);
+    expect(next.calls).toBe(0);
+  });
+
   it('counts as a failed attempt after the timeout instead of holding the batch', async () => {
     const { app, logger } = harness();
     const hanging = consumer(
