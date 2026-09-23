@@ -102,6 +102,8 @@ export const branches = pgTable(
     geoLat: doublePrecision('geo_lat'),
     geoLng: doublePrecision('geo_lng'),
     openingHours: jsonb('opening_hours'),
+    // الـ time zone بتاع الفرع لو مختلف عن النشاط؛ null = بياخد بتاع النشاط (PRD D-10).
+    timezone: text('timezone'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

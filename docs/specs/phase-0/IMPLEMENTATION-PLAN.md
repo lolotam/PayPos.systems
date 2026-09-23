@@ -637,6 +637,11 @@ message does not compile. ESLint refuses any string holding Arabic outside `pack
 seed's `name_ar` data excepted). `TODO(spec)`: Arabic-Indic digits for display, if the client wants them. T10-2
 (settings, `branches.timezone`) follows.
 
+**T10-2 as built (D-10):** `branches.timezone` (nullable, migration 0021) — the branch's own IANA zone, or null to use
+its business's. `create-branch` accepts an optional `timezone` (the contract's closed IANA list, so an unknown zone is a
+400 before any write); `Branch` carries `timezone` and `effective_timezone`, computed by `domain/time-zone.ts` on write
+and by the same rule in SQL on read. T10-3 (the `settings` module) follows.
+
 ---
 
 ### T11 — `packages/observability` · Size M · depends: T6b

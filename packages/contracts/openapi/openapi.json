@@ -316,6 +316,17 @@
               }
             ]
           },
+          "timezone": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TimeZone"
+              }
+            ]
+          },
+          "effective_timezone": {
+            "$ref": "#/components/schemas/TimeZone"
+          },
           "is_active": {
             "type": "boolean"
           },
@@ -335,6 +346,8 @@
           "address_en",
           "geo",
           "opening_hours",
+          "timezone",
+          "effective_timezone",
           "is_active",
           "created_at"
         ]
@@ -373,6 +386,13 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/OpeningHours"
+              }
+            ]
+          },
+          "timezone": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TimeZone"
               }
             ]
           }
