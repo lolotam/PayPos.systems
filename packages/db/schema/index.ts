@@ -9,3 +9,4 @@ export * from './identity-access.ts';
 export * from './identity-platform.ts';
 export * from './identity-devices.ts';
 export * from './identity-cashier-pins.ts';
+export * from './settings.ts';

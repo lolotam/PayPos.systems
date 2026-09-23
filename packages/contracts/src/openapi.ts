@@ -10,6 +10,13 @@ import {
   registerDeviceInput,
 } from './identity/devices.js';
 import { pageQuery } from './pagination/cursor.js';
+import {
+  businessSettings,
+  calendar,
+  language,
+  taxRule,
+  updateBusinessSettingsInput,
+} from './settings/business-settings.js';
 import { currency } from './reference/currency.js';
 import { timeZone } from './reference/time-zone.js';
 import { business, createBusinessInput, verticalType } from './tenancy/business.js';
@@ -35,12 +42,17 @@ const SCHEMAS = [
   deviceToken,
   verifyCashierPinInput,
   cashierPinVerified,
+  businessSettings,
+  updateBusinessSettingsInput,
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,
   currency,
   timeZone,
   geo,
   openingHours,
+  language,
+  calendar,
+  taxRule,
 ];
 
 /**

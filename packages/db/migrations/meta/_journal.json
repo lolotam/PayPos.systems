@@ -155,6 +155,20 @@
       "when": 1790201411434,
       "tag": "0021_2026-09-23_branch-timezone",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790201834006,
+      "tag": "0022_2026-09-23_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790201835437,
+      "tag": "0023_2026-09-23_settings-rls",
+      "breakpoints": true
     }
   ]
 }
