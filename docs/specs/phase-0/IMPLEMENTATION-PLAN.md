@@ -662,8 +662,12 @@ cross-module write is blocked by CI.
 **As built:** `ci.yml` runs the gates as separate steps in this order — typecheck → lint (max-lines + boundaries) →
 lint:docs → cycles · module-map → unit (domain) → integration · RLS negative · EXPLAIN → build all apps — inside the
 one job `ci-gate` requires, so branch protection needs no new check. `scripts/module-map/`: `pnpm module-map:generate`
-writes `docs/module-map.yaml` from the §6 block; `pnpm module-map:check` fails on a stale YAML, a deep import, an
-undeclared arrow, a restricted package outside its owners, a cycle, or any cross-module **value** import that is not
+writes `docs/module-map.yaml` from the §6 block (both files count as code in CI's change detection);
+`pnpm module-map:check` reads every import with the TypeScript compiler (static, `export … from`, `import()`,
+`require`, side-effect, type-only) and resolves it with the project's tsconfig (aliases, `.js` specifiers). It fails on
+a stale YAML, a deep import, an undeclared arrow, a restricted package outside its owners, app-level code other than
+the composition root importing a module (no bridges), a module re-exporting or forwarding another module's value,
+file cycles across apps and packages, package cycles, module cycles, and any cross-module **value** import that is not
 the declared `sync_writes` entry (or a declared `reads` entry) for that exact file — so a second synchronous write
 cannot land without a row in §3.1. `node --test scripts/module-map` proves each of those blocks, and lints violating
 files through the API's real ESLint config (http → domain, a deep import) to prove the boundaries rules block too.

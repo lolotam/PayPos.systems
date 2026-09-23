@@ -45,6 +45,8 @@ jobs:
             code=false
             while IFS= read -r -d '' path; do
               case "$path" in
+                # The module map is an executable input of the gate: its markdown generates the checked YAML.
+                docs/module-map.md|docs/module-map.yaml) code=true; break ;;
                 docs/*|*.md) ;;
                 *) code=true; break ;;
               esac
