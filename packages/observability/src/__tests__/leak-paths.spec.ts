@@ -294,3 +294,24 @@ describe('plural secret containers', () => {
     expect(line).toMatchObject({ addresses: ['x'], statuses: ['open'] });
   });
 });
+
+describe('credential keys that end in "key"', () => {
+  it.each([
+    'secret_key',
+    'private_key',
+    'encryption_key',
+    'accessKey',
+    'signing-key',
+    'MASTER_KEY',
+    'webhookKey',
+    'passphrase',
+  ])('the key %s is redacted', (key) => {
+    expect(capture((log) => log.info({ [key]: SECRET }, 'event'))).not.toContain(SECRET);
+  });
+
+  it('an ordinary key ending in "key" is kept (sortKey)', () => {
+    expect(JSON.parse(capture((log) => log.info({ sortKey: 'name' }, 'event')))).toMatchObject({
+      sortKey: 'name',
+    });
+  });
+});

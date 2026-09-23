@@ -20,6 +20,16 @@ const SECRET_SUFFIXES = [
   'cvv',
   // a hash of a secret (pin_hash, token_hash, password_hash) is still sensitive
   'hash',
+  // credential keys used by gateway, messaging and encryption code (secret_key, private_key, …)
+  'secretkey',
+  'privatekey',
+  'accesskey',
+  'signingkey',
+  'encryptionkey',
+  'masterkey',
+  'clientkey',
+  'webhookkey',
+  'passphrase',
 ];
 const PHONE_SUFFIXES = ['phone', 'phones', 'phonenumber', 'phonenumbers', 'mobile', 'mobiles'];
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
