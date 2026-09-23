@@ -125,7 +125,8 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 - T5 per plan v4 §T5: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides` with explicit
   `USING` + `WITH CHECK`, `FORCE ROW LEVEL SECURITY`, tenant-qualified composite FKs, and the negative suite run as
   `pospay_app`. Columns follow `packages/contracts` (e.g. `timezone`, `geo` as `geo_lat`/`geo_lng`, `opening_hours` jsonb).
-- T5 must also close **#16** (direct-privilege allowlist) and decide the owner-`BYPASSRLS` question (ADR-0006).
+- T5 must also close **#16** (direct-privilege allowlist) and enforce the accepted rule: every **runtime** role is
+  `NOSUPERUSER NOBYPASSRLS`; the bootstrap owner is the recorded exception (ADR-0003 §3, decided 2026-09-23).
 
 ### 4.2 Package facts worth knowing
 

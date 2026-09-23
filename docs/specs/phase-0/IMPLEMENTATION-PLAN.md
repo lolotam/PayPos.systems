@@ -316,7 +316,8 @@ shutdown that stops polling before closing pools.
 
 **Database access stays inside `packages/db` (debate C11 rule).** The dispatcher does not open its own client:
 `packages/db` exports a second, restricted facade — `createOutboxDispatcherDatabase({ url })` — whose only methods
-claim a batch of unpublished events and record delivery metadata. `apps/worker` supplies the `pospay_dispatcher`
+claim a batch of unpublished events, record delivery metadata, and `close()` the pool. Graceful shutdown stops polling
+first, then closes the dispatcher database and the BullMQ connection (tested). `apps/worker` supplies the `pospay_dispatcher`
 credentials and wires it; no other app imports it, and the "no database client outside `packages/db` /
 `packages/auth`" rule stays intact.
 
@@ -596,7 +597,8 @@ T6a 5. Each remaining task is therefore costed as *build* plus an explicit *revi
 | T13 | 2.5 d | 1.5 d | staging, PITR rehearsal — blocked on D-11 |
 
 **Remaining ≈ 20.5 build days + 15.5 review days = 36 working days ≈ 7 weeks** from 2026-09-23, *excluding* time waiting on
-open decisions (D-02, D-08, D-09, D-10, D-11, D-34). This is an estimate, not a commitment; re-forecast after T5 and
+open decisions (D-02, D-08, D-09, D-10, D-11). D-34 (merchant self-onboarding) does not block Phase 0: ADR-0003
+already authorises Phase 0 onboarding through `create:companies:platform`. This is an estimate, not a commitment; re-forecast after T5 and
 after T9a-4 with actuals.
 
 <details><summary>v2 week table (history — superseded)</summary>
@@ -616,7 +618,7 @@ after T9a-4 with actuals.
 
 The 3–4 weeks in `06_Tech_Stack_Architecture_EN.md` §7 was optimistic and should be updated to match — deliberately, not silently.
 
-**Most likely to overrun: T9a + T9b** (Better Auth + identity). Estimated 7–12 working days together rather than 2–3. AI accelerates writing code far more reliably than it accelerates verifying security.
+**Most likely to overrun: T9a + T9b** (Better Auth + identity) — 13 working days together in the table above (T9a 9, T9b 4), against the 2–3 first assumed. AI accelerates writing code far more reliably than it accelerates verifying security.
 
 ---
 
