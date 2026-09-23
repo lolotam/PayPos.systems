@@ -80,6 +80,27 @@ describe('withNewTenant', () => {
   });
 });
 
+describe('refuses a role that bypasses RLS', () => {
+  it('rejects every wrapper when DATABASE_URL points at the superuser owner', async () => {
+    const misconfigured = createDatabase({
+      url: testDb.ownerUrl,
+      ids: { newId: () => NEW_COMPANY },
+    });
+    let ran = false;
+    const probe = async (): Promise<void> => {
+      ran = true;
+    };
+    try {
+      await expect(misconfigured.withTenant(COMPANY_A, probe)).rejects.toThrow(/bypasses RLS/);
+      await expect(misconfigured.withUser(USER_1, probe)).rejects.toThrow(/bypasses RLS/);
+      await expect(misconfigured.withNewTenant(USER_1, probe)).rejects.toThrow(/bypasses RLS/);
+      expect(ran).toBe(false);
+    } finally {
+      await misconfigured.close();
+    }
+  });
+});
+
 describe('settings are transaction-local on a pooled connection', () => {
   it('does not leak a company into the next transaction on the same connection', async () => {
     await database.withTenant(COMPANY_A, readContext, { userId: USER_1 });

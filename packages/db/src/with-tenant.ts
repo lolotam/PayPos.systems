@@ -46,11 +46,21 @@ function assertUuid(value: string, name: string): string {
  * @returns withTenant و withUser و withNewTenant
  */
 export function createTenantWrappers(db: PostgresJsDatabase, ids: IdGenerator): TenantWrappers {
+  // superuser أو BYPASSRLS بيتجاهل الـ RLS كله، فـ DATABASE_URL غلط كان هيشيل العزل بين الشركات
+  // من غير أي خطأ. الفحص في نفس الـ statement اللي بيحط الـ context، فمفيش round-trip زيادة،
+  // وبيتكرر في كل transaction عشان يغطي أي reconnect.
   const run = <T>(companyId: string, userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> =>
     db.transaction(async (tx) => {
-      await tx.execute(
-        sql`SELECT set_config('app.company_id', ${companyId}, true), set_config('app.user_id', ${userId}, true)`,
+      const [row] = await tx.execute<{ privileged: boolean }>(
+        sql`SELECT set_config('app.company_id', ${companyId}, true),
+                   set_config('app.user_id', ${userId}, true),
+                   (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) AS privileged`,
       );
+      if (row?.privileged !== false) {
+        throw new Error(
+          'Refusing to run tenant work as a role that bypasses RLS — check DATABASE_URL',
+        );
+      }
       return fn(tx);
     });
 
