@@ -9,6 +9,7 @@ const MARKERS = [PUBLIC_ROUTE, AUTHENTICATED_ONLY, REQUIRE_ACCESS];
 // Every route handler Nest will mount, inherited ones included: walk the prototype chain the way Nest's metadata
 // scanner does, keeping the most-derived definition of each name.
 function handlers(controller: Type<unknown>): Map<string, unknown> {
+  const seen = new Set<string>();
   const found = new Map<string, unknown>();
   for (
     let prototype = controller.prototype as object | null;
@@ -16,7 +17,9 @@ function handlers(controller: Type<unknown>): Map<string, unknown> {
     prototype = Object.getPrototypeOf(prototype) as object | null
   ) {
     for (const name of Object.getOwnPropertyNames(prototype)) {
-      if (name === 'constructor' || found.has(name)) continue;
+      // An override hides the base method even when it carries no route metadata — Nest mounts what it sees first.
+      if (name === 'constructor' || seen.has(name)) continue;
+      seen.add(name);
       const handler = Object.getOwnPropertyDescriptor(prototype, name)?.value as unknown;
       if (
         typeof handler === 'function' &&

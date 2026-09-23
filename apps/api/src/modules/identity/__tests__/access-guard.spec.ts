@@ -356,6 +356,28 @@ describe('conflicting or inherited access declarations', () => {
     }
   });
 
+  it('an undecorated override hides the inherited route, as Nest does — no false conflict', async () => {
+    class Base {
+      @Require('read:memberships:company')
+      @Get('hidden')
+      hidden(): string {
+        return 'base';
+      }
+    }
+    @Public()
+    @Controller('probe/override')
+    class Override extends Base {
+      override hidden(): string {
+        return 'not a route';
+      }
+    }
+    const started = await createApp(
+      { readiness: [] },
+      { controllers: [Override], logger: createLogger('silent') },
+    );
+    await started.close();
+  });
+
   it('an inherited route with no declared access is caught too', async () => {
     class Base {
       @Get('inherited')
