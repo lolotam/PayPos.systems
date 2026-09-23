@@ -19,6 +19,7 @@
     "@pospay/auth": "workspace:*",
     "@pospay/contracts": "workspace:*",
     "@pospay/db": "workspace:*",
+    "@pospay/i18n": "workspace:*",
     "@pospay/ids": "workspace:*",
     "@pospay/observability": "workspace:*",
     "drizzle-orm": "0.45.2",

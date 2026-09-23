@@ -1,0 +1,29 @@
+{
+  "name": "@pospay/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Arabic and English catalogs and formatters — KWD with 3 decimals, Gregorian or Hijri dates, time zones. Runs in Node and the browser",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run && pnpm run test:node",
+    "test:node": "node --input-type=module -e \"import { formatKwd } from '@pospay/i18n'; if (formatKwd(12500n) !== '12.500') process.exit(1);\""
+  },
+  "dependencies": {
+    "@pospay/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}

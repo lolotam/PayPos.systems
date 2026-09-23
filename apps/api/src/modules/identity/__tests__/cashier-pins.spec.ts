@@ -283,7 +283,27 @@ describe('the attempt counters under concurrency', () => {
 });
 
 describe('logs', () => {
+  // Four digits can occur inside any UUID or timestamp by chance, so those are removed before looking; a `pin` field
+  // anywhere is refused outright.
+  const NOISE =
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}T[\d:.]+Z/gi;
+  const leaks = (value: unknown, key = ''): boolean => {
+    if (key.toLowerCase() === 'pin') return true;
+    if (typeof value === 'string') return value.replace(NOISE, '').includes(PIN);
+    if (typeof value === 'number') return String(value).includes(PIN);
+    if (value !== null && typeof value === 'object') {
+      return Object.entries(value).some(([k, v]) => leaks(v, k));
+    }
+    return false;
+  };
+
   it('the PIN never appears in a log line', () => {
-    expect(logText.join('')).not.toContain(PIN);
+    const lines = logText
+      .join('')
+      .split(String.fromCharCode(10))
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as unknown);
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.filter((line) => leaks(line))).toEqual([]);
   });
 });

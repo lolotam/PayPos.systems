@@ -627,6 +627,16 @@ packages/i18n/src/{ar.ts,en.ts,format-kwd.ts,dates.ts,index.ts}
 
 **Done when:** the formatter tests pass and no hardcoded Arabic or English string exists outside `packages/i18n`.
 
+**T10-1 as built:** `packages/i18n` (Node and browser, `Intl` only, depends on `packages/domain`): `formatKwd`
+(`12500n` → `12.500`, thousands grouped, sign kept, Latin digits, delegating to `moneyToString` so the shown number is
+the stored one); `formatDate` (Gregorian or Hijri Umm al-Qura, in the branch time zone), `localDate` (the branch's day,
+not UTC's — what attendance and reports group on) and `isTimeZone`; the ar/en catalogs, typed so a key missing from
+either fails the build, with `t()` and `errorMessages()`. Every API error message and the worker's readiness message
+moved into the catalogs — `apps/api/src/shared/errors.ts` now holds only the HTTP status per code, and a code with no
+message does not compile. ESLint refuses any string holding Arabic outside `packages/i18n` (tests and the reference
+seed's `name_ar` data excepted). `TODO(spec)`: Arabic-Indic digits for display, if the client wants them. T10-2
+(settings, `branches.timezone`) follows.
+
 ---
 
 ### T11 — `packages/observability` · Size M · depends: T6b

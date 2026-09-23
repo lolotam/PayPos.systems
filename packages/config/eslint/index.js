@@ -45,6 +45,58 @@ export const allowDatabaseFacade = (allowed, options = {}) => ({
   rules: { 'no-restricted-imports': facadeRule(allowed, options.credentials === true) },
 });
 
+// CLAUDE.md §8 — a log message is a constant event name; data goes in fields, where the sanitiser
+// (@pospay/observability) can redact it. The logger also withholds messages that look like data.
+const LOG_SYNTAX = [
+  {
+    selector:
+      'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > TemplateLiteral[expressions.length>0]',
+    message: 'Log messages are constant event names — put dynamic values in the log object.',
+  },
+  {
+    selector:
+      "CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > BinaryExpression[operator='+']",
+    message: 'Log messages are constant event names — put dynamic values in the log object.',
+  },
+];
+
+// CLAUDE.md §7 — text a user reads lives in packages/i18n. Arabic in a string is always such text, so it is refused
+// anywhere else; comments are not strings and stay Arabic (§3.1).
+const USER_TEXT =
+  'Arabic text belongs in packages/i18n (CLAUDE.md §7) — add a catalog key and use t().';
+// Built from code points so this file holds no Arabic itself: the Arabic blocks, the supplement, extended-A and both
+// presentation-form blocks (ligatures like lam-alef live there).
+const ARABIC_BLOCKS = [
+  [0x0600, 0x06ff],
+  [0x0750, 0x077f],
+  [0x08a0, 0x08ff],
+  [0xfb50, 0xfdff],
+  [0xfe70, 0xfeff],
+];
+const ARABIC = `/[${ARABIC_BLOCKS.map(([from, to]) => `${String.fromCharCode(from)}-${String.fromCharCode(to)}`).join('')}]/`;
+// value is the decoded string, so an escaped letter is caught too; JSXText is the text between tags.
+const USER_TEXT_SYNTAX = [
+  { selector: `Literal[value=${ARABIC}]`, message: USER_TEXT },
+  { selector: `TemplateElement[value.cooked=${ARABIC}]`, message: USER_TEXT },
+  { selector: `JSXText[value=${ARABIC}]`, message: USER_TEXT },
+];
+
+const restrictedSyntax = ({ userText }) => [
+  'error',
+  ...CREDENTIAL_SYNTAX,
+  ...LOG_SYNTAX,
+  ...(userText ? [] : USER_TEXT_SYNTAX),
+];
+
+/**
+ * The override for code that may hold user-facing text: packages/i18n, and tests that assert it.
+ *
+ * @returns {import('eslint').Linter.Config} the override
+ */
+export const allowUserFacingText = () => ({
+  rules: { 'no-restricted-syntax': restrictedSyntax({ userText: true }) },
+});
+
 /** Shared flat config. Every app and package re-exports this from its own eslint.config.js. */
 export const config = tseslint.config(
   {
@@ -66,23 +118,13 @@ export const config = tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
       // NestJS modules are empty classes that exist to carry @Module(); undecorated ones stay banned.
       '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
-      // CLAUDE.md §8 — a log message is a constant event name; data goes in fields, where the sanitiser
-      // (@pospay/observability) can redact it. The logger also withholds messages that look like data.
-      'no-restricted-syntax': [
-        'error',
-        ...CREDENTIAL_SYNTAX,
-        {
-          selector:
-            'CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > TemplateLiteral[expressions.length>0]',
-          message: 'Log messages are constant event names — put dynamic values in the log object.',
-        },
-        {
-          selector:
-            "CallExpression[callee.property.name=/^(trace|debug|info|warn|error|fatal)$/] > BinaryExpression[operator='+']",
-          message: 'Log messages are constant event names — put dynamic values in the log object.',
-        },
-      ],
+      'no-restricted-syntax': restrictedSyntax({ userText: false }),
     },
+  },
+  {
+    // Tests assert the Arabic a user sees; the rule is about where the product keeps its text, not its tests.
+    files: ['**/__tests__/**', '**/*.spec.ts', '**/test/**'],
+    ...allowUserFacingText(),
   },
   {
     // CLAUDE.md §3 — file and function size.
