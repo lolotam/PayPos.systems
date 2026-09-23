@@ -222,12 +222,11 @@ describe('companies — the write policies allow the legitimate path', () => {
     ).toEqual([{ name_en: 'Renamed' }]);
   });
 
+  // No WHERE and no RETURNING: either would make Postgres apply the SELECT policy to the new row as well,
+  // which would reject it even with a broken WITH CHECK. The UPDATE policy's USING already limits this to NEW.
   it("changing the company's own id is rejected by the UPDATE WITH CHECK", async () => {
     await rejectsWith(
-      rows(
-        NEW,
-        sql`UPDATE companies SET id = '01920000-0000-7000-8000-0000000000c9' WHERE id = ${NEW}`,
-      ),
+      rows(NEW, sql`UPDATE companies SET id = '01920000-0000-7000-8000-0000000000c9'`),
       RLS,
     );
   });
