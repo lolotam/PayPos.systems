@@ -1,0 +1,72 @@
+# Staging on the existing server's shared Postgres and Redis (plan T13-2, Waleed 2026-09-24): the "paypossystem"
+# Dokploy project already runs Postgres 18 and Redis 8 on dokploy-network, so this file brings only the migrate step,
+# the API and the worker, and joins that network. Run over SSH with `docker compose --env-file .env up -d` from the
+# directory holding the server's .env (mode 600, generated on the server — never in Git). Every image is pinned to a
+# commit SHA; rolling back is redeploying the previous IMAGE_TAG.
+#
+# Versions: Postgres 18 and Redis 8 here, where CI tests 16 and 7 — accepted for staging by Waleed; the smoke tests
+# below run against them on every deploy.
+
+name: pospay-staging
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DATABASE_URL: postgres://pospay_app:${POSTGRES_APP_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
+  REDIS_URL: redis://:${REDIS_PASSWORD:?}@${REDIS_HOST:?}:6379
+
+services:
+  # Migrations are their own step (CLAUDE.md §10): the apps start only after this exits 0.
+  migrate:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-migrate:${IMAGE_TAG:?}
+    restart: 'no'
+    environment:
+      NODE_ENV: production
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?}
+      POSTGRES_AUTH_PASSWORD: ${POSTGRES_AUTH_PASSWORD:?}
+      POSTGRES_DISPATCHER_PASSWORD: ${POSTGRES_DISPATCHER_PASSWORD:?}
+    networks: [dokploy-network]
+    mem_limit: 256m
+
+  api:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-api:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      AUTH_DATABASE_URL: postgres://pospay_auth:${POSTGRES_AUTH_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      BETTER_AUTH_URL: https://${STAGING_HOST:?}
+      AUTH_TRUSTED_ORIGINS: https://${STAGING_HOST:?}
+      COOKIE_DOMAIN: .${STAGING_HOST:?}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [dokploy-network]
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.pospay-staging-api.rule: Host(`${STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-api.entrypoints: websecure
+      traefik.http.routers.pospay-staging-api.tls.certresolver: letsencrypt
+      traefik.http.routers.pospay-staging-api-http.rule: Host(`${STAGING_HOST:?}`)
+      traefik.http.routers.pospay-staging-api-http.entrypoints: web
+      traefik.http.routers.pospay-staging-api-http.middlewares: redirect-to-https@file
+      traefik.http.services.pospay-staging-api.loadbalancer.server.port: '3000'
+    mem_limit: 512m
+
+  worker:
+    image: ${REGISTRY:-ghcr.io/lolotam}/pospay-worker:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [dokploy-network]
+    mem_limit: 384m
+
+networks:
+  dokploy-network:
+    external: true
