@@ -297,6 +297,11 @@ describe('function inventory', () => {
       { proname: 'app_company_id', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
       { proname: 'app_user_id', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
       {
+        proname: 'assert_company_keeps_an_owner',
+        prosecdef: false,
+        proconfig: ['search_path=public, pg_temp'],
+      },
+      {
         proname: 'idempotency_keys_require_response',
         prosecdef: false,
         proconfig: ['search_path=public, pg_temp'],

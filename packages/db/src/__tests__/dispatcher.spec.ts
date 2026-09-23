@@ -374,7 +374,10 @@ describe('producers of one aggregate', () => {
     let waiting = 0;
     for (let tries = 0; tries < 100 && waiting === 0; tries += 1) {
       const [row] = await owner`
-        SELECT count(*)::int AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
+        SELECT count(*)::int AS n FROM pg_locks
+        WHERE locktype = 'advisory' AND NOT granted
+          -- pg_locks is cluster-wide; other spec files take advisory locks in their own databases.
+          AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`;
       waiting = Number(row?.['n']);
       if (waiting === 0) await new Promise((done) => setTimeout(done, 20));
     }

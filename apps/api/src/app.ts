@@ -11,13 +11,15 @@ import {
 import { APP_GUARD, NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService } from '@pospay/auth';
-import type { TenantWrappers } from '@pospay/db';
+import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import { systemUuidV7 } from '@pospay/ids';
 import { createLogger, type Logger } from '@pospay/observability';
 import { LogController, type FastifyReply, type FastifyRequest } from 'fastify';
 
 import {
   COMPANY_HEADER,
   assertEveryRouteGuarded,
+  identityControllers,
   identityProviders,
 } from './modules/identity/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
@@ -37,6 +39,8 @@ export interface AppDependencies {
   readonly auth?: { readonly service: AuthService; readonly baseURL: string };
   /** The tenant wrappers the access guard reads memberships through. Without them no @Require route answers. */
   readonly database?: TenantWrappers;
+  /** UUID v7 for rows the use cases create; the system clock and Web Crypto unless a test injects its own. */
+  readonly ids?: IdGenerator;
   /** Browser origins allowed to call the API with credentials (admin, POS). Empty: no CORS headers at all. */
   readonly corsOrigins?: readonly string[];
 }
@@ -85,7 +89,7 @@ class AppModule {
         // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
-        ...identityProviders(deps.database),
+        ...identityProviders(deps.database, deps.ids ?? systemUuidV7()),
       ],
     };
   }
@@ -105,7 +109,7 @@ export async function createApp(
   options: AppOptions = {},
 ): Promise<NestFastifyApplication> {
   const logger = options.logger ?? createLogger('info', { events: API_LOG_EVENTS });
-  const controllers = [HealthController, ...(options.controllers ?? [])];
+  const controllers = [HealthController, ...identityControllers, ...(options.controllers ?? [])];
   assertEveryRouteGuarded(controllers);
   const adapter = new FastifyAdapter({
     loggerInstance: logger,
