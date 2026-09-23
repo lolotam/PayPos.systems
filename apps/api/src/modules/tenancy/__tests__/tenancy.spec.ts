@@ -206,6 +206,7 @@ describe('cursor validation through HTTP', () => {
       '2025-02-29T10:00:00+00:00',
       '2026-04-31T10:00:00+00:00',
       '2026-01-01T24:00:00+00:00',
+      '0000-01-01T00:00:00+00:00',
     ].map((at) => [
       `an impossible time ${at}`,
       Buffer.from(JSON.stringify({ at, id: '01920000-0000-7000-8000-000000000001' })).toString(

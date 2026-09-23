@@ -35,6 +35,7 @@ function isIssuedAt(value: string): boolean {
   ];
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return (
+    year >= 1 &&
     month >= 1 &&
     month <= 12 &&
     day >= 1 &&
@@ -70,6 +71,40 @@ function decode(value: string): Cursor {
   throw new InvalidCursorError();
 }
 
+// Postgres' own date rules are the last word: a cursor time it cannot cast is the client's invalid cursor, not a 500.
+const BAD_DATETIME = new Set(['22007', '22008', '22P02']);
+
+async function readPage(
+  db: TenantWrappers,
+  access: { companyId: string; userId: string },
+  page: PageQuery,
+  after: Cursor | undefined,
+): Promise<Business[]> {
+  try {
+    return await db.withTenant(
+      access.companyId,
+      async (tx) =>
+        Array.from(
+          await tx.execute<Business>(sql`
+          SELECT id, company_id, vertical_type, name_ar, name_en, currency, timezone, settings,
+                 to_json(created_at) #>> '{}' AS created_at
+          FROM businesses
+          WHERE company_id = ${access.companyId}
+            ${after === undefined ? sql`` : sql`AND (created_at, id) < (${after.at}::timestamptz, ${after.id}::uuid)`}
+          ORDER BY created_at DESC, id DESC
+          LIMIT ${page.limit + 1}`),
+        ),
+      { userId: access.userId },
+    );
+  } catch (error) {
+    const code = (error as { cause?: { code?: unknown } }).cause?.code;
+    if (after !== undefined && typeof code === 'string' && BAD_DATETIME.has(code)) {
+      throw new InvalidCursorError();
+    }
+    throw error;
+  }
+}
+
 // Screen: admin › company › businesses. Newest first, keyset on (created_at, id) over
 // businesses_company_id_created_at_idx; the row is already the Business contract's shape.
 export async function listBusinesses(
@@ -78,21 +113,7 @@ export async function listBusinesses(
   page: PageQuery,
 ): Promise<{ items: Business[]; next_cursor: string | null }> {
   const after = page.cursor === undefined ? undefined : decode(page.cursor);
-  const rows = await db.withTenant(
-    access.companyId,
-    async (tx) =>
-      Array.from(
-        await tx.execute<Business>(sql`
-          SELECT id, company_id, vertical_type, name_ar, name_en, currency, timezone, settings,
-                 to_json(created_at) #>> '{}' AS created_at
-          FROM businesses
-          WHERE company_id = ${access.companyId}
-            ${after === undefined ? sql`` : sql`AND (created_at, id) < (${after.at}::timestamptz, ${after.id}::uuid)`}
-          ORDER BY created_at DESC, id DESC
-          LIMIT ${page.limit + 1}`),
-      ),
-    { userId: access.userId },
-  );
+  const rows = await readPage(db, access, page, after);
   const items = rows.slice(0, page.limit);
   const last = items.at(-1);
   return {
