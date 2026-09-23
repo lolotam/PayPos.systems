@@ -1,5 +1,10 @@
 <!--
 Sync Impact Report
+- 2.1.0 (2026-09-23, MINOR): Principle III names the outbox dispatcher as a second, narrow
+  exception to withTenant()-only tenant access (plan v4 T7b, ADR-0003 §3); the roadmap follows
+  plan v4 (T7b before identity, T9a in four PRs).
+- 2.0.2 (2026-09-23, PATCH): Principle V's idempotency clause corrected per plan v4 T7 — a concurrent
+  duplicate waits on the unique key and replays; no persisted IN_FLIGHT state (DEBATE-2026-09-23.md).
 - 2.0.1 (2026-09-23, PATCH): Principle V names the database-test mechanism — the compose
   Postgres with a cloned database per spec file (ADR-0006) — instead of testcontainers. The rule
   itself (real Postgres, never mocks) is unchanged.
@@ -80,7 +85,10 @@ PR. Child tables MUST use tenant-qualified composite foreign keys such as
 business-data access MUST go through `withTenant(companyId, tx => …)`, which sets the GUC
 transaction-locally; exporting the raw Drizzle client from `packages/db` is forbidden and a
 test asserts it. Session-less entry points (gateway webhooks, messaging callbacks, worker
-jobs) resolve the tenant from an identifier and use the same wrapper. The application role
+jobs) resolve the tenant from an identifier and use the same wrapper. A second named
+exception is the outbox dispatcher (ADR-0003 §3): the `pospay_dispatcher` role reads and marks
+`outbox` rows only, across tenants, through a restricted `packages/db` facade; every event
+effect still runs as the application role inside `withTenant()`. The application role
 is `NOSUPERUSER`, `NOBYPASSRLS`, owns no tenant table and has read-only access to shared
 reference data such as `plans`.
 
@@ -142,7 +150,8 @@ not survive across pooled connections, exceptions, rollbacks or concurrent trans
 B's rows through a foreign key. Endpoints that create money or stock effects MUST require
 `Idempotency-Key`, run in one transaction and write their outbox event inside it; the
 idempotency store keeps the replayable response, rejects a reused key with a different body
-with `422`, returns `409` for a concurrent duplicate, and expires `IN_FLIGHT` rows. Every
+with `422`, makes a concurrent duplicate wait on the key and replay (a key-acquisition lock
+timeout returns a retryable `409`), and keeps no persisted `IN_FLIGHT` state. Every
 controller method MUST carry a permission guard; a route without one fails CI, and auth
 handler routes are listed explicitly as public.
 
@@ -374,9 +383,9 @@ system), then Phase 1 staff → QR attendance → commissions (salon pilot), Pha
 orders → payments → cash shifts → POS PWA → realtime (restaurant pilot), Phase 3 inventory
 → recipes → kitchen, Phase 4 appointments → e-menu → loyalty → channels, Phase 5 reporting →
 documents → platform admin → subscriptions. Phase 0 runs slices T0 to T13 on the critical
-path T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T8 → T9 → T12b → T13 over a forecast six to
-eight weeks, with the auth-RLS boundary decided before any schema is generated and the
-worker bootstrap plus outbox dispatcher shipping with staging. The `packages/ui` foundation
+path T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → T9a (four PRs) → T8 → T9b → T12b → T13
+(plan v4; re-forecast from actuals), with the auth-RLS boundary decided before any schema is
+generated and the worker bootstrap plus outbox dispatcher (T7b) shipping before identity. The `packages/ui` foundation
 described in Principle VI is its own phase-scoped slice after Phase 0.
 
 Open product decisions that block specific slices and MUST be answered by the owner, never
@@ -402,4 +411,4 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.0.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23
+**Version**: 2.1.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23

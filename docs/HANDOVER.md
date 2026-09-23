@@ -27,10 +27,10 @@ Solo developer (Waleed) building entirely with AI agents.
 | `docs/06_Tech_Stack_Architecture_EN.md` | which technology | technology |
 | `docs/module-map.md` | allowed arrows between modules (+ §3.1 the one sync write) | module arrows |
 | `docs/adr/0003-auth-rls-boundary.md` | **Accepted.** Auth ↔ RLS, DB roles, wrappers, principal, grants | anything auth / RLS |
-| `docs/specs/phase-0/IMPLEMENTATION-PLAN.md` (v3) | Phase 0 tasks T0–T13, order, "done when" | Phase 0 sequencing |
+| `docs/specs/phase-0/IMPLEMENTATION-PLAN.md` (**v4**, after `DEBATE-2026-09-23.md`) | Phase 0 tasks T0–T13, order, "done when" | Phase 0 sequencing |
 | `docs/specs/phase-0/SPEC.md` (v2) | Phase 0 scope and domain model | Phase 0 scope |
 | `docs/PRD.md` (v1.1) | whole product: phases, tasks P0–P6, open decisions D-01…D-34 | product scope |
-| `.specify/memory/constitution.md` (v2.0.1) | spec-kit constitution | — |
+| `.specify/memory/constitution.md` (v2.1.0) | spec-kit constitution | — |
 | `.specify/PROJECT-OVERRIDES.md` | local changes to spec-kit defaults | — |
 | `AGENTS.md` | index for Codex and other agents; review guidelines | — |
 
@@ -108,22 +108,25 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 |---|---|---|
 | T0 Auth ↔ RLS decision | ✅ done | ADR-0003 **Accepted** 2026-09-23 (PR #5) |
 | T1 Workspace skeleton | ✅ done | PR #1, #2 |
-| T12a Minimal CI | ✅ done (branch protection still to do) | `.github/workflows/ci.yml` |
+| T12a Minimal CI | 🟡 CI live — **branch protection due before T5 merges** (plan v4) | `.github/workflows/ci.yml` |
 | T2 Local infra | ✅ done | PR #12 — `deploy/docker-compose.dev.yml` |
 | T3 `packages/domain` (Money, rounding, Percentage, TaxRule) | ✅ done | PR #14 — ADR-0004, ADR-0005 |
 | T4 `packages/db` (roles, `withTenant` / `withUser` / `withNewTenant`, helpers) | ✅ done | PR #15 — ADR-0006 (+ issue #16 for T5) |
-| T6a contracts | 🟡 **PR open** — 47 contract tests | `packages/contracts` |
-| **T5 tenancy schema + RLS suite** (next) → T6b api → T7 write primitives → **T9a → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v3 §2 |
+| T6a contracts | ✅ done | PR #17 |
+| Plan v4 (debate with Codex) | 🟡 **PR open** | `docs/specs/phase-0/DEBATE-2026-09-23.md` |
+| **T5 tenancy schema + RLS suite** (next) → T6b api → T7 write primitives → T7b worker + dispatcher → **T9a-1…4 → T8** → T9b → T10/T11 → T12b → T13 | ⬜ | plan v4 §2 |
 
-**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T9a → T8 → T9b → T12b → T13.
+**Critical path:** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → T9a-1 → T9a-2 → T9a-3 → T9a-4 → T8 → T9b → T12b → T13.
 
-### 4.1 Next action — finish T6a, then T5
+### 4.1 Next action — merge plan v4, then T5
 
-- T6a: get the PR through review and merge it.
-- T5 per plan v3 §T5: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides` with explicit
+- Plan v4: get the docs PR through review and merge it. It changes T5 (policies per ADR-0003, no demo companies, #16
+  privilege allowlist), adds T7b and the `pospay_dispatcher` role, and splits T9a into four PRs.
+- T5 per plan v4 §T5: `plans`, `companies`, `businesses`, `branches`, `company_feature_overrides` with explicit
   `USING` + `WITH CHECK`, `FORCE ROW LEVEL SECURITY`, tenant-qualified composite FKs, and the negative suite run as
   `pospay_app`. Columns follow `packages/contracts` (e.g. `timezone`, `geo` as `geo_lat`/`geo_lng`, `opening_hours` jsonb).
-- T5 must also close **#16** (direct-privilege allowlist) and decide the owner-`BYPASSRLS` question (ADR-0006).
+- T5 must also close **#16** (direct-privilege allowlist) and enforce the accepted rule: every **runtime** role is
+  `NOSUPERUSER NOBYPASSRLS`; the bootstrap owner is the recorded exception (ADR-0003 §3, decided 2026-09-23).
 
 ### 4.2 Package facts worth knowing
 

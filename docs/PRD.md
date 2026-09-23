@@ -313,7 +313,7 @@ Four financial rules close the gaps a 24-hour idempotency window leaves open:
 
 ### 8.5 Reliability
 
-Idempotency store with replayable response, scoped uniqueness (`scope` + `operation` + `key`, scope = company, or the user for bootstrap writes), request-fingerprint mismatch → 422, `IN_FLIGHT` → 409, 24 h retention · outbox written in the same transaction, dispatched by the worker, consumers idempotent by `event_id`, replay is a supported recovery tool · inbound webhooks: verify signature → store raw → enqueue → ack 200, dedupe by provider event id · `/health` and `/ready` on `api` and `worker` · every container has a healthcheck, memory limit and restart policy · migrations run as their own step before containers, expand/contract, indexes `CONCURRENTLY`, never destructive in the same release · previous image must still serve against the new schema (proven in staging) · backups: nightly logical `pg_dump` + physical base backup with continuous WAL archiving (pgBackRest or wal-g) to Backblaze B2, RPO ≤ 5 min, RTO ≤ 2 h, both rehearsed, both checking in to Healthchecks.io · a deploy that cannot be rolled back in one click is not finished.
+Idempotency store with replayable response, scoped uniqueness (`scope` + `operation` + `key`, scope = company, or the user for bootstrap writes), request-fingerprint mismatch → 422, a concurrent duplicate waits and replays (lock timeout → retryable 409), 24 h retention · outbox written in the same transaction, dispatched by the worker, consumers idempotent by `event_id`, replay is a supported recovery tool · inbound webhooks: verify signature → store raw → enqueue → ack 200, dedupe by provider event id · `/health` and `/ready` on `api` and `worker` · every container has a healthcheck, memory limit and restart policy · migrations run as their own step before containers, expand/contract, indexes `CONCURRENTLY`, never destructive in the same release · previous image must still serve against the new schema (proven in staging) · backups: nightly logical `pg_dump` + physical base backup with continuous WAL archiving (pgBackRest or wal-g) to Backblaze B2, RPO ≤ 5 min, RTO ≤ 2 h, both rehearsed, both checking in to Healthchecks.io · a deploy that cannot be rolled back in one click is not finished.
 
 ### 8.6 Observability
 
@@ -426,7 +426,7 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 - [ ] P0-T5.6 Context-leak assertions: reuse one pooled connection A → B → no tenant; after an exception; after a rollback; two concurrent transactions do not see each other's setting; session-level settings do not survive under transaction-local overrides.
 - [ ] P0-T5.7 Referential-integrity assertion: A cannot create a branch whose `business_id` belongs to B.
 - [ ] P0-T5.8 Inventory assertion: no `SECURITY DEFINER` function on tenant tables; if ever added it pins `search_path` and restricts `EXECUTE`.
-- [ ] P0-T5.9 Seed: one **provisional** plan and its feature-flag set (renamed when D-06 is decided — the decision must not block the schema), one demo company per vertical, vertical templates as JSON.
+- [ ] P0-T5.9 Seed: one **provisional** plan with every module flag enabled (renamed when D-06 is decided — the decision must not block the schema) and the vertical templates as JSON. **No company** — demo companies are created in P0-T8 through `onboard-company` then `create-business` (plan v4).
 - **Done when:** every assertion passes as the restricted role and is wired into `pnpm test`.
 
 #### P0-T6b — `apps/api` skeleton · M · ⬜ · depends T5
@@ -442,27 +442,37 @@ Login happens before a tenant is known, so Better Auth's own queries cannot run 
 
 - [ ] P0-T7.1 `outbox` table + `OutboxWriter` port; event row written inside the caller's transaction; test proves a rolled-back transaction leaves no outbox row.
 - [ ] P0-T7.2 `audit_log` table + writer; field allowlists for `before`/`after`; DB privileges prevent runtime modification or deletion of audit rows.
-- [ ] P0-T7.3 Idempotency store: `scope_type` (`COMPANY` | `USER`) + `scope_id` + `operation` + `key` uniqueness (`USER` scope for bootstrap writes such as `onboard-company`, which cannot know the new company id), `request_fingerprint`, `status IN_FLIGHT|COMPLETED|FAILED`, `response_status`, `response_body`, `expires_at` (24 h, swept by a job); claim + business effect in one transaction; same key different body → 422; concurrent duplicate on `IN_FLIGHT` → 409; crash mid-flight expires rather than blocks.
-- [ ] P0-T7.4 `Clock` and `IdGenerator` ports + `SystemClock`, `UuidV7Generator`; CI grep rejects `Date.now()` / `randomUUID()` in `use-cases/`.
+- [ ] P0-T7.3 Idempotency store: `scope_type` (`COMPANY` | `USER`) + `scope_id` + `operation` + `key` uniqueness (`USER` scope for bootstrap writes such as `onboard-company`, which cannot know the new company id), `request_fingerprint`, `response_status`, `response_body`, `expires_at` (24 h, swept by a job); claim (`INSERT … ON CONFLICT DO NOTHING`) + business effect in one transaction; same key different body → 422; a concurrent duplicate waits on the key and replays, or proceeds if the first rolled back; key-acquisition lock timeout → retryable 409; no persisted `IN_FLIGHT` state (plan v4).
+- [ ] P0-T7.4 `Clock` port + `SystemClock`; UUID v7 in `packages/ids` (time and entropy injected), bound to `@pospay/db`'s `IdGenerator` at each composition root; CI grep rejects `Date.now()` / `randomUUID()` in `use-cases/`.
 - [ ] P0-T7.5 Worker transaction/context entry point: a job resolves `company_id` from its payload and calls `withTenant()`; nothing non-serialisable crosses into a job.
 - **Done when:** tests prove (a) rollback leaves no outbox row, (b) a replayed key returns the identical stored response, (c) same key + different body is rejected, (d) two concurrent identical requests produce exactly one effect.
 
-#### P0-T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · L · ⬜ · depends T7 · **moved before T8**
+#### P0-T7b — Worker bootstrap + outbox dispatcher · M · ⬜ · depends T7 · **new in plan v4, before P0-T9a**
 
-T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. Both come from T9 in the Phase 0 plan v2, which schedules T9 after T8. This PRD splits T9. **`IMPLEMENTATION-PLAN.md` §2 must be amended to match.**
+- [ ] P0-T7b.1 `apps/worker` bootstrap: `main.ts`, `/health`, `/ready` (Postgres + Redis, tested down), BullMQ connection, graceful shutdown (stop polling, then close pools).
+- [ ] P0-T7b.2 Outbox dispatcher: poll → publish → mark published; **at-least-once** delivery with a stable `event_id`; retries; concurrent dispatchers safe; ordering scope and poison-event handling are `TODO(spec)`.
+- [ ] P0-T7b.3 `pospay_dispatcher` role (ADR-0003 §3): `outbox` only — `SELECT` + metadata-column `UPDATE`, role-scoped forced-RLS policies, reached only through `createOutboxDispatcherDatabase` in `packages/db`.
+- [ ] P0-T7b.4 Consumers: dedupe row keyed `(consumer_id, event_id)` committed in the same `withTenant(event.company_id)` transaction as the effect.
+- **Done when:** a rolled-back event is never delivered; a crash after publish and before marking redelivers with each effect applied once; one event reaching two consumers is applied once by each; `pospay_dispatcher` reads `outbox` across tenants and nothing else.
+
+#### P0-T9a — Identity bootstrap: Better Auth, memberships, guard, feature flags · L (four PRs, plan v4) · ⬜ · depends T7b · **moved before T8**
+
+T8's API-level isolation proof needs a real session, and its first-owner rule needs memberships. Both come from T9 in the Phase 0 plan v2, which schedules T9 after T8. This PRD splits T9; plan v4 (`IMPLEMENTATION-PLAN.md` §2) implements it, with T9a as four PRs after T7b.
 
 - [ ] P0-T9a.0 Company-registry boundary: port `identity/ports/company-registry.port.ts` and adapter `identity/persistence/tenancy-company-registry.adapter.ts` (the consumer owns both, `module-map.md` §3); the adapter calls `registerCompany(tx, input)`, the one write `tenancy` exports from `index.ts`. Lives here, not in T8, because T8 depends on T9a.
-- [ ] P0-T9a.1 Better Auth self-hosted on the Drizzle adapter with email + password and the `two-factor` (TOTP) plugin; tables per the ADR-0003 classification; migration `NNNN_identity_bootstrap.sql` creates every T9a table and its RLS.
+- [ ] P0-T9a.1 Better Auth self-hosted on the Drizzle adapter with email + password and the `two-factor` (TOTP) plugin; tables per the ADR-0003 classification; each T9a PR generates its own migration by purpose (`pnpm db:generate identity-auth`, `identity-memberships`, `identity-platform-grants`, …; ADR-0006 naming) creating the tables it introduces and their RLS.
 - [ ] P0-T9a.2 `memberships` bridge table (user-keyed RLS), `roles`, `permissions` (seeded from code), `role_permissions` (with `constraints jsonb`, enforced later in P2-T7), `permission_overrides` (ALLOW/DENY, reason, granted_by, expires_at), `starts_at`/`ends_at` on memberships — reconciling SPEC §4 with `09` §11 (see §13 item 10).
 - [ ] P0-T9a.3 `@Require('action:resource:scope')` guard resolving the principal and membership server-side, deny by default, union of applicable memberships minus DENY; Redis permission cache invalidated on change; a route without a guard fails CI.
 - [ ] P0-T9a.4 **Tenant feature-flag enforcement now:** `@RequiresFeature()` guard reading the company's plan flags plus per-company overrides (seeded rows, no UI). `09` §12 requires flags from Phase 0 even though the `platform` module and its screens stay in Phase 5 (SPEC §3 forbids the module now). Tests prove a disabled feature is refused server-side.
-- [ ] P0-T9a.5 `onboard-company` as a **complete slice**: spec, Zod contract, `POST /v1/companies` (caller ⛔ D-34), `Idempotency-Key`, company + owner membership + audit row + `CompanyCreated` outbox event in one transaction; scenarios `ONB-01` happy path, `ONB-02` failed membership insert leaves no company and no outbox row, `ONB-03` replay, `ONB-04` two companies created through the API; last-owner protection.
+- [ ] P0-T9a.5 `onboard-company` as a **complete slice**: spec, Zod contract, `POST /v1/companies` (caller: a `create:companies:platform` platform grant, ADR-0003 §3 — merchant self-onboarding is D-34, not a Phase 0 blocker), `Idempotency-Key`, company + owner membership + audit row + `CompanyCreated` outbox event in one transaction; scenarios `ONB-01` happy path, `ONB-02` failed membership insert leaves no company and no outbox row, `ONB-03` replay, `ONB-04` two companies created through the API; last-owner protection.
+- [ ] P0-T9a.8 Audited operator scripts (plan v4 T9a-3): `platform:create-user` (through Better Auth in `packages/auth`, one-time set-password link, any number of users) and `platform:grant`; both write `platform_audit_log` and are unreachable through the API. `ONB-04` creates its two users with them. Company invitations: issue #19.
 - [ ] P0-T9a.6 Seed role bundles as **provisional codes** (renamed when D-07 is decided): Owner, General Manager, Accountant, Business Manager, Branch Manager, Shift Supervisor, Cashier, Waiter, Kitchen, Storekeeper, Staff, Marketing, Viewer.
 - **Done when:** a real login produces a session; a user with two company memberships can switch only between those two; a guard-less route and a disabled feature are both refused in tests.
 
 #### P0-T8 — `tenancy` use cases · L · ⬜ · depends T9a
 
 - [ ] P0-T8.1 Module shape exactly per `CLAUDE.architecture.md` §5; slice specs in `docs/specs/tenancy/{create-business,create-branch}.md` (company creation is `identity`'s `onboard-company`).
+- [ ] P0-T8.7 Demo data: one company per vertical (generic names) created through `onboard-company`, then `create-business` with its `vertical_type` and `create-branch` — never a raw seed (plan v4).
 - [ ] P0-T8.2 Use cases `create-business`, `create-branch` (`registerCompany` already exists from P0-T9a.0): one transaction, `Idempotency-Key`, outbox event inside the transaction, audit row; events `BusinessCreated`, `BranchCreated` documented in `events/published.ts`. A new business copies its vertical template into `business.settings`.
 - [ ] P0-T8.3 Scenario IDs written into the slice specs before code: `TEN-01` happy path per use case, `TEN-02` duplicate `Idempotency-Key` replay, `TEN-03` cross-company `business_id` on branch creation, `TEN-04` user switching to a company they belong to, `TEN-05` user requesting a company they do not belong to.
 - [ ] P0-T8.4 Queries `list-businesses.query.ts`, `branch-detail.query.ts` with result-shape tests and `EXPLAIN` index-usage assertions on a seeded dataset.
@@ -509,10 +519,10 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P0-T12b.4 A deliberately broken fixture PR once, to confirm the boundary step actually blocks.
 - **Done when:** a PR violating a module boundary is blocked by CI.
 
-#### P0-T13 — Staging deploy + backups + worker bootstrap · L · ⛔ D-11 (staging host) · depends T9b, T10, T11, T12b
+#### P0-T13 — Staging deploy + backups + worker image · L · ⛔ D-11 (staging host) · depends T9b, T10, T11, T12b
 
-- [ ] P0-T13.1 `deploy/docker-compose.staging.yml`, `Dockerfile.api`, `Dockerfile.worker`: multi-stage on `node:24-alpine` (ADR-0002 says Node 24; the plan says 22 — align), production deps only; **no Chromium, no Arabic fonts** in the worker yet.
-- [ ] P0-T13.2 `apps/worker` bootstrap: `main.ts`, `/health`, `/ready`, BullMQ connection, **outbox dispatcher** (poll → publish → mark published, retry, consumer dedupe by `event_id`).
+- [ ] P0-T13.1 `deploy/docker-compose.staging.yml`, `Dockerfile.api`, `Dockerfile.worker`: multi-stage on `node:24-alpine` (Node 24, ADR-0002), production deps only; **no Chromium, no Arabic fonts** in the worker yet.
+- [ ] P0-T13.2 Worker **image and deployment** only — the worker itself and the outbox dispatcher are built in P0-T7b (plan v4).
 - [ ] P0-T13.3 Dokploy + Traefik on the chosen host; subdomains and cookie domain per ADR-0001 §6; secrets injected from Dokploy; test keys only.
 - [ ] P0-T13.4 Migrations run as their own step before containers start; after every migration run the **previous** image against the **new** schema and confirm it serves.
 - [ ] P0-T13.5 Backups: nightly `pg_dump` encrypted to B2 via restic **and** pgBackRest/wal-g base backup + continuous WAL; RPO ≤ 5 min, RTO ≤ 2 h; both check in to Healthchecks.io.
@@ -523,7 +533,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 
 - [ ] Two companies exist; the negative isolation suite proves zero cross-tenant reads and rejected/no-op cross-tenant writes
 - [ ] The API-level test proves A cannot resolve B
-- [ ] No module reaches the DB except through `withTenant()` (or the named auth exception); raw client not exported
+- [ ] No module reaches the DB except through `withTenant()`, the named auth exception, or the outbox dispatcher's restricted `createOutboxDispatcherDatabase` facade (`outbox` only); raw client not exported
 - [ ] Every endpoint declares a guard; a guard-less route fails CI
 - [ ] `pnpm lint:docs` green; every `domain/`, `ports/`, `events/published.ts` export has its Arabic doc comment
 - [ ] A write use case appends its outbox event inside its transaction, proven by a test; the worker dispatches it
@@ -532,9 +542,9 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] Staging deploys from a SHA image; old image serves on the new schema; PITR and logical restores rehearsed
 - [ ] `pnpm check` green on `main`
 
-**Phase 0 schedule (revised, weeks):** 1: T0 T1 T2 T3 T12a · 2: T4 T6a T5 · 3: T5 T6b T7 · 4: T7 T9a · 5: T9a T8 · 6: T9b T10 T11 · 7: T12b T13 · 8: buffer + PITR rehearsal.
+**Phase 0 schedule:** the authoritative forecast is `IMPLEMENTATION-PLAN.md` §3 (v4) — re-forecast from actual effort on 2026-09-23: ≈ 36 working days remaining after T6a (20.5 build + 15.5 review), excluding waits on open decisions. The earlier 8-week table is superseded.
 
-**Critical path (revised):** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → **T9a → T8** → T9b → T12b → T13.
+**Critical path (plan v4):** T0 → T1 → T3 → T4 → T6a → T5 → T6b → T7 → T7b → **T9a-1 → T9a-2 → T9a-3 → T9a-4 → T8** → T9b → T12b → T13.
 
 ---
 
@@ -963,7 +973,7 @@ Every item below blocks the task named in "Blocks". An implementing agent must n
 | D-30 | **Customer identity scope:** one customer record per business or per company (`10` §9 asks for history across businesses). | Lean: company-scoped customer, business-scoped loyalty and credit. Changes the key, so decide before P2-T3. | P2-T3, P4-T4, P4-T5 | Client |
 | D-31 | **ALLOW/DENY precedence** across overlapping memberships and scopes (a DENY at branch vs an ALLOW at business). | ✅ **Decided 2026-09-22 by Waleed:** any DENY that covers the requested scope wins, evaluated at request time (ADR-0003 §4, §5.2). | — | Waleed |
 | D-32 | **Attendance edge rules:** overnight shifts, missed punches, auto-close of open sessions, who may edit. | Lean: missed punches become exceptions, never auto-deductions. | P1-T5, P1-T6 | Client |
-| D-34 | **Who may create a company** (`POST /v1/companies`): platform staff only, self-serve sign-up, or both. Self-serve reopens public sign-up, which ADR-0003 §6 closes. | Lean: platform staff only until P5 subscriptions; Phase 0 tests use a seeded platform user. | P0-T9a.5 production guard, P5-T5 | Client + Waleed |
+| D-34 | **Who may create a company** (`POST /v1/companies`): platform staff only, self-serve sign-up, or both. Self-serve reopens public sign-up, which ADR-0003 §6 closes. | Lean: platform staff only until P5 subscriptions; Phase 0 users (tests included) are created with the audited `platform:create-user` and granted with `platform:grant` (P0-T9a.8) — never a raw seed. | P5-T5 (self-serve only; Phase 0 is decided by ADR-0003 §3: platform grant) | Client + Waleed |
 | D-33 | **Payroll vs commission accounting:** where commission is expensed, so payroll and the P&L do not count it twice; same for attendance deductions. | Lean: commission expensed once when the statement is approved; payroll references it. | P5-T9 | Client + accountant |
 
 ---
