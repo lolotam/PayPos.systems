@@ -136,12 +136,14 @@ export async function runIdempotent(
   const timeoutMs = validate(request);
   if (await claim(tx, request, timeoutMs)) {
     const response = await handler();
+    // الرد الأول لازم يبقى هو نفسه اللي الـ replay هيرجّعه: بنحوّله لـ JSON مرة واحدة ونرجّع النسخة دي
+    // (undefined يبقى null، و Date يبقى نص) بدل الـ object الأصلي.
+    const json = toJsonb(response.body ?? null, 'response body');
     await tx.execute(sql`
       UPDATE idempotency_keys
-      SET response_status = ${response.status},
-          response_body = ${toJsonb(response.body ?? null, 'response body')}::jsonb
+      SET response_status = ${response.status}, response_body = ${json}::jsonb
       WHERE ${keyMatch(request)}`);
-    return { ...response, replayed: false };
+    return { status: response.status, body: JSON.parse(json) as unknown, replayed: false };
   }
   // statement جديدة = snapshot جديدة في READ COMMITTED، فبتشوف الصف اللي الطلب الأول عمله commit.
   const [stored] = await tx.execute<{

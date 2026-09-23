@@ -68,6 +68,15 @@ describe('sequential requests', () => {
     expect(await effects('b')).toBe(1);
   });
 
+  it('the first response is the normalised one a replay returns — undefined body, dates', async () => {
+    for (const body of [undefined, { at: new Date('2026-09-23T00:00:00Z') }]) {
+      const req = request();
+      const first = await inA((tx) => runIdempotent(tx, req, async () => ({ status: 200, body })));
+      const again = await inA((tx) => runIdempotent(tx, req, async () => ({ status: 200, body })));
+      expect(first).toEqual({ ...again, replayed: false });
+    }
+  });
+
   it('(c) the same key with a different request is rejected, never replayed', async () => {
     const req = request();
     await inA((tx) => runIdempotent(tx, req, () => effect('c', { id: 1 })(tx)));
