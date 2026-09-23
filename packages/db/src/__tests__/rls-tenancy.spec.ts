@@ -242,6 +242,23 @@ describe('plans — global reference data', () => {
   });
 });
 
+describe('UPSERT across tenants', () => {
+  it("an UPSERT aimed at B's own key is refused and leaves B's row unchanged", async () => {
+    await rejectsWith(
+      rows(
+        A.company,
+        sql`INSERT INTO businesses (id, company_id, vertical_type, name_en)
+            VALUES (${B.business}, ${B.company}, 'salon', 'upserted by A')
+            ON CONFLICT (company_id, id) DO UPDATE SET name_en = EXCLUDED.name_en`,
+      ),
+      RLS,
+    );
+    expect(await rows(B.company, sql`SELECT name_en FROM businesses`)).toEqual([
+      { name_en: 'Business B' },
+    ]);
+  });
+});
+
 // Runs last: it leaves an A row that reuses B's business id.
 describe('identifiers are scoped to the tenant (ADR-0007)', () => {
   it("inserting B's business id under A succeeds — no duplicate-key error reveals B's row", async () => {
