@@ -20,7 +20,8 @@ On staging this is `/etc/cron.d/pospay-backup`, 23:00 UTC (02:00 Kuwait), append
 ```
 
 `/etc/logrotate.d/pospay-backup` rotates that log monthly, keeps 6, and recreates it `0600 root root` (`su root syslog`,
-because Ubuntu's `/var/log` is group-writable). The log carries restic's output only — no variable from `backup.env`.
+because Ubuntu's `/var/log` is group-writable). The tested run's log contained none of the password or key values
+checked from `backup.env`; the redirect captures every line the container and Docker print, so keep it `0600`.
 
 `backup.env` lives on the server only (mode 600, never in Git) and sets:
 
