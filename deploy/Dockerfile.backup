@@ -1,0 +1,10 @@
+# syntax=docker/dockerfile:1
+# The logical backup job (plan T13 backups): pg_dump and restic, nothing else. The client matches the server's major
+# version — pg_dump refuses a newer server — so PG_MAJOR follows the Postgres it backs up (18 on the staging server).
+ARG PG_MAJOR=18
+FROM postgres:${PG_MAJOR}-alpine
+RUN apk add --no-cache restic curl
+COPY --chmod=755 deploy/backup/logical-backup.sh deploy/backup/restore-check.sh /usr/local/bin/
+USER postgres
+ENTRYPOINT []
+CMD ["logical-backup.sh"]

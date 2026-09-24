@@ -774,6 +774,16 @@ the deploy. Rehearsed locally end to end with throwaway secrets: migrate exits 0
 unauthenticated route 401. **T13-2 (on the server, with Waleed's go-ahead):** Dokploy project, secrets, subdomains, the
 previous-image-on-new-schema check, and the backups (restic + pgBackRest) with their timed restores.
 
+**Backups, logical path as built (no server touched):** the restic repository is a Cloudflare R2 bucket, not B2
+(Waleed 2026-09-24). `deploy/Dockerfile.backup` (`postgres:<major>-alpine` + restic, `PG_MAJOR` matching the server)
+runs `deploy/backup/logical-backup.sh`: `pg_dump --format=custom` as the migration owner through restic's
+`--stdin-from-command`, so a failed dump saves no snapshot; retention 14 daily / 8 weekly / 6 monthly; Healthchecks.io
+start / success / fail check-ins. `restore-check.sh` restores a snapshot into a scratch database, counts rows, times it
+against the RTO and drops it. Rehearsed on the dev Postgres: backup, restore in 5 s, and a failed dump exiting 1 with
+no new snapshot. CI builds, leak-checks and pushes the image with the others. **Still open, each on the server with
+Waleed's go-ahead:** the R2 bucket and token, the nightly cron, the physical/PITR path (it changes the shared
+Postgres's `archive_command`), and the one real PITR restore.
+
 ---
 
 ## 2. Dependency order — revised (v4)

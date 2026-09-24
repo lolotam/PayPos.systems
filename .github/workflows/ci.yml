@@ -144,13 +144,14 @@ jobs:
             echo "DECOY=never-in-an-image" > "$file"
           done
 
-      - name: build api · migrate · worker (and the build stage)
+      - name: build api · migrate · worker · backup (and the build stage)
         run: |
           registry="$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')"
           docker build -f deploy/Dockerfile.api --target build -t pospay-build-stage:check .
           docker build -f deploy/Dockerfile.api --target api -t "$registry/pospay-api:$SHA" .
           docker build -f deploy/Dockerfile.api --target migrate -t "$registry/pospay-migrate:$SHA" .
           docker build -f deploy/Dockerfile.worker -t "$registry/pospay-worker:$SHA" .
+          docker build -f deploy/Dockerfile.backup -t "$registry/pospay-backup:$SHA" .
           echo "REGISTRY_LC=$registry" >> "$GITHUB_ENV"
 
       - name: no env file in any image or build stage
@@ -158,7 +159,7 @@ jobs:
           set -euo pipefail
           leaked=0
           images="pospay-build-stage:check $REGISTRY_LC/pospay-api:$SHA"
-          images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-worker:$SHA"
+          images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-worker:$SHA $REGISTRY_LC/pospay-backup:$SHA"
           search='find / \( -name ".env" -o -name ".env.*" \) ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
           for image in $images; do
             # A failed inspection fails the step (set -e); it never counts as "nothing found".
@@ -173,7 +174,7 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          for image in api migrate worker; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
+          for image in api migrate worker backup; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
 
   # The one check branch protection requires. It passes when `check` passed, or when `check` was
   # skipped because only docs changed — and fails on anything else, including a failed `changes`.
