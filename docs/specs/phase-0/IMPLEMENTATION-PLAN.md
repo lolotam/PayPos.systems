@@ -804,8 +804,9 @@ keep off the server (2026-09-24).
 **Decided 2026-09-24 (Waleed): the physical / PITR path moves to the new server** (D-11). On this one it would change
 `archive_command` on the Postgres the "paypossystem" project shares and restart it, stopping that project; staging's
 data is test data, and last night's logical snapshot is its recovery point until then. The "Done when" line's PITR
-restore is therefore met on the new server, before production takes real sales. **Still open here:** the Healthchecks.io
-check-in (the scripts already call it; it needs the ping URL in `backup.env`).
+restore is therefore met on the new server, before production takes real sales. The Healthchecks.io check-in is
+live (2026-09-24): its ping URL is in `backup.env` only; a run of the exact cron command sent `/start` and success
+with no `curl` error and no ping URL in the log, so a missed or failed night now alerts Waleed by email.
 
 ---
 
