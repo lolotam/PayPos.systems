@@ -22,6 +22,7 @@ docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.
 | `RESTIC_PASSWORD` | encrypts every snapshot; lose it and every backup is lost with it — keep a copy off the server |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | an R2 API token scoped to that one bucket |
 | `HEALTHCHECK_URL` | the Healthchecks.io ping URL; a missed or failed check-in alerts |
+| `BACKUP_HOST` | the snapshot series name, default `pospay-<PGDATABASE>`; retention only prunes within one series |
 | `KEEP_DAILY`, `KEEP_WEEKLY`, `KEEP_MONTHLY` | retention, default 14 / 8 / 6 |
 
 ## Restore check
@@ -31,5 +32,5 @@ docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.
   restore-check.sh [snapshot-id]
 ```
 
-Restores into a scratch database (`<PGDATABASE>_restore_check`), counts rows, prints the time against the 2-hour
-RTO, and drops the scratch database. It never restores over the live one.
+Restores into a scratch database it names itself (`restore_check_<time>_<pid>`, refused if it exists), counts rows,
+prints the time against the 2-hour RTO, and drops only that database. It never restores over the live one.
