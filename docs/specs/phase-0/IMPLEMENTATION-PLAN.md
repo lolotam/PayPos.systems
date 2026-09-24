@@ -797,7 +797,8 @@ that bucket (Object Read & Write). The image is built on the server from the mer
 (mode 600, generated on the server, never in Git) holds the database, R2 and a fresh restic password, with
 `BACKUP_HOST=pospay-staging`. First snapshot `0e93f061` to R2; `restore-check.sh` restored it in 7 s (24 migrations)
 and left no scratch database. `/etc/cron.d/pospay-backup` runs it nightly at 23:00 UTC (02:00 Kuwait) into a
-mode-600 log. **Still open:** a copy of the restic password off the server, the Healthchecks.io check-in, the
+mode-600 log, rotated monthly (6 kept, recreated `0600`); the exact cron command was run from `/` under cron's bare
+environment and succeeded, and no `backup.env` secret appears in the log. **Still open:** a copy of the restic password off the server, the Healthchecks.io check-in, the
 physical/PITR path (it changes the shared Postgres's `archive_command` and restarts it, so it needs Waleed's
 go-ahead), and the one real PITR restore.
 

@@ -19,6 +19,9 @@ On staging this is `/etc/cron.d/pospay-backup`, 23:00 UTC (02:00 Kuwait), append
 0 23 * * * root docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env pospay-backup:<sha> >> /var/log/pospay-backup.log 2>&1
 ```
 
+`/etc/logrotate.d/pospay-backup` rotates that log monthly, keeps 6, and recreates it `0600 root root` (`su root syslog`,
+because Ubuntu's `/var/log` is group-writable). The log carries restic's output only — no variable from `backup.env`.
+
 `backup.env` lives on the server only (mode 600, never in Git) and sets:
 
 | Variable | Meaning |
