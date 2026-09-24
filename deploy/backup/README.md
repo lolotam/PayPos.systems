@@ -13,6 +13,16 @@ host's cron, on the network that reaches Postgres:
 docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env pospay-backup:<sha>
 ```
 
+On staging this is `/etc/cron.d/pospay-backup`, 23:00 UTC (02:00 Kuwait), appending to a mode-600 log:
+
+```cron
+0 23 * * * root docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env pospay-backup:<sha> >> /var/log/pospay-backup.log 2>&1
+```
+
+`/etc/logrotate.d/pospay-backup` rotates that log monthly, keeps 6, and recreates it `0600 root root` (`su root syslog`,
+because Ubuntu's `/var/log` is group-writable). The tested run's log contained none of the password or key values
+checked from `backup.env`; the redirect captures every line the container and Docker print, so keep it `0600`.
+
 `backup.env` lives on the server only (mode 600, never in Git) and sets:
 
 | Variable | Meaning |
