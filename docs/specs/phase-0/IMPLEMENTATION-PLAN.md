@@ -774,6 +774,15 @@ the deploy. Rehearsed locally end to end with throwaway secrets: migrate exits 0
 unauthenticated route 401. **T13-2 (on the server, with Waleed's go-ahead):** Dokploy project, secrets, subdomains, the
 previous-image-on-new-schema check, and the backups (restic + pgBackRest) with their timed restores.
 
+**T13-2 as built (staging live, 2026-09-24):** `https://staging.pospay.systems` on the existing server, beside the
+"paypossystem" project whose Postgres 18 and Redis 8 it shares on `dokploy-network` (database `PayPos`, its own roles
+and passwords) — `deploy/docker-compose.staging-shared.yml`, deployed over SSH by `deploy/staging-deploy.sh <sha>`
+from `/opt/pospay-staging` (mode 700, `.env` mode 600 generated on the server). Dokploy's Traefik routes the host with
+a Let's Encrypt certificate and redirects HTTP to HTTPS. First deploy, SHA `3ccc422`: migrate exited 0 on an empty
+database, API and worker healthy, `/ready` 200 with database, auth and Redis up, a guarded route 401. The images were
+carried to the server as a `docker save` archive (the GHCR packages are private and the server holds no registry
+token). The previous-image-on-new-schema check has no previous image yet; it runs from the second deploy on.
+
 **Backups, logical path as built (no server touched):** the restic repository is a Cloudflare R2 bucket, not B2
 (Waleed 2026-09-24). `deploy/Dockerfile.backup` (`postgres:<major>-alpine` + restic, `PG_MAJOR` matching the server)
 runs `deploy/backup/logical-backup.sh`: `pg_dump --format=custom` as the migration owner through restic's
