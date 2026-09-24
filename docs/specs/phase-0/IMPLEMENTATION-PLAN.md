@@ -789,9 +789,17 @@ runs `deploy/backup/logical-backup.sh`: `pg_dump --format=custom` as the migrati
 `--stdin-from-command`, so a failed dump saves no snapshot; retention 14 daily / 8 weekly / 6 monthly; Healthchecks.io
 start / success / fail check-ins. `restore-check.sh` restores a snapshot into a scratch database, counts rows, times it
 against the RTO and drops it. Rehearsed on the dev Postgres: backup, restore in 5 s, and a failed dump exiting 1 with
-no new snapshot. CI builds, leak-checks and pushes the image with the others. **Still open, each on the server with
-Waleed's go-ahead:** the R2 bucket and token, the nightly cron, the physical/PITR path (it changes the shared
-Postgres's `archive_command`), and the one real PITR restore.
+no new snapshot. CI builds, leak-checks and pushes the image with the others.
+
+**Logical backups live on staging (2026-09-24, Waleed's go-ahead):** the R2 bucket `paypos`, with a token scoped to
+that bucket (Object Read & Write). The image is built on the server from the merged files (hashes checked against
+`main`), `pospay-backup:04f4d24`: `pg_dump` 18.6, restic 0.18.1, running as `postgres`. `/opt/pospay-staging/backup.env`
+(mode 600, generated on the server, never in Git) holds the database, R2 and a fresh restic password, with
+`BACKUP_HOST=pospay-staging`. First snapshot `0e93f061` to R2; `restore-check.sh` restored it in 7 s (24 migrations)
+and left no scratch database. `/etc/cron.d/pospay-backup` runs it nightly at 23:00 UTC (02:00 Kuwait) into a
+mode-600 log. **Still open:** a copy of the restic password off the server, the Healthchecks.io check-in, the
+physical/PITR path (it changes the shared Postgres's `archive_command` and restarts it, so it needs Waleed's
+go-ahead), and the one real PITR restore.
 
 ---
 

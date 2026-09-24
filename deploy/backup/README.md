@@ -13,6 +13,12 @@ host's cron, on the network that reaches Postgres:
 docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env pospay-backup:<sha>
 ```
 
+On staging this is `/etc/cron.d/pospay-backup`, 23:00 UTC (02:00 Kuwait), appending to a mode-600 log:
+
+```cron
+0 23 * * * root docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env pospay-backup:<sha> >> /var/log/pospay-backup.log 2>&1
+```
+
 `backup.env` lives on the server only (mode 600, never in Git) and sets:
 
 | Variable | Meaning |
