@@ -14,7 +14,9 @@ coverage/
 # env — never commit real values (CLAUDE.md §8)
 .env
 .env.*
+*.env
 !.env.example
+!*.env.example
 
 # logs
 *.log
