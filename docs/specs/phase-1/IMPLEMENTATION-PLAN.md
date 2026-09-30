@@ -11,7 +11,6 @@
 
 | Item | Owner | Why it blocks |
 |---|---|---|
-| Start WhatsApp Business (WABA) verification for the PosPay display name | Waleed | OTP login (S2), ratings (S17) and WhatsApp alerts cannot go live without it; it takes days |
 | ADR-0008 — Phase 1 events and ports (SPEC §3) + `module-map.md` §3/§4 amendments | Claude | the module-map gate fails the first slice that emits `ServiceRecorded` without it |
 | ADR-0009 — the public rating link as a session-less entry point | Claude | CLAUDE.md §5 allows only three; S17 needs the fourth recorded |
 | Client data: services + prices, staff + plans, shifts, branches, open packages, contact person, meeting day | Waleed → client | only S19 (pilot) waits on it; nothing before S19 does |
@@ -25,7 +24,7 @@ Size: **S** ≤ 3 days · **M** ≈ 1 week · **L** ≈ 1.5–2 weeks of focused
 | # | Slice | Size | Depends on | Notes |
 |---|---|---|---|---|
 | S1 | `packages/ui` + `apps/admin` shell | L | — | RTL shadcn kit, Arabic font, login + TOTP, tenant selector locked to memberships, generated client |
-| S2 | `apps/pos` shell + WhatsApp adapter + staff OTP | M | S1, WABA | device pairing reuses Phase 0 devices; OTP via Better Auth `phone-number` |
+| S2 | `apps/pos` shell + WhatsApp adapter + staff OTP | M | S1 | device pairing reuses Phase 0 devices; OTP via Better Auth `phone-number` |
 | S3 | Users & permissions screen | S | S1 | role defaults + per-person ALLOW/DENY (D-46); discount-limit permission shape defined here |
 | S4 | `staff`: employees, salary, branches + import framework (employees) | M | S3 | the Excel import pattern (template, preview, all-or-nothing commit) is built once here and reused (D-48) |
 | S5 | `files` + documents + types + expiry job + email adapter | M | S4 | email provider ADR; audited opens (D-39) |
@@ -62,8 +61,8 @@ alerts, Excel import and a manager-built commission engine, and removed the barc
 | Pilot calendar on top (dry-run week + parallel month) | +5 calendar weeks, not compressible |
 
 The largest risks, in order: the commission engine's stage combinations (S9, mitigated by exhaustive pure tests and
-starting it first); WABA verification time (S2, S17 — mitigated by starting it now, and SMS as a fallback if it
-stalls); package redemption concurrency (S14, row lock + a concurrency test).
+starting it first); package redemption concurrency (S14, row lock + a concurrency test). WhatsApp Business verification
+is handled outside this plan and treated as ready (Waleed, 2026-10-01).
 
 ---
 

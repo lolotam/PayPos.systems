@@ -167,7 +167,7 @@ tests → use case → adapters → integration tests → screen (`CLAUDE.md` §
 | # | Slice | Depends on | Blocks on |
 |---|---|---|---|
 | S1 | `packages/ui` + `apps/admin` shell (login, TOTP, tenant selector, generated client) | — | — |
-| S2 | `apps/pos` shell (PWA, device pairing, staff OTP login) + `notifications` WhatsApp adapter + OTP | S1 | WABA verification (D-16) |
+| S2 | `apps/pos` shell (PWA, device pairing, staff OTP login) + `notifications` WhatsApp adapter + OTP | S1 | — |
 | S3 | Users & permissions screen incl. per-person ALLOW/DENY (D-46) | S1 | — |
 | S4 | `staff`: employees, salary (restricted), branches, import (employees) | S3 | — |
 | S5 | `files` + employee documents + document types + expiry job | S4 | email provider ADR (D-39) |
@@ -263,7 +263,7 @@ S9 has no dependency and runs early: the engine is the riskiest logic and is pur
 
 ## 8. Open items — `TODO(spec)`
 
-1. **WABA verification** (D-16): start now; S2 cannot finish without it. Owner: Waleed.
+1. ~~**WABA verification** (D-16)~~ — handled outside this plan and treated as ready (Waleed, 2026-10-01).
 2. **Email provider** (D-39): chosen in an ADR at S5 (a new provider needs one, CLAUDE.md §11).
 3. **ADR-0008** — Phase 1 events and ports (§3). **ADR-0009** — the public rating entry point, a fourth session-less
    path next to webhooks, messaging callbacks and worker jobs (CLAUDE.md §5).
