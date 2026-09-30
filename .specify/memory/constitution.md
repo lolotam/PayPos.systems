@@ -1,5 +1,8 @@
 <!--
 Sync Impact Report
+- 2.1.2 (2026-10-01, PATCH): backups go to Cloudflare R2, not Backblaze B2 (Waleed, 2026-09-24;
+  corrected after Eng. Khaled's audit); the physical PITR path is rehearsed on the production server
+  before it takes real sales, staging runs the logical path only (Waleed, 2026-10-01).
 - 2.1.1 (2026-09-23, PATCH): Waleed's decisions recorded — PIN of 4 digits locked after 5 failures for
   15 minutes (D-08), 30-day device token renewed on contact (D-09), branch timezone with business
   fallback (D-10), staging on the existing server for now (D-11), the name PosPay stands (D-02).
@@ -370,9 +373,11 @@ before containers start, follow expand/contract, add indexes `CONCURRENTLY`, are
 destructive in the same release as the code change, and after every migration the previous
 image is run against the new schema in staging to prove rollback. Every service declares a
 healthcheck, a memory limit and a restart policy; `/health` and `/ready` are separate checks
-on `api` and `worker`. Backups are two paths: nightly encrypted `pg_dump` to Backblaze B2 and
+on `api` and `worker`. Backups are two paths: nightly encrypted `pg_dump` to Cloudflare R2 and
 physical base backup with continuous WAL archiving for point-in-time recovery, with RPO ≤ 5
-minutes and RTO ≤ 2 hours, both checking in to Healthchecks.io and both rehearsed. A deploy
+minutes and RTO ≤ 2 hours, both checking in to Healthchecks.io and both rehearsed — the physical
+path on the production server before it takes real sales; staging runs the logical path only (Waleed,
+2026-10-01). A deploy
 that cannot be rolled back in one click is not finished. When a request conflicts with a
 rule here or in the governing docs, the assistant MUST stop and ask; when a plan conflicts
 with a rule, the rule wins and the plan is wrong. Reviews use the nine-question checklist in
@@ -414,4 +419,4 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.1.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-09-23
+**Version**: 2.1.2 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-01

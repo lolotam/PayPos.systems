@@ -3,7 +3,7 @@
 > Read this file fully before any task.
 >
 > **The three documents that govern this project:**
-> - `06_Tech_Stack_Architecture_EN.md` — **what** we build with (stack, engines, infrastructure). Currently V1.4.
+> - `06_Tech_Stack_Architecture_EN.md` — **what** we build with (stack, engines, infrastructure). Currently V1.3 (V1.4 is cited in older notes but was never recovered — PRD §13 item 1).
 > - `CLAUDE.architecture.md` — **how the code is shaped** (folder structure, layers, dependency rules). Currently A1.0.
 > - **This file** — the day-to-day rules the AI must obey while writing a slice.
 >
@@ -13,6 +13,7 @@
 > If a rule here conflicts with a request, **stop and ask** — do not silently break a rule.
 >
 > **Changelog**
+> - **V3.6 (2026-10-01)** — §10: the reverse proxy is Dokploy's shared Traefik, not a container we deploy; `06` is V1.3 (after Eng. Khaled's audit).
 > - **V3.5 (2026-09-23)** — §5: the dispatcher exception includes the idempotency sweep (ADR-0003, T7b).
 > - **V3.4 (2026-09-23)** — §2.1: `packages/ids` (UUID v7, plan v4 T7 / debate C4).
 > - **V3.3 (2026-09-23)** — §5: tenant tables key on `(company_id, id)` (ADR-0007).
@@ -253,7 +254,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
   `typecheck → lint (incl. max-lines) → lint:docs (JSDoc coverage + banned comments) → boundaries (eslint-plugin-boundaries) → cycles (dependency-cruiser / madge) → module-map check → unit (domain) → integration → RLS negative tests → EXPLAIN checks → build all apps → docker images`
 - Images are built in CI, tagged by **commit SHA** (never `latest`), pushed to GHCR; Dokploy pulls and restarts.
 - Migrations run as **their own step before new containers start**, follow **expand/contract**, add indexes `CONCURRENTLY`, and are never destructive in the same release as the code change.
-- `docker-compose` runs: `admin`, `pos`, `menu`, `api`, `worker`, `postgres`, `redis`, `traefik`. Object storage is **Cloudflare R2** (managed, not a container); use a local **Garage** container only for fully offline development.
+- The full topology is `admin`, `pos`, `menu`, `api`, `worker`, `postgres`, `redis`, plus the one-shot `migrate` step; **today staging runs only `migrate`, `api` and `worker`**, on the server's shared Postgres and Redis (`deploy/docker-compose.staging-shared.yml`). The reverse proxy is **Dokploy's Traefik** (TLS by Let's Encrypt), shared on the server — never a container in our files. Object storage is **Cloudflare R2** (managed, not a container); use a local **Garage** container only for fully offline development.
 - Every service declares a `healthcheck`, a memory limit and a restart policy. `/health` and `/ready` on `api` and `worker`.
 - **A deploy that can't be rolled back in one click isn't finished.**
 

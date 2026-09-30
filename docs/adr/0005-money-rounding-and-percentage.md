@@ -7,6 +7,9 @@
 
 ## Context
 
+> **Terms:** *mills* is the code name for the fils — one thousandth of a KWD (1 KWD = 1000 mills =
+> 1000 fils). Identifiers say `mills`; Arabic text says فلس (PRD glossary).
+
 `06` §5.5, the PRD §5.4 and `CLAUDE.md` §5 fix money as `bigint` mills and rounding as "half-up at
 line level, totals from lines". Three things were left open, and each one changes a number that ends
 up on an invoice:

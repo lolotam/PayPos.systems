@@ -1,15 +1,16 @@
-# Architecture V1.2 — Multi-Vertical Business Management SaaS
+# Architecture V1.3 — Multi-Vertical Business Management SaaS
 
 > Companion to `08_ChatGPT_Brief_Review_AR.md` (decisions & rationale) and `07_CLAUDE.md` (rules the AI must obey). This file is the **design-first** artifact: module map, dependency map, domain model, and the design of the engines that differentiate us. **No code yet** — implement one vertical slice at a time from this.
 >
 > **Changelog**
+> - **V1.3 (2026-10-01)** — **Infrastructure as built** (after Eng. Khaled's audit): the reverse proxy is **Traefik, managed by Dokploy** (TLS by Let's Encrypt), not Caddy; object storage is **Cloudflare R2** (a local Garage container only for fully offline development), not MinIO / DO Spaces. Matches `CLAUDE.md` V2 and the staging deploy (`deploy/docker-compose.staging-shared.yml`).
 > - **V1.2 (2026-09-15)** — **Auth layer confirmed**: Better Auth (self-hosted) + our own `identity` layer. Added §1.1 auth decision row, §5.8 (the five login types, cashier PIN, device registration, offline session design) and auth rules in §5.7. Rejected all per-MAU services on unit-economics grounds (see §5.8.1).
 > - **V1.1 (2026-09-15)** — Stack review session with Waleed. Confirmed layer by layer: front-end, back-end, ORM, database, container topology. Main change: **Prisma → Drizzle ORM**, NestJS explicitly on the **Fastify adapter**, `api` and `worker` are **separate containers**, and every layer runs in its own container. Added §1.1 (decision log) and §1.2 (container topology). Rows marked ⏳ in the stack table are still to be reviewed.
 > - V1 — initial design.
 
 ---
 
-## 1. Stack (V1.2)
+## 1. Stack (V1.3)
 
 **Guiding principle (agreed 2026-09-15):** user-perceived speed comes from architecture — local-first POS, correct indexes, Redis caching, background queues, few DB round-trips — not from exotic frameworks. So the stack is **TypeScript end-to-end**, the most AI-fluent and structured options at every layer, with performance guaranteed by rules (see §5.7) rather than by rare technology.
 
@@ -32,12 +33,12 @@
 | Client-side store | **IndexedDB via Dexie** (inside the POS PWA) | Offline orders, catalog snapshot, sync outbox | ✅ confirmed |
 | Auth | **Better Auth (self-hosted, in our own DB)** with `organization`, `two-factor` (TOTP), `phone-number` (OTP) and `api-key` plugins, on the Drizzle adapter — **plus our `identity` layer** for cashier PIN, device registration and 3-level RBAC | $0 at any scale (per-MAU pricing is fatal at ~500k MAU against 50 KWD/shop), data stays in our Postgres under the same RLS, sessions are ours so the POS keeps working offline, and PIN/device-token flows simply do not exist in hosted providers | ✅ confirmed |
 | Realtime | SSE (KDS, dashboards); upgrade to WS only if bidirectional need appears | Simplest that works through proxies | ⏳ to review |
-| Files | S3-compatible (MinIO dev / DO Spaces prod) | Images, receipts, exports | ⏳ to review |
+| Files | Cloudflare R2 (Garage only for fully offline dev) | Images, receipts, exports | ✅ confirmed (`CLAUDE.md` V2) |
 | PDF/Excel | Worker: Playwright headless (HTML→PDF, Arabic fonts) + exceljs | Bilingual reports | ⏳ to review |
 | Payments (KW) | MyFatoorah first (KNET, cards, Apple Pay); Tap/UPayments adapters later | Kuwait reality | ⏳ to review |
 | Messaging | WhatsApp Cloud API (Meta); email via Resend/SES | Reminders, campaigns, OTP | ⏳ to review |
 | Observability | pino structured logs + request-id + Sentry; OpenTelemetry later | "What happened to tenant X order Z at 3:12?" | ⏳ to review |
-| Deploy | One Docker image per app; Docker Compose on 1 VPS via Dokploy/Coolify + Caddy; GitHub Actions CI | Solo-dev friendly; managed Postgres when revenue justifies | ⏳ to review |
+| Deploy | One Docker image per app; Docker Compose on 1 VPS via Dokploy, behind its Traefik; GitHub Actions CI | Solo-dev friendly; managed Postgres when revenue justifies | ⏳ to review |
 
 ### 1.1 Decision log — what was compared and why (2026-09-15)
 
@@ -51,16 +52,18 @@
 
 ### 1.2 Container topology (each layer isolated, talks over the Docker network)
 
+> The planned production topology. **Staging today** runs only `migrate`, `api` and `worker`, on the server's shared Postgres and Redis, behind Dokploy's Traefik (`deploy/docker-compose.staging-shared.yml`).
+
 | Container | Runs | Notes |
 |---|---|---|
 | `admin` | Next.js server (`apps/admin`) | SSR; Node process |
-| `pos` | Static build of `apps/pos` served by Caddy/Nginx | No Node at runtime; near-zero resources; PWA + Service Worker |
+| `pos` | Static build of `apps/pos` served by Nginx | No Node at runtime; near-zero resources; PWA + Service Worker |
 | `menu` | Next.js server (`apps/menu`) | SSR public e-menu / booking |
 | `api` | NestJS (Fastify) HTTP API + SSE + **Better Auth handler mounted in-process** | Must stay light: request/response only; anything > 200 ms goes to a queue. Auth adds **no extra container** |
 | `worker` | NestJS BullMQ processors (same image as `api`, different entrypoint) | Reports, PDF, WhatsApp, sync, commission runs, outbox dispatch; can scale independently |
 | `postgres` | PostgreSQL 16 | Own volume; RLS policies applied by migrations; **auth tables live here too** |
 | `redis` | Redis 7 | Queues, cache, rate-limits, rotating QR secrets, OTP throttling |
-| `caddy` | Reverse proxy + TLS | Routes `admin.`, `pos.`, `menu.`, `api.` subdomains |
+| `traefik` | Reverse proxy + TLS — Dokploy's own, shared on the server; not a service in our compose files | Routes `admin.`, `pos.`, `menu.`, `api.` subdomains |
 
 ## 2. Repository layout
 
@@ -255,7 +258,7 @@ Target scale is **10k–50k organizations × 4–10 staff ≈ 200k–500k monthl
 5. Reporting (unified owner dashboard, scheduled exports) → platform admin → subscriptions.
 
 ## 8. Costs (rough, monthly)
-VPS 8 GB (≈ $30–50) · managed Postgres later (≈ $25–60) · object storage (≈ $5) · Sentry free tier · WhatsApp Cloud API per conversation (≈ $0.02–0.05) · MyFatoorah per-transaction fees · domain/TLS free (Caddy). **Auth: $0 at any scale.**
+VPS 8 GB (≈ $30–50) · managed Postgres later (≈ $25–60) · object storage (≈ $5) · Sentry free tier · WhatsApp Cloud API per conversation (≈ $0.02–0.05) · MyFatoorah per-transaction fees · domain/TLS free (Traefik + Let's Encrypt). **Auth: $0 at any scale.**
 
 ## 9. Escape hatches (planned, no rewrite required)
 - **Runtime:** run the same NestJS image on Bun instead of Node once Bun's driver ecosystem is fully stable.
