@@ -1,7 +1,7 @@
 # Phase 1 — Salon Pilot Spec: staff, attendance, sessions, packages, commissions
 
-> **Status:** Draft v3 · 2026-10-01 · from the onboarding interview with Waleed (2026-09-30 → 2026-10-01) and Codex's
-> reviews (round 1: 30 findings; round 2: 17). Decisions: `docs/PRD.md` §12 — D-12…D-17, D-28, D-30, D-32 (decided)
+> **Status:** Draft v4 · 2026-10-01 · from the onboarding interview with Waleed (2026-09-30 → 2026-10-01) and Codex's
+> reviews (round 1: 30 findings; round 2: 17; round 3: 11). Decisions: `docs/PRD.md` §12 — D-12…D-17, D-28, D-30, D-32 (decided)
 > and D-35…D-55. **Governing docs:** `CLAUDE.md` · `CLAUDE.architecture.md` · `06_Tech_Stack` · `module-map.md`; on
 > conflict they win, and §9 names every amendment this phase needs. **Supersedes** the PRD §10 Phase 1 task list where
 > the two differ.
@@ -185,8 +185,8 @@ period of its `sold_at`.
 
 - The employee's **share**: `net × share_bps / 10000`, floored to mills; remainder mills go one each to the performers
   in ascending `employee_id` order, so shares sum to `net`. A package line's `net` is its slot's `unit_value`.
-- The **rule**, first match wins: the employee's `ServiceOverride` that applies at `occurred_at` (latest `created_at`
-  among those with `effective_from ≤ occurred_at`), else the line's `rule_snapshot`. `FOLLOW_PLAN` uses the plan;
+- The **rule**, first match wins: the employee's `ServiceOverride` that applies at `occurred_at` (among those with
+  `effective_from ≤ occurred_at`, the latest by `created_at`, then by `id`), else the line's `rule_snapshot`. `FOLLOW_PLAN` uses the plan;
   `ZERO` pays nothing; `PCT` pays `share × bps / 10000`; `FIXED` pays `a × share_bps / 10000` — instead of the plan,
   base and tiers alike, for that line only. An absent override is not `ZERO`.
 
@@ -201,7 +201,7 @@ period of its `sold_at`.
 ### 5.4 The plan version that prices a line or a sale
 
 A version **applies** to a line if its `effective_from ≤ occurred_at`, or if it is `whole_period` for the line's period.
-Among the versions that apply, the one with the latest `created_at` prices the line. So a `whole_period` version
+Among the versions that apply, the latest by `created_at`, then by `version`, prices the line. So a `whole_period` version
 created on the 20th reprices the 10th, and a later ordinary version still wins from its own date. Base and tiers each
 have `enabled` and can be switched at any time; a switch is a new version (D-50).
 
@@ -212,8 +212,9 @@ have `enabled` and can be switched at any time; a switch is a new version (D-50)
 - **Base** (if enabled): `PCT` → `share × bps / 10000`; `FIXED` → `a × share_bps / 10000`.
 - **Tiers** (if enabled). `SALARY_MULTIPLE k` resolves to `k × salary on the period's last day`. The active step at
   accumulator value `x` is the last step with `from ≤ x`; below the first step no tier pays.
-  - **MARGINAL:** a line that crosses one or more boundaries between `x` and `x + share` (AMOUNT only) is **split** at
-    each boundary **only if every step it touches is `PCT`**; each part pays its step's rate. Otherwise — any `FIXED`
+  - **MARGINAL:** a `counts = true` line that crosses one or more boundaries between `x` and `x + share` (AMOUNT only)
+    is **split** at each boundary **only if every step it touches is `PCT`**; a `counts = false` line never crosses
+    anything and is priced whole at the step active at `x`; each part pays its step's rate. Otherwise — any `FIXED`
     step touched, or a SESSIONS accumulator — the whole line is priced by the step active at `x`, **before** it; the
     next line gets the new step (D-50).
   - **WHOLE:** compute the period's final accumulator `X`; the reached step is the last with `from ≤ X`; every
@@ -253,14 +254,19 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 - **Events carry state.** Consumers keep an event only if its `revision` is newer, and dedupe by `event_id`, so
   duplicates, reordering and replay converge.
 - **The estimate is computed on read** — the engine over the DRAFT projection; never stored, so it cannot drift.
+- **The consumer is atomic.** For one event, the projection update, the generation increment, the corrections and
+  the `consumed_events` mark commit in **one** transaction under the statement lock; a crash anywhere in between rolls
+  all of it back and the redelivered event does it again. A test kills the transaction between the projection write
+  and the correction insert.
 - **Every writer of a period's inputs serializes with approval.** The commissions consumer, and every writer of plan
   versions and overrides, locks the statement row of the period it affects and rechecks its status under that lock.
   Plan versions and overrides take `effective_from ≥ today`, or `whole_period` only for a DRAFT period. Salary is never
-  back-dated (§4), so it cannot change an approved period. Service rules are snapshots on each line.
+  back-dated (§4), and a period can be approved **only after it has ended** (its last day is over in the business
+  timezone), so a salary change can never reach an approved period. Service rules are snapshots on each line.
 - **Review is bound to the inputs.** Any input change to a period recomputes its fingerprint; a REVIEWED statement
   whose fingerprint changed returns to DRAFT and must be reviewed again; the owner can approve only a statement whose
   current fingerprint equals `reviewed_fingerprint`.
-- **Approval is atomic.** One transaction: lock the statement; refuse while the period has lines without a performer;
+- **Approval is atomic.** Only for an ended period. One transaction: lock the statement; refuse while the period has lines without a performer;
   refuse (409, retry) while this company's commission-relevant outbox events created before the approval began are
   unprocessed — read through one `SECURITY DEFINER` count function, the only outbox read `pospay_app` gets (§9);
   freeze every `StatementLine` and the fingerprint. An event is therefore applied either before approval (in the
@@ -280,10 +286,12 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 
 ## 7. Attendance
 
-- **Phone binding by passkey (D-40, amended).** After OTP login the staff app registers a **platform passkey**
-  (WebAuthn, user verification required — the phone's fingerprint, face or lock code); the server keeps its public key
-  in `EmployeePasskey`. A clock request signs a fresh server challenge with it, so the credential cannot be copied to
-  another phone. The first enrolment is automatic when the employee has no active binding; a new phone needs the
+- **Binding by passkey (D-40, amended).** After OTP login the staff app registers a **passkey** (WebAuthn, user
+  verification required — the phone's fingerprint, face or lock code); the server keeps its public key in
+  `EmployeePasskey`. A clock request must sign a fresh server challenge with that registered passkey, so nobody can
+  clock for her without her own authenticator and its unlock. What it does **not** prove is a physical phone: a synced
+  passkey (iPhone, Android) also works on her other signed-in devices. Physical presence rests on the rotating QR and
+  the geofence. The first enrolment is automatic when the employee has no active binding; a new phone needs the
   manager to unbind the old one, audited. The web cannot prove that one phone holds only one employee's passkey, so
   the anomaly report flags two employees clocking from the same device fingerprint within minutes — a flag for the
   manager, not a block.
@@ -314,9 +322,12 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
   line and the redemption. Refused when no slot is free or today > `expires_on` (end of that day, branch timezone).
 - **Cancel a redeemed line:** reverse the redemption; the slot returns to `FREE`; the line is re-emitted CANCELLED.
 - **Extend** (manager, audited) moves `expires_on`.
-- **Refund** (manager, idempotency key, row lock): the manager picks the component and the number of sessions; the
+- **Refund** (manager, idempotency key): locks the **entitlement** row, then the component; the manager picks the component and the number of sessions; the
   highest `FREE` ordinals are marked `REFUNDED`, recorded on the refund with the sum of their values as its amount;
-  refunded slots can never be redeemed. No refund after expiry unless extended first (D-51).
+  refunded slots can never be redeemed. The entitlement's cumulative `refunded_amount` and its `revision` change in
+  the same transaction, and the committed snapshot is what `PackageSaleChanged` carries — two refunds of different
+  components serialize on the entitlement and never overwrite each other. No refund after expiry unless extended first
+  (D-51).
 - **Sale:** reception names the seller and records paid-in-full and the method; `sold_at` is the sale time.
 - **Import (D-51):** original price, original sessions per service, remaining sessions, expiry, customer phone,
   `external_ref` unique per company (re-import is a no-op). Slots are valued over the original sessions; ordinals
@@ -343,17 +354,19 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 - One request per customer per business per day. The day and the closing time come from the **branch of her last
   session that day**, in its timezone. `due_at` = that session + 1 hour; each new session that day moves it; it never
   passes that branch's closing time (no cap when opening hours are unset).
-- **Sending is at most once.** The job claims a due request with `FOR UPDATE SKIP LOCKED`, rechecks her opt-out and
-  that an active line remains, snapshots the performers, sets `SENDING`, and emits `RatingRequestReady`. A request
-  found `SENDING` after a crash is not retried — a lost rating is acceptable, a duplicate message is not. A session
+- **Sending is at most once, end to end.** The job claims a due request with `FOR UPDATE SKIP LOCKED`, rechecks her
+  opt-out and that an active line remains, snapshots the performers, sets `SENDING`, and emits `RatingRequestReady`.
+  `notifications` commits a delivery-attempt row **before** calling the provider; an event whose attempt row already
+  exists (a redelivery after a crash) is not sent again. A lost rating is acceptable, a duplicate message is not. A session
   recorded after the send is not rated.
 - **Attribution:** every performer in the snapshot gets the stars; her average is the mean of the ratings attributed
   to her. ≤ 2 stars → `LowRatingReceived` if the alert is on. Ratings never change commission.
 - **Opt-out, and its exact guarantee.** On the rating page it sets `opted_out_at` at once; every later claim checks it.
   A WhatsApp "stop" reply lands in the platform-level suppression (ADR-0011) at once and blocks every message to that
   phone from our sender, which is WhatsApp's own rule, so no tenant needs to be resolved. `notifications` checks
-  suppression immediately before calling the provider. The only message that can still arrive after an opt-out is
-  one already handed to the provider in the seconds before it.
+  suppression immediately before calling the provider. **The stated window:** a "stop" reply blocks every message not
+  yet handed to the provider; a page opt-out blocks every request not yet claimed — so at most the one request
+  already claimed for that day may still be delivered after it.
 
 ---
 
@@ -372,9 +385,11 @@ fail · M3 late entry until approval, flagged; after approval → correction · 
 above 500, approved (B = 20.000); cancelling A posts −20.000 to B; then a late 600 before B posts +20.000 in a new
 generation · M5 two concurrent redemptions of the last slot: one wins · M6 refund vs redemption race; a duplicate
 refund is a no-op; the refund's component, ordinals and amount are recorded · M7 expired entitlements redeem nothing;
-refund after expiry refused · M8 cancelling a redemption frees its ordinal; the next redemption takes the lowest free.
+refund after expiry refused · M8 cancelling a redemption frees its ordinal; the next redemption takes the lowest free · M9 two refunds of
+    different components of one package: both amounts in the final snapshot.
 
-**Commissions** §5.8 fixtures · the estimate equals the engine on the DRAFT projection · approval racing a session, a
+**Commissions** §5.8 fixtures · a crash between projection write and correction insert leaves neither · approval of
+    a period that has not ended is refused · the estimate equals the engine on the DRAFT projection · approval racing a session, a
 redemption, a refund, a plan version and an override: each lands in the frozen result or in a correction · a plan
 write racing approval sees APPROVED and is refused · an input change after REVIEWED returns the statement to DRAFT ·
 duplicate, reordered and replayed events converge · corrections land in the earliest DRAFT period · only the owner
@@ -382,7 +397,7 @@ approves; PAID records the method · card tips column · reminders on the 3rd an
 
 **Customers & ratings** R1 phone shown only on the entry form; masked elsewhere; absent from exports, logs and import
 errors · R2 due time moves with new sessions, from the last session's branch, capped by its closing time · R3 a request
-crashed in SENDING is not resent; two workers send once · R4 attribution to every performer; a cancellation before
+crashed in SENDING is not resent; a notifications redelivery with an attempt row is not resent; two workers send once · R4 attribution to every performer; a cancellation before
 send removes it · R5 token tampering, replay, expiry, cross-tenant rejected · R6 opt-out by page and by WhatsApp reply
 takes effect before the next provider call.
 

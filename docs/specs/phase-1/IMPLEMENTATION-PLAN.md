@@ -1,6 +1,6 @@
 # Phase 1 — Implementation Plan
 
-> **v3 · 2026-10-01** · implements `docs/specs/phase-1/SPEC.md` v3. Rules as in Phase 0: **one use case per PR**, in
+> **v4 · 2026-10-01** · implements `docs/specs/phase-1/SPEC.md` v4. Rules as in Phase 0: **one use case per PR**, in
 > the order contract → migration + RLS → domain + tests → use case → adapters → integration tests → screen; Codex
 > reviews every PR; `pnpm check` and `ci-gate` green before merge; a business rule not in the spec is a `TODO(spec)`
 > and a stop.
@@ -13,7 +13,7 @@
 |---|---|---|---|
 | G1 | ADR-0008: Phase 1 ports and events (SPEC §3) + `module-map.md` §3/§4 and its YAML | S | PR 4 |
 | G2 | ADR-0010: `SECURITY DEFINER` pending-outbox count for approval, grants, tests | S | PR 53 |
-| G3 | ADR-0009 + `CLAUDE.md` §5: the public rating link | S | PR 59 |
+| G3 | ADR-0009 + `CLAUDE.md` §5: the public rating link | S | PR 58 |
 | G4 | ADR-0011: Better Auth `passkey` plugin + platform WhatsApp suppression | S | PRs 5, 20 |
 | G5 | Email-provider ADR | S | PR 14 |
 | D-55 | The salon's real plan rules (input from the client, no build days) | — | PR 30 closes |
@@ -66,9 +66,11 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 30 | engine II: WHOLE, SESSIONS, salary multiple, versions, package sale, §5.7 validation, §5.8 hand-calculated fixtures | M | 29, D-55 |
 | 31 | package allocation and slots (`orders/domain`, SPEC §8) | S | — |
 | | **M5 · catalog, customers, sessions** | | |
-| 32 | services + import | M | 11 |
+| 32 | services (create / update) | S | 11 |
+| 32b | services import | S | 32 |
 | 33 | package types | S | 32 |
-| 34 | customers: find-or-create by phone, import | M | 11, G1 |
+| 34 | customers: find-or-create by phone | S | G1 |
+| 34b | customers import | S | 34, 11 |
 | 35 | `record-service-session` — discounts up to the limit only; above it refused | L | 32, 34, 9 |
 | 36 | `record-tip` | S | 35 |
 | 37 | `cancel-service-line` | S | 35 |
@@ -92,12 +94,16 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 53 | `approve-statement` (atomic) | M | 52, G2 |
 | 54 | `mark-statement-paid` | S | 53 |
 | 55 | corrections (generations, earliest DRAFT target) | M | 53 |
-| 56 | Excel export, tips columns, reminders | S | 53 |
-| 57 | staff app: my sessions, estimate, attendance, leave; columns setting | M | 50, 22 |
+| 56 | statement Excel export with the tips columns | S | 53 |
+| 56b | approval reminders on the 3rd and 5th | S | 53 |
+| 57 | staff app: my sessions and estimate | M | 50 |
+| 57b | staff app: my attendance and my leave | S | 22, 17 |
+| 57c | staff-columns setting | S | 57 |
 | | **M8 · ratings and alerts** | | |
-| 58 | customer opt-out on the rating page | S | 34 |
-| 59 | rating scheduling + at-most-once send job | M | 35, 4, G3 |
-| 60 | rating page + `submit-rating` | S | 59 |
+| 58 | customer opt-out on the rating page | S | 34, G3 |
+| 59 | rating scheduling (due time) | S | 35, G3 |
+| 59b | at-most-once rating send (claim + delivery-attempt row) | S | 59, 4 |
+| 60 | rating page + `submit-rating` | S | 59b |
 | 61 | low-rating alert + averages | S | 60 |
 | 62 | alert-rules screen + master switch | S | 15, 28, 61 |
 | | **M9 · pilot** | | |
@@ -107,9 +113,9 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 
 ## 3. Duration
 
-**Nominal, from the table:** 5 gates and 36 PRs at S (82 days), 26 at M (104), 1 at L (7) = **193 focused days ≈ 39
-weeks** for one developer at the Phase 0 convention; minus the parallel engine track (PRs 29–31, 10 days) ≈
-**37 weeks**. This is the figure given to the client until Phase 1's own pace is measured.
+**Nominal, from the table:** 5 gates and 45 PRs at S (100 days), 23 at M (92), 1 at L (7) = **199 focused days ≈ 40
+weeks for one developer** — the figure given to the client until Phase 1's own pace is measured. If the engine
+track (PRs 29–31, 10 days) is handed to a second implementer, the critical path is ≈ 38 weeks.
 
 **Scenario, not a commitment:** Phase 0 was forecast at 6–8 weeks and delivered in about 10 calendar days
 (2026-09-22 → 2026-10-01). If Phase 1 ran at the same ratio it would take ≈ 8–10 calendar weeks — but one phase is not
