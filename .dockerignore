@@ -2,7 +2,9 @@
 # is recursive: an env file anywhere in the tree stays out, not only at the root.
 **/.env
 **/.env.*
+**/*.env
 !**/.env.example
+!**/*.env.example
 **/node_modules
 **/dist
 **/.turbo

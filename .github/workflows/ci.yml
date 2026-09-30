@@ -140,7 +140,7 @@ jobs:
       # build stage too, whose layers hold the whole context — rather than passing because none existed.
       - name: plant decoy env files
         run: |
-          for file in .env .env.production apps/api/.env apps/api/.env.production packages/db/.env.local; do
+          for file in .env .env.production apps/api/.env apps/api/.env.production packages/db/.env.local deploy/backup/backup.env; do
             echo "DECOY=never-in-an-image" > "$file"
           done
 
@@ -160,7 +160,7 @@ jobs:
           leaked=0
           images="pospay-build-stage:check $REGISTRY_LC/pospay-api:$SHA"
           images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-worker:$SHA $REGISTRY_LC/pospay-backup:$SHA"
-          search='find / \( -name ".env" -o -name ".env.*" \) ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
+          search='find / \( -name ".env" -o -name ".env.*" -o -name "*.env" \) ! -name "*.env.example" ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
           for image in $images; do
             # A failed inspection fails the step (set -e); it never counts as "nothing found".
             found="$(docker run --rm --entrypoint sh "$image" -c "$search")"
