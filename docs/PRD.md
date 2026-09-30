@@ -313,7 +313,7 @@ Four financial rules close the gaps a 24-hour idempotency window leaves open:
 
 ### 8.5 Reliability
 
-Idempotency store with replayable response, scoped uniqueness (`scope` + `operation` + `key`, scope = company, or the user for bootstrap writes), request-fingerprint mismatch → 422, a concurrent duplicate waits and replays (lock timeout → retryable 409), 24 h retention · outbox written in the same transaction, dispatched by the worker, consumers idempotent by `event_id`, replay is a supported recovery tool · inbound webhooks: verify signature → store raw → enqueue → ack 200, dedupe by provider event id · `/health` and `/ready` on `api` and `worker` · every container has a healthcheck, memory limit and restart policy · migrations run as their own step before containers, expand/contract, indexes `CONCURRENTLY`, never destructive in the same release · previous image must still serve against the new schema (proven in staging) · backups: nightly logical `pg_dump` + physical base backup with continuous WAL archiving (pgBackRest or wal-g) to Backblaze B2, RPO ≤ 5 min, RTO ≤ 2 h, both rehearsed, both checking in to Healthchecks.io · a deploy that cannot be rolled back in one click is not finished.
+Idempotency store with replayable response, scoped uniqueness (`scope` + `operation` + `key`, scope = company, or the user for bootstrap writes), request-fingerprint mismatch → 422, a concurrent duplicate waits and replays (lock timeout → retryable 409), 24 h retention · outbox written in the same transaction, dispatched by the worker, consumers idempotent by `event_id`, replay is a supported recovery tool · inbound webhooks: verify signature → store raw → enqueue → ack 200, dedupe by provider event id · `/health` and `/ready` on `api` and `worker` · every container has a healthcheck, memory limit and restart policy · migrations run as their own step before containers, expand/contract, indexes `CONCURRENTLY`, never destructive in the same release · previous image must still serve against the new schema (proven in staging) · backups: nightly logical `pg_dump` + physical base backup with continuous WAL archiving (pgBackRest or wal-g) to Cloudflare R2 (decided 2026-09-24; was Backblaze B2), RPO ≤ 5 min, RTO ≤ 2 h, both rehearsed, both checking in to Healthchecks.io · a deploy that cannot be rolled back in one click is not finished.
 
 ### 8.6 Observability
 
@@ -335,7 +335,7 @@ The phase order follows `06` §7 (the governing doc), `05_App_Blueprint_Build_Pl
 
 | Phase | Name | Pilot | Primary modules / apps | Duration (revised) | Exit criterion |
 |---|---|---|---|---|---|
-| **0** | Foundation | none (API + tests only) | `tenancy`, `identity`, `settings`; `packages/{domain,db,contracts,auth,i18n,observability}`; `apps/api`, `apps/worker` bootstrap; CI; staging; backups | 6–8 weeks | two companies exist; A reads zero rows of B at DB **and** API level; CI blocks a boundary violation; one PITR restore performed |
+| **0** | Foundation | none (API + tests only) | `tenancy`, `identity`, `settings`; `packages/{domain,db,contracts,auth,i18n,observability}`; `apps/api`, `apps/worker` bootstrap; CI; staging; backups | 6–8 weeks | two companies exist; A reads zero rows of B at DB **and** API level; CI blocks a boundary violation; one PITR restore performed (on the new server, before real sales — D-11) |
 | **1** | Staff, attendance, commissions | salon | `staff`, `commissions`, minimal `catalog` (services) and `orders` (service sessions) slices, minimal `files` (private uploads), minimal `notifications` (OTP + operational alerts); `apps/admin` + `apps/pos` bootstrap; `packages/ui` | 7–9 weeks | see Phase 1 exit (testable, §10) |
 | **2** | Catalog, orders, payments, cash, POS | one restaurant branch (Smoked), 2 weeks parallel with Twlm | `catalog`, `customers`, `orders`, `payments`, `cash`, `realtime`, `files`; `packages/{payments,storage,documents(ESC/POS)}`; POS sell/shift/offline; print agent; first read models | 12–18 weeks | see Phase 2 exit |
 | **3** | Inventory, recipes, production, kitchen | restaurant | `inventory`, `kitchen`; tables/floor map | 7–10 weeks | see Phase 3 exit |
@@ -525,10 +525,10 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P0-T13.2 Worker **image and deployment** only — the worker itself and the outbox dispatcher are built in P0-T7b (plan v4).
 - [ ] P0-T13.3 Dokploy + Traefik on the chosen host; subdomains and cookie domain per ADR-0001 §6; secrets injected from Dokploy; test keys only.
 - [ ] P0-T13.4 Migrations run as their own step before containers start; after every migration run the **previous** image against the **new** schema and confirm it serves.
-- [ ] P0-T13.5 Backups: nightly `pg_dump` encrypted to B2 via restic **and** pgBackRest/wal-g base backup + continuous WAL; RPO ≤ 5 min, RTO ≤ 2 h; both check in to Healthchecks.io.
+- [ ] P0-T13.5 Backups: nightly `pg_dump` encrypted to Cloudflare R2 via restic (was B2; decided 2026-09-24) **and** pgBackRest/wal-g base backup + continuous WAL — the physical path moves to the new server (D-11; Waleed, 2026-10-01); RPO ≤ 5 min, RTO ≤ 2 h; both check in to Healthchecks.io.
 - [ ] P0-T13.6 One PITR restore actually performed to a chosen timestamp and queried; one logical restore into a scratch DB. The PITR drill uses `pgbackrest restore --type=time`, or an **empty** `recovery.signal` with its settings in `postgresql.auto.conf`, and GNU `date` *(Eng. Khaled's audit, 2026-10-01)*. The logical restore is done (T14); PITR waits for the new server (D-11).
 - [ ] P0-T13.7 Production sizing on the new server, in an ADR *(Eng. Khaled's audit, 2026-10-01)*: a memory budget per container with `shared_buffers` ≈ 25 % of the Postgres cap and headroom for `work_mem` × active queries; a load test on an authenticated hot path (not `/health`); API load shedding below the container cap (RSS ≈ 75–80 %).
-- **Done when:** staging deploys from a SHA-tagged image; the **previous** image passes the authenticated read and write smoke scenarios against the new schema; a timed PITR restore to a chosen timestamp and a timed logical restore both complete, are queried, and meet RPO ≤ 5 min and RTO ≤ 2 h.
+- **Done when:** staging deploys from a SHA-tagged image; the **previous** image passes the authenticated read and write smoke scenarios against the new schema; a timed PITR restore to a chosen timestamp and a timed logical restore both complete, are queried, and meet RPO ≤ 5 min and RTO ≤ 2 h. *(the PITR restore is done on the new server before production takes real sales — D-11; Waleed, 2026-10-01)*
 
 **Phase 0 acceptance checklist (from SPEC §6, extended):**
 
@@ -540,7 +540,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] A write use case appends its outbox event inside its transaction, proven by a test; the worker dispatches it
 - [ ] Every API log line carries the four context fields; nothing on the redaction list is logged
 - [ ] CI runs the full gate in order and blocks a boundary violation
-- [ ] Staging deploys from a SHA image; old image serves on the new schema; PITR and logical restores rehearsed
+- [ ] Staging deploys from a SHA image; old image serves on the new schema; PITR and logical restores rehearsed *(the PITR restore is done on the new server before production takes real sales — D-11; Waleed, 2026-10-01)*
 - [ ] `pnpm check` green on `main`
 
 **Phase 0 schedule:** the authoritative forecast is `IMPLEMENTATION-PLAN.md` §3 (v4) — re-forecast from actual effort on 2026-09-23: ≈ 36 working days remaining after T6a (20.5 build + 15.5 review), excluding waits on open decisions. The earlier 8-week table is superseded.
@@ -990,7 +990,7 @@ Every open item below blocks the task named in "Blocks". An implementing agent m
 | Hardware and printers (the classic POS failure) | pilot fails on day one | device profile + printer test in week 1 of Phase 2 (D-18) |
 | Offline sync edge cases (two devices offline, price changed) | duplicated or lost orders | server-side conflict rules, idempotency, E2E offline test; stated limitation on shared live stock |
 | Scope sprawl across "all verticals" | nothing finishes | only restaurant + salon templates until Phase 6; written scope per phase; new asks go to the next phase |
-| Backups configured but never restored | unrecoverable incident | P0-T13 not done until PITR and logical restores are performed |
+| Backups configured but never restored | unrecoverable incident | P0-T13 not done until the logical restore is performed; the PITR restore before production takes real sales (D-11) |
 | Solo developer + One-Man-Show trap (the competitor's failure mode) | unhappy customers, no growth | strict rules make a second developer's onboarding possible; support and release cadence defined in P5-T10 |
 | Untested schedule estimates (`05`: 2 weeks for Phase 0; `06`: 4 weeks) | broken client expectations | this PRD's revised durations; correct the client-facing docs (§13) |
 | Name "PosPay" implies payments provider | regulatory exposure | D-02 decided 2026-09-23 (lawyer: no objection); BYO model |
@@ -1006,8 +1006,8 @@ Every open item below blocks the task named in "Blocks". An implementing agent m
 
 These should be fixed in the source documents; until then this section is the reconciliation.
 
-1. **`06` version mismatch.** `CLAUDE.md` cites `06_Tech_Stack_Architecture_EN.md` **V1.4** and references §5.4 for the three session-less entry points, §5.9 (payments BYO model, capability matrix, KNET-direct without refund), §5.10 (realtime: two consumers per event) and §5.15 (scaling path, CI, Gulf region). The repo and the parent folder contain only **V1.2**: its §5.4 has the basic RLS pattern but not the three entry points, and §5.9, §5.10 and §5.15 do not exist at all. V1.4 must be recovered or those sections rewritten; this PRD reconstructs their intent from `CLAUDE.md`, `CLAUDE.architecture.md` and `module-map.md`.
-2. **`06` §1 stale rows.** *(Partly resolved 2026-10-01: `06` V1.3 now says Traefik (Dokploy) and Cloudflare R2.)* Files (MinIO/DO Spaces), PDF, payments, messaging, observability and deploy are marked ⏳ "to review", and §1.2 says Caddy, while `CLAUDE.md` V2 already decided R2, Traefik and Dokploy. `06` §2 also omits `packages/domain`, `payments`, `storage`, `notifications`, `documents` and `observability` (it does list `auth`; arch §16 open item 1).
+1. **`06` version mismatch.** `06` is **V1.3** since 2026-10-01 (infrastructure as built). `CLAUDE.md` used to cite **V1.4** and still relies on sections only V1.4 had: §5.4 for the three session-less entry points, §5.9 (payments BYO model, capability matrix, KNET-direct without refund), §5.10 (realtime: two consumers per event) and §5.15 (scaling path, CI, Gulf region). V1.4 was never recovered, and V1.3 does not contain them; this PRD reconstructs their intent from `CLAUDE.md`, `CLAUDE.architecture.md` and `module-map.md`.
+2. **`06` §1 stale rows.** PDF, payments, messaging, observability and deploy are still marked ⏳ "to review" although `CLAUDE.md` V2 decided them; `06` §2 also omits `packages/domain`, `payments`, `storage`, `notifications`, `documents` and `observability` (arch §16 open item 1). *(Files → Cloudflare R2 and the proxy → Dokploy's Traefik were fixed in V1.3, 2026-10-01.)*
 3. **Referenced but missing files:** `docs/domain-model.md`, `docs/security.md`, `docs/runbook.md`, `docs/reporting-queries.md`, `docs/module-map.yaml` (arch §16.3), and the ADR recording the "pragmatic Clean Architecture" decision (arch §16.2).
 4. **ADR numbering collision.** `IMPLEMENTATION-PLAN.md` T0 targets `docs/adr/0001-auth-rls-boundary.md`, but `0001` is the domain topology ADR and `0002` is tooling. The auth/RLS ADR becomes **0003** (P0-T0.1).
 5. **Product name drift.** `SPEC.md` carried an older working name and repo path; it was renamed to **PosPay** / `E:\PosPay.systems\pospay` on 2026-09-22 (repo and parent `docs/` copies). `13_setup_guid.md` still uses `abu-salem` as the example folder and repo name and should be updated the same way.
@@ -1037,7 +1037,7 @@ These should be fixed in the source documents; until then this section is the re
 |---|---|---|
 | 1 | `pospay/CLAUDE.md` (= `docs/CLAUDE.md`) V3 | workflow and rules (governing) |
 | 2 | `pospay/CLAUDE.architecture.md` A1.0 | code shape and dependency rules (governing) |
-| 3 | `docs/06_Tech_Stack_Architecture_EN.md` V1.2 (= `pospay/docs/…`) | stack, engines, domain model, delivery order (governing; V1.4 missing) |
+| 3 | `pospay/docs/06_Tech_Stack_Architecture_EN.md` V1.3 (the parent `docs/` copy is still V1.2) | stack, engines, domain model, delivery order (governing; V1.4 missing) |
 | 4 | `docs/module-map.md` M1.0 | allowed import/port/event arrows |
 | 5 | `docs/specs/phase-0/SPEC.md` | Phase 0 scope and success criterion |
 | 6 | `docs/specs/phase-0/IMPLEMENTATION-PLAN.md` v2 | Phase 0 tasks T0–T13 |

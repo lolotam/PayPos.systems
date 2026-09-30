@@ -46,7 +46,7 @@ Everything else in this spec exists to make that sentence true and repeatable.
 | `modules/identity` | memberships, RBAC, cashier PINs, device registration |
 | `modules/settings` | per-business configuration |
 | Cross-cutting | outbox table + writer, audit log, idempotency store |
-| Infra | `docker-compose.dev.yml` (Postgres 16 + Redis 7), GitHub Actions CI, Dokploy staging deploy, nightly backup to Backblaze B2 |
+| Infra | `docker-compose.dev.yml` (Postgres 16 + Redis 7), GitHub Actions CI, Dokploy staging deploy, nightly backup to Cloudflare R2 (was Backblaze B2; decided 2026-09-24) |
 
 ### Out — explicitly not in Phase 0
 
@@ -195,7 +195,7 @@ Images tagged by commit SHA, pushed to GHCR.
 **Done when:** a PR that violates a boundary is blocked by CI.
 
 ### S13 — Staging deploy + backups
-Dokploy staging: `api`, `worker`, `postgres`, `redis`, `traefik`. Migrations run as their own step before containers start. Nightly `pg_dump` + WAL archiving to Backblaze B2 via restic, checking in to Healthchecks.io.
+Dokploy staging: `api`, `worker`, `postgres`, `redis`, `traefik`. Migrations run as their own step before containers start. Nightly `pg_dump` + WAL archiving to Cloudflare R2 (was Backblaze B2) via restic, checking in to Healthchecks.io.
 **Done when:** a staging deploy succeeds end to end and one restore has been tested into a scratch database.
 
 ---

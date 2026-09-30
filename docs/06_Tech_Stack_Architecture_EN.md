@@ -52,6 +52,8 @@
 
 ### 1.2 Container topology (each layer isolated, talks over the Docker network)
 
+> The planned production topology. **Staging today** runs only `migrate`, `api` and `worker`, on the server's shared Postgres and Redis, behind Dokploy's Traefik (`deploy/docker-compose.staging-shared.yml`).
+
 | Container | Runs | Notes |
 |---|---|---|
 | `admin` | Next.js server (`apps/admin`) | SSR; Node process |

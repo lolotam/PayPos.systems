@@ -749,7 +749,7 @@ Docker images remain T13.
 
 | Path | Method | Recovers |
 |---|---|---|
-| Logical | nightly `pg_dump`, encrypted to B2 via `restic` | whole-database restore to last night |
+| Logical | nightly `pg_dump`, encrypted to Cloudflare R2 (was B2) via `restic` | whole-database restore to last night |
 | Physical / PITR | `pgBackRest` or `wal-g`: `pg_basebackup` + continuous WAL archiving | any point in time since the base backup |
 
 - Stated objectives: **RPO ≤ 5 minutes, RTO ≤ 2 hours.** Both are tested, not assumed.
