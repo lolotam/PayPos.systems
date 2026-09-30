@@ -335,7 +335,7 @@ The phase order follows `06` §7 (the governing doc), `05_App_Blueprint_Build_Pl
 
 | Phase | Name | Pilot | Primary modules / apps | Duration (revised) | Exit criterion |
 |---|---|---|---|---|---|
-| **0** | Foundation | none (API + tests only) | `tenancy`, `identity`, `settings`; `packages/{domain,db,contracts,auth,i18n,observability}`; `apps/api`, `apps/worker` bootstrap; CI; staging; backups | 6–8 weeks | two companies exist; A reads zero rows of B at DB **and** API level; CI blocks a boundary violation; one PITR restore performed (on the new server, before real sales — D-11) |
+| **0** | Foundation | none (API + tests only) | `tenancy`, `identity`, `settings`; `packages/{domain,db,contracts,auth,i18n,observability}`; `apps/api`, `apps/worker` bootstrap; CI; staging; backups | 6–8 weeks | two companies exist; A reads zero rows of B at DB **and** API level; CI blocks a boundary violation; one logical restore performed. **Launch gate (before production takes real sales, D-11):** WAL archiving live, RPO ≤ 5 min, one PITR restore performed |
 | **1** | Staff, attendance, commissions | salon | `staff`, `commissions`, minimal `catalog` (services) and `orders` (service sessions) slices, minimal `files` (private uploads), minimal `notifications` (OTP + operational alerts); `apps/admin` + `apps/pos` bootstrap; `packages/ui` | 7–9 weeks | see Phase 1 exit (testable, §10) |
 | **2** | Catalog, orders, payments, cash, POS | one restaurant branch (Smoked), 2 weeks parallel with Twlm | `catalog`, `customers`, `orders`, `payments`, `cash`, `realtime`, `files`; `packages/{payments,storage,documents(ESC/POS)}`; POS sell/shift/offline; print agent; first read models | 12–18 weeks | see Phase 2 exit |
 | **3** | Inventory, recipes, production, kitchen | restaurant | `inventory`, `kitchen`; tables/floor map | 7–10 weeks | see Phase 3 exit |
@@ -525,10 +525,10 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P0-T13.2 Worker **image and deployment** only — the worker itself and the outbox dispatcher are built in P0-T7b (plan v4).
 - [ ] P0-T13.3 Dokploy + Traefik on the chosen host; subdomains and cookie domain per ADR-0001 §6; secrets injected from Dokploy; test keys only.
 - [ ] P0-T13.4 Migrations run as their own step before containers start; after every migration run the **previous** image against the **new** schema and confirm it serves.
-- [ ] P0-T13.5 Backups: nightly `pg_dump` encrypted to Cloudflare R2 via restic (was B2; decided 2026-09-24) **and** pgBackRest/wal-g base backup + continuous WAL — the physical path moves to the new server (D-11; Waleed, 2026-10-01); RPO ≤ 5 min, RTO ≤ 2 h; both check in to Healthchecks.io.
+- [ ] P0-T13.5 Backups: nightly `pg_dump` encrypted to Cloudflare R2 via restic (was B2; decided 2026-09-24), checking in to Healthchecks.io, RTO ≤ 2 h. **Launch gate** (the new server, before production takes real sales — D-11; Waleed, 2026-10-01): pgBackRest/wal-g base backup + continuous WAL, RPO ≤ 5 min, checking in too. A nightly dump alone cannot meet a 5-minute RPO, so staging has none.
 - [ ] P0-T13.6 One PITR restore actually performed to a chosen timestamp and queried; one logical restore into a scratch DB. The PITR drill uses `pgbackrest restore --type=time`, or an **empty** `recovery.signal` with its settings in `postgresql.auto.conf`, and GNU `date` *(Eng. Khaled's audit, 2026-10-01)*. The logical restore is done (T14); PITR waits for the new server (D-11).
 - [ ] P0-T13.7 Production sizing on the new server, in an ADR *(Eng. Khaled's audit, 2026-10-01)*: a memory budget per container with `shared_buffers` ≈ 25 % of the Postgres cap and headroom for `work_mem` × active queries; a load test on an authenticated hot path (not `/health`); API load shedding below the container cap (RSS ≈ 75–80 %).
-- **Done when:** staging deploys from a SHA-tagged image; the **previous** image passes the authenticated read and write smoke scenarios against the new schema; a timed PITR restore to a chosen timestamp and a timed logical restore both complete, are queried, and meet RPO ≤ 5 min and RTO ≤ 2 h. *(the PITR restore is done on the new server before production takes real sales — D-11; Waleed, 2026-10-01)*
+- **Done when:** staging deploys from a SHA-tagged image; the **previous** image passes the authenticated read and write smoke scenarios against the new schema; a timed logical restore completes, is queried, and meets RTO ≤ 2 h. **Launch gate:** a timed PITR restore to a chosen timestamp completes, is queried, and meets RPO ≤ 5 min and RTO ≤ 2 h, on the new server before production takes real sales (D-11).
 
 **Phase 0 acceptance checklist (from SPEC §6, extended):**
 
@@ -540,7 +540,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] A write use case appends its outbox event inside its transaction, proven by a test; the worker dispatches it
 - [ ] Every API log line carries the four context fields; nothing on the redaction list is logged
 - [ ] CI runs the full gate in order and blocks a boundary violation
-- [ ] Staging deploys from a SHA image; old image serves on the new schema; PITR and logical restores rehearsed *(the PITR restore is done on the new server before production takes real sales — D-11; Waleed, 2026-10-01)*
+- [ ] Staging deploys from a SHA image; old image serves on the new schema; the logical restore rehearsed (the PITR restore is the launch gate, D-11)
 - [ ] `pnpm check` green on `main`
 
 **Phase 0 schedule:** the authoritative forecast is `IMPLEMENTATION-PLAN.md` §3 (v4) — re-forecast from actual effort on 2026-09-23: ≈ 36 working days remaining after T6a (20.5 build + 15.5 review), excluding waits on open decisions. The earlier 8-week table is superseded.
@@ -990,7 +990,7 @@ Every open item below blocks the task named in "Blocks". An implementing agent m
 | Hardware and printers (the classic POS failure) | pilot fails on day one | device profile + printer test in week 1 of Phase 2 (D-18) |
 | Offline sync edge cases (two devices offline, price changed) | duplicated or lost orders | server-side conflict rules, idempotency, E2E offline test; stated limitation on shared live stock |
 | Scope sprawl across "all verticals" | nothing finishes | only restaurant + salon templates until Phase 6; written scope per phase; new asks go to the next phase |
-| Backups configured but never restored | unrecoverable incident | P0-T13 not done until the logical restore is performed; the PITR restore before production takes real sales (D-11) |
+| Backups configured but never restored | unrecoverable incident | P0-T13 not done until the logical restore is performed; production takes no real sales until the PITR restore is (launch gate, D-11) |
 | Solo developer + One-Man-Show trap (the competitor's failure mode) | unhappy customers, no growth | strict rules make a second developer's onboarding possible; support and release cadence defined in P5-T10 |
 | Untested schedule estimates (`05`: 2 weeks for Phase 0; `06`: 4 weeks) | broken client expectations | this PRD's revised durations; correct the client-facing docs (§13) |
 | Name "PosPay" implies payments provider | regulatory exposure | D-02 decided 2026-09-23 (lawyer: no objection); BYO model |
