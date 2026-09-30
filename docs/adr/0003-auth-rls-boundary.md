@@ -155,7 +155,7 @@ it cannot drain every company's outbox. The dispatcher role can, on `outbox` **o
 withTenant(companyId, fn, { userId? })  // sets app.company_id (+ app.user_id when a user is acting;
                                         // webhooks and jobs have none)
 withUser(userId, fn)                    // sets app.user_id only — for listing one's own memberships
-withNewTenant(userId, company, fn)      // bootstrap only — see below
+withNewTenant(userId, fn)               // bootstrap only — generates the company id, calls fn(tx, companyId)
 ```
 
 **`withNewTenant` — the onboarding bootstrap.** A new company has no membership yet, so path A (§4) would refuse it, yet the company row and the first membership are RLS-protected writes. `withNewTenant`:
