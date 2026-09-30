@@ -195,7 +195,7 @@ Images tagged by commit SHA, pushed to GHCR.
 **Done when:** a PR that violates a boundary is blocked by CI.
 
 ### S13 — Staging deploy + backups
-Dokploy staging: `api`, `worker`, `postgres`, `redis`, `traefik`. Migrations run as their own step before containers start. Nightly `pg_dump` + WAL archiving to Cloudflare R2 (was Backblaze B2) via restic, checking in to Healthchecks.io.
+Staging (as built, 2026-09-24): the one-shot `migrate` step, then `api` and `worker`, on the server's shared Postgres and Redis, behind Dokploy's Traefik (`deploy/docker-compose.staging-shared.yml`). Migrations run as their own step before containers start. Nightly `pg_dump` via restic to Cloudflare R2 (was Backblaze B2), checking in to Healthchecks.io; WAL archiving for PITR waits for the new server (D-11).
 **Done when:** a staging deploy succeeds end to end and one restore has been tested into a scratch database.
 
 ---
