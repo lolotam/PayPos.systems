@@ -21,8 +21,10 @@ export interface TenantOptions {
   readonly userId?: string;
   /**
    * أقصى عمر للشغل ده كله، من أول انتظار connection لحد الـ commit. بعده الـ promise بيترفض بـ TimeoutError،
-   * الشغل اللي لسه مستني connection مبيبدأش، واللي بدأ مبيعملش COMMIT أبداً. على الـ server كل statement وكل
-   * فترة سكون جوه الـ transaction محدودين بنفس المدة.
+   * الشغل اللي لسه مستني connection مبيبدأش، واللي خلص بعد الموعد مبيعملش COMMIT أبداً. لكن لو الـ COMMIT
+   * بدأ قبل الموعد، نتيجته هي اللي بترجع حتى لو خلص بعده — عشان الـ caller ميتقالوش "فشل" على حاجة اتسجلت؛
+   * ولو ردّ الـ COMMIT مجاش خلال مدة كمان، بيترفض بـ CommitOutcomeUnknownError (النتيجة مش معروفة).
+   * على الـ server كل statement وكل فترة سكون جوه الـ transaction محدودين بنفس المدة.
    */
   readonly timeoutMs?: number;
 }
@@ -49,6 +51,12 @@ const OPEN_GATE: DeadlineGate = { onStart: () => undefined, beforeCommit: () => 
 const timeoutError = (): Error =>
   Object.assign(new Error('transaction deadline passed'), { name: 'TimeoutError' });
 
+// A COMMIT whose reply never came: it may or may not have committed, so the caller must reconcile, not assume.
+const commitOutcomeUnknown = (): Error =>
+  Object.assign(new Error('no reply to COMMIT; outcome unknown'), {
+    name: 'CommitOutcomeUnknownError',
+  });
+
 const validTimeout = (timeoutMs: number | undefined): number | undefined => {
   if (timeoutMs !== undefined && (!Number.isInteger(timeoutMs) || timeoutMs < 1)) {
     throw new TypeError('timeoutMs must be a whole number of milliseconds > 0');
@@ -65,26 +73,52 @@ export function assertUuid(value: string, name: string): string {
 }
 
 // statement_timeout بيتعاد مع كل statement (PG16 مفيهوش transaction_timeout)، فالـ deadline هنا مطلق من ناحية
-// الـ caller: بعده الـ promise بيترفض، الشغل اللي لسه مستني connection مبيبدأش، واللي بدأ مبيعملش COMMIT أبداً.
+// الـ caller: بعده الـ promise بيترفض، الشغل اللي لسه مستني connection مبيبدأش، واللي خلص متأخر مبيعملش COMMIT؛
+// أما COMMIT اتبعت قبل الموعد فنتيجته هي اللي بترجع — ولو ردّه متأخرش أكتر من مدة كمان، وإلا
+// CommitOutcomeUnknownError: ممكن يكون اتسجل وممكن لأ، والـ caller لازم يتأكد مش يفترض.
+// الـ connection نفسها بتفضل محجوزة لحد ما الـ socket يتقفل — TCP keepalive بيبدأ يفحص بعد 60 ثانية سكون، ومش موعد مضمون:
+// قفلها بإيدينا بالـ pid مش آمن، لأن لو الرد وصل في نفس اللحظة الـ connection ممكن تكون راحت لـ transaction تانية.
 // مفيش إنهاء للـ backend من بره: pg_terminate_backend بالـ pid مينفعش يبقى atomic مع التأكد إن الـ connection لسه
 // في نفس الـ transaction، فممكن يقتل شغل تاني استلم الـ connection. اللي بيحد الـ backend على الـ server:
 // statement_timeout و idle_in_transaction_session_timeout (limits)، والـ connection بترجع أول ما الكود يخلص.
 function withDeadline<T>(timeoutMs: number, start: (gate: DeadlineGate) => Promise<T>): Promise<T> {
+  const endsAt = performance.now() + timeoutMs;
   let expired = false;
+  let committing = false;
   let timer: NodeJS.Timeout | undefined;
+  let watchdog: NodeJS.Timeout | undefined;
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
+      if (committing) {
+        // A COMMIT already sent may still succeed, so its reply is the answer — for as long again at most.
+        watchdog = setTimeout(() => reject(commitOutcomeUnknown()), timeoutMs);
+        return;
+      }
       expired = true;
       reject(timeoutError());
     }, timeoutMs);
   });
+  // The clock, not only the timer: a blocked event loop can hold the timer past the deadline.
   const refuseIfLate = (): void => {
-    if (expired) throw timeoutError();
+    if (expired || performance.now() >= endsAt) {
+      expired = true;
+      throw timeoutError();
+    }
   };
-  // beforeCommit runs after the work and before COMMIT: work that finished late rolls back.
-  const work = start({ onStart: refuseIfLate, beforeCommit: refuseIfLate });
+  // beforeCommit runs after the work and before COMMIT: work that finished late rolls back, and from here on
+  // the COMMIT's own outcome is the answer.
+  const work = start({
+    onStart: refuseIfLate,
+    beforeCommit: () => {
+      refuseIfLate();
+      committing = true;
+    },
+  });
   work.catch(() => undefined);
-  return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+  return Promise.race([work, deadline]).finally(() => {
+    clearTimeout(timer);
+    clearTimeout(watchdog);
+  });
 }
 
 // statement_timeout يلغي الـ statement الطويل، و idle_in_transaction_session_timeout يقفل الـ session لو الـ transaction
