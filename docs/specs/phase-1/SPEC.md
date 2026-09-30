@@ -1,10 +1,10 @@
 # Phase 1 — Salon Pilot Spec: staff, attendance, sessions, packages, commissions
 
-> **Status:** Draft v2 · 2026-10-01 · from the onboarding interview with Waleed (2026-09-30 → 2026-10-01) and Codex's
-> round-1 review (30 findings). Decisions: `docs/PRD.md` §12 — D-12…D-17, D-28, D-30, D-32 (decided) and D-35…D-55.
-> **Governing docs:** `CLAUDE.md` · `CLAUDE.architecture.md` · `docs/06_Tech_Stack_Architecture_EN.md` · `docs/module-map.md`.
-> On conflict those documents win; where this spec needs them changed, §9 names the amendment and its ADR.
-> **Supersedes** the Phase 1 task list in `docs/PRD.md` §10 where the two differ.
+> **Status:** Draft v3 · 2026-10-01 · from the onboarding interview with Waleed (2026-09-30 → 2026-10-01) and Codex's
+> reviews (round 1: 30 findings; round 2: 17). Decisions: `docs/PRD.md` §12 — D-12…D-17, D-28, D-30, D-32 (decided)
+> and D-35…D-55. **Governing docs:** `CLAUDE.md` · `CLAUDE.architecture.md` · `06_Tech_Stack` · `module-map.md`; on
+> conflict they win, and §9 names every amendment this phase needs. **Supersedes** the PRD §10 Phase 1 task list where
+> the two differ.
 
 ---
 
@@ -22,9 +22,8 @@ statement that is then final.
 > manual sheet; at period close there are zero lines without a performer; and the approval actor and time are in the
 > audit log.
 
-The parallel month is the business oracle (D-45). Before it, correctness rests on §5's precise engine definition and
-its expected-output fixtures (S9), built from the salon's **real plan rules**, requested now (D-55) — the rules, not a
-worked month.
+The parallel month is the business oracle (D-45). Before it, correctness rests on §5's definition and on expected-output
+fixtures calculated by hand, independently of the code, from the salon's real plan rules (D-55).
 
 ---
 
@@ -36,20 +35,20 @@ worked month.
 |---|---|
 | Apps | `apps/admin` (Next.js) and `apps/pos` (Vite PWA: attendance screen + staff app) — shells, then one screen per slice |
 | `packages/ui` | shadcn RTL kit, tokens, Arabic fonts, lucide |
-| `staff` | employees, salary history (restricted), branches, phone binding, barcode card, schedules, leave, attendance, documents metadata |
+| `staff` | employees, salary history (restricted), branches, phone passkey binding, barcode card, schedules, leave, attendance, document metadata |
 | `files` (minimal) | private R2 objects, presigned upload/download, access audit |
 | `catalog` (minimal) | services (price, commission rule, threshold flag), package types |
 | `customers` (minimal, from P2) | company-scoped customers (D-30), opt-out, ratings |
-| `orders` (minimal) | service sessions: lines, price override, discount + approval, split performers, tips, late entry, cancel; package sale, redemption, expiry, extension, refund |
+| `orders` (minimal) | sessions: lines, price override, discount + approval, split performers, tips, late entry, cancel; package sale, redemption, expiry, extension, refund |
 | `identity` (addition) | discount-limit permission, discount approval (PIN on device or remote request) |
 | `commissions` | per-employee plan versions (base + tiers, independently switchable), service overrides, live estimate, statement DRAFT → REVIEWED → APPROVED → PAID, corrections, Excel export |
-| `notifications` (minimal) | WhatsApp + email channels, templates ar/en, suppression list, delivery log |
+| `notifications` (minimal) | WhatsApp + email channels, templates ar/en, suppression, delivery log |
 | `settings` (addition) | alert rules, staff-app columns, default discount limit |
 | Import | Excel template, preview, all-or-nothing commit: employees, services, customers, open packages |
 
 ### Out
 
-- POS sell screen, payments, cash shifts, printing (Phase 2). Sessions are recorded on an admin/reception screen.
+- POS sell screen, payments, cash shifts, printing (Phase 2); sessions are recorded on an admin/reception screen.
 - The service **barcode** flow (D-15 → Phase 2, same data model).
 - Package instalments and sharing (D-42). Ratings affecting commission (D-41). Overtime pay and lateness deductions.
 - Realtime/SSE — screens poll (PRD Phase 1 exception, closed by P2-T8). Product sales (Phase 2).
@@ -60,37 +59,43 @@ worked month.
 
 | Module | New / extended | Owns |
 |---|---|---|
-| `staff` | new | employees, salary history, schedules, leave, attendance, phone bindings, cards, document metadata |
+| `staff` | new | employees, salary history, schedules, leave, attendance, passkey bindings, cards, document metadata |
 | `files` | new | private objects, their required read permission, access audit |
 | `catalog` | new | services, package types |
 | `customers` | new | customers (company-scoped), opt-out preference, rating requests, ratings |
 | `orders` | new | sessions, lines, performers, tips, discount proposals, package entitlements, redemptions, refunds |
-| `commissions` | new | plan versions, service overrides, line projection, statements, frozen results, corrections |
-| `notifications` | new | channels, templates, suppression list, delivery log |
+| `commissions` | new | plan versions, service overrides, projection, statements, frozen results, corrections |
+| `notifications` | new | channels, templates, suppression, delivery log |
 | `identity` · `settings` | extended | discount approval · alert rules, staff columns |
 
-Every cross-module interaction, with its kind (import arrows are already in `module-map.md` §2 unless marked **new**):
+Cross-module interactions (import arrows already in `module-map.md` §2 unless marked **new**):
 
 | From → to | Kind | Contract |
 |---|---|---|
-| `orders` → `catalog` | port (existing) | `CatalogReaderPort`: service price, names, commission rule, threshold flag; package-type components |
-| `orders` → `customers` | port **new** | `CustomerLookupPort.exists(customerId)` — reception creates or finds the customer first through `customers`' own endpoint; `orders` only checks the id |
+| `orders` → `catalog` | port (existing) | `CatalogReaderPort`: price, names, commission rule, threshold flag; package-type components |
+| `orders` → `customers` | port **new** | `CustomerLookupPort.exists(customerId)`; reception finds or creates the customer first through `customers`' own endpoint |
 | `orders` → `staff` | port **new** | `PerformerCheckPort`: employee active and attached to the branch on the date |
-| `commissions` → `staff` | port **new** | `EmployeeSalaryPort` (salary effective on a date), `EmployeeDirectoryPort` (names for statements) |
+| `commissions` → `staff` | port **new** | `EmployeeSalaryPort` (salary effective on a date), `EmployeeDirectoryPort` (names) |
 | `customers` → `staff` | port **new** | `PerformerNamePort` (first name in the rating message) |
 | `staff`, `customers`, `commissions` → `settings` | port **new** | `AlertRulesPort`, `StaffColumnsPort` (reads) |
-| `orders` ⇒ `commissions`, `customers` | event **new** | `ServiceLineChanged` — full line snapshot + `revision` (§6) |
-| `orders` ⇒ `commissions` | event **new** | `PackageSaleChanged` — seller, price paid, refunded amount, `revision` |
-| `customers` ⇒ `notifications` | event **new** | `RatingRequestReady`, `LowRatingReceived`, `CustomerOptedOut` |
-| `notifications` ⇒ `customers` | event **new** | `MessagingOptOutReceived` (a WhatsApp "stop" reply, via the existing messaging-callback entry point) |
+| `orders` ⇒ `commissions`, `customers` | event **new** | `ServiceLineChanged` |
+| `orders` ⇒ `commissions` | event **new** | `PackageSaleChanged` |
+| `customers` ⇒ `notifications` | event **new** | `RatingRequestReady`, `LowRatingReceived` |
 | `staff` ⇒ `notifications` | event **new** | `AttendanceExceptionRaised`, `ShiftNotClockedIn`, `DocumentExpiring` |
 | `commissions` ⇒ `notifications` | event **new** | `StatementAwaitingReview`, `StatementAwaitingApproval` |
-| `files` | none | the admin UI uploads and opens documents through `files`' own endpoints; `staff` stores only the object key |
-| OTP | wiring | `packages/auth` takes an injected `OtpSender`; `apps/api`'s composition root binds it to `notifications`' WhatsApp channel — no module arrow |
+| `files` | none | documents are uploaded and opened through `files`' own endpoints; `staff` stores the object key only |
+| OTP | wiring | `packages/auth` takes an injected `OtpSender`, bound at `apps/api`'s composition root to the WhatsApp channel |
 
-Emitting modules read `AlertRulesPort` and put recipients and channels in the event, so `notifications` stays free of
-business knowledge (`module-map.md` §2). `ServiceCompleted` in the map is replaced in Phase 1 by `ServiceLineChanged`;
-ADR-0008 records every row above and the §9 amendments.
+Every event names a stable identity and carries every field its consumers use:
+
+- `ServiceLineChanged` — `line_id`, `session_id`, `service_id`, `branch_id`, `business_id`, `customer_id`, `status`,
+  `occurred_at`, `recorded_at`, `net`, `performers [{employee_id, share_bps}]`, `rule_snapshot`, `counts_snapshot`,
+  `package {entitlement_id, component_id, ordinal}?`, `revision` (per line, +1 on every change).
+- `PackageSaleChanged` — `sale_id` (= the entitlement id), `business_id`, `sold_at`, `seller_employee_id`,
+  `price_paid`, `refunded_amount`, `status`, `revision`.
+
+Emitting modules read `AlertRulesPort` and put recipients and channels in the event, so `notifications` holds no
+business knowledge. `ServiceCompleted` in the map is replaced in Phase 1 by `ServiceLineChanged` (ADR-0008).
 
 ---
 
@@ -101,16 +106,16 @@ Phase 0 conventions hold: tenant PK `(company_id, id)`, UUID v7, FORCE RLS, mone
 
 ```
 Employee          business_id · primary_branch_id · user_id? · names · role_code · hire_date · contract_end? · deleted_at?
-EmployeeSalary    employee_id · amount (mills) · effective_from (date) · set_by        — history; restricted read
+EmployeeSalary    employee_id · amount · effective_from (≥ the day it is set; never back-dated) · set_by   — restricted
 EmployeeBranch    employee_id · branch_id · from · to?
-EmployeeDevice    employee_id · credential_hash · bound_at · bound_by · unbound_at? · unbound_by?
-                  one active row per employee; the credential proves the phone (§7)
+EmployeePasskey   employee_id · credential_id · public_key · sign_count · bound_at · bound_by · unbound_at? · unbound_by?
+                  one active row per employee (§7)
 EmployeeCard      employee_id · card_code · issued_at · revoked_at?
 Schedule          employee_id · branch_id · week_start · shifts [{day, start, end}]      ShiftTemplate
 LeaveRequest      employee_id · from · to · type · status · decided_by?
 AttendanceSession employee_id · branch_id · clock_in · clock_out? · source (QR|BARCODE) · geo (OK|OUT_OF_RANGE|NONE)
                   working_date · closed_by (EMPLOYEE|MISSED_OUT)
-AttendanceException session_id · kind · status (OPEN|RESOLVED) · resolved_by? · reason?
+AttendanceException session_id · kind · status (OPEN|RESOLVED) · resolution? · resolved_by? · reason?
 AttendanceCorrection session_id · field · before · after · reason · by · at
 EmployeeDocument  employee_id · type_code · object_key · expires_on? · uploaded_by       DocumentType (editable, alert_days)
 
@@ -118,40 +123,42 @@ Service           names · price · commission_rule (FOLLOW_PLAN | ZERO | PCT bp
 PackageType       names · price · validity_days · components [{service_id, sessions}]
 
 Customer          company_id · name · phone (E.164, unique per company) · locale · opted_out_at?        (D-30)
-RatingRequest     business_id · customer_id · business_date · due_at · status (SCHEDULED|SENT|CANCELLED)
-                  performer_ids (snapshot at send) · token_hash · expires_at · consumed_at?
+RatingRequest     business_id · customer_id · business_date · branch_id · due_at
+                  status (SCHEDULED|SENDING|SENT|CANCELLED) · performer_ids (snapshot) · token_hash · expires_at · consumed_at?
                   UNIQUE (company_id, business_id, customer_id, business_date)
 Rating            request_id · stars 1..5 · comment? · submitted_at
 
-ServiceSession    business_id · branch_id · customer_id · recorded_by · occurred_at · recorded_at · late (bool)
-ServiceLine       session_id · service_id · revision · status (ACTIVE|CANCELLED)
-                  list_price · price · discount · net (= price − discount)
-                  rule_snapshot · counts_snapshot                — service values frozen at recording (§5.2)
-                  entitlement_component_id?                      — a package redemption line (§8)
+ServiceSession    business_id · branch_id · customer_id · recorded_by · occurred_at · recorded_at · late
+ServiceLine       session_id · service_id · revision · status (ACTIVE|CANCELLED) · list_price · price · discount · net
+                  rule_snapshot · counts_snapshot · redemption_id?
 LinePerformer     line_id · employee_id · share_bps (Σ = 10000)
 Tip               session_id · employee_id · amount · method (CASH|CARD)
-DiscountProposal  terms_hash · terms (branch, customer, service, price, discount, performers) · requested_by
-                  status (PENDING|APPROVED|REJECTED|EXPIRED|CONSUMED) · approver? · via (PIN|REMOTE)? · expires_at
+                  — entered per employee; for a shared session the screen pre-fills the split by commission shares
+DiscountProposal  terms_hash · terms · requested_by · status (PENDING|APPROVED|REJECTED|EXPIRED|CONSUMED)
+                  approver? · via (PIN|REMOTE)? · expires_at (15 min) · consumed_by_line?
 PackageEntitlement business_id · customer_id · package_type_id · provenance (SOLD|IMPORTED) · external_ref?
-                  sold_line_id? · seller_employee_id? · price_paid · paid_method? · expires_on · revision
-PackageComponent  entitlement_id · service_id · list_price_snapshot · sessions_total · sessions_used
-                  sessions_refunded · component_value (mills)
-PackageRedemption component_id · ordinal · unit_value · line_id · reversed_by?          (immutable)
-PackageRefund     entitlement_id · sessions · amount · approved_by · idempotency_key
+                  sold_line_id? · sold_at · seller_employee_id? · price_paid · paid_method? · expires_on · revision
+PackageComponent  entitlement_id · service_id · list_price_snapshot · sessions_total · component_value
+PackageSessionSlot component_id · ordinal · unit_value · state (FREE|USED|REFUNDED|IMPORTED_USED)
+PackageRedemption slot_id · line_id · at · reversed_at?                                 (immutable; reversal frees the slot)
+PackageRefund     entitlement_id · component_id · ordinals [] · amount · approved_by · idempotency_key
 
-PlanVersion       employee_id · version · effective_from (date) · whole_period (bool) · created_by
+PlanVersion       employee_id · version · effective_from (date) · whole_period (bool) · created_at · created_by
                   base   { enabled, calc: PCT bps | FIXED mills }
                   tiers  { enabled, accumulator: AMOUNT | SESSIONS, mode: MARGINAL | WHOLE,
-                           steps: [{ from: AMOUNT mills | SALARY_MULTIPLE k | SESSIONS n, calc: PCT | FIXED }] }
+                           steps: [{ from, calc: PCT | FIXED }] }   — `from` all literal amounts, all salary multiples,
+                                                                       or all session counts, never mixed
                   package_sale { enabled, calc: PCT | FIXED }
-ServiceOverride   employee_id · service_id · rule (FOLLOW_PLAN | ZERO | PCT | FIXED) · effective_from
-CommissionLine    (projection) line_id · revision · employee_id · occurred_at · recorded_at · net_share
-                  share_bps · rule_snapshot · counts · status
-Statement         business_id · period (YYYY-MM) · status (DRAFT|REVIEWED|APPROVED|PAID) · reviewed_by? · approved_by?
-                  approved_at? · paid_at? · paid_method? · input_fingerprint?
-StatementLine     statement_id · employee_id · line_id? · amount · kind (SERVICE|PACKAGE_SALE|CORRECTION)  (frozen)
-Correction        employee_id · source_period · target_period · line_id? · amount (signed) · basis_revision
-                  UNIQUE (source_period, employee_id, line_id, basis_revision)
+ServiceOverride   employee_id · service_id · rule (FOLLOW_PLAN | ZERO | PCT | FIXED) · effective_from · created_at
+CommissionLine    (projection, one row per line × performer) line_id · revision · employee_id · service_id
+                  occurred_at · recorded_at · net_share · share_bps · rule_snapshot · counts · status
+CommissionSale    (projection) sale_id · revision · seller · sold_at · price_paid · refunded_amount · status
+Statement         business_id · period (YYYY-MM) · status (DRAFT|REVIEWED|APPROVED|PAID)
+                  input_fingerprint · reviewed_fingerprint? · reviewed_by? · approved_by? · approved_at? · paid_at? · paid_method?
+StatementLine     statement_id · employee_id · source_ref ('line:<id>' | 'sale:<id>') · amount       (frozen)
+PeriodGeneration  employee_id · period · generation   — +1 each time a change is applied to an APPROVED period
+Correction        employee_id · source_period · target_period · source_ref · amount (signed) · generation
+                  UNIQUE (source_period, employee_id, source_ref, generation)
 
 AlertRule         (settings) kind · enabled · recipients · channels [WHATSAPP|EMAIL|IN_APP] · delay/lead · master switch
 StaffColumns      (settings) allowed codes: date, time, service, customer_name, list_price, discount, net, share,
@@ -165,210 +172,223 @@ last 3 digits (CLAUDE.md §8).
 
 ## 5. The commission engine (S9) — the precise definition
 
-One pure function, no database: `computePeriod(lines, packageSales, versions, overrides, salaryOnLastDay) →
-{ perLine: Map<lineId, bigint>, perSale: Map<saleId, bigint>, total }` for **one employee and one period**.
+One pure function, no database: `computePeriod(lines, sales, versions, overrides, salaryOnLastDay) →
+{ perSource: Map<source_ref, bigint>, total }` for **one employee and one calendar period**.
 
 ### 5.1 Order
 
-Lines are ordered by `occurred_at`, then `recorded_at`, then `line_id`. This order decides accumulators and stage
-changes. A late line takes its place by `occurred_at`, and the whole period is recomputed; earlier **estimates** may
-change until approval (D-49).
+Lines are ordered by `occurred_at`, then `recorded_at`, then `line_id`. A late line takes its place by `occurred_at`
+and the period is recomputed; earlier **estimates** may change until approval (D-49). A package sale belongs to the
+period of its `sold_at`.
 
-### 5.2 What a line is worth and which rule prices it
+### 5.2 A line's value and the rule that prices it
 
-- The employee's **share** of a line: `net × share_bps / 10000`, floored to mills; the remainder mills go one each to
-  the performers in ascending `employee_id` order, so the shares always sum to `net`. A package line's `net` is its
-  redemption's `unit_value` (§8).
-- The **rule** for a line, first match wins: the employee's `ServiceOverride` effective at `occurred_at`, else the
-  line's `rule_snapshot` (the service's rule when the line was recorded). `FOLLOW_PLAN` means "use the plan"; `ZERO`
-  pays nothing; `PCT`/`FIXED` pay that value **instead of** the plan, base and tiers alike, for that line only.
-  An absent override is not `ZERO`.
+- The employee's **share**: `net × share_bps / 10000`, floored to mills; remainder mills go one each to the performers
+  in ascending `employee_id` order, so shares sum to `net`. A package line's `net` is its slot's `unit_value`.
+- The **rule**, first match wins: the employee's `ServiceOverride` that applies at `occurred_at` (latest `created_at`
+  among those with `effective_from ≤ occurred_at`), else the line's `rule_snapshot`. `FOLLOW_PLAN` uses the plan;
+  `ZERO` pays nothing; `PCT` pays `share × bps / 10000`; `FIXED` pays `a × share_bps / 10000` — instead of the plan,
+  base and tiers alike, for that line only. An absent override is not `ZERO`.
 
 ### 5.3 Accumulators
 
 - **AMOUNT**: the running sum of the employee's shares of `counts = true` lines before this line.
-- **SESSIONS**: the running count of `counts = true` lines she performed before this line — a shared line counts as
-  one for each performer (D-50).
+- **SESSIONS**: the running count of `counts = true` lines she performed before this line; a shared line counts one for
+  each performer (D-50).
 - `counts = false` lines never advance an accumulator; they are priced at the tier active at their position.
-- Accumulators run across the whole period, across plan versions (a mid-period change never resets them).
+- Accumulators run across the whole period and across plan versions.
 
-### 5.4 The plan version that prices a line
+### 5.4 The plan version that prices a line or a sale
 
-The version with the latest `effective_from ≤ occurred_at`; a version marked `whole_period` applies from the period's
-first day, and may be created only while the period's statement is DRAFT (D-38). Base and tiers each have `enabled`
-and can be switched independently at any time; a switch is a new version (D-50).
+A version **applies** to a line if its `effective_from ≤ occurred_at`, or if it is `whole_period` for the line's period.
+Among the versions that apply, the one with the latest `created_at` prices the line. So a `whole_period` version
+created on the 20th reprices the 10th, and a later ordinary version still wins from its own date. Base and tiers each
+have `enabled` and can be switched at any time; a switch is a new version (D-50).
 
 ### 5.5 Pricing a `FOLLOW_PLAN` line
 
-`amount = base part + tier part`, computed as exact rationals, then **one** `roundKwd` half away from zero per line
-(ADR-0005).
+`amount = base part + tier part`, exact rationals, then **one** `roundKwd` half away from zero per line (ADR-0005).
 
 - **Base** (if enabled): `PCT` → `share × bps / 10000`; `FIXED` → `a × share_bps / 10000`.
-- **Tiers** (if enabled). Steps are ascending by `from`; `SALARY_MULTIPLE k` resolves to `k × salary on the period's
-  last day` (D-50). The active step at accumulator value `x` is the last step with `from ≤ x`; below the first step,
-  no tier pays.
-  - **MARGINAL, AMOUNT, PCT**: the share is split at every step boundary it crosses between `x` and `x + share`; each
-    part pays its own step's rate — the part below a threshold keeps the old rate (D-50).
-  - **MARGINAL, FIXED** (either accumulator): the line pays the step active at `x`, **before** it — the crossing line
-    keeps the old step; the next line gets the new one.
-  - **MARGINAL, SESSIONS, PCT**: the step active at the count before the line; the whole share at that rate.
-  - **WHOLE**: first compute the period's final accumulator `X`; the reached step is the last step with `from ≤ X`;
-    every `FOLLOW_PLAN` line pays that step's calc (`PCT` on its share, `FIXED` × `share_bps`). The staff app's
-    estimate jumps when a step is reached (D-50).
-- Steps replace one another; base always adds. The owner's example — tiers MARGINAL/AMOUNT, one step from 500.000 at
-  5 %, base off — pays 25.000 on 1,000.000 (C7).
+- **Tiers** (if enabled). `SALARY_MULTIPLE k` resolves to `k × salary on the period's last day`. The active step at
+  accumulator value `x` is the last step with `from ≤ x`; below the first step no tier pays.
+  - **MARGINAL:** a line that crosses one or more boundaries between `x` and `x + share` (AMOUNT only) is **split** at
+    each boundary **only if every step it touches is `PCT`**; each part pays its step's rate. Otherwise — any `FIXED`
+    step touched, or a SESSIONS accumulator — the whole line is priced by the step active at `x`, **before** it; the
+    next line gets the new step (D-50).
+  - **WHOLE:** compute the period's final accumulator `X`; the reached step is the last with `from ≤ X`; every
+    `FOLLOW_PLAN` line pays that step's calc (`PCT` on its share, `FIXED` × `share_bps / 10000`). The estimate jumps
+    when a step is reached.
+- Steps replace one another; the base always adds (D-50 supersedes D-35's stage-level `ADD`). The owner's example —
+  MARGINAL/AMOUNT, one step from 500.000 at 5 %, base off — pays 25.000 on 1,000.000 (C7).
 
 ### 5.6 Package sales
 
-If the version's `package_sale` is enabled, the **seller** earns its calc on `price_paid − refunded_amount`. Package
-sales never advance the seller's accumulators (D-51); a refund lowers the base, so the recompute lowers the amount.
+With `package_sale` enabled in the version that applies at `sold_at`, the **seller** earns: `PCT` → `(price_paid −
+refunded) × bps / 10000`; `FIXED` → `a × (price_paid − refunded) / price_paid` (zero when `price_paid = 0` or fully
+refunded); one `roundKwd` per sale. Package sales never advance accumulators (D-51).
 
 ### 5.7 Allowed combinations — validated in the API and the plan builder alike
 
-| accumulator | step `from` | calc | modes |
+| accumulator | step `from` (one kind per plan) | calc per step | modes |
 |---|---|---|---|
-| AMOUNT | AMOUNT mills or SALARY_MULTIPLE k (k > 0, 2 decimals) | PCT (0–10000 bps) or FIXED (≥ 0) | MARGINAL, WHOLE |
-| SESSIONS | SESSIONS n (integer ≥ 0) | PCT or FIXED | MARGINAL, WHOLE |
+| AMOUNT | literal mills, **or** SALARY_MULTIPLE k (k > 0, 2 decimals) | PCT (0–10000 bps) or FIXED (≥ 0), mixable | MARGINAL, WHOLE |
+| SESSIONS | integer n ≥ 0 | PCT or FIXED, mixable | MARGINAL, WHOLE |
 
-A plan mixes no accumulators. Steps are strictly ascending; at least one step when tiers are enabled. Anything else is
-rejected with a named error. A case the table cannot express stops the work: it becomes a new calc or `from` kind by
-decision, never an `if` (CLAUDE.md §11).
+Steps strictly ascending; at least one when tiers are enabled. Anything else is rejected with a named error. A case the
+table cannot express stops the work: a new calc or `from` kind by decision, never an `if` (CLAUDE.md §11).
 
-### 5.8 Tests that must exist (S9)
+### 5.8 Fixtures that must exist before PR 30 closes
 
-Every row of §5.7 × MARGINAL/WHOLE × base on/off × tiers on/off; exact boundaries (`x = from`, crossing, landing);
-ties in order; permutation of input arrays gives the same result; late insertion before earlier lines; overrides
-`ZERO`/`PCT`/`FIXED`/absent; `counts = false` lines; split of 2 and 3 performers with remainder; salary multiple;
-mid-period version with continuous accumulators; `whole_period` version; package unit values; signed corrections;
-tiny amounts and conservation (Σ shares = net). Fixtures from the salon's real plan rules (D-55) join as they arrive.
+Expected outputs **calculated by hand, independently of the code**, one micro-fixture per row: every §5.7 row ×
+MARGINAL/WHOLE × base on/off × tiers on/off; crossings of PCT→PCT, PCT→FIXED, FIXED→PCT; `x = from` exactly; ties;
+permutation invariance; late insertion; overrides `ZERO`/`PCT`/`FIXED`/absent on a 50 % share; `counts = false`;
+2- and 3-way splits with remainder; salary multiple; mid-period and `whole_period` versions; package unit values; a
+package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixture per real plan from D-55.
 
 ---
 
-## 6. Consistency — events, estimate, period close, corrections
+## 6. Consistency — events, estimate, review, approval, corrections
 
-- **Events carry state, not deltas.** `ServiceLineChanged` carries the full line (status, net, performers and shares,
-  rule and counts snapshots, occurred_at, recorded_at) and a per-line `revision` that increases on every change.
-  Consumers store it only if its revision is newer, and dedupe by `event_id` (Phase 0 `consumed_events`), so
-  duplicates, reordering and replay converge. `PackageSaleChanged` works the same way.
-- **The estimate is computed on read**: the engine over the DRAFT period's projection, never stored — it cannot drift.
+- **Events carry state.** Consumers keep an event only if its `revision` is newer, and dedupe by `event_id`, so
+  duplicates, reordering and replay converge.
+- **The estimate is computed on read** — the engine over the DRAFT projection; never stored, so it cannot drift.
+- **Every writer of a period's inputs serializes with approval.** The commissions consumer, and every writer of plan
+  versions and overrides, locks the statement row of the period it affects and rechecks its status under that lock.
+  Plan versions and overrides take `effective_from ≥ today`, or `whole_period` only for a DRAFT period. Salary is never
+  back-dated (§4), so it cannot change an approved period. Service rules are snapshots on each line.
+- **Review is bound to the inputs.** Any input change to a period recomputes its fingerprint; a REVIEWED statement
+  whose fingerprint changed returns to DRAFT and must be reviewed again; the owner can approve only a statement whose
+  current fingerprint equals `reviewed_fingerprint`.
+- **Approval is atomic.** One transaction: lock the statement; refuse while the period has lines without a performer;
+  refuse (409, retry) while this company's commission-relevant outbox events created before the approval began are
+  unprocessed — read through one `SECURITY DEFINER` count function, the only outbox read `pospay_app` gets (§9);
+  freeze every `StatementLine` and the fingerprint. An event is therefore applied either before approval (in the
+  frozen result) or after (a correction).
+- **Corrections.** When the consumer applies a change to an APPROVED period — a cancellation, a refund, a performer
+  change, or a late line whose `occurred_at` falls in it — it increments that period's `generation`, recomputes the
+  period with its current inputs, and for every `source_ref` posts `delta = new − (frozen + corrections already
+  posted)` when non-zero, keyed `(source_period, employee, source_ref, generation)`. Every affected line is covered,
+  including lines whose tier moved; a performer change moves money as two corrections; a replayed event is deduped
+  before it can bump the generation. The target is the **earliest DRAFT period after the source**, created if absent.
 - **Statement flow:** DRAFT → REVIEWED (manager, `review:commissions:business`) → APPROVED (owner,
   `approve:commissions:business`, audited) → PAID (`pay:commissions:business`, method and time). Reminders to the owner
-  on the 3rd and 5th of the next month; reminders, not locks (D-54).
-- **Approval is atomic.** In one transaction: lock the statement row; refuse while the period has lines without a
-  performer; refuse (409, retry) while commission-relevant outbox events of this company created before the approval
-  began are unprocessed — read through one `SECURITY DEFINER` count function in `packages/db`, the only outbox read
-  `pospay_app` gets (§9); freeze every `StatementLine` and the input fingerprint. The commissions consumer takes the
-  same row lock, so an event is applied either before approval (and is in the frozen result) or after (and becomes a
-  correction). Nothing is lost between the check and the freeze.
-- **Corrections.** When a line, package sale or refund changes for an APPROVED period — including a late session whose
-  `occurred_at` falls in it — the engine recomputes that period with its current inputs; for each line, `delta = new −
-  (frozen + corrections already posted)`; non-zero deltas post to the next DRAFT period, unique on
-  `(source_period, employee, line, basis_revision)`, so a replay posts nothing twice. A performer change moves money
-  between two employees as two corrections. Salary and plan versions cannot be back-dated into an approved period.
-- **Tips** are listed per employee in the statement, card tips in their own column for payroll; cash tips are
-  informational. A shared session's tip splits like its commission (D-36).
+  on the 3rd and 5th of the next month, not locks (D-54). Card tips form their own statement column for payroll; cash
+  tips are informational (D-36).
 
 ---
 
 ## 7. Attendance
 
-- **Phone binding (D-40).** After OTP login the staff app enrols: the server issues a random 256-bit credential, keeps
-  its hash in `EmployeeDevice`, and the app keeps it in IndexedDB. A clock request needs the session **and** the
-  credential. Enrolment is automatic when the employee has no active binding; otherwise only the manager can unbind,
-  audited. A lost credential (new phone, cleared storage) needs the manager. A fingerprint alone proves nothing.
-- **QR** (P1-T5.1): HMAC over branch, 60-second window and a daily secret; the current and previous window are
-  accepted; another branch's token is rejected.
+- **Phone binding by passkey (D-40, amended).** After OTP login the staff app registers a **platform passkey**
+  (WebAuthn, user verification required — the phone's fingerprint, face or lock code); the server keeps its public key
+  in `EmployeePasskey`. A clock request signs a fresh server challenge with it, so the credential cannot be copied to
+  another phone. The first enrolment is automatic when the employee has no active binding; a new phone needs the
+  manager to unbind the old one, audited. The web cannot prove that one phone holds only one employee's passkey, so
+  the anomaly report flags two employees clocking from the same device fingerprint within minutes — a flag for the
+  manager, not a block.
+- **QR** (P1-T5.1): HMAC over branch, 60-second window and a daily secret; current and previous window accepted;
+  another branch's token rejected.
 - **State machine (D-53):** a scan with no open session opens one; with an open session ≤ 16 h old closes it; with one
-  older than 16 h closes it as `MISSED_OUT` (exception) and opens a new one. A scan within 5 minutes of the employee's
-  last accepted scan returns that result unchanged. `working_date` = clock-in date in the branch timezone (D-10);
-  overnight shifts belong to it.
-- **Missed clock-out:** a job raises `MISSED_OUT` at the scheduled shift end + 4 h, or at clock-in + 16 h with no
-  schedule. Never hours, never a deduction (D-32).
+  older closes it as `MISSED_OUT` and opens a new one. A scan within 5 minutes of the employee's last accepted scan
+  returns that result unchanged. `working_date` = clock-in date in the branch timezone; overnight shifts belong to it.
+- **Missed clock-out:** at the scheduled shift end + 4 h (or clock-in + 12 h with no schedule) a job raises a
+  `SUSPECTED_MISSED_OUT` exception; a later scan within 16 h still closes the session normally and resolves the
+  exception as "closed late" (kept for the manager to see); at 16 h it becomes `MISSED_OUT`. Never hours, never a
+  deduction (D-32).
 - **Geofence 150 m** (D-12): out of range → recorded with an `OUT_OF_RANGE` exception; no location → `NONE` exception.
-- **Barcode card:** scanned by the paired reception device (Phase 0 device scheme), permission `clock:attendance:device`;
-  the device and the operator are recorded.
-- **Lateness:** grace 10 minutes, reported only (D-12). Attendance never touches commission.
+- **Barcode card:** scanned by the paired reception device (Phase 0 device scheme), permission
+  `clock:attendance:device`; the device and the operator are recorded.
+- **Lateness:** grace 10 minutes, reported only. Attendance never touches commission.
 
 ---
 
 ## 8. Packages
 
-- **Valuation at sale (D-42):** the price paid is allocated to components in proportion to `list_price_snapshot ×
-  sessions`, largest remainder by component (ties by `service_id`); within a component, session *k* of *n* is worth
-  `floor(value / n)`, and the last session also takes the remainder, so every redemption value is reproducible and
-  the sum is exact. The allocation is a pure function in `orders/domain`; `commissions` receives the values in events.
-- **Redeem** writes the line and the redemption in one transaction under a row lock on the component; it requires
-  `sessions_used + sessions_refunded < sessions_total` and today ≤ `expires_on` (end of that day, branch timezone).
-- **Cancelling a redeemed line** restores the session (a reversal row) and re-emits the line as CANCELLED.
-- **Extend** (manager, audited) moves `expires_on`. **Refund** (manager, idempotency key, row lock) marks unused
-  sessions refunded — they cannot be redeemed afterwards — for the value of those sessions; no refund after expiry
-  unless extended first (D-51).
-- **Sale:** reception names the **seller** and records that it was paid in full and how; no payment integration in
-  Phase 1 (D-51).
-- **Import (D-51):** original price, original sessions per service, remaining sessions, expiry, customer phone, and an
-  `external_ref` unique per company (re-import is a no-op). Values use the same allocation over the original sessions;
-  `sessions_used = original − remaining`, with no redemption rows. Imported packages have no seller and pay no sale
-  commission.
+- **Valuation at sale (D-42),** a pure function in `orders/domain`: the price paid is allocated to components in
+  proportion to `list_price_snapshot × sessions` (if that total is zero, in proportion to sessions), by largest
+  remainder with ties by `service_id`; within a component, ordinal *k* of *n* is worth `floor(value / n)` and ordinal
+  *n* also takes the remainder. `price_paid = 0` makes every slot zero. Slots are created at sale; `commissions` gets
+  the values in events.
+- **Redeem:** one transaction, row lock on the component: take the lowest `FREE` ordinal, mark it `USED`, write the
+  line and the redemption. Refused when no slot is free or today > `expires_on` (end of that day, branch timezone).
+- **Cancel a redeemed line:** reverse the redemption; the slot returns to `FREE`; the line is re-emitted CANCELLED.
+- **Extend** (manager, audited) moves `expires_on`.
+- **Refund** (manager, idempotency key, row lock): the manager picks the component and the number of sessions; the
+  highest `FREE` ordinals are marked `REFUNDED`, recorded on the refund with the sum of their values as its amount;
+  refunded slots can never be redeemed. No refund after expiry unless extended first (D-51).
+- **Sale:** reception names the seller and records paid-in-full and the method; `sold_at` is the sale time.
+- **Import (D-51):** original price, original sessions per service, remaining sessions, expiry, customer phone,
+  `external_ref` unique per company (re-import is a no-op). Slots are valued over the original sessions; ordinals
+  `1 … used` become `IMPORTED_USED`, the rest `FREE`. Imported packages have no seller and no sale commission.
 
 ---
 
-## 9. Governing-document amendments this phase needs
+## 9. Governing amendments this phase needs — each its own PR before its slice
 
-Each lands in its own PR **before** the slice that needs it:
-
-1. **ADR-0008 + `module-map.md` §3/§4:** every port and event in §3, and `ServiceCompleted` → `ServiceLineChanged`.
-2. **ADR-0009 + `CLAUDE.md` §5:** the public rating link as the fourth session-less entry point: token
-   `<company_id>.<256-bit random>`, hash stored, resolved to its tenant, then `withTenant`; expiry 7 days; single-use
-   by an atomic `UPDATE … WHERE consumed_at IS NULL`; the same token may opt out (idempotent) until expiry; per-IP
-   rate limit; the page shows only the business name and the stars form. Tests: tampered, replayed, expired and
-   cross-tenant tokens.
-3. **ADR-0010:** the `SECURITY DEFINER` pending-outbox count for period close (§6), its grants and tests.
-4. **Email provider ADR** (S5): a new provider needs one (CLAUDE.md §11).
+1. **ADR-0008 + `module-map.md` §3/§4:** every port and event in §3; `ServiceCompleted` → `ServiceLineChanged`.
+2. **ADR-0009 + `CLAUDE.md` §5:** the public rating link as the fourth session-less entry point — token
+   `<company_id>.<256-bit random>`, hash stored, tenant resolved from it, then `withTenant`; 7-day expiry; single use
+   by an atomic `UPDATE … WHERE consumed_at IS NULL`; the same token can opt out until expiry; per-IP rate limit; the
+   page shows only the business name and the stars form. Tests: tampered, replayed, expired, cross-tenant.
+3. **ADR-0010:** the `SECURITY DEFINER` pending-outbox count for approval (§6), grants and tests.
+4. **ADR-0011:** the Better Auth `passkey` plugin (a new plugin and its WebAuthn dependency, CLAUDE.md §11) and the
+   platform-level WhatsApp suppression table (§10) — global, keyed by phone for our one sender number.
+5. **Email-provider ADR** before the email channel.
 
 ---
 
 ## 10. Ratings (D-41, D-52)
 
-- One request per customer per business per day. `due_at` = her last non-cancelled session of the day + 1 hour;
-  every new session that day moves it; it never passes the branch's closing time (opening hours; no cap when none are
-  set). A worker claims due requests with `FOR UPDATE SKIP LOCKED` under the unique key, so two workers send once.
-- At send: skip if she opted out or the request has no active line left; snapshot the performers; emit
-  `RatingRequestReady`. A session recorded after the send is not rated.
-- Every performer in the snapshot gets the stars; her average = mean of the ratings attributed to her. ≤ 2 stars →
-  `LowRatingReceived` if the alert is on. Ratings never change commission.
-- Opt-out: the page's opt-out or a WhatsApp "stop" reply; `notifications` suppresses the number immediately, and a
-  queued message is re-checked at send time.
+- One request per customer per business per day. The day and the closing time come from the **branch of her last
+  session that day**, in its timezone. `due_at` = that session + 1 hour; each new session that day moves it; it never
+  passes that branch's closing time (no cap when opening hours are unset).
+- **Sending is at most once.** The job claims a due request with `FOR UPDATE SKIP LOCKED`, rechecks her opt-out and
+  that an active line remains, snapshots the performers, sets `SENDING`, and emits `RatingRequestReady`. A request
+  found `SENDING` after a crash is not retried — a lost rating is acceptable, a duplicate message is not. A session
+  recorded after the send is not rated.
+- **Attribution:** every performer in the snapshot gets the stars; her average is the mean of the ratings attributed
+  to her. ≤ 2 stars → `LowRatingReceived` if the alert is on. Ratings never change commission.
+- **Opt-out, and its exact guarantee.** On the rating page it sets `opted_out_at` at once; every later claim checks it.
+  A WhatsApp "stop" reply lands in the platform-level suppression (ADR-0011) at once and blocks every message to that
+  phone from our sender, which is WhatsApp's own rule, so no tenant needs to be resolved. `notifications` checks
+  suppression immediately before calling the provider. The only message that can still arrive after an opt-out is
+  one already handed to the provider in the seconds before it.
 
 ---
 
 ## 11. Behaviour tests (numbered)
 
-**Attendance** A1 a clock without the bound credential is rejected, with a message to use the card or ask the
-manager · A2 one active binding per employee; rebind only by the manager, audited · A3 QR windows and branch · A4
-geofence exceptions · A5 lateness reported, never deducted · A6 state machine incl. 16 h and 5-minute rules,
-overnight working date, missed-out job · A7 attendance never changes commission · A8 barcode by the paired device only.
+**Attendance** A1 a clock without a valid passkey signature is rejected, with a message to use the card or ask the
+manager · A2 one active binding per employee; rebind only by the manager, audited; the two-employees-one-device flag ·
+A3 QR windows and branch · A4 geofence exceptions · A5 lateness reported, never deducted · A6 state machine: 16 h,
+5 minutes, overnight working date; suspected missed-out resolved as closed late; missed-out at 16 h · A7 attendance
+never changes commission · A8 barcode by the paired device only.
 
-**Sessions** M1 price override and discount record actor and time · M2 a discount above the limit needs an APPROVED,
-unexpired, unconsumed proposal whose terms hash matches exactly; changing any term after approval voids it; replay
-and cross-branch use fail · M3 late entry until approval, flagged; after approval → correction (§6) · M4 cancellation,
-refund and performer change after approval → corrections for every affected line, including other lines whose tier
-changed (Codex's example: 600 + 400 at 5 % above 500, cancelling the first) · M5 two concurrent redemptions of the last
-session: one succeeds · M6 refund vs redemption race; a duplicate refund is a no-op · M7 expired entitlements redeem
-nothing; refund after expiry refused.
+**Sessions** M1 price override and discount record actor and time · M2 above the limit the line is refused unless an
+APPROVED, unexpired proposal with exactly matching terms is **consumed in the same transaction** as the line write
+(compare-and-set); two concurrent submissions with one approval: one wins; changed terms, replay and cross-branch use
+fail · M3 late entry until approval, flagged; after approval → correction · M4 Codex's example: lines 600 then 400, 5 %
+above 500, approved (B = 20.000); cancelling A posts −20.000 to B; then a late 600 before B posts +20.000 in a new
+generation · M5 two concurrent redemptions of the last slot: one wins · M6 refund vs redemption race; a duplicate
+refund is a no-op; the refund's component, ordinals and amount are recorded · M7 expired entitlements redeem nothing;
+refund after expiry refused · M8 cancelling a redemption frees its ordinal; the next redemption takes the lowest free.
 
-**Commissions** C1–C8 as §5.8, plus: the estimate equals the engine on the DRAFT projection · approval racing a
-session, a redemption, a refund and a plan change: each ends in the frozen result or in a correction, never lost ·
-duplicate, reordered and replayed events converge · REVIEWED before APPROVED; only the owner approves; PAID records the
-method · card tips in their own column · reminders on the 3rd and 5th.
+**Commissions** §5.8 fixtures · the estimate equals the engine on the DRAFT projection · approval racing a session, a
+redemption, a refund, a plan version and an override: each lands in the frozen result or in a correction · a plan
+write racing approval sees APPROVED and is refused · an input change after REVIEWED returns the statement to DRAFT ·
+duplicate, reordered and replayed events converge · corrections land in the earliest DRAFT period · only the owner
+approves; PAID records the method · card tips column · reminders on the 3rd and 5th.
 
-**Customers & ratings** R1 phone shown only on the entry form, masked elsewhere, absent from exports, logs and import
-errors · R2 the due time moves with new sessions, capped by closing time, one send under two workers · R3 attribution
-to every performer; a cancellation before send removes it · R4 token tampering, replay, expiry and cross-tenant
-rejected · R5 opt-out by link and by WhatsApp reply; queued sends suppressed.
+**Customers & ratings** R1 phone shown only on the entry form; masked elsewhere; absent from exports, logs and import
+errors · R2 due time moves with new sessions, from the last session's branch, capped by its closing time · R3 a request
+crashed in SENDING is not resent; two workers send once · R4 attribution to every performer; a cancellation before
+send removes it · R5 token tampering, replay, expiry, cross-tenant rejected · R6 opt-out by page and by WhatsApp reply
+takes effect before the next provider call.
 
 **Visibility** V1 staff see only their own rows and the manager's columns · V2 reception like any employee plus the
-entry screen · V3 salaries owner-only unless granted · V4 documents opened only through `files` with the stored
-permission, each open audited.
+entry screen · V3 salaries owner-only unless granted · V4 documents only through `files` with the stored permission,
+each open audited.
 
 ---
 
@@ -376,7 +396,7 @@ permission, each open audited.
 
 - [ ] §1's criterion holds for the parallel month.
 - [ ] Every new tenant table has RLS and a negative isolation test; the rating link reaches only its own tenant's row.
-- [ ] §5.8's engine tests and §11's behaviour tests pass; each is listed in its slice PR.
+- [ ] §5.8's fixtures and §11's tests pass; each is listed in the PR that ships it.
 - [ ] No customer phone and no salary in any log line; the redaction list is extended.
 - [ ] Every alert can be switched off alone and all at once.
 - [ ] An import with any invalid row saves nothing.
@@ -386,7 +406,7 @@ permission, each open audited.
 
 ## 13. Open items
 
-1. **The salon's real plan rules** (D-55) — before S9's fixtures are final.
+1. **The salon's real plan rules** (D-55) — a gate before PR 30 closes.
 2. **Client data** before the pilot: services and prices, staff and their plans, shifts, branches, open packages,
    contact person, meeting day.
 3. The §9 ADRs, each before its slice.
