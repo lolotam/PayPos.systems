@@ -76,6 +76,8 @@ export function assertUuid(value: string, name: string): string {
 // الـ caller: بعده الـ promise بيترفض، الشغل اللي لسه مستني connection مبيبدأش، واللي خلص متأخر مبيعملش COMMIT؛
 // أما COMMIT اتبعت قبل الموعد فنتيجته هي اللي بترجع — ولو ردّه متأخرش أكتر من مدة كمان، وإلا
 // CommitOutcomeUnknownError: ممكن يكون اتسجل وممكن لأ، والـ caller لازم يتأكد مش يفترض.
+// الـ connection نفسها بتفضل محجوزة لحد ما postgres.js يكتشف إن الـ socket ميت (TCP keepalive، كل 60 ثانية):
+// قفلها بإيدينا بالـ pid مش آمن، لأن لو الرد وصل في نفس اللحظة الـ connection ممكن تكون راحت لـ transaction تانية.
 // مفيش إنهاء للـ backend من بره: pg_terminate_backend بالـ pid مينفعش يبقى atomic مع التأكد إن الـ connection لسه
 // في نفس الـ transaction، فممكن يقتل شغل تاني استلم الـ connection. اللي بيحد الـ backend على الـ server:
 // statement_timeout و idle_in_transaction_session_timeout (limits)، والـ connection بترجع أول ما الكود يخلص.
