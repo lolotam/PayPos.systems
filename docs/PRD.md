@@ -527,6 +527,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P0-T13.4 Migrations run as their own step before containers start; after every migration run the **previous** image against the **new** schema and confirm it serves.
 - [ ] P0-T13.5 Backups: nightly `pg_dump` encrypted to B2 via restic **and** pgBackRest/wal-g base backup + continuous WAL; RPO ≤ 5 min, RTO ≤ 2 h; both check in to Healthchecks.io.
 - [ ] P0-T13.6 One PITR restore actually performed to a chosen timestamp and queried; one logical restore into a scratch DB.
+- [ ] P0-T13.7 Production sizing on the new server, in an ADR *(Eng. Khaled's audit, 2026-10-01)*: a memory budget per container with `shared_buffers` ≈ 25 % of the Postgres cap and headroom for `work_mem` × active queries; a load test on an authenticated hot path (not `/health`); API load shedding below the container cap (RSS ≈ 75–80 %). The PITR drill uses `pgbackrest restore --type=time`, or an **empty** `recovery.signal` with settings in `postgresql.auto.conf`, and GNU `date`.
 - **Done when:** staging deploys from a SHA-tagged image; the **previous** image passes the authenticated read and write smoke scenarios against the new schema; a timed PITR restore to a chosen timestamp and a timed logical restore both complete, are queried, and meet RPO ≤ 5 min and RTO ≤ 2 h.
 
 **Phase 0 acceptance checklist (from SPEC §6, extended):**
@@ -664,7 +665,7 @@ Because the POS does not exist yet, the salon records completed services through
 #### P2-T1 — Phase 2 spec pack + hardware spike · M · ⛔ D-18, D-19
 
 - [ ] P2-T1.1 `docs/specs/phase-2/SPEC.md` + plan, reviewed.
-- [ ] P2-T1.2 Hardware spike on the chosen device and printer: print an Arabic receipt and a kitchen ticket through the print agent, kick the drawer, scan a barcode, survive a network cut. Print-agent ADR (D-19). The spike's result gates the rest of the phase.
+- [ ] P2-T1.2 Hardware spike on the chosen device and printer: print an Arabic receipt and a kitchen ticket through the print agent, kick the drawer, scan a barcode, survive a network cut. Print-agent ADR (D-19). The spike's result gates the rest of the phase. It also fixes **one** print-latency target, registers an Arabic font and tests mixed Arabic and number lines *(Eng. Khaled's audit, 2026-10-01)*.
 - [ ] P2-T1.3 Payment flow confirmed (BYO gateway, D-03) and MyFatoorah sandbox credentials.
 - [ ] P2-T1.4 Named Phase 2 scenarios written before code: the trading-day workload, the outage script (duration, number of sales, retries) and the reconciliation fixtures used by the exit criterion.
 
@@ -687,7 +688,7 @@ Because the POS does not exist yet, the salon records completed services through
 
 - [ ] P2-T4.1 Domain: `computeOrderTotals(lines, discounts, taxRule, serviceFee, tip)` with half-up line rounding; `canTransition(status, event)` state machine; return policy (`RESTOCK|WASTE|NONE`); discount validation against permission constraints; all pure, exhaustive tests, **imported unchanged by the POS**.
 - [ ] P2-T4.2 Schema: `orders`, `order_items` (served_by, appointment_id, service_barcode), `order_item_options`, `returns`, `return_lines`; `client_id` + `idempotency_key` unique per company; `channel_id` + `external_ref`; custom fields jsonb (table number …).
-- [ ] P2-T4.3 Use cases: `create-order`, `add-order-item`, `apply-discount` (code/manual; above constraint → approval request), `complete-order`, `void-order` (after payment → approval + reason), `post-return`, `assign-service-staff` (barcode scan), `hold-order`/`recall-order` [V1]; every write idempotent, transactional, outbox inside.
+- [ ] P2-T4.3 Use cases: `create-order`, `add-order-item`, `apply-discount` (code/manual; above constraint → approval request), `complete-order`, `void-order` (after payment → approval + reason), `post-return`, `assign-service-staff` (barcode scan), `hold-order`/`recall-order` [V1]; every write idempotent, transactional, outbox inside. `OrderCompleted` is appended only when the `INSERT … RETURNING` inserted a row; a duplicate returns the stored result as a duplicate *(Eng. Khaled's audit, 2026-10-01)*.
 - [ ] P2-T4.4 Ports `CatalogReaderPort`, `CustomerCreditPort` (the on-account **credit check happens here in `orders`**, at completion, because `module-map.md` gives the credit port to `orders`, not `payments`); events `OrderCreated`, `OrderCompleted`, `OrderCancelled`, `ServiceCompleted` (one per line, as in P1-T8), `ReturnPosted`; handler `on-payment-captured`.
 - [ ] P2-T4.7 **Kitchen submission events** (map amendment + ADR): `OrderSentToKitchen` per submission batch and `OrderItemsVoided`, so items added after `OrderCreated` reach the KDS and voids retract tickets. `kitchen` (P3-T5) consumes these, not `OrderCreated` alone.
 - [ ] P2-T4.5 Order types: dine-in, takeaway, delivery, drive-thru, booking, service; per-branch order-type × channel matrix from `settings`.
@@ -724,12 +725,12 @@ Because the POS does not exist yet, the salon records completed services through
 
 #### P2-T9 — POS sell / shift / offline ★ · XL
 
-- [ ] P2-T9.1 `offline/`: Dexie schema (catalog snapshot, customers snapshot, PIN hashes, device token, orders, outbox), sync engine, Service Worker background sync, conflict rules (server price wins, captured price kept with audit), snapshot versioning.
+- [ ] P2-T9.1 `offline/`: Dexie schema (catalog snapshot, customers snapshot, PIN hashes, device token, orders, outbox), sync engine, Service Worker background sync, conflict rules (server price wins, captured price kept with audit), snapshot versioning. Sync states include `DRAFT` and `REJECTED` (a server refusal) beside pending, synced and quarantined; the catalog snapshot is typed from `packages/contracts`, never `any`; the offline PIN hashes are threat-modelled before this is built — an extracted snapshot allows all 10⁴ guesses *(Eng. Khaled's audit, 2026-10-01)*.
 - [ ] P2-T9.2 `sell/`: order building with variants/options/notes/custom fields, totals via `packages/domain`, discounts within constraint, split payments, on-account, gift card/points placeholders, hold/recall [V1], returns; every order created locally with UUID v7 + idempotency key.
 - [ ] P2-T9.3 `shift/`: PIN prompt on a registered device (local hash verify), open/close with count, movements, pending-gateway indicator; PIN re-prompt on shift change / idle.
 - [ ] P2-T9.4 Layout preference: products right / order left or the reverse, saved per user (`client-discovery` Q20); multiple concurrent held orders named by table/pickup number (Q21).
 - [ ] P2-T9.5 Card/KNET while offline: queued as pending payment; cash/on-account complete offline; sync status always visible.
-- [ ] P2-T9.6 The four offline financial rules from §8.4: durable `(company_id, client_id)` dedupe, maximum offline age (D-29), offline credit exposure cap (D-29), and revocation **quarantine** — a revoked device uploads unsynced sales for manager review before it wipes its snapshot.
+- [ ] P2-T9.6 The four offline financial rules from §8.4: durable `(company_id, client_id)` dedupe, maximum offline age (D-29), offline credit exposure cap (D-29), and revocation **quarantine** — a revoked device uploads unsynced sales for manager review before it wipes its snapshot. **Design the quarantine credential first:** `revoke-device` today erases `tokenHash` and `claimHash` (T9b-2), so a revoked device cannot authenticate any upload — e.g. a quarantine-only credential, or batches signed with a key registered at pairing, kept on revoke *(Eng. Khaled's audit, 2026-10-01)*.
 
 #### P2-T10 — Printing, receipts, digital invoice · L · ⛔ D-19
 
@@ -865,7 +866,7 @@ Because the POS does not exist yet, the salon records completed services through
 
 #### P5-T2 — `packages/documents`: PDF and Excel · L
 
-- [ ] P5-T2.1 Playwright headless PDF with Arabic fonts in the worker image (memory limit set now); ExcelJS; PDF/Excel/CSV export from every list; invoice PDF; commission statement PDF; payslip PDF.
+- [ ] P5-T2.1 Playwright headless PDF with Arabic fonts in the worker image (memory limit set now); the browser is recycled only after in-flight renders drain (reference count), with bounded concurrency *(Eng. Khaled's audit, 2026-10-01)*; ExcelJS; PDF/Excel/CSV export from every list; invoice PDF; commission statement PDF; payslip PDF.
 
 #### P5-T3 — `expenses` module · M
 
@@ -944,7 +945,7 @@ Every open item below blocks the task named in "Blocks". An implementing agent m
 | D-01 | **Phase order: attendance + commissions first** (this PRD, `06` §7, `05` §3, `10` §15, `08`) **vs POS first** (only the investor proposal `client-phased-proposal-ar.md` R1). | Engineering recommendation is settled: attendance first. What remains is the client's **written approval** of the phase order, recorded once, not reopened each phase. | P1 start | Client |
 | D-02 | Product name **PosPay** — legal exposure of "Pay" (suggests a payment provider; BYO chosen to stay outside CBK EPSP licensing, unconfirmed). The name itself is settled (repo, domain, ADR-0001, `SPEC.md` renamed 2026-09-22). Merged with the former D-05. | ✅ **Decided 2026-09-23 by Waleed:** the lawyer sees no objection — the product keeps the name **PosPay**, on invoices and the WABA display name alike. | was: P0-T10 invoice header; **P1-T7** if WhatsApp is the OTP channel | Waleed + lawyer/accountant |
 | D-03 | Merchant money flow: BYO gateway per business (lean, no licence) vs platform collects and settles to merchants (needs a CBK arrangement and a financial partner). PosPay collecting **its own** subscription fees is a different flow and is not blocked by this. | Lean: BYO. Platform-collected model only as a future, separately approved module. | P2-T5 (merchant payments only) | Waleed + client + advisor |
-| D-04 | Pricing: ~50 KWD/shop/month everything included, free first month, no setup fee (transcript) vs one annual package (investor proposal) vs below Foodics Basic per branch (`05`). "No per-branch upcharge" and "per shop" must be reconciled. | Decide **before external onboarding** (P5-T5), confirm after the first two customers. | P5-T0, P5-T5 | Client |
+| D-04 | Pricing: ~50 KWD/shop/month everything included, free first month, no setup fee (transcript) vs one annual package (investor proposal) vs below Foodics Basic per branch (`05`). "No per-branch upcharge" and "per shop" must be reconciled. | Decide **before external onboarding** (P5-T5), confirm after the first two customers. The cost model must include the technician retainer, WhatsApp conversations beyond the free tier per branch, and the annual-plan discount *(Eng. Khaled's audit, 2026-10-01)*. | P5-T0, P5-T5 | Client |
 | D-05 | *(merged into D-02)* | — | — | — |
 | D-06 | Plans at launch: how many, names, which feature flags separate them, limits. | Lean: one plan + flags reserved for future tiers. A **provisional** seed unblocks P0-T5; the names change later without schema change. `SPEC.md` §8 must be amended to drop this as a blocker. | P5-T5 (not P0) | Client |
 | D-07 | Exact role codes to seed (from `09` §6). | Confirm the 13 tenant roles + 5 platform roles. **Provisional** codes seeded in P0-T9a; renaming is a data migration. `SPEC.md` §8 must be amended likewise. | final seed before P1-T12 pilot | Client |
@@ -1027,6 +1028,7 @@ These should be fixed in the source documents; until then this section is the re
 20. **Features in sources without a delivery slice yet:** configurable custom fields for customers, employees and orders (`04` §1, [V1]); bundles, memberships and prepaid sessions (`04` §3, `10` §7, [V1]); overtime rules and shift swaps (`04` §5, `10` §4.2, [V1]). They are listed in §7 and need slices when their [V1] phase is planned.
 21. **`module-map.md` amendments this PRD requires** (each with an ADR): events `ServicePerformerReassigned`, `OrderSentToKitchen`, `OrderItemsVoided`, `ChannelFeeIncurred`; `inventory` consuming `ServiceCompleted`; `expenses` consuming `ChannelFeeIncurred`.
 22. **`IMPLEMENTATION-PLAN.md` §2 amendment:** T9 splits into T9a (before T8) and T9b (after T8), and `SPEC.md` §8 questions 2 and 3 stop blocking the schema (provisional seeds).
+23. **Eng. Khaled's architecture audit (2026-10-01).** It reviewed an untracked consultant pack (`docs/PosPay Analysis/`, since removed by Waleed), not the repo. Checked against the code by Claude and Codex: the pack's RLS bootstrap, membership bridge, `DISCARD ALL`, restore-script and Compose defects are real in the pack but already solved in the code (tests exist); his proposed `WITH CHECK (true)` / `SECURITY DEFINER` fix for company creation is rejected (it would let any tenant create companies). Repo fixes: `06` V1.3 (Traefik, R2), ADR-0003 signature, env templates, and a deadline/COMMIT race Codex found. Future items are tagged in P0-T13.7, P2-T1.2, P2-T4.3, P2-T9.1, P2-T9.6, P5-T2.1 and D-04.
 ---
 
 ## 14. Source documents
