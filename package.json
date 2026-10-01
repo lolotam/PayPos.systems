@@ -8,7 +8,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "check": "turbo run typecheck lint test && pnpm lint:docs && node --test \"scripts/module-map/*.test.mjs\" && pnpm module-map:check && pnpm --filter @pospay/admin api:check",
+    "check": "turbo run typecheck lint test && pnpm lint:docs && node --test \"scripts/module-map/*.test.mjs\" && pnpm module-map:check && pnpm --filter @pospay/admin api:check && pnpm --filter @pospay/pos api:check",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "lint:docs": "node packages/config/scripts/lint-docs.mjs",

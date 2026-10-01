@@ -140,11 +140,11 @@ jobs:
       # build stage too, whose layers hold the whole context — rather than passing because none existed.
       - name: plant decoy env files
         run: |
-          for file in .env .env.production apps/api/.env apps/api/.env.production apps/admin/.env packages/db/.env.local deploy/backup/backup.env; do
+          for file in .env .env.production apps/api/.env apps/api/.env.production apps/admin/.env apps/pos/.env packages/db/.env.local deploy/backup/backup.env; do
             echo "DECOY=never-in-an-image" > "$file"
           done
 
-      - name: build api · migrate · worker · backup · admin (and the build stage)
+      - name: build api · migrate · worker · backup · admin · pos (and the build stage)
         run: |
           registry="$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')"
           docker build -f deploy/Dockerfile.api --target build -t pospay-build-stage:check .
@@ -153,6 +153,7 @@ jobs:
           docker build -f deploy/Dockerfile.worker -t "$registry/pospay-worker:$SHA" .
           docker build -f deploy/Dockerfile.backup -t "$registry/pospay-backup:$SHA" .
           docker build -f deploy/Dockerfile.admin -t "$registry/pospay-admin:$SHA" .
+          docker build -f deploy/Dockerfile.pos -t "$registry/pospay-pos:$SHA" .
           echo "REGISTRY_LC=$registry" >> "$GITHUB_ENV"
 
       - name: no env file in any image or build stage
@@ -162,6 +163,7 @@ jobs:
           images="pospay-build-stage:check $REGISTRY_LC/pospay-api:$SHA"
           images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-worker:$SHA $REGISTRY_LC/pospay-backup:$SHA"
           images="$images $REGISTRY_LC/pospay-admin:$SHA"
+          images="$images $REGISTRY_LC/pospay-pos:$SHA"
           search='find / \( -name ".env" -o -name ".env.*" -o -name "*.env" \) ! -name "*.env.example" ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
           for image in $images; do
             # A failed inspection fails the step (set -e); it never counts as "nothing found".
@@ -176,7 +178,7 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          for image in api migrate worker backup admin; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
+          for image in api migrate worker backup admin pos; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
 
   # The one check branch protection requires. It passes when `check` passed, or when `check` was
   # skipped because only docs changed — and fails on anything else, including a failed `changes`.

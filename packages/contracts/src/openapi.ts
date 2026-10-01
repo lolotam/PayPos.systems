@@ -10,6 +10,7 @@ import {
 } from './identity/workspaces.js';
 import {
   claimDeviceInput,
+  deviceIdentity,
   deviceRegistration,
   deviceToken,
   pairingCode,
@@ -46,6 +47,7 @@ const SCHEMAS = [
   deviceRegistration,
   claimDeviceInput,
   deviceToken,
+  deviceIdentity,
   verifyCashierPinInput,
   cashierPinVerified,
   myWorkspacesResponse,
@@ -65,26 +67,57 @@ const SCHEMAS = [
   taxRule,
 ];
 
-// GET /v1/me/workspaces موجود على الـ API. العميل المولّد محتاج المسار، من غير schema جديد.
+const json = (schema: string) => ({
+  'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
+});
+
+function operation(
+  operationId: string,
+  status: '200' | '201',
+  description: string,
+  response: string,
+  body?: string,
+) {
+  return {
+    operationId,
+    ...(body === undefined ? {} : { requestBody: { required: true, content: json(body) } }),
+    responses: {
+      [status]: { description, content: json(response) },
+      default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+    },
+  };
+}
+
+// المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
   '/v1/me/workspaces': {
-    get: {
-      operationId: 'listMyWorkspaces',
-      responses: {
-        '200': {
-          description: 'The companies, businesses and branches this session can open',
-          content: {
-            'application/json': { schema: { $ref: '#/components/schemas/MyWorkspacesResponse' } },
-          },
-        },
-        default: {
-          description: 'The API error envelope',
-          content: {
-            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
-          },
-        },
-      },
-    },
+    get: operation(
+      'listMyWorkspaces',
+      '200',
+      'The companies, businesses and branches this session can open',
+      'MyWorkspacesResponse',
+    ),
+  },
+  '/v1/devices/register': {
+    post: operation(
+      'registerDevice',
+      '201',
+      'The device is registered and waits for approval',
+      'DeviceRegistration',
+      'RegisterDeviceInput',
+    ),
+  },
+  '/v1/devices/claim': {
+    post: operation(
+      'claimDeviceToken',
+      '200',
+      'The approved device receives its token',
+      'DeviceToken',
+      'ClaimDeviceInput',
+    ),
+  },
+  '/v1/devices/me': {
+    get: operation('getDeviceIdentity', '200', 'The calling device', 'DeviceIdentity'),
   },
 };
 

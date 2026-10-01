@@ -37,11 +37,13 @@ export { plan, type Plan } from './tenancy/plan.js';
 export {
   claimDeviceInput,
   deviceRegistration,
+  deviceIdentity,
   deviceToken,
   pairingCode,
   registerDeviceInput,
   type ClaimDeviceInput,
   type DeviceRegistration,
+  type DeviceIdentity,
   type DeviceToken,
   type PairingCode,
   type RegisterDeviceInput,

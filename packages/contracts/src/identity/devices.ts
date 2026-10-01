@@ -36,8 +36,14 @@ export const claimDeviceInput = z
 
 export const deviceToken = z.object({ device_token: z.string() }).meta({ id: 'DeviceToken' });
 
+// GET /v1/devices/me — الجهاز بيسأل هو مين في أول كل تشغيل، ومنه بيعرف إنه اتشال.
+export const deviceIdentity = z
+  .object({ device_id: id, company_id: id, branch_id: id })
+  .meta({ id: 'DeviceIdentity' });
+
 export type PairingCode = z.infer<typeof pairingCode>;
 export type RegisterDeviceInput = z.output<typeof registerDeviceInput>;
 export type DeviceRegistration = z.infer<typeof deviceRegistration>;
 export type ClaimDeviceInput = z.infer<typeof claimDeviceInput>;
 export type DeviceToken = z.infer<typeof deviceToken>;
+export type DeviceIdentity = z.infer<typeof deviceIdentity>;
