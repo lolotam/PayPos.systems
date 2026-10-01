@@ -48,7 +48,7 @@ function filter(access: LogAccess, scope: LogScope, cursor: Cursor | null) {
     ${scope.businessId === undefined ? sql`` : sql`AND a.business_id = ${scope.businessId}`}
     ${scope.branchId === undefined ? sql`` : sql`AND a.branch_id = ${scope.branchId}`}
     ${cursor === null ? sql`` : sql`AND (a.created_at, a.id) < (${cursor.at}::timestamptz, ${cursor.id}::uuid)`}
-    AND (${grantFilter(access, 'ALLOW')}) AND NOT (${grantFilter(access, 'DENY')})`;
+    AND (${grantFilter(access, 'ALLOW')}) AND NOT COALESCE((${grantFilter(access, 'DENY')}), FALSE)`;
 }
 
 function grantFilter(access: LogAccess, effect: 'ALLOW' | 'DENY') {

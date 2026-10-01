@@ -103,6 +103,32 @@ it('projects the exact contract, paginates without overlap and respects tenant/b
   expect((await deliveryLogQueryResult(db, denied, {}, { limit: 2 })).items).toEqual([]);
 });
 
+it('a branch DENY never hides a company-wide attempt, whose branch is NULL', async () => {
+  const companyWide = '01920000-0000-7000-8000-00000000c0de';
+  await owner`
+    INSERT INTO notification_attempts (company_id,id,business_id,branch_id,source_event_id,channel,template_key,
+      template_revision,locale,recipient_hash,hash_key_id,phone_last3,safe_parameters,status,failure_code,
+      authorized_at,finished_at,outcome_known,created_at,updated_at)
+    VALUES (${TENANT.A.company}, ${companyWide}, NULL, NULL, gen_random_uuid(), 'whatsapp', 'test_notice', 1, 'ar',
+      decode(repeat('02',32),'hex'), 'test-v1', '002', '[]', 'FAILED', 'CONFIG_INVALID', '2026-10-02'::timestamptz,
+      '2026-10-02'::timestamptz, true, '2026-10-02'::timestamptz, '2026-10-02'::timestamptz)`;
+  const branchDenied: LogAccess = {
+    ...access,
+    grants: [
+      ...access.grants,
+      {
+        permission: 'view:notifications:business',
+        effect: 'DENY',
+        scopeType: 'BRANCH',
+        scopeId: TENANT.A.branch,
+      },
+    ],
+  };
+  const items = (await deliveryLogQueryResult(db, branchDenied, {}, { limit: 5 })).items;
+  expect(items.map((item) => item.id)).toEqual([companyWide]);
+  await owner`DELETE FROM notification_attempts WHERE company_id = ${TENANT.A.company} AND id = ${companyWide}`;
+});
+
 it('EXPLAIN ANALYZE uses the tenant ordered index without a notification-table sequential scan', async () => {
   const rows = await db.withTenant(TENANT.A.company, (tx) =>
     tx.execute<Record<string, string>>(

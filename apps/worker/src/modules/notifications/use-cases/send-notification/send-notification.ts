@@ -39,12 +39,14 @@ export class SendNotification {
       );
       return;
     }
-    if (!mayStart(attempt.deadline, this.clock.now())) {
+    // نفس اللحظة للفحص وللـ claim: لو اتحسبوا مرتين، الموعد ممكن يعدّي بينهم والـ claim يترفض في صمت،
+    // فالمحاولة تفضل PENDING ومعاها الرقم ومن غير نتيجة EXPIRED.
+    const executionId = this.ids.newId();
+    const now = this.clock.now();
+    if (!mayStart(attempt.deadline, now)) {
       await this.reject(attempt, refusedResult('DEADLINE_EXPIRED'));
       return;
     }
-    const executionId = this.ids.newId();
-    const now = this.clock.now();
     if (!(await this.attempts.claim(attempt, executionId, now))) return;
     attempt = { ...attempt, status: 'SENDING', executionId, sendingAt: now };
     try {

@@ -8,6 +8,13 @@ const CONCURRENT = /^\s*(?:--[^\n]*\n\s*)*(?:CREATE|DROP)\s+(?:UNIQUE\s+)?INDEX\
 export async function applyMigrations(client: postgres.Sql, folder: string): Promise<void> {
   const migrations = readMigrationFiles({ migrationsFolder: folder });
   await client`SELECT pg_advisory_lock(hashtext('pospay:migrations'))`;
+  const [session] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+  const pid = session?.pid;
+  // The advisory lock belongs to this session: if the connection was replaced, another runner may hold it now.
+  const sameSession = async (): Promise<void> => {
+    const [now] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+    if (now?.pid !== pid) throw new Error('Migration session lost its advisory lock; aborting');
+  };
   try {
     await client`CREATE SCHEMA IF NOT EXISTS drizzle`;
     await client`CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)`;
@@ -17,6 +24,7 @@ export async function applyMigrations(client: postgres.Sql, folder: string): Pro
     const after = Number(last?.created_at ?? 0);
     for (const migration of migrations) {
       if (migration.folderMillis <= after) continue;
+      await sameSession();
       const statements = migration.sql.filter((statement) => statement.trim() !== '');
       const firstTransactional = statements.findIndex((statement) => !CONCURRENT.test(statement));
       const prefixLength = firstTransactional === -1 ? statements.length : firstTransactional;

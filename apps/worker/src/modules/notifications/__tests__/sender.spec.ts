@@ -116,3 +116,24 @@ describe('terminal and deadline safety', () => {
     h.advance(NOW);
   });
 });
+
+describe('one moment for the deadline check and the claim', () => {
+  it('a deadline reached between the check and the claim cannot leave the attempt PENDING', async () => {
+    const event = await h.request({ send_deadline: new Date(NOW.getTime() + 1_000).toISOString() });
+    await h.deliver(event);
+    const id = await h.attempt(event);
+    const original = h.clock.now;
+    let calls = 0;
+    // The first two readings are before the deadline, every later one is at it: a sender that reads the
+    // clock again for the claim would pass the check and then be refused by the claim.
+    h.clock.now = () => new Date(++calls <= 2 ? NOW.getTime() : NOW.getTime() + 1_000);
+    try {
+      await h.module.send.execute(event.companyId, id);
+    } finally {
+      h.clock.now = original;
+    }
+    const row = await h.read(id);
+    expect(row?.status).not.toBe('PENDING');
+    expect(row).toMatchObject({ recipient_phone: null });
+  });
+});

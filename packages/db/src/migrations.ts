@@ -31,7 +31,9 @@ export async function migrateDatabase(ownerUrl: string, passwords: RolePasswords
   } finally {
     await maintenance.end();
   }
-  const sql = postgres(ownerUrl, { max: 1, onnotice: () => undefined });
+  // max_lifetime null: postgres.js would otherwise recycle the one connection after 30–60 minutes, and a long
+  // migration would continue on a new session that no longer holds the advisory lock.
+  const sql = postgres(ownerUrl, { max: 1, max_lifetime: null, onnotice: () => undefined });
   try {
     await applyMigrations(sql, MIGRATIONS_FOLDER);
   } finally {
