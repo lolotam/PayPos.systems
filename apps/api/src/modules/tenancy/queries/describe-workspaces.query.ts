@@ -49,7 +49,8 @@ function businessHit(companyId: string) {
 
 // Screen: admin › tenant selector. One company inside the caller's withTenant transaction: COMPANY reaches every
 // business and branch, BUSINESS that business and its branches, BRANCH that branch and its parent business.
-// company_id is bound from app_company_id() so the planner can use the tenant indexes.
+// company_id is bound from app_company_id() so the planner can use the tenant indexes. Branches are grouped once
+// per business and joined, so a large company costs one pass over its branches, not one pass per business.
 function treeQuery(companyId: string, payload: string) {
   return sql`
     WITH scopes AS (
@@ -61,19 +62,22 @@ function treeQuery(companyId: string, payload: string) {
     ),
     business_hit AS (
       ${businessHit(companyId)}
+    ),
+    branch_tree AS (
+      SELECT br.business_id, jsonb_agg(jsonb_build_object(
+        'id', br.id, 'name_ar', br.name_ar, 'name_en', br.name_en,
+        'effective_timezone', br.effective_timezone, 'is_active', br.is_active
+      ) ORDER BY br.name_en, br.id) AS branches
+      FROM branch_hit br
+      GROUP BY br.business_id
     )
     SELECT c.id, c.name_ar, c.name_en, COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
         'id', bu.id, 'name_ar', bu.name_ar, 'name_en', bu.name_en,
-        'branches', COALESCE((
-          SELECT jsonb_agg(jsonb_build_object(
-            'id', br.id, 'name_ar', br.name_ar, 'name_en', br.name_en,
-            'effective_timezone', br.effective_timezone, 'is_active', br.is_active
-          ) ORDER BY br.name_en, br.id)
-          FROM branch_hit br WHERE br.business_id = bu.id
-        ), '[]'::jsonb)
+        'branches', COALESCE(bt.branches, '[]'::jsonb)
       ) ORDER BY bu.name_en, bu.id)
       FROM business_hit bu
+      LEFT JOIN branch_tree bt ON bt.business_id = bu.id
     ), '[]'::jsonb) AS businesses
     FROM companies c
     WHERE c.id = ${companyId} AND c.deleted_at IS NULL`;
