@@ -8,7 +8,7 @@ import type { FastifyRequest } from 'fastify';
 import { DATABASE } from './database.token.ts';
 import { ApiError } from './errors.ts';
 
-/** Session-only personal resources still recheck the selected company's membership before tenant access. */
+/** Session-only personal resources require active membership and an open selected company. */
 @Injectable()
 export class SelectedCompanyGuard implements CanActivate {
   constructor(@Inject(DATABASE) readonly database: TenantWrappers | null) {}
@@ -27,6 +27,13 @@ export class SelectedCompanyGuard implements CanActivate {
         AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now()) LIMIT 1`),
     );
     if (member.length === 0) throw new ApiError('FORBIDDEN');
+    const company = await this.database.withTenant(
+      companyId,
+      (tx) =>
+        tx.execute(sql`SELECT id FROM companies WHERE id = ${companyId} AND deleted_at IS NULL`),
+      { userId },
+    );
+    if (company.length === 0) throw new ApiError('FORBIDDEN');
     request.principal = { ...principal, companyId };
     updateRequestContext({ companyId });
     return true;

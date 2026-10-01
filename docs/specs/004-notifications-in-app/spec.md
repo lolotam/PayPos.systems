@@ -33,6 +33,9 @@ A member marks one message or all their messages read.
 - Missing/unsupported locale, unknown template/revision or unsafe parameters reject the event transaction without storing free text or emitting success.
 - Consumer failure rolls back inbox rows, result events and consumer dedupe together.
 - Polling and mutation failures show localized errors; changing company shows only that company's inbox.
+- Switching users with a surviving QueryClient never displays the previous user's inbox; inbox reads wait for both company and session user.
+- Identity changes broadcast before navigation; other tabs clear their query cache and reload. BroadcastChannel is optional and self-originated messages are ignored.
+- A closed company is forbidden for list, count, read and read-all even when membership remains active.
 
 ## Requirements
 
@@ -90,6 +93,11 @@ No new permission or feature flag; selected-company membership plus recipient ow
 - RLS: restricted app cross-company read/update zero, insert/upsert/FK/re-home rejected; no context leak or auth/dispatcher/DELETE access.
 - Queries: list/unread exact DTO shapes and EXPLAIN ANALYZE asserts ordered/partial index use.
 - Admin: badge count, list/read state and mark all invalidation using generated client with TanStack Query.
+- Review regressions: account switching with one QueryClient (including delayed responses and scoped mutation invalidation), unknown session user, cross-tab reload/cache clearing, and all four endpoints against a closed company in real Postgres.
+
+### Review fixes
+
+The session area reads the authenticated user id separately without changing `loadBrowserSession`'s in/out contract. The dashboard frame passes that identity to notifications; every inbox query and mutation invalidation includes both company and user. Shared browser navigation publishes a payload without personal data over BroadcastChannel before navigation; the shared query provider clears cached data and reloads on messages from another tab. Unsupported BroadcastChannel leaves navigation working. SelectedCompanyGuard verifies the company has `deleted_at IS NULL` inside `withTenant` after the active membership check and returns FORBIDDEN otherwise.
 
 ## Success Criteria
 

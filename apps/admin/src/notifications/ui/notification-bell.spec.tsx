@@ -54,7 +54,7 @@ it.each(['ar', 'en'] as const)(
       <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <LocaleProvider locale={locale} setLocale={() => undefined}>
           <QueryProvider>
-            <NotificationBell companyId={companyId} />
+            <NotificationBell companyId={companyId} userId="01920000-0000-7000-8000-0000000000f1" />
           </QueryProvider>
         </LocaleProvider>
       </DirectionProvider>,
@@ -94,7 +94,7 @@ it.each(['ar', 'en'] as const)(
       <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <LocaleProvider locale={locale} setLocale={() => undefined}>
           <QueryProvider>
-            <NotificationBell companyId={companyId} />
+            <NotificationBell companyId={companyId} userId="01920000-0000-7000-8000-0000000000f1" />
           </QueryProvider>
         </LocaleProvider>
       </DirectionProvider>,

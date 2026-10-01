@@ -35,6 +35,10 @@ function mockDatabase(memberRows: unknown[]): TenantWrappers {
       _userId: string,
       callback: (tx: { execute: () => Promise<unknown[]> }) => Promise<unknown>,
     ) => callback({ execute: async () => memberRows }),
+    withTenant: async (
+      _companyId: string,
+      callback: (tx: { execute: () => Promise<unknown[]> }) => Promise<unknown>,
+    ) => callback({ execute: async () => [{ id: VALID_COMPANY }] }),
   } as unknown as TenantWrappers;
 }
 
@@ -61,7 +65,12 @@ it.each(['device', 'api-key'] as const)(
 it.each([
   { desc: 'no header', header: undefined, error: 'BAD_REQUEST' },
   { desc: 'malformed header', header: 'not-a-valid-uuid', error: 'BAD_REQUEST' },
-  { desc: 'a company where user has no membership', header: VALID_COMPANY, rows: [], error: 'FORBIDDEN' },
+  {
+    desc: 'a company where user has no membership',
+    header: VALID_COMPANY,
+    rows: [],
+    error: 'FORBIDDEN',
+  },
   { desc: 'an ended membership', header: VALID_COMPANY, rows: [], error: 'FORBIDDEN' },
   { desc: 'a not-yet-started membership', header: VALID_COMPANY, rows: [], error: 'FORBIDDEN' },
 ])('refuses $desc with $error', async ({ header, rows = [], error }) => {
@@ -97,4 +106,3 @@ it('allows active membership and sets companyId on the principal', async () => {
   expect(result).toBe(true);
   expect(request.principal.companyId).toBe(VALID_COMPANY);
 });
-

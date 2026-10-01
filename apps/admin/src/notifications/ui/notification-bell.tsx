@@ -8,13 +8,18 @@ import { useNotifications } from '../api/use-notifications';
 import { NotificationPanel } from './notification-panel';
 import { useOutsideDismiss } from '../model/use-outside-dismiss';
 
-export function NotificationBell({ companyId }: { companyId: string | undefined }) {
+interface NotificationBellProps {
+  companyId: string | undefined;
+  userId: string | null;
+}
+
+export function NotificationBell({ companyId, userId }: NotificationBellProps) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
-  const { count, list, read } = useNotifications(companyId, open);
+  const { count, list, read } = useNotifications(companyId, open, userId);
   const unread = count.data?.count ?? 0;
   useOutsideDismiss(root, open, () => setOpen(false));
   return (
@@ -34,7 +39,7 @@ export function NotificationBell({ companyId }: { companyId: string | undefined 
       <Button
         ref={button}
         variant="ghost"
-        disabled={companyId === undefined}
+        disabled={companyId === undefined || userId === null}
         aria-label={t(locale, 'inApp.title')}
         aria-expanded={open}
         aria-controls={panelId}
