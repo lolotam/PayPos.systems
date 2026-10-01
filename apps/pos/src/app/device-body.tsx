@@ -1,0 +1,18 @@
+import { AttendanceHome } from '@/attendance/ui/attendance-home';
+import type { DeviceSession } from '@/device/api/use-device-session';
+import { OfflineNotice } from '@/device/ui/offline-notice';
+import { PairingScreen } from '@/device/ui/pairing-screen';
+import { WaitingScreen } from '@/device/ui/waiting-screen';
+
+import { LoadingNotice } from './loading-notice';
+
+export function DeviceBody({ session }: { session: DeviceSession }) {
+  const { screen } = session;
+  if (screen.kind === 'loading') return <LoadingNotice />;
+  if (screen.kind === 'pairing') {
+    return <PairingScreen notice={screen.notice} onSubmit={session.submit} />;
+  }
+  if (screen.kind === 'waiting') return <WaitingScreen onStartOver={session.startOver} />;
+  if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
+  return <AttendanceHome branchId={screen.branchId} />;
+}

@@ -23,6 +23,7 @@ describe('openapi/openapi.json', () => {
       'CreateBusinessInput',
       'CreateCompanyInput',
       'Currency',
+      'DeviceIdentity',
       'DeviceRegistration',
       'DeviceToken',
       'ErrorEnvelope',
