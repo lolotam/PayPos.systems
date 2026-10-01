@@ -2,12 +2,12 @@
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Slot } from 'radix-ui';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, MouseEvent } from 'react';
 
 import { cn } from './shared/cn.js';
 
 export const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-interactive text-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-interactive text-sm font-medium transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
@@ -33,12 +33,44 @@ export type ButtonProps = ComponentProps<'button'> &
     asChild?: boolean;
   };
 
-export function Button({ className, variant, size, asChild = false, type, ...props }: ButtonProps) {
-  const Component = asChild ? Slot.Root : 'button';
+// A slotted link ignores the `disabled` attribute, so it is disabled the way ARIA expects: announced, out of the
+// tab order, and its activation (click or Enter) cancelled.
+const cancelActivation = (event: MouseEvent<HTMLElement>) => {
+  event.preventDefault();
+  event.stopPropagation();
+};
+
+export function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  type,
+  disabled,
+  onClick,
+  tabIndex,
+  ...props
+}: ButtonProps) {
+  const classes = cn(buttonVariants({ variant, size }), className);
+  if (!asChild) {
+    return (
+      <button
+        type={type ?? 'button'}
+        disabled={disabled}
+        onClick={onClick}
+        tabIndex={tabIndex}
+        className={classes}
+        {...props}
+      />
+    );
+  }
   return (
-    <Component
-      type={asChild ? type : (type ?? 'button')}
-      className={cn(buttonVariants({ variant, size }), className)}
+    <Slot.Root
+      aria-disabled={disabled || undefined}
+      data-disabled={disabled ? '' : undefined}
+      tabIndex={disabled ? -1 : tabIndex}
+      onClick={disabled ? cancelActivation : onClick}
+      className={classes}
       {...props}
     />
   );

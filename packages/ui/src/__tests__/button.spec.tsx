@@ -59,3 +59,35 @@ it('composes an anchor through the Radix slot without adding button semantics', 
   expect(link.getAttribute('type')).toBeNull();
   expect(link.classList.contains('bg-primary')).toBe(true);
 });
+
+it('disables a slotted link: announced, out of the tab order, and its activation cancelled', () => {
+  const onClick = vi.fn();
+  render(
+    <Button asChild disabled onClick={onClick}>
+      <a href="#fixture">{label}</a>
+    </Button>,
+  );
+  const link = screen.getByRole('link');
+  const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+  link.dispatchEvent(event);
+  expect({
+    ariaDisabled: link.getAttribute('aria-disabled'),
+    tabIndex: link.getAttribute('tabindex'),
+    prevented: event.defaultPrevented,
+    clicked: onClick.mock.calls.length,
+  }).toEqual({ ariaDisabled: 'true', tabIndex: '-1', prevented: true, clicked: 0 });
+});
+
+it('keeps a slotted link that is not disabled fully actionable', () => {
+  const onClick = vi.fn();
+  render(
+    <Button asChild onClick={onClick}>
+      <a href="#fixture">{label}</a>
+    </Button>,
+  );
+  fireEvent.click(screen.getByRole('link'));
+  expect([
+    screen.getByRole('link').getAttribute('aria-disabled'),
+    onClick.mock.calls.length,
+  ]).toEqual([null, 1]);
+});

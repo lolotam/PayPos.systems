@@ -43,6 +43,15 @@ const physical = [
   '[&:nth-child(2)]:-left-[2px]',
   'hover:!ml-2',
   'ml-2!',
+  'scroll-pl-4',
+  'scroll-pr-4',
+  'clear-left',
+  'clear-right',
+  '[padding-left:1rem]',
+  '[margin-right:1rem]',
+  '[border-top-left-radius:2px]',
+  '[left:0]',
+  'md:[text-align:right]',
 ];
 const invalid = (code) => ({ code, errors: [{ messageId: 'physical' }] });
 
@@ -56,6 +65,12 @@ tester.run('no-physical-tailwind', noPhysicalTailwind, {
     'const unrelated = "ml-2";',
     'cn("[&[data-label=left-0]]:ms-2", "text-[length:2rem]")',
     'cn("border-lime-500", "text-leftover")',
+    'cn("[padding-inline-start:1rem]", "clear-start", "scroll-ps-4")',
+    'cva("text-start", { variants: { align: { "text-left": "text-start" } } })',
+    'cva("flex", { variants: { side: { start: "ms-2" } }, defaultVariants: { side: "text-left" } })',
+    'cva("flex", { compoundVariants: [{ align: "text-left", className: "ms-2" }] })',
+    'cn(side === "left-0" && "ms-2")',
+    'cn({ "ms-2": side === "ml-2" })',
   ],
   invalid: [
     ...physical.map((className) => invalid(`<div className="${className}" />`)),
