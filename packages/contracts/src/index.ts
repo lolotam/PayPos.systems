@@ -53,6 +53,18 @@ export {
   type VerifyCashierPinInput,
 } from './identity/cashier-pin.js';
 export {
+  myWorkspacesResponse,
+  workspaceBranch,
+  workspaceBusiness,
+  workspaceCompany,
+  workspaceCompanyNames,
+  type MyWorkspacesResponse,
+  type WorkspaceBranch,
+  type WorkspaceBusiness,
+  type WorkspaceCompany,
+  type WorkspaceCompanyNames,
+} from './identity/workspaces.js';
+export {
   businessSettings,
   calendar,
   language,
