@@ -84,3 +84,20 @@ it.each(['missing', 'throws'] as const)(
     unmount();
   },
 );
+
+it('without BroadcastChannel, the storage event from another tab still clears the cache and reloads', () => {
+  vi.stubGlobal('BroadcastChannel', undefined);
+  const reload = vi.fn();
+  vi.stubGlobal('location', { assign: vi.fn(), reload });
+  const { result, unmount } = renderHook(() => useQueryClient(), { wrapper: QueryProvider });
+  const survivingClient = result.current;
+  act(() => survivingClient.setQueryData(['private-inbox'], 'Previous user'));
+  act(() => {
+    globalThis.dispatchEvent(
+      new StorageEvent('storage', { key: 'pospay:identity-change', newValue: 'other-tab:1' }),
+    );
+  });
+  expect(reload).toHaveBeenCalledOnce();
+  expect(survivingClient.getQueryData(['private-inbox'])).toBeUndefined();
+  unmount();
+});

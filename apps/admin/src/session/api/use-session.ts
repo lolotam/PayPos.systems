@@ -17,6 +17,10 @@ export function useSessionUser(enabled: boolean): string | null {
     queryKey: ['session', 'user'],
     queryFn: readSessionUserId,
     enabled,
+    // الهوية بتتقرا تاني كل ما التبويب يرجع للواجهة: لو حساب تاني دخل من تبويب تاني، الإشعارات بتتبدل لمفتاحه
+    // حتى لو رسالة تغيير الهوية ما وصلتش.
+    staleTime: 0,
+    refetchOnWindowFocus: 'always',
   });
   return enabled && query.isSuccess ? query.data : null;
 }

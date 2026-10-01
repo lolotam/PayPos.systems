@@ -53,3 +53,24 @@ it('waits for browser mounting and returns null after the authenticated user dis
   unmount();
   client.clear();
 });
+
+it('re-reads the identity when the tab regains focus, so a sign-in in another tab replaces A with B', async () => {
+  const { focusManager } = await import('@tanstack/react-query');
+  const client = createQueryClient();
+  const userB = '01920000-0000-7000-8000-0000000000f2';
+  getSession.mockResolvedValue({ data: { user: { id: user } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result, unmount } = renderHook(() => hooks.useSessionUser(true), { wrapper });
+  await waitFor(() => expect(result.current).toBe(user));
+  getSession.mockResolvedValue({ data: { user: { id: userB } } });
+  act(() => {
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
+  });
+  await waitFor(() => expect(result.current).toBe(userB));
+  focusManager.setFocused(undefined);
+  unmount();
+  client.clear();
+});
