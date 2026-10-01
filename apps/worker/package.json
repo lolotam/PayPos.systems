@@ -12,6 +12,10 @@
     "start": "node --env-file-if-exists=../../.env dist/main.js"
   },
   "dependencies": {
+    "@pospay/contracts": "workspace:*",
+    "@pospay/notifications": "workspace:*",
+    "bullmq": "6.2.0",
+    "drizzle-orm": "0.45.2",
     "@nestjs/common": "12.0.3",
     "@nestjs/core": "12.0.3",
     "@nestjs/platform-fastify": "12.0.3",
@@ -26,6 +30,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "postgres": "3.4.9",
     "@pospay/config": "workspace:*",
     "@types/node": "24.13.6",
     "eslint": "10.11.0",

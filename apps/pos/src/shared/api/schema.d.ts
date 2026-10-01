@@ -4,6 +4,54 @@
  */
 
 export interface paths {
+    "/v1/notifications/delivery-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listCompanyNotificationDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/notifications/delivery-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listBusinessNotificationDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/branches/{branchId}/notifications/delivery-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listBranchNotificationDeliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/workspaces": {
         parameters: {
             query?: never;
@@ -72,6 +120,48 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        DeliveryLogItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {string} */
+            channel: "whatsapp";
+            template_key: string;
+            template_revision: number;
+            /** @enum {string|null} */
+            locale: "ar" | "en" | null;
+            phone_last3: string;
+            /** @enum {string} */
+            status: "PENDING" | "SENDING" | "SENT" | "FAILED" | "EXPIRED" | "SUPPRESSED";
+            /** Format: date-time */
+            authorized_at: string;
+            /** Format: date-time */
+            send_deadline: string | null;
+            /** Format: date-time */
+            sending_at: string | null;
+            /** Format: date-time */
+            finished_at: string | null;
+            provider_message_id: string | null;
+            /** @enum {string|null} */
+            failure_code: "LOCALE_MISSING" | "LOCALE_UNSUPPORTED" | "DESTINATION_INVALID" | "CONFIG_INVALID" | "PARAMETERS_INVALID" | "ADMISSION_REFUSED" | "DEADLINE_EXPIRED" | "SUPPRESSED" | "PROVIDER_4XX" | "PROVIDER_5XX" | "NETWORK_UNKNOWN" | "RESPONSE_INVALID" | null;
+            outcome_known: boolean | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        DeliveryLogPage: {
+            items: components["schemas"]["DeliveryLogItem"][];
+            next_cursor: string | null;
+        };
+        DeliveryLogQuery: components["schemas"]["PageQuery"];
         ErrorEnvelope: {
             code: string;
             message_ar: string;
@@ -295,6 +385,112 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listCompanyNotificationDeliveries: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider submission log for the guarded scope */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryLogPage"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listBusinessNotificationDeliveries: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider submission log for the guarded scope */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryLogPage"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listBranchNotificationDeliveries: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider submission log for the guarded scope */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryLogPage"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listMyWorkspaces: {
         parameters: {
             query?: never;

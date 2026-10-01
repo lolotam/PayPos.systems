@@ -66,6 +66,13 @@ services:
     environment:
       <<: *app-env
       DISPATCHER_DATABASE_URL: postgres://pospay_dispatcher:${POSTGRES_DISPATCHER_PASSWORD:?}@${DB_HOST:?}:5432/${DB_NAME:?}
+      # PR 4 refuses production fake/live startup until PR 5 binds real suppression.
+      NOTIFICATIONS_MODE: ${NOTIFICATIONS_MODE:-fake}
+      NOTIFICATION_PHONE_HASH_KEY: ${NOTIFICATION_PHONE_HASH_KEY:-}
+      NOTIFICATION_PHONE_HASH_KEY_ID: ${NOTIFICATION_PHONE_HASH_KEY_ID:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_GRAPH_API_VERSION: v23.0
     depends_on:
       migrate:
         condition: service_completed_successfully

@@ -51,6 +51,16 @@ const STRUCTURAL_KEYS = new Set([
   'i18nkey',
 ]);
 const PHONE_SUFFIXES = ['phone', 'phones', 'phonenumber', 'phonenumbers', 'mobile', 'mobiles'];
+// Notification/source payloads and provider bodies never belong in technical diagnostics (ADR-0018 §3).
+const PRIVATE_PAYLOAD_KEYS = new Set([
+  'payload',
+  'eventpayload',
+  'jobdata',
+  'providerbody',
+  'rawbody',
+  'safeparameters',
+  'components',
+]);
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
 // A plural container ("passwords", "tokens", "hashes") holds secrets under ordinary child keys, so the key
 // is also tested with a trailing "s" or "es" removed — the container is redacted before its children.
@@ -121,7 +131,10 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
   const walk = (node: unknown, depth: number): unknown => {
     if (typeof node === 'function' || typeof node === 'symbol') return undefined;
     if (typeof node === 'bigint') return node.toString();
-    if (typeof node === 'string') return scrubUrlCredentials(node);
+    if (typeof node === 'string') {
+      const text = scrubUrlCredentials(node);
+      return maskPhones ? text.replace(/\+[1-9]\d{7,14}/g, maskPhone) : text;
+    }
     if (node === null || typeof node !== 'object') return node;
     if (node instanceof Date) return Number.isNaN(node.getTime()) ? null : node.toISOString();
     // pino runs this before its serializers, so an Error anywhere in the object is reduced here — its
@@ -134,7 +147,8 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(node)) {
       if (typeof child === 'function') continue;
-      if (isSecretKey(key)) out[key] = REDACTED;
+      if (isSecretKey(key) || (maskPhones && PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
+        out[key] = REDACTED;
       else if (maskPhones && isPhoneKey(key))
         out[key] = Array.isArray(child) ? child.map(maskPhone) : maskPhone(child);
       else out[key] = walk(child, depth + 1);

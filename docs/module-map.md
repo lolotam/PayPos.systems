@@ -53,6 +53,10 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 **Every module may import:** `packages/domain`, `packages/contracts`, `packages/db` (from `persistence/` and `queries/` only), `packages/observability`.
 **Only the owning module may import:** `packages/auth` (→ `identity`), `packages/payments` (→ `payments`), `packages/storage` (→ `files`), `packages/notifications` (→ `notifications`), `packages/documents` (→ `reporting`, `worker` jobs).
 
+Application composition roots (`apps/api/src/{app,main}.ts`, `apps/worker/src/{main,worker}.ts`) may wire
+notifications and restricted auth facades for the later OTP integration (ADR-0010/ADR-0018). This is wiring
+only: identity/staff/customers still cannot import `packages/notifications`; worker notifications owns the adapter.
+
 ---
 
 ## 3. Port arrows (runtime reads, no compile-time edge)
@@ -111,6 +115,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `DeviceRegistered` / `DeviceRevoked` | `identity` | `realtime`, `notifications` |
 | `GatewayAccountConnected` | `payments` | `notifications`, `platform` |
 | `NotificationDelivered` / `NotificationFailed` | `notifications` | `reporting` |
+| `NotificationSendAuthorized` (internal, ADR-0018) | `notifications` | worker transport publisher → `notifications-send` BullMQ queue, outside database-effect consumers |
 | `DocumentReady` | `reporting` | `notifications`, `realtime` |
 | `SalaryChanged` | `staff` | `commissions` |
 | `ServiceLineChanged` | `orders` | `commissions`, `customers` |
@@ -178,6 +183,11 @@ packages_restricted:
   storage:       [files]
   notifications: [notifications]
   documents:     [reporting]
+
+# Application composition roots may wire restricted packages (ADR-0018); never a business-module permission.
+composition_roots:
+  auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
+  notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
 
 # Every VALUE a module imports from another module's index.ts is one of these (type-only imports need only the
 # arrow above). §3.1: the one synchronous write. A read port's adapter calling another module's exported read is

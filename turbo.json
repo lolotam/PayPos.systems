@@ -10,6 +10,15 @@
     "test": {
       "dependsOn": ["^build", "build"]
     },
+    "@pospay/auth#test": {
+      "dependsOn": ["^build", "build", "@pospay/db#test"]
+    },
+    "@pospay/api#test": {
+      "dependsOn": ["^build", "build", "@pospay/auth#test"]
+    },
+    "@pospay/worker#test": {
+      "dependsOn": ["^build", "build", "@pospay/api#test"]
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]

@@ -169,6 +169,27 @@
       "when": 1790201835437,
       "tag": "0023_2026-09-23_settings-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790870315978,
+      "tag": "0024_2026-10-01_notification-attempts",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790870569398,
+      "tag": "0025_2026-10-01_notification-attempts-validation",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790870570661,
+      "tag": "0026_2026-10-01_notification-attempts-rls",
+      "breakpoints": true
     }
   ]
 }

@@ -8,5 +8,5 @@
     "emitDecoratorMetadata": false,
     "noEmit": true
   },
-  "include": ["src", "vitest.config.ts"]
+  "include": ["src", "vitest.config.ts", "../../packages/db/test/global-setup.ts"]
 }

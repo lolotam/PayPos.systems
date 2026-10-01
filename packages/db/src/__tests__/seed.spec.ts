@@ -39,11 +39,17 @@ describe('seedReferenceData', () => {
     expect(SYSTEM_ROLES).toHaveLength(14);
   });
 
-  it('gives Owner every tenant permission and every other system role none (TODO(spec) D-07)', async () => {
+  it('gives Owner every tenant permission and manager roles the notification-log permission (ADR-0018)', async () => {
     const owned = await owner<{ role_id: string; permission_code: string }[]>`
-      SELECT role_id, permission_code FROM role_permissions ORDER BY permission_code`;
-    expect(owned.every((r) => r.role_id === OWNER_ROLE_ID)).toBe(true);
-    expect(owned.map((r) => r.permission_code)).toEqual(
+      SELECT role_id, permission_code FROM role_permissions ORDER BY permission_code, role_id`;
+    expect(owned.filter((r) => r.role_id !== OWNER_ROLE_ID)).toEqual(
+      SYSTEM_ROLES.filter((r) =>
+        ['general_manager', 'business_manager', 'branch_manager'].includes(r.code),
+      )
+        .map((r) => ({ role_id: r.id, permission_code: 'view:notifications:business' }))
+        .sort((a, b) => a.role_id.localeCompare(b.role_id)),
+    );
+    expect(owned.filter((r) => r.role_id === OWNER_ROLE_ID).map((r) => r.permission_code)).toEqual(
       PERMISSIONS.filter((p) => !p.endsWith(':platform')).sort(),
     );
   });

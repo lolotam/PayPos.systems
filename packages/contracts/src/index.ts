@@ -83,3 +83,20 @@ export {
   type BusinessSettings,
   type UpdateBusinessSettingsInput,
 } from './settings/business-settings.js';
+export {
+  notificationStatus,
+  notificationFailureCode,
+  notificationParameter,
+  notificationRecipient,
+  notificationRequest,
+  notificationSendAuthorized,
+  notificationResult,
+  deliveryLogItem,
+  deliveryLogQuery,
+  deliveryLogPage,
+  type NotificationRecipient,
+  type NotificationSendAuthorized,
+  type NotificationResult,
+  type DeliveryLogItem,
+  type DeliveryLogQuery,
+} from './notifications.js';

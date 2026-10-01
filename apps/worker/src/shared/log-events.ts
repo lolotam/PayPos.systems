@@ -6,4 +6,7 @@ export const WORKER_LOG_EVENTS = [
   'outbox event parked',
   'outbox dispatch failed',
   'idempotency keys swept',
+  'notification enqueue failed',
+  'notification queue error',
+  'notification job failed',
 ] as const;

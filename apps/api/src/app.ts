@@ -30,6 +30,7 @@ import {
   identityProviders,
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
+import { notificationsControllers } from './modules/notifications/index.ts';
 import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
@@ -208,6 +209,7 @@ export async function createApp(
     ...identityControllers,
     ...tenancyControllers,
     ...settingsControllers,
+    ...notificationsControllers,
     ...(options.controllers ?? []),
   ];
   assertEveryRouteGuarded(controllers);

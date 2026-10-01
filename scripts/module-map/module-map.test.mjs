@@ -57,6 +57,24 @@ function repo(files) {
 
 const problems = (files) => checkModules(repo(files), MAP).join('\n');
 
+describe('ADR-0018 restricted notification root wiring', () => {
+  const wiringMap = { ...MAP, packagesRestricted: { ...MAP.packagesRestricted, notifications: ['notifications'] },
+    compositionRoots: { ...MAP.compositionRoots, notifications: ['apps/api/src/app.ts', 'apps/worker/src/main.ts'] } };
+  const packageFiles = { 'packages/notifications/package.json': '{"name":"@pospay/notifications"}',
+    'packages/notifications/src/index.ts': 'export const bind = () => 1;\n' };
+  it('allows only declared composition roots and rejects identity/shared imports', () => {
+    assert.equal(checkModules(repo({ ...packageFiles, 'apps/api/src/app.ts':
+      "import { bind } from '@pospay/notifications'; void bind;\n" }), wiringMap).join('\n'), '');
+    for (const path of ['apps/api/src/modules/identity/persistence/send.ts', 'apps/api/src/shared/send.ts']) {
+      assert.match(checkModules(repo({ ...packageFiles, [path]:
+        "import { bind } from '@pospay/notifications'; void bind;\n" }), wiringMap).join('\n'), /may be imported only|wiring is not declared/);
+    }
+  });
+  it('serializes the optional composition root whitelist', () => {
+    assert.match(renderYaml(wiringMap), /composition_roots:\n  notifications: \[apps\/api\/src\/app.ts, apps\/worker\/src\/main.ts\]/);
+  });
+});
+
 describe('the module-map gate — what passes', () => {
   it('the declared write from its one file, type-only imports, a .js specifier, and the composition root', () => {
     assert.equal(

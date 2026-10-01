@@ -215,6 +215,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - Authorization = permission string `action:resource:scope` checked by a guard on every controller method (`@Require('manage:orders:branch')`). **No endpoint without a guard** — a route with no guard fails CI.
 - **Read endpoints go through `queries/`, not through use cases.** A `queries/` file may not import `domain/` or `use-cases/`, and may never write. Above ~200 rows the SQL projects straight into the DTO shape with no mapper (`CLAUDE.architecture.md` §7).
 - Anything expected to exceed **200 ms** is a BullMQ job in `worker`, never a synchronous wait in `api`.
+- ADR-0018: an outbox-to-BullMQ transport publisher runs outside `OutboxConsumer.handle`, after the dispatcher claim commits; it awaits enqueue before publication acknowledgement. Database-effect consumers remain database-only and every provider submission runs outside transactions in the worker.
 - Inbound webhooks: verify signature → store raw → enqueue → ack 200. Processing is idempotent by provider event id.
 - SSE: one endpoint `GET /v1/stream`. Channel subscription is resolved **server-side from the session**, never from what the client asks for. SSE is never the source of truth — if the stream dies, screens fall back to polling and the POS keeps working.
 
