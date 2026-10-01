@@ -1,0 +1,7 @@
+import type { ComponentProps } from 'react';
+
+import { cn } from '../shared/cn.js';
+
+export function CardFooter({ className, ...props }: ComponentProps<'div'>) {
+  return <div className={cn('flex items-center gap-2 ps-6 pe-6 pb-6', className)} {...props} />;
+}

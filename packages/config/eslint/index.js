@@ -6,6 +6,7 @@ import tseslint from 'typescript-eslint';
 import { boundariesConfig } from './boundaries.js';
 import { CREDENTIAL_PATHS, CREDENTIAL_PATTERNS, CREDENTIAL_SYNTAX } from './credentials.js';
 import { jsdocConfig } from './jsdoc.js';
+import { frontendConfig } from './frontend.js';
 
 const sizeLimitExcludes = [
   'packages/db/schema/**',
@@ -137,6 +138,7 @@ export const config = tseslint.config(
   },
   ...boundariesConfig,
   ...jsdocConfig,
+  ...frontendConfig,
   prettier,
 );
 
