@@ -5,6 +5,8 @@ import type { MessageKey } from '@pospay/i18n';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { loadPage } from '@/shared/browser/load-page';
+
 import { signInWithPassword } from './session-calls';
 
 export function useSignIn() {
@@ -22,8 +24,7 @@ export function useSignIn() {
       return;
     }
     if (outcome === 'done') {
-      router.push('/');
-      router.refresh();
+      loadPage('/');
       return;
     }
     setError(outcome);

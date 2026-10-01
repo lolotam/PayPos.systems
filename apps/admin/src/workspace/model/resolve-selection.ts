@@ -13,13 +13,16 @@ function only<T>(items: readonly T[]): T | undefined {
   return items.length === 1 ? items[0] : undefined;
 }
 
-function pick<T extends { id: string }>(items: readonly T[], id: string | undefined): T | undefined {
+function pick<T extends { id: string }>(
+  items: readonly T[],
+  id: string | undefined,
+): T | undefined {
   const remembered = id === undefined ? undefined : items.find((item) => item.id === id);
   return remembered ?? only(items);
 }
 
-// TODO(spec): the spec auto-selects a single company only. A single business and branch are
-// selected too so the home page can show their names.
+// A list with one entry is chosen for the user: it is a view context, not a grant — the API re-checks the
+// membership on every request — so picking the only option changes nothing the user could have chosen.
 export function resolveSelection(
   companies: readonly WorkspaceCompany[],
   remembered: SelectionChoice,

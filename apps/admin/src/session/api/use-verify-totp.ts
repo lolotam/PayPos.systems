@@ -2,13 +2,13 @@
 
 import type { TotpCodeInput } from '@pospay/contracts';
 import type { MessageKey } from '@pospay/i18n';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+
+import { loadPage } from '@/shared/browser/load-page';
 
 import { verifyTotpCode } from './session-calls';
 
 export function useVerifyTotp() {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<MessageKey | undefined>();
 
@@ -21,8 +21,7 @@ export function useVerifyTotp() {
       setError(failure);
       return;
     }
-    router.push('/');
-    router.refresh();
+    loadPage('/');
   }
 
   return { pending, error, submit };

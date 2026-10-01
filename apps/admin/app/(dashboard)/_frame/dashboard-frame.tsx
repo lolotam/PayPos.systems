@@ -12,7 +12,7 @@ import { LocaleSwitch } from '@/shared/locale/locale-switch';
 import { WorkspaceBody } from '@/workspace/ui/workspace-body';
 import { WorkspaceSelector } from '@/workspace/ui/workspace-selector';
 
-import { AppFrame } from './app-frame';
+import { AppFrame } from '@/shared/frame/app-frame';
 
 export function DashboardFrame({ children }: { children: ReactNode }) {
   const locale = useLocale();
