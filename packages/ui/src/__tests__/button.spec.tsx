@@ -1,0 +1,61 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { createRef } from 'react';
+import { expect, it, vi } from 'vitest';
+
+import { Button } from '../button.js';
+
+const label = 'fixture.action';
+
+it('renders children with the default variant and a non-submitting button type', () => {
+  render(<Button>{label}</Button>);
+  const button = screen.getByRole('button', { name: label });
+  expect(button.classList.contains('bg-primary')).toBe(true);
+  expect(button.classList.contains('min-h-12')).toBe(true);
+  expect(button.getAttribute('type')).toBe('button');
+});
+
+it.each([
+  ['default', 'bg-primary'],
+  ['secondary', 'bg-secondary'],
+  ['outline', 'border-input'],
+  ['ghost', 'hover:bg-accent'],
+  ['destructive', 'bg-destructive'],
+] as const)('renders the %s variant', (variant, expected) => {
+  render(<Button variant={variant}>{label}</Button>);
+  expect(screen.getByRole('button').classList.contains(expected)).toBe(true);
+});
+
+it.each([
+  ['sm', 'min-h-11'],
+  ['md', 'min-h-12'],
+  ['lg', 'min-h-14'],
+  ['icon', 'size-11'],
+] as const)('renders the %s size', (size, expected) => {
+  render(<Button size={size} aria-label={label} />);
+  expect(screen.getByRole('button').classList.contains(expected)).toBe(true);
+});
+
+it('preserves refs, overrides and disabled interaction', () => {
+  const onClick = vi.fn();
+  const ref = createRef<HTMLButtonElement>();
+  render(
+    <Button ref={ref} disabled onClick={onClick} className="ps-8">
+      {label}
+    </Button>,
+  );
+  fireEvent.click(screen.getByRole('button'));
+  expect(onClick).not.toHaveBeenCalled();
+  expect(ref.current?.classList.contains('ps-8')).toBe(true);
+  expect(ref.current?.classList.contains('ps-4')).toBe(false);
+});
+
+it('composes an anchor through the Radix slot without adding button semantics', () => {
+  render(
+    <Button asChild>
+      <a href="#fixture">{label}</a>
+    </Button>,
+  );
+  const link = screen.getByRole('link');
+  expect(link.getAttribute('type')).toBeNull();
+  expect(link.classList.contains('bg-primary')).toBe(true);
+});
