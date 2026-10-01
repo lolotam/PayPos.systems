@@ -97,6 +97,8 @@ export const ar: Catalog = {
     waitingLead: 'في انتظار موافقة المدير.',
     startOver: 'البدء من جديد',
     offlineTitle: 'غير متصل',
+    unsupportedTitle: 'هذا المتصفح غير مدعوم',
+    unsupportedLead: 'افتح PosPay على إصدار حديث من Chrome أو Edge أو Safari أو Firefox لربط هذا الجهاز.',
     offlineLead: 'تعذّر الوصول إلى الخادم. تبقى بيانات الدخول المحفوظة على هذا الجهاز.',
     retry: 'إعادة المحاولة',
     attendanceTitle: 'الحضور',

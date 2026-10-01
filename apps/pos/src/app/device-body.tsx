@@ -2,6 +2,7 @@ import { AttendanceHome } from '@/attendance/ui/attendance-home';
 import type { DeviceSession } from '@/device/api/use-device-session';
 import { OfflineNotice } from '@/device/ui/offline-notice';
 import { PairingScreen } from '@/device/ui/pairing-screen';
+import { UnsupportedNotice } from '@/device/ui/unsupported-notice';
 import { WaitingScreen } from '@/device/ui/waiting-screen';
 
 import { LoadingNotice } from './loading-notice';
@@ -14,5 +15,6 @@ export function DeviceBody({ session }: { session: DeviceSession }) {
   }
   if (screen.kind === 'waiting') return <WaitingScreen onStartOver={session.startOver} />;
   if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
+  if (screen.kind === 'unsupported') return <UnsupportedNotice />;
   return <AttendanceHome branchId={screen.branchId} />;
 }

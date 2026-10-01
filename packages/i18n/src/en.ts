@@ -97,6 +97,8 @@ export const en = {
     waitingLead: "Waiting for the manager's approval.",
     startOver: 'Start over',
     offlineTitle: 'Offline',
+    unsupportedTitle: 'This browser is not supported',
+    unsupportedLead: 'Open PosPay in a current version of Chrome, Edge, Safari or Firefox to pair this device.',
     offlineLead: 'This device could not reach the server. The saved sign-in stays on this device.',
     retry: 'Retry',
     attendanceTitle: 'Attendance',

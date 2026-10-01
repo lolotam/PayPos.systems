@@ -7,6 +7,8 @@ import type { DeviceScreenState } from './screen-state';
 
 // السؤال عن الجهاز برّه طابور الكتابة؛ مسح التوكن المرفوض بس هو اللي بيعدّي عليه، وبشرط إن التوكن لسه هو المحفوظ.
 export async function bootDevice(queryClient: QueryClient): Promise<DeviceScreenState> {
+  // من غير Web Locks مفيش طريقة تمنع تابين يطالبوا بنفس التسجيل (claim-loop.ts)، فالجهاز ما يتربطش أصلاً.
+  if (globalThis.navigator?.locks === undefined) return { kind: 'unsupported' };
   const row = await deviceDb.credentials.get(CURRENT_DEVICE);
   if (row?.device_token) return identityScreen(queryClient, row.device_token);
   if (row?.claim_secret) return { kind: 'waiting' };

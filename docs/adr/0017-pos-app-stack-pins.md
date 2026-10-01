@@ -67,12 +67,19 @@ resolver maps a missing `.js` file onto `.ts` and then `.tsx`. Its public
 config has no `resolve.extensionAlias`, which is why the admin build uses
 webpack instead.
 
-**The published OpenAPI document has the device schemas and not the device
-routes.** This PR does not change that document: regenerating it would make
-the admin `schema.d.ts` stale, and the admin app is out of scope. The POS
-client keeps the generated schema and adds the three device paths locally,
-using those component schemas. `GET /v1/devices/me` has no component schema;
-its response is typed as `{ device_id, company_id, branch_id }`.
+**The device routes are part of the OpenAPI document.** `packages/contracts`
+publishes `POST /v1/devices/register` (201), `POST /v1/devices/claim` (200) and
+`GET /v1/devices/me` (200, `DeviceIdentity`), so the POS client is generated
+like the admin's; both apps' `schema.d.ts` are regenerated from that document.
+
+**The POS requires Web Locks.** The server consumes the claim secret when it
+issues the token, so two tabs claiming one registration at once would get one
+token and one `UNAUTHENTICATED`, and the refusal could delete the registration
+that just succeeded. Claims for a device are serialised across tabs with
+`navigator.locks` (lock named after the device), and each claim aborts after
+20 s. A browser without Web Locks shows a localized "unsupported browser"
+screen and never pairs. Web Locks is available in every browser the rest of
+the shell needs (service worker, IndexedDB, `AbortSignal.timeout`).
 
 ## Consequences
 

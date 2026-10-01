@@ -12,24 +12,14 @@ export type ClaimTick = 'approved' | 'refused' | 'limited' | 'retry';
 // طلب المطالبة اللي واقف بيتلغي بعد المدة دي ويتحسب 'retry'، عشان ما يحجزش القفل على تسجيل جديد.
 const CLAIM_TIMEOUT_MS = 20_000;
 
-const localChains = new Map<string, Promise<unknown>>();
-
 // المطالبة لنفس الجهاز واحدة ورا التانية حتى بين التابات (Web Locks): السيرفر بيمسح سر المطالبة لما يصدر
 // التوكن، فطلب تاني متزامن بيترد عليه UNAUTHENTICATED، ولو رده وصل الأول كان هيمسح التسجيل والتوكن معاه.
-// القفل باسم الجهاز، فتسجيل جديد بعد «البدء من جديد» ما يستناش طلب قديم.
+// القفل باسم الجهاز، فتسجيل جديد بعد «البدء من جديد» ما يستناش طلب قديم. من غير Web Locks مفيش مطالبة خالص —
+// bootDevice بيعرض شاشة «المتصفح غير مدعوم» قبل ما نوصل هنا.
 function withClaimLock<T>(deviceId: string, run: () => Promise<T>): Promise<T> {
-  const name = `pospay-claim:${deviceId}`;
   const locks = globalThis.navigator?.locks;
-  if (locks !== undefined) return locks.request(name, run);
-  const next = (localChains.get(name) ?? Promise.resolve()).then(run, run);
-  localChains.set(
-    name,
-    next.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
-  return next;
+  if (locks === undefined) return Promise.reject(new Error('Web Locks unavailable'));
+  return locks.request(`pospay-claim:${deviceId}`, run);
 }
 
 export async function claimQueued(): Promise<ClaimTick> {
