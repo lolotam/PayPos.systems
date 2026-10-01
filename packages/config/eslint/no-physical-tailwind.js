@@ -22,17 +22,23 @@ function isPhysical(token) {
 }
 
 const propertyName = (property) => property.key.name ?? property.key.value;
+const COMPARISON = new Set(['===', '!==', '==', '!=', '<', '>', '<=', '>=', 'in', 'instanceof']);
 
-// In cva(), only the base classes, the variant values and a compound variant's class/className hold classes —
-// variant names, default variants and compound selectors are names. In cn(), object keys are classes.
-function isClassInCall(callee, path) {
-  if (path.length === 0) return true;
-  if (callee === 'cn') return path[0].role === 'key';
-  if (path.some((step) => step.name === 'defaultVariants')) return false;
-  if (path.some((step) => step.name === 'compoundVariants')) {
-    return path[0].role === 'value' && ['class', 'className'].includes(path[0].name);
+// A class value in clsx form: a string, or an object whose keys are classes (its values are conditions).
+const isClassValue = (inner) => inner.length === 0 || inner[0].role === 'key';
+
+// cva(base, config): the base is a class value; in the config, a variant option's value and a compound variant's
+// class/className are class values. Variant names, option names, default variants and selectors are names.
+function isClassInCva(argumentIndex, path) {
+  if (argumentIndex === 0) return isClassValue(path);
+  const variants = path.findIndex((step) => step.name === 'variants' && step.role === 'value');
+  if (variants >= 2) {
+    const option = variants - 2;
+    return path[option].role === 'value' && isClassValue(path.slice(0, option));
   }
-  return path[0].role === 'value';
+  if (!path.some((step) => step.name === 'compoundVariants')) return false;
+  const field = path.findIndex((step) => ['class', 'className'].includes(step.name));
+  return field >= 0 && path[field].role === 'value' && isClassValue(path.slice(0, field));
 }
 
 function isClassPosition(node) {
@@ -40,16 +46,15 @@ function isClassPosition(node) {
   let child = node;
   for (let ancestor = node.parent; ancestor; child = ancestor, ancestor = ancestor.parent) {
     if (ancestor.type === 'JSXAttribute') return ancestor.name.name === 'className';
-    if (ancestor.type === 'BinaryExpression') return false;
+    if (ancestor.type === 'BinaryExpression' && COMPARISON.has(ancestor.operator)) return false;
+    if (ancestor.type === 'MemberExpression' && child === ancestor.property) return false;
     if (ancestor.type === 'Property') {
       path.push({ role: child === ancestor.key ? 'key' : 'value', name: propertyName(ancestor) });
     }
-    if (
-      ancestor.type === 'CallExpression' &&
-      ancestor.callee.type === 'Identifier' &&
-      ['cn', 'cva'].includes(ancestor.callee.name)
-    ) {
-      return isClassInCall(ancestor.callee.name, path);
+    if (ancestor.type === 'CallExpression' && ancestor.callee.type === 'Identifier') {
+      if (ancestor.callee.name === 'cn') return isClassValue(path);
+      if (ancestor.callee.name === 'cva')
+        return isClassInCva(ancestor.arguments.indexOf(child), path);
     }
   }
   return false;

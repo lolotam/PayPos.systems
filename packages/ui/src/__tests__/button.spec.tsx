@@ -91,3 +91,34 @@ it('keeps a slotted link that is not disabled fully actionable', () => {
     onClick.mock.calls.length,
   ]).toEqual([null, 1]);
 });
+
+it('cancels a disabled slotted link before its own handlers run, and its tabIndex cannot win', () => {
+  const childClick = vi.fn();
+  render(
+    <Button asChild disabled>
+      <a href="#fixture" onClick={childClick} tabIndex={0}>
+        {label}
+      </a>
+    </Button>,
+  );
+  const link = screen.getByRole('link');
+  fireEvent.click(link);
+  expect([childClick.mock.calls.length, link.getAttribute('tabindex')]).toEqual([0, '-1']);
+});
+
+it('forwards an explicit type to a slotted button, so it does not submit its form', () => {
+  const onSubmit = vi.fn((event: SubmitEvent) => event.preventDefault());
+  const { container } = render(
+    <form>
+      <Button asChild type="button">
+        <button>{label}</button>
+      </Button>
+    </form>,
+  );
+  container.querySelector('form')?.addEventListener('submit', onSubmit);
+  fireEvent.click(screen.getByRole('button'));
+  expect([screen.getByRole('button').getAttribute('type'), onSubmit.mock.calls.length]).toEqual([
+    'button',
+    0,
+  ]);
+});

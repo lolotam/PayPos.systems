@@ -71,6 +71,8 @@ tester.run('no-physical-tailwind', noPhysicalTailwind, {
     'cva("flex", { compoundVariants: [{ align: "text-left", className: "ms-2" }] })',
     'cn(side === "left-0" && "ms-2")',
     'cn({ "ms-2": side === "ml-2" })',
+    'cn(flags["ml-2"] && "ms-2")',
+    'cva({ "ms-2": true }, { variants: { size: { sm: { "ps-2": true } } } })',
   ],
   invalid: [
     ...physical.map((className) => invalid(`<div className="${className}" />`)),
@@ -83,6 +85,11 @@ tester.run('no-physical-tailwind', noPhysicalTailwind, {
     invalid('cva(`pr-2`)'),
     invalid('cva("flex", { variants: { size: { sm: "pl-2" } } })'),
     invalid('cva("flex", { compoundVariants: [{ active: true, className: `md:ml-2` }] })'),
+    invalid('cn("ml-2" + " flex")'),
+    invalid('cva({ "ml-2": true })'),
+    invalid('cva(["flex", "pl-2"])'),
+    invalid('cva("flex", { variants: { size: { sm: { "pr-2": true } } } })'),
+    invalid('cva("flex", { compoundVariants: [{ active: true, className: { "ml-2": true } }] })'),
     { code: 'cn("ml-2 mr-3")', errors: [{ messageId: 'physical' }, { messageId: 'physical' }] },
   ],
 });

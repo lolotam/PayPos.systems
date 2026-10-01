@@ -2,7 +2,14 @@
 
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Slot } from 'radix-ui';
-import type { ComponentProps, MouseEvent } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  type ComponentProps,
+  type MouseEvent,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 
 import { cn } from './shared/cn.js';
 
@@ -34,11 +41,24 @@ export type ButtonProps = ComponentProps<'button'> &
   };
 
 // A slotted link ignores the `disabled` attribute, so it is disabled the way ARIA expects: announced, out of the
-// tab order, and its activation (click or Enter) cancelled.
+// tab order, and its activation (click or Enter) cancelled in the capture phase — before the child's own handlers,
+// which Radix Slot would otherwise run first. These props are forced over the child's, not merged under them.
 const cancelActivation = (event: MouseEvent<HTMLElement>) => {
   event.preventDefault();
   event.stopPropagation();
 };
+
+function disabledChild(child: ReactNode, className: string, props: ComponentProps<'button'>) {
+  if (!isValidElement<{ className?: string }>(child)) return child;
+  return cloneElement(child as ReactElement<Record<string, unknown>>, {
+    ...props,
+    className: cn(className, child.props.className),
+    'aria-disabled': true,
+    'data-disabled': '',
+    tabIndex: -1,
+    onClickCapture: cancelActivation,
+  });
+}
 
 export function Button({
   className,
@@ -47,31 +67,21 @@ export function Button({
   asChild = false,
   type,
   disabled,
-  onClick,
-  tabIndex,
+  children,
   ...props
 }: ButtonProps) {
   const classes = cn(buttonVariants({ variant, size }), className);
   if (!asChild) {
     return (
-      <button
-        type={type ?? 'button'}
-        disabled={disabled}
-        onClick={onClick}
-        tabIndex={tabIndex}
-        className={classes}
-        {...props}
-      />
+      <button type={type ?? 'button'} disabled={disabled} className={classes} {...props}>
+        {children}
+      </button>
     );
   }
+  if (disabled) return disabledChild(children, classes, props);
   return (
-    <Slot.Root
-      aria-disabled={disabled || undefined}
-      data-disabled={disabled ? '' : undefined}
-      tabIndex={disabled ? -1 : tabIndex}
-      onClick={disabled ? cancelActivation : onClick}
-      className={classes}
-      {...props}
-    />
+    <Slot.Root className={classes} {...{ ...props, type }}>
+      {children}
+    </Slot.Root>
   );
 }
