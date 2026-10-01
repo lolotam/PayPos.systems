@@ -1,6 +1,6 @@
 # Phase 1 — Implementation Plan
 
-> **v6 · 2026-10-01** · implements `docs/specs/phase-1/SPEC.md` v6. Rules as in Phase 0: **one use case per PR**, in
+> **v7 · 2026-10-01** · implements `docs/specs/phase-1/SPEC.md` v7. Rules as in Phase 0: **one use case per PR**, in
 > the order contract → migration + RLS → domain + tests → use case → adapters → integration tests → screen; Codex
 > reviews every PR; `pnpm check` and `ci-gate` green before merge; a business rule not in the spec is a `TODO(spec)`
 > and a stop.
@@ -44,7 +44,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | | **M2 · staff** | | |
 | 8 | `create-employee` | S | 7 |
 | 9 | `update-employee` (incl. branches) | S | 8 |
-| 10 | `set-salary` (history, back-dating only into unclosed periods, restricted read, `SalaryChanged`) | S | 8, G1 |
+| 10 | `set-salary` (one entry per date, any date, audited, restricted read, `SalaryChanged`) | S | 8, G1 |
 | 11 | import framework (template, preview, all-or-nothing) + employee import | M | 8 |
 | 12 | `files`: presigned upload/download with stored permission, access audit | M | 7 |
 | 13 | document types + `record-employee-document` | S | 8, 12 |
@@ -189,3 +189,14 @@ against v4, as a fresh full review.
 | 10 | First clock-in race | P2 | accept | `AttendanceState` row locked by every scan; one open session per employee (§4, §7) |
 | 11 | Refund quantity | P2 | accept | Positive integer, exact or `INSUFFICIENT_SLOTS` (§8) |
 | 12 | CANCELLED transitions | P2 | accept | Reasons and transitions; `NO_ACTIVE_LINE` reopens before the deadline (§4, §10) |
+
+### Round 6 — `gpt-6.1-sol` high, against v6 (final round of three)
+
+| # | Finding | Sev | Verdict | Reason |
+|---|---------|-----|---------|--------|
+| 1 | Salary history has no selection rule | P1 | accept | One entry per (employee, date), replacement on the same date; latest date on or before the period's last day; event identity and revision defined (§3, §4, §5) |
+| 2 | Back-date guard has no contract | P2 | accept | Guard removed instead of adding a cross-module read: any date, audited; closed periods get corrections (§6) — simpler and the same audit trail |
+| 3 | Zero-length send window at closing | P2 | accept | `send_deadline` = closing + 30 min (D-58 amended); test advances the clock through claim and dispatch |
+
+The debate budget (three rounds on `gpt-6.1-sol`) is spent; every finding of every round is accepted or partially
+accepted with a stated reason, and no P1 remains open.

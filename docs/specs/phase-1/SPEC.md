@@ -1,7 +1,7 @@
 # Phase 1 — Salon Pilot Spec: staff, attendance, sessions, packages, commissions
 
-> **Status:** Draft v6 · 2026-10-01 · from the onboarding interview with Waleed (2026-09-30 → 2026-10-01) and Codex's
-> reviews (round 1: 30 findings; round 2: 17; round 3: 11; round 4 on gpt-6.1-sol: 18; round 5: 12). Decisions: `docs/PRD.md` §12 — D-12…D-17, D-28, D-30, D-32 (decided)
+> **Status:** Draft v7 · 2026-10-01 · from the onboarding interview with Waleed (2026-09-30 → 2026-10-01) and Codex's
+> reviews (round 1: 30 findings; round 2: 17; round 3: 11; round 4 on gpt-6.1-sol: 18; round 5: 12; round 6: 3). Decisions: `docs/PRD.md` §12 — D-12…D-17, D-28, D-30, D-32 (decided)
 > and D-35…D-58. **Governing docs:** `CLAUDE.md` · `CLAUDE.architecture.md` · `06_Tech_Stack` · `module-map.md`; on
 > conflict they win, and §9 names every amendment this phase needs. **Supersedes** the PRD §10 Phase 1 task list where
 > the two differ.
@@ -76,7 +76,7 @@ Cross-module interactions (import arrows already in `module-map.md` §2 unless m
 | `orders` → `customers` | port **new** | `CustomerLookupPort.exists(customerId)`; reception finds or creates the customer first through `customers`' own endpoint |
 | `orders` → `staff` | port **new** | `PerformerCheckPort`: employee active and attached to the branch on the date |
 | `commissions` → `staff` | port **new** | `EmployeeDirectoryPort` (names) |
-| `staff` ⇒ `commissions` | event **new** | `SalaryChanged` — salary is an input like a line: projected, fingerprinted, corrected |
+| `staff` ⇒ `commissions` | event **new** | `SalaryChanged` — identity `(employee_id, effective_from)`, `amount`, per-entry `revision`; salary is an input like a line: projected, fingerprinted, corrected |
 | `customers` → `staff` | port **new** | `PerformerNamePort` (first name in the rating message) |
 | `customers` → `orders` | port **new** | `DaySessionsPort`: the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (§10) |
 | `staff`, `customers`, `commissions` → `settings` | port **new** | `AlertRulesPort`, `StaffColumnsPort` (reads) |
@@ -110,8 +110,9 @@ Phase 0 conventions hold: tenant PK `(company_id, id)`, UUID v7, FORCE RLS, mone
 
 ```
 Employee          business_id · primary_branch_id · user_id? · names · role_code · hire_date · contract_end? · deleted_at?
-EmployeeSalary    employee_id · amount · effective_from · set_by · revision   — restricted; back-dating allowed only
-                  into periods that are not closed, audited (§6)
+EmployeeSalary    employee_id · effective_from · amount · set_by · revision — restricted; UNIQUE (employee_id, effective_from):
+                  setting a salary on an existing date replaces it (revision +1), never adds a second; any date,
+                  audited; a change reaching a closed period becomes a correction (§6)
 EmployeeBranch    employee_id · branch_id · from · to?
 EmployeePasskey   employee_id · credential_id · public_key · sign_count · bound_at · bound_by · unbound_at? · unbound_by?
                   one active row per employee (§7)
@@ -238,7 +239,8 @@ have `enabled` and can be switched at any time; a switch is a new version (D-50)
 `amount = base part + tier part`, exact rationals, then **one** `roundKwd` half away from zero per line (ADR-0005).
 
 - **Base** (if enabled): `PCT` → `share × bps / 10000`; `FIXED` → `a × share_bps / 10000`.
-- **Tiers** (if enabled). `SALARY_MULTIPLE k` resolves to `k × salary on the period's last day`. The active step at
+- **Tiers** (if enabled). `SALARY_MULTIPLE k` resolves to `k × salary on the period's last day` — the entry with the latest
+  `effective_from` on or before that day (one entry per date, §4). The active step at
   accumulator value `x` is the last step with `from ≤ x`; below the first step no tier pays.
   - **MARGINAL:** a `counts = true` line that crosses one or more boundaries between `x` and `x + share` (AMOUNT only)
     is **split** at each boundary **only if every step it touches is `PCT`** — a step is *touched* only by a part of
@@ -292,9 +294,10 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
   and the correction insert.
 - **Every writer of a period's inputs serializes with approval.** The commissions consumer, and every writer of plan
   versions and overrides, locks the statement row of the period it affects and rechecks its status under that lock.
-  Salary reaches commissions only through `SalaryChanged` — the consumer applies it under the same locks, so a salary
-  committing after approval becomes a correction, never a silent change; a salary may be back-dated (audited) only
-  into periods that are not closed, which is how a missing salary is filled before review.
+  Salary reaches commissions only through `SalaryChanged` — the consumer applies it under the same locks. A salary
+  may be set for any date, audited; one reaching an open period changes its fingerprint (review again), one reaching
+  a closed period becomes a correction, never a silent change. That is also how a missing salary is filled. `staff`
+  needs no knowledge of statement status.
   Plan versions and overrides take `effective_from ≥ today`, or `whole_period` only for a DRAFT period. A period can
   be approved **only after it has ended** (its last day is over in the business timezone). Service rules are snapshots on each line.
 - **Review is bound to the inputs.** Any input change to a period recomputes its fingerprint; a REVIEWED statement
@@ -317,7 +320,8 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 - **A closed period that cannot be recomputed.** When the consumer applies a change to a closed period and the
   engine returns `NO_PLAN`/`NO_SALARY` (e.g. a late session for an employee before her first plan), it still marks the
   event consumed — the outbox never stalls — and records a **blocked correction** (visible exception). The manager
-  resolves it by an audited **period repair**: a plan version or salary scoped to that closed period only, allowed
+  resolves it by an audited **period repair**: a plan version scoped to that closed period only (a missing salary
+  is simply set for its date), allowed
   only while a blocked correction exists; the recompute then posts the correction normally. A target period with an
   unresolved blocked correction for an employee cannot be approved.
 - **Statement flow:** DRAFT → REVIEWED (manager, `review:commissions:business`) → APPROVED (owner,
@@ -405,7 +409,8 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 - One request per customer per business per day. The day and the closing time come from the **branch of her last
   session that day**, in its timezone. `due_at` = the earlier of that session + 1 hour and the branch's closing time (D-58: a
   19:30 visit with an 20:00 close is asked at 20:00); each new session that day moves it; `send_deadline` = closing
-  time. Past the deadline the request is CANCELLED (`PAST_DEADLINE`), never sent the next day. No deadline when
+  time **+ 30 minutes**, so a request due at closing still has a real window to be claimed and dispatched. Past the
+  deadline the request is CANCELLED (`PAST_DEADLINE`), never sent the next day. No deadline when
   opening hours are unset.
 - **The claim is the authoritative boundary.** At claim time the job reads the day's active lines and performers
   through `DaySessionsPort` (synchronous, from `orders`), not from its own projection: it reschedules if a newer
@@ -456,7 +461,8 @@ refund after expiry refused · M8 cancelling a redemption frees its ordinal; the
     sale line · M14 refund of more slots than are free → INSUFFICIENT_SLOTS, nothing refunded.
 
 **Commissions** §5.8 fixtures · business-date boundary · `NO_PLAN` / `NO_SALARY` block review (incl. a package-only
-    seller) · a salary committing after approval → correction · a late NO_PLAN line in a closed period → blocked
+    seller) · a salary committing after approval → correction · two salaries on one date → the second replaces the first ·
+    salary events delivered out of order converge · a late NO_PLAN line in a closed period → blocked
     correction, repaired by a period-scoped version · a change to a PAID
     period posts a correction · a target that closes mid-post moves to the next DRAFT · a tip written during approval
     lands frozen or as a TIP correction · override half-mill rounding · the FIXED endpoint case
@@ -472,7 +478,8 @@ errors · R2 due time moves with new sessions, from the last session's branch, c
 crashed in SENDING is not resent; a notifications redelivery with an attempt row is not resent; two workers send once · R4 attribution to every performer in the claim snapshot; a
 cancellation before the claim removes her, one after it does not · R5 token tampering, replay, expiry, cross-tenant rejected · R6 a "stop" committed between the suppression check and the attempt is impossible (both under the phone lock) ·
 R7 claim after the send deadline → CANCELLED; an event delivered to notifications after the deadline → EXPIRED, not
-sent · R2b a 19:30 visit, 20:00 close → due 20:00 · R10 a NO_ACTIVE_LINE request reopened by an afternoon session · R8 a cancellation not yet seen by the projection still blocks the
+sent · R2b a 19:30 visit, 20:00 close → due 20:00, sent within the grace with the clock advancing through claim and
+dispatch · R10 a NO_ACTIVE_LINE request reopened by an afternoon session · R8 a cancellation not yet seen by the projection still blocks the
 send (authoritative read) · R9 two businesses, one customer: the per-business bound.
 
 **Visibility** V1 staff see only their own rows and the manager's columns · V2 reception like any employee plus the
