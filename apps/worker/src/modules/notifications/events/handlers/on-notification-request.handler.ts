@@ -27,7 +27,7 @@ export const NOTIFICATION_SOURCE_EVENTS = [
 
 export function notificationRequestConsumer(
   authorize: (tx: Tx) => AuthorizeNotification,
-  identity: ReturnType<typeof createPhoneIdentity>,
+  identity: Pick<ReturnType<typeof createPhoneIdentity>, 'identify'>,
   registry: ReturnType<typeof createTemplateRegistry>,
   store: (tx: Tx) => StoreInAppNotification,
 ): OutboxConsumer {

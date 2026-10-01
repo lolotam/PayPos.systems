@@ -39,8 +39,16 @@ import { branch, createBranchInput, geo } from './tenancy/branch.js';
 import { company, createCompanyInput } from './tenancy/company.js';
 import { openingHours } from './tenancy/opening-hours.js';
 import { plan } from './tenancy/plan.js';
+import {
+  whatsappEnvelope,
+  whatsappHandshake,
+  whatsappWebhookAcknowledgement,
+} from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  whatsappWebhookAcknowledgement,
+  whatsappEnvelope,
+  whatsappHandshake,
   inAppNotification,
   inAppNotificationPage,
   inAppNotificationQuery,
@@ -106,6 +114,59 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  '/v1/webhooks/whatsapp': {
+    get: {
+      operationId: 'verifyWhatsappWebhook',
+      security: [],
+      parameters: [
+        {
+          in: 'query',
+          name: 'hub.mode',
+          required: true,
+          schema: { type: 'string', enum: ['subscribe'] },
+        },
+        {
+          in: 'query',
+          name: 'hub.verify_token',
+          required: true,
+          schema: { type: 'string', maxLength: 512 },
+        },
+        {
+          in: 'query',
+          name: 'hub.challenge',
+          required: true,
+          schema: { type: 'string', maxLength: 256 },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Verified subscription challenge',
+          content: { 'text/plain': { schema: { type: 'string' } } },
+        },
+        default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
+      },
+    },
+    post: {
+      ...operation(
+        'receiveWhatsappWebhook',
+        '200',
+        'Committed and enqueued',
+        'WhatsappWebhookAcknowledgement',
+        'WhatsappEnvelope',
+      ),
+      security: [],
+      parameters: [
+        {
+          in: 'header',
+          name: 'X-Hub-Signature-256',
+          required: true,
+          schema: { type: 'string', pattern: '^sha256=[a-fA-F0-9]{64}$' },
+        },
+      ],
+      description:
+        'Meta HMAC over original body bytes; STOP commits before enqueue and acknowledgement.',
+    },
+  },
   '/v1/me/notifications': {
     get: inboxOperation('listMyNotifications', 'InAppNotificationPage', true),
   },

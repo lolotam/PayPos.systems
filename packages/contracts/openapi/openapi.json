@@ -5,6 +5,113 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/webhooks/whatsapp": {
+      "get": {
+        "operationId": "verifyWhatsappWebhook",
+        "security": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hub.mode",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "subscribe"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "hub.verify_token",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          {
+            "in": "query",
+            "name": "hub.challenge",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified subscription challenge",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "receiveWhatsappWebhook",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatsappEnvelope"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Committed and enqueued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsappWebhookAcknowledgement"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Hub-Signature-256",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^sha256=[a-fA-F0-9]{64}$"
+            }
+          }
+        ],
+        "description": "Meta HMAC over original body bytes; STOP commits before enqueue and acknowledgement."
+      }
+    },
     "/v1/me/notifications": {
       "get": {
         "operationId": "listMyNotifications",
@@ -505,6 +612,65 @@
   },
   "components": {
     "schemas": {
+      "WhatsappWebhookAcknowledgement": {
+        "type": "object",
+        "properties": {
+          "received": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "received"
+        ]
+      },
+      "WhatsappEnvelope": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "whatsapp_business_account"
+            ]
+          },
+          "entry": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "object",
+          "entry"
+        ]
+      },
+      "WhatsappHandshake": {
+        "type": "object",
+        "properties": {
+          "hub.mode": {
+            "type": "string",
+            "enum": [
+              "subscribe"
+            ]
+          },
+          "hub.verify_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "hub.challenge": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "hub.mode",
+          "hub.verify_token",
+          "hub.challenge"
+        ]
+      },
       "InAppNotification": {
         "type": "object",
         "properties": {

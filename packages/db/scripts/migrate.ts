@@ -12,5 +12,10 @@ await migrateDatabase(requireEnv('MIGRATION_DATABASE_URL'), {
   app: requireEnv('POSTGRES_APP_PASSWORD'),
   auth: requireEnv('POSTGRES_AUTH_PASSWORD'),
   dispatcher: requireEnv('POSTGRES_DISPATCHER_PASSWORD'),
+  ...(!process.env['POSTGRES_NOTIFICATIONS_PASSWORD']
+    ? {}
+    : {
+        notifications: process.env['POSTGRES_NOTIFICATIONS_PASSWORD'],
+      }),
 });
 console.log('migrations applied');

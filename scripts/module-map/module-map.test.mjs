@@ -40,12 +40,15 @@ function repo(files) {
   const all = {
     'apps/api/package.json': '{"name":"@pospay/api","dependencies":{}}',
     'apps/api/tsconfig.json': TSCONFIG,
-    'apps/api/src/app.ts': "import { registerCompany } from './modules/tenancy/index.ts';\nvoid registerCompany;\n",
+    'apps/api/src/app.ts':
+      "import { registerCompany } from './modules/tenancy/index.ts';\nvoid registerCompany;\n",
     'apps/api/src/modules/tenancy/index.ts':
       "export { registerCompany } from './persistence/register.ts';\nexport type Company = {};\n",
-    'apps/api/src/modules/tenancy/persistence/register.ts': 'export const registerCompany = () => 1;\n',
+    'apps/api/src/modules/tenancy/persistence/register.ts':
+      'export const registerCompany = () => 1;\n',
     'apps/api/src/modules/identity/index.ts': 'export type Id = string;\n',
-    [ADAPTER]: "import { registerCompany } from '../../tenancy/index.ts';\nexport const adapter = () => registerCompany();\n",
+    [ADAPTER]:
+      "import { registerCompany } from '../../tenancy/index.ts';\nexport const adapter = () => registerCompany();\n",
     ...files,
   };
   for (const [path, text] of Object.entries(all)) {
@@ -58,20 +61,97 @@ function repo(files) {
 const problems = (files) => checkModules(repo(files), MAP).join('\n');
 
 describe('ADR-0018 restricted notification root wiring', () => {
-  const wiringMap = { ...MAP, packagesRestricted: { ...MAP.packagesRestricted, notifications: ['notifications'] },
-    compositionRoots: { ...MAP.compositionRoots, notifications: ['apps/api/src/app.ts', 'apps/worker/src/main.ts'] } };
-  const packageFiles = { 'packages/notifications/package.json': '{"name":"@pospay/notifications"}',
-    'packages/notifications/src/index.ts': 'export const bind = () => 1;\n' };
+  const wiringMap = {
+    ...MAP,
+    packagesRestricted: { ...MAP.packagesRestricted, notifications: ['notifications'] },
+    compositionRoots: {
+      ...MAP.compositionRoots,
+      notifications: ['apps/api/src/app.ts', 'apps/worker/src/main.ts'],
+    },
+  };
+  const packageFiles = {
+    'packages/notifications/package.json': '{"name":"@pospay/notifications"}',
+    'packages/notifications/src/index.ts': 'export const bind = () => 1;\n',
+  };
   it('allows only declared composition roots and rejects identity/shared imports', () => {
-    assert.equal(checkModules(repo({ ...packageFiles, 'apps/api/src/app.ts':
-      "import { bind } from '@pospay/notifications'; void bind;\n" }), wiringMap).join('\n'), '');
-    for (const path of ['apps/api/src/modules/identity/persistence/send.ts', 'apps/api/src/shared/send.ts']) {
-      assert.match(checkModules(repo({ ...packageFiles, [path]:
-        "import { bind } from '@pospay/notifications'; void bind;\n" }), wiringMap).join('\n'), /may be imported only|wiring is not declared/);
+    assert.equal(
+      checkModules(
+        repo({
+          ...packageFiles,
+          'apps/api/src/app.ts': "import { bind } from '@pospay/notifications'; void bind;\n",
+        }),
+        wiringMap,
+      ).join('\n'),
+      '',
+    );
+    for (const path of [
+      'apps/api/src/modules/identity/persistence/send.ts',
+      'apps/api/src/shared/send.ts',
+    ]) {
+      assert.match(
+        checkModules(
+          repo({
+            ...packageFiles,
+            [path]: "import { bind } from '@pospay/notifications'; void bind;\n",
+          }),
+          wiringMap,
+        ).join('\n'),
+        /may be imported only|wiring is not declared/,
+      );
     }
   });
   it('serializes the optional composition root whitelist', () => {
-    assert.match(renderYaml(wiringMap), /composition_roots:\n  notifications: \[apps\/api\/src\/app.ts, apps\/worker\/src\/main.ts\]/);
+    assert.match(
+      renderYaml(wiringMap),
+      /composition_roots:\n  notifications: \[apps\/api\/src\/app.ts, apps\/worker\/src\/main.ts\]/,
+    );
+  });
+});
+
+describe('ADR-0013 global messaging database wiring', () => {
+  const wiringMap = {
+    ...MAP,
+    compositionRoots: {
+      ...MAP.compositionRoots,
+      'platform-whatsapp-db': ['apps/api/src/main.ts', 'apps/worker/src/main.ts'],
+    },
+  };
+  it('permits root injection and erased facade types only', () => {
+    assert.equal(
+      checkModules(
+        repo({
+          'apps/api/src/main.ts':
+            "import { createPlatformWhatsappDatabase } from '@pospay/db'; void createPlatformWhatsappDatabase;\n",
+        }),
+        wiringMap,
+      ).join('\n'),
+      '',
+    );
+    assert.equal(
+      checkModules(
+        repo({
+          'apps/api/src/modules/identity/ports/global.ts':
+            "import type { PlatformWhatsappDatabase } from '@pospay/db'; export type G = PlatformWhatsappDatabase;\n",
+        }),
+        wiringMap,
+      ).join('\n'),
+      '',
+    );
+  });
+  it('refuses alias, namespace, re-export and dynamic access outside the roots', () => {
+    for (const code of [
+      "import { createPlatformWhatsappDatabase as bind } from '@pospay/db'; void bind;",
+      "import * as database from '@pospay/db'; void database;",
+      "export { createPlatformWhatsappDatabase } from '@pospay/db';",
+      "void import('@pospay/db');",
+    ])
+      assert.match(
+        checkModules(
+          repo({ 'apps/api/src/modules/identity/persistence/global.ts': code }),
+          wiringMap,
+        ).join('\n'),
+        /global messaging DB facade/,
+      );
   });
 });
 
@@ -109,23 +189,38 @@ describe('the module-map gate — what passes', () => {
 describe('the module-map gate — what it blocks', () => {
   const cases = {
     'a deep import into another module': [
-      { 'apps/api/src/modules/identity/use-cases/x.ts': "import type { registerCompany } from '../../tenancy/persistence/register.ts';\n" },
+      {
+        'apps/api/src/modules/identity/use-cases/x.ts':
+          "import type { registerCompany } from '../../tenancy/persistence/register.ts';\n",
+      },
       /deep import into tenancy/,
     ],
     'an undeclared arrow': [
-      { 'apps/api/src/modules/tenancy/ports/who.ts': "import type { Id } from '../../identity/index.ts';\n" },
+      {
+        'apps/api/src/modules/tenancy/ports/who.ts':
+          "import type { Id } from '../../identity/index.ts';\n",
+      },
       /arrow tenancy -> identity is not declared/,
     ],
     'a second synchronous write from another file': [
-      { 'apps/api/src/modules/identity/use-cases/again.ts': "import { registerCompany } from '../../tenancy/index.ts';\nvoid registerCompany;\n" },
+      {
+        'apps/api/src/modules/identity/use-cases/again.ts':
+          "import { registerCompany } from '../../tenancy/index.ts';\nvoid registerCompany;\n",
+      },
       /value import tenancy.registerCompany \(import\) is neither/,
     ],
     'a value import hidden after an unrelated `export type` line': [
-      { 'apps/api/src/modules/identity/use-cases/hidden.ts': "export type Marker = string;\nimport { registerCompany } from '../../tenancy/index.ts';\nvoid registerCompany;\n" },
+      {
+        'apps/api/src/modules/identity/use-cases/hidden.ts':
+          "export type Marker = string;\nimport { registerCompany } from '../../tenancy/index.ts';\nvoid registerCompany;\n",
+      },
       /value import tenancy.registerCompany/,
     ],
     'a dynamic import': [
-      { 'apps/api/src/modules/identity/use-cases/dyn.ts': "export const load = () => import('../../tenancy/index.ts');\n" },
+      {
+        'apps/api/src/modules/identity/use-cases/dyn.ts':
+          "export const load = () => import('../../tenancy/index.ts');\n",
+      },
       /value import tenancy.\* \(dynamic\)/,
     ],
     'a side-effect import': [
@@ -133,19 +228,31 @@ describe('the module-map gate — what it blocks', () => {
       /value import tenancy.\* \(side-effect\)/,
     ],
     'an import through a path alias': [
-      { 'apps/api/src/modules/identity/use-cases/alias.ts': "import { registerCompany } from '#tenancy';\nvoid registerCompany;\n" },
+      {
+        'apps/api/src/modules/identity/use-cases/alias.ts':
+          "import { registerCompany } from '#tenancy';\nvoid registerCompany;\n",
+      },
       /value import tenancy.registerCompany/,
     ],
     'forwarding the write from the allowed file': [
-      { [ADAPTER]: "import { registerCompany } from '../../tenancy/index.ts';\nexport { registerCompany };\n" },
+      {
+        [ADAPTER]:
+          "import { registerCompany } from '../../tenancy/index.ts';\nexport { registerCompany };\n",
+      },
       /registerCompany came from another module and may only be called here/,
     ],
     'forwarding the write through a local alias': [
-      { [ADAPTER]: "import { registerCompany } from '../../tenancy/index.ts';\nconst forwarded = registerCompany;\nexport { forwarded };\n" },
+      {
+        [ADAPTER]:
+          "import { registerCompany } from '../../tenancy/index.ts';\nconst forwarded = registerCompany;\nexport { forwarded };\n",
+      },
       /registerCompany came from another module and may only be called here/,
     ],
     'passing the write on inside an object': [
-      { [ADAPTER]: "import { registerCompany } from '../../tenancy/index.ts';\nexport const box = { registerCompany };\n" },
+      {
+        [ADAPTER]:
+          "import { registerCompany } from '../../tenancy/index.ts';\nexport const box = { registerCompany };\n",
+      },
       /registerCompany came from another module/,
     ],
     "passing the write into a class's extends expression, which runs": [
@@ -160,22 +267,33 @@ describe('the module-map gate — what it blocks', () => {
       /registerCompany came from another module and may only be called here/,
     ],
     'a dynamic import with a computed specifier': [
-      { 'apps/api/src/modules/identity/use-cases/computed.ts': "const target = '../../tenancy/index.ts';\nexport const load = () => import(target);\n" },
+      {
+        'apps/api/src/modules/identity/use-cases/computed.ts':
+          "const target = '../../tenancy/index.ts';\nexport const load = () => import(target);\n",
+      },
       /dynamic import with a computed specifier/,
     ],
     'an empty import, which still runs the module': [
-      { 'apps/api/src/modules/identity/use-cases/empty.ts': "import {} from '../../tenancy/index.ts';\n" },
+      {
+        'apps/api/src/modules/identity/use-cases/empty.ts':
+          "import {} from '../../tenancy/index.ts';\n",
+      },
       /value import tenancy\.\* \(import\)/,
     ],
     'an inline type-only import, which verbatimModuleSyntax keeps': [
-      { 'apps/api/src/modules/identity/use-cases/inline.ts': "import { type Company } from '../../tenancy/index.ts';\nexport type C = Company;\n" },
+      {
+        'apps/api/src/modules/identity/use-cases/inline.ts':
+          "import { type Company } from '../../tenancy/index.ts';\nexport type C = Company;\n",
+      },
       /value import tenancy\.\* \(import\)/,
     ],
     'forwarding through the composition root': [
       {
-        'apps/api/src/registry.ts': "export { registerCompany } from './modules/tenancy/index.ts';\n",
+        'apps/api/src/registry.ts':
+          "export { registerCompany } from './modules/tenancy/index.ts';\n",
         'apps/api/src/shared/registry.ts': "export { registerCompany } from '../registry.ts';\n",
-        'apps/api/src/modules/identity/use-cases/root.ts': "import { registerCompany } from '../../../shared/registry.ts';\nregisterCompany();\n",
+        'apps/api/src/modules/identity/use-cases/root.ts':
+          "import { registerCompany } from '../../../shared/registry.ts';\nregisterCompany();\n",
       },
       /shared\/registry\.ts: imports the composition root/,
     ],
@@ -185,27 +303,36 @@ describe('the module-map gate — what it blocks', () => {
     ],
     'an app-level bridge into a module': [
       {
-        'apps/api/src/shared/bridge.ts': "export { registerCompany } from '../modules/tenancy/index.ts';\n",
-        'apps/api/src/modules/identity/use-cases/via-bridge.ts': "import { registerCompany } from '../../../shared/bridge.ts';\nvoid registerCompany;\n",
+        'apps/api/src/shared/bridge.ts':
+          "export { registerCompany } from '../modules/tenancy/index.ts';\n",
+        'apps/api/src/modules/identity/use-cases/via-bridge.ts':
+          "import { registerCompany } from '../../../shared/bridge.ts';\nvoid registerCompany;\n",
       },
       /only the composition root may import a module/,
     ],
     'a restricted package outside its owners': [
-      { 'apps/api/src/modules/tenancy/http/x.ts': "import { createAuth } from '@pospay/auth';\nvoid createAuth;\n" },
+      {
+        'apps/api/src/modules/tenancy/http/x.ts':
+          "import { createAuth } from '@pospay/auth';\nvoid createAuth;\n",
+      },
       /@pospay\/auth may be imported only by identity/,
     ],
     'a file cycle inside one module': [
       {
-        'apps/api/src/modules/tenancy/domain/a.ts': "import { b } from './b.ts';\nexport const a = () => b;\n",
-        'apps/api/src/modules/tenancy/domain/b.ts': "import { a } from './a.ts';\nexport const b = () => a;\n",
+        'apps/api/src/modules/tenancy/domain/a.ts':
+          "import { b } from './b.ts';\nexport const a = () => b;\n",
+        'apps/api/src/modules/tenancy/domain/b.ts':
+          "import { a } from './a.ts';\nexport const b = () => a;\n",
       },
       /file cycle: .*domain\/a\.ts/,
     ],
     'a package cycle': [
       {
-        'packages/one/package.json': '{"name":"@pospay/one","dependencies":{"@pospay/two":"workspace:*"}}',
+        'packages/one/package.json':
+          '{"name":"@pospay/one","dependencies":{"@pospay/two":"workspace:*"}}',
         'packages/one/src/index.ts': 'export {};\n',
-        'packages/two/package.json': '{"name":"@pospay/two","dependencies":{"@pospay/one":"workspace:*"}}',
+        'packages/two/package.json':
+          '{"name":"@pospay/two","dependencies":{"@pospay/one":"workspace:*"}}',
         'packages/two/src/index.ts': 'export {};\n',
       },
       /package cycle/,
@@ -229,7 +356,8 @@ describe('the generated YAML', () => {
 
   it('refuses a §6 line it cannot read instead of skipping it', () => {
     assert.throws(
-      () => parseModuleMap('## 6. Machine-readable source\n```yaml\nimports:\n  tenancy: tenancy\n```'),
+      () =>
+        parseModuleMap('## 6. Machine-readable source\n```yaml\nimports:\n  tenancy: tenancy\n```'),
       /cannot read line/,
     );
   });

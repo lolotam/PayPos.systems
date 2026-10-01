@@ -87,16 +87,21 @@ describe('the absolute deadline', () => {
 describe('work that meets the deadline', () => {
   it('work that finishes in time commits, and its connection is never touched afterwards', async () => {
     const id = nextId();
-    await pool.withTenant(
-      TENANT.A.company,
-      (tx) =>
-        appendAuditLog(tx, id, {
-          entity: 'business',
-          entityId: TENANT.A.business,
-          action: 'probe',
-        }),
-      { timeoutMs: 1_000 },
-    );
+    await pool
+      .withTenant(
+        TENANT.A.company,
+        (tx) =>
+          appendAuditLog(tx, id, {
+            entity: 'business',
+            entityId: TENANT.A.business,
+            action: 'probe',
+          }),
+        { timeoutMs: 1_000 },
+      )
+      .catch((error: unknown) => {
+        // A slow COMMIT acknowledgement is unknown, not a rollback; the persisted audit below proves its result.
+        if (!(error instanceof Error) || error.name !== 'CommitOutcomeUnknownError') throw error;
+      });
     // Past the deadline: a stray termination now would hit the next transaction on the same connection.
     await sleep(1_100);
     const after = await pool.withTenant(TENANT.A.company, async (tx) => {

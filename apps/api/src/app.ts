@@ -31,6 +31,7 @@ import {
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
+import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
 import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
@@ -58,6 +59,8 @@ export interface AppDependencies {
   readonly redis?: Redis;
   /** Browser origins allowed to call the API with credentials (admin, POS). Empty: no CORS headers at all. */
   readonly corsOrigins?: readonly string[];
+  readonly whatsapp?: WhatsappIntake;
+  readonly trustedProxy?: readonly string[];
 }
 
 export interface AppOptions {
@@ -113,7 +116,7 @@ class AppModule {
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
-        ...notificationsProviders(deps.database),
+        ...notificationsProviders(deps.database, deps.whatsapp),
       ],
     };
   }
@@ -157,16 +160,32 @@ function logCompleted(request: FastifyRequest, reply: FastifyReply): void {
 }
 
 // Fastify with the shared sanitising logger, request ids, and the envelope for errors Fastify raises itself.
-function buildAdapter(logger: Logger, ids: IdGenerator): FastifyAdapter {
+function buildAdapter(
+  logger: Logger,
+  ids: IdGenerator,
+  trustedProxy: readonly string[],
+): FastifyAdapter {
   return new FastifyAdapter({
     loggerInstance: logger,
     // A caller's X-Request-Id is kept when it is a plain token (so a trace spans the admin app and the API);
     // anything else — too long, or with characters that could forge a log line — is replaced with a UUID v7.
-    genReqId: (request: { headers: Record<string, string | string[] | undefined> }) => {
+    genReqId: (request: {
+      headers: Record<string, string | string[] | undefined>;
+      url?: string | undefined;
+    }) => {
+      // Provider request headers can carry phone-bearing message ids too; generate our own diagnostic id.
+      try {
+        if (decodeURIComponent((request.url ?? '').split('?')[0] ?? '').startsWith('/v1/webhooks/'))
+          return ids.newId();
+      } catch {
+        return ids.newId();
+      }
       const given = request.headers['x-request-id'];
       return typeof given === 'string' && REQUEST_ID.test(given) ? given : ids.newId();
     },
     bodyLimit: 1_048_576,
+    requestTimeout: 30_000,
+    trustProxy: [...trustedProxy],
     // Fastify's own request log serialises the raw URL; we log one safe line per request instead (below).
     // Its per-request error lines go too — the envelope filter logs unhandled errors through the sanitiser.
     logController: new LogController({ disableRequestLogging: true }),
@@ -214,7 +233,8 @@ export async function createApp(
     ...(options.controllers ?? []),
   ];
   assertEveryRouteGuarded(controllers);
-  const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7());
+  const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
+  mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
   if (deps.auth !== undefined) {
     mountAuthRoutes(adapter.getInstance(), deps.auth.service, {
       baseURL: deps.auth.baseURL,

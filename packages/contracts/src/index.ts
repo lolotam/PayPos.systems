@@ -112,3 +112,11 @@ export {
   type InAppNotificationQuery,
   type InAppNotificationPage,
 } from './in-app-notifications.js';
+export { whatsappEnvelope, whatsappHandshake, type WhatsAppEnvelope } from './whatsapp-webhook.js';
+
+export {
+  whatsappEntry,
+  whatsappMessageChange,
+  whatsappMessage,
+  WhatsappEnvelopeInvalidError,
+} from './whatsapp-webhook.js';

@@ -13,6 +13,7 @@ export interface TestDatabase {
   readonly appUrl: string;
   readonly authUrl: string;
   readonly dispatcherUrl: string;
+  readonly notificationsUrl: string;
   readonly ownerUrl: string;
   drop(): Promise<void>;
 }
@@ -33,6 +34,9 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   // CREATE DATABASE ... TEMPLATE بيفشل لو ملفين نسخوا في نفس اللحظة، فبنعمله واحد ورا التاني.
   // الـ lock على مستوى الـ session (مش transaction) لأن CREATE DATABASE مينفعش جوه transaction،
   // و max: 1 بيضمن إن الـ lock والـ CREATE على نفس الاتصال.
+  // الـ dev Postgres عليه lock_timeout=10s للسيرفر كله؛ طابور النسخ بيطول لما ملفات كتير تبدأ مع بعض، فالاتصال ده بس
+  // بيستنى دوره من غير حد — ده انتظار في أداة الاختبار، مش سلوك في المنتج.
+  await maintenance`SET lock_timeout = 0`;
   await maintenance`SELECT pg_advisory_lock(hashtext('pospay:clone-template'))`;
   try {
     await maintenance.unsafe(`CREATE DATABASE "${name}" TEMPLATE "${pg.template}"`);
@@ -44,6 +48,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
     appUrl: pgUrl(pg, 'pospay_app', pg.appPassword, name),
     authUrl: pgUrl(pg, 'pospay_auth', pg.authPassword, name),
     dispatcherUrl: pgUrl(pg, 'pospay_dispatcher', pg.dispatcherPassword, name),
+    notificationsUrl: pgUrl(pg, 'pospay_notifications', pg.notificationsPassword, name),
     ownerUrl: pgUrl(pg, pg.ownerUser, pg.ownerPassword, name),
     drop: async () => {
       await maintenance.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);

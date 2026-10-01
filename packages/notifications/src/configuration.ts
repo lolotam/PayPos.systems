@@ -1,3 +1,4 @@
+import { WHATSAPP_PROVIDER_ID } from './identifier-patterns.ts';
 import type { SafeParameter, TemplateDefinition } from './templates/definition.ts';
 import { templateComponents, validateParameters } from './templates/definition.ts';
 import { staffOtp } from './templates/staff-otp.ts';
@@ -16,8 +17,6 @@ export function readNotificationConfiguration(env: NodeJS.ProcessEnv): Notificat
   if (mode !== 'fake' && mode !== 'live') throw new Error('NOTIFICATIONS_MODE_INVALID');
   if (mode === 'fake' && env['NODE_ENV'] === 'production')
     throw new Error('NOTIFICATIONS_FAKE_IN_PRODUCTION');
-  // TODO(spec): PR 5 binds the real suppression gate; PR 6 settles admission. No env flag bypasses this gate.
-  if (mode === 'live') throw new Error('NOTIFICATIONS_LIVE_REQUIRES_PR5');
   const hashKey = env['NOTIFICATION_PHONE_HASH_KEY'];
   const hashKeyId = env['NOTIFICATION_PHONE_HASH_KEY_ID'];
   if (hashKey === undefined || hashKey.length < 32 || hashKeyId === undefined) {
@@ -25,6 +24,13 @@ export function readNotificationConfiguration(env: NodeJS.ProcessEnv): Notificat
   }
   if ((env['WHATSAPP_GRAPH_API_VERSION'] ?? GRAPH_API_VERSION) !== GRAPH_API_VERSION) {
     throw new Error('NOTIFICATION_GRAPH_VERSION_INVALID');
+  }
+  if (mode === 'live') {
+    const accessToken = env['WHATSAPP_ACCESS_TOKEN'];
+    const phoneNumberId = env['WHATSAPP_PHONE_NUMBER_ID'];
+    if (!accessToken || !phoneNumberId || !WHATSAPP_PROVIDER_ID.test(phoneNumberId))
+      throw new Error('NOTIFICATION_PROVIDER_CONFIG_INVALID');
+    return { mode, hashKey, hashKeyId, accessToken, phoneNumberId };
   }
   return { mode, hashKey, hashKeyId };
 }

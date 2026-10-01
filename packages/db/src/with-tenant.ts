@@ -81,7 +81,10 @@ export function assertUuid(value: string, name: string): string {
 // مفيش إنهاء للـ backend من بره: pg_terminate_backend بالـ pid مينفعش يبقى atomic مع التأكد إن الـ connection لسه
 // في نفس الـ transaction، فممكن يقتل شغل تاني استلم الـ connection. اللي بيحد الـ backend على الـ server:
 // statement_timeout و idle_in_transaction_session_timeout (limits)، والـ connection بترجع أول ما الكود يخلص.
-function withDeadline<T>(timeoutMs: number, start: (gate: DeadlineGate) => Promise<T>): Promise<T> {
+export function withDeadline<T>(
+  timeoutMs: number,
+  start: (gate: DeadlineGate) => Promise<T>,
+): Promise<T> {
   const endsAt = performance.now() + timeoutMs;
   let expired = false;
   let committing = false;

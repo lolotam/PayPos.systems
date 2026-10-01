@@ -1,5 +1,6 @@
 <!--
 Sync Impact Report
+- 2.1.4 (2026-10-01, PATCH): ADR-0013 Part A global messaging control exception and privacy.
 - 2.1.3 (2026-10-01, PATCH): narrow application-root auth/notifications wiring clarification (ADR-0018).
 - 2.1.2 (2026-10-01, PATCH): backups go to Cloudflare R2, not Backblaze B2 (Waleed, 2026-09-24;
   corrected after Eng. Khaled's audit); the physical PITR path is rehearsed on the production server
@@ -106,6 +107,13 @@ narrowly-granted auth role with no `BYPASSRLS`, and `memberships` is keyed on
 authenticate → read memberships as the user → verify the requested company server-side →
 `withTenant()`. This exception MUST be recorded by ADR before any auth migration is
 generated, and `memberships` is the single authority for authorization.
+
+ADR-0013 Part A names global messaging intake/maintenance as a separate global exception:
+notifications alone uses the restricted pospay_notifications facade, with no tenant access.
+Phone/message HMACs and UUID-linked audit persist; original ids/body remain intake-memory-only.
+The NULL-only CHECK and exact column grants forbid re-subscription. Authorization checks the
+reader-owned boolean definer on its existing tenant Tx after the common phone lock. API/worker
+roots wire the facade only to notifications; outbound admission and OTP remain PR 6-gated.
 
 Stock is never updated in place: insert a `stock_movements` row and derive balances with
 `balance_after` cached. Financial records are immutable and reversible, never deleted; soft
@@ -424,4 +432,4 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.1.3 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-01
+**Version**: 2.1.4 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-01

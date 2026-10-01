@@ -1,10 +1,11 @@
 import { createAuth, type AuthService } from '@pospay/auth';
-import { createDatabase } from '@pospay/db';
+import { createDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
 import { createApp } from './app.ts';
+import { createWhatsappIntake } from './modules/notifications/index.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { readConfig } from './shared/config.ts';
 
@@ -15,9 +16,16 @@ const logger = createLogger(config.LOG_LEVEL, { events: API_LOG_EVENTS });
 const database = createDatabase({ url: config.DATABASE_URL, ids: systemUuidV7() });
 // Built inside the try below: createAuth refuses a pool that is not pospay_auth before anything listens.
 let auth: AuthService | undefined;
+const intakeUrl = config.PLATFORM_NOTIFICATIONS_DATABASE_URL;
+const globalDatabase = intakeUrl ? createPlatformWhatsappDatabase({ url: intakeUrl }) : undefined;
+let whatsapp: ReturnType<typeof createWhatsappIntake> | undefined;
 
 // No offline queue: while Redis is down a command fails at once, so /ready reports it instead of hanging.
-const redis = new Redis(config.REDIS_URL, { enableOfflineQueue: false, maxRetriesPerRequest: 1 });
+const redis = new Redis(config.REDIS_URL, {
+  enableOfflineQueue: false,
+  maxRetriesPerRequest: 1,
+  commandTimeout: 500,
+});
 // Attached before any connection event: without a listener ioredis prints raw errors to stderr,
 // outside the sanitising logger.
 redis.on('error', (error: unknown) => {
@@ -34,7 +42,13 @@ const release = async (): Promise<void> => {
     timer = setTimeout(resolve, RELEASE_DEADLINE_MS);
   });
   await Promise.race([
-    Promise.allSettled([database.close(), auth?.close(), redis.quit()]),
+    Promise.allSettled([
+      whatsapp?.close(),
+      globalDatabase?.close(),
+      database.close(),
+      auth?.close(),
+      redis.quit(),
+    ]),
     deadline,
   ]);
   clearTimeout(timer);
@@ -42,6 +56,10 @@ const release = async (): Promise<void> => {
 };
 
 try {
+  if (globalDatabase !== undefined) {
+    whatsapp = createWhatsappIntake(globalDatabase, config.REDIS_URL, process.env, logger);
+    await globalDatabase.ping();
+  }
   auth = await createAuth({
     databaseUrl: config.AUTH_DATABASE_URL,
     secret: config.BETTER_AUTH_SECRET,
@@ -56,9 +74,13 @@ try {
     },
   });
   const service = auth;
+  const intake = whatsapp;
   const app = await createApp(
     {
       readiness: [
+        ...(intake === undefined
+          ? []
+          : [{ name: 'whatsapp-inbound', check: () => intake.ready() }]),
         { name: 'database', check: () => database.ping() },
         { name: 'auth', check: () => service.ping() },
         {
@@ -73,6 +95,8 @@ try {
       database,
       redis,
       corsOrigins: config.AUTH_TRUSTED_ORIGINS,
+      ...(whatsapp === undefined ? {} : { whatsapp }),
+      trustedProxy: config.TRUSTED_PROXY_CIDRS,
     },
     { logger },
   );

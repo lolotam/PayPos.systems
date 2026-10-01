@@ -1,8 +1,36 @@
+import { isIP } from 'node:net';
 import { LOG_LEVELS } from '@pospay/observability';
 import { z } from 'zod';
 
 // Read once at startup; a missing or malformed value stops the process instead of failing later.
+const trustedProxies = z
+  .string()
+  .default('')
+  .transform((value) =>
+    value
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean),
+  )
+  .pipe(z.array(z.string().refine(validProxy)));
+
+function validProxy(value: string): boolean {
+  const parts = value.split('/');
+  const version = isIP(parts[0] ?? '');
+  if (version === 0 || parts.length > 2) return false;
+  const prefix = parts[1];
+  return (
+    prefix === undefined ||
+    (/^\d{1,3}$/.test(prefix) && Number(prefix) <= (version === 4 ? 32 : 128))
+  );
+}
+
 const schema = z.object({
+  PLATFORM_NOTIFICATIONS_DATABASE_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.url({ protocol: /^postgres(ql)?$/ }).optional(),
+  ),
+  TRUSTED_PROXY_CIDRS: trustedProxies,
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   REDIS_URL: z.url({ protocol: /^rediss?$/ }),
   // pospay_auth — Better Auth's own pool, opened inside packages/auth (ADR-0003 §2.1).
@@ -52,5 +80,11 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
     const keys = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(`Invalid API configuration: ${keys.join(', ')} — see .env.example`);
   }
+  if (
+    env['NODE_ENV'] === 'production' &&
+    (env['WHATSAPP_APP_SECRET'] || env['WHATSAPP_WEBHOOK_VERIFY_TOKEN']) &&
+    result.data.TRUSTED_PROXY_CIDRS.length === 0
+  )
+    throw new Error('Invalid API configuration: TRUSTED_PROXY_CIDRS — see .env.example');
   return result.data;
 }

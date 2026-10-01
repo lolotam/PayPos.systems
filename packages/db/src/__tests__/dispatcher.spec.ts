@@ -254,35 +254,51 @@ describe('the lease and the clock', () => {
   });
 });
 
+function barrier() {
+  let release!: () => void;
+  const wait = new Promise<void>((done) => {
+    release = done;
+  });
+  return { wait, release: () => release() };
+}
+
 describe('slow deliveries', () => {
   it('a slow delivery holds no lock: the claim is committed and other aggregates keep flowing', async () => {
     const slow = await publish(TENANT.A.company, nextId());
-    let release!: () => void;
-    const gate = new Promise<void>((done) => {
-      release = done;
-    });
+    const gate = barrier();
+    const entered = barrier();
     const running = dispatcher.dispatchBatch(50, async (event) => {
-      if (event.id === slow) await gate;
+      if (event.id === slow) {
+        entered.release();
+        await gate.wait;
+      }
       return delivered()(event);
     });
-    await new Promise((done) => setTimeout(done, 100));
+    await entered.wait;
     expect(await state(slow)).toMatchObject({ published: false, attempts: 1 });
     const other = await publish(TENANT.A.company, nextId());
     await dispatcher.dispatchBatch(50, delivered());
     expect(await state(other)).toMatchObject({ published: true });
-    release();
+    gate.release();
     await running;
     expect(await state(slow)).toMatchObject({ published: true, attempts: 1 });
   });
 
   it('backs off from the moment the failure is recorded, not from when the batch began', async () => {
     const id = await publish(TENANT.A.company, nextId());
-    await dispatcher.dispatchBatch(50, async () => {
+    const failureTimes = new Map<string, Date>();
+    await dispatcher.dispatchBatch(50, async (event) => {
       await new Promise((done) => setTimeout(done, 300));
+      const [observed] = await owner<{ failure_at: Date }[]>`
+        SELECT clock_timestamp() AS failure_at`;
+      if (observed === undefined) throw new Error('TEST_FAILURE_TIME_MISSING');
+      failureTimes.set(event.id, observed.failure_at);
       return { delivered: false, error: 'Error', retryInMs: 1_000 };
     });
+    const failureAt = failureTimes.get(id);
+    if (failureAt === undefined) throw new Error('TEST_DELIVERY_MISSING');
     const [row] = await owner`
-      SELECT next_attempt_at > clock_timestamp() + interval '600 milliseconds' AS backs_off
+      SELECT next_attempt_at >= ${failureAt}::timestamptz + interval '1 second' AS backs_off
       FROM outbox WHERE id = ${id}`;
     expect(row).toEqual({ backs_off: true });
   });
@@ -291,23 +307,30 @@ describe('slow deliveries', () => {
 describe('stale outcomes and exhausted leases', () => {
   it('an outcome from a claim whose lease was taken over cannot undo the newer decision', async () => {
     const id = await publish(TENANT.A.company, nextId());
-    let release!: () => void;
-    const gate = new Promise<void>((done) => {
-      release = done;
-    });
+    const gate = barrier();
+    const entered = barrier();
     const stale = dispatcher.dispatchBatch(
       50,
       async (event) => {
-        if (event.id === id) await gate;
+        if (event.id === id) {
+          entered.release();
+          await gate.wait;
+        }
         return { delivered: false, error: 'Error', retryInMs: 0 };
       },
       { leaseMs: 100 },
     );
+    await entered.wait;
     await new Promise((done) => setTimeout(done, 250));
-    await dispatcher.dispatchBatch(50, async (event) =>
-      event.id === id ? { delivered: false, error: 'Error', retryInMs: null } : delivered()(event),
-    );
-    release();
+    try {
+      await dispatcher.dispatchBatch(50, async (event) =>
+        event.id === id
+          ? { delivered: false, error: 'Error', retryInMs: null }
+          : delivered()(event),
+      );
+    } finally {
+      gate.release();
+    }
     await stale;
     expect(await state(id)).toMatchObject({ published: false, parked: true, attempts: 2 });
   });

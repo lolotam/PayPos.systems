@@ -1,3 +1,4 @@
+import { NOTIFICATION_HASH_KEY_ID } from './identifier-patterns.ts';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 const E164 = /^\+[1-9]\d{7,14}$/;
@@ -11,7 +12,7 @@ export interface PhoneIdentity {
 }
 
 export function createPhoneIdentity(key: string, keyId: string) {
-  if (key.length < 32 || !/^[a-z0-9_-]{1,64}$/i.test(keyId)) {
+  if (key.length < 32 || !NOTIFICATION_HASH_KEY_ID.test(keyId)) {
     throw new Error('NOTIFICATION_HASH_CONFIG_INVALID');
   }
   const identify = (phone: string): PhoneIdentity => ({

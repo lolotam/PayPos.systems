@@ -38,5 +38,9 @@ competing across packages against the same local Postgres instance. Runtime time
 Production sends fail closed in PR 4. Fake mode is development/test only. No suppression table, STOP handler,
 OTP delivery, rating link transport, in-app store, email/SMS/push adapter or handset callback ships here.
 
-TODO(spec): owner-approved staff_otp copy/components/category and Meta names; PR 5 real suppression gate;
+PR 5 binds the real transaction-bound platform suppression gate, signed synchronous STOP intake and
+inbox recovery under ADR-0013 Part A. Production in-app processing is independent; outbound and OTP
+remain disabled until PR 6 supplies approved admission. The PR 4 delivery semantics above still apply.
+
+TODO(spec): owner-approved staff_otp copy/components/category and Meta names;
 PR 6 outbound admission quantities, OTP expiry/cooldown/capacity and recovery UX.
