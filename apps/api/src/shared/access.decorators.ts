@@ -53,7 +53,8 @@ export function Require(
 
 /**
  * A route that needs a verified session and nothing else — it touches no company's data (who am I, which
- * companies can I switch to). Anything that reads or writes tenant data uses @Require instead.
+ * companies can I switch to). Personal tenant resources additionally use SelectedCompanyGuard and
+ * filter every query/mutation by the session user (ADR-0018 §6); administrative access uses @Require.
  *
  * @returns the metadata decorator
  */

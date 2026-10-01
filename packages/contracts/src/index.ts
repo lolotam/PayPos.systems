@@ -100,3 +100,15 @@ export {
   type DeliveryLogItem,
   type DeliveryLogQuery,
 } from './notifications.js';
+export {
+  inAppRecipient,
+  inAppNotification,
+  inAppNotificationQuery,
+  inAppNotificationPage,
+  notificationUnreadCount,
+  notificationReadResult,
+  type InAppRecipient,
+  type InAppNotification,
+  type InAppNotificationQuery,
+  type InAppNotificationPage,
+} from './in-app-notifications.js';

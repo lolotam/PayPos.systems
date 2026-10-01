@@ -17,6 +17,8 @@ import type { SendAdmission } from './ports/send-admission.port.ts';
 import type { SuppressionGate } from './ports/suppression-gate.port.ts';
 import { createAttemptsRepository } from './persistence/drizzle-attempts.repository.ts';
 import { createAuthorizationRepository } from './persistence/drizzle-authorization.repository.ts';
+import { createInAppRepository } from './persistence/drizzle-in-app.repository.ts';
+import { StoreInAppNotification } from './use-cases/store-in-app-notification/store-in-app-notification.ts';
 import { noSuppressionGate } from './persistence/no-suppression.gate.ts';
 import { createChannelAdapter } from './persistence/channel.adapter.ts';
 import {
@@ -66,6 +68,7 @@ export function createNotificationModule(options: NotificationModuleOptions) {
       ),
     identity,
     registry,
+    (tx) => new StoreInAppNotification(createInAppRepository(tx), clock, ids),
   );
   return {
     consumer,

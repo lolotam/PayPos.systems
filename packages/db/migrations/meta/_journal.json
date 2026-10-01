@@ -190,6 +190,20 @@
       "when": 1790870570661,
       "tag": "0026_2026-10-01_notification-attempts-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790875422261,
+      "tag": "0027_2026-10-01_in-app-notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790875456514,
+      "tag": "0028_2026-10-01_in-app-notifications-rls",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,5 @@
 export { Button, buttonVariants, type ButtonProps } from './button.js';
+export { Bell } from 'lucide-react';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { Card } from './card/card.js';

@@ -61,6 +61,10 @@ only: identity/staff/customers still cannot import `packages/notifications`; wor
 
 ## 3. Port arrows (runtime reads, no compile-time edge)
 
+PR 4b personal inbox/bell uses event-supplied user recipients and session/company/recipient authorization
+(ADR-0018 §6). In-app storage/results stay inside the notification consumer transaction; no new import,
+port or event arrow. The admin composes its notification business area in `app/(dashboard)/_frame`.
+
 The consumer owns the interface. The adapter lives in the consumer's `persistence/` folder and is the **only** file that knows both modules exist. This is what keeps the graph acyclic (`CLAUDE.architecture.md` §6.2).
 
 | Consumer | Port it defines | Reads from | What it needs |

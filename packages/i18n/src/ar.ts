@@ -2,6 +2,17 @@ import type { Catalog } from './catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  inApp: {
+    title: 'الإشعارات',
+    unread: 'غير مقروء',
+    read: 'مقروء',
+    markRead: 'تحديد كمقروء',
+    markAllRead: 'تحديد الكل كمقروء',
+    empty: 'لا توجد إشعارات بعد.',
+    loading: 'جارٍ تحميل الإشعارات…',
+    error: 'تعذّر تحديث الإشعارات. حاول مرة أخرى.',
+    generic_notice: 'تحديث بخصوص {{subject}}',
+  },
   errors: {
     VALIDATION_FAILED: 'البيانات المرسلة غير صحيحة',
     BAD_REQUEST: 'الطلب غير صالح',
@@ -98,7 +109,8 @@ export const ar: Catalog = {
     startOver: 'البدء من جديد',
     offlineTitle: 'غير متصل',
     unsupportedTitle: 'هذا المتصفح غير مدعوم',
-    unsupportedLead: 'افتح PosPay على إصدار حديث من Chrome أو Edge أو Safari أو Firefox لربط هذا الجهاز.',
+    unsupportedLead:
+      'افتح PosPay على إصدار حديث من Chrome أو Edge أو Safari أو Firefox لربط هذا الجهاز.',
     offlineLead: 'تعذّر الوصول إلى الخادم. تبقى بيانات الدخول المحفوظة على هذا الجهاز.',
     retry: 'إعادة المحاولة',
     attendanceTitle: 'الحضور',

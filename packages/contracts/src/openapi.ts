@@ -19,6 +19,13 @@ import {
 import { pageQuery } from './pagination/cursor.js';
 import { deliveryLogItem, deliveryLogPage, deliveryLogQuery } from './notifications.js';
 import {
+  inAppNotification,
+  inAppNotificationPage,
+  inAppNotificationQuery,
+  notificationUnreadCount,
+  notificationReadResult,
+} from './in-app-notifications.js';
+import {
   businessSettings,
   calendar,
   language,
@@ -34,6 +41,11 @@ import { openingHours } from './tenancy/opening-hours.js';
 import { plan } from './tenancy/plan.js';
 
 const SCHEMAS = [
+  inAppNotification,
+  inAppNotificationPage,
+  inAppNotificationQuery,
+  notificationUnreadCount,
+  notificationReadResult,
   deliveryLogItem,
   deliveryLogPage,
   deliveryLogQuery,
@@ -94,6 +106,18 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  '/v1/me/notifications': {
+    get: inboxOperation('listMyNotifications', 'InAppNotificationPage', true),
+  },
+  '/v1/me/notifications/unread-count': {
+    get: inboxOperation('countMyUnreadNotifications', 'NotificationUnreadCount'),
+  },
+  '/v1/me/notifications/{id}/read': {
+    post: inboxOperation('readMyNotification', 'NotificationReadResult', false, true),
+  },
+  '/v1/me/notifications/read-all': {
+    post: inboxOperation('readAllMyNotifications', 'NotificationReadResult'),
+  },
   '/v1/notifications/delivery-log': {
     get: logOperation('listCompanyNotificationDeliveries'),
   },
@@ -133,6 +157,34 @@ const PATHS = {
     get: operation('getDeviceIdentity', '200', 'The calling device', 'DeviceIdentity'),
   },
 };
+
+function inboxOperation(operationId: string, response: string, paginated = false, single = false) {
+  return {
+    ...operation(operationId, '200', 'Personal notifications in the selected company', response),
+    parameters: [
+      {
+        in: 'header',
+        name: 'x-company-id',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      },
+      ...(paginated
+        ? [
+            { in: 'query', name: 'cursor', required: false, schema: { type: 'string' } },
+            {
+              in: 'query',
+              name: 'limit',
+              required: false,
+              schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+            },
+          ]
+        : []),
+      ...(single
+        ? [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }]
+        : []),
+    ],
+  };
+}
 
 function logOperation(operationId: string, scope?: string) {
   return {

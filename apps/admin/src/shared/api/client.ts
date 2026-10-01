@@ -5,6 +5,7 @@ import type { paths } from './schema';
 import { readSelection } from './selection-cookie';
 
 function withCompany(request: Request): Request {
+  if (request.headers.has('x-company-id')) return request;
   if (typeof document === 'undefined') return request;
   const companyId = readSelection().companyId;
   if (!companyId) return request;
