@@ -551,7 +551,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 
 ### Phase 1 — Staff, attendance, commissions (salon pilot)
 
-> **Scope amended 2026-10-01** after the onboarding interview (D-12…D-17, D-28, D-30, D-32, D-35…D-55): packages, customers, ratings, tips, discount approvals, email alerts and Excel import move into this phase, and the barcode service flow moves out. `docs/specs/phase-1/SPEC.md` is authoritative for Phase 1 where it and the list below differ.
+> **Scope amended 2026-10-01** after the onboarding interview (D-12…D-17, D-28, D-30, D-32, D-35…D-58): packages, customers, ratings, tips, discount approvals, email alerts and Excel import move into this phase, and the barcode service flow moves out. `docs/specs/phase-1/SPEC.md` is authoritative for Phase 1 where it and the list below differ.
 
 > **Goal.** The salon runs on digital attendance, and its commissions are computed automatically from recorded service sessions, with a manager-approved monthly statement. This is the client's first visible value.
 >
@@ -999,6 +999,9 @@ Every open item below blocks the task named in "Blocks". An implementing agent m
 | D-53 | Attendance state rules. | ✅ **Decided 2026-10-01 by Waleed:** a scan closes an open session up to 16 h old, and beyond that closes it as a missed clock-out and opens a new one; a missed clock-out is raised 4 h after the scheduled shift end; an overnight shift belongs to its clock-in day; the barcode card is scanned by the reception device's camera. Refined 2026-10-01: at shift end + 4 h a *suspected* missed clock-out is raised; a later scan within 16 h still closes normally and resolves it as "closed late"; at 16 h it is a missed clock-out. | P1-S7 | Waleed |
 | D-54 | Statement approval timing. | ✅ **Decided 2026-10-01 by Waleed:** the manager reviews, the owner approves; reminders to the owner on the 3rd and 5th of the next month, not a lock. | P1-S15 | Waleed |
 | D-55 | The salon's plan rules before the engine. | ✅ **Decided 2026-10-01 by Waleed:** no worked month is needed (D-45), but the salon's current commission **rules** per employee (e.g. "10 % from the first session, 15 % above 3,000") are collected early, to check SPEC §5 covers them before the engine's fixtures are final. | P1-S9 | Client |
+| D-56 | Discount limit basis. | ✅ **Decided 2026-10-01 by Waleed:** a percentage per person, set by the manager, with a business default; the effective discount is (list price − net) / list price, so lowering the price counts as discount too; above the limit the manager approves (D-44). | P1-S13 | Waleed |
+| D-57 | No plan or no salary. | ✅ **Decided 2026-10-01 by Waleed:** sessions record normally; the estimate says "no plan"; the statement cannot be reviewed or approved until the plan (or the salary a salary-multiple plan needs) exists — never a silent zero. | P1-S15 | Waleed |
+| D-58 | Rating past closing time. | ✅ **Decided 2026-10-01 by Waleed:** a rating request not sent by the branch's closing time is cancelled, never sent the next day. | P1-S17 | Waleed |
 
 ---
 
