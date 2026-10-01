@@ -4,6 +4,11 @@ import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
 import { createDeliverer } from './outbox/deliver.ts';
+import {
+  createNotificationModule,
+  readNotificationConfiguration,
+  startNotificationQueue,
+} from './modules/notifications/index.ts';
 import { createDispatchLoop } from './outbox/dispatch-loop.ts';
 import { readConfig } from './shared/config.ts';
 import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
@@ -20,14 +25,40 @@ redis.on('error', (error: unknown) => {
   logger.warn({ err: error }, 'redis connection error');
 });
 
-// Every event type this version publishes, consumed or not, and the consumers; each module adds its own as
-// it gains them. Phase 0 has neither yet, so every event would wait (and park) — none is published before T8.
-const KNOWN_EVENT_TYPES: readonly string[] = [];
-const deliver = createDeliverer(app, [], logger, { knownEventTypes: KNOWN_EVENT_TYPES });
+// ADR-0018 §2: الإشعارات ما بتشتغلش في production (و staging كمان) لحد ما PR 5 يربط الـ suppression الحقيقي.
+// الـ worker بيكمّل يوزّع باقي الأحداث؛ وأنواع أحداث الإشعارات مش «معروفة» هنا، فأي طلب بيستنى ويتركن بدل ما يضيع.
+const production = process.env['NODE_ENV'] === 'production';
+const notifications = production
+  ? null
+  : createNotificationModule({
+      database: app,
+      ids: systemUuidV7(),
+      clock: { now: () => new Date() },
+      configuration: readNotificationConfiguration(process.env),
+      production,
+    });
+const KNOWN_EVENT_TYPES = [
+  ...(notifications?.eventTypes ?? []),
+  'CompanyCreated',
+  'BusinessCreated',
+  'BranchCreated',
+  'BusinessSettingsUpdated',
+];
+const businessDeliver = createDeliverer(
+  app,
+  notifications === null ? [] : [notifications.consumer],
+  logger,
+  { knownEventTypes: KNOWN_EVENT_TYPES },
+);
+const queue =
+  notifications === null
+    ? null
+    : startNotificationQueue(notifications, config.REDIS_URL, businessDeliver, logger);
+const deliver = queue?.deliver ?? businessDeliver;
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
 const release = async (): Promise<void> => {
-  await Promise.allSettled([dispatcher.close(), app.close(), redis.quit()]);
+  await Promise.allSettled([queue?.close(), dispatcher.close(), app.close(), redis.quit()]);
   redis.disconnect();
 };
 
@@ -35,6 +66,7 @@ try {
   const worker = await createWorker(
     {
       readiness: [
+        ...(queue === null ? [] : [{ name: 'notifications', check: () => queue.ready() }]),
         { name: 'database', check: () => app.ping() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
         { name: 'dispatcher', check: () => dispatcher.ping() },
@@ -45,7 +77,10 @@ try {
           },
         },
       ],
-      stopPolling: () => loop.stop(),
+      stopPolling: async () => {
+        await loop.stop();
+        await queue?.stop();
+      },
       release,
     },
     logger,
@@ -57,6 +92,7 @@ try {
   // Only the sanitised diagnostic is logged — the error's message can carry a connection string.
   logger.fatal({ err: error }, 'worker failed to start');
   await loop.stop();
+  await queue?.stop();
   await release();
   process.exit(1);
 }

@@ -12,15 +12,15 @@ const BLOCK = /## 6\. Machine-readable source[\s\S]*?```yaml\n([\s\S]*?)```/;
  * Parses the §6 block of module-map.md. Any line it cannot read is an error, never skipped.
  *
  * @param {string} markdown the whole of docs/module-map.md
- * @returns {{ imports: Record<string, string[]>, packagesRestricted: Record<string, string[]>,
+ * @returns {{ imports: Record<string, string[]>, packagesRestricted: Record<string, string[]>, compositionRoots: Record<string, string[]>,
  *   syncWrites: { from: string, to: string, symbol: string, file: string }[],
  *   reads: { from: string, to: string, symbol: string, file: string }[] }}
  */
 export function parseModuleMap(markdown) {
   const block = BLOCK.exec(markdown.replace(/\r\n/g, '\n'))?.[1];
   if (block === undefined) throw new Error('module-map.md has no §6 yaml block');
-  const map = { imports: {}, packagesRestricted: {}, syncWrites: [], reads: [] };
-  const sections = new Set(['imports', 'packages_restricted', 'sync_writes', 'reads']);
+  const map = { imports: {}, packagesRestricted: {}, compositionRoots: {}, syncWrites: [], reads: [] };
+  const sections = new Set(['imports', 'packages_restricted', 'composition_roots', 'sync_writes', 'reads']);
   let section = null;
   for (const raw of block.split('\n')) {
     const line = raw.replace(/#.*$/, '').trimEnd();
@@ -33,9 +33,9 @@ export function parseModuleMap(markdown) {
     }
     const pair = /^\s+([\w-]+):\s*\[([^\]]*)\]$/.exec(line);
     const entry = /^\s+-\s+(\w+)\s*->\s*(\w+)\.(\w+)\s*@\s*(\S+)$/.exec(line);
-    if (pair !== null && (section === 'imports' || section === 'packages_restricted')) {
+    if (pair !== null && ['imports', 'packages_restricted', 'composition_roots'].includes(section)) {
       const list = pair[2].split(',').map((v) => v.trim()).filter(Boolean);
-      map[section === 'imports' ? 'imports' : 'packagesRestricted'][pair[1]] = list;
+      map[section === 'imports' ? 'imports' : section === 'composition_roots' ? 'compositionRoots' : 'packagesRestricted'][pair[1]] = list;
     } else if (entry !== null && (section === 'sync_writes' || section === 'reads')) {
       const [, from, to, symbol, file] = entry;
       map[section === 'sync_writes' ? 'syncWrites' : 'reads'].push({ from, to, symbol, file });
@@ -63,6 +63,7 @@ export function renderYaml(map) {
     ...pairs(map.imports),
     'packages_restricted:',
     ...pairs(map.packagesRestricted),
+    ...(Object.keys(map.compositionRoots).length === 0 ? [] : ['composition_roots:', ...pairs(map.compositionRoots)]),
     map.syncWrites.length === 0 ? 'sync_writes: []' : 'sync_writes:',
     ...entries(map.syncWrites),
     map.reads.length === 0 ? 'reads: []' : 'reads:',
@@ -313,6 +314,11 @@ export function checkModules(root, map) {
         const owners = pkg === undefined ? undefined : map.packagesRestricted[pkg];
         if (from.module !== null && owners !== undefined && !owners.includes(from.module)) {
           problems.push(`${rel}: @pospay/${pkg} may be imported only by ${owners.join(', ')}`);
+        }
+        const roots = pkg === undefined ? undefined : map.compositionRoots[pkg];
+        if (roots !== undefined && ((from.top && !roots.includes(rel)) ||
+            (pkg === 'notifications' && from.module === null && !roots.includes(rel)))) {
+          problems.push(`${rel}: @pospay/${pkg} composition wiring is not declared for this root`);
         }
         if (target === null) continue;
         const to = place(root, target);

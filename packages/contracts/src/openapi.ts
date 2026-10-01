@@ -17,6 +17,7 @@ import {
   registerDeviceInput,
 } from './identity/devices.js';
 import { pageQuery } from './pagination/cursor.js';
+import { deliveryLogItem, deliveryLogPage, deliveryLogQuery } from './notifications.js';
 import {
   businessSettings,
   calendar,
@@ -33,6 +34,9 @@ import { openingHours } from './tenancy/opening-hours.js';
 import { plan } from './tenancy/plan.js';
 
 const SCHEMAS = [
+  deliveryLogItem,
+  deliveryLogPage,
+  deliveryLogQuery,
   errorEnvelope,
   pageQuery,
   plan,
@@ -90,6 +94,15 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  '/v1/notifications/delivery-log': {
+    get: logOperation('listCompanyNotificationDeliveries'),
+  },
+  '/v1/businesses/{businessId}/notifications/delivery-log': {
+    get: logOperation('listBusinessNotificationDeliveries', 'businessId'),
+  },
+  '/v1/branches/{branchId}/notifications/delivery-log': {
+    get: logOperation('listBranchNotificationDeliveries', 'branchId'),
+  },
   '/v1/me/workspaces': {
     get: operation(
       'listMyWorkspaces',
@@ -120,6 +133,37 @@ const PATHS = {
     get: operation('getDeviceIdentity', '200', 'The calling device', 'DeviceIdentity'),
   },
 };
+
+function logOperation(operationId: string, scope?: string) {
+  return {
+    ...operation(
+      operationId,
+      '200',
+      'Provider submission log for the guarded scope',
+      'DeliveryLogPage',
+    ),
+    parameters: [
+      {
+        in: 'header',
+        name: 'x-company-id',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      },
+      { in: 'query', name: 'cursor', required: false, schema: { type: 'string' } },
+      {
+        in: 'query',
+        name: 'limit',
+        required: false,
+        schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+      },
+      ...(scope === undefined
+        ? []
+        : [
+            { in: 'path', name: scope, required: true, schema: { type: 'string', format: 'uuid' } },
+          ]),
+    ],
+  };
+}
 
 /**
  * بيبني وثيقة OpenAPI من الـ Zod schemas. دالة pure من غير fs، عشان الاختبار يقارن الملف

@@ -40,6 +40,8 @@ export function Require(
   const business = target.business !== undefined;
   const branch = target.branch !== undefined;
   const expected =
+    // ADR-0018: the same log permission is evaluated at the route's actual company/business/branch scope.
+    (permission === 'view:notifications:business' && !(business && branch)) ||
     (scope === 'company' && !business && !branch) ||
     (scope === 'business' && business && !branch) ||
     (scope === 'branch' && branch && !business);

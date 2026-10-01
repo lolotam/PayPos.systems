@@ -1,5 +1,6 @@
 <!--
 Sync Impact Report
+- 2.1.3 (2026-10-01, PATCH): narrow application-root auth/notifications wiring clarification (ADR-0018).
 - 2.1.2 (2026-10-01, PATCH): backups go to Cloudflare R2, not Backblaze B2 (Waleed, 2026-09-24;
   corrected after Eng. Khaled's audit); the physical PITR path is rehearsed on the production server
   before it takes real sales, staging runs the logical path only (Waleed, 2026-10-01).
@@ -253,6 +254,10 @@ The backend modules are `tenancy`, `identity`, `settings`, `files`, `platform`, 
 `packages/documents` only by `reporting` and worker jobs. `pos` is a frontend app, not a
 backend module.
 
+ADR-0018 clarifies the narrow composition-root wiring exception: API/worker application roots may wire
+the notifications and restricted auth facades for OTP, without permitting identity/staff/customers to
+import the notification package. Worker notifications continues to own provider adapters.
+
 Ports are for reads: `orders` defines `CatalogReaderPort` and `CustomerCreditPort`;
 `payments` defines `OrderTotalsPort`; `cash` defines `ShiftPaymentsPort` (tenders including
 `PENDING_GATEWAY`); `appointments` defines `ServiceCatalogPort` and `StaffAvailabilityPort`;
@@ -419,4 +424,4 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.1.2 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-01
+**Version**: 2.1.3 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-01

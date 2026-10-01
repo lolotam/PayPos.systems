@@ -40,6 +40,9 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'memberships:INSERT',
     'memberships:SELECT',
     'memberships:UPDATE',
+    'notification_attempts:INSERT',
+    'notification_attempts:SELECT',
+    'notification_attempts:UPDATE',
     'outbox:INSERT',
     'permission_overrides:DELETE',
     'permission_overrides:INSERT',
@@ -94,6 +97,7 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
 const TENANT_TABLES = [
+  'notification_attempts',
   'companies',
   'businesses',
   'branches',
@@ -317,6 +321,11 @@ describe('function inventory', () => {
       },
       {
         proname: 'idempotency_keys_require_response',
+        prosecdef: false,
+        proconfig: ['search_path=public, pg_temp'],
+      },
+      {
+        proname: 'notification_attempts_guard',
         prosecdef: false,
         proconfig: ['search_path=public, pg_temp'],
       },

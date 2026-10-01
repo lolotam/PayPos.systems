@@ -1,10 +1,9 @@
 import { fileURLToPath } from 'node:url';
 
-import { drizzle } from 'drizzle-orm/postgres-js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
 
 import { bootstrapRoles, type RolePasswords } from './roles.ts';
+import { applyMigrations } from './concurrent-migrations.ts';
 
 const MIGRATIONS_FOLDER = fileURLToPath(new URL('../migrations', import.meta.url));
 
@@ -34,7 +33,7 @@ export async function migrateDatabase(ownerUrl: string, passwords: RolePasswords
   }
   const sql = postgres(ownerUrl, { max: 1, onnotice: () => undefined });
   try {
-    await migrate(drizzle(sql), { migrationsFolder: MIGRATIONS_FOLDER });
+    await applyMigrations(sql, MIGRATIONS_FOLDER);
   } finally {
     await sql.end();
   }

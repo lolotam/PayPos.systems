@@ -14,6 +14,7 @@ export const PERMISSIONS = [
   'manage:devices:branch',
   'read:settings:business',
   'manage:settings:business',
+  'view:notifications:business',
   // صلاحية منصة: بتتدي بـ pnpm platform:grant بس، وعمرها ما بتبقى في role شركة (ADR-0003 §3).
   'create:companies:platform',
 ] as const;
@@ -34,7 +35,7 @@ export interface SystemRole {
 }
 
 // TODO(spec): الـ codes مؤقتة لحد قرار D-07 (PRD §13) — تغيير الاسم بعدين data migration. الأسماء العربي
-// مستنية نفس القرار. كل role غير Owner ملوش صلاحيات لحد ما D-07 يحدد الـ bundles.
+// مستنية نفس القرار. استثناء ADR-0018: المديرون يقرأون سجل الإرسال؛ باقي الـ bundles مستنية D-07.
 export const SYSTEM_ROLES: readonly SystemRole[] = [
   { id: '01920000-0000-7000-8000-000000000101', code: 'owner', nameEn: 'Owner' },
   {

@@ -90,10 +90,10 @@ describe('error text posing as structure', () => {
 describe('executable data', () => {
   it('a toJSON hook is dropped, so JSON serialisation cannot call it', () => {
     const line = capture((log) =>
-      log.info({ payload: { safe: 1, toJSON: () => ({ token: SECRET }) } }, 'probe'),
+      log.info({ record: { safe: 1, toJSON: () => ({ token: SECRET }) } }, 'probe'),
     );
     expect(line).not.toContain(SECRET);
-    expect(JSON.parse(line)).toMatchObject({ payload: { safe: 1 } });
+    expect(JSON.parse(line)).toMatchObject({ record: { safe: 1 } });
   });
 
   it('dates become ISO strings and bigints strings', () => {

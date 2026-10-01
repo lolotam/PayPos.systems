@@ -186,7 +186,7 @@ describe('ordering, crashes and concurrency', () => {
           await consume('test-a')(event);
           throw new Error('dispatcher crashed before recording the delivery');
         },
-        { leaseMs: 200 },
+        { leaseMs: 60_000 },
       ),
     ).rejects.toThrow('crashed');
     // The claim committed: the attempt counts, and the event stays leased until the lease ends.
@@ -194,7 +194,9 @@ describe('ordering, crashes and concurrency', () => {
     // Only this event is asserted: an earlier test's retry can come due in the same batch.
     await dispatcher.dispatchBatch(50, delivered());
     expect(await state(id)).toMatchObject({ published: false, attempts: 1 });
-    await new Promise((done) => setTimeout(done, 300));
+    // Expire this fixture's lease explicitly: scheduling/DB load cannot consume a 200 ms assertion window.
+    await owner`UPDATE outbox SET next_attempt_at = clock_timestamp() - interval '1 millisecond'
+      WHERE company_id = ${TENANT.A.company} AND id = ${id}`;
     await drain();
     expect(await state(id)).toMatchObject({ published: true });
     expect(await effects(id)).toBe(1);
