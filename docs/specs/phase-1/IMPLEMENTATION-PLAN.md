@@ -11,11 +11,11 @@
 
 | Gate | What | Size | Before |
 |---|---|---|---|
-| G1 | ADR-0008: Phase 1 ports and events (SPEC §3) + `module-map.md` §3/§4 and its YAML | S | PR 4 |
-| G2 | ADR-0010: `SECURITY DEFINER` pending-outbox count for approval, grants, tests | S | PR 53 |
-| G3 | ADR-0009 + `CLAUDE.md` §5: the public rating link | S | PR 58 |
-| G4 | ADR-0011: Better Auth `passkey` plugin + platform WhatsApp suppression | S | PRs 5, 20 |
-| G5 | Email-provider ADR | S | PR 14 |
+| G1 | ADR-0010: Phase 1 ports and events (SPEC §3) + `module-map.md` §3/§4 and its YAML | S | PR 4 |
+| G2 | ADR-0012: `SECURITY DEFINER` pending-outbox count for approval, grants, tests | S | PR 53 |
+| G3 | ADR-0011 + `CLAUDE.md` §5: the public rating link | S | PR 58 |
+| G4 | ADR-0013: Better Auth `passkey` plugin + platform WhatsApp suppression | S | PRs 5, 20 |
+| G5 | ADR-0014: email provider | S | PR 14 |
 | D-55 | The salon's real plan rules (input from the client, no build days) | — | PR 30 closes |
 
 **Named exceptions to the template:** PRs 1–3 are shells (no domain). PRs 29–31 are domain-only (pure functions,

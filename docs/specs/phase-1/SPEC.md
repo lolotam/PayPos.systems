@@ -99,7 +99,7 @@ Every event names a stable identity and carries every field its consumers use:
   `revision` (per session).
 
 Emitting modules read `AlertRulesPort` and put recipients and channels in the event, so `notifications` holds no
-business knowledge. `ServiceCompleted` in the map is replaced in Phase 1 by `ServiceLineChanged` (ADR-0008).
+business knowledge. `ServiceCompleted` in the map is replaced in Phase 1 by `ServiceLineChanged` (ADR-0010).
 
 ---
 
@@ -392,15 +392,15 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 
 ## 9. Governing amendments this phase needs — each its own PR before its slice
 
-1. **ADR-0008 + `module-map.md` §3/§4:** every port and event in §3; `ServiceCompleted` → `ServiceLineChanged`.
-2. **ADR-0009 + `CLAUDE.md` §5:** the public rating link as the fourth session-less entry point — token
+1. **ADR-0010 + `module-map.md` §3/§4:** every port and event in §3; `ServiceCompleted` → `ServiceLineChanged`.
+2. **ADR-0011 + `CLAUDE.md` §5:** the public rating link as the fourth session-less entry point — token
    `<company_id>.<256-bit random>`, hash stored, tenant resolved from it, then `withTenant`; 7-day expiry; single use
    by an atomic `UPDATE … WHERE consumed_at IS NULL`; the same token can opt out until expiry; per-IP rate limit; the
    page shows only the business name and the stars form. Tests: tampered, replayed, expired, cross-tenant.
-3. **ADR-0010:** the `SECURITY DEFINER` pending-outbox count for approval (§6), grants and tests.
-4. **ADR-0011:** the Better Auth `passkey` plugin (a new plugin and its WebAuthn dependency, CLAUDE.md §11) and the
+3. **ADR-0012:** the `SECURITY DEFINER` pending-outbox count for approval (§6), grants and tests.
+4. **ADR-0013:** the Better Auth `passkey` plugin (a new plugin and its WebAuthn dependency, CLAUDE.md §11) and the
    platform-level WhatsApp suppression table (§10) — global, keyed by phone for our one sender number.
-5. **Email-provider ADR** before the email channel.
+5. **ADR-0014: the email provider**, before the email channel.
 
 ---
 
@@ -430,7 +430,7 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 - **Attribution:** every performer in the snapshot gets the stars; her average is the mean of the ratings attributed
   to her. ≤ 2 stars → `LowRatingReceived` if the alert is on. Ratings never change commission.
 - **Opt-out, and its exact guarantee.** On the rating page it sets `opted_out_at` at once; every later claim checks it.
-  A WhatsApp "stop" reply lands in the platform-level suppression (ADR-0011) at once and blocks every message to that
+  A WhatsApp "stop" reply lands in the platform-level suppression (ADR-0013) at once and blocks every message to that
   phone from our sender, which is WhatsApp's own rule, so no tenant needs to be resolved. `notifications` checks
   suppression and commits the delivery-attempt row in one transaction under a lock on the phone's hash, which the
   "stop" handler takes too. **The stated window:** a "stop" blocks every attempt not yet authorized when it commits;
