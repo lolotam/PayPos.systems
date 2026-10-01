@@ -28,6 +28,7 @@ describe('openapi/openapi.json', () => {
       'ErrorEnvelope',
       'GeoPoint',
       'Language',
+      'MyWorkspacesResponse',
       'OpeningHours',
       'PageQuery',
       'PairingCode',
@@ -38,6 +39,9 @@ describe('openapi/openapi.json', () => {
       'UpdateBusinessSettingsInput',
       'VerifyCashierPinInput',
       'VerticalType',
+      'WorkspaceBranch',
+      'WorkspaceBusiness',
+      'WorkspaceCompany',
     ]);
     for (const schema of Object.values(schemas)) {
       expect(schema).not.toHaveProperty('$id');

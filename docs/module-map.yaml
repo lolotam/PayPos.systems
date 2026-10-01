@@ -29,4 +29,5 @@ packages_restricted:
   storage: [files]
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
-reads: []
+reads:
+  - { from: identity, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/identity/persistence/workspace-names.adapter.ts }

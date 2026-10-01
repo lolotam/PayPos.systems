@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { errorEnvelope } from './errors/envelope.js';
 import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
 import {
+  myWorkspacesResponse,
+  workspaceBranch,
+  workspaceBusiness,
+  workspaceCompany,
+} from './identity/workspaces.js';
+import {
   claimDeviceInput,
   deviceRegistration,
   deviceToken,
@@ -42,6 +48,10 @@ const SCHEMAS = [
   deviceToken,
   verifyCashierPinInput,
   cashierPinVerified,
+  myWorkspacesResponse,
+  workspaceBranch,
+  workspaceBusiness,
+  workspaceCompany,
   businessSettings,
   updateBusinessSettingsInput,
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.

@@ -32,7 +32,8 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 |---|---|---|---|
 | | **M1 · shells and access** | | |
 | 1 | `packages/ui`: RTL kit, tokens, Arabic font, lucide | M | — |
-| 2 | `apps/admin` shell: login, TOTP, tenant selector, generated client | M | 1 |
+| 1b | GET /v1/me/workspaces (memberships → companies, businesses, branches) | S | — |
+| 2 | `apps/admin` shell: login, TOTP, tenant selector, generated client | M | 1, 1b |
 | 3 | `apps/pos` shell: PWA, device pairing screen | M | 1 |
 | 4 | `notifications`: WhatsApp channel, templates ar/en, delivery log | M | G1 |
 | 4b | in-app notification channel: store, list, mark read (admin bell) | M | 4 |

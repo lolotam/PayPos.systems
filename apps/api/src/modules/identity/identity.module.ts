@@ -13,6 +13,7 @@ import {
   type CashierPinUseCases,
 } from './http/cashier-pins.controller.ts';
 import { CompaniesController } from './http/companies.controller.ts';
+import { MeController, WORKSPACE_NAMES } from './http/me.controller.ts';
 import {
   DEVICE_USE_CASES,
   DevicesController,
@@ -27,6 +28,8 @@ import { createRedisPairingCodes } from './persistence/redis-pairing-codes.ts';
 import { createRedisPinAttempts } from './persistence/redis-pin-attempts.ts';
 import { createOnboardingTransactions } from './persistence/onboarding-transactions.ts';
 import { tenancyCompanyRegistry } from './persistence/tenancy-company-registry.adapter.ts';
+import { createWorkspaceNames } from './persistence/workspace-names.adapter.ts';
+import type { WorkspaceNames } from './queries/my-workspaces.query.ts';
 import { AuthorizeRequest } from './use-cases/authorize-request/authorize-request.ts';
 import { CheckFeature } from './use-cases/check-feature/check-feature.ts';
 import { OnboardCompany } from './use-cases/onboard-company/onboard-company.ts';
@@ -40,7 +43,12 @@ import { SetCashierPin } from './use-cases/set-cashier-pin/set-cashier-pin.ts';
 import { VerifyCashierPin } from './use-cases/verify-cashier-pin/verify-cashier-pin.ts';
 
 /** The controllers identity mounts. */
-export const identityControllers = [CompaniesController, DevicesController, CashierPinsController];
+export const identityControllers = [
+  CompaniesController,
+  DevicesController,
+  CashierPinsController,
+  MeController,
+];
 
 /**
  * The identity wiring — the one place its port is bound to the Postgres adapter. The two guards are registered
@@ -58,6 +66,7 @@ export function identityProviders(
   redis?: Redis,
 ): Provider[] {
   const reader = database === undefined ? null : createAccessReader(database);
+  const names: WorkspaceNames | null = database === undefined ? null : createWorkspaceNames();
   const onboard =
     database === undefined
       ? null
@@ -68,6 +77,7 @@ export function identityProviders(
         );
   const devices = database === undefined ? null : deviceUseCases(database, ids, redis);
   return [
+    { provide: WORKSPACE_NAMES, useValue: names },
     { provide: OnboardCompany, useValue: onboard },
     { provide: DEVICE_USE_CASES, useValue: devices?.useCases ?? null },
     { provide: DEVICE_AUTHENTICATOR, useValue: devices?.authenticator ?? null },
