@@ -11,6 +11,7 @@ const mockCredentials = {
 vi.mock('../model/device-db', () => ({
   CURRENT_DEVICE: 'current',
   deviceDb: {
+    transaction: (_mode: unknown, _table: unknown, run: () => Promise<unknown>) => run(),
     credentials: {
       get: (...args: unknown[]) => mockCredentials.get(...args),
       delete: (...args: unknown[]) => mockCredentials.delete(...args),

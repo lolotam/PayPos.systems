@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { onlineManager, QueryClient } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { probeDevice } from './probe';
@@ -65,5 +65,16 @@ describe('probeDevice', () => {
     const result = await probeDevice(queryClient);
 
     expect(result).toEqual({ kind: 'offline' });
+  });
+
+  it('settles offline instead of pausing when the browser reports no network', async () => {
+    onlineManager.setOnline(false);
+    mockGet.mockRejectedValue(new TypeError('Failed to fetch'));
+    try {
+      await expect(probeDevice(queryClient)).resolves.toEqual({ kind: 'offline' });
+      expect(mockGet).toHaveBeenCalledOnce();
+    } finally {
+      onlineManager.setOnline(true);
+    }
   });
 });

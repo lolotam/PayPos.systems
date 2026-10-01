@@ -1,8 +1,8 @@
 import { call, type Failure } from '@/shared/api/call';
 import { apiClient } from '@/shared/api/client';
 
-import { deviceDb, CURRENT_DEVICE, type DeviceCredentialRow } from '../model/device-db';
-import { enqueueWrite } from '../model/write-queue';
+import { applyIfRegistration, type ClaimSnapshot } from '../model/credentials';
+import { deviceDb, CURRENT_DEVICE } from '../model/device-db';
 
 const PENDING_MS = 15_000;
 const LIMITED_MS = 60_000;
@@ -22,8 +22,9 @@ export function claimQueued(): Promise<ClaimTick> {
   return next;
 }
 
+// الطلب نفسه برّه طابور الكتابة، عشان شبكة واقفة ما تأخرش «البدء من جديد».
 function claimLocked(): Promise<ClaimTick> {
-  return enqueueWrite(runClaim);
+  return runClaim();
 }
 
 export function watchClaim(onApproved: () => void, onRefused: () => void): () => void {
@@ -41,9 +42,12 @@ export function watchClaim(onApproved: () => void, onRefused: () => void): () =>
       onRefused();
       return;
     }
-    timer = setTimeout(() => {
-      void step();
-    }, tick === 'limited' ? LIMITED_MS : PENDING_MS);
+    timer = setTimeout(
+      () => {
+        void step();
+      },
+      tick === 'limited' ? LIMITED_MS : PENDING_MS,
+    );
   };
   void step();
   return () => {
@@ -56,13 +60,15 @@ async function runClaim(): Promise<ClaimTick> {
   const row = await deviceDb.credentials.get(CURRENT_DEVICE);
   if (row?.device_token) return 'approved';
   if (!row?.claim_secret) return 'retry';
-  const result = await postClaim({ ...row, claim_secret: row.claim_secret });
-  if (!result.ok) return settleFailure(result.failure);
-  await writeToken(row, result.data.device_token);
-  return 'approved';
+  const claim = { device_id: row.device_id, claim_secret: row.claim_secret };
+  const result = await postClaim({ ...claim, company_id: row.company_id });
+  if (!result.ok) return settleFailure(claim, result.failure);
+  const token = result.data.device_token;
+  const written = await applyIfRegistration(claim, (current) => writeToken(current, token));
+  return written ? 'approved' : 'retry';
 }
 
-function postClaim(row: DeviceCredentialRow & { claim_secret: string }) {
+function postClaim(row: ClaimSnapshot & { company_id: string }) {
   return call(() =>
     apiClient().POST('/v1/devices/claim', {
       body: {
@@ -74,13 +80,13 @@ function postClaim(row: DeviceCredentialRow & { claim_secret: string }) {
   );
 }
 
-async function settleFailure(failure: Failure): Promise<ClaimTick> {
+async function settleFailure(claim: ClaimSnapshot, failure: Failure): Promise<ClaimTick> {
   const kind = classify(failure);
   if (kind !== 'refused') return kind;
-  const row = await deviceDb.credentials.get(CURRENT_DEVICE);
-  if (row?.device_token) return 'approved';
-  await deviceDb.credentials.delete(CURRENT_DEVICE);
-  return 'refused';
+  const cleared = await applyIfRegistration(claim, () =>
+    deviceDb.credentials.delete(CURRENT_DEVICE),
+  );
+  return cleared ? 'refused' : 'retry';
 }
 
 function classify(failure: Failure): 'limited' | 'refused' | 'retry' {
@@ -93,7 +99,10 @@ function classify(failure: Failure): 'limited' | 'refused' | 'retry' {
   return 'retry';
 }
 
-async function writeToken(row: DeviceCredentialRow, deviceToken: string): Promise<void> {
+async function writeToken(
+  row: { company_id: string; device_id: string },
+  deviceToken: string,
+): Promise<void> {
   await deviceDb.credentials.put({
     id: CURRENT_DEVICE,
     company_id: row.company_id,

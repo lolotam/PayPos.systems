@@ -11,6 +11,7 @@ const mockCredentials = {
 vi.mock('../model/device-db', () => ({
   CURRENT_DEVICE: 'current',
   deviceDb: {
+    transaction: (_mode: unknown, _table: unknown, run: () => Promise<unknown>) => run(),
     credentials: {
       get: (...args: unknown[]) => mockCredentials.get(...args),
       put: (...args: unknown[]) => mockCredentials.put(...args),
@@ -72,7 +73,11 @@ function testImmediateAndPeriodic(): void {
     });
     mockPost.mockResolvedValue({
       response: new Response(null, { status: 429 }),
-      error: { code: 'TOO_MANY_REQUESTS', message_ar: 'طلبات كثيرة', message_en: 'Too many requests' },
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message_ar: 'طلبات كثيرة',
+        message_en: 'Too many requests',
+      },
     });
 
     const onApproved = vi.fn();
