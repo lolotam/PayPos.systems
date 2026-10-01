@@ -19,4 +19,42 @@ describe('pairing screen', () => {
     const heading = screen.getByRole('heading', { name: t('ar', 'pos.pairingTitle') });
     expect(heading.closest('[dir="rtl"]')).not.toBeNull();
   });
+
+  it('renders the refused notice with its i18n message', () => {
+    render(
+      <DirectionProvider dir="rtl">
+        <LocaleProvider locale="ar" setLocale={() => undefined}>
+          <PairingScreen notice="refused" onSubmit={() => Promise.resolve(null)} />
+        </LocaleProvider>
+      </DirectionProvider>,
+    );
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toBe(t('ar', 'pos.refused'));
+  });
+
+  it('renders the removed notice with its i18n message', () => {
+    render(
+      <DirectionProvider dir="rtl">
+        <LocaleProvider locale="ar" setLocale={() => undefined}>
+          <PairingScreen notice="removed" onSubmit={() => Promise.resolve(null)} />
+        </LocaleProvider>
+      </DirectionProvider>,
+    );
+
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toBe(t('ar', 'pos.removed'));
+  });
+
+  it('renders no alert when notice is null', () => {
+    render(
+      <DirectionProvider dir="rtl">
+        <LocaleProvider locale="ar" setLocale={() => undefined}>
+          <PairingScreen notice={null} onSubmit={() => Promise.resolve(null)} />
+        </LocaleProvider>
+      </DirectionProvider>,
+    );
+
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });
