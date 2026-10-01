@@ -9,22 +9,35 @@ const LIMITED_MS = 60_000;
 
 export type ClaimTick = 'approved' | 'refused' | 'limited' | 'retry';
 
-let chain: Promise<void> = Promise.resolve();
+// طلب المطالبة اللي واقف بيتلغي بعد المدة دي ويتحسب 'retry'، عشان ما يحجزش القفل على تسجيل جديد.
+const CLAIM_TIMEOUT_MS = 20_000;
 
-// المطالبة واحدة ورا التانية: السيرفر بيمسح سر المطالبة لما يصدر التوكن،
-// وطلب تاني متزامن كان هيتقرأ كرفض ويمسح التوكن اللي لسه اتكتب.
-export function claimQueued(): Promise<ClaimTick> {
-  const next = chain.then(claimLocked, claimLocked);
-  chain = next.then(
-    () => undefined,
-    () => undefined,
+const localChains = new Map<string, Promise<unknown>>();
+
+// المطالبة لنفس الجهاز واحدة ورا التانية حتى بين التابات (Web Locks): السيرفر بيمسح سر المطالبة لما يصدر
+// التوكن، فطلب تاني متزامن بيترد عليه UNAUTHENTICATED، ولو رده وصل الأول كان هيمسح التسجيل والتوكن معاه.
+// القفل باسم الجهاز، فتسجيل جديد بعد «البدء من جديد» ما يستناش طلب قديم.
+function withClaimLock<T>(deviceId: string, run: () => Promise<T>): Promise<T> {
+  const name = `pospay-claim:${deviceId}`;
+  const locks = globalThis.navigator?.locks;
+  if (locks !== undefined) return locks.request(name, run);
+  const next = (localChains.get(name) ?? Promise.resolve()).then(run, run);
+  localChains.set(
+    name,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
   );
   return next;
 }
 
-// الطلب نفسه برّه طابور الكتابة، عشان شبكة واقفة ما تأخرش «البدء من جديد».
-function claimLocked(): Promise<ClaimTick> {
-  return runClaim();
+export async function claimQueued(): Promise<ClaimTick> {
+  const row = await deviceDb.credentials.get(CURRENT_DEVICE);
+  if (row?.device_token) return 'approved';
+  if (!row?.claim_secret) return 'retry';
+  const deviceId = row.device_id;
+  return withClaimLock(deviceId, () => runClaim(deviceId));
 }
 
 export function watchClaim(onApproved: () => void, onRefused: () => void): () => void {
@@ -56,10 +69,10 @@ export function watchClaim(onApproved: () => void, onRefused: () => void): () =>
   };
 }
 
-async function runClaim(): Promise<ClaimTick> {
+async function runClaim(deviceId: string): Promise<ClaimTick> {
   const row = await deviceDb.credentials.get(CURRENT_DEVICE);
   if (row?.device_token) return 'approved';
-  if (!row?.claim_secret) return 'retry';
+  if (!row?.claim_secret || row.device_id !== deviceId) return 'retry';
   const claim = { device_id: row.device_id, claim_secret: row.claim_secret };
   const result = await postClaim({ ...claim, company_id: row.company_id });
   if (!result.ok) return settleFailure(claim, result.failure);
@@ -76,6 +89,7 @@ function postClaim(row: ClaimSnapshot & { company_id: string }) {
         device_id: row.device_id,
         claim_secret: row.claim_secret,
       },
+      signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),
     }),
   );
 }

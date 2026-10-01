@@ -35,7 +35,10 @@ describe('a late claim response', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    mockCredentials.get.mockResolvedValueOnce(first).mockResolvedValue(replacement);
+    mockCredentials.get
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(first)
+      .mockResolvedValue(replacement);
   });
 
   afterEach(() => {
@@ -66,5 +69,46 @@ describe('a late claim response', () => {
     expect(mockCredentials.delete).not.toHaveBeenCalled();
     expect(onRefused).not.toHaveBeenCalled();
     stop();
+  });
+});
+
+describe('two claims for one device', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('run one after the other, so the second sees the token instead of deleting it', async () => {
+    let row: typeof first | (typeof first & { device_token: string }) | undefined = first;
+    mockCredentials.get.mockReset().mockImplementation(async () => row);
+    mockCredentials.put.mockImplementation(async (next: typeof row) => {
+      row = next;
+    });
+    mockPost.mockReset().mockImplementationOnce(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => {
+            resolve({
+              response: new Response(null, { status: 200 }),
+              data: { device_token: 'test-approved-token' },
+            });
+          }, 1_000),
+        ),
+    );
+    const approvedA = vi.fn();
+    const approvedB = vi.fn();
+    const stopA = watchClaim(approvedA, vi.fn());
+    const stopB = watchClaim(approvedB, vi.fn());
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(mockPost).toHaveBeenCalledOnce();
+    expect(mockCredentials.delete).not.toHaveBeenCalled();
+    expect(approvedA).toHaveBeenCalledOnce();
+    expect(approvedB).toHaveBeenCalledOnce();
+    stopA();
+    stopB();
   });
 });
