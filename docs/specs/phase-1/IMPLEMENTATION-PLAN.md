@@ -1,6 +1,6 @@
 # Phase 1 — Implementation Plan
 
-> **v5 · 2026-10-01** · implements `docs/specs/phase-1/SPEC.md` v5. Rules as in Phase 0: **one use case per PR**, in
+> **v6 · 2026-10-01** · implements `docs/specs/phase-1/SPEC.md` v6. Rules as in Phase 0: **one use case per PR**, in
 > the order contract → migration + RLS → domain + tests → use case → adapters → integration tests → screen; Codex
 > reviews every PR; `pnpm check` and `ci-gate` green before merge; a business rule not in the spec is a `TODO(spec)`
 > and a stop.
@@ -44,7 +44,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | | **M2 · staff** | | |
 | 8 | `create-employee` | S | 7 |
 | 9 | `update-employee` (incl. branches) | S | 8 |
-| 10 | `set-salary` (history, never back-dated, restricted read) | S | 8 |
+| 10 | `set-salary` (history, back-dating only into unclosed periods, restricted read, `SalaryChanged`) | S | 8, G1 |
 | 11 | import framework (template, preview, all-or-nothing) + employee import | M | 8 |
 | 12 | `files`: presigned upload/download with stored permission, access audit | M | 7 |
 | 13 | document types + `record-employee-document` | S | 8, 12 |
@@ -93,12 +93,13 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 48a | statements table + the period lock helper (every period writer uses it) | S | 30 |
 | 48 | plan versions + builder screen + validation | M | 48a |
 | 49 | service overrides | S | 48 |
-| 50 | projection consumer (lines, sales, tips) + estimate on read | M | 35, 36, 42, 48 |
+| 50 | projection consumer (lines, sales, tips, salaries) + estimate on read | M | 10, 35, 36, 42, 48 |
 | 51 | `generate-statement` + fingerprint | M | 50 |
 | 52 | `review-statement` | S | 51 |
-| 53 | `approve-statement` (atomic) | M | 52, 55, G2 |
+| 53 | `approve-statement` (atomic) | M | 52, 55b, G2 |
 | 54 | `mark-statement-paid` | S | 53 |
-| 55 | corrections: generations, PAID too, target lock order, tips — tested on seeded closed periods | M | 51 |
+| 55 | corrections: generations, PAID too, target lock order, tips, salaries — tested on seeded closed periods | M | 51 |
+| 55b | blocked corrections + period repair (NO_PLAN / NO_SALARY in a closed period) | S | 55 |
 | 56 | statement Excel export with the tips columns | S | 53 |
 | 56b | approval reminders on the 3rd and 5th | S | 53 |
 | 57 | staff app: my sessions and estimate | M | 50 |
@@ -118,7 +119,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 
 ## 3. Duration
 
-**Nominal, from the table:** 5 gates and 48 PRs at S (106 days), 25 at M (100), 1 at L (7) = **213 focused days ≈ 43
+**Nominal, from the table:** 5 gates and 49 PRs at S (108 days), 25 at M (100), 1 at L (7) = **215 focused days ≈ 43
 weeks for one developer** — the figure given to the client until Phase 1's own pace is measured. If the engine
 track (PRs 29–31, 10 days) is handed to a second implementer, the critical path is ≈ 41 weeks.
 
@@ -171,3 +172,20 @@ against v4, as a fresh full review.
 | 16 | Package retries | P2 | accept | `Idempotency-Key` on sale and redemption; one-time conditional reversal (§8) |
 | 17 | IN_APP channel missing | P2 | accept | PR 4b in-app channel |
 | 18 | Exactly 16 h | P2 | accept | `< 16 h` closes, `≥ 16 h` missed; both lock the open session (§7) |
+
+### Round 5 — `gpt-6.1-sol` high, against v5
+
+| # | Finding | Sev | Verdict | Reason |
+|---|---------|-----|---------|--------|
+| 1 | Salary commit can change an approved month | P1 | accept | Salary is an event input (`SalaryChanged`) applied under the period locks → correction (§3, §6) |
+| 2 | A missing historical salary cannot be repaired | P1 | accept | Back-dating allowed, audited, only into unclosed periods (§4, §6) |
+| 3 | Late NO_PLAN line in a closed period | P1 | accept | Event consumed, blocked correction, audited period repair; blocks the target's approval (§6, PR 55b) |
+| 4 | Package-only seller escapes NO_PLAN | P2 | accept | NO_PLAN covers sales; disabled `package_sale` pays 0 (§5) |
+| 5 | Deadline not enforced at the send | P2 | accept | Event carries `send_deadline`; notifications refuses after it (§10) |
+| 6 | Due-time cap vs R2 | P2 | accept | Owner decided: send at closing — `due_at = min(+1 h, closing)` (D-58 amended) |
+| 7 | Attribution after the claim | P2 | accept | Attribution fixed at the claim; D-52 amended to "cancelled before the claim" |
+| 8 | Zero list price | P2 | accept | Effective discount 0 % at list 0 (§4) |
+| 9 | Package lines and the discount limit | P2 | accept | Redemption list price = slot value; the package's discount is checked on its sale line (§4) |
+| 10 | First clock-in race | P2 | accept | `AttendanceState` row locked by every scan; one open session per employee (§4, §7) |
+| 11 | Refund quantity | P2 | accept | Positive integer, exact or `INSUFFICIENT_SLOTS` (§8) |
+| 12 | CANCELLED transitions | P2 | accept | Reasons and transitions; `NO_ACTIVE_LINE` reopens before the deadline (§4, §10) |

@@ -1,7 +1,7 @@
 # Phase 1 — Salon Pilot Spec: staff, attendance, sessions, packages, commissions
 
-> **Status:** Draft v5 · 2026-10-01 · from the onboarding interview with Waleed (2026-09-30 → 2026-10-01) and Codex's
-> reviews (round 1: 30 findings; round 2: 17; round 3: 11; round 4 on gpt-6.1-sol: 18). Decisions: `docs/PRD.md` §12 — D-12…D-17, D-28, D-30, D-32 (decided)
+> **Status:** Draft v6 · 2026-10-01 · from the onboarding interview with Waleed (2026-09-30 → 2026-10-01) and Codex's
+> reviews (round 1: 30 findings; round 2: 17; round 3: 11; round 4 on gpt-6.1-sol: 18; round 5: 12). Decisions: `docs/PRD.md` §12 — D-12…D-17, D-28, D-30, D-32 (decided)
 > and D-35…D-58. **Governing docs:** `CLAUDE.md` · `CLAUDE.architecture.md` · `06_Tech_Stack` · `module-map.md`; on
 > conflict they win, and §9 names every amendment this phase needs. **Supersedes** the PRD §10 Phase 1 task list where
 > the two differ.
@@ -75,7 +75,8 @@ Cross-module interactions (import arrows already in `module-map.md` §2 unless m
 | `orders` → `catalog` | port (existing) | `CatalogReaderPort`: price, names, commission rule, threshold flag; package-type components |
 | `orders` → `customers` | port **new** | `CustomerLookupPort.exists(customerId)`; reception finds or creates the customer first through `customers`' own endpoint |
 | `orders` → `staff` | port **new** | `PerformerCheckPort`: employee active and attached to the branch on the date |
-| `commissions` → `staff` | port **new** | `EmployeeSalaryPort` (salary effective on a date), `EmployeeDirectoryPort` (names) |
+| `commissions` → `staff` | port **new** | `EmployeeDirectoryPort` (names) |
+| `staff` ⇒ `commissions` | event **new** | `SalaryChanged` — salary is an input like a line: projected, fingerprinted, corrected |
 | `customers` → `staff` | port **new** | `PerformerNamePort` (first name in the rating message) |
 | `customers` → `orders` | port **new** | `DaySessionsPort`: the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (§10) |
 | `staff`, `customers`, `commissions` → `settings` | port **new** | `AlertRulesPort`, `StaffColumnsPort` (reads) |
@@ -109,13 +110,15 @@ Phase 0 conventions hold: tenant PK `(company_id, id)`, UUID v7, FORCE RLS, mone
 
 ```
 Employee          business_id · primary_branch_id · user_id? · names · role_code · hire_date · contract_end? · deleted_at?
-EmployeeSalary    employee_id · amount · effective_from (≥ the day it is set; never back-dated) · set_by   — restricted
+EmployeeSalary    employee_id · amount · effective_from · set_by · revision   — restricted; back-dating allowed only
+                  into periods that are not closed, audited (§6)
 EmployeeBranch    employee_id · branch_id · from · to?
 EmployeePasskey   employee_id · credential_id · public_key · sign_count · bound_at · bound_by · unbound_at? · unbound_by?
                   one active row per employee (§7)
 EmployeeCard      employee_id · card_code · issued_at · revoked_at?
 Schedule          employee_id · branch_id · week_start · shifts [{day, start, end}]      ShiftTemplate
 LeaveRequest      employee_id · from · to · type · status · decided_by?
+AttendanceState   employee_id · last_accepted_scan_at — one row per employee, locked by every scan and job (§7)
 AttendanceSession employee_id · branch_id · clock_in · clock_out? · source (QR|BARCODE) · geo (OK|OUT_OF_RANGE|NONE)
                   working_date · closed_by (EMPLOYEE|MISSED_OUT)
 AttendanceException session_id · kind · status (OPEN|RESOLVED) · resolution? · resolved_by? · reason?
@@ -124,7 +127,10 @@ EmployeeDocument  employee_id · type_code · object_key · expires_on? · uploa
 
 DiscountLimit     (identity) membership_id · limit_bps, a parameter of the discount permission; the business
                   default lives in settings (D-56). Effective discount of a line = (list_price − net) / list_price,
-                  so lowering the price counts too.
+                  so lowering the price counts too; when `list_price = 0` it is 0 % (a free service cannot be
+                  discounted further). A package redemption line's list price is its slot's `unit_value`, so a
+                  redemption is never a discount; a package's discount is checked once, on its **sale** line,
+                  against the package type's price.
 Service           names · price · commission_rule (FOLLOW_PLAN | ZERO | PCT bps | FIXED mills) · counts_toward_threshold
 PackageType       names · price · validity_days · components [{service_id, sessions}]
                   — one validator for types, sales and imports: ≥ 1 component, unique service_id, integer sessions ≥ 1,
@@ -132,7 +138,7 @@ PackageType       names · price · validity_days · components [{service_id, se
 
 Customer          company_id · name · phone (E.164, unique per company) · locale · opted_out_at?        (D-30)
 RatingRequest     business_id · customer_id · business_date · branch_id · due_at · send_deadline (closing time)
-                  status (SCHEDULED|SENDING|SENT|CANCELLED) · performer_ids (snapshot) · token_hash · expires_at · consumed_at?
+                  status (SCHEDULED|SENDING|SENT|CANCELLED) · cancel_reason (NO_ACTIVE_LINE|PAST_DEADLINE|OPTED_OUT) · performer_ids (snapshot) · token_hash · expires_at · consumed_at?
                   UNIQUE (company_id, business_id, customer_id, business_date)
 Rating            request_id · stars 1..5 · comment? · submitted_at
 
@@ -161,6 +167,7 @@ ServiceOverride   employee_id · service_id · rule (FOLLOW_PLAN | ZERO | PCT | 
 CommissionLine    (projection, one row per line × performer) line_id · revision · employee_id · service_id
                   occurred_at · recorded_at · net_share · share_bps · rule_snapshot · counts · status
 CommissionSale    (projection) sale_id · revision · seller · sold_at · price_paid · refunded_amount · status
+CommissionSalary  (projection) employee_id · effective_from · amount · revision
 CommissionTip     (projection) session_id · revision · employee_id · amount · method · business_date
 Statement         business_id · period (YYYY-MM) · status (DRAFT|REVIEWED|APPROVED|PAID)
                   input_fingerprint · reviewed_fingerprint? · reviewed_by? · approved_by? · approved_at? · paid_at? · paid_method?
@@ -189,9 +196,10 @@ One pure function, no database: `computePeriod(lines, sales, versions, overrides
 (D-10); each line and sale reaches the engine with its `business_date` already resolved, so the engine compares dates,
 never instants. Fixtures cover a line at 21:30 UTC that is the next day in Kuwait.
 
-**Missing configuration is never zero (D-57).** A `FOLLOW_PLAN` line before the employee's first version, or a
-salary-multiple plan with no salary on the last day, makes `computePeriod` return a named error
-(`NO_PLAN`, `NO_SALARY`) for that employee: recording continues, the estimate says "no plan", and the statement
+**Missing configuration is never zero (D-57).** Any input — a `FOLLOW_PLAN` line **or a package sale** — with no
+applicable plan version, or a salary-multiple plan with no salary on the last day, makes `computePeriod` return a
+named error (`NO_PLAN`, `NO_SALARY`) for that employee. An existing version whose `package_sale` is disabled is not
+missing: it pays 0. On a NO_PLAN or NO_SALARY: recording continues, the estimate says "no plan", and the statement
 cannot be reviewed or approved until it is fixed.
 
 ### 5.1 Order
@@ -284,9 +292,11 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
   and the correction insert.
 - **Every writer of a period's inputs serializes with approval.** The commissions consumer, and every writer of plan
   versions and overrides, locks the statement row of the period it affects and rechecks its status under that lock.
-  Plan versions and overrides take `effective_from ≥ today`, or `whole_period` only for a DRAFT period. Salary is never
-  back-dated (§4), and a period can be approved **only after it has ended** (its last day is over in the business
-  timezone), so a salary change can never reach an approved period. Service rules are snapshots on each line.
+  Salary reaches commissions only through `SalaryChanged` — the consumer applies it under the same locks, so a salary
+  committing after approval becomes a correction, never a silent change; a salary may be back-dated (audited) only
+  into periods that are not closed, which is how a missing salary is filled before review.
+  Plan versions and overrides take `effective_from ≥ today`, or `whole_period` only for a DRAFT period. A period can
+  be approved **only after it has ended** (its last day is over in the business timezone). Service rules are snapshots on each line.
 - **Review is bound to the inputs.** Any input change to a period recomputes its fingerprint; a REVIEWED statement
   whose fingerprint changed returns to DRAFT and must be reviewed again; the owner can approve only a statement whose
   current fingerprint equals `reviewed_fingerprint`.
@@ -304,6 +314,12 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
   period: the source statement, then the target, which is rechecked under its lock; if it closed meanwhile, the next
   DRAFT is chosen and locked. Posted corrections are inputs of the target: they enter its fingerprint and its frozen
   `StatementLine`s at approval.
+- **A closed period that cannot be recomputed.** When the consumer applies a change to a closed period and the
+  engine returns `NO_PLAN`/`NO_SALARY` (e.g. a late session for an employee before her first plan), it still marks the
+  event consumed — the outbox never stalls — and records a **blocked correction** (visible exception). The manager
+  resolves it by an audited **period repair**: a plan version or salary scoped to that closed period only, allowed
+  only while a blocked correction exists; the recompute then posts the correction normally. A target period with an
+  unresolved blocked correction for an employee cannot be approved.
 - **Statement flow:** DRAFT → REVIEWED (manager, `review:commissions:business`) → APPROVED (owner,
   `approve:commissions:business`, audited) → PAID (`pay:commissions:business`, method and time). Reminders to the owner
   on the 3rd and 5th of the next month, not locks (D-54). Tips are inputs like lines: `SessionTipsChanged` feeds the
@@ -327,8 +343,9 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 - **QR** (P1-T5.1): HMAC over branch, 60-second window and a daily secret; current and previous window accepted;
   another branch's token rejected.
 - **State machine (D-53):** a scan with no open session opens one; with an open session **younger than 16 h** closes
-  it; with one **16 h or older** closes it as `MISSED_OUT` and opens a new one. The scan and the missed-out job both
-  lock the employee's open session row, so at exactly 16 h whichever commits first decides and the other sees it. A scan within 5 minutes of the employee's last accepted scan
+  it; with one **16 h or older** closes it as `MISSED_OUT` and opens a new one. Every scan and the missed-out job first lock the
+  employee's `AttendanceState` row — a row that always exists — so first scans, dedupe and the 16 h boundary are all
+  serialized; a partial unique index allows one open session per employee. A scan within 5 minutes of the employee's last accepted scan
   returns that result unchanged. `working_date` = clock-in date in the branch timezone; overnight shifts belong to it.
 - **Missed clock-out:** at the scheduled shift end + 4 h (or clock-in + 12 h with no schedule) a job raises a
   `SUSPECTED_MISSED_OUT` exception; a later scan before 16 h still closes the session normally and resolves the
@@ -356,7 +373,7 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
   its slot is still `USED` by it — then the slot returns to `FREE` and the line is re-emitted CANCELLED. A stale
   retry reverses nothing.
 - **Extend** (manager, audited) moves `expires_on`.
-- **Refund** (manager, idempotency key): locks the **entitlement** row, then the component; the manager picks the component and the number of sessions; the
+- **Refund** (manager, idempotency key): locks the **entitlement** row, then the component; the manager picks the component and a positive integer number of sessions, refunded exactly or not at all (`INSUFFICIENT_SLOTS`); the
   highest `FREE` ordinals are marked `REFUNDED`, recorded on the refund with the sum of their values as its amount;
   refunded slots can never be redeemed. The entitlement's cumulative `refunded_amount` and its `revision` change in
   the same transaction, and the committed snapshot is what `PackageSaleChanged` carries — two refunds of different
@@ -386,12 +403,20 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 ## 10. Ratings (D-41, D-52)
 
 - One request per customer per business per day. The day and the closing time come from the **branch of her last
-  session that day**, in its timezone. `due_at` = that session + 1 hour; each new session that day moves it;
-  `send_deadline` = that branch's closing time. A request claimed after its deadline is CANCELLED, never sent the
-  next day (D-58). No deadline when opening hours are unset.
+  session that day**, in its timezone. `due_at` = the earlier of that session + 1 hour and the branch's closing time (D-58: a
+  19:30 visit with an 20:00 close is asked at 20:00); each new session that day moves it; `send_deadline` = closing
+  time. Past the deadline the request is CANCELLED (`PAST_DEADLINE`), never sent the next day. No deadline when
+  opening hours are unset.
 - **The claim is the authoritative boundary.** At claim time the job reads the day's active lines and performers
   through `DaySessionsPort` (synchronous, from `orders`), not from its own projection: it reschedules if a newer
-  session moved `due_at`, cancels if no active line remains, and snapshots the performers from that read.
+  session moved `due_at`, cancels (`NO_ACTIVE_LINE`) if no active line remains, and snapshots the performers from that
+  read. **Attribution is fixed at the claim:** a cancellation after the claim does not remove a performer (D-52
+  amended), and a session after it is not rated.
+- **Transitions:** SCHEDULED → SENDING → SENT; SCHEDULED → CANCELLED. A `NO_ACTIVE_LINE` cancellation is reopened to
+  SCHEDULED by a new active session that day before the deadline; `PAST_DEADLINE` and `OPTED_OUT` are terminal, and so
+  are SENDING and SENT.
+- **The deadline holds at the send, not only at the claim:** `RatingRequestReady` carries `send_deadline`, and
+  `notifications` refuses to call the provider after it (attempt row `EXPIRED`).
 - **Sending is at most once, end to end.** The job claims a due request with `FOR UPDATE SKIP LOCKED`, rechecks her
   opt-out and that an active line remains, snapshots the performers, sets `SENDING`, and emits `RatingRequestReady`.
   `notifications` commits a delivery-attempt row **before** calling the provider; an event whose attempt row already
@@ -414,7 +439,7 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 **Attendance** A1 a clock without a valid passkey signature is rejected, with a message to use the card or ask the
 manager · A2 one active binding per employee; rebind only by the manager, audited; the two-employees-one-device flag ·
 A3 QR windows and branch · A4 geofence exceptions · A5 lateness reported, never deducted · A6 state machine: 16 h
-(both orders at exactly 16 h), 5 minutes, overnight working date; suspected missed-out resolved as closed late; missed-out at 16 h · A7 attendance
+(both orders at exactly 16 h), two concurrent first scans → one session, 5 minutes, overnight working date; suspected missed-out resolved as closed late; missed-out at 16 h · A7 attendance
 never changes commission · A8 barcode by the paired device only.
 
 **Sessions** M1 price override and discount record actor and time · M2 above the limit the line is refused unless an
@@ -427,9 +452,12 @@ refund is a no-op; the refund's component, ordinals and amount are recorded · M
 refund after expiry refused · M8 cancelling a redemption frees its ordinal; the next redemption takes the lowest free · M9 two refunds of
     different components of one package: both amounts in the final snapshot · M10 a lost response retried with the same
     key: no second sale, no second slot, no second reversal · M11 invalid package types, sales and imports rejected by
-    name · M12 performer and share changes, before and after approval · M13 effective discount = (list − net) / list.
+    name · M12 performer and share changes, before and after approval · M13 effective discount = (list − net) / list, 0 % at list 0; redemptions never count; a package's discount on its
+    sale line · M14 refund of more slots than are free → INSUFFICIENT_SLOTS, nothing refunded.
 
-**Commissions** §5.8 fixtures · business-date boundary · `NO_PLAN` / `NO_SALARY` block review · a change to a PAID
+**Commissions** §5.8 fixtures · business-date boundary · `NO_PLAN` / `NO_SALARY` block review (incl. a package-only
+    seller) · a salary committing after approval → correction · a late NO_PLAN line in a closed period → blocked
+    correction, repaired by a period-scoped version · a change to a PAID
     period posts a correction · a target that closes mid-post moves to the next DRAFT · a tip written during approval
     lands frozen or as a TIP correction · override half-mill rounding · the FIXED endpoint case
     (0→5 %, 50→10 %, 100→FIXED 2, x = 40, share 60 → 5.500) · a crash between projection write and correction insert leaves neither · approval of
@@ -441,9 +469,10 @@ approves; PAID records the method · card tips column · reminders on the 3rd an
 
 **Customers & ratings** R1 phone shown only on the entry form; masked elsewhere; absent from exports, logs and import
 errors · R2 due time moves with new sessions, from the last session's branch, capped by its closing time · R3 a request
-crashed in SENDING is not resent; a notifications redelivery with an attempt row is not resent; two workers send once · R4 attribution to every performer; a cancellation before
-send removes it · R5 token tampering, replay, expiry, cross-tenant rejected · R6 a "stop" committed between the suppression check and the attempt is impossible (both under the phone lock) ·
-R7 claim after the send deadline → CANCELLED · R8 a cancellation not yet seen by the projection still blocks the
+crashed in SENDING is not resent; a notifications redelivery with an attempt row is not resent; two workers send once · R4 attribution to every performer in the claim snapshot; a
+cancellation before the claim removes her, one after it does not · R5 token tampering, replay, expiry, cross-tenant rejected · R6 a "stop" committed between the suppression check and the attempt is impossible (both under the phone lock) ·
+R7 claim after the send deadline → CANCELLED; an event delivered to notifications after the deadline → EXPIRED, not
+sent · R2b a 19:30 visit, 20:00 close → due 20:00 · R10 a NO_ACTIVE_LINE request reopened by an afternoon session · R8 a cancellation not yet seen by the projection still blocks the
 send (authoritative read) · R9 two businesses, one customer: the per-business bound.
 
 **Visibility** V1 staff see only their own rows and the manager's columns · V2 reception like any employee plus the
