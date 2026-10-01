@@ -65,10 +65,32 @@ const SCHEMAS = [
   taxRule,
 ];
 
+// GET /v1/me/workspaces موجود على الـ API. العميل المولّد محتاج المسار، من غير schema جديد.
+const PATHS = {
+  '/v1/me/workspaces': {
+    get: {
+      operationId: 'listMyWorkspaces',
+      responses: {
+        '200': {
+          description: 'The companies, businesses and branches this session can open',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/MyWorkspacesResponse' } },
+          },
+        },
+        default: {
+          description: 'The API error envelope',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+      },
+    },
+  },
+};
+
 /**
  * بيبني وثيقة OpenAPI من الـ Zod schemas. دالة pure من غير fs، عشان الاختبار يقارن الملف
  * المحفوظ بالناتج ويقع لو حد غيّر contract ونسي يعمل pnpm contracts:openapi.
- * الـ paths فاضية لحد ما الـ controllers تيجي في T6b.
  *
  * @returns وثيقة OpenAPI 3.0 كـ object
  */
@@ -95,7 +117,7 @@ export function buildOpenApiDocument(): Record<string, unknown> {
   return {
     openapi: '3.0.3',
     info: { title: 'PosPay API', version: '0.0.0' },
-    paths: {},
+    paths: PATHS,
     components: { schemas: components },
   };
 }

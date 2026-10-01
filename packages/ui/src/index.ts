@@ -8,6 +8,7 @@ export { CardContent } from './card/card-content.js';
 export { CardFooter } from './card/card-footer.js';
 export { Badge, badgeVariants, type BadgeProps } from './badge.js';
 export { Separator } from './separator.js';
+export { Select, type SelectOption, type SelectProps } from './select.js';
 export {
   DirectionProvider,
   useDirection,
