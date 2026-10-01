@@ -6,7 +6,7 @@
 >
 > Adding an arrow means editing this file, which means writing an ADR. That friction is the point.
 >
-> **Version:** M1.0 — 2026-09-15. Derived from `06_Tech_Stack_Architecture_EN.md` §3.
+> **Version:** M1.1 — 2026-10-01 (ADR-0010). Derived from `06_Tech_Stack_Architecture_EN.md` §3.
 
 ---
 
@@ -61,15 +61,21 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 
 | Consumer | Port it defines | Reads from | What it needs |
 |---|---|---|---|
-| `orders` | `CatalogReaderPort` | `catalog` | price for item × branch × channel, item name snapshot, tax rule id |
+| `orders` | `CatalogReaderPort` | `catalog` | price for item × branch × channel, item name snapshot, tax rule id; Phase 1 adds: service names, commission rule, threshold flag, package-type components (ADR-0010) |
 | `orders` | `CustomerCreditPort` | `customers` | credit limit, current balance, block status |
 | `payments` | `OrderTotalsPort` | `orders` | order total + currency to charge |
 | `cash` | `ShiftPaymentsPort` | `payments` | tenders belonging to a shift, incl. `PENDING_GATEWAY` ones |
 | `appointments` | `ServiceCatalogPort` | `catalog` | service duration, resource type, requires-staff flag |
 | `appointments` | `StaffAvailabilityPort` | `staff` | schedule + leave for a resource |
-| `commissions` | `EmployeePlanPort` | `staff` | the employee's active commission plan |
+| `commissions` | `EmployeePlanPort` — retired in Phase 1: plan versions live in `commissions` (ADR-0010) | `staff` | the employee's active commission plan |
 | `channels` | `ChannelFeePort` | `expenses` | how an aggregator commission is booked |
 | `realtime` | `ChannelScopePort` | `identity` | which channels this session may subscribe to |
+| `orders` | `CustomerLookupPort` | `customers` | `exists(customerId)` — reception finds or creates the customer first through `customers`' own endpoint (ADR-0010) |
+| `orders` | `PerformerCheckPort` | `staff` | employee active and attached to the branch on the date (ADR-0010) |
+| `commissions` | `EmployeeDirectoryPort` | `staff` | employee names — statements, live estimate (ADR-0010) |
+| `customers` | `PerformerNamePort` | `staff` | performer's first name, in the rating message (ADR-0010) |
+| `customers` | `DaySessionsPort` | `orders` | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010) |
+| `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort` | `settings` | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010) |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
 
@@ -92,7 +98,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `OrderCreated` | `orders` | `kitchen`, `realtime`, `channels` |
 | `OrderCompleted` | `orders` | `inventory` (deduct), `commissions` (entries), `loyalty` (points), `realtime` |
 | `OrderCancelled` | `orders` | `inventory`, `commissions` (reverse), `kitchen`, `realtime` |
-| `ServiceCompleted` | `orders` | `commissions`, `appointments` |
+| `ServiceCompleted` — replaced in Phase 1 by `ServiceLineChanged` (ADR-0010) | `orders` | `commissions`, `appointments` |
 | `ReturnPosted` | `orders` | `inventory`, `commissions` (negative entries), `loyalty` |
 | `PaymentCaptured` | `payments` | `orders` (status), `cash` (tender), `loyalty`, `realtime` |
 | `PaymentRefunded` | `payments` | `orders`, `cash`, `commissions` |
@@ -106,8 +112,21 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `GatewayAccountConnected` | `payments` | `notifications`, `platform` |
 | `NotificationDelivered` / `NotificationFailed` | `notifications` | `reporting` |
 | `DocumentReady` | `reporting` | `notifications`, `realtime` |
+| `SalaryChanged` | `staff` | `commissions` |
+| `ServiceLineChanged` | `orders` | `commissions`, `customers` |
+| `PackageSaleChanged` | `orders` | `commissions` |
+| `SessionTipsChanged` | `orders` | `commissions` |
+| `RatingRequestReady` | `customers` | `notifications` |
+| `LowRatingReceived` | `customers` | `notifications` |
+| `AttendanceExceptionRaised` | `staff` | `notifications` |
+| `ShiftNotClockedIn` | `staff` | `notifications` |
+| `DocumentExpiring` | `staff` | `notifications` |
+| `StatementAwaitingReview` | `commissions` | `notifications` |
+| `StatementAwaitingApproval` | `commissions` | `notifications` |
 
 **Two consumers by default.** Every event has its business handler **and** the `realtime` publisher (`06` §5.10). That is what guarantees a screen never shows something that didn't actually commit.
+
+> The Phase 1 rows (ADR-0010) are the exception: realtime is out of scope this phase — screens poll (the PRD's Phase 1 exception, closed by P2-T8) — so they list their business consumers only, and the `realtime` publisher joins them when it ships. Payload identities and per-row `revision` convergence live in ADR-0010 and SPEC §3.
 
 **Consumers are idempotent**, deduped by `event_id`. Redelivery is harmless, and replay is a supported recovery tool.
 
