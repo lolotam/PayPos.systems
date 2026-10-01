@@ -70,6 +70,9 @@ it('creates each recipient once in the consumer transaction and emits only durab
     (await h.events()).filter((e) => e.event_type === 'NotificationSendAuthorized'),
   ).toHaveLength(0);
   expect(h.channel.calls).toBe(0);
+  expect(
+    await owner`SELECT id FROM notification_attempts WHERE source_event_id = ${request.id}`,
+  ).toHaveLength(0);
 });
 
 it('rollback after handle leaves no inbox, result or consumer dedupe', async () => {
@@ -139,5 +142,11 @@ it.each([
   expect((await h.deliver(request)).delivered).toBe(false);
   expect(
     await owner`SELECT id FROM in_app_notifications WHERE source_event_id = ${request.id}`,
+  ).toHaveLength(0);
+  expect(
+    await owner`SELECT id FROM notification_attempts WHERE source_event_id = ${request.id}`,
+  ).toHaveLength(0);
+  expect(
+    (await h.events()).filter((e) => e.payload['source_event_id'] === request.id),
   ).toHaveLength(0);
 });

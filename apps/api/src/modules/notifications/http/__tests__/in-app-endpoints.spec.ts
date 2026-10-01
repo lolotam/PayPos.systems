@@ -108,6 +108,9 @@ it('read is idempotent, preserves first time, and foreign or absent ids are indi
   expect(
     (await h.send('GET', '/v1/me/notifications/unread-count', { cookie, company })).body,
   ).toEqual({ count: 1 });
+  const listAfterRead = await h.send('GET', '/v1/me/notifications', { cookie, company });
+  const unreadItems = inAppNotificationPage.parse(listAfterRead.body).items.filter((i) => i.read_at === null);
+  expect(unreadItems).toHaveLength(1);
   const others =
     await h.owner`SELECT read_at FROM in_app_notifications WHERE id IN (${theirs},${otherTenant})`;
   expect(others.every((r) => r['read_at'] === null)).toBe(true);
@@ -123,6 +126,9 @@ it('read-all is idempotent and cannot affect another user or company', async () 
   expect(
     (await h.send('GET', '/v1/me/notifications/unread-count', { cookie, company })).body,
   ).toEqual({ count: 0 });
+  const listAfterReadAll = await h.send('GET', '/v1/me/notifications', { cookie, company });
+  const unreadAfterAll = inAppNotificationPage.parse(listAfterReadAll.body).items.filter((i) => i.read_at === null);
+  expect(unreadAfterAll).toHaveLength(0);
   const [after] = await h.owner`SELECT read_at FROM in_app_notifications WHERE id = ${mine}`;
   expect(after?.['read_at']).toEqual(before?.['read_at']);
   expect(
@@ -130,6 +136,46 @@ it('read-all is idempotent and cannot affect another user or company', async () 
       await h.owner`SELECT read_at FROM in_app_notifications WHERE id IN (${theirs},${otherTenant})`
     ).every((r) => r['read_at'] === null),
   ).toBe(true);
+});
+
+it('cannot list, count, read or read-all notification of another company even with valid membership there', async () => {
+  const otherCompanyRow = ids.newId();
+  await h.owner`INSERT INTO in_app_notifications (company_id,id,recipient_user_id,source_event_id,template_key,
+    template_revision,locale,safe_parameters,created_at) VALUES (${otherCompany},${otherCompanyRow},${otherUser},
+    ${ids.newId()},'generic_notice',1,'en','[{"name":"subject","type":"text","value":"Synthetic subject"}]',now())`;
+
+  const inCompany = await h.send('GET', '/v1/me/notifications', { cookie: otherCookie, company });
+  expect(inAppNotificationPage.parse(inCompany.body).items.map((r) => r.id)).toEqual([theirs]);
+  expect(
+    (await h.send('GET', '/v1/me/notifications/unread-count', { cookie: otherCookie, company })).body,
+  ).toEqual({ count: 1 });
+
+  const readOther = await h.send('POST', `/v1/me/notifications/${otherCompanyRow}/read`, {
+    cookie: otherCookie,
+    company,
+  });
+  expect(readOther.status).toBe(200);
+  const [otherRowAfterRead] = await h.owner`SELECT read_at FROM in_app_notifications WHERE id = ${otherCompanyRow}`;
+  expect(otherRowAfterRead?.['read_at']).toBeNull();
+
+  const readAllCompany = await h.send('POST', '/v1/me/notifications/read-all', {
+    cookie: otherCookie,
+    company,
+  });
+  expect(readAllCompany.status).toBe(200);
+  const [theirsAfter] = await h.owner`SELECT read_at FROM in_app_notifications WHERE id = ${theirs}`;
+  expect(theirsAfter?.['read_at']).not.toBeNull();
+  const [otherRowAfterAll] = await h.owner`SELECT read_at FROM in_app_notifications WHERE id = ${otherCompanyRow}`;
+  expect(otherRowAfterAll?.['read_at']).toBeNull();
+
+  const inOtherCompany = await h.send('GET', '/v1/me/notifications', {
+    cookie: otherCookie,
+    company: otherCompany,
+  });
+  expect(inAppNotificationPage.parse(inOtherCompany.body).items.map((r) => r.id)).toEqual([otherCompanyRow]);
+  expect(
+    (await h.send('GET', '/v1/me/notifications/unread-count', { cookie: otherCookie, company: otherCompany })).body,
+  ).toEqual({ count: 1 });
 });
 
 it('requires session, valid selected company, active membership and valid ids/cursors', async () => {
@@ -140,6 +186,7 @@ it('requires session, valid selected company, active membership and valid ids/cu
   expect(h.calls.tenant).not.toContain(otherCompany);
   expect((await h.send('GET', '/v1/me/notifications', { cookie: '', company })).status).toBe(401);
   expect((await h.send('GET', '/v1/me/notifications', { cookie })).status).toBe(400);
+  expect((await h.send('GET', '/v1/me/notifications', { cookie, company: 'bad-company-id' })).status).toBe(400);
   expect((await h.send('GET', '/v1/me/notifications?cursor=bad', { cookie, company })).status).toBe(
     400,
   );

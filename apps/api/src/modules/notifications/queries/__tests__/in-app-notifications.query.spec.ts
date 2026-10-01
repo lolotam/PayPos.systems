@@ -59,11 +59,21 @@ it('returns exact contract, own company/user only, with stable tie-break and ful
   expect(first.items[0]?.created_at).toContain('.123456');
   const seen: string[] = [];
   let cursor: string | null = null;
+  let previous: { created_at: string; id: string } | null = null;
   do {
     const page = await listInAppNotifications(db, access, {
       limit: 100,
       ...(cursor === null ? {} : { cursor }),
     });
+    for (const item of page.items) {
+      if (previous !== null) {
+        const timeDiff =
+          new Date(previous.created_at).getTime() - new Date(item.created_at).getTime();
+        expect(timeDiff).toBeGreaterThanOrEqual(0);
+        if (timeDiff === 0) expect(previous.id > item.id).toBe(true);
+      }
+      previous = item;
+    }
     seen.push(...page.items.map((item) => item.id));
     expect(page.items.every((item) => item.company_id === access.companyId)).toBe(true);
     cursor = page.next_cursor;

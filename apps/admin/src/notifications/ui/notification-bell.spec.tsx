@@ -16,6 +16,22 @@ afterEach(() => {
   clearSelection();
 });
 
+function sampleItem(locale: 'ar' | 'en', read: boolean) {
+  return {
+    id: '01920000-0000-7000-8000-0000000000c1',
+    company_id: companyId,
+    business_id: null,
+    branch_id: null,
+    source_event_id: '01920000-0000-7000-8000-0000000000c2',
+    template_key: 'generic_notice',
+    template_revision: 1,
+    locale,
+    safe_parameters: [{ name: 'subject', type: 'text', value: 'Synthetic subject' }],
+    created_at: '2026-10-01T12:00:00Z',
+    read_at: read ? '2026-10-01T13:00:00Z' : null,
+  };
+}
+
 it.each(['ar', 'en'] as const)(
   'shows badge, template and read state; mark all updates count and list in %s',
   async (locale) => {
@@ -32,24 +48,7 @@ it.each(['ar', 'en'] as const)(
         return response({ ok: true });
       }
       if (path.endsWith('/unread-count')) return response({ count: read ? 0 : 3 });
-      return response({
-        items: [
-          {
-            id: '01920000-0000-7000-8000-0000000000c1',
-            company_id: companyId,
-            business_id: null,
-            branch_id: null,
-            source_event_id: '01920000-0000-7000-8000-0000000000c2',
-            template_key: 'generic_notice',
-            template_revision: 1,
-            locale,
-            safe_parameters: [{ name: 'subject', type: 'text', value: 'Synthetic subject' }],
-            created_at: '2026-10-01T12:00:00Z',
-            read_at: read ? '2026-10-01T13:00:00Z' : null,
-          },
-        ],
-        next_cursor: null,
-      });
+      return response({ items: [sampleItem(locale, read)], next_cursor: null });
     });
     render(
       <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
@@ -73,10 +72,38 @@ it.each(['ar', 'en'] as const)(
     );
     expect(await screen.findByText(t(locale, 'inApp.read'))).not.toBeNull();
     expect(fetchSpy.mock.calls.some(([input]) => (input as Request).method === 'POST')).toBe(true);
+    const region = screen.getByRole('region', { name: t(locale, 'inApp.title') });
+    if (locale === 'ar') expect(region.closest('[dir="rtl"]')).not.toBeNull();
     fireEvent.keyDown(screen.getByRole('button', { name: t(locale, 'inApp.title') }), {
       key: 'Escape',
     });
     expect(screen.queryByRole('region')).toBeNull();
+  },
+);
+
+it.each(['ar', 'en'] as const)(
+  'hides badge at zero and shows empty state in %s',
+  async (locale) => {
+    vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = new URL((input as Request).url).pathname;
+      if (path.endsWith('/unread-count')) return response({ count: 0 });
+      return response({ items: [], next_cursor: null });
+    });
+    render(
+      <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+        <LocaleProvider locale={locale} setLocale={() => undefined}>
+          <QueryProvider>
+            <NotificationBell companyId={companyId} />
+          </QueryProvider>
+        </LocaleProvider>
+      </DirectionProvider>,
+    );
+    expect(screen.queryByLabelText(new RegExp(`^${t(locale, 'inApp.unread')}:`))).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t(locale, 'inApp.title') }));
+    expect(await screen.findByText(t(locale, 'inApp.empty'))).not.toBeNull();
+    const region = screen.getByRole('region', { name: t(locale, 'inApp.title') });
+    if (locale === 'ar') expect(region.closest('[dir="rtl"]')).not.toBeNull();
   },
 );
 
