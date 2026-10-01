@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1
+# apps/admin — multi-stage Next.js standalone on node:24-alpine (ADR-0016).
+# NEXT_PUBLIC_API_URL is inlined at build time. An empty build arg fails closed in the browser.
+# No secret is copied in. The image is not wired into compose or a deploy script.
+
+FROM node:24-alpine AS build
+RUN npm install -g pnpm@12.5.1
+WORKDIR /repo
+COPY . .
+ARG NEXT_PUBLIC_API_URL=
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+RUN pnpm install --frozen-lockfile
+RUN pnpm turbo run build --filter=@pospay/admin...
+
+FROM node:24-alpine AS runner
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+WORKDIR /app
+COPY --from=build --chown=node:node /repo/apps/admin/.next/standalone ./
+COPY --from=build --chown=node:node /repo/apps/admin/.next/static ./apps/admin/.next/static
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", "apps/admin/server.js"]

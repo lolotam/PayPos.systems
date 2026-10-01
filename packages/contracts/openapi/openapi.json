@@ -4,7 +4,35 @@
     "title": "PosPay API",
     "version": "0.0.0"
   },
-  "paths": {},
+  "paths": {
+    "/v1/me/workspaces": {
+      "get": {
+        "operationId": "listMyWorkspaces",
+        "responses": {
+          "200": {
+            "description": "The companies, businesses and branches this session can open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyWorkspacesResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "components": {
     "schemas": {
       "ErrorEnvelope": {

@@ -53,6 +53,14 @@ export {
   type VerifyCashierPinInput,
 } from './identity/cashier-pin.js';
 export {
+  confirmPasswordInput,
+  loginInput,
+  totpCodeInput,
+  type ConfirmPasswordInput,
+  type LoginInput,
+  type TotpCodeInput,
+} from './identity/session.js';
+export {
   myWorkspacesResponse,
   workspaceBranch,
   workspaceBusiness,
