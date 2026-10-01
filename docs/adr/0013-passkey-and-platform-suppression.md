@@ -35,33 +35,48 @@ across every tenant sending from our platform number. It is neither identity nor
 | `source` | non-null `STOP` or `MANUAL`, source of the latest distinct opt-out |
 | `first_opted_out_at` | non-null UTC `timestamptz`, first accepted opt-out, immutable |
 | `last_opted_out_at` | non-null UTC `timestamptz`, latest distinct accepted opt-out; >= first |
-| `opted_back_in_at` | nullable UTC `timestamptz`; NULL throughout Phase 1; re-subscription is excluded |
+| `opted_back_in_at` | UTC `timestamptz`, default NULL; Phase 1 `CHECK (opted_back_in_at IS NULL)` binds INSERT and UPDATE |
 
-An existing row is suppressed while `opted_back_in_at IS NULL`. Phase 1 never clears suppression; any
-future manual removal requires a separately approved recipient-consent flow retaining history. Duplicate
-message ids change no timestamps.
+An existing row is suppressed while `opted_back_in_at IS NULL`. Phase 1 enforces that invariant in the
+database: no runtime role has INSERT or UPDATE privilege on `opted_back_in_at`, and the CHECK rejects
+non-NULL values even on INSERT by a privileged maintenance connection. No runtime role can alter the
+constraint. A later approved recipient-consent flow must explicitly amend both the constraint and the
+column grants, retain history and audit every removal. Duplicate message digests change no timestamps;
+replaying STOP is not a repair mechanism for improperly lifted suppression.
 Never store a full phone, even encrypted, in these global tables, audit, jobs or diagnostics. No deletion
 or automatic expiry of suppression. Keep the exact PR 4 identity:
 `HMAC-SHA256(key, 'pospay:notifications:phone:v1\0' || canonical E.164)`; canonicalize Meta `from` by
 validating its international digits and adding `+`, with no guessed country code. Use `createPhoneIdentity`.
 Freeze the key in Phase 1. Rotation needs an alias/retained-key migration preserving old suppression,
-dedupe and one common lock identity; changing key id or independently rehashing is not a rotation plan.
+message-digest dedupe and one common lock identity; changing key id or independently rehashing is not a
+rotation plan.
 
 Add global `platform_whatsapp_inbox` and `platform_whatsapp_audit`, in the same class, owned with the
 suppression table by migration-only `pospay_owner`. Inbox columns: UUID v7 `id`, unique
-`provider_message_id`, `recipient_hash`, `hash_key_id`, `command` (`STOP|OTHER`), provider timestamp,
+`provider_message_digest` (`bytea`, non-null, exactly 32 bytes), `recipient_hash`, `hash_key_id`,
+`command` (`STOP|OTHER`), provider timestamp,
 `received_at`, nullable privacy-scrubbed `raw_event` JSONB, `suppression_applied_at`, `processed_at` and
-`enqueue_confirmed_at`. Index unfinished enqueue/processing rows by time/id. The permanent unique message
-identity survives payload cleanup. Audit is append-only: UUID v7 id, hash/key id, source, message id or
-operator identity, finite action/reason code, time. No arbitrary text or tenant/customer identifiers.
+`enqueue_confirmed_at`. There is no original `provider_message_id` column. Index unfinished enqueue/processing
+rows by time/id. The permanent unique digest survives payload cleanup; `hash_key_id` is metadata, not part
+of digest uniqueness. Audit is append-only: UUID v7 id, hash/key id, source, `inbox_id` FK to inbox UUID for
+STOP (mandatory), or operator identity for MANUAL, finite action/reason code, time. Audit never stores a
+provider message id. No arbitrary text or tenant/customer identifiers.
+
+Treat Meta's original message id (`wamid`) as phone-bearing data, not an opaque safe identifier. Its only
+application lifetime is in memory during verified intake, including the transient raw body. Compute
+`HMAC-SHA256(key, 'pospay:notifications:provider-message:v1\0' || UTF8(complete provider message id))`
+using the same platform key family and key id as the phone hash, with this distinct domain label. Use the
+complete id exactly as received: no Base64 decoding, trimming, case folding or substring extraction.
+Only the digest may enter persistence or scrubbed envelopes; queues use inbox UUIDs. Logs, diagnostics,
+errors and traces must never print the original id, including nested ids or validation-error input.
 
 Clear scrubbed inbound payload JSON (`platform_whatsapp_inbox.raw_event`) after 30 days from `received_at`.
-Keep message-id dedupe, suppression rows and the minimal append-only audit indefinitely. Payload cleanup
+Keep message-digest dedupe, suppression rows and the minimal append-only audit indefinitely. Payload cleanup
 must not delete dedupe identities, clear suppression or permit a command to be replayed.
 
 | Principal | Exact additional privileges |
 |---|---|
-| `pospay_notifications` | new LOGIN, NOSUPERUSER, NOBYPASSRLS, NOINHERIT, NOCREATEDB, NOCREATEROLE, owns nothing and member of no role; database CONNECT and schema `public` USAGE; suppression SELECT/INSERT and UPDATE of `source,last_opted_out_at,opted_back_in_at` only; inbox SELECT/INSERT and UPDATE of `raw_event,suppression_applied_at,processed_at,enqueue_confirmed_at` only; audit INSERT only |
+| `pospay_notifications` | new LOGIN, NOSUPERUSER, NOBYPASSRLS, NOINHERIT, NOCREATEDB, NOCREATEROLE, owns nothing and member of no role; database CONNECT and schema `public` USAGE; suppression SELECT, column INSERT on `recipient_hash,hash_key_id,source,first_opted_out_at,last_opted_out_at` and column UPDATE on `source,last_opted_out_at` only (no table-wide INSERT/UPDATE and no write to `opted_back_in_at`); inbox SELECT/INSERT of the digest-only schema and UPDATE of `raw_event,suppression_applied_at,processed_at,enqueue_confirmed_at` only; audit INSERT of the inbox-UUID/operator schema only |
 | `pospay_suppression_reader` | new NOLOGIN with the same restricted attributes, member of no role; schema USAGE and suppression SELECT only; owns the check function below, no tables |
 | `pospay_app` | EXECUTE on `public.platform_whatsapp_is_suppressed(bytea)` only; no direct privilege on any of the three global tables |
 | `pospay_auth`, `pospay_dispatcher`, `PUBLIC` | no privilege on these tables and no EXECUTE on that function |
@@ -81,7 +96,9 @@ connection, then inserts the tenant attempt/result/outbox under the existing RLS
 only global state; the caller remains `pospay_app` for tenant writes. No new pool, SET ROLE or tenant-access
 exception is used by the consumer. The API intake has a separate restricted `packages/db` facade on
 `pospay_notifications`, wired only to notifications, returning bounded global transactions and no raw
-client. Its startup/readiness verifies the role and privilege inventory. It cannot access tenant data.
+client. Its startup/readiness verifies the role and privilege inventory and the validated NULL-only
+constraint; a missing constraint or excess column/table write grant fails readiness. It cannot access
+tenant data.
 
 ### 2. Meta webhook intake — PR 5
 
@@ -112,23 +129,35 @@ replace session authentication with the following verification; there is no comp
 
 **Verify signature → store raw → enqueue → ack 200** is retained with an explicit privacy clarification:
 the durable raw-event record is a **scrubbed provider envelope, not the signed byte-for-byte body**.
-Keep only allowlisted structural ids, timestamps, message type and a finite command; replace `from`,
-`wa_id` and any destination identifiers with the platform hash/key id, and omit display phone number,
+Keep only explicitly safe allowlisted structural ids, timestamps, message type and a finite command;
+replace the original message id with `provider_message_digest` (encoded as hex) and its key id. Replace `from`,
+`wa_id` and any destination identifiers with the platform phone hash/key id, and omit display phone number,
 profiles, text bodies, captions, media, contacts, quotes and unknown fields. Free text is classified in
-memory and discarded; an allowlist prevents phones hidden in text/unknown fields from being persisted.
+memory and discarded; omit all other provider message ids, including nested/status/context ids. An allowlist
+prevents phones hidden in text, identifiers or unknown fields from being persisted. The original message id
+exists only in memory during intake and is never copied into the scrubbed envelope or diagnostics.
 Store this representation in `platform_whatsapp_inbox.raw_event`; keep no original bytes on disk, in
 Postgres, outbox, Redis, logs, errors or traces. This requires the listed CLAUDE.md §6 clarification.
 
-In one short READ COMMITTED intake transaction, insert inbox rows idempotently by **Meta message id**,
+After signature/envelope validation, compute the message digest in memory before any durable write.
+If the platform key or digest computation is unavailable, return retryable 503; never fall back to an
+original id or an unkeyed hash. Do not log the id/body on this or any parsing/validation failure.
+
+In one short READ COMMITTED intake transaction, insert inbox rows idempotently by **provider message digest**,
 acquire the common phone locks, apply each new STOP, and append its audit row. Mark suppression applied
-in the same commit. Order batch message-id insertions and distinct phone locks deterministically to avoid
+in the same commit; suppression INSERT omits `opted_back_in_at`, and upsert updates only source/last time.
+Audit references the resulting inbox UUID. Order batch digest insertions and distinct phone locks deterministically to avoid
 deadlocks. Bound intake DB/lock work to 200 ms; timeout rolls back and returns retryable 503. Unknown COMMIT
-outcome also returns 503 and reconciles by message id on redelivery, never assumes rollback.
+outcome also returns 503 and reconciles by recomputing the same digest on redelivery with the frozen key,
+never assumes rollback. A privilege or CHECK failure aborts the transaction and returns 503 without
+acknowledging STOP; never remove the constraint or broaden grants to recover intake.
 
 After acknowledged commit, await enqueue to existing BullMQ infrastructure, queue `notifications-inbound`,
 with stable inbox-id job identity and id-only data. Then ack 200. Enqueue failure returns 503 without undoing
 STOP. Duplicate deliveries retry enqueue but never reapply suppression/audit. A worker inbox sweep recovers
 committed, unqueued records after a crash; database processing markers make duplicate/recreated jobs safe.
+The digest and inbox UUID remain after 30-day payload cleanup, so redelivery still finds the original
+commit/audit and cannot create a second STOP. Neither recovery nor diagnostics needs the original id.
 The job performs ancillary processing/marking only: **first application of STOP does not wait for it**.
 No provider HTTP runs during intake or a DB transaction; no STOP confirmation message is sent.
 
@@ -151,6 +180,13 @@ not a second implementation. Locks last through commit/rollback; collisions only
 | Authorization | Check plus PENDING attempt/outbox commit while holding the lock; STOP cannot commit between check and insert; after authorization releases the lock STOP commits and blocks subsequent attempts |
 | Either rolls back | Its effect never linearizes; the waiting transaction checks committed state normally |
 
+The proof also requires suppression to be monotonic throughout Phase 1: restricted column grants plus
+`CHECK (opted_back_in_at IS NULL)` prevent runtime INSERT/UPDATE from making an accepted STOP invisible
+to the next authorization. A forbidden opt-in write fails instead of racing successfully with the check.
+Digest dedupe and UUID-linked audit commit atomically with STOP. Concurrent duplicate deliveries, an
+unknown COMMIT result and redelivery after payload cleanup all identify that same commit; they never
+reapply STOP to repair state. Frozen-key digest derivation is therefore part of the retry guarantee.
+
 An attempt's durable authorization is its commit, not `authorized_at` or the start of the SQL insert.
 An invalid/expired request can retain PR 4's FAILED/EXPIRED precedence; it still makes zero calls.
 Already-authorized PENDING/SENDING attempts **may finish** after STOP: no cross-tenant cancellation scan,
@@ -169,7 +205,8 @@ There is no re-subscription in Phase 1: no START, no tenant override and no manu
 All opt-in timestamps remain NULL. Platform operators may add manual suppression through the same
 hashed/locked path, with a mandatory reason recorded in the append-only audit as a finite reason code.
 Manual removal requires a later approved flow with the recipient's consent and does not ship now.
-No deletion of a row is a re-subscription mechanism.
+That future flow must explicitly migrate the NULL-only constraint and column grants and audit removal;
+an endpoint or runtime grant alone is insufficient. No deletion of a row is a re-subscription mechanism.
 
 ### 5. Production gate and delivery dependencies
 
@@ -177,6 +214,23 @@ PR 5 may lift the **suppression-specific** production/staging gate only after it
 tables/roles/function, exact grant inventory, real transaction-bound gate with fail-closed readiness,
 signed live webhook subscription/GET handshake, synchronous STOP commit, durable inbox/enqueue recovery,
 privacy handling, and real STOP-versus-authorization proof for two tenants on one phone.
+
+PR 5 must add verification for both defects as part of that gate:
+
+- As the actual intake role, reject INSERT naming `opted_back_in_at` and UPDATE of that column; allow the
+  intended column-scoped STOP INSERT/upsert. Verify no runtime role has table-wide or column write access
+  to it. Using a privileged connection with the constraint intact, reject non-NULL INSERT and UPDATE;
+  readiness must reject missing/unvalidated constraint or excess grants.
+- After a committed STOP, attempt forbidden opt-in writes, replay the same digest and authorize from two
+  tenants: both checks stay SUPPRESSED with no new STOP audit or timestamps. Exercise concurrent duplicate
+  intake, both STOP/authorization lock orders, rollback, unknown COMMIT and enqueue/crash recovery.
+- Use a synthetic phone-bearing wamid fixture: prove deterministic whole-id HMAC, distinct ids produce
+  distinct digests, and the phone/message domains differ for identical input. Inspect inbox, scrubbed
+  envelopes, UUID-linked audit, queues and captured diagnostics on success, invalid input, DB errors and
+  retries for absence of the original id/full phone. Do not put real customer data in fixtures.
+- Clear payload JSON at 30 days and redeliver the same fixture: permanent digest dedupe and audit linkage
+  survive, no command is reapplied and no original id is needed. Missing-key/digest failure returns 503
+  with no durable write or privacy fallback.
 
 Validate Dokploy injection of `PLATFORM_NOTIFICATIONS_DATABASE_URL`, `WHATSAPP_APP_SECRET`,
 `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_WABA_ID`, the shared `NOTIFICATION_PHONE_HASH_KEY`/`_ID` and sender
@@ -296,11 +350,13 @@ block. Attendance has no effect on commissions. PR 22 depends on PR 20's deliver
 ### 9. Governing amendments — listed, not applied
 
 - **ADR-0003 §§2/3/6:** add the global messaging class, three tables, two restricted roles, boolean definer
-  inventory/grants and exact GET/POST webhook entries; classify `passkey` and auth-only grants before PR 20
+  inventory/grants, NULL-only suppression constraint, digest-only dedupe/UUID audit and exact GET/POST webhook entries;
+  classify `passkey` and auth-only grants before PR 20
   migration. Preserve dispatcher/tenant privileges. PR 6 separately classifies its global OTP ledger and
   adds the auth role's suppression-check EXECUTE privilege.
 - **CLAUDE.md §5:** name the global messaging intake/facade exception, which never touches tenant tables;
-  list `passkey` among auth-only global tables. **§6:** clarify durable privacy-scrubbed inbound raw events
+  list `passkey` among auth-only global tables. **§6:** clarify durable privacy-scrubbed inbound raw events,
+  original message ids confined to intake memory, domain-separated digest dedupe and UUID audit,
   and the synchronous bounded STOP effect before enqueue/ack. **§8:** record attendance assertions through
   the auth facade without changing the established login methods.
 - **module-map.md prose/YAML/checker:** preserve root notifications and restricted package ownership;
@@ -322,7 +378,7 @@ Approved by Waleed on 2026-10-01:
 2. **Re-subscription and manual actions:** no re-subscription, START or tenant override in Phase 1.
    Platform operators may add manual suppression with a mandatory audited reason; manual removal needs
    a later approved recipient-consent flow and does not ship now.
-3. **Retention:** clear scrubbed inbound payload JSON after 30 days; retain message-id dedupe,
+3. **Retention:** clear scrubbed inbound payload JSON after 30 days; retain message-digest dedupe,
    suppression rows and minimal append-only audit indefinitely.
 
 ## Alternatives considered
@@ -332,6 +388,8 @@ Approved by Waleed on 2026-10-01:
 | Per-company suppression or locks including company id | one sender's STOP must block all companies; distinct locks allow the race |
 | Full/encrypted phone or original unsanitized webhook bytes in global storage | violates this global-table privacy boundary; hash and finite command suffice |
 | Grant app direct SELECT/DML on global suppression | allows browsing/mutation of global recipient preferences; boolean check is sufficient |
+| Grant runtime opt-in column writes or rely only on endpoint restrictions | silently lifts accepted STOP; duplicate deliveries do not repair it; column denials and a NULL-only CHECK are required |
+| Retain original wamid as dedupe/audit evidence or use an unkeyed digest | provider ids can encode full phone digits; domain-separated HMAC and inbox UUID audit suffice |
 | Use auth/dispatcher roles, BYPASSRLS, superuser definer, or invent a tenant | broadens unrelated exceptions or weakens isolation |
 | Redis suppression, separate-connection check, or repeatable-read pre-lock snapshot | cannot prove the committed STOP-versus-authorization ordering |
 | Queue STOP before applying it; cancel/retry all pending attempts | delays STOP or changes ADR-0018's stated authorization window/fence |
@@ -346,12 +404,19 @@ Approved by Waleed on 2026-10-01:
 
 - Global suppression is durable without disclosing phone numbers or granting tenant roles global-table access.
   A small new pool/role and reviewed function inventory are required; tenant RLS stays unchanged.
+- Phase 1 suppression is monotonic by column privileges and a NULL-only CHECK covering INSERT/UPDATE;
+  duplicate STOP cannot be used to repair lifted suppression. A later consent flow requires an explicit
+  constraint/grant migration and audited removal, not merely a new endpoint.
+- Permanent dedupe retains only a domain-separated HMAC; audit links to inbox UUID, and original wamids
+  remain intake-memory-only. Payload expiry preserves dedupe without retaining phone-bearing ids. The
+  frozen platform key and a reviewed rotation migration are required to preserve retry identity.
 - STOP is effective at its acknowledged database commit, including when enqueue fails; already-authorized
   messages can finish. Availability failures return retries rather than silently lose accepted STOP.
 - Exact dependency pins are compatible by published metadata; plugin defaults require stricter auth-owned
   attendance verification. Enrollment, unbind and clock implementation remain PRs 20, 21 and 22.
-- PR 5/20 implementation must supply grant denials, signature/handshake/raw-body privacy/idempotency/crash
-  checks, both race orders, replay/wrong user/origin/RP/UV rejection, enrollment races and unbind fencing.
+- PR 5 must supply the column-grant/NULL-constraint, digest privacy, retention/replay and failure/race
+  checks in §5 alongside signature/handshake/raw-body/idempotency/crash checks. PR 20 must supply wrong
+  user/origin/RP/UV and replay rejection, enrollment races and unbind fencing.
   No installs, builds, servers or tests were run in this design step; production activation is not claimed.
 
 ## Open questions for the owner
