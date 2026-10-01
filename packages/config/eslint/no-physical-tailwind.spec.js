@@ -72,6 +72,8 @@ tester.run('no-physical-tailwind', noPhysicalTailwind, {
     'cn(side === "left-0" && "ms-2")',
     'cn({ "ms-2": side === "ml-2" })',
     'cn(flags["ml-2"] && "ms-2")',
+    'cn(options.includes("left-0") && "ms-2")',
+    'cn(isSide("ml-2") ? "ms-2" : "me-2")',
     'cva({ "ms-2": true }, { variants: { size: { sm: { "ps-2": true } } } })',
   ],
   invalid: [

@@ -42,17 +42,17 @@ export type ButtonProps = ComponentProps<'button'> &
 
 // A slotted link ignores the `disabled` attribute, so it is disabled the way ARIA expects: announced, out of the
 // tab order, and its activation (click or Enter) cancelled in the capture phase — before the child's own handlers,
-// which Radix Slot would otherwise run first. These props are forced over the child's, not merged under them.
+// which Radix Slot would otherwise run first. They are set on the child itself (cloneElement keeps its ref), so
+// they win over the child's own props, while Slot stays in place in both states: toggling `disabled` never
+// remounts the child, and Slot still composes the outer and inner refs.
 const cancelActivation = (event: MouseEvent<HTMLElement>) => {
   event.preventDefault();
   event.stopPropagation();
 };
 
-function disabledChild(child: ReactNode, className: string, props: ComponentProps<'button'>) {
-  if (!isValidElement<{ className?: string }>(child)) return child;
+function disableChild(child: ReactNode) {
+  if (!isValidElement(child)) return child;
   return cloneElement(child as ReactElement<Record<string, unknown>>, {
-    ...props,
-    className: cn(className, child.props.className),
     'aria-disabled': true,
     'data-disabled': '',
     tabIndex: -1,
@@ -78,10 +78,9 @@ export function Button({
       </button>
     );
   }
-  if (disabled) return disabledChild(children, classes, props);
   return (
     <Slot.Root className={classes} {...{ ...props, type }}>
-      {children}
+      {disabled ? disableChild(children) : children}
     </Slot.Root>
   );
 }

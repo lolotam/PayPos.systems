@@ -51,6 +51,12 @@ function isClassPosition(node) {
     if (ancestor.type === 'Property') {
       path.push({ role: child === ancestor.key ? 'key' : 'value', name: propertyName(ancestor) });
     }
+    // Any other call takes inputs, not classes: options.includes("left-0") is a lookup, not a class.
+    if (ancestor.type === 'CallExpression' && ancestor.arguments.includes(child)) {
+      if (ancestor.callee.type !== 'Identifier' || !['cn', 'cva'].includes(ancestor.callee.name)) {
+        return false;
+      }
+    }
     if (ancestor.type === 'CallExpression' && ancestor.callee.type === 'Identifier') {
       if (ancestor.callee.name === 'cn') return isClassValue(path);
       if (ancestor.callee.name === 'cva')

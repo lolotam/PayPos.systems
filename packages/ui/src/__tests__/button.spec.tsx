@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { createRef } from 'react';
+import { createRef, useState } from 'react';
 import { expect, it, vi } from 'vitest';
 
 import { Button } from '../button.js';
@@ -121,4 +121,31 @@ it('forwards an explicit type to a slotted button, so it does not submit its for
     'button',
     0,
   ]);
+});
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  return <span onMouseEnter={() => setCount(count + 1)}>{`${label}:${count}`}</span>;
+}
+
+it('keeps the slotted child mounted, with its state and both refs, when disabled toggles', () => {
+  const outer = createRef<HTMLElement>();
+  const inner = createRef<HTMLAnchorElement>();
+  const view = (disabled: boolean) => (
+    <Button asChild disabled={disabled} ref={outer as never}>
+      <a href="#fixture" ref={inner}>
+        <Counter />
+      </a>
+    </Button>
+  );
+  const { rerender } = render(view(false));
+  const before = screen.getByRole('link');
+  fireEvent.mouseEnter(screen.getByText(`${label}:0`));
+  rerender(view(true));
+  expect({
+    same: screen.getByRole('link') === before,
+    state: screen.queryByText(`${label}:1`) !== null,
+    outer: outer.current === before,
+    inner: inner.current === before,
+  }).toEqual({ same: true, state: true, outer: true, inner: true });
 });
