@@ -1,1 +1,1 @@
-export { notificationsControllers } from './notifications.module.ts';
+export { notificationsControllers, notificationsProviders } from './notifications.module.ts';

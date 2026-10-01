@@ -19,7 +19,7 @@ export function anonymousStatus(error: unknown): boolean {
   return error.status === 401;
 }
 
-export function hasUser(value: unknown): boolean {
+export function hasUser(value: unknown): value is { user: { id: string } } {
   if (typeof value !== 'object' || value === null || !('user' in value)) return false;
   const user = value.user;
   return typeof user === 'object' && user !== null && 'id' in user && typeof user.id === 'string';
@@ -34,7 +34,9 @@ export function redirectsToTotp(value: unknown): boolean {
   );
 }
 
-export function readEnrolment(value: unknown): { totpURI: string; backupCodes: string[] } | undefined {
+export function readEnrolment(
+  value: unknown,
+): { totpURI: string; backupCodes: string[] } | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   if (!('totpURI' in value) || typeof value.totpURI !== 'string') return undefined;
   if (!('backupCodes' in value) || !Array.isArray(value.backupCodes)) return undefined;

@@ -1,7 +1,49 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 
 import committed from '../../openapi/openapi.json' with { type: 'json' };
 import { buildOpenApiDocument } from '../openapi.js';
+
+const expectedSchemas = [
+  'Branch',
+  'Business',
+  'BusinessSettings',
+  'Calendar',
+  'CashierPinVerified',
+  'ClaimDeviceInput',
+  'Company',
+  'CreateBranchInput',
+  'CreateBusinessInput',
+  'CreateCompanyInput',
+  'Currency',
+  'DeliveryLogItem',
+  'DeliveryLogPage',
+  'DeliveryLogQuery',
+  'DeviceIdentity',
+  'DeviceRegistration',
+  'DeviceToken',
+  'ErrorEnvelope',
+  'GeoPoint',
+  'InAppNotification',
+  'InAppNotificationPage',
+  'InAppNotificationQuery',
+  'Language',
+  'MyWorkspacesResponse',
+  'NotificationReadResult',
+  'NotificationUnreadCount',
+  'OpeningHours',
+  'PageQuery',
+  'PairingCode',
+  'Plan',
+  'RegisterDeviceInput',
+  'TaxRule',
+  'TimeZone',
+  'UpdateBusinessSettingsInput',
+  'VerifyCashierPinInput',
+  'VerticalType',
+  'WorkspaceBranch',
+  'WorkspaceBusiness',
+  'WorkspaceCompany',
+];
 
 describe('openapi/openapi.json', () => {
   it('matches the contracts — run `pnpm contracts:openapi` after changing a schema', () => {
@@ -11,42 +53,7 @@ describe('openapi/openapi.json', () => {
   it('publishes every schema with no $id inside a component', () => {
     const schemas = (buildOpenApiDocument()['components'] as { schemas: Record<string, object> })
       .schemas;
-    expect(Object.keys(schemas).sort()).toEqual([
-      'Branch',
-      'Business',
-      'BusinessSettings',
-      'Calendar',
-      'CashierPinVerified',
-      'ClaimDeviceInput',
-      'Company',
-      'CreateBranchInput',
-      'CreateBusinessInput',
-      'CreateCompanyInput',
-      'Currency',
-      'DeliveryLogItem',
-      'DeliveryLogPage',
-      'DeliveryLogQuery',
-      'DeviceIdentity',
-      'DeviceRegistration',
-      'DeviceToken',
-      'ErrorEnvelope',
-      'GeoPoint',
-      'Language',
-      'MyWorkspacesResponse',
-      'OpeningHours',
-      'PageQuery',
-      'PairingCode',
-      'Plan',
-      'RegisterDeviceInput',
-      'TaxRule',
-      'TimeZone',
-      'UpdateBusinessSettingsInput',
-      'VerifyCashierPinInput',
-      'VerticalType',
-      'WorkspaceBranch',
-      'WorkspaceBusiness',
-      'WorkspaceCompany',
-    ]);
+    expect(Object.keys(schemas).sort()).toEqual(expectedSchemas);
     for (const schema of Object.values(schemas)) {
       expect(schema).not.toHaveProperty('$id');
     }

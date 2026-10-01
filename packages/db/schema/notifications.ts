@@ -16,8 +16,67 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { branches, businesses, companies } from './tenancy.ts';
+import { user } from './identity-auth.ts';
 
 const bytea = customType<{ data: Buffer }>({ dataType: () => 'bytea' });
+
+export const inAppNotifications = pgTable(
+  'in_app_notifications',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    recipientUserId: uuid('recipient_user_id')
+      .notNull()
+      .references(() => user.id),
+    businessId: uuid('business_id'),
+    branchId: uuid('branch_id'),
+    // هوية المصدر تبقى بعد حذف outbox حتى لا تعيد إعادة التسليم إنشاء الإشعار.
+    sourceEventId: uuid('source_event_id').notNull(),
+    templateKey: text('template_key').notNull(),
+    templateRevision: integer('template_revision').notNull(),
+    locale: text('locale').notNull(),
+    safeParameters: jsonb('safe_parameters').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    readAt: timestamp('read_at', { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ name: 'in_app_notifications_pkey', columns: [t.companyId, t.id] }),
+    unique('in_app_notifications_identity').on(
+      t.companyId,
+      t.sourceEventId,
+      t.recipientUserId,
+      t.templateKey,
+    ),
+    foreignKey({
+      name: 'in_app_notifications_business_fk',
+      columns: [t.companyId, t.businessId],
+      foreignColumns: [businesses.companyId, businesses.id],
+    }),
+    foreignKey({
+      name: 'in_app_notifications_branch_fk',
+      columns: [t.companyId, t.branchId],
+      foreignColumns: [branches.companyId, branches.id],
+    }),
+    check('in_app_notifications_scope', sql`${t.branchId} IS NULL OR ${t.businessId} IS NOT NULL`),
+    check('in_app_notifications_locale', sql`${t.locale} IN ('ar','en')`),
+    check('in_app_notifications_revision', sql`${t.templateRevision} > 0`),
+    check('in_app_notifications_parameters', sql`jsonb_typeof(${t.safeParameters}) = 'array'`),
+    index('in_app_notifications_business_idx').on(t.companyId, t.businessId),
+    index('in_app_notifications_branch_idx').on(t.companyId, t.branchId),
+    index('in_app_notifications_user_idx').on(t.recipientUserId),
+    index('in_app_notifications_list_idx').on(
+      t.companyId,
+      t.recipientUserId,
+      t.createdAt.desc(),
+      t.id.desc(),
+    ),
+    index('in_app_notifications_unread_idx')
+      .on(t.companyId, t.recipientUserId, t.createdAt.desc(), t.id.desc())
+      .where(sql`${t.readAt} IS NULL`),
+  ],
+);
 
 export const notificationAttempts = pgTable(
   'notification_attempts',

@@ -1,5 +1,16 @@
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  inApp: {
+    title: 'Notifications',
+    unread: 'Unread',
+    read: 'Read',
+    markRead: 'Mark read',
+    markAllRead: 'Mark all read',
+    empty: 'No notifications yet.',
+    loading: 'Loading notifications…',
+    error: 'Notifications could not be updated. Try again.',
+    generic_notice: 'Update for {{subject}}',
+  },
   errors: {
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',
@@ -98,7 +109,8 @@ export const en = {
     startOver: 'Start over',
     offlineTitle: 'Offline',
     unsupportedTitle: 'This browser is not supported',
-    unsupportedLead: 'Open PosPay in a current version of Chrome, Edge, Safari or Firefox to pair this device.',
+    unsupportedLead:
+      'Open PosPay in a current version of Chrome, Edge, Safari or Firefox to pair this device.',
     offlineLead: 'This device could not reach the server. The saved sign-in stays on this device.',
     retry: 'Retry',
     attendanceTitle: 'Attendance',

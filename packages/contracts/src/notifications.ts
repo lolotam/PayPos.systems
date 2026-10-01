@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { id } from './scalars/id.js';
 import { timestamp } from './scalars/timestamp.js';
 import { pageQuery } from './pagination/cursor.js';
+import { inAppRecipient } from './in-app-notifications.js';
 
 export const notificationStatus = z.enum([
   'PENDING',
@@ -31,7 +32,7 @@ export const notificationParameter = z.strictObject({
   type: z.enum(['text', 'number']),
   value: z.union([z.string().max(255), z.number().finite()]),
 });
-export const notificationRecipient = z.strictObject({
+export const whatsappRecipient = z.strictObject({
   phone: z.string().max(32),
   locale: z.string().max(32).nullish(),
   channel: z.literal('whatsapp'),
@@ -40,6 +41,10 @@ export const notificationRecipient = z.strictObject({
   safe_parameters: z.array(notificationParameter).max(20),
   send_deadline: timestamp.nullish(),
 });
+export const notificationRecipient = z.discriminatedUnion('channel', [
+  whatsappRecipient,
+  inAppRecipient,
+]);
 export const notificationRequest = z
   .object({
     business_id: id.nullish(),
@@ -48,21 +53,33 @@ export const notificationRequest = z
   })
   .refine((v) => v.branch_id == null || v.business_id != null);
 export const notificationSendAuthorized = z.strictObject({ company_id: id, attempt_id: id });
-export const notificationResult = z.strictObject({
-  company_id: id,
-  attempt_id: id,
-  source_event_id: id,
-  business_id: id.nullable(),
-  branch_id: id.nullable(),
-  channel: z.literal('whatsapp'),
-  template_key: z.string(),
-  locale: z.enum(['ar', 'en']).nullable(),
-  status: z.enum(['SENT', 'FAILED', 'EXPIRED', 'SUPPRESSED']),
-  occurred_at: timestamp,
-  evidence: z.enum(['PROVIDER_ACCEPTED', 'NONE']),
-  failure_code: notificationFailureCode.optional(),
-  outcome_known: z.boolean(),
-});
+export const notificationResult = z
+  .strictObject({
+    company_id: id,
+    attempt_id: id,
+    source_event_id: id,
+    business_id: id.nullable(),
+    branch_id: id.nullable(),
+    channel: z.enum(['whatsapp', 'IN_APP']),
+    recipient_user_id: id.optional(),
+    template_key: z.string(),
+    locale: z.enum(['ar', 'en']).nullable(),
+    status: z.enum(['SENT', 'FAILED', 'EXPIRED', 'SUPPRESSED']),
+    occurred_at: timestamp,
+    evidence: z.enum(['PROVIDER_ACCEPTED', 'IN_APP_STORED', 'NONE']),
+    failure_code: notificationFailureCode.optional(),
+    outcome_known: z.boolean(),
+  })
+  .refine((value) =>
+    value.channel === 'IN_APP'
+      ? value.recipient_user_id !== undefined &&
+        value.locale !== null &&
+        value.status === 'SENT' &&
+        value.evidence === 'IN_APP_STORED' &&
+        value.outcome_known &&
+        value.failure_code === undefined
+      : value.recipient_user_id === undefined && value.evidence !== 'IN_APP_STORED',
+  );
 export const deliveryLogItem = z
   .strictObject({
     id,

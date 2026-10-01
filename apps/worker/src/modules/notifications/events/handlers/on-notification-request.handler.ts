@@ -1,9 +1,11 @@
-import { notificationRequest } from '@pospay/contracts';
+import { notificationRequest, type InAppRecipient } from '@pospay/contracts';
 import type { ClaimedEvent, Tx } from '@pospay/db';
 import type { createPhoneIdentity, createTemplateRegistry } from '@pospay/notifications';
 
 import type { OutboxConsumer } from '../../../../outbox/consumer.ts';
 import type { AuthorizeNotification } from '../../use-cases/authorize-notification/authorize-notification.ts';
+import type { StoreInAppNotification } from '../../use-cases/store-in-app-notification/store-in-app-notification.ts';
+import { validInAppTemplate } from '@pospay/notifications';
 
 export const NOTIFICATION_SOURCE_EVENTS = [
   'PaymentFailed',
@@ -27,6 +29,7 @@ export function notificationRequestConsumer(
   authorize: (tx: Tx) => AuthorizeNotification,
   identity: ReturnType<typeof createPhoneIdentity>,
   registry: ReturnType<typeof createTemplateRegistry>,
+  store: (tx: Tx) => StoreInAppNotification,
 ): OutboxConsumer {
   return {
     id: 'notifications.authorize-v1',
@@ -44,6 +47,10 @@ export function notificationRequestConsumer(
         throw new Error('NOTIFICATION_REQUEST_INVALID');
       }
       for (const recipient of parsed.data.notification_recipients) {
+        if (recipient.channel === 'IN_APP') {
+          await storeRecipient(store(tx), event, recipient, parsed.data);
+          continue;
+        }
         const locale = recipient.locale ?? null;
         const prepared =
           locale === 'ar' || locale === 'en'
@@ -73,4 +80,32 @@ export function notificationRequestConsumer(
       }
     },
   };
+}
+
+function storeRecipient(
+  store: StoreInAppNotification,
+  event: ClaimedEvent,
+  recipient: InAppRecipient,
+  scope: { business_id?: string | null | undefined; branch_id?: string | null | undefined },
+) {
+  if (
+    !validInAppTemplate(
+      recipient.template_key,
+      recipient.template_revision,
+      recipient.locale,
+      recipient.safe_parameters,
+    )
+  )
+    throw new Error('NOTIFICATION_REQUEST_INVALID');
+  return store.execute({
+    companyId: event.companyId,
+    sourceEventId: event.id,
+    recipientUserId: recipient.user_id,
+    businessId: scope.business_id ?? null,
+    branchId: scope.branch_id ?? null,
+    templateKey: recipient.template_key,
+    templateRevision: recipient.template_revision,
+    locale: recipient.locale,
+    safeParameters: recipient.safe_parameters,
+  });
 }

@@ -211,6 +211,25 @@ PR 4b adds in-app store/list/mark-read/bell under tenant/recipient authorization
 with user recipients; creation stays database-only in the consumer transaction. PR 14 adds email after ADR-0014.
 Neither adapter/UI, nor SMS/push, ships in PR 4.
 
+PR 4b decision: `IN_APP` recipients carry `user_id` (global platform identity), strict ar/en locale,
+template key/revision and safe ordered values. Initially only `generic_notice` revision 1 with safe `subject`
+is supported; sensitive `staff_otp` cannot reach IN_APP. Rendering lives in the i18n `inApp` catalog.
+Company FORCE RLS protects the database-only worker path; all API queries/mutations also filter by session
+user inside `withTenant`. `@Authenticated()` plus SelectedCompanyGuard rechecks active membership via
+`withUser` and requires `x-company-id`; no role permission is needed for a personal inbox or acknowledgment.
+The administrative delivery-log permission is unchanged. Device/key principals are refused.
+PR 4b review fixes also verify the selected company is open inside `withTenant` after membership,
+and scope browser inbox caches/invalidation by company and session user. The dashboard frame passes
+the session identity into the bell; identity navigation broadcasts before loading and peer tabs clear
+their shared QueryClient and reload, with a guarded fallback when BroadcastChannel is unavailable.
+Creation and its `NotificationDelivered` result commit with consumer dedupe. The reused envelope's
+`attempt_id` identifies the inbox row, `recipient_user_id` identifies the recipient, and evidence
+`IN_APP_STORED` means durable inbox creation, never provider submission or user read. No authorization
+queue event is created. Invalid in-app contracts reject the transaction. Read writes return identical
+HTTP 200 acknowledgments for own, absent and foreign ids, preserve the first read timestamp and publish
+no delivery/read event. Cursor order is `(created_at DESC,id DESC)`; the bell shows the latest 20 and
+polls every 60 seconds. Indexes ship with the new table, without a concurrent rebuild.
+
 ### 7. OTP in PR 6
 
 PR 6 adds the currently absent `OtpSender` port/phone OTP plugin and binds it at API's composition root to queued

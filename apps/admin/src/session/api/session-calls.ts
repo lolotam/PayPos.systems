@@ -2,7 +2,13 @@ import type { MessageKey } from '@pospay/i18n';
 
 import { clearSelection } from '@/shared/api/selection-cookie';
 
-import { anonymousStatus, authErrorKey, hasUser, readEnrolment, redirectsToTotp } from './auth-error';
+import {
+  anonymousStatus,
+  authErrorKey,
+  hasUser,
+  readEnrolment,
+  redirectsToTotp,
+} from './auth-error';
 import { browserAuthClient } from './browser-client';
 
 export type SignInOutcome = 'totp' | 'done' | MessageKey;
@@ -48,6 +54,15 @@ export async function loadBrowserSession(): Promise<'in' | 'out'> {
     throw result.error;
   }
   return hasUser(result.data) ? 'in' : 'out';
+}
+
+export async function readSessionUserId(): Promise<string | null> {
+  const result = await browserAuthClient().getSession();
+  if (result.error) {
+    if (anonymousStatus(result.error)) return null;
+    throw result.error;
+  }
+  return hasUser(result.data) ? result.data.user.id : null;
 }
 
 export async function signOutSession(): Promise<boolean> {

@@ -36,6 +36,9 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'idempotency_keys:INSERT',
     'idempotency_keys:SELECT',
     'idempotency_keys:UPDATE',
+    'in_app_notifications:INSERT',
+    'in_app_notifications:SELECT',
+    'in_app_notifications:UPDATE',
     'memberships:DELETE',
     'memberships:INSERT',
     'memberships:SELECT',
@@ -97,6 +100,7 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
 const TENANT_TABLES = [
+  'in_app_notifications',
   'notification_attempts',
   'companies',
   'businesses',
@@ -321,6 +325,11 @@ describe('function inventory', () => {
       },
       {
         proname: 'idempotency_keys_require_response',
+        prosecdef: false,
+        proconfig: ['search_path=public, pg_temp'],
+      },
+      {
+        proname: 'in_app_notifications_guard',
         prosecdef: false,
         proconfig: ['search_path=public, pg_temp'],
       },
