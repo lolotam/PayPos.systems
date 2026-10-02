@@ -82,7 +82,7 @@ ar/en i18n, RTL-safe UI, and no component fetches.
 
 Apply a **per-IP Redis rate limit before token lookup**, across GET/submit/opt-out and all company prefixes;
 use the verified proxy-derived IP, not arbitrary forwarded headers. Missing rate-limit infrastructure fails
-closed for public token operations. The orchestrator decided **30 requests/IP/minute**, shared across all rating
+closed for public token operations. The owner decided (2026-10-03) **30 requests/IP/minute**, shared across all rating
 operations, with a generic bilingual 429 and `Retry-After`.
 
 The page and its data response disclose **only the business name and the stars form** (1–5 stars, optional
@@ -142,7 +142,7 @@ CLAUDE.md amendment; companion-document synchronization belongs to the orchestra
 
 - **Waleed:** allow an optional plain-text comment of at most 1,000 characters, no images or links, visible only
   to the owner/manager. This is the accepted comment policy in §4.
-- **Orchestrator:** accept 30 requests/IP/minute across rating operations and require owner approval of ar/en
+- **Owner (2026-10-03):** accept 30 requests/IP/minute across rating operations and require owner approval of ar/en
   public-form copy before PR 60, as recorded in §4.
 - **Deferred to the ratings slice:** token delivery remains open below; acceptance does not authorize an
   unresolved bearer-token transport or enable rating sends.

@@ -20,7 +20,7 @@ tax, discounts and ancillary services, and must be rechecked before purchase. No
 ### 1. Select Resend for the pilot; preserve the Channel boundary
 
 **Select Resend Pro, with overage disabled initially**, for Phase 1's operational email, as decided by Waleed.
-The orchestrator decided one platform-controlled verified `send.pospay.systems` sender domain and sending region
+The owner decided (2026-10-03) one platform-controlled verified `send.pospay.systems` sender domain and sending region
 Ireland (`eu-west-1`). These are accepted design decisions, not evidence of a purchased subscription, production
 configuration or measured deliverability. Enable overage only after a later budget alert/cap decision.
 
@@ -114,7 +114,7 @@ a second submission. PR 14's slice spec must classify the minimal feedback inbox
 grants and retention before any migration; no runtime global tenant scan. Privacy-scrub provider diagnostics;
 no documents or raw email bodies in the inbox.
 
-The orchestrator decided provider hard-bounce/complaint suppression before live sending. Record failures visibly
+The owner decided (2026-10-03) provider hard-bounce/complaint suppression before live sending. Record failures visibly
 to the owner, allow suppression correction only through manual operation, never
 resubmit the failed alert, never clear suppression automatically, and do not enable open/click tracking by
 default. Keep scrubbed feedback for **30 days**, retaining durable attempt/dedupe identities independently.
@@ -153,12 +153,12 @@ it; this record does not approve an unspecified SDK. Fake/synthetic adapter test
 
 - **Waleed:** select **Resend Pro**, with **overage disabled initially**, accepting the provider/budget
   recommendation. Any later overage change needs its budget alert/cap decision first.
-- **Orchestrator — region:** accept Ireland (`eu-west-1`); do not describe sending region as a guarantee of full
+- **Owner (2026-10-03) — region:** accept Ireland (`eu-west-1`); do not describe sending region as a guarantee of full
   provider data residency. A later Gulf-processing requirement needs a separately accepted provider review.
-- **Orchestrator — sender:** accept one platform-controlled verified `send.pospay.systems` domain, bilingual
+- **Owner (2026-10-03) — sender:** accept one platform-controlled verified `send.pospay.systems` domain, bilingual
   operational-only copy, monitored Reply-To and authenticated admin links without document content; populate
   the actual approved display name/mailbox before activation.
-- **Orchestrator — feedback:** accept owner-visible failures, hard-bounce/complaint suppression, manual correction
+- **Owner (2026-10-03) — feedback:** accept owner-visible failures, hard-bounce/complaint suppression, manual correction
   only, no automatic re-subscription/resend, no open/click tracking and 30-day scrubbed feedback retention with
   durable attempt/dedupe identities retained. Assign the operator before activation; §3 defines authenticated
   reconciliation without weakening ADR-0018's irreversible send fence.
