@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { customer, findOrCreateCustomerInput } from './customers.js';
+import { customerPaths } from './customers-openapi.js';
 import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
 import {
   staffOtpRequestInput,
@@ -135,27 +136,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
-  '/v1/customers/find-or-create': {
-    post: {
-      ...operation(
-        'findOrCreateCustomer',
-        '200',
-        'Customer with masked phone',
-        'Customer',
-        'FindOrCreateCustomerInput',
-      ),
-      parameters: [
-        {
-          in: 'header',
-          name: 'x-company-id',
-          required: true,
-          schema: { type: 'string', format: 'uuid' },
-        },
-      ],
-      description:
-        'Requires create:customers:company and the customers feature. Existing name and locale are preserved.',
-    },
-  },
+  ...customerPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(
