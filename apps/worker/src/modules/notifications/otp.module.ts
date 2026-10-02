@@ -50,8 +50,8 @@ export function startStaffOtpWorker(options: StaffOtpWorkerOptions) {
     stop: async () => {
       await worker.pause(true);
     },
-    close: async () => {
-      await worker.close();
+    close: async (force = false) => {
+      await worker.close(force);
       await options.auth.close();
     },
   };

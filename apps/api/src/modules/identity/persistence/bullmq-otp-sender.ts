@@ -54,8 +54,9 @@ export function createOtpSender(url: string) {
         return null;
       return current.connection.get('staff-otp:worker-capability');
     },
-    close: async () => {
+    close: async (force = false) => {
       stopped = true;
+      if (force) current?.connection.disconnect();
       await closing;
       if (current !== undefined) await abort(current);
     },

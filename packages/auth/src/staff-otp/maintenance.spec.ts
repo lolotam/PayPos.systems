@@ -43,3 +43,24 @@ it('wrong-role/schema failure is a finite internal diagnostic, with no cleanup f
   expect(database.cleanup).not.toHaveBeenCalled();
   await maintenance.close();
 });
+
+it('shutdown cancels the database before draining unfinished maintenance and prevents late cleanup', async () => {
+  let complete: (() => void) | undefined;
+  database.ping.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const maintenance = createStaffOtpMaintenance({
+    databaseUrl: 'synthetic',
+    phoneLockKey: () => 0n,
+    onFailure: vi.fn(),
+  });
+  const running = maintenance.run();
+  const closing = maintenance.close();
+  expect(database.close).toHaveBeenCalledOnce();
+  complete?.();
+  await Promise.all([running, closing]);
+  expect(database.cleanup).not.toHaveBeenCalled();
+});

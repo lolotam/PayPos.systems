@@ -20,6 +20,7 @@ import {
   type WhatsappIntake,
 } from './http/whatsapp-webhook.controller.ts';
 import { Queue } from 'bullmq';
+import { Redis } from 'ioredis';
 import type { PlatformWhatsappDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { readWhatsappWebhookConfiguration } from '@pospay/notifications';
@@ -64,13 +65,7 @@ export function createWhatsappIntake(
   logger: Logger,
 ) {
   const config = readWhatsappWebhookConfiguration(env);
-  const queue = new Queue(WHATSAPP_INBOUND_QUEUE, {
-    connection: {
-      ...notificationRedisOptions(redisUrl),
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
-    },
-  });
+  const { queue, close } = intakeQueue(redisUrl, logger);
   queue.on('error', () => logger.warn({}, 'whatsapp inbox queue error'));
   const inbox = createWhatsappInboxRepository(database, systemUuidV7());
   const receive = new ReceiveWhatsappStop(
@@ -95,6 +90,7 @@ export function createWhatsappIntake(
     },
     { now: () => new Date() },
   );
+  let closed = false;
   return {
     config,
     receive,
@@ -102,9 +98,35 @@ export function createWhatsappIntake(
       logger.warn({ skipped: count }, 'whatsapp changes skipped'),
     ),
     ready: async () => {
+      if (closed) throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
       await database.ping();
+      if (closed) throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
       await queue.waitUntilReady();
     },
-    close: () => queue.close(),
+    close: async (force = false) => {
+      closed = true;
+      await close(force);
+    },
+  };
+}
+
+function intakeQueue(redisUrl: string, logger: Logger) {
+  const connection = new Redis({
+    ...notificationRedisOptions(redisUrl),
+    enableOfflineQueue: false,
+    maxRetriesPerRequest: 1,
+  });
+  connection.on('error', () => logger.warn({}, 'whatsapp inbox queue error'));
+  const queue = new Queue(WHATSAPP_INBOUND_QUEUE, { connection });
+  return {
+    queue,
+    close: async (force: boolean) => {
+      if (force) connection.disconnect();
+      try {
+        await queue.close();
+      } finally {
+        connection.disconnect();
+      }
+    },
   };
 }

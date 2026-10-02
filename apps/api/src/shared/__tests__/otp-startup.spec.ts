@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import Fastify from 'fastify';
+import { HealthController } from '../health.controller.ts';
 
 const resources = vi.hoisted(() => ({
   database: { close: vi.fn(async () => undefined), ping: vi.fn() },
@@ -29,7 +31,7 @@ vi.mock('@pospay/db', () => ({
   }),
 }));
 vi.mock('@pospay/auth', () => ({
-  createAuth: async () => ({ close: vi.fn(), staff: {} }),
+  createAuth: async () => ({ close: vi.fn(), ping: vi.fn(), staff: {} }),
   createStaffOtpApi: (options: { capability: { ready(): Promise<boolean> } }) => {
     resources.otpOptions(options);
     return {
@@ -46,6 +48,7 @@ vi.mock('ioredis', () => ({
     on() {}
     quit = vi.fn();
     disconnect = vi.fn();
+    ping = vi.fn();
   },
 }));
 vi.mock('../../app.ts', () => ({
@@ -80,14 +83,53 @@ beforeEach(() => {
   vi.clearAllMocks();
   resources.configuration.state = 'DISABLED';
   resources.intake.ready.mockRejectedValue(new Error('SYNTHETIC_INTAKE_FAILURE'));
+  resources.intake.close.mockResolvedValue(undefined);
+  resources.transport.ready.mockResolvedValue(undefined);
 });
+
+async function ordinaryReadiness() {
+  const options = resources.appOptions.mock.calls.at(-1)?.[0];
+  const app = Fastify();
+  app.get('/ready', () => new HealthController(options.readiness).ready());
+  try {
+    expect((await app.inject('/ready')).statusCode).toBe(200);
+  } finally {
+    await app.close();
+  }
+}
+
+it('hung optional intake readiness and cleanup cannot prevent listening or /ready 200', async () => {
+  resources.intake.ready.mockImplementation(() => new Promise(() => undefined));
+  resources.intake.close.mockImplementation(() => new Promise(() => undefined));
+  await import('../../main.ts');
+  expect(resources.listen).toHaveBeenCalledOnce();
+  expect(resources.intake.close).toHaveBeenCalledWith(true);
+  expect(resources.logger.warn).toHaveBeenCalledWith(
+    expect.objectContaining({ capability: expect.objectContaining({ state: 'UNAVAILABLE' }) }),
+    'staff OTP capability',
+  );
+  await ordinaryReadiness();
+}, 5000);
+
+it('hung optional OTP readiness is closed while ordinary API /ready remains 200', async () => {
+  resources.configuration.state = 'READY';
+  resources.intake.ready.mockResolvedValue(undefined);
+  resources.transport.ready.mockImplementation(() => new Promise(() => undefined));
+  vi.stubEnv('NOTIFICATION_PHONE_HASH_KEY', 'synthetic'.repeat(8));
+  vi.stubEnv('NOTIFICATION_PHONE_HASH_KEY_ID', 'synthetic-h');
+  await import('../../main.ts');
+  expect(resources.listen).toHaveBeenCalledOnce();
+  expect(resources.transport.close).toHaveBeenCalledWith(true);
+  expect(resources.appOptions.mock.calls.at(-1)?.[0]?.staff.api).toBeNull();
+  await ordinaryReadiness();
+}, 5000);
 afterEach(async () => {
   await resources.appOptions.mock.calls.at(-1)?.[0]?.onShutdown?.();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
 
-it('sender/STOP fingerprint disagreement closes OTP while ordinary API startup remains healthy', async () => {
+it('sender/STOP fingerprint disagreement refuses OTP while ordinary API startup remains healthy', async () => {
   resources.configuration.state = 'READY';
   resources.intake.ready.mockResolvedValue(undefined);
   vi.stubEnv('NOTIFICATION_PHONE_HASH_KEY', 'synthetic'.repeat(8));
@@ -104,6 +146,9 @@ it('sender/STOP fingerprint disagreement closes OTP while ordinary API startup r
     { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE' } },
     'staff OTP capability',
   );
+  expect(resources.transport.close).not.toHaveBeenCalled();
+  resources.transport.workerFingerprint.mockResolvedValueOnce('synthetic-api');
+  expect(await resources.otpOptions.mock.calls[0]?.[0].capability.ready()).toBe(true);
 });
 
 it('a failing optional intake is diagnosed and isolated from ordinary API readiness', async () => {

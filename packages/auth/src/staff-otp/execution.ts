@@ -64,7 +64,7 @@ export function createStaffOtpMaintenance(options: {
     if (stopped || active !== undefined) return;
     active = (async () => {
       await database.ping();
-      await database.cleanup(100);
+      if (!stopped) await database.cleanup(100);
     })().finally(() => {
       active = undefined;
     });
@@ -81,10 +81,11 @@ export function createStaffOtpMaintenance(options: {
   return {
     run,
     stop,
+    readiness: database.ping,
     close: async () => {
       stop();
-      await active?.catch(() => undefined);
       await database.close();
+      await active?.catch(() => undefined);
     },
   };
 }

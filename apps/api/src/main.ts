@@ -16,6 +16,7 @@ import { createWhatsappIntake } from './modules/notifications/index.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { staffOtpDependencies } from './modules/identity/index.ts';
 import { readConfig } from './shared/config.ts';
+import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: API_LOG_EVENTS });
@@ -32,6 +33,8 @@ const database = createDatabase({
 let auth: AuthService | undefined;
 let otp: StaffOtpApi | undefined;
 let otpDependencies: ReturnType<typeof staffOtpDependencies> | undefined;
+let otpInitializing = true;
+let otpSetupFailed = false;
 const otpConfiguration = () =>
   readStaffOtpConfiguration(process.env, 'api', readOtpTemplateApproval(process.env));
 const intakeUrl = config.PLATFORM_NOTIFICATIONS_DATABASE_URL;
@@ -61,12 +64,12 @@ const release = async (): Promise<void> => {
   });
   await Promise.race([
     Promise.allSettled([
-      whatsapp?.close(),
-      globalDatabase?.close(),
+      whatsapp?.close(true),
+      globalDatabase?.close(true),
       database.close(),
       auth?.close(),
       otp?.close(),
-      otpDependencies?.transport.close(),
+      otpDependencies?.transport.close(true),
       redis.quit(),
     ]),
     deadline,
@@ -81,8 +84,9 @@ try {
       if (process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0)
         throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
       globalDatabase = createPlatformWhatsappDatabase({ url: intakeUrl });
-      whatsapp = createWhatsappIntake(globalDatabase, config.REDIS_URL, process.env, logger);
-      await whatsapp.ready();
+      const intake = createWhatsappIntake(globalDatabase, config.REDIS_URL, process.env, logger);
+      whatsapp = intake;
+      await optionalWithin(() => intake.ready());
       logger.info(
         { capability: { name: 'WHATSAPP_INTAKE', state: 'READY' } },
         'staff OTP capability',
@@ -92,8 +96,7 @@ try {
         { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
         'staff OTP capability',
       );
-      await whatsapp?.close().catch(() => undefined);
-      await globalDatabase?.close().catch(() => undefined);
+      await closeOptional([() => whatsapp?.close(true), () => globalDatabase?.close(true)]);
       whatsapp = undefined;
       globalDatabase = undefined;
     }
@@ -169,16 +172,21 @@ try {
                 globalDatabase === undefined
               )
                 return false;
-              if (deadline !== undefined)
-                return (
-                  (await dependencies.transport.workerFingerprint(deadline)) === current.fingerprint
-                );
-              await database.ping();
-              await whatsapp.ready();
-              await dependencies.transport.ready();
-              await otp?.readiness();
-              return (await dependencies.transport.workerFingerprint()) === current.fingerprint;
+              const intake = whatsapp;
+              return await optionalWithin(async () => {
+                if (deadline !== undefined)
+                  return (
+                    (await dependencies.transport.workerFingerprint(deadline)) ===
+                    current.fingerprint
+                  );
+                await database.ping();
+                await intake.ready();
+                await dependencies.transport.ready();
+                await otp?.readiness();
+                return (await dependencies.transport.workerFingerprint()) === current.fingerprint;
+              });
             } catch {
+              if (otpInitializing) otpSetupFailed = true;
               return false;
             }
           },
@@ -209,17 +217,31 @@ try {
         { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
         'staff OTP capability',
       );
-      await otpDependencies?.transport.close().catch(() => undefined);
-      await otp?.close().catch(() => undefined);
+      await closeOptional([() => otpDependencies?.transport.close(true), () => otp?.close()]);
       otp = undefined;
     }
+  }
+  const otpState =
+    initialOtp.state === 'DISABLED'
+      ? 'DISABLED'
+      : await optionalWithin(async () => (await otp?.state()) ?? 'UNAVAILABLE').catch(() => {
+          otpSetupFailed = true;
+          return 'UNAVAILABLE';
+        });
+  otpInitializing = false;
+  if (otpSetupFailed) {
+    logger.warn(
+      { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+      'staff OTP capability',
+    );
+    await closeOptional([() => otpDependencies?.transport.close(true), () => otp?.close()]);
+    otp = undefined;
   }
   logger.info(
     {
       capability: {
         name: 'STAFF_LOGIN',
-        state:
-          initialOtp.state === 'DISABLED' ? 'DISABLED' : ((await otp?.state()) ?? 'UNAVAILABLE'),
+        state: otpState,
       },
     },
     'staff OTP capability',

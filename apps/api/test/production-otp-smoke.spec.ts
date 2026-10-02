@@ -33,7 +33,10 @@ afterAll(async () => {
   await h?.close();
 });
 
-function environment(port: number, variant: 'empty' | 'intake-url-only'): NodeJS.ProcessEnv {
+function environment(
+  port: number,
+  variant: 'empty' | 'intake-url-only' | 'malformed-worker-auth',
+): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const name of Object.keys(env)) {
     if (/^(STAFF_OTP_|WHATSAPP_)|NOTIFICATION/.test(name)) env[name] = '';
@@ -62,7 +65,7 @@ function environment(port: number, variant: 'empty' | 'intake-url-only'): NodeJS
     LOG_LEVEL: 'info',
     TRUSTED_PROXY_CIDRS: '',
     PLATFORM_NOTIFICATIONS_DATABASE_URL:
-      variant === 'empty'
+      variant !== 'intake-url-only'
         ? ''
         : pgUrl(
             pg,
@@ -73,7 +76,7 @@ function environment(port: number, variant: 'empty' | 'intake-url-only'): NodeJS
   };
 }
 
-it.each(['empty', 'intake-url-only'] as const)(
+it.each(['empty', 'intake-url-only', 'malformed-worker-auth'] as const)(
   'built production API and worker stay ready with %s optional settings',
   async (variant) => {
     const apiPort = randomInt(40000, 45000),
@@ -103,7 +106,10 @@ it.each(['empty', 'intake-url-only'] as const)(
       });
       await builtSmoke(
         'worker',
-        environment(workerPort, variant),
+        {
+          ...environment(workerPort, variant),
+          AUTH_DATABASE_URL: variant === 'malformed-worker-auth' ? 'synthetic-invalid' : '',
+        },
         workerPort,
         async () => undefined,
       );

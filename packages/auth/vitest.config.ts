@@ -4,7 +4,8 @@ import { defineConfig } from 'vitest/config';
 // template per run, one cloned database per spec file.
 export default defineConfig({
   test: {
-    maxWorkers: 2,
+    // تجارب الهوية تتشارك السيرفر وقفل clone؛ تجهيز ملف لا ينافس تجهيز ملف آخر.
+    fileParallelism: false,
     globalSetup: ['../db/test/global-setup.ts'],
     include: ['src/**/*.spec.ts'],
     testTimeout: 20_000,
