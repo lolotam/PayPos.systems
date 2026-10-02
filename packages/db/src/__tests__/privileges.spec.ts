@@ -30,6 +30,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'company_feature_overrides:SELECT',
     'consumed_events:INSERT',
     'consumed_events:SELECT',
+    'customers:INSERT',
+    'customers:SELECT',
     'devices:INSERT',
     'devices:SELECT',
     'devices:UPDATE',

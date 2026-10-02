@@ -15,6 +15,8 @@ export const ar: Catalog = {
   },
   errors: {
     VALIDATION_FAILED: 'البيانات المرسلة غير صحيحة',
+    INVALID_CUSTOMER_PHONE:
+      'اختر رمز اتصال بلد صالحاً وأدخل أرقام الهاتف الوطني؛ الكويت تتطلب ثمانية أرقام',
     BAD_REQUEST: 'الطلب غير صالح',
     UNAUTHENTICATED: 'يجب تسجيل الدخول',
     AUTHENTICATION_FAILED: 'تعذّر تسجيل الدخول بهذه البيانات',

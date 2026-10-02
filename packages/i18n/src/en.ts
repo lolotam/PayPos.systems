@@ -12,6 +12,8 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    INVALID_CUSTOMER_PHONE:
+      'Choose a valid country calling code and enter national digits; Kuwait requires eight digits',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',
     UNAUTHENTICATED: 'Authentication is required',

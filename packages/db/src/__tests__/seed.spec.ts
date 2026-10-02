@@ -39,7 +39,7 @@ describe('seedReferenceData', () => {
     expect(SYSTEM_ROLES).toHaveLength(14);
   });
 
-  it('gives Owner every tenant permission and manager roles the notification-log permission (ADR-0018)', async () => {
+  it('keeps customer defaults pending PR 7a; grants Owner other tenant permissions and managers notification log', async () => {
     const owned = await owner<{ role_id: string; permission_code: string }[]>`
       SELECT role_id, permission_code FROM role_permissions ORDER BY permission_code, role_id`;
     expect(owned.filter((r) => r.role_id !== OWNER_ROLE_ID)).toEqual(
@@ -50,7 +50,9 @@ describe('seedReferenceData', () => {
         .sort((a, b) => a.role_id.localeCompare(b.role_id)),
     );
     expect(owned.filter((r) => r.role_id === OWNER_ROLE_ID).map((r) => r.permission_code)).toEqual(
-      PERMISSIONS.filter((p) => !p.endsWith(':platform')).sort(),
+      PERMISSIONS.filter(
+        (p) => !p.endsWith(':platform') && p !== 'create:customers:company',
+      ).sort(),
     );
   });
 

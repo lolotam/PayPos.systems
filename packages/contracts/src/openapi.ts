@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { customer, findOrCreateCustomerInput } from './customers.js';
 
 import { errorEnvelope } from './errors/envelope.js';
 import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
@@ -46,6 +47,8 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  customer,
+  findOrCreateCustomerInput,
   whatsappWebhookAcknowledgement,
   whatsappEnvelope,
   whatsappHandshake,
@@ -114,6 +117,27 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  '/v1/customers/find-or-create': {
+    post: {
+      ...operation(
+        'findOrCreateCustomer',
+        '200',
+        'Customer with masked phone',
+        'Customer',
+        'FindOrCreateCustomerInput',
+      ),
+      parameters: [
+        {
+          in: 'header',
+          name: 'x-company-id',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        },
+      ],
+      description:
+        'Requires create:customers:company and the customers feature. Existing name and locale are preserved.',
+    },
+  },
   '/v1/webhooks/whatsapp': {
     get: {
       operationId: 'verifyWhatsappWebhook',
