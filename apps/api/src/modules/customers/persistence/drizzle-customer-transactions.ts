@@ -59,17 +59,30 @@ export function createCustomerTransactions(
   ids: IdGenerator,
 ): CustomerTransactions {
   return {
-    run: ({ companyId, userId }, work) =>
-      safely(() =>
-        db.withTenant(
+    run: async ({ companyId, userId }, work) => {
+      let thrownByWork: unknown;
+      try {
+        return await db.withTenant(
           companyId,
-          (tx) =>
-            work({
-              findOrCreate: (customer) => safely(() => findOrCreate(tx, companyId, customer)),
-              audit: { record: (entry) => safely(() => appendAuditLog(tx, ids.newId(), entry)) },
-            }),
+          async (tx) => {
+            try {
+              return await work({
+                findOrCreate: (customer) => safely(() => findOrCreate(tx, companyId, customer)),
+                audit: { record: (entry) => safely(() => appendAuditLog(tx, ids.newId(), entry)) },
+              });
+            } catch (error) {
+              thrownByWork = error;
+              throw error;
+            }
+          },
           { userId },
-        ),
-      ),
+        );
+      } catch (error) {
+        // خطأ الـ use case نفسه (خطأ domain مسمّى أو خطأ سائق اتنضّف فوق) يعدّي كما هو عشان الـ controller
+        // يرجّع 400 مش 500؛ أي خطأ تاني من غلاف المعاملة نفسه بيتنضّف.
+        if (error === thrownByWork) throw error;
+        throw new CustomerPersistenceError();
+      }
+    },
   };
 }

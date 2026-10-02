@@ -13,6 +13,7 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from '../../../../../../packages/db/test/test-database.ts';
+import { InvalidCustomerPhoneError } from '../domain/errors.ts';
 import { createCustomerTransactions } from '../persistence/drizzle-customer-transactions.ts';
 
 const PHONE = '+12025550126';
@@ -131,4 +132,19 @@ it('sanitizes a real transaction-wrapper failure before the callback starts', as
     .run(actor, () => Promise.resolve('unreachable'))
     .catch((caught: unknown) => caught);
   expectPrivateFailure(error);
+});
+
+it('keeps a named domain error thrown inside the transaction and rolls the insert back', async () => {
+  const transactions = createCustomerTransactions(db, { newId: () => ID });
+  const error = await transactions
+    .run(actor, async (scope) => {
+      await scope.findOrCreate({ ...input, name: 'Synthetic name' });
+      throw new InvalidCustomerPhoneError();
+    })
+    .catch((caught: unknown) => caught);
+  expect(error).toBeInstanceOf(InvalidCustomerPhoneError);
+  const rows = await db.withTenant(TENANT.A.company, (tx) =>
+    tx.execute(sql`SELECT id FROM customers WHERE id = ${ID}`),
+  );
+  expect(rows).toHaveLength(0);
 });
