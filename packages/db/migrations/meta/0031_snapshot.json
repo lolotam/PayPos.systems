@@ -1,5 +1,5 @@
 {
-  "id": "b15487c0-7cff-4ebe-bb79-3e0e64282b31",
+  "id": "31b6fb9e-39c5-420f-95e9-8d39c83c8e57",
   "prevId": "3398c97c-c5d3-4cd5-8556-66f7376715b3",
   "version": "7",
   "dialect": "postgresql",
@@ -117,14 +117,8 @@
           "name": "branches_business_fk",
           "tableFrom": "branches",
           "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "business_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -132,10 +126,7 @@
       "compositePrimaryKeys": {
         "branches_pkey": {
           "name": "branches_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -263,12 +254,8 @@
           "name": "businesses_company_id_companies_id_fk",
           "tableFrom": "businesses",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -276,10 +263,7 @@
       "compositePrimaryKeys": {
         "businesses_pkey": {
           "name": "businesses_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -374,12 +358,8 @@
           "name": "companies_plan_id_plans_id_fk",
           "tableFrom": "companies",
           "tableTo": "plans",
-          "columnsFrom": [
-            "plan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["plan_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -453,12 +433,8 @@
           "name": "company_feature_overrides_company_id_companies_id_fk",
           "tableFrom": "company_feature_overrides",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -466,10 +442,7 @@
       "compositePrimaryKeys": {
         "company_feature_overrides_pkey": {
           "name": "company_feature_overrides_pkey",
-          "columns": [
-            "company_id",
-            "flag"
-          ]
+          "columns": ["company_id", "flag"]
         }
       },
       "uniqueConstraints": {},
@@ -520,118 +493,11 @@
         "plans_code_unique": {
           "name": "plans_code_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "code"
-          ]
+          "columns": ["code"]
         }
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.customers": {
-      "name": "customers",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "locale": {
-          "name": "locale",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "opted_out_at": {
-          "name": "opted_out_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "customers_company_id_companies_id_fk": {
-          "name": "customers_company_id_companies_id_fk",
-          "tableFrom": "customers",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "customers_pkey": {
-          "name": "customers_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "customers_company_phone_unique": {
-          "name": "customers_company_phone_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "company_id",
-            "phone"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "customers_phone_e164": {
-          "name": "customers_phone_e164",
-          "value": "\"customers\".\"phone\" ~ '^[+][1-9][0-9]{1,14}$'"
-        },
-        "customers_locale": {
-          "name": "customers_locale",
-          "value": "\"customers\".\"locale\" IN ('ar', 'en')"
-        },
-        "customers_name": {
-          "name": "customers_name",
-          "value": "length(btrim(\"customers\".\"name\")) BETWEEN 1 AND 200"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.outbox": {
@@ -788,12 +654,8 @@
           "name": "outbox_company_id_companies_id_fk",
           "tableFrom": "outbox",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -801,10 +663,7 @@
       "compositePrimaryKeys": {
         "outbox_pkey": {
           "name": "outbox_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -940,12 +799,8 @@
           "name": "audit_log_company_id_companies_id_fk",
           "tableFrom": "audit_log",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -953,10 +808,7 @@
       "compositePrimaryKeys": {
         "audit_log_pkey": {
           "name": "audit_log_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -1097,12 +949,8 @@
           "name": "idempotency_keys_company_id_companies_id_fk",
           "tableFrom": "idempotency_keys",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1110,12 +958,7 @@
       "compositePrimaryKeys": {
         "idempotency_keys_pkey": {
           "name": "idempotency_keys_pkey",
-          "columns": [
-            "scope_type",
-            "scope_id",
-            "operation",
-            "key"
-          ]
+          "columns": ["scope_type", "scope_id", "operation", "key"]
         }
       },
       "uniqueConstraints": {},
@@ -1184,12 +1027,8 @@
           "name": "consumed_events_company_id_companies_id_fk",
           "tableFrom": "consumed_events",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1197,11 +1036,7 @@
       "compositePrimaryKeys": {
         "consumed_events_pkey": {
           "name": "consumed_events_pkey",
-          "columns": [
-            "company_id",
-            "consumer_id",
-            "event_id"
-          ]
+          "columns": ["company_id", "consumer_id", "event_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1342,12 +1177,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1404,6 +1235,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "purpose": {
+          "name": "purpose",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "staff_device_context": {
+          "name": "staff_device_context",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "staff_authenticated_at": {
+          "name": "staff_authenticated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "staff_absolute_deadline": {
+          "name": "staff_absolute_deadline",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1456,12 +1311,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1543,12 +1394,8 @@
           "name": "two_factor_user_id_user_id_fk",
           "tableFrom": "two_factor",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1610,6 +1457,12 @@
         "phone_number_verified": {
           "name": "phone_number_verified",
           "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone_binding_approved_at": {
+          "name": "phone_binding_approved_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
@@ -1946,12 +1799,8 @@
           "name": "memberships_company_id_companies_id_fk",
           "tableFrom": "memberships",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1959,12 +1808,8 @@
           "name": "memberships_user_id_user_id_fk",
           "tableFrom": "memberships",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1972,14 +1817,8 @@
           "name": "memberships_role_fk",
           "tableFrom": "memberships",
           "tableTo": "roles",
-          "columnsFrom": [
-            "role_id",
-            "role_owner_key"
-          ],
-          "columnsTo": [
-            "id",
-            "owner_key"
-          ],
+          "columnsFrom": ["role_id", "role_owner_key"],
+          "columnsTo": ["id", "owner_key"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -1987,14 +1826,8 @@
           "name": "memberships_scope_business_fk",
           "tableFrom": "memberships",
           "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "scope_business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "scope_business_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2002,14 +1835,8 @@
           "name": "memberships_scope_branch_fk",
           "tableFrom": "memberships",
           "tableTo": "branches",
-          "columnsFrom": [
-            "company_id",
-            "scope_branch_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "scope_branch_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2017,10 +1844,7 @@
       "compositePrimaryKeys": {
         "memberships_pkey": {
           "name": "memberships_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -2241,12 +2065,8 @@
           "name": "permission_overrides_company_id_companies_id_fk",
           "tableFrom": "permission_overrides",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2254,12 +2074,8 @@
           "name": "permission_overrides_permission_code_permissions_code_fk",
           "tableFrom": "permission_overrides",
           "tableTo": "permissions",
-          "columnsFrom": [
-            "permission_code"
-          ],
-          "columnsTo": [
-            "code"
-          ],
+          "columnsFrom": ["permission_code"],
+          "columnsTo": ["code"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2267,12 +2083,8 @@
           "name": "permission_overrides_granted_by_user_id_fk",
           "tableFrom": "permission_overrides",
           "tableTo": "user",
-          "columnsFrom": [
-            "granted_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["granted_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2280,14 +2092,8 @@
           "name": "permission_overrides_membership_fk",
           "tableFrom": "permission_overrides",
           "tableTo": "memberships",
-          "columnsFrom": [
-            "company_id",
-            "membership_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "membership_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2295,14 +2101,8 @@
           "name": "permission_overrides_scope_business_fk",
           "tableFrom": "permission_overrides",
           "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "scope_business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "scope_business_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2310,14 +2110,8 @@
           "name": "permission_overrides_scope_branch_fk",
           "tableFrom": "permission_overrides",
           "tableTo": "branches",
-          "columnsFrom": [
-            "company_id",
-            "scope_branch_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "scope_branch_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2325,10 +2119,7 @@
       "compositePrimaryKeys": {
         "permission_overrides_pkey": {
           "name": "permission_overrides_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -2450,12 +2241,8 @@
           "name": "role_permissions_company_id_companies_id_fk",
           "tableFrom": "role_permissions",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2463,12 +2250,8 @@
           "name": "role_permissions_permission_code_permissions_code_fk",
           "tableFrom": "role_permissions",
           "tableTo": "permissions",
-          "columnsFrom": [
-            "permission_code"
-          ],
-          "columnsTo": [
-            "code"
-          ],
+          "columnsFrom": ["permission_code"],
+          "columnsTo": ["code"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2476,14 +2259,8 @@
           "name": "role_permissions_role_fk",
           "tableFrom": "role_permissions",
           "tableTo": "roles",
-          "columnsFrom": [
-            "role_id",
-            "role_owner_key"
-          ],
-          "columnsTo": [
-            "id",
-            "owner_key"
-          ],
+          "columnsFrom": ["role_id", "role_owner_key"],
+          "columnsTo": ["id", "owner_key"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2491,11 +2268,7 @@
       "compositePrimaryKeys": {
         "role_permissions_pkey": {
           "name": "role_permissions_pkey",
-          "columns": [
-            "role_id",
-            "role_owner_key",
-            "permission_code"
-          ]
+          "columns": ["role_id", "role_owner_key", "permission_code"]
         }
       },
       "uniqueConstraints": {},
@@ -2582,12 +2355,8 @@
           "name": "roles_company_id_companies_id_fk",
           "tableFrom": "roles",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2595,20 +2364,14 @@
       "compositePrimaryKeys": {
         "roles_pkey": {
           "name": "roles_pkey",
-          "columns": [
-            "id",
-            "owner_key"
-          ]
+          "columns": ["id", "owner_key"]
         }
       },
       "uniqueConstraints": {
         "roles_owner_key_code_key": {
           "name": "roles_owner_key_code_key",
           "nullsNotDistinct": false,
-          "columns": [
-            "owner_key",
-            "code"
-          ]
+          "columns": ["owner_key", "code"]
         }
       },
       "policies": {},
@@ -2708,12 +2471,8 @@
           "name": "platform_audit_log_target_user_id_user_id_fk",
           "tableFrom": "platform_audit_log",
           "tableTo": "user",
-          "columnsFrom": [
-            "target_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["target_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -2831,12 +2590,8 @@
           "name": "platform_grants_user_id_user_id_fk",
           "tableFrom": "platform_grants",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -2844,12 +2599,8 @@
           "name": "platform_grants_permission_permissions_code_fk",
           "tableFrom": "platform_grants",
           "tableTo": "permissions",
-          "columnsFrom": [
-            "permission"
-          ],
-          "columnsTo": [
-            "code"
-          ],
+          "columnsFrom": ["permission"],
+          "columnsTo": ["code"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3074,12 +2825,8 @@
           "name": "devices_company_id_companies_id_fk",
           "tableFrom": "devices",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3087,12 +2834,8 @@
           "name": "devices_approved_by_user_id_fk",
           "tableFrom": "devices",
           "tableTo": "user",
-          "columnsFrom": [
-            "approved_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["approved_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3100,12 +2843,8 @@
           "name": "devices_revoked_by_user_id_fk",
           "tableFrom": "devices",
           "tableTo": "user",
-          "columnsFrom": [
-            "revoked_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["revoked_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3113,14 +2852,8 @@
           "name": "devices_branch_fk",
           "tableFrom": "devices",
           "tableTo": "branches",
-          "columnsFrom": [
-            "company_id",
-            "branch_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "branch_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3128,10 +2861,7 @@
       "compositePrimaryKeys": {
         "devices_pkey": {
           "name": "devices_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {},
@@ -3234,12 +2964,8 @@
           "name": "cashier_pins_company_id_companies_id_fk",
           "tableFrom": "cashier_pins",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3247,12 +2973,8 @@
           "name": "cashier_pins_set_by_user_id_fk",
           "tableFrom": "cashier_pins",
           "tableTo": "user",
-          "columnsFrom": [
-            "set_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["set_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3260,20 +2982,14 @@
       "compositePrimaryKeys": {
         "cashier_pins_pkey": {
           "name": "cashier_pins_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {
         "cashier_pins_employee": {
           "name": "cashier_pins_employee",
           "nullsNotDistinct": false,
-          "columns": [
-            "company_id",
-            "employee_id"
-          ]
+          "columns": ["company_id", "employee_id"]
         }
       },
       "policies": {},
@@ -3355,12 +3071,8 @@
           "name": "business_settings_updated_by_user_id_fk",
           "tableFrom": "business_settings",
           "tableTo": "user",
-          "columnsFrom": [
-            "updated_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["updated_by"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3368,14 +3080,8 @@
           "name": "business_settings_business_fk",
           "tableFrom": "business_settings",
           "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "business_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3383,10 +3089,7 @@
       "compositePrimaryKeys": {
         "business_settings_pkey": {
           "name": "business_settings_pkey",
-          "columns": [
-            "company_id",
-            "business_id"
-          ]
+          "columns": ["company_id", "business_id"]
         }
       },
       "uniqueConstraints": {},
@@ -3611,12 +3314,8 @@
           "name": "in_app_notifications_company_id_companies_id_fk",
           "tableFrom": "in_app_notifications",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3624,12 +3323,8 @@
           "name": "in_app_notifications_recipient_user_id_user_id_fk",
           "tableFrom": "in_app_notifications",
           "tableTo": "user",
-          "columnsFrom": [
-            "recipient_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recipient_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3637,14 +3332,8 @@
           "name": "in_app_notifications_business_fk",
           "tableFrom": "in_app_notifications",
           "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "business_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3652,14 +3341,8 @@
           "name": "in_app_notifications_branch_fk",
           "tableFrom": "in_app_notifications",
           "tableTo": "branches",
-          "columnsFrom": [
-            "company_id",
-            "branch_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "branch_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -3667,22 +3350,14 @@
       "compositePrimaryKeys": {
         "in_app_notifications_pkey": {
           "name": "in_app_notifications_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {
         "in_app_notifications_identity": {
           "name": "in_app_notifications_identity",
           "nullsNotDistinct": false,
-          "columns": [
-            "company_id",
-            "source_event_id",
-            "recipient_user_id",
-            "template_key"
-          ]
+          "columns": ["company_id", "source_event_id", "recipient_user_id", "template_key"]
         }
       },
       "policies": {},
@@ -3976,12 +3651,8 @@
           "name": "notification_attempts_company_id_companies_id_fk",
           "tableFrom": "notification_attempts",
           "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["company_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -3989,14 +3660,8 @@
           "name": "notification_attempts_business_fk",
           "tableFrom": "notification_attempts",
           "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "business_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -4004,14 +3669,8 @@
           "name": "notification_attempts_branch_fk",
           "tableFrom": "notification_attempts",
           "tableTo": "branches",
-          "columnsFrom": [
-            "company_id",
-            "branch_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
+          "columnsFrom": ["company_id", "branch_id"],
+          "columnsTo": ["company_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4019,23 +3678,14 @@
       "compositePrimaryKeys": {
         "notification_attempts_pkey": {
           "name": "notification_attempts_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
+          "columns": ["company_id", "id"]
         }
       },
       "uniqueConstraints": {
         "notification_attempts_identity": {
           "name": "notification_attempts_identity",
           "nullsNotDistinct": false,
-          "columns": [
-            "company_id",
-            "source_event_id",
-            "channel",
-            "recipient_hash",
-            "template_key"
-          ]
+          "columns": ["company_id", "source_event_id", "channel", "recipient_hash", "template_key"]
         }
       },
       "policies": {},
@@ -4164,12 +3814,8 @@
           "name": "platform_whatsapp_audit_inbox_id_platform_whatsapp_inbox_id_fk",
           "tableFrom": "platform_whatsapp_audit",
           "tableTo": "platform_whatsapp_inbox",
-          "columnsFrom": [
-            "inbox_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["inbox_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -4338,9 +3984,7 @@
         "platform_whatsapp_inbox_digest": {
           "name": "platform_whatsapp_inbox_digest",
           "nullsNotDistinct": false,
-          "columns": [
-            "provider_message_digest"
-          ]
+          "columns": ["provider_message_digest"]
         }
       },
       "policies": {},
@@ -4418,6 +4062,484 @@
         "platform_whatsapp_suppressions_null_only": {
           "name": "platform_whatsapp_suppressions_null_only",
           "value": "\"platform_whatsapp_suppressions\".\"opted_back_in_at\" IS NULL"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.auth_notification_attempts": {
+      "name": "auth_notification_attempts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "challenge_id": {
+          "name": "challenge_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipient_hash": {
+          "name": "recipient_hash",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hash_key_id": {
+          "name": "hash_key_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "channel": {
+          "name": "channel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "template_key": {
+          "name": "template_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "template_revision": {
+          "name": "template_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locale": {
+          "name": "locale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_template_name": {
+          "name": "provider_template_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "authorized_at": {
+          "name": "authorized_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "send_deadline": {
+          "name": "send_deadline",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preparation_deadline": {
+          "name": "preparation_deadline",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "execution_id": {
+          "name": "execution_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sending_at": {
+          "name": "sending_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failure_code": {
+          "name": "failure_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome_known": {
+          "name": "outcome_known",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_message_digest": {
+          "name": "provider_message_digest",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "auth_notification_attempts_challenge_idx": {
+          "name": "auth_notification_attempts_challenge_idx",
+          "columns": [
+            {
+              "expression": "challenge_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "auth_notification_attempts_user_idx": {
+          "name": "auth_notification_attempts_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "auth_notification_attempts_expiry_idx": {
+          "name": "auth_notification_attempts_expiry_idx",
+          "columns": [
+            {
+              "expression": "send_deadline",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_notification_attempts_challenge_id_auth_otp_challenges_id_fk": {
+          "name": "auth_notification_attempts_challenge_id_auth_otp_challenges_id_fk",
+          "tableFrom": "auth_notification_attempts",
+          "tableTo": "auth_otp_challenges",
+          "columnsFrom": ["challenge_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "auth_notification_attempts_user_id_user_id_fk": {
+          "name": "auth_notification_attempts_user_id_user_id_fk",
+          "tableFrom": "auth_notification_attempts",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_notification_attempts_send_key": {
+          "name": "auth_notification_attempts_send_key",
+          "nullsNotDistinct": false,
+          "columns": ["challenge_id", "channel", "recipient_hash", "template_key"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "auth_notification_attempts_template": {
+          "name": "auth_notification_attempts_template",
+          "value": "\"auth_notification_attempts\".\"channel\" = 'WHATSAPP' AND \"auth_notification_attempts\".\"template_key\" = 'staff_otp' AND \"auth_notification_attempts\".\"template_revision\" = 1 AND \"auth_notification_attempts\".\"locale\" IN ('ar','en')"
+        },
+        "auth_notification_attempts_hash": {
+          "name": "auth_notification_attempts_hash",
+          "value": "octet_length(\"auth_notification_attempts\".\"recipient_hash\") = 32 AND (\"auth_notification_attempts\".\"provider_message_digest\" IS NULL OR octet_length(\"auth_notification_attempts\".\"provider_message_digest\") = 32)"
+        },
+        "auth_notification_attempts_status": {
+          "name": "auth_notification_attempts_status",
+          "value": "\"auth_notification_attempts\".\"status\" IN ('PREPARED','PENDING','SENDING','SENT','FAILED','EXPIRED','SUPPRESSED')"
+        },
+        "auth_notification_attempts_authorization": {
+          "name": "auth_notification_attempts_authorization",
+          "value": "(\"auth_notification_attempts\".\"status\" NOT IN ('PREPARED','SUPPRESSED') OR \"auth_notification_attempts\".\"authorized_at\" IS NULL) AND (\"auth_notification_attempts\".\"status\" NOT IN ('PENDING','SENDING','SENT') OR \"auth_notification_attempts\".\"authorized_at\" IS NOT NULL) AND (\"auth_notification_attempts\".\"authorized_at\" IS NULL OR \"auth_notification_attempts\".\"authorized_at\" < \"auth_notification_attempts\".\"preparation_deadline\")"
+        },
+        "auth_notification_attempts_fence": {
+          "name": "auth_notification_attempts_fence",
+          "value": "(\"auth_notification_attempts\".\"execution_id\" IS NULL) = (\"auth_notification_attempts\".\"sending_at\" IS NULL) AND (\"auth_notification_attempts\".\"status\" NOT IN ('SENDING','SENT') OR \"auth_notification_attempts\".\"execution_id\" IS NOT NULL)"
+        },
+        "auth_notification_attempts_terminal": {
+          "name": "auth_notification_attempts_terminal",
+          "value": "(\"auth_notification_attempts\".\"status\" IN ('PREPARED','PENDING','SENDING')) = (\"auth_notification_attempts\".\"finished_at\" IS NULL)"
+        },
+        "auth_notification_attempts_deadline": {
+          "name": "auth_notification_attempts_deadline",
+          "value": "\"auth_notification_attempts\".\"preparation_deadline\" = \"auth_notification_attempts\".\"created_at\" + interval '200 milliseconds' AND \"auth_notification_attempts\".\"send_deadline\" = \"auth_notification_attempts\".\"created_at\" + interval '300 seconds'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.auth_otp_challenges": {
+      "name": "auth_otp_challenges",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "recipient_hash": {
+          "name": "recipient_hash",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hash_key_id": {
+          "name": "hash_key_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_context": {
+          "name": "device_context",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code_mac": {
+          "name": "code_mac",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "derivation_key_id": {
+          "name": "derivation_key_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verification_key_id": {
+          "name": "verification_key_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "failed_attempts": {
+          "name": "failed_attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "auth_otp_challenges_phone_idx": {
+          "name": "auth_otp_challenges_phone_idx",
+          "columns": [
+            {
+              "expression": "recipient_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "auth_otp_challenges_user_idx": {
+          "name": "auth_otp_challenges_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "auth_otp_challenges_expiry_idx": {
+          "name": "auth_otp_challenges_expiry_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_otp_challenges_user_id_user_id_fk": {
+          "name": "auth_otp_challenges_user_id_user_id_fk",
+          "tableFrom": "auth_otp_challenges",
+          "tableTo": "user",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "auth_otp_challenges_hash": {
+          "name": "auth_otp_challenges_hash",
+          "value": "octet_length(\"auth_otp_challenges\".\"recipient_hash\") = 32 AND (\"auth_otp_challenges\".\"code_mac\" IS NULL OR octet_length(\"auth_otp_challenges\".\"code_mac\") = 32)"
+        },
+        "auth_otp_challenges_status": {
+          "name": "auth_otp_challenges_status",
+          "value": "\"auth_otp_challenges\".\"status\" IN ('ACTIVE','CONSUMED','EXHAUSTED','EXPIRED','SUPERSEDED','SUPPRESSED')"
+        },
+        "auth_otp_challenges_attempts": {
+          "name": "auth_otp_challenges_attempts",
+          "value": "\"auth_otp_challenges\".\"failed_attempts\" BETWEEN 0 AND 5 AND (\"auth_otp_challenges\".\"status\" <> 'EXHAUSTED' OR \"auth_otp_challenges\".\"failed_attempts\" = 5)"
+        },
+        "auth_otp_challenges_expiry": {
+          "name": "auth_otp_challenges_expiry",
+          "value": "\"auth_otp_challenges\".\"expires_at\" = \"auth_otp_challenges\".\"created_at\" + interval '300 seconds'"
+        },
+        "auth_otp_challenges_terminal": {
+          "name": "auth_otp_challenges_terminal",
+          "value": "(\"auth_otp_challenges\".\"status\" = 'ACTIVE' AND \"auth_otp_challenges\".\"code_mac\" IS NOT NULL AND \"auth_otp_challenges\".\"user_id\" IS NOT NULL AND \"auth_otp_challenges\".\"derivation_key_id\" IS NOT NULL AND \"auth_otp_challenges\".\"verification_key_id\" IS NOT NULL AND \"auth_otp_challenges\".\"finished_at\" IS NULL AND \"auth_otp_challenges\".\"consumed_at\" IS NULL) OR (\"auth_otp_challenges\".\"status\" <> 'ACTIVE' AND \"auth_otp_challenges\".\"code_mac\" IS NULL AND \"auth_otp_challenges\".\"finished_at\" IS NOT NULL AND ((\"auth_otp_challenges\".\"status\" = 'CONSUMED') = (\"auth_otp_challenges\".\"consumed_at\" IS NOT NULL)))"
+        },
+        "auth_otp_challenges_context": {
+          "name": "auth_otp_challenges_context",
+          "value": "jsonb_typeof(\"auth_otp_challenges\".\"device_context\") = 'object' AND \"auth_otp_challenges\".\"device_context\" ?& ARRAY['companyId','businessId','branchId','deviceId'] AND \"auth_otp_challenges\".\"device_context\" - ARRAY['companyId','businessId','branchId','deviceId'] = '{}'::jsonb AND (\"auth_otp_challenges\".\"device_context\"->>'companyId') ~ '^[a-f0-9-]{36}$' AND (\"auth_otp_challenges\".\"device_context\"->>'businessId') ~ '^[a-f0-9-]{36}$' AND (\"auth_otp_challenges\".\"device_context\"->>'branchId') ~ '^[a-f0-9-]{36}$' AND (\"auth_otp_challenges\".\"device_context\"->>'deviceId') ~ '^[a-f0-9-]{36}$'"
         }
       },
       "isRLSEnabled": false

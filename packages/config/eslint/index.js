@@ -19,6 +19,7 @@ const sizeLimitExcludes = [
 // the owner re-enables its own facade with `allowDatabaseFacade` in its eslint.config.js.
 const FACADES = {
   createAuthDatabase: 'the pospay_auth facade belongs to packages/auth (ADR-0003 §2.1).',
+  createStaffOtpDatabase: 'staff OTP global identity belongs to packages/auth (ADR-0019).',
   createOutboxDispatcherDatabase:
     'the pospay_dispatcher facade belongs to apps/worker (ADR-0003 §3).',
   createPlatformWhatsappDatabase:

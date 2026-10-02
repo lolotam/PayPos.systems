@@ -1,5 +1,5 @@
 import { WhatsappEnvelopeInvalidError } from '@pospay/contracts';
-import { expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { whatsappEnvelope } from '@pospay/contracts';
 import { config, envelope, whatsappHarness } from './whatsapp-harness.ts';
 import { createWhatsappEnvelopeAdapter } from '../../persistence/whatsapp-envelope.adapter.ts';
@@ -59,9 +59,15 @@ it('classifies nested database timeouts without trusting error messages or copyi
   expect(new WhatsappEnvelopeInvalidError()).toBeInstanceOf(WhatsappEnvelopeInvalidError);
 });
 
-it('commits all signed groups before the first failed enqueue, including a trailing STOP', async () => {
-  const h = await whatsappHarness();
-  try {
+describe('signed batch persistence', () => {
+  let h: Awaited<ReturnType<typeof whatsappHarness>>;
+  beforeAll(async () => {
+    h = await whatsappHarness();
+  });
+  afterAll(async () => {
+    await h?.close();
+  });
+  it('commits all signed groups before the first failed enqueue, including a trailing STOP', async () => {
     const input = envelope();
     const change = input.entry[0]?.changes[0];
     const first = change?.value.messages[0];
@@ -85,7 +91,5 @@ it('commits all signed groups before the first failed enqueue, including a trail
     expect(
       await h.owner`SELECT id FROM platform_whatsapp_inbox WHERE enqueue_confirmed_at IS NOT NULL`,
     ).toHaveLength(0);
-  } finally {
-    await h.close();
-  }
+  });
 });

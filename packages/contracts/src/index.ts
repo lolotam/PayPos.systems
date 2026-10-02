@@ -126,3 +126,19 @@ export {
   whatsappMessage,
   WhatsappEnvelopeInvalidError,
 } from './whatsapp-webhook.js';
+export {
+  staffOtpRequestInput,
+  canonicalStaffPhone,
+  staffOtpVerifyInput,
+  staffOtpAcknowledgement,
+  staffSessionContext,
+  staffOtpJob,
+  staffPinInput,
+  staffPinResetInput,
+  type StaffPinInput,
+  type StaffPinResetInput,
+  type StaffOtpRequestInput,
+  type StaffOtpVerifyInput,
+  type StaffOtpAcknowledgement,
+  type StaffSessionContext,
+} from './identity/staff-otp.js';

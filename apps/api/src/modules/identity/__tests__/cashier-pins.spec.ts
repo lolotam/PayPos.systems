@@ -82,7 +82,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await h.close();
+  await h?.close();
 });
 
 const verify = (body: object, headers: Record<string, string> = {}) =>

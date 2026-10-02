@@ -17,7 +17,8 @@ export class EnvelopeExceptionFilter implements ExceptionFilter {
     const request = http.getRequest<FastifyRequest>();
 
     const error = toApiError(exception);
-    if (error.code === 'TOO_MANY_REQUESTS') void reply.header('retry-after', '60');
+    if (error.code === 'TOO_MANY_REQUESTS' && !reply.hasHeader('retry-after'))
+      void reply.header('retry-after', '60');
     if (error.code === 'INTERNAL_ERROR') {
       request.log.error({ err: exception }, 'unhandled error');
     }

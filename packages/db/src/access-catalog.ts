@@ -5,6 +5,7 @@
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
  */
 export const PERMISSIONS = [
+  'login:staff:branch',
   'read:memberships:company',
   // TODO(spec): منح صلاحية الاستقبال للأدوار مؤجل إلى PR 7a؛ إضافتها للـ catalog لا تمنحها للـ Owner تلقائياً.
   'create:customers:company',

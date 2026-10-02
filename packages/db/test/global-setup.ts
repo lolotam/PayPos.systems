@@ -65,14 +65,7 @@ async function sweepLeftovers(sql: postgres.Sql): Promise<void> {
   }
 }
 
-export default async function setup(project: TestProject): Promise<() => Promise<void>> {
-  const env = readPgTestEnv();
-  const runId = `${Date.now().toString(36)}_${process.pid}`;
-  const template = `pospay_tpl_${runId}`;
-  const sql = await connectMaintenance(env);
-  // الـ lock ده بيتفك لوحده لما الاتصال يقفل — حتى لو التشغيلة وقعت من غير teardown.
-  await sql`SELECT pg_advisory_lock(hashtext(${runLockKey(runId)}))`;
-  await sweepLeftovers(sql);
+async function prepareTemplate(sql: postgres.Sql, env: PgTestEnv, template: string): Promise<void> {
   await sql.unsafe(`CREATE DATABASE "${template}"`);
   // الـ bootstrap بيشيل عضويات الـ roles، فلازم يستنى أي اختبار في تشغيلة تانية بيغيّرها (role-lock.ts).
   await sql`SELECT pg_advisory_lock(hashtext(${ROLE_TEST_LOCK}))`;
@@ -86,15 +79,41 @@ export default async function setup(project: TestProject): Promise<() => Promise
   } finally {
     await sql`SELECT pg_advisory_unlock(hashtext(${ROLE_TEST_LOCK}))`;
   }
+  // القالب للاستنساخ فقط بعد إغلاق pool الـ migrations؛ أي helper يتصل به خطأً يرفض فوراً.
+  await sql.unsafe(`ALTER DATABASE "${template}" ALLOW_CONNECTIONS false`);
+  const [remaining] = await sql<{ count: number }[]>`
+    SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=${template}`;
+  if (remaining?.count !== 0) {
+    throw new Error('Test template migration connections were not closed');
+  }
+}
+
+export default async function setup(project: TestProject): Promise<() => Promise<void>> {
+  const env = readPgTestEnv();
+  const runId = `${Date.now().toString(36)}_${process.pid}`;
+  const template = `pospay_tpl_${runId}`;
+  const sql = await connectMaintenance(env);
+  try {
+    // الـ lock ده بيتفك لوحده لما الاتصال يقفل — حتى لو التشغيلة وقعت من غير teardown.
+    await sql`SELECT pg_advisory_lock(hashtext(${runLockKey(runId)}))`;
+    await sweepLeftovers(sql);
+    await prepareTemplate(sql, env, template);
+  } catch (error) {
+    await sql.end();
+    throw error;
+  }
   project.provide('pg', { ...env, template, runId });
 
   return async () => {
-    const clones = await sql<{ datname: string }[]>`
-      SELECT datname FROM pg_database WHERE datname LIKE ${`pospay_test_${runId}_%`}`;
-    for (const { datname } of [...clones, { datname: template }]) {
-      if (TEST_DB.test(datname))
-        await sql.unsafe(`DROP DATABASE IF EXISTS "${datname}" WITH (FORCE)`);
+    try {
+      const clones = await sql<{ datname: string }[]>`
+        SELECT datname FROM pg_database WHERE datname LIKE ${`pospay_test_${runId}_%`}`;
+      for (const { datname } of [...clones, { datname: template }]) {
+        if (TEST_DB.test(datname))
+          await sql.unsafe(`DROP DATABASE IF EXISTS "${datname}" WITH (FORCE)`);
+      }
+    } finally {
+      await sql.end();
     }
-    await sql.end();
   };
 }

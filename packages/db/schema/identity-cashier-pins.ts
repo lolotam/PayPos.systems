@@ -23,7 +23,9 @@ export const cashierPins = pgTable(
       .references(() => companies.id),
     id: uuid('id').notNull(),
     // الـ FK على staff.employees بييجي مع staff في Phase 1 (ADR-0003 §4.2).
-    employeeId: uuid('employee_id').notNull(),
+    employeeId: uuid('employee_id'),
+    // قبل PR 8 صاحب اعتماد الاسترداد هو المستخدم الموجود، بلا إنشاء موظف أو عضوية جديدة.
+    userId: uuid('user_id').references(() => user.id),
     pinHash: text('pin_hash').notNull(),
     // المدير اللي حط الـ PIN — null لو الموظف غيّره بنفسه على الجهاز بعدين (مالوش user).
     setBy: uuid('set_by').references(() => user.id),
@@ -33,6 +35,8 @@ export const cashierPins = pgTable(
   (t) => [
     primaryKey({ name: 'cashier_pins_pkey', columns: [t.companyId, t.id] }),
     unique('cashier_pins_employee').on(t.companyId, t.employeeId),
+    unique('cashier_pins_user').on(t.companyId, t.userId),
+    check('cashier_pins_one_holder', sql`num_nonnulls(${t.employeeId}, ${t.userId}) = 1`),
     check('cashier_pins_hash_format', sql`${t.pinHash} LIKE 'pbkdf2-sha256$%'`),
     index('cashier_pins_set_by_idx').on(t.setBy),
   ],

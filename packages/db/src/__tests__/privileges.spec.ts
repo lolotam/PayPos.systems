@@ -1,3 +1,5 @@
+import { FUNCTION_INVENTORY } from '../../test/function-inventory.ts';
+import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -70,6 +72,10 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'account:INSERT',
     'account:SELECT',
     'account:UPDATE',
+    'auth_notification_attempts:DELETE',
+    'auth_notification_attempts:SELECT',
+    'auth_otp_challenges:DELETE',
+    'auth_otp_challenges:SELECT',
     'platform_audit_log:INSERT',
     'platform_grants:SELECT',
     'platform_roles:SELECT',
@@ -122,6 +128,8 @@ const TENANT_TABLES = [
 ];
 const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
 const IDENTITY_TABLES = [
+  'auth_otp_challenges',
+  'auth_notification_attempts',
   'user',
   'session',
   'account',
@@ -177,7 +185,7 @@ describe('direct privileges match the reviewed allowlist', () => {
       ORDER BY 1`;
     expect(
       rows.filter((r) => !r.grant.startsWith('platform_whatsapp_')).map((r) => r.grant),
-    ).toEqual(OUTBOX_COLUMN_GRANTS);
+    ).toEqual([...OTP_COLUMN_GRANTS, ...OUTBOX_COLUMN_GRANTS].sort());
   });
 
   it.each(APP_ROLES)(
@@ -319,40 +327,7 @@ describe('function inventory', () => {
     const rows = await owner`
       SELECT proname, prosecdef, proconfig FROM pg_proc
       WHERE pronamespace = 'public'::regnamespace ORDER BY proname`;
-    expect(Array.from(rows)).toEqual([
-      { proname: 'app_company_id', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
-      { proname: 'app_user_id', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
-      {
-        proname: 'assert_company_keeps_an_owner',
-        prosecdef: false,
-        proconfig: ['search_path=public, pg_temp'],
-      },
-      {
-        proname: 'idempotency_keys_require_response',
-        prosecdef: false,
-        proconfig: ['search_path=public, pg_temp'],
-      },
-      {
-        proname: 'in_app_notifications_guard',
-        prosecdef: false,
-        proconfig: ['search_path=public, pg_temp'],
-      },
-      {
-        proname: 'notification_attempts_guard',
-        prosecdef: false,
-        proconfig: ['search_path=public, pg_temp'],
-      },
-      {
-        proname: 'platform_whatsapp_is_suppressed',
-        prosecdef: true,
-        proconfig: ['search_path=pg_catalog, pg_temp'],
-      },
-      {
-        proname: 'sweep_expired_idempotency_keys',
-        prosecdef: true,
-        proconfig: ['search_path=pg_catalog, pg_temp'],
-      },
-    ]);
+    expect(Array.from(rows)).toEqual(FUNCTION_INVENTORY);
   });
 
   it('only pospay_dispatcher may execute the SECURITY DEFINER sweep', async () => {

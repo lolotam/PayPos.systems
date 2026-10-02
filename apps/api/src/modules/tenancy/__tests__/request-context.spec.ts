@@ -40,7 +40,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await h.close();
+  await h?.close();
 });
 
 const completed = (requestId: string) =>

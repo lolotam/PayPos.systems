@@ -31,20 +31,20 @@ fixtures calculated by hand, independently of the code, from the salon's real pl
 
 ### In
 
-| Area | What ships |
-|---|---|
-| Apps | `apps/admin` (Next.js) and `apps/pos` (Vite PWA: attendance screen + staff app) — shells, then one screen per slice |
-| `packages/ui` | shadcn RTL kit, tokens, Arabic fonts, lucide |
-| `staff` | employees, salary history (restricted), branches, phone passkey binding, barcode card, schedules, leave, attendance, document metadata |
-| `files` (minimal) | private R2 objects, presigned upload/download, access audit |
-| `catalog` (minimal) | services (price, commission rule, threshold flag), package types |
-| `customers` (minimal, from P2) | company-scoped customers (D-30), opt-out, ratings |
-| `orders` (minimal) | sessions: lines, price override, discount + approval, split performers, tips, late entry, cancel; package sale, redemption, expiry, extension, refund |
-| `identity` (addition) | discount-limit permission, discount approval (PIN on device or remote request) |
-| `commissions` | per-employee plan versions (base + tiers, independently switchable), service overrides, live estimate, statement DRAFT → REVIEWED → APPROVED → PAID, corrections, Excel export |
-| `notifications` (minimal) | WhatsApp + email channels, templates ar/en, suppression, delivery log |
-| `settings` (addition) | alert rules, staff-app columns, default discount limit |
-| Import | Excel template, preview, all-or-nothing commit: employees, services, customers, open packages |
+| Area                           | What ships                                                                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Apps                           | `apps/admin` (Next.js) and `apps/pos` (Vite PWA: attendance screen + staff app) — shells, then one screen per slice                                                            |
+| `packages/ui`                  | shadcn RTL kit, tokens, Arabic fonts, lucide                                                                                                                                   |
+| `staff`                        | employees, salary history (restricted), branches, phone passkey binding, barcode card, schedules, leave, attendance, document metadata                                         |
+| `files` (minimal)              | private R2 objects, presigned upload/download, access audit                                                                                                                    |
+| `catalog` (minimal)            | services (price, commission rule, threshold flag), package types                                                                                                               |
+| `customers` (minimal, from P2) | company-scoped customers (D-30), opt-out, ratings                                                                                                                              |
+| `orders` (minimal)             | sessions: lines, price override, discount + approval, split performers, tips, late entry, cancel; package sale, redemption, expiry, extension, refund                          |
+| `identity` (addition)          | discount-limit permission, discount approval (PIN on device or remote request)                                                                                                 |
+| `commissions`                  | per-employee plan versions (base + tiers, independently switchable), service overrides, live estimate, statement DRAFT → REVIEWED → APPROVED → PAID, corrections, Excel export |
+| `notifications` (minimal)      | WhatsApp + email channels, templates ar/en, suppression, delivery log                                                                                                          |
+| `settings` (addition)          | alert rules, staff-app columns, default discount limit                                                                                                                         |
+| Import                         | Excel template, preview, all-or-nothing commit: employees, services, customers, open packages                                                                                  |
 
 ### Out
 
@@ -57,36 +57,36 @@ fixtures calculated by hand, independently of the code, from the salon's real pl
 
 ## 3. Modules and their contracts
 
-| Module | New / extended | Owns |
-|---|---|---|
-| `staff` | new | employees, salary history, schedules, leave, attendance, passkey bindings, cards, document metadata |
-| `files` | new | private objects, their required read permission, access audit |
-| `catalog` | new | services, package types |
-| `customers` | new | customers (company-scoped), opt-out preference, rating requests, ratings |
-| `orders` | new | sessions, lines, performers, tips, discount proposals, package entitlements, redemptions, refunds |
-| `commissions` | new | plan versions, service overrides, projection, statements, frozen results, corrections |
-| `notifications` | new | channels, templates, suppression, delivery log |
-| `identity` · `settings` | extended | discount approval · alert rules, staff columns |
+| Module                  | New / extended | Owns                                                                                                |
+| ----------------------- | -------------- | --------------------------------------------------------------------------------------------------- |
+| `staff`                 | new            | employees, salary history, schedules, leave, attendance, passkey bindings, cards, document metadata |
+| `files`                 | new            | private objects, their required read permission, access audit                                       |
+| `catalog`               | new            | services, package types                                                                             |
+| `customers`             | new            | customers (company-scoped), opt-out preference, rating requests, ratings                            |
+| `orders`                | new            | sessions, lines, performers, tips, discount proposals, package entitlements, redemptions, refunds   |
+| `commissions`           | new            | plan versions, service overrides, projection, statements, frozen results, corrections               |
+| `notifications`         | new            | channels, templates, suppression, delivery log                                                      |
+| `identity` · `settings` | extended       | discount approval · alert rules, staff columns                                                      |
 
 Cross-module interactions (import arrows already in `module-map.md` §2 unless marked **new**):
 
-| From → to | Kind | Contract |
-|---|---|---|
-| `orders` → `catalog` | port (existing) | `CatalogReaderPort`: price, names, commission rule, threshold flag; package-type components |
-| `orders` → `customers` | port **new** | `CustomerLookupPort.exists(customerId)`; reception finds or creates the customer first through `customers`' own endpoint |
-| `orders` → `staff` | port **new** | `PerformerCheckPort`: employee active and attached to the branch on the date |
-| `commissions` → `staff` | port **new** | `EmployeeDirectoryPort` (names) |
-| `staff` ⇒ `commissions` | event **new** | `SalaryChanged` — identity `(employee_id, effective_from)`, `amount`, per-entry `revision`; salary is an input like a line: projected, fingerprinted, corrected |
-| `customers` → `staff` | port **new** | `PerformerNamePort` (first name in the rating message) |
-| `customers` → `orders` | port **new** | `DaySessionsPort`: the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (§10) |
-| `staff`, `customers`, `commissions` → `settings` | port **new** | `AlertRulesPort`, `StaffColumnsPort` (reads) |
-| `orders` ⇒ `commissions`, `customers` | event **new** | `ServiceLineChanged` |
-| `orders` ⇒ `commissions` | event **new** | `PackageSaleChanged`, `SessionTipsChanged` |
-| `customers` ⇒ `notifications` | event **new** | `RatingRequestReady`, `LowRatingReceived` |
-| `staff` ⇒ `notifications` | event **new** | `AttendanceExceptionRaised`, `ShiftNotClockedIn`, `DocumentExpiring` |
-| `commissions` ⇒ `notifications` | event **new** | `StatementAwaitingReview`, `StatementAwaitingApproval` |
-| `files` | none | documents are uploaded and opened through `files`' own endpoints; `staff` stores the object key only |
-| OTP | wiring | `packages/auth` takes an injected `OtpSender`, bound at `apps/api`'s composition root to the WhatsApp channel |
+| From → to                                        | Kind            | Contract                                                                                                                                                           |
+| ------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `orders` → `catalog`                             | port (existing) | `CatalogReaderPort`: price, names, commission rule, threshold flag; package-type components                                                                        |
+| `orders` → `customers`                           | port **new**    | `CustomerLookupPort.exists(customerId)`; reception finds or creates the customer first through `customers`' own endpoint                                           |
+| `orders` → `staff`                               | port **new**    | `PerformerCheckPort`: employee active and attached to the branch on the date                                                                                       |
+| `commissions` → `staff`                          | port **new**    | `EmployeeDirectoryPort` (names)                                                                                                                                    |
+| `staff` ⇒ `commissions`                          | event **new**   | `SalaryChanged` — identity `(employee_id, effective_from)`, `amount`, per-entry `revision`; salary is an input like a line: projected, fingerprinted, corrected    |
+| `customers` → `staff`                            | port **new**    | `PerformerNamePort` (first name in the rating message)                                                                                                             |
+| `customers` → `orders`                           | port **new**    | `DaySessionsPort`: the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (§10)     |
+| `staff`, `customers`, `commissions` → `settings` | port **new**    | `AlertRulesPort`, `StaffColumnsPort` (reads)                                                                                                                       |
+| `orders` ⇒ `commissions`, `customers`            | event **new**   | `ServiceLineChanged`                                                                                                                                               |
+| `orders` ⇒ `commissions`                         | event **new**   | `PackageSaleChanged`, `SessionTipsChanged`                                                                                                                         |
+| `customers` ⇒ `notifications`                    | event **new**   | `RatingRequestReady`, `LowRatingReceived`                                                                                                                          |
+| `staff` ⇒ `notifications`                        | event **new**   | `AttendanceExceptionRaised`, `ShiftNotClockedIn`, `DocumentExpiring`                                                                                               |
+| `commissions` ⇒ `notifications`                  | event **new**   | `StatementAwaitingReview`, `StatementAwaitingApproval`                                                                                                             |
+| `files`                                          | none            | documents are uploaded and opened through `files`' own endpoints; `staff` stores the object key only                                                               |
+| OTP                                              | wiring          | `packages/auth` takes an injected `OtpSender`, bound at `apps/api`'s composition root to id-only `notifications-otp`; worker notifications owns Channel (ADR-0019) |
 
 Every event names a stable identity and carries every field its consumers use:
 
@@ -243,7 +243,7 @@ have `enabled` and can be switched at any time; a switch is a new version (D-50)
   `effective_from` on or before that day (one entry per date, §4). The active step at
   accumulator value `x` is the last step with `from ≤ x`; below the first step no tier pays.
   - **MARGINAL:** a `counts = true` line that crosses one or more boundaries between `x` and `x + share` (AMOUNT only)
-    is **split** at each boundary **only if every step it touches is `PCT`** — a step is *touched* only by a part of
+    is **split** at each boundary **only if every step it touches is `PCT`** — a step is _touched_ only by a part of
     positive length, the line covering the half-open interval `[x, x + share)`, so a step starting exactly at
     `x + share` is not touched; a `counts = false` line never crosses
     anything and is priced whole at the step active at `x`; each part pays its step's rate. Otherwise — any `FIXED`
@@ -263,10 +263,10 @@ refunded); one `roundKwd` per sale. Package sales never advance accumulators (D-
 
 ### 5.7 Allowed combinations — validated in the API and the plan builder alike
 
-| accumulator | step `from` (one kind per plan) | calc per step | modes |
-|---|---|---|---|
-| AMOUNT | literal mills, **or** SALARY_MULTIPLE k (k > 0, 2 decimals) | PCT (0–10000 bps) or FIXED (≥ 0), mixable | MARGINAL, WHOLE |
-| SESSIONS | integer n ≥ 0 | PCT or FIXED, mixable | MARGINAL, WHOLE |
+| accumulator | step `from` (one kind per plan)                             | calc per step                             | modes           |
+| ----------- | ----------------------------------------------------------- | ----------------------------------------- | --------------- |
+| AMOUNT      | literal mills, **or** SALARY_MULTIPLE k (k > 0, 2 decimals) | PCT (0–10000 bps) or FIXED (≥ 0), mixable | MARGINAL, WHOLE |
+| SESSIONS    | integer n ≥ 0                                               | PCT or FIXED, mixable                     | MARGINAL, WHOLE |
 
 Steps strictly ascending; at least one when tiers are enabled. Anything else is rejected with a named error. A case the
 table cannot express stops the work: a new calc or `from` kind by decision, never an `if` (CLAUDE.md §11).
@@ -311,7 +311,7 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 - **Corrections.** When the consumer applies a change to an APPROVED period — a cancellation, a refund, a performer
   change, or a late line whose `occurred_at` falls in it — it increments that period's `generation`, recomputes the
   period with its current inputs, and for every `source_ref` posts `delta = new − (frozen + corrections already
-  posted)` when non-zero, keyed `(source_period, employee, source_ref, generation)`. Every affected line is covered,
+posted)` when non-zero, keyed `(source_period, employee, source_ref, generation)`. Every affected line is covered,
   including lines whose tier moved; a performer change moves money as two corrections; a replayed event is deduped
   before it can bump the generation. The target is the **earliest DRAFT period after the source**, created if absent. Lock order is always ascending
   period: the source statement, then the target, which is rechecked under its lock; if it closed meanwhile, the next
@@ -366,8 +366,8 @@ package sale with a partial refund; tiny amounts; Σ shares = net; plus one fixt
 
 - **Valuation at sale (D-42),** a pure function in `orders/domain`: the price paid is allocated to components in
   proportion to `list_price_snapshot × sessions` (if that total is zero, in proportion to sessions), by largest
-  remainder with ties by `service_id`; within a component, ordinal *k* of *n* is worth `floor(value / n)` and ordinal
-  *n* also takes the remainder. `price_paid = 0` makes every slot zero. Slots are created at sale; `commissions` gets
+  remainder with ties by `service_id`; within a component, ordinal _k_ of _n_ is worth `floor(value / n)` and ordinal
+  _n_ also takes the remainder. `price_paid = 0` makes every slot zero. Slots are created at sale; `commissions` gets
   the values in events.
 - **Retries.** Sale and redemption require an `Idempotency-Key` (CLAUDE.md §6); a retry returns the original result
   and never creates a second entitlement or consumes a second slot.
@@ -455,19 +455,19 @@ above 500, approved (B = 20.000); cancelling A posts −20.000 to B; then a late
 generation · M5 two concurrent redemptions of the last slot: one wins · M6 refund vs redemption race; a duplicate
 refund is a no-op; the refund's component, ordinals and amount are recorded · M7 expired entitlements redeem nothing;
 refund after expiry refused · M8 cancelling a redemption frees its ordinal; the next redemption takes the lowest free · M9 two refunds of
-    different components of one package: both amounts in the final snapshot · M10 a lost response retried with the same
-    key: no second sale, no second slot, no second reversal · M11 invalid package types, sales and imports rejected by
-    name · M12 performer and share changes, before and after approval · M13 effective discount = (list − net) / list, 0 % at list 0; redemptions never count; a package's discount on its
-    sale line · M14 refund of more slots than are free → INSUFFICIENT_SLOTS, nothing refunded.
+different components of one package: both amounts in the final snapshot · M10 a lost response retried with the same
+key: no second sale, no second slot, no second reversal · M11 invalid package types, sales and imports rejected by
+name · M12 performer and share changes, before and after approval · M13 effective discount = (list − net) / list, 0 % at list 0; redemptions never count; a package's discount on its
+sale line · M14 refund of more slots than are free → INSUFFICIENT_SLOTS, nothing refunded.
 
 **Commissions** §5.8 fixtures · business-date boundary · `NO_PLAN` / `NO_SALARY` block review (incl. a package-only
-    seller) · a salary committing after approval → correction · two salaries on one date → the second replaces the first ·
-    salary events delivered out of order converge · a late NO_PLAN line in a closed period → blocked
-    correction, repaired by a period-scoped version · a change to a PAID
-    period posts a correction · a target that closes mid-post moves to the next DRAFT · a tip written during approval
-    lands frozen or as a TIP correction · override half-mill rounding · the FIXED endpoint case
-    (0→5 %, 50→10 %, 100→FIXED 2, x = 40, share 60 → 5.500) · a crash between projection write and correction insert leaves neither · approval of
-    a period that has not ended is refused · the estimate equals the engine on the DRAFT projection · approval racing a session, a
+seller) · a salary committing after approval → correction · two salaries on one date → the second replaces the first ·
+salary events delivered out of order converge · a late NO_PLAN line in a closed period → blocked
+correction, repaired by a period-scoped version · a change to a PAID
+period posts a correction · a target that closes mid-post moves to the next DRAFT · a tip written during approval
+lands frozen or as a TIP correction · override half-mill rounding · the FIXED endpoint case
+(0→5 %, 50→10 %, 100→FIXED 2, x = 40, share 60 → 5.500) · a crash between projection write and correction insert leaves neither · approval of
+a period that has not ended is refused · the estimate equals the engine on the DRAFT projection · approval racing a session, a
 redemption, a refund, a plan version and an override: each lands in the frozen result or in a correction · a plan
 write racing approval sees APPROVED and is refused · an input change after REVIEWED returns the statement to DRAFT ·
 duplicate, reordered and replayed events converge · corrections land in the earliest DRAFT period · only the owner
@@ -506,3 +506,9 @@ each open audited.
 2. **Client data** before the pilot: services and prices, staff and their plans, shifts, branches, open packages,
    contact person, meeting day.
 3. The §9 ADRs, each before its slice.
+
+## PR 6 amendment — ADR-0019, 2026-10-02
+
+PR 6 remains dependent on PRs 3/4/5 and implements existing global users on a paired POS, with active device-scoped membership plus explicit login:staff:branch. Staff/cashier bundles are explicit; Owner/admin authority alone is insufficient. OTP defaults disabled and incomplete activation closes only its capability; production API/worker stay ready with empty notification settings. Auth-owned deterministic derivation uses independent verification MACs, a hash-only global ledger, acknowledged PREPARED→PENDING release, bounded worker wait outside DB connections, at-most-once execution and shared Redis admission. All admitted outcomes share the 200 ms 202 window. Sessions use Better Auth with isolated staff cookie and original eight-hour deadline, without idle timeout or renewal, and are revalidated online on every request. Recovery uses the employee's own PIN with manager assistance; no impersonation or STOP bypass. Login does not open a shift or record attendance.
+
+The slice includes contracts/schema and exact grants, auth facade/guards, both composition roots, POS generated client/i18n/cache clearing, secret-free observability, environment/deploy injection and independent readiness smoke. ADR-0019 §7 is the complete test obligation. Before PR 20, resolve personal-phone/passkey enrollment and use the scoped staff verification contract; never auto-enroll the shared kiosk. PR 22 still requires per-clock UV, QR and presence proof. Final bilingual Meta copy/names/components and recovery copy remain TODO(spec), blocking live activation until approved.
