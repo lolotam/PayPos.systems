@@ -32,6 +32,8 @@ The later clocking slice can verify a QR without this slice creating or changing
    **Then** verification succeeds, including the previous day's final window after daily rotation.
 2. **Given** an older, future, malformed, altered or other-branch token, **When** verified, **Then** it fails.
 3. **Given** concurrent issuers, **When** a daily secret is first required, **Then** every issuer uses one shared secret.
+4. **Given** a proof accepted by the initial window check, **When** branch or secret reads finish after its
+   replay window expires, **Then** verification fails using a fresh server-clock reading before success.
 
 ### User Story 3 - Explain loss of connectivity (Priority: P2)
 
@@ -71,6 +73,8 @@ Reception sees a bilingual offline/unavailable notice and a retry action; an off
 ### Business rules
 
 - **BR-001**: `window = floor(server_epoch_ms / 60000)`; the verifier checks branch and accepts only `current` or `current - 1`.
+  Keep an initial cheap rejection and re-check against a fresh injected Clock after all asynchronous reads,
+  immediately before returning success; read latency cannot extend the replay window.
 - **BR-002**: Sign using HMAC-SHA256 with the daily secret as key; the canonical payload is domain-separated and includes
   company, branch and window. Compare signatures in constant time. The QR contains only the three SPEC fields.
 - **BR-003**: Redis `SET NX PXAT` chooses one random 32-byte daily secret atomically. Verification only reads existing keys.
@@ -112,6 +116,8 @@ None published or consumed; issuer does not record an attendance action.
   preceding window, day retention, current/previous selection, unsafe inputs, branch mismatch.
 - **Integration**: QR-01 authenticated issue; QR-02 wrong principal/revocation/header isolation; QR-03 concurrent Redis
   secret creation, TTL and process sharing; QR-04 HMAC tampering/current/previous/midnight; QR-05 Redis unavailable.
+- **Verifier regression**: advance the injected clock during branch and secret reads; reject a proof that
+  crosses its expiry boundary and accept one whose reads finish inside the allowed window.
 - **RLS negative**: existing tenancy negative suite, plus staff adapter refuses another tenant's branch/inactive branch.
 - **Queries**: reuse `describeWorkspaces` with its existing shape/EXPLAIN suite; no new query file.
 - **POS**: fake timer refresh, late responses, disconnect/reconnect, stale/failed requests, bilingual screen and QR payload.

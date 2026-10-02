@@ -33,6 +33,7 @@ export class VerifyAttendanceQr {
       branch.effective_timezone,
     );
     const secret = await this.secrets.read(scope);
+    // انتظار القراءات ممكن يخلّي الرمز خارج النافذة؛ وقت بداية الطلب مش كفاية لقبوله.
     return (
       secret !== null &&
       this.signer.verify(
@@ -41,7 +42,8 @@ export class VerifyAttendanceQr {
         input.token.window,
         secret,
         input.token.sig,
-      )
+      ) &&
+      acceptsAttendanceQrWindow(input.branchId, input.token, this.clock.now().getTime())
     );
   }
 }

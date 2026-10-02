@@ -57,7 +57,7 @@ export function attendanceQrTiming(now: number) {
  * @param token.branch_id الفرع المكتوب في الرمز
  * @param token.window النافذة المكتوبة في الرمز
  * @param now وقت التحقق من السيرفر
- * @returns هل الفرع والنافذة ينفعوا قبل فحص التوقيع
+ * @returns هل الفرع والنافذة لسه مقبولين عند وقت الفحص
  */
 export function acceptsAttendanceQrWindow(
   branchId: string,

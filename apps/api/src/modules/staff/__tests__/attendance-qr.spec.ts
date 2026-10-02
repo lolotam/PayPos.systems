@@ -44,6 +44,7 @@ function setup() {
       now = Date.parse(value);
     },
     branches,
+    secrets,
     values,
   };
 }
@@ -84,6 +85,35 @@ describe('attendance QR proof orchestration', () => {
     s.values.clear();
     expect(await check({})).toBe(false);
     expect(s.values.size).toBe(0);
+  });
+});
+
+describe('replay window after asynchronous reads', () => {
+  it.each([
+    ['branch', '2026-10-02T12:01:59.999Z', '2026-10-02T12:02:00.050Z', false],
+    ['branch', '2026-10-02T12:01:59.900Z', '2026-10-02T12:01:59.951Z', true],
+    ['secret', '2026-10-02T12:01:59.999Z', '2026-10-02T12:02:00.050Z', false],
+    ['secret', '2026-10-02T12:01:59.900Z', '2026-10-02T12:01:59.951Z', true],
+  ] as const)('during %s read, %s -> %s is accepted: %s', async (read, start, finish, accepted) => {
+    const s = setup();
+    s.setNow('2026-10-02T12:00:00.000Z');
+    const { token } = await s.issue.execute({ companyId: COMPANY, branchId: BRANCH });
+    s.setNow(start);
+    if (read === 'branch') {
+      const branch = await s.branches.read();
+      s.branches.read.mockImplementationOnce(async () => {
+        s.setNow(finish);
+        return branch;
+      });
+    } else {
+      const readSecret = s.secrets.read;
+      vi.spyOn(s.secrets, 'read').mockImplementationOnce(async (scope) => {
+        const value = await readSecret(scope);
+        s.setNow(finish);
+        return value;
+      });
+    }
+    expect(await s.verify.execute({ companyId: COMPANY, branchId: BRANCH, token })).toBe(accepted);
   });
 });
 
