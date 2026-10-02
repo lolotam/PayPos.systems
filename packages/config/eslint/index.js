@@ -15,19 +15,21 @@ const sizeLimitExcludes = [
   '**/fixtures/**',
 ];
 
-// ADR-0003 §3: two restricted database facades, each wired by exactly one owner. Everyone else is refused;
+// ADR-0003 §3: restricted database facades, each wired by exactly one owner. Everyone else is refused;
 // the owner re-enables its own facade with `allowDatabaseFacade` in its eslint.config.js.
 const FACADES = {
   createAuthDatabase: 'the pospay_auth facade belongs to packages/auth (ADR-0003 §2.1).',
   createOutboxDispatcherDatabase:
     'the pospay_dispatcher facade belongs to apps/worker (ADR-0003 §3).',
+  createPlatformWhatsappDatabase:
+    'the global messaging facade is wired only by API/worker roots (ADR-0013).',
 };
 const facadeRule = (allowed, credentials = false) => [
   'error',
   {
     paths: [
       ...Object.entries(FACADES)
-        .filter(([name]) => name !== allowed)
+        .filter(([name]) => !(Array.isArray(allowed) ? allowed : [allowed]).includes(name))
         .map(([name, message]) => ({ name: '@pospay/db', importNames: [name], message })),
       ...(credentials ? [] : CREDENTIAL_PATHS),
     ],
@@ -38,7 +40,7 @@ const facadeRule = (allowed, credentials = false) => [
 /**
  * The override a facade's owner adds: every other facade stays refused.
  *
- * @param {keyof typeof FACADES} allowed the facade this package owns
+ * @param {keyof typeof FACADES | (keyof typeof FACADES)[]} allowed the facade this package owns
  * @param {{ credentials?: boolean }} [options] credentials: true only for packages/auth, the one owner of hashing
  * @returns {import('eslint').Linter.Config} the override
  */

@@ -1,4 +1,8 @@
-import { createDatabase, createOutboxDispatcherDatabase } from '@pospay/db';
+import {
+  createDatabase,
+  createOutboxDispatcherDatabase,
+  createPlatformWhatsappDatabase,
+} from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
@@ -6,6 +10,8 @@ import { Redis } from 'ioredis';
 import { createDeliverer } from './outbox/deliver.ts';
 import {
   createNotificationModule,
+  createInAppNotificationModule,
+  startWhatsappInbound,
   readNotificationConfiguration,
   startNotificationQueue,
 } from './modules/notifications/index.ts';
@@ -25,8 +31,7 @@ redis.on('error', (error: unknown) => {
   logger.warn({ err: error }, 'redis connection error');
 });
 
-// ADR-0018 §2: الإشعارات ما بتشتغلش في production (و staging كمان) لحد ما PR 5 يربط الـ suppression الحقيقي.
-// الـ worker بيكمّل يوزّع باقي الأحداث؛ وأنواع أحداث الإشعارات مش «معروفة» هنا، فأي طلب بيستنى ويتركن بدل ما يضيع.
+// ADR-0013 §5: معالجة in-app والاستقبال مستقلة؛ الإرسال وOTP يظلان مقفولين حتى admission المعتمد في PR 6.
 const production = process.env['NODE_ENV'] === 'production';
 const notifications = production
   ? null
@@ -37,8 +42,19 @@ const notifications = production
       configuration: readNotificationConfiguration(process.env),
       production,
     });
+const inApp = production
+  ? createInAppNotificationModule({
+      database: app,
+      ids: systemUuidV7(),
+      clock: { now: () => new Date() },
+    })
+  : null;
+const intakeUrl = process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL'];
+const globalDatabase = intakeUrl ? createPlatformWhatsappDatabase({ url: intakeUrl }) : undefined;
+let inbound: ReturnType<typeof startWhatsappInbound> | undefined;
 const KNOWN_EVENT_TYPES = [
   ...(notifications?.eventTypes ?? []),
+  ...(inApp?.eventTypes ?? []),
   'CompanyCreated',
   'BusinessCreated',
   'BranchCreated',
@@ -46,7 +62,7 @@ const KNOWN_EVENT_TYPES = [
 ];
 const businessDeliver = createDeliverer(
   app,
-  notifications === null ? [] : [notifications.consumer],
+  notifications === null ? (inApp === null ? [] : [inApp.consumer]) : [notifications.consumer],
   logger,
   { knownEventTypes: KNOWN_EVENT_TYPES },
 );
@@ -58,15 +74,30 @@ const deliver = queue?.deliver ?? businessDeliver;
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
 const release = async (): Promise<void> => {
-  await Promise.allSettled([queue?.close(), dispatcher.close(), app.close(), redis.quit()]);
+  await Promise.allSettled([
+    inbound?.close(),
+    globalDatabase?.close(),
+    queue?.close(),
+    dispatcher.close(),
+    app.close(),
+    redis.quit(),
+  ]);
   redis.disconnect();
 };
 
 try {
+  if (globalDatabase !== undefined) {
+    await globalDatabase.ping();
+    inbound = startWhatsappInbound(globalDatabase, config.REDIS_URL, logger);
+    await inbound.ready();
+  }
   const worker = await createWorker(
     {
       readiness: [
         ...(queue === null ? [] : [{ name: 'notifications', check: () => queue.ready() }]),
+        ...(inbound === undefined
+          ? []
+          : [{ name: 'whatsapp-inbound', check: inbound.ready }]),
         { name: 'database', check: () => app.ping() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
         { name: 'dispatcher', check: () => dispatcher.ping() },
@@ -80,6 +111,7 @@ try {
       stopPolling: async () => {
         await loop.stop();
         await queue?.stop();
+        await inbound?.stop();
       },
       release,
     },
@@ -93,6 +125,7 @@ try {
   logger.fatal({ err: error }, 'worker failed to start');
   await loop.stop();
   await queue?.stop();
+  await inbound?.stop();
   await release();
   process.exit(1);
 }

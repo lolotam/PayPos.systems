@@ -18,3 +18,22 @@ export type {
   TemplateParameter,
   SafeParameter,
 } from './templates/definition.ts';
+export {
+  createProviderMessageDigest,
+  WhatsappDigestUnavailableError,
+  verifyWhatsappSignature,
+  verifyWhatsappToken,
+} from './provider-message-identity.ts';
+export {
+  readWhatsappWebhookConfiguration,
+  type WhatsappWebhookConfiguration,
+} from './webhook-configuration.ts';
+export { notificationRedisOptions } from './redis-connection.ts';
+
+export {
+  WHATSAPP_INBOUND_QUEUE,
+  WHATSAPP_INBOUND_JOB,
+  WHATSAPP_INBOX_ID,
+  whatsappInboundJob,
+  WhatsappQueueUnavailableError,
+} from './whatsapp-inbound-queue.ts';

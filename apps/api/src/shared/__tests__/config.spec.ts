@@ -56,3 +56,42 @@ describe('readConfig', () => {
     }
   });
 });
+
+it('allows empty notification settings in production and validates the optional intake URL', () => {
+  expect(
+    readConfig({
+      ...valid,
+      NODE_ENV: 'production',
+      PLATFORM_NOTIFICATIONS_DATABASE_URL: '',
+      TRUSTED_PROXY_CIDRS: '',
+      WHATSAPP_APP_SECRET: '',
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: '',
+    }),
+  ).toMatchObject({ PLATFORM_NOTIFICATIONS_DATABASE_URL: undefined, TRUSTED_PROXY_CIDRS: [] });
+  expect(() =>
+    readConfig({ ...valid, PLATFORM_NOTIFICATIONS_DATABASE_URL: 'invalid-test-secret' }),
+  ).toThrow(/PLATFORM_NOTIFICATIONS_DATABASE_URL/);
+});
+
+it('requires trusted proxies when webhook secrets are configured in production', () => {
+  expect(() =>
+    readConfig({ ...valid, NODE_ENV: 'production', WHATSAPP_APP_SECRET: 'test-secret' }),
+  ).toThrow(/TRUSTED_PROXY_CIDRS/);
+  expect(
+    readConfig({
+      ...valid,
+      NODE_ENV: 'production',
+      WHATSAPP_APP_SECRET: 'test-secret',
+      TRUSTED_PROXY_CIDRS: '127.0.0.1/32, 192.0.2.0/24',
+    }).TRUSTED_PROXY_CIDRS,
+  ).toEqual(['127.0.0.1/32', '192.0.2.0/24']);
+});
+
+it('rejects invalid proxy CIDRs without printing input', () => {
+  expect(() => readConfig({ ...valid, TRUSTED_PROXY_CIDRS: 'test-secret' })).toThrow(
+    /TRUSTED_PROXY_CIDRS/,
+  );
+  expect(() => readConfig({ ...valid, TRUSTED_PROXY_CIDRS: '127.0.0.1/33' })).toThrow(
+    /TRUSTED_PROXY_CIDRS/,
+  );
+});

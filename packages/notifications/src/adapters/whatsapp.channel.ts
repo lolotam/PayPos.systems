@@ -1,3 +1,4 @@
+import { WHATSAPP_PROVIDER_ID } from '../identifier-patterns.ts';
 import type { Channel, ChannelRequest, ChannelResult } from '../channel.ts';
 import { GRAPH_API_VERSION } from '../configuration.ts';
 
@@ -19,7 +20,7 @@ export class WhatsAppChannel implements Channel {
   readonly #request: typeof fetch;
   readonly #endpoint: string;
   constructor(readonly options: WhatsAppOptions) {
-    if (!/^\d{1,32}$/.test(options.phoneNumberId) || options.accessToken.length === 0) {
+    if (!WHATSAPP_PROVIDER_ID.test(options.phoneNumberId) || options.accessToken.length === 0) {
       throw new Error('NOTIFICATION_PROVIDER_CONFIG_INVALID');
     }
     this.#request = options.request ?? fetch;

@@ -204,6 +204,20 @@
       "when": 1790875456514,
       "tag": "0028_2026-10-01_in-app-notifications-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790887867982,
+      "tag": "0029_2026-10-01_platform-whatsapp",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790887883996,
+      "tag": "0030_2026-10-01_platform-whatsapp-grants",
+      "breakpoints": true
     }
   ]
 }

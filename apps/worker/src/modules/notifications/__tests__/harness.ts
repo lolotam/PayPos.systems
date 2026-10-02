@@ -83,7 +83,7 @@ function testRegistry() {
 }
 
 function testQueries(db: Database, owner: postgres.Sql) {
-  const read = async (id: string, company = TENANT.A.company) =>
+  const read = async (id: string, company: string = TENANT.A.company) =>
     db.withTenant(company, async (tx) => {
       const [row] = await tx.execute<Record<string, unknown>>(
         sql`SELECT * FROM notification_attempts WHERE id = ${id}`,
@@ -111,7 +111,7 @@ function testQueries(db: Database, owner: postgres.Sql) {
 }
 
 function testRequester(db: Database, ids: ReturnType<typeof systemUuidV7>) {
-  return async (recipient: Record<string, unknown> = {}, company = TENANT.A.company) => {
+  return async (recipient: Record<string, unknown> = {}, company: string = TENANT.A.company) => {
     const id = ids.newId();
     const payload = {
       notification_recipients: [

@@ -7,6 +7,7 @@ export interface RolePasswords {
   readonly app: string;
   readonly auth: string;
   readonly dispatcher: string;
+  readonly notifications?: string;
 }
 
 // الـ roles على مستوى الـ cluster كله، مش الداتابيز، فالسكريبت لازم يتعاد تشغيله من غير ما يقع.
@@ -61,5 +62,21 @@ export async function bootstrapRoles(sql: Sql, passwords: RolePasswords): Promis
                     set_config('pospay.auth_password', ${passwords.auth}, true),
                     set_config('pospay.dispatcher_password', ${passwords.dispatcher}, true)`;
     await tx.unsafe(ROLES_SQL);
+    await tx.unsafe(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_notifications') THEN
+        CREATE ROLE pospay_notifications LOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_suppression_reader') THEN
+        CREATE ROLE pospay_suppression_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      END IF;
+    END $$`);
+    if (passwords.notifications !== undefined) {
+      if (passwords.notifications.length < 16)
+        throw new Error('POSTGRES_NOTIFICATIONS_PASSWORD_INVALID');
+      await tx`SELECT set_config('pospay.notifications_password', ${passwords.notifications}, true)`;
+      await tx.unsafe(
+        `DO $$ BEGIN EXECUTE format('ALTER ROLE pospay_notifications PASSWORD %L', current_setting('pospay.notifications_password')); END $$`,
+      );
+    }
   });
 }

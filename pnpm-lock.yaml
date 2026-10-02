@@ -293,9 +293,15 @@ importers:
       '@pospay/ids':
         specifier: workspace:*
         version: link:../../packages/ids
+      '@pospay/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@pospay/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      bullmq:
+        specifier: 6.2.0
+        version: 6.2.0(ioredis@6.0.0(supports-color@7.2.0))
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(kysely@0.29.6)(postgres@3.4.9)

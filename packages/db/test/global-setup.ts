@@ -81,6 +81,7 @@ export default async function setup(project: TestProject): Promise<() => Promise
       app: env.appPassword,
       auth: env.authPassword,
       dispatcher: env.dispatcherPassword,
+      notifications: env.notificationsPassword,
     });
   } finally {
     await sql`SELECT pg_advisory_unlock(hashtext(${ROLE_TEST_LOCK}))`;

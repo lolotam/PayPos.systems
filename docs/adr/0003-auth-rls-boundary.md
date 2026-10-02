@@ -30,7 +30,7 @@ Scheduling cannot fix this (Codex review of plan v1, finding #1). It is a schema
 
 ## 2. Decision — table classification
 
-Every table falls in exactly one of four groups. A new table is classified in the PR that creates it.
+Every table falls in exactly one of five groups. A new table is classified in the PR that creates it.
 
 ### 2.1 Global identity — no `company_id`, no tenant RLS
 
@@ -119,7 +119,34 @@ A system row has `company_id IS NULL`, so it never satisfies the mutation policy
 
 Every other tenant table is unchanged from `CLAUDE.md` §5: `company_id uuid NOT NULL`, `USING` **and** an explicit `WITH CHECK` on `company_id`, `FORCE ROW LEVEL SECURITY`, tenant-qualified composite foreign keys, reached only through `withTenant()`.
 
-## 3. Database roles and the three wrappers
+### 2.5 Global messaging control — ADR-0013 Part A, Phase 1 PR 5
+
+`platform_whatsapp_suppressions`, `platform_whatsapp_inbox`, `platform_whatsapp_audit` are
+company-independent global messaging control, neither identity nor reference data, without tenant RLS.
+They are migration-owned by `pospay_owner`; store platform phone HMAC only, a domain-separated keyed
+complete-provider-message digest (never the original id), and UUID-linked finite append-only audit.
+`opted_back_in_at` is locked to NULL by a validated CHECK and omitted from all runtime column grants.
+There is no expiry/removal/re-subscription; clear only scrubbed inbox JSON after 30 days.
+
+Exact privileges follow ADR-0013 §1: `pospay_notifications` LOGIN and `pospay_suppression_reader`
+NOLOGIN are NOSUPERUSER/NOBYPASSRLS/NOINHERIT/NOCREATEDB/NOCREATEROLE/NOREPLICATION, members of
+no role. Notifications owns nothing, has CONNECT/schema USAGE, suppression SELECT and column INSERT
+(recipient_hash,hash_key_id,source,first_opted_out_at,last_opted_out_at), column UPDATE
+(source,last_opted_out_at); inbox SELECT/INSERT and UPDATE
+(raw_event,suppression_applied_at,processed_at,enqueue_confirmed_at); audit INSERT only.
+Reader has schema USAGE and suppression SELECT only, owns the boolean
+`platform_whatsapp_is_suppressed(bytea)` SECURITY DEFINER with `search_path=pg_catalog, pg_temp`,
+fully qualified static SQL, non-null 32-byte argument validation and no unrelated reads.
+Only `pospay_app` has additional EXECUTE. No PUBLIC/auth/dispatcher EXECUTE or global table grant;
+no runtime DELETE/TRUNCATE/REFERENCES/TRIGGER/sequence/schema CREATE/database CREATE/SET ROLE grant.
+PR 6 separately grants auth check-function EXECUTE; no such grant ships here.
+
+API/worker roots wire the restricted `packages/db` facade only to notifications; readiness checks
+role/ACL/NULL constraint/definer inventory. Intake never accesses tenant data. Authorization calls
+only the boolean definer on the existing `pospay_app` Tx, with a fresh READ COMMITTED statement after
+acquiring the shared platform-phone advisory lock. Errors fail closed; tenant RLS remains unchanged.
+
+## 3. Database roles and the restricted wrappers
 
 | Role | Attributes | May touch | Used by |
 |---|---|---|---|
@@ -127,6 +154,8 @@ Every other tenant table is unchanged from `CLAUDE.md` §5: `company_id uuid NOT
 | `pospay_app` | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing | tenant + bridge tables under RLS; `SELECT` on `plans` and `permissions`; `SELECT, INSERT, UPDATE, DELETE` on `roles` and `role_permissions` (the split policies in §2.3 decide which rows) | `api`, `worker` |
 | `pospay_auth` | `NOSUPERUSER`, `NOBYPASSRLS`, owns nothing | **only** the §2.1 tables, table-level grants | `packages/auth` |
 | `pospay_dispatcher` (added 2026-09-23, T7b) | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error`, `next_attempt_at`, `parked_at`; plus `EXECUTE` on the one `SECURITY DEFINER` sweep of expired idempotency keys (T7b) | the outbox dispatcher in `apps/worker`, through its own pool |
+| `pospay_notifications` (ADR-0013 Part A) | `LOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | only the three section 2.5 global WhatsApp tables with the exact table/column grants there; never `opted_back_in_at`, DELETE or TRUNCATE | API intake and inbound worker, through `createPlatformWhatsappDatabase` |
+| `pospay_suppression_reader` (ADR-0013 Part A) | `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, member of nothing | only SELECT on suppression; owns only the boolean SECURITY DEFINER function; `pospay_app` alone may EXECUTE it | function execution on the existing tenant Tx, never a pool login |
 
 No **runtime** role has `BYPASSRLS`. The platform bypass role stays deferred (review finding #14).
 
@@ -330,7 +359,9 @@ Controller guard scanning cannot see routes mounted by Better Auth's handler, so
 | `POST /v1/auth/forget-password` · `POST /v1/auth/reset-password` | recovery |
 | `GET  /v1/auth/verify-email` | email verification |
 | `POST /v1/devices/register` · `POST /v1/devices/claim` | device pairing with a single-use code valid 10 minutes, then a one-time token claim after a manager approves (T9b-2) |
-| `POST /v1/webhooks/*` | signature-verified, tenant resolved from the payload (`CLAUDE.md` §6) |
+| `GET /v1/webhooks/whatsapp` | ADR-0013 constant-time verify-token handshake; 10/IP/minute; no tenant |
+| `POST /v1/webhooks/whatsapp` | ADR-0013 raw-body Meta signature, configured WABA/sender; 120/IP/minute plus 600/verified-sender/minute; bounded concurrency; synchronous STOP commit; no tenant |
+| `POST /v1/webhooks/*` (other providers) | signature-verified, tenant resolved from the payload (`CLAUDE.md` §6) |
 | `GET  /health` · `GET /ready` | probes |
 
 Every public route is rate-limited in Redis **except `/health`**, which must report process liveness even when Redis is down or the limit is exhausted — otherwise an orchestrator restarts a healthy API during a Redis incident. `/ready` still reports Redis. Sign-up is **not** public: companies are created by `onboard-company`; users by the operator script `platform:create-user` in Phase 0. Inviting users into a company is a later deliverable (issue #19).

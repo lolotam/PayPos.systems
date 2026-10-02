@@ -9,4 +9,6 @@ export const WORKER_LOG_EVENTS = [
   'notification enqueue failed',
   'notification queue error',
   'notification job failed',
+  'whatsapp inbox queue error',
+  'whatsapp inbox job failed',
 ] as const;

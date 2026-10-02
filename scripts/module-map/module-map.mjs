@@ -19,8 +19,20 @@ const BLOCK = /## 6\. Machine-readable source[\s\S]*?```yaml\n([\s\S]*?)```/;
 export function parseModuleMap(markdown) {
   const block = BLOCK.exec(markdown.replace(/\r\n/g, '\n'))?.[1];
   if (block === undefined) throw new Error('module-map.md has no §6 yaml block');
-  const map = { imports: {}, packagesRestricted: {}, compositionRoots: {}, syncWrites: [], reads: [] };
-  const sections = new Set(['imports', 'packages_restricted', 'composition_roots', 'sync_writes', 'reads']);
+  const map = {
+    imports: {},
+    packagesRestricted: {},
+    compositionRoots: {},
+    syncWrites: [],
+    reads: [],
+  };
+  const sections = new Set([
+    'imports',
+    'packages_restricted',
+    'composition_roots',
+    'sync_writes',
+    'reads',
+  ]);
   let section = null;
   for (const raw of block.split('\n')) {
     const line = raw.replace(/#.*$/, '').trimEnd();
@@ -33,9 +45,21 @@ export function parseModuleMap(markdown) {
     }
     const pair = /^\s+([\w-]+):\s*\[([^\]]*)\]$/.exec(line);
     const entry = /^\s+-\s+(\w+)\s*->\s*(\w+)\.(\w+)\s*@\s*(\S+)$/.exec(line);
-    if (pair !== null && ['imports', 'packages_restricted', 'composition_roots'].includes(section)) {
-      const list = pair[2].split(',').map((v) => v.trim()).filter(Boolean);
-      map[section === 'imports' ? 'imports' : section === 'composition_roots' ? 'compositionRoots' : 'packagesRestricted'][pair[1]] = list;
+    if (
+      pair !== null &&
+      ['imports', 'packages_restricted', 'composition_roots'].includes(section)
+    ) {
+      const list = pair[2]
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
+      map[
+        section === 'imports'
+          ? 'imports'
+          : section === 'composition_roots'
+            ? 'compositionRoots'
+            : 'packagesRestricted'
+      ][pair[1]] = list;
     } else if (entry !== null && (section === 'sync_writes' || section === 'reads')) {
       const [, from, to, symbol, file] = entry;
       map[section === 'sync_writes' ? 'syncWrites' : 'reads'].push({ from, to, symbol, file });
@@ -54,7 +78,9 @@ export function parseModuleMap(markdown) {
  */
 export function renderYaml(map) {
   const pairs = (record) =>
-    Object.keys(record).sort().map((key) => `  ${key}: [${record[key].join(', ')}]`);
+    Object.keys(record)
+      .sort()
+      .map((key) => `  ${key}: [${record[key].join(', ')}]`);
   const entries = (list) =>
     list.map((e) => `  - { from: ${e.from}, to: ${e.to}, symbol: ${e.symbol}, file: ${e.file} }`);
   return [
@@ -63,7 +89,9 @@ export function renderYaml(map) {
     ...pairs(map.imports),
     'packages_restricted:',
     ...pairs(map.packagesRestricted),
-    ...(Object.keys(map.compositionRoots).length === 0 ? [] : ['composition_roots:', ...pairs(map.compositionRoots)]),
+    ...(Object.keys(map.compositionRoots).length === 0
+      ? []
+      : ['composition_roots:', ...pairs(map.compositionRoots)]),
     map.syncWrites.length === 0 ? 'sync_writes: []' : 'sync_writes:',
     ...entries(map.syncWrites),
     map.reads.length === 0 ? 'reads: []' : 'reads:',
@@ -98,11 +126,16 @@ const exists = (path) => {
 
 function compilerOptions(project) {
   const config = join(project, 'tsconfig.json');
-  if (!exists(config)) return { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext };
-  const parsed = ts.getParsedCommandLineOfConfigFile(config, {}, {
-    ...ts.sys,
-    onUnRecoverableConfigFileDiagnostic: () => undefined,
-  });
+  if (!exists(config))
+    return { module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext };
+  const parsed = ts.getParsedCommandLineOfConfigFile(
+    config,
+    {},
+    {
+      ...ts.sys,
+      onUnRecoverableConfigFileDiagnostic: () => undefined,
+    },
+  );
   return parsed?.options ?? {};
 }
 
@@ -114,7 +147,12 @@ function compilerOptions(project) {
  * @returns {{ spec: string | null, kind: string, typeOnly: boolean, names: string[], locals: string[] }[] & { source: ts.SourceFile }}
  */
 export function dependenciesOf(file) {
-  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(file, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+  );
   const found = [];
   const visit = (node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
@@ -145,22 +183,42 @@ export function dependenciesOf(file) {
       }
     } else if (ts.isExportDeclaration(node)) {
       if (node.moduleSpecifier !== undefined && ts.isStringLiteral(node.moduleSpecifier)) {
-        const elements = node.exportClause !== undefined && ts.isNamedExports(node.exportClause)
-          ? node.exportClause.elements.filter((e) => !e.isTypeOnly)
-          : null;
-        const listed = elements === null ? ['*'] : elements.map((e) => (e.propertyName ?? e.name).text);
+        const elements =
+          node.exportClause !== undefined && ts.isNamedExports(node.exportClause)
+            ? node.exportClause.elements.filter((e) => !e.isTypeOnly)
+            : null;
+        const listed =
+          elements === null ? ['*'] : elements.map((e) => (e.propertyName ?? e.name).text);
         const names = node.isTypeOnly ? [] : listed.length === 0 ? ['*'] : listed;
-        found.push({ spec: node.moduleSpecifier.text, kind: 're-export', typeOnly: node.isTypeOnly, names, locals: [] });
+        found.push({
+          spec: node.moduleSpecifier.text,
+          kind: 're-export',
+          typeOnly: node.isTypeOnly,
+          names,
+          locals: [],
+        });
       }
     } else if (ts.isCallExpression(node)) {
       const [argument] = node.arguments;
       const dynamic = node.expression.kind === ts.SyntaxKind.ImportKeyword;
       const required = ts.isIdentifier(node.expression) && node.expression.text === 'require';
       if ((dynamic || required) && argument !== undefined && ts.isStringLiteralLike(argument)) {
-        found.push({ spec: argument.text, kind: dynamic ? 'dynamic' : 'require', typeOnly: false, names: ['*'], locals: [] });
+        found.push({
+          spec: argument.text,
+          kind: dynamic ? 'dynamic' : 'require',
+          typeOnly: false,
+          names: ['*'],
+          locals: [],
+        });
       } else if (dynamic || required) {
         // A computed specifier cannot be checked, so it is refused outright.
-        found.push({ spec: null, kind: dynamic ? 'dynamic' : 'require', typeOnly: false, names: ['*'], locals: [] });
+        found.push({
+          spec: null,
+          kind: dynamic ? 'dynamic' : 'require',
+          typeOnly: false,
+          names: ['*'],
+          locals: [],
+        });
       }
     }
     ts.forEachChild(node, visit);
@@ -183,7 +241,11 @@ function inErasedType(node) {
     ) {
       return false;
     }
-    if (ts.isTypeNode(current) || ts.isTypeAliasDeclaration(current) || ts.isInterfaceDeclaration(current)) {
+    if (
+      ts.isTypeNode(current) ||
+      ts.isTypeAliasDeclaration(current) ||
+      ts.isInterfaceDeclaration(current)
+    ) {
       return true;
     }
     if (ts.isStatement(current) || ts.isSourceFile(current)) return false;
@@ -203,16 +265,23 @@ function leakedUses(program, file, locals) {
       : ts.isShorthandPropertyAssignment(parent)
         ? checker.getShorthandAssignmentValueSymbol(parent)
         : checker.getSymbolAtLocation(node);
-    return symbol !== undefined && symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+    return symbol !== undefined && symbol.flags & ts.SymbolFlags.Alias
+      ? checker.getAliasedSymbol(symbol)
+      : symbol;
   };
   const imported = new Set();
   for (const statement of source.statements) {
     const clause = ts.isImportDeclaration(statement) ? statement.importClause : undefined;
     if (clause === undefined || clause.isTypeOnly) continue;
-    const names = [clause.name, clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)
-      ? clause.namedBindings.name : undefined,
+    const names = [
+      clause.name,
+      clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)
+        ? clause.namedBindings.name
+        : undefined,
       ...(clause.namedBindings && ts.isNamedImports(clause.namedBindings)
-        ? clause.namedBindings.elements.filter((e) => !e.isTypeOnly).map((e) => e.name) : [])];
+        ? clause.namedBindings.elements.filter((e) => !e.isTypeOnly).map((e) => e.name)
+        : []),
+    ];
     for (const name of names) {
       if (name !== undefined && locals.has(name.text)) imported.add(target(name));
     }
@@ -221,7 +290,8 @@ function leakedUses(program, file, locals) {
   const visit = (node) => {
     if (ts.isIdentifier(node) && locals.has(node.text) && imported.has(target(node))) {
       const parent = node.parent;
-      const declaring = ts.isImportSpecifier(parent) || ts.isImportClause(parent) || ts.isNamespaceImport(parent);
+      const declaring =
+        ts.isImportSpecifier(parent) || ts.isImportClause(parent) || ts.isNamespaceImport(parent);
       const called = ts.isCallExpression(parent) && parent.expression === node;
       if (!declaring && !called && !inErasedType(node)) leaks.push(node.text);
     }
@@ -255,11 +325,13 @@ function cyclesOf(graph, label) {
 }
 
 function projects(root) {
-  return ['apps', 'packages'].filter((top) => exists(join(root, top))).flatMap((top) =>
-    readdirSync(join(root, top))
-      .map((name) => join(root, top, name))
-      .filter((dir) => exists(join(dir, 'src'))),
-  );
+  return ['apps', 'packages']
+    .filter((top) => exists(join(root, top)))
+    .flatMap((top) =>
+      readdirSync(join(root, top))
+        .map((name) => join(root, top, name))
+        .filter((dir) => exists(join(dir, 'src'))),
+    );
 }
 
 // Where a file sits: its app, and the module it belongs to (null for app-level code such as shared/ or app.ts).
@@ -275,7 +347,9 @@ function packageCycles(root) {
   const graph = new Map();
   for (const project of projects(root)) {
     const pkg = JSON.parse(readFileSync(join(project, 'package.json'), 'utf8'));
-    const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter((d) => d.startsWith('@pospay/'));
+    const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter((d) =>
+      d.startsWith('@pospay/'),
+    );
     graph.set(pkg.name, new Set(deps));
   }
   return cyclesOf(graph, 'package');
@@ -303,7 +377,9 @@ export function checkModules(root, map) {
       const crossLocals = new Set();
       for (const dep of deps) {
         if (dep.spec === null) {
-          problems.push(`${rel}: ${dep.kind} import with a computed specifier — use a string literal`);
+          problems.push(
+            `${rel}: ${dep.kind} import with a computed specifier — use a string literal`,
+          );
           continue;
         }
         const target = resolveTo(dep.spec, file, options);
@@ -311,44 +387,68 @@ export function checkModules(root, map) {
           fileGraph.set(file, new Set([...(fileGraph.get(file) ?? []), target]));
         }
         const pkg = /^@pospay\/([\w-]+)/.exec(dep.spec)?.[1];
+        if (
+          pkg === 'db' &&
+          (dep.names.includes('createPlatformWhatsappDatabase') ||
+            (!dep.typeOnly && dep.names.includes('*'))) &&
+          !(map.compositionRoots['platform-whatsapp-db'] ?? []).includes(rel)
+        ) {
+          problems.push(
+            `${rel}: global messaging DB facade is wired only by declared API/worker roots (ADR-0013)`,
+          );
+        }
         const owners = pkg === undefined ? undefined : map.packagesRestricted[pkg];
         if (from.module !== null && owners !== undefined && !owners.includes(from.module)) {
           problems.push(`${rel}: @pospay/${pkg} may be imported only by ${owners.join(', ')}`);
         }
         const roots = pkg === undefined ? undefined : map.compositionRoots[pkg];
-        if (roots !== undefined && ((from.top && !roots.includes(rel)) ||
-            (pkg === 'notifications' && from.module === null && !roots.includes(rel)))) {
+        if (
+          roots !== undefined &&
+          ((from.top && !roots.includes(rel)) ||
+            (pkg === 'notifications' && from.module === null && !roots.includes(rel)))
+        ) {
           problems.push(`${rel}: @pospay/${pkg} composition wiring is not declared for this root`);
         }
         if (target === null) continue;
         const to = place(root, target);
         // The composition root is imported only by the composition root: nothing can forward a module through it.
         if (to.top && !from.top) {
-          problems.push(`${rel}: imports the composition root (${dep.spec}) — only app.ts / main.ts may`);
+          problems.push(
+            `${rel}: imports the composition root (${dep.spec}) — only app.ts / main.ts may`,
+          );
           continue;
         }
         if (to.module === null || to.app !== from.app || to.module === from.module) continue;
         if (from.module === null) {
-          if (!from.top) problems.push(`${rel}: only the composition root may import a module (${dep.spec})`);
+          if (!from.top)
+            problems.push(`${rel}: only the composition root may import a module (${dep.spec})`);
           continue;
         }
         const other = to.module;
         moduleGraph.set(from.module, new Set([...(moduleGraph.get(from.module) ?? []), other]));
         const index = join(root, 'apps', to.app, 'src', 'modules', other, 'index.ts');
-        if (target !== index) problems.push(`${rel}: deep import into ${other} (${dep.spec}) — only ${other}/index.ts`);
+        if (target !== index)
+          problems.push(`${rel}: deep import into ${other} (${dep.spec}) — only ${other}/index.ts`);
         if (!(map.imports[from.module] ?? []).includes(other)) {
-          problems.push(`${rel}: arrow ${from.module} -> ${other} is not declared in docs/module-map.md`);
+          problems.push(
+            `${rel}: arrow ${from.module} -> ${other} is not declared in docs/module-map.md`,
+          );
         }
         if (dep.kind === 're-export') {
           problems.push(`${rel}: re-exports ${other} — a module's surface is its own`);
           continue;
         }
         for (const name of dep.names) {
-          const ok = dep.kind === 'import' && allowed.some(
-            (e) => e.from === from.module && e.to === other && e.symbol === name && e.file === rel,
-          );
+          const ok =
+            dep.kind === 'import' &&
+            allowed.some(
+              (e) =>
+                e.from === from.module && e.to === other && e.symbol === name && e.file === rel,
+            );
           if (!ok) {
-            problems.push(`${rel}: value import ${other}.${name} (${dep.kind}) is neither the declared synchronous write nor a declared read`);
+            problems.push(
+              `${rel}: value import ${other}.${name} (${dep.kind}) is neither the declared synchronous write nor a declared read`,
+            );
           }
         }
         dep.locals.forEach((local) => crossLocals.add(local));
@@ -356,13 +456,20 @@ export function checkModules(root, map) {
       if (crossLocals.size === 0) continue;
       program ??= ts.createProgram(walk(join(project, 'src')), { ...options, noEmit: true });
       for (const local of leakedUses(program, file, crossLocals)) {
-        problems.push(`${rel}: ${local} came from another module and may only be called here, not passed on`);
+        problems.push(
+          `${rel}: ${local} came from another module and may only be called here, not passed on`,
+        );
       }
     }
   }
   const declared = new Map(Object.entries(map.imports).map(([k, v]) => [k, new Set(v)]));
   problems.push(...cyclesOf(moduleGraph, 'module'), ...cyclesOf(declared, 'declared module'));
-  const relGraph = new Map([...fileGraph].map(([k, v]) => [relative(root, k).split(sep).join('/'), new Set([...v].map((t) => relative(root, t).split(sep).join('/')))]));
+  const relGraph = new Map(
+    [...fileGraph].map(([k, v]) => [
+      relative(root, k).split(sep).join('/'),
+      new Set([...v].map((t) => relative(root, t).split(sep).join('/'))),
+    ]),
+  );
   problems.push(...cyclesOf(relGraph, 'file'), ...packageCycles(root));
   return [...new Set(problems)];
 }

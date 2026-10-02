@@ -57,6 +57,11 @@ Application composition roots (`apps/api/src/{app,main}.ts`, `apps/worker/src/{m
 notifications and restricted auth facades for the later OTP integration (ADR-0010/ADR-0018). This is wiring
 only: identity/staff/customers still cannot import `packages/notifications`; worker notifications owns the adapter.
 
+ADR-0013 Part A: notification persistence alone uses the restricted global messaging DB facade
+for intake, inbox maintenance and manual additions. API/worker main roots create that facade;
+all other modules/packages are forbidden. Authorization uses the boolean function on its existing Tx.
+This adds no tenant exception, business import/write arrow, notifications → identity or staff → notifications.
+
 ---
 
 ## 3. Port arrows (runtime reads, no compile-time edge)
@@ -191,6 +196,7 @@ packages_restricted:
 # Application composition roots may wire restricted packages (ADR-0018); never a business-module permission.
 composition_roots:
   auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
+  platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/main.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
 
 # Every VALUE a module imports from another module's index.ts is one of these (type-only imports need only the

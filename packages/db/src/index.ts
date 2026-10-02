@@ -42,3 +42,7 @@ export {
   type PlatformGrantOutcome,
   type PlatformGrantRequest,
 } from './platform-grants.ts';
+export {
+  createPlatformWhatsappDatabase,
+  type PlatformWhatsappDatabase,
+} from './platform-whatsapp-database.ts';

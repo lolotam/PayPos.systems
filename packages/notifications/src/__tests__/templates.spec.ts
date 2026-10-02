@@ -67,12 +67,12 @@ describe('immutable bilingual definitions', () => {
 });
 
 describe('additional safety checks', () => {
-  it('production fake and premature live configurations refuse startup', () => {
+  it('production fake and incomplete live configurations refuse startup', () => {
     expect(() =>
       readNotificationConfiguration({ NODE_ENV: 'production', NOTIFICATIONS_MODE: 'fake' }),
     ).toThrow('NOTIFICATIONS_FAKE_IN_PRODUCTION');
     expect(() => readNotificationConfiguration({ NOTIFICATIONS_MODE: 'live' })).toThrow(
-      'NOTIFICATIONS_LIVE_REQUIRES_PR5',
+      'NOTIFICATION_HASH_CONFIG_INVALID',
     );
   });
 });

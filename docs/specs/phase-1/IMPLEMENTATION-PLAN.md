@@ -38,7 +38,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 4 | `notifications`: WhatsApp channel, templates ar/en, delivery log | M | G1 |
 | 4b | in-app notification channel: store, list, mark read (admin bell) | M | 4 |
 | 5 | platform suppression + WhatsApp "stop" callback | S | 4, G4 |
-| 6 | staff OTP login (`OtpSender` bound at the composition root) | S | 3, 4 |
+| 6 | staff OTP login (`OtpSender` bound at the composition root) | S | 3, 4, 5 |
 | 7 | permissions screen: role defaults + per-person ALLOW/DENY | M | 2 |
 | 7b | per-person discount limit (`limit_bps` on the discount permission) | S | 7 |
 | 7c | business default discount limit (settings) | S | 7b |

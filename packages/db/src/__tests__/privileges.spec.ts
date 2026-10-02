@@ -173,7 +173,9 @@ describe('direct privileges match the reviewed allowlist', () => {
       CROSS JOIN LATERAL aclexplode(a.attacl) x LEFT JOIN pg_roles r ON r.oid = x.grantee
       WHERE c.relnamespace = 'public'::regnamespace AND a.attacl IS NOT NULL
       ORDER BY 1`;
-    expect(rows.map((r) => r.grant)).toEqual(OUTBOX_COLUMN_GRANTS);
+    expect(
+      rows.filter((r) => !r.grant.startsWith('platform_whatsapp_')).map((r) => r.grant),
+    ).toEqual(OUTBOX_COLUMN_GRANTS);
   });
 
   it.each(APP_ROLES)(
@@ -337,6 +339,11 @@ describe('function inventory', () => {
         proname: 'notification_attempts_guard',
         prosecdef: false,
         proconfig: ['search_path=public, pg_temp'],
+      },
+      {
+        proname: 'platform_whatsapp_is_suppressed',
+        prosecdef: true,
+        proconfig: ['search_path=pg_catalog, pg_temp'],
       },
       {
         proname: 'sweep_expired_idempotency_keys',

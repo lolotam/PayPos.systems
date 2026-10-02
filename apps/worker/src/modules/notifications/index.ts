@@ -9,3 +9,4 @@ export type {
   NotificationDelivered,
   NotificationFailed,
 } from './events/published.ts';
+export { createInAppNotificationModule, startWhatsappInbound } from './notifications.module.ts';
