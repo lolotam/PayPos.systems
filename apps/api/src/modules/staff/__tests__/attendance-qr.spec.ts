@@ -18,7 +18,7 @@ const OTHER = '01920000-0000-7000-8000-000000000003';
 const secret = 'ab'.repeat(32);
 
 function setup() {
-  let now = Date.parse('2026-10-02T23:59:59.000Z');
+  let now = Date.parse('2026-10-02T20:59:59.000Z');
   const values = new Map<string, string>();
   const secrets: AttendanceQrSecrets = {
     getOrCreate: async (scope) => {
@@ -39,7 +39,7 @@ function setup() {
   };
   return {
     issue: new IssueAttendanceQr(branches, secrets, hmacAttendanceQr, clock),
-    verify: new VerifyAttendanceQr(secrets, hmacAttendanceQr, clock),
+    verify: new VerifyAttendanceQr(branches, secrets, hmacAttendanceQr, clock),
     setNow: (value: string) => {
       now = Date.parse(value);
     },
@@ -55,13 +55,14 @@ describe('attendance QR proof orchestration', () => {
     expect(await s.issue.execute({ companyId: COMPANY, branchId: BRANCH })).toEqual(issued);
     const input = { companyId: COMPANY, branchId: BRANCH, token: issued.token };
     expect(await s.verify.execute(input)).toBe(true);
-    s.setNow('2026-10-03T00:00:00.000Z');
+    s.setNow('2026-10-02T21:00:00.000Z');
     const next = await s.issue.execute({ companyId: COMPANY, branchId: BRANCH });
     expect(next.token.sig).not.toBe(issued.token.sig);
+    expect(s.values.size).toBe(2);
     expect(await s.verify.execute(input)).toBe(true);
-    s.setNow('2026-10-03T00:00:59.999Z');
+    s.setNow('2026-10-02T21:00:59.999Z');
     expect(await s.verify.execute(input)).toBe(true);
-    s.setNow('2026-10-03T00:01:00.000Z');
+    s.setNow('2026-10-02T21:01:00.000Z');
     expect(await s.verify.execute(input)).toBe(false);
   });
 
@@ -84,7 +85,41 @@ describe('attendance QR proof orchestration', () => {
     expect(await check({})).toBe(false);
     expect(s.values.size).toBe(0);
   });
+});
 
+describe('daily branch timezone rollover', () => {
+  it('does not rotate the Kuwait daily key at UTC midnight', async () => {
+    const s = setup();
+    s.setNow('2026-10-02T23:59:59.000Z');
+    await s.issue.execute({ companyId: COMPANY, branchId: BRANCH });
+    s.setNow('2026-10-03T00:00:00.000Z');
+    await s.issue.execute({ companyId: COMPANY, branchId: BRANCH });
+    expect(s.values.size).toBe(1);
+  });
+
+  it.each([
+    ['2026-03-09T03:59:59Z', '2026-03-09T04:00:00Z', '2026-03-09T04:01:00Z'],
+    ['2026-11-02T04:59:59Z', '2026-11-02T05:00:00Z', '2026-11-02T05:01:00Z'],
+  ])('verifies the old DST day key after midnight (%s)', async (before, midnight, expired) => {
+    const s = setup();
+    s.branches.read.mockResolvedValue({
+      id: BRANCH,
+      name_ar: 'فرع الاختبار',
+      name_en: 'Test branch',
+      effective_timezone: 'America/New_York',
+    });
+    s.setNow(before);
+    const { token } = await s.issue.execute({ companyId: COMPANY, branchId: BRANCH });
+    s.setNow(midnight);
+    await s.issue.execute({ companyId: COMPANY, branchId: BRANCH });
+    expect(s.values.size).toBe(2);
+    expect(await s.verify.execute({ companyId: COMPANY, branchId: BRANCH, token })).toBe(true);
+    s.setNow(expired);
+    expect(await s.verify.execute({ companyId: COMPANY, branchId: BRANCH, token })).toBe(false);
+  });
+});
+
+describe('attendance QR branch eligibility and signing', () => {
   it('does not initialize a secret for a missing branch', async () => {
     const create = vi.fn();
     const issue = new IssueAttendanceQr(

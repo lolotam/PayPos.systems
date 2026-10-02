@@ -75,9 +75,11 @@ Reception sees a bilingual offline/unavailable notice and a retry action; an off
   company, branch and window. Compare signatures in constant time. The QR contains only the three SPEC fields.
 - **BR-003**: Redis `SET NX PXAT` chooses one random 32-byte daily secret atomically. Verification only reads existing keys.
 - **BR-004**: No offline issuance; hide on disconnect, failed refresh or window expiry; restore on successful fresh fetch.
-- **TODO(spec)**: SPEC does not name the timezone of *secret rotation*. Proposed technical policy: UTC epoch days,
-  independent of the branch display/attendance working date. Keep this explicit for owner confirmation; recommend UTC.
-  This implementation uses that provisional policy and preserves the previous day's secret until its last token expires.
+- **BR-005 — owner decision 2026-10-03 (ADR-0020)**: Rotate the secret at midnight in the branch timezone,
+  falling back to the business timezone, then `Asia/Kuwait`. Resolve the date of the window's start and the next
+  local midnight using IANA rules, including 23/25-hour DST days. Retain the old key through the first window
+  after midnight: a QR issued just before midnight remains accepted just after, and is rejected at the next
+  window boundary. New-day issuance uses the new key. Verification reads the token window's date, not the scan date.
 
 ### Schema changes
 
@@ -106,7 +108,8 @@ None published or consumed; issuer does not record an attendance action.
 
 ### Test plan
 
-- **Domain unit**: boundaries, day retention, current/previous selection, unsafe inputs, branch mismatch.
+- **Domain unit**: Kuwait midnight, DST transitions, branch override/business/default fallback, exact midnight,
+  preceding window, day retention, current/previous selection, unsafe inputs, branch mismatch.
 - **Integration**: QR-01 authenticated issue; QR-02 wrong principal/revocation/header isolation; QR-03 concurrent Redis
   secret creation, TTL and process sharing; QR-04 HMAC tampering/current/previous/midnight; QR-05 Redis unavailable.
 - **RLS negative**: existing tenancy negative suite, plus staff adapter refuses another tenant's branch/inactive branch.
@@ -126,6 +129,6 @@ None published or consumed; issuer does not record an attendance action.
 ## Assumptions
 
 - PR 3 paired-device shell and Phase 0 authentication remain the source of device identity.
-- Server epoch windows are shared across branches; branch timezone affects the visible clock only.
+- Server epoch windows are shared across branches; the effective branch timezone controls the clock and daily rotation.
 - `qrcode.react@4.2.0`, already approved in ADR-0016, is added to POS with a slice ADR; no second UI kit.
 - Browser display timing uses server response time plus monotonic elapsed time and conservatively accounts for request latency.

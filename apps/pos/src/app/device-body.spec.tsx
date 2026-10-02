@@ -7,6 +7,9 @@ import type { DeviceSession } from '@/device/api/use-device-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 
 import { DeviceBody } from './device-body';
+vi.mock('@/staff-login/ui/staff-login-screen', () => ({
+  StaffLoginScreen: () => <h2>{t('ar', 'staffLogin.title')}</h2>,
+}));
 
 vi.mock('@/attendance/api/use-attendance-qr', () => ({
   useAttendanceQr: () => ({
@@ -58,12 +61,11 @@ describe('DeviceBody', () => {
     expect(screen.getByRole('heading', { name: t('ar', 'pos.offlineTitle') })).not.toBeNull();
   });
 
-  it('renders attendance home and displays the branch id when screen state is ready', () => {
+  it('renders staff login when the paired device is ready', () => {
     const branchId = '01923f66-3d2b-7c00-8000-000000000001';
     renderBody(makeSession({ kind: 'ready', branchId }));
 
+    expect(screen.getByRole('heading', { name: t('ar', 'staffLogin.title') })).not.toBeNull();
     expect(screen.getByRole('heading', { name: t('ar', 'pos.attendanceTitle') })).not.toBeNull();
-    expect(screen.getByText(t('ar', 'pos.branchLabel'))).not.toBeNull();
-    expect(screen.getByText(branchId)).not.toBeNull();
   });
 });

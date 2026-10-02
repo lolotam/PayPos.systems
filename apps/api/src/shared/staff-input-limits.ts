@@ -1,0 +1,1 @@
+export const STAFF_AUTH_BODY_BYTES = 1024;

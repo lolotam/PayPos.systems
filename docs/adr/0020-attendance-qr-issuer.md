@@ -1,8 +1,8 @@
-# ADR-0019 — Attendance QR issuer and POS rendering
+# ADR-0020 — Attendance QR issuer and POS rendering
 
-- **Status:** Accepted technical choices; rotation timezone pending owner confirmation
+- **Status:** Accepted; rotation timezone settled by owner decision 2026-10-03
 - **Date:** 2026-10-02
-- **Slice:** Phase 1 PR 19; `docs/specs/005-staff-attendance-qr/spec.md`
+- **Slice:** Phase 1 PR 19; `docs/specs/008-staff-attendance-qr/spec.md`
 
 ## Context
 
@@ -14,12 +14,16 @@ PR 19 issues proofs on the paired POS device; PR 22 owns clocking and Attendance
 - Use the existing device authentication scheme, `@Authenticated()` and a device-only principal check on
   `POST /v1/devices/me/attendance-qr`. The tenant/branch come exclusively from the verified principal.
 - Keep window/time rules pure in staff domain, orchestration in use-cases, and Redis/HMAC in persistence adapters.
-- Redis keys include tenant, branch and UTC epoch day. Atomically initialize with `SET NX PXAT`; 32-byte random keys;
+- Redis keys include tenant, branch and local calendar day (an integer date ordinal). Atomically initialize with `SET NX PXAT`; 32-byte random keys;
   expire at the next day plus one 60-second window. Verifiers never recreate missing keys and use constant-time HMAC comparison.
 - Canonical HMAC-SHA256 message: JSON array of protocol label `pospay.attendance-qr.v1`, company, branch and window.
   Daily secret is the HMAC key; the QR transports only `{branch_id, window, sig}` (lowercase hexadecimal signature).
-- UTC rotation days are provisional `TODO(spec)`: SPEC does not settle rotation timezone. Recommend UTC because this
-  is cryptographic key lifecycle, independent of the employee's branch-local working date; retain rollover tolerance.
+- **Owner decision 2026-10-03:** rotate at midnight in the branch timezone, falling back to the business timezone,
+  then `Asia/Kuwait`. Compute calendar dates and the next local midnight from the IANA timezone; do not assume
+  that a local day lasts 24 hours. A window uses the daily key belonging to its start instant. A proof issued
+  in the last window before midnight remains valid during the first window after midnight, using the retained
+  previous-day key; it is rejected exactly when that previous window leaves tolerance. Issuance after midnight
+  uses the new day's key. This preserves the existing rollover acceptance rule.
 - Staff defines an attendance-branch read port; its adapter calls tenancy's existing published `describeWorkspaces`
   for exactly one branch inside `withTenant`. Declare `staff -> tenancy.describeWorkspaces` in the module map.
 - Add **`qrcode.react@4.2.0`** to `@pospay/pos`, reusing the exact encoder/version already approved by ADR-0016.

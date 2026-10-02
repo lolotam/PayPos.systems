@@ -52,22 +52,22 @@ it('refuses another branch and has no negative previous window at epoch', () => 
 });
 
 it('keeps the previous day until its final window leaves tolerance', () => {
-  expect(attendanceQrSecretScope('company', 'branch', 1439)).toEqual({
+  expect(attendanceQrSecretScope('company', 'branch', 1259)).toEqual({
     companyId: 'company',
     branchId: 'branch',
     day: 0,
-    retainUntil: 86_460_000,
+    retainUntil: 75_660_000,
   });
-  expect(attendanceQrSecretScope('company', 'branch', 1440)).toEqual({
+  expect(attendanceQrSecretScope('company', 'branch', 1260)).toEqual({
     companyId: 'company',
     branchId: 'branch',
     day: 1,
-    retainUntil: 172_860_000,
+    retainUntil: 162_060_000,
   });
   expect(
-    acceptsAttendanceQrWindow('branch', { branch_id: 'branch', window: 1439 }, 86_459_999),
+    acceptsAttendanceQrWindow('branch', { branch_id: 'branch', window: 1259 }, 75_659_999),
   ).toBe(true);
   expect(
-    acceptsAttendanceQrWindow('branch', { branch_id: 'branch', window: 1439 }, 86_460_000),
+    acceptsAttendanceQrWindow('branch', { branch_id: 'branch', window: 1259 }, 75_660_000),
   ).toBe(false);
 });

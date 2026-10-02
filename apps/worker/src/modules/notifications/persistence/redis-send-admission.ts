@@ -9,7 +9,7 @@ if ARGV[2] ~= '' and now >= tonumber(ARGV[2]) then return 0 end
 return redis.call('SET', KEYS[1], 'reserved', 'PX', ARGV[1], 'NX') and 1 or 0`;
 
 export function redisSendAdmission(redis: Redis, intervalMs: number): SendAdmission {
-  // TODO(spec): PR 6 owner approves recipient admission quantities; no production default is chosen here.
+  // ADR-0019 يربط OTP عند 1000 ms على مفتاح الهوية نفسه لإرسال الشركات.
   if (!Number.isSafeInteger(intervalMs) || intervalMs < 1)
     throw new Error('NOTIFICATION_ADMISSION_CONFIG_INVALID');
   return {

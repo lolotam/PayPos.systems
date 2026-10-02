@@ -1,3 +1,5 @@
+import { attendanceQrDay } from './attendance-qr-day.ts';
+
 /** مدة نافذة إثبات الحضور حسب SPEC؛ التحقق بيقبل الحالية والسابقة فقط. */
 export const ATTENDANCE_QR_WINDOW_MS = 60_000;
 const DAY_MS = 86_400_000;
@@ -10,7 +12,7 @@ export interface QrSecretScope {
   readonly retainUntil: number;
 }
 
-/** بيانات عرض الفرع الموثق؛ توقيت العرض منفصل عن دورة السر اليومي. */
+/** بيانات الفرع الموثق؛ التوقيت الفعلي بيحدد العرض ومنتصف ليل دورة السر. */
 export interface QrBranch {
   readonly id: string;
   readonly name_ar: string | null;
@@ -77,16 +79,16 @@ export function acceptsAttendanceQrWindow(
  * @param companyId الشركة الموثقة من السيرفر
  * @param branchId الفرع الموثق من السيرفر
  * @param window رقم نافذة الإصدار أو التحقق المقبولة
+ * @param timeZone توقيت الفرع الفعلي بعد الرجوع لتوقيت النشاط ثم الكويت
  * @returns نطاق السر اليومي ووقت انتهاء الاحتفاظ بيه
  */
 export function attendanceQrSecretScope(
   companyId: string,
   branchId: string,
   window: number,
+  timeZone = 'Asia/Kuwait',
 ): QrSecretScope {
-  // TODO(spec): توقيت تغيير السر اليومي مش محدد في SPEC؛ المقترح UTC بدل يوم عمل الموظف المحلي.
-  const day = Math.floor((window * ATTENDANCE_QR_WINDOW_MS) / DAY_MS);
-  return { companyId, branchId, day, retainUntil: (day + 1) * DAY_MS + ATTENDANCE_QR_WINDOW_MS };
+  return { companyId, branchId, ...attendanceQrDay(window * ATTENDANCE_QR_WINDOW_MS, timeZone) };
 }
 
 /** فشل مغلق من غير تفاصيل Redis أو السر اليومي في رسالة الخطأ. */

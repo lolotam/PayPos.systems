@@ -8,5 +8,5 @@
 - [x] Slice design covers contracts, device-only access, events, RLS reuse and tests.
 - [x] Implementation choices are confined to slice design and explicit assumptions.
 - [x] No table or migration is needed; AttendanceSession remains a PR 22 seam.
-- [x] Required dependency pin and module-map read declaration are recorded in ADR-0019.
-- [ ] Owner confirmation of UTC daily secret rotation remains TODO(spec), explicitly provisional as requested by the lane rules.
+- [x] Required dependency pin and module-map read declaration are recorded in ADR-0020.
+- [x] Local-midnight rotation and rollover tolerance are recorded (owner decision 2026-10-03, ADR-0020).

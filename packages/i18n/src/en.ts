@@ -1,5 +1,32 @@
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  staffLogin: {
+    switchOperator: 'Change operator',
+    cancelSwitch: 'Return to current operator',
+    ownPin: 'Your own four-digit cashier PIN',
+    pinInvalid: 'Sign-in was refused. Check your own PIN or ask your manager for help.',
+    pinSignIn: 'Sign in with my PIN',
+    usePin: 'Use my cashier PIN',
+    useWhatsApp: 'Use WhatsApp',
+    title: 'Staff sign-in',
+    phone: 'International phone number',
+    language: 'Code language',
+    chooseLanguage: 'Choose a language',
+    arabic: 'Arabic',
+    english: 'English',
+    request: 'Request code',
+    code: 'Six-digit code',
+    verify: 'Sign in',
+    newCode: 'Request a new code',
+    countdown: 'New code in seconds:',
+    recovery:
+      'If a code arrives, enter it. Otherwise ask your manager for help signing in on this branch device with your own cashier PIN.',
+    reconnect: 'Reconnect to sign in or validate your staff session.',
+    signedIn: 'Staff signed in',
+    expiresIn: 'Session ends in {minutes} minutes',
+    signOut: 'Sign out',
+    inputInvalid: 'Enter an international phone and choose a language.',
+  },
   inApp: {
     title: 'Notifications',
     unread: 'Unread',
@@ -12,6 +39,9 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    OTP_UNAVAILABLE:
+      'WhatsApp sign-in is unavailable. Ask your manager for help using your own cashier PIN.',
+    OTP_INVALID: 'The sign-in code is not valid.',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',
     UNAUTHENTICATED: 'Authentication is required',

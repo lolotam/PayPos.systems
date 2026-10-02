@@ -91,12 +91,22 @@ it('returns the contract, branch timezone fallback and no-store, ignoring a forg
   expect(body.token.window).toBe(attendanceQrWindow(Date.parse(body.server_time)));
   expect(Date.parse(body.expires_at) - Date.parse(body.refresh_at)).toBe(60_000);
   expect(Object.keys(body.token).sort()).toEqual(['branch_id', 'sig', 'window']);
-  const verify = new VerifyAttendanceQr(createRedisAttendanceQrSecrets(h.redis), hmacAttendanceQr, {
-    now: () => new Date(body.server_time),
-  });
-  expect(await verify.execute({ companyId: company, branchId: branch, token: body.token })).toBe(
-    true,
+  const db = createDatabase({ url: h.urls.app, ids: { newId: () => company } });
+  const verify = new VerifyAttendanceQr(
+    createAttendanceBranchReader(db),
+    createRedisAttendanceQrSecrets(h.redis),
+    hmacAttendanceQr,
+    {
+      now: () => new Date(body.server_time),
+    },
   );
+  try {
+    expect(await verify.execute({ companyId: company, branchId: branch, token: body.token })).toBe(
+      true,
+    );
+  } finally {
+    await db.close();
+  }
 });
 
 it('rejects missing/forged device proof and a manager cookie', async () => {

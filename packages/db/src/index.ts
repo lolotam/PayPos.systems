@@ -46,3 +46,9 @@ export {
   createPlatformWhatsappDatabase,
   type PlatformWhatsappDatabase,
 } from './platform-whatsapp-database.ts';
+export { createStaffOtpDatabase, type StaffOtpDatabase } from './staff-otp-database.ts';
+export type {
+  OtpChallengeRecord,
+  OtpAttemptRecord,
+  OtpExecutionResult,
+} from './staff-otp-types.ts';

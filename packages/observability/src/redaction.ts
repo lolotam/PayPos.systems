@@ -23,6 +23,9 @@ const SECRET_SUFFIXES = [
   'otpcode',
   'securitycode',
   'verificationcode',
+  'codemac',
+  'derivationkey',
+  'verificationkey',
   'cvv',
   // a hash of a secret (pin_hash, token_hash, password_hash) is still sensitive
   'hash',
@@ -58,6 +61,7 @@ const PRIVATE_PAYLOAD_KEYS = new Set([
   'jobdata',
   'providerbody',
   'rawbody',
+  'requestbody',
   'safeparameters',
   'components',
 ]);
@@ -147,7 +151,11 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(node)) {
       if (typeof child === 'function') continue;
-      if (isSecretKey(key) || (maskPhones && PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
+      if (
+        isSecretKey(key) ||
+        (normalizeKey(key) === 'code' && typeof child === 'string' && /^\d{6}$/.test(child)) ||
+        (maskPhones && PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key)))
+      )
         out[key] = REDACTED;
       else if (maskPhones && isPhoneKey(key))
         out[key] = Array.isArray(child) ? child.map(maskPhone) : maskPhone(child);

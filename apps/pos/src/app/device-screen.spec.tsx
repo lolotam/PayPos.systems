@@ -9,6 +9,9 @@ import { LocaleProvider } from '@/shared/locale/locale-context';
 import { DeviceScreen } from './device-screen';
 
 const mockUseDeviceSession = vi.fn();
+vi.mock('@/staff-login/ui/staff-login-screen', () => ({
+  StaffLoginScreen: () => <h2>{t('ar', 'staffLogin.title')}</h2>,
+}));
 
 vi.mock('@/attendance/api/use-attendance-qr', () => ({
   useAttendanceQr: () => ({
@@ -48,6 +51,6 @@ describe('DeviceScreen', () => {
 
     expect(screen.getByText(t('ar', 'pos.appName'))).not.toBeNull();
     expect(screen.getByRole('button', { name: t('ar', 'pos.languageEnglish') })).not.toBeNull();
-    expect(screen.getByRole('heading', { name: t('ar', 'pos.attendanceTitle') })).not.toBeNull();
+    expect(screen.getByRole('heading', { name: t('ar', 'staffLogin.title') })).not.toBeNull();
   });
 });

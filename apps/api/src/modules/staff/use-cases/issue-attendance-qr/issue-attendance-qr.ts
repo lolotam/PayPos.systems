@@ -25,7 +25,12 @@ export class IssueAttendanceQr {
     const branch = await this.branches.read(input.companyId, input.branchId);
     if (branch === null) throw new AttendanceQrBranchMissingError();
     const timing = attendanceQrTiming(this.clock.now().getTime());
-    const scope = attendanceQrSecretScope(input.companyId, input.branchId, timing.window);
+    const scope = attendanceQrSecretScope(
+      input.companyId,
+      input.branchId,
+      timing.window,
+      branch.effective_timezone,
+    );
     const secret = await this.secrets.getOrCreate(scope);
     return {
       branch,

@@ -26,7 +26,9 @@ export function staffProviders(database?: TenantWrappers, redis?: Redis): Provid
     {
       provide: VerifyAttendanceQr,
       useValue:
-        secrets === null ? null : new VerifyAttendanceQr(secrets, hmacAttendanceQr, systemClock),
+        branches === null || secrets === null
+          ? null
+          : new VerifyAttendanceQr(branches, secrets, hmacAttendanceQr, systemClock),
     },
   ];
 }
