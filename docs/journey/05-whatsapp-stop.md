@@ -19,8 +19,9 @@ database. A real test needs the Meta webhook subscription and the WhatsApp secre
 3. عميل يرد على رسالة بكلمة واحدة: **STOP** أو **UNSUBSCRIBE** أو **إيقاف** أو **ايقاف** أو **توقف**
    (أو يدوس زرار الإيقاف المعتمد) ← الـ API يرد 200، ورقمه يتسجل في قائمة المنع (كبصمة بس، من غير الرقم).
 4. عميل يرد **إلغاء** أو **CANCEL** أو جملة فيها كلمة stop ← **ما يتمنعش**.
-5. أي طلب إرسال واتساب لنفس الرقم بعد كده ← يتسجل `SUPPRESSED` وما يتبعتش (يتجرب دلوقتي في اختبار؛ الإرسال
-   الحقيقي يفتح مع الخطوة 6).
+5. أي طلب إرسال واتساب صالح بعد كده لنفس الرقم (مش منتهي، بلغة مدعومة، ووجهة سليمة) ← يتسجل `SUPPRESSED` وما يتبعتش؛
+   لو الطلب فيه مشكلة قبل كده بيتسجل `FAILED` أو `EXPIRED` وبرضه ما يتبعتش. التحقق دلوقتي باختبار تجريبي؛ الإرسال
+   الحقيقي لسه مقفول لحد تنفيذ PR 6.
 6. نفس الرسالة توصل مرتين من Meta ← المنع يتسجل مرة واحدة بس.
 7. صيانة الـ worker كل ساعة بتمسح محتوى الرسائل الواردة اللي عدّى عليها 30 يوم على الأقل؛ قائمة المنع والبصمات
    والتدقيق بتفضل.
@@ -34,8 +35,9 @@ database. A real test needs the Meta webhook subscription and the WhatsApp secre
 3. A reply of exactly **STOP**, **UNSUBSCRIBE**, **إيقاف**, **ايقاف** or **توقف** (or the approved STOP button)
    → HTTP 200 and the phone is suppressed (stored as an HMAC only).
 4. **إلغاء**, **CANCEL** or a sentence containing "stop" → **not** suppressed.
-5. Any later WhatsApp request to that phone → recorded `SUPPRESSED`, never sent (checked today in a test fixture;
-   live sending opens with PR 6).
+5. A later unexpired request with a supported locale and a valid destination for that phone → recorded `SUPPRESSED`;
+   one that fails earlier validation is recorded `FAILED` or `EXPIRED`. None is sent. Checked today in a test
+   fixture; live sending stays closed until PR 6.
 6. The same Meta delivery twice → one suppression, one audit row.
 7. The worker's hourly maintenance clears scrubbed inbound JSON at least 30 days old; suppressions, message
    digests and audit stay.
