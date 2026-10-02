@@ -8,8 +8,12 @@ path works today.
 - [00 Local setup](00-local-setup.md) and a paired POS device ([03](03-pos-device-pairing.md)).
 - An employee user with an active membership on that branch that includes `login:staff:branch` (owner/admin
   authority alone is not enough). Ask Claude to prepare one.
-- The employee's phone must be an **approved phone binding** on their user: an operator runs
-  `pnpm --filter @pospay/api platform:bind-phone` for it (the PIN reset does not create it). Ask Claude to do it.
+- The employee's phone must be an **approved phone binding** on their user (the PIN reset does not create it). An
+  operator runs `pnpm --filter @pospay/api platform:bind-phone` with these environment variables set for that one
+  command (they are not in `.env`): `STAFF_PHONE_USER_ID` (the user's id), `STAFF_PHONE_NUMBER` (international
+  form, e.g. `+965…` — a synthetic test number), `OPERATOR_ID`, `STAFF_PHONE_OWNERSHIP_VERIFIED=true` and
+  `STAFF_PHONE_BINDING_APPROVED=true` (only after the phone was really verified and approved), plus
+  `AUTH_DATABASE_URL` from `.env`. Otherwise it answers "phone binding refused". Ask Claude to do it.
 - The employee's own four-digit PIN. There is no screen for it yet: a manager with `manage:memberships:company`
   sets it through `POST /v1/staff-pins/reset` — ask Claude to set a test PIN.
 - Keep WhatsApp codes off (`STAFF_OTP_ENABLED` empty) but set `STAFF_OTP_POS_ORIGIN=http://localhost:5173` (and keep
