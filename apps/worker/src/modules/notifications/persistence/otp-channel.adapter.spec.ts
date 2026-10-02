@@ -39,7 +39,7 @@ it.each(['accepted', '4xx', '429', '5xx', 'timeout'] as FakeOutcome[])(
     const adapter = createOtpChannel(
       fake,
       approval,
-      { ready: async () => true },
+      { available: () => true, ready: async () => true },
       createProviderMessageDigest('synthetic'.repeat(8), 'synthetic-h'),
       () => new Date(0),
     );
@@ -60,6 +60,7 @@ it('checks expiry again after asynchronous capability validation', async () => {
     fake,
     approval,
     {
+      available: () => true,
       ready: async () => {
         now = 300000;
         return true;
@@ -77,7 +78,7 @@ it('capability loss and a wrong locale/template never reach provider submission'
   const adapter = createOtpChannel(
     fake,
     approval,
-    { ready: async () => false },
+    { available: () => false, ready: async () => false },
     createProviderMessageDigest('synthetic'.repeat(8), 'synthetic-h'),
     () => new Date(0),
   );

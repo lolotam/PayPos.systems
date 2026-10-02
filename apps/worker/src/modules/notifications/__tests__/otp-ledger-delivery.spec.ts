@@ -20,7 +20,7 @@ const keys = {
   verification: new Map([['synthetic-v', Buffer.alloc(32, 29)]]),
 };
 const identity = createPhoneIdentity('synthetic'.repeat(8), 'synthetic-h');
-const capability = { ready: async () => true };
+const capability = { available: () => true, ready: async () => true };
 let f: Awaited<ReturnType<typeof otpFixture>>, auth: ReturnType<typeof createStaffOtpExecution>;
 beforeAll(async () => {
   f = await otpFixture();

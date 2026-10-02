@@ -25,7 +25,7 @@ interface StaffOtpWorkerOptions {
   redisUrl: string;
   clock: Clock;
   ids: IdGenerator;
-  diagnostics?: OtpDiagnostics;
+  diagnostics: OtpDiagnostics;
 }
 
 export function startStaffOtpWorker(options: StaffOtpWorkerOptions) {
@@ -40,7 +40,9 @@ export function startStaffOtpWorker(options: StaffOtpWorkerOptions) {
     { pause: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) },
     options.diagnostics,
   );
-  const worker = createReservedOtpWorker(send, options.redisUrl);
+  const worker = createReservedOtpWorker(send, options.redisUrl, {
+    onError: () => options.diagnostics.record('WORKER_ERROR'),
+  });
   return {
     ready: async () => {
       await worker.waitUntilReady();

@@ -6,10 +6,12 @@ import { systemUuidV7 } from '@pospay/ids';
 import { createAuth, type AuthService } from '../config.ts';
 import { STAFF_COOKIE } from '../staff-sessions.ts';
 import { approvePhoneBinding } from '../approve-phone-binding.ts';
+import { canonicalStaffPhone } from '../../../contracts/src/identity/staff-otp.ts';
+import { phoneLockKey } from '../../../notifications/src/phone-identity.ts';
 import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
 
 let test: TestDatabase, owner: postgres.Sql, auth: AuthService, userId: string;
-let now = new Date('2026-10-02T00:00:00Z');
+let now = new Date();
 const device = {
   companyId: randomUUID(),
   businessId: randomUUID(),
@@ -23,6 +25,7 @@ beforeAll(async () => {
   owner = postgres(test.ownerUrl, { max: 1, onnotice: () => undefined });
   auth = await createAuth({
     databaseUrl: test.authUrl,
+    staffPhoneLockKey: phoneLockKey,
     secret: 'synthetic'.repeat(8),
     baseURL: 'https://api.synthetic.invalid',
     trustedOrigins: ['https://pos.synthetic.invalid', 'https://admin.synthetic.invalid'],
@@ -37,6 +40,8 @@ beforeAll(async () => {
     name: 'synthetic',
     password: 'synthetic'.repeat(8),
   });
+  await owner`UPDATE "user" SET phone_number='+99900000001' WHERE id=${userId}`;
+  await owner`UPDATE "user" SET phone_binding_approved_at=${now} WHERE id=${userId}`;
 });
 afterAll(async () => {
   await auth?.close();
@@ -45,7 +50,7 @@ afterAll(async () => {
 });
 
 it('persists server-only fields and a host-only Secure HttpOnly isolated cookie', async () => {
-  const issued = await present(auth.staff).issue(userId, device);
+  const issued = await present(auth.staff).issue(userId, device, async () => true);
   expect(issued.cookie).toContain(`${STAFF_COOKIE}=`);
   expect(issued.cookie).toContain('HttpOnly; Secure; SameSite=Lax');
   expect(issued.cookie).not.toContain('Domain=');
@@ -68,7 +73,7 @@ it('persists server-only fields and a host-only Secure HttpOnly isolated cookie'
   ).toBe(issued.session.deadline.getTime());
 });
 it('refuses wrong context, substituted admin cookie, normal sessions and generic auth routes', async () => {
-  const issued = await present(auth.staff).issue(userId, device),
+  const issued = await present(auth.staff).issue(userId, device, async () => true),
     headers = cookieHeaders(issued.cookie);
   expect(
     await present(auth.staff).resolve(headers, { ...device, deviceId: randomUUID() }),
@@ -93,12 +98,14 @@ it('refuses wrong context, substituted admin cookie, normal sessions and generic
   ).rejects.toThrow('STAFF_SESSION_IMMUTABLE');
 });
 it('rotates only the shared device after durable creation and logout preserves another device', async () => {
-  const first = await present(auth.staff).issue(userId, device);
+  const first = await present(auth.staff).issue(userId, device, async () => true);
   const otherDevice = { ...device, deviceId: randomUUID() },
-    other = await present(auth.staff).issue(userId, otherDevice);
+    other = await present(auth.staff).issue(userId, otherDevice, async () => true);
   const replacementUser = systemUuidV7().newId();
   await owner`INSERT INTO "user"(id,name,email,email_verified) VALUES(${replacementUser},'Synthetic replacement','replacement@session.invalid',true)`;
-  const next = await present(auth.staff).issue(replacementUser, device);
+  await owner`UPDATE "user" SET phone_number='+99900000002' WHERE id=${replacementUser}`;
+  await owner`UPDATE "user" SET phone_binding_approved_at=${now} WHERE id=${replacementUser}`;
+  const next = await present(auth.staff).issue(replacementUser, device, async () => true);
   expect(next.session.userId).toBe(replacementUser);
   expect(await present(auth.staff).resolve(cookieHeaders(first.cookie), device)).toBeNull();
   expect(await present(auth.staff).resolve(cookieHeaders(next.cookie), device)).not.toBeNull();
@@ -126,7 +133,9 @@ it('only the approved operator binding becomes a candidate, with no phone in its
     ownershipVerified: true,
     approved: true,
     ids: systemUuidV7(),
-    phoneLockKey: () => 0n,
+    phoneLockKey,
+    clock: { now: () => now },
+    isCanonicalPhone: (phone: string) => canonicalStaffPhone.safeParse(phone).success,
   };
   await expect(approvePhoneBinding({ ...options, approved: false })).rejects.toThrow(
     'PHONE_BINDING_REFUSED',
@@ -195,4 +204,67 @@ it('client-provided purpose/context and canonical phone cannot mutate a normal s
   expect(
     await owner`SELECT phone_number,phone_binding_approved_at FROM "user" WHERE id=${userId}`,
   ).toEqual(before);
+});
+
+it.each(['throw', 'changed'])(
+  'post-creation validation %s revokes the new session and preserves the previous operator',
+  async (failure) => {
+    const staff = auth.staff;
+    const previous = await staff.issue(userId, device, async () => true);
+    const before =
+      await owner`SELECT id FROM session WHERE purpose='STAFF_POS' AND staff_device_context->>'deviceId'=${device.deviceId}`;
+    await expect(
+      staff.issue(userId, device, async () => {
+        if (failure === 'throw') throw new Error('SYNTHETIC_POST_ISSUE_FAILURE');
+        return false;
+      }),
+    ).rejects.toThrow();
+    expect(
+      await owner`SELECT id FROM session WHERE purpose='STAFF_POS' AND staff_device_context->>'deviceId'=${device.deviceId}`,
+    ).toEqual(before);
+    expect(await staff.resolve(cookieHeaders(previous.cookie), device)).not.toBeNull();
+  },
+);
+
+it('session resolution rechecks approval even if eligibility remains valid', async () => {
+  const issued = await auth.staff.issue(userId, device, async () => true);
+  await owner`UPDATE "user" SET phone_binding_approved_at=NULL WHERE id=${userId}`;
+  expect(await auth.staff.resolve(cookieHeaders(issued.cookie), device)).toBeNull();
+  await auth.staff.signOut(cookieHeaders(issued.cookie), device);
+  expect(await owner`SELECT id FROM session WHERE id=${issued.session.sessionId}`).toEqual([]);
+  await owner`UPDATE "user" SET phone_binding_approved_at=${now} WHERE id=${userId}`;
+});
+
+it('reapproving the same binding supersedes ACTIVE challenges and revokes only staff sessions atomically', async () => {
+  const issued = await auth.staff.issue(userId, device, async () => true);
+  const challengeId = randomUUID();
+  await owner`INSERT INTO auth_otp_challenges(id,recipient_hash,hash_key_id,user_id,device_context,
+    code_mac,derivation_key_id,verification_key_id,status,created_at,expires_at,updated_at)
+    VALUES(${challengeId},${Buffer.alloc(32, 11)},'synthetic-h',${userId},${owner.json(device)},
+      ${Buffer.alloc(32, 13)},'synthetic-d','synthetic-v','ACTIVE',${now},${new Date(now.getTime() + 300000)},${now})`;
+  const [bound] = await owner`SELECT phone_number FROM "user" WHERE id=${userId}`;
+  await approvePhoneBinding({
+    databaseUrl: test.authUrl,
+    userId,
+    phone: bound?.['phone_number'],
+    operator: 'synthetic-operator',
+    ownershipVerified: true,
+    approved: true,
+    ids: systemUuidV7(),
+    phoneLockKey,
+    clock: { now: () => now },
+    isCanonicalPhone: (phone) => canonicalStaffPhone.safeParse(phone).success,
+  });
+  expect(
+    await owner`SELECT status,code_mac FROM auth_otp_challenges WHERE id=${challengeId}`,
+  ).toEqual([{ status: 'SUPERSEDED', code_mac: null }]);
+  expect(await owner`SELECT id FROM session WHERE id=${issued.session.sessionId}`).toEqual([]);
+  expect(
+    (await owner`SELECT phone_binding_approved_at FROM "user" WHERE id=${userId}`)[0]?.[
+      'phone_binding_approved_at'
+    ],
+  ).toEqual(now);
+  expect(
+    await owner`SELECT id FROM session WHERE user_id=${userId} AND purpose IS NULL`,
+  ).not.toEqual([]);
 });

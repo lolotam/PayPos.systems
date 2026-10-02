@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, Inject, Post, Req, Res, SetMetadata } from '@nestjs/common';
 import { RouteConfig } from '@nestjs/platform-fastify';
+import { STAFF_AUTH_BODY_BYTES } from '../../../shared/staff-input-limits.ts';
 import {
   staffPinInput,
   staffPinResetInput,
@@ -31,7 +32,7 @@ export class StaffPinController {
   ) {}
 
   @Post('devices/me/staff-pin/sign-in')
-  @RouteConfig({ bodyLimit: 1024 })
+  @RouteConfig({ bodyLimit: STAFF_AUTH_BODY_BYTES })
   @Authenticated()
   @SetMetadata(STAFF_ROUTE, 'device')
   @HttpCode(200)
@@ -49,7 +50,13 @@ export class StaffPinController {
     if (this.pins === null) throw new ApiError('NOT_READY');
     const issued = await this.pins.signIn
       .execute({ ...input, device: request.staffDevice })
-      .catch(() => null);
+      .catch(() => {
+        request.log.warn(
+          { capability: 'STAFF_PIN', state: 'UNAVAILABLE', reason: 'OPERATION_FAILED' },
+          'staff OTP capability',
+        );
+        throw new ApiError('NOT_READY');
+      });
     if (issued === null) throw new ApiError('PIN_INVALID');
     void reply.header('set-cookie', issued.cookie);
     const s = issued.session;

@@ -5,7 +5,7 @@ import {
   type AuthService,
   type StaffOtpApi,
 } from '@pospay/auth';
-import { createPhoneIdentity, phoneLockKey } from '@pospay/notifications';
+import { createPhoneIdentity, phoneLockKey, readOtpTemplateApproval } from '@pospay/notifications';
 import { createDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
@@ -24,15 +24,18 @@ const logger = createLogger(config.LOG_LEVEL, { events: API_LOG_EVENTS });
 const database = createDatabase({
   url: config.DATABASE_URL,
   ids: systemUuidV7(),
-  boundedTenantTransactions: readStaffOtpConfiguration(process.env, 'api').state === 'READY',
+  boundedTenantTransactions:
+    readStaffOtpConfiguration(process.env, 'api', readOtpTemplateApproval(process.env)).state ===
+    'READY',
 });
 // Built inside the try below: createAuth refuses a pool that is not pospay_auth before anything listens.
 let auth: AuthService | undefined;
 let otp: StaffOtpApi | undefined;
 let otpDependencies: ReturnType<typeof staffOtpDependencies> | undefined;
-const otpConfiguration = () => readStaffOtpConfiguration(process.env, 'api');
+const otpConfiguration = () =>
+  readStaffOtpConfiguration(process.env, 'api', readOtpTemplateApproval(process.env));
 const intakeUrl = config.PLATFORM_NOTIFICATIONS_DATABASE_URL;
-let globalDatabase = intakeUrl ? createPlatformWhatsappDatabase({ url: intakeUrl }) : undefined;
+const globalDatabase = intakeUrl ? createPlatformWhatsappDatabase({ url: intakeUrl }) : undefined;
 let whatsapp: ReturnType<typeof createWhatsappIntake> | undefined;
 
 // No offline queue: while Redis is down a command fails at once, so /ready reports it instead of hanging.
@@ -80,12 +83,17 @@ try {
       whatsapp = createWhatsappIntake(globalDatabase, config.REDIS_URL, process.env, logger);
       await globalDatabase.ping();
     } catch (error) {
-      if (process.env['STAFF_OTP_ENABLED'] !== 'true') throw error;
-      await whatsapp?.close().catch(() => undefined);
-      await globalDatabase.close().catch(() => undefined);
-      whatsapp = undefined;
-      globalDatabase = undefined;
+      logger.warn(
+        { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+        'staff OTP capability',
+      );
+      throw error;
     }
+  } else {
+    logger.info(
+      { capability: { name: 'WHATSAPP_INTAKE', state: 'DISABLED', reason: 'NOT_CONFIGURED' } },
+      'staff OTP capability',
+    );
   }
   auth = await createAuth({
     databaseUrl: config.AUTH_DATABASE_URL,
@@ -103,21 +111,23 @@ try {
   });
   const service = auth;
   const initialOtp = otpConfiguration();
-  if (initialOtp.state === 'READY' && service.staff !== undefined) {
+  if (initialOtp.state === 'READY') {
     try {
-      otpDependencies = staffOtpDependencies(
+      otpDependencies = staffOtpDependencies({
         database,
         redis,
-        systemUuidV7(),
-        process.env['NOTIFICATION_PHONE_HASH_KEY'] ?? '',
-        config.REDIS_URL,
-      );
+        ids: systemUuidV7(),
+        hashKey: process.env['NOTIFICATION_PHONE_HASH_KEY'] ?? '',
+        redisUrl: config.REDIS_URL,
+      });
       const dependencies = otpDependencies;
       const identity = createPhoneIdentity(
         process.env['NOTIFICATION_PHONE_HASH_KEY'] ?? '',
         process.env['NOTIFICATION_PHONE_HASH_KEY_ID'] ?? '',
       );
       otp = createStaffOtpApi({
+        onCapabilityState: (state) =>
+          logger.info({ capability: { name: 'STAFF_LOGIN', state } }, 'staff OTP capability'),
         databaseUrl: config.AUTH_DATABASE_URL,
         configuration: otpConfiguration,
         strategies: { identify: identity.identify, phoneLockKey },
@@ -179,6 +189,10 @@ try {
           ),
       });
     } catch {
+      logger.warn(
+        { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+        'staff OTP capability',
+      );
       await otpDependencies?.transport.close().catch(() => undefined);
       await otp?.close().catch(() => undefined);
       otp = undefined;
@@ -214,13 +228,8 @@ try {
       auth: { service, baseURL: config.BETTER_AUTH_URL },
       staff: {
         api: otp ?? null,
-        sessions: service.staff ?? null,
-        origin:
-          process.env['STAFF_OTP_POS_ORIGIN'] ||
-          config.AUTH_TRUSTED_ORIGINS.find((origin) =>
-            new URL(origin).hostname.startsWith('pos.'),
-          ) ||
-          null,
+        sessions: service.staff,
+        origin: process.env['STAFF_OTP_POS_ORIGIN'] || null,
       },
       database,
       redis,

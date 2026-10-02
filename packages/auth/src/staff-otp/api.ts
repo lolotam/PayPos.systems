@@ -1,7 +1,8 @@
 import { createStaffOtpDatabase } from '@pospay/db';
 import { createOtpCrypto } from './crypto.ts';
 import { phaseRunner, type PreparationPhase, type PreparationFailure } from './diagnostics.ts';
-import { challengeExpiry, preparationDeadline } from './policy.ts';
+import { challengeExpiry, preparationDeadline, STAFF_LOGIN_CONCURRENCY } from './policy.ts';
+import { otpVerify } from './verify.ts';
 import type { OtpConfiguration } from './configuration.ts';
 import type { StaffSessions } from '../staff-sessions.ts';
 import type {
@@ -14,6 +15,7 @@ import type {
 } from './types.ts';
 
 export interface StaffOtpApiOptions {
+  readonly onCapabilityState?: (state: 'DISABLED' | 'UNAVAILABLE' | 'READY') => void;
   readonly onFailure?: (phase: PreparationPhase, failure: PreparationFailure) => void;
   readonly onOutcome?: (
     outcome: 'PREPARATION_FAILED' | 'PREPARED' | 'NOT_AUTHORIZED' | 'ENQUEUE_FAILED' | 'AUTHORIZED',
@@ -42,29 +44,42 @@ export function createStaffOtpApi(options: StaffOtpApiOptions) {
     url: options.databaseUrl,
     phoneLockKey: options.strategies.phoneLockKey,
   });
+  let previousState: 'DISABLED' | 'UNAVAILABLE' | 'READY' | undefined;
+  const report = (state: 'DISABLED' | 'UNAVAILABLE' | 'READY') => {
+    if (state !== previousState) options.onCapabilityState?.(state);
+    previousState = state;
+  };
   const availability = async () => {
     try {
       const config = options.configuration();
-      if (config.state !== 'READY' || !(await options.capability.ready())) return null;
+      if (config.state !== 'READY') {
+        report(config.state);
+        return null;
+      }
+      if (!(await phaseRunner(options.onFailure)('CAPABILITY', () => options.capability.ready()))) {
+        report('UNAVAILABLE');
+        return null;
+      }
+      report('READY');
       return config;
     } catch {
+      report('UNAVAILABLE');
       return null;
     }
   };
   return {
-    state: async () =>
-      options.configuration().state === 'DISABLED'
-        ? ('DISABLED' as const)
-        : (await availability()) === null
-          ? ('UNAVAILABLE' as const)
-          : ('READY' as const),
+    state: async () => {
+      await availability();
+      return previousState ?? 'UNAVAILABLE';
+    },
     request: (input: {
       phone: string;
       locale: 'ar' | 'en';
       ip: string;
       device: StaffDeviceContext;
     }) => {
-      if (active >= 8) return Promise.resolve({ kind: 'unavailable' as const });
+      if (active >= STAFF_LOGIN_CONCURRENCY)
+        return Promise.resolve({ kind: 'unavailable' as const });
       active++;
       return otpRequest(options, database, availability, input).finally(() => {
         active--;
@@ -75,20 +90,21 @@ export function createStaffOtpApi(options: StaffOtpApiOptions) {
       code: string;
       ip: string;
       device: StaffDeviceContext;
-    }) => otpVerify(options, database, availability, input),
+    }) => otpVerify({ options, database, availability, input }),
     readiness: () => database.ping(),
     close: () => database.close(),
   };
 }
 
-async function prepareRequest(
-  options: StaffOtpApiOptions,
-  database: ReturnType<typeof createStaffOtpDatabase>,
-  config: Extract<OtpConfiguration, { state: 'READY' }>,
-  input: { phone: string; locale: 'ar' | 'en'; device: StaffDeviceContext },
-  identity: ReturnType<OtpStrategies['identify']>,
-  window: { createdAt: Date; deadline: Date; challengeId: string; attemptId: string },
-): Promise<void> {
+async function prepareRequest(request: {
+  options: StaffOtpApiOptions;
+  database: ReturnType<typeof createStaffOtpDatabase>;
+  config: Extract<OtpConfiguration, { state: 'READY' }>;
+  input: { phone: string; locale: 'ar' | 'en'; device: StaffDeviceContext };
+  identity: ReturnType<OtpStrategies['identify']>;
+  window: { createdAt: Date; deadline: Date; challengeId: string; attemptId: string };
+}): Promise<void> {
+  const { options, database, config, input, identity, window } = request;
   const run = phaseRunner(options.onFailure);
   const userId = await run('LOOKUP', () => database.lookup(input.phone, window.deadline));
   const eligible =
@@ -173,9 +189,10 @@ const otpRequest = async (
   const config = await availability();
   if (config === null) return { kind: 'unavailable' as const };
   const identity = options.strategies.identify(input.phone);
+  const challengeId = options.ids.newId();
   let rate: number;
   try {
-    rate = await options.rates.request(identity.hash, input.ip);
+    rate = await options.rates.request(identity.hash, input.ip, challengeId);
   } catch {
     options.onOutcome?.('PREPARATION_FAILED');
     return { kind: 'unavailable' as const };
@@ -183,14 +200,15 @@ const otpRequest = async (
   if (rate > 0) return { kind: 'limited' as const, retryAfter: rate };
   const createdAt = options.clock.now();
   const deadline = preparationDeadline(createdAt);
-  const challengeId = options.ids.newId();
   const attemptId = options.ids.newId();
   try {
-    await prepareRequest(options, database, config, input, identity, {
-      createdAt,
-      deadline,
-      challengeId,
-      attemptId,
+    await prepareRequest({
+      options,
+      database,
+      config,
+      input,
+      identity,
+      window: { createdAt, deadline, challengeId, attemptId },
     });
   } catch {
     options.onOutcome?.('PREPARATION_FAILED');
@@ -198,93 +216,3 @@ const otpRequest = async (
   await options.clock.waitUntil(deadline);
   return { kind: 'accepted' as const, challengeId };
 };
-
-const otpVerify = async (
-  options: StaffOtpApiOptions,
-  database: ReturnType<typeof createStaffOtpDatabase>,
-  availability: () => Promise<Extract<OtpConfiguration, { state: 'READY' }> | null>,
-  input: {
-    challengeId: string;
-    code: string;
-    ip: string;
-    device: StaffDeviceContext;
-  },
-) => {
-  const config = await availability();
-  if (config === null) return { kind: 'unavailable' as const };
-  const crypto = createOtpCrypto(config.keys);
-  try {
-    const candidate = await database.find(input.challengeId);
-    const rate = await options.rates.verify(candidate?.recipientHash ?? null, input.ip);
-    if (rate > 0) return { kind: 'limited' as const, retryAfter: rate };
-    if (
-      candidate?.userId === null ||
-      candidate?.userId === undefined ||
-      !(await options.eligibility.deviceValid(input.device)) ||
-      !(await options.eligibility.eligible(candidate.userId, input.device))
-    ) {
-      crypto.dummy(input.code);
-      return { kind: 'invalid' as const };
-    }
-    let compared = false;
-    const userId = await database.consume(
-      input.challengeId,
-      input.device,
-      (c) => {
-        compared = true;
-        return crypto.compare(c, input.code);
-      },
-      (phone) => options.strategies.identify(phone).hash,
-    );
-    if (!compared) crypto.dummy(input.code);
-    if (
-      userId === null ||
-      !(await options.eligibility.deviceValid(input.device)) ||
-      !(await options.eligibility.eligible(userId, input.device))
-    )
-      return { kind: 'invalid' as const };
-    return await issueVerified(options, database, candidate.recipientHash, userId, input);
-  } catch {
-    crypto.dummy(input.code);
-    return { kind: 'invalid' as const };
-  }
-};
-
-async function issueVerified(
-  options: StaffOtpApiOptions,
-  database: ReturnType<typeof createStaffOtpDatabase>,
-  hash: Uint8Array,
-  userId: string,
-  input: { device: StaffDeviceContext; challengeId: string },
-) {
-  if (
-    !(await database.mappingValid(userId, hash, (phone) => options.strategies.identify(phone).hash))
-  )
-    return { kind: 'invalid' as const };
-  const issued = await options.sessions.issue(userId, input.device);
-  if (
-    !(await database.mappingValid(
-      userId,
-      hash,
-      (phone) => options.strategies.identify(phone).hash,
-    )) ||
-    !(await options.eligibility.deviceValid(input.device)) ||
-    !(await options.eligibility.eligible(userId, input.device))
-  ) {
-    await options.sessions.signOut(
-      new Headers({ cookie: issued.cookie.split(';')[0] ?? '' }),
-      input.device,
-    );
-    return { kind: 'invalid' as const };
-  }
-  try {
-    await options.audit('staff.otp_signed_in', userId, input.device, input.challengeId);
-  } catch {
-    await options.sessions.signOut(
-      new Headers({ cookie: issued.cookie.split(';')[0] ?? '' }),
-      input.device,
-    );
-    return { kind: 'invalid' as const };
-  }
-  return { kind: 'verified' as const, ...issued };
-}

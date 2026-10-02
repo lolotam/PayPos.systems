@@ -88,6 +88,79 @@ it('eligible and unknown requests have comparable real HTTP post-preflight timin
     await request('+99900000002');
   }
 });
+
+it('eligible verify lock failure has exactly the wrong-code envelope and a bounded diagnostic', async () => {
+  const id = await request();
+  expect((await f.db.find(id))?.userId).toBeTruthy();
+  const correct = await f.code(id);
+  const wrong = correct === String(987654) ? String(987653) : String(987654);
+  const verify = (challengeId: string, code: string) =>
+    f.h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/me/staff-otp/verify',
+      headers: { authorization: `Device ${device.token}`, origin },
+      payload: { challenge_id: challengeId, code },
+    });
+  const baseline = await verify(id, wrong);
+  expect(baseline.statusCode).toBe(401);
+  expect(baseline.json().code).toBe('OTP_INVALID');
+  const before = f.failures.length;
+  await f.h.owner.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(${phoneLockKey(identity.identify(phone).hash).toString()}::bigint)`;
+    const response = await verify(id, correct);
+    expect(response.statusCode).toBe(baseline.statusCode);
+    expect(response.body).toBe(baseline.body);
+    expect(response.headers['content-type']).toBe(baseline.headers['content-type']);
+    expect(response.headers['retry-after']).toBeUndefined();
+    expect(response.headers['set-cookie']).toBeUndefined();
+    const unknown = await verify(randomUUID(), wrong);
+    expect(unknown.statusCode).toBe(baseline.statusCode);
+    expect(unknown.body).toBe(baseline.body);
+  });
+  expect(f.failures.slice(before)).toEqual(['VERIFY_PROOF:OPERATION_FAILED']);
+});
+
+it.each(['eligible', 'unknown', 'suppressed', 'nonmember'] as const)(
+  'twenty-six wrong proofs have the same limits and verify window for %s',
+  async (kind) => {
+    const number = kind === 'unknown' ? '+99900000002' : phone;
+    const phoneHash = Buffer.from(identity.identify(phone).hash);
+    if (kind === 'suppressed')
+      await f.h.owner`INSERT INTO platform_whatsapp_suppressions
+      (recipient_hash,hash_key_id,source,first_opted_out_at,last_opted_out_at)
+      VALUES(${phoneHash},'synthetic-h','STOP',clock_timestamp(),clock_timestamp())`;
+    if (kind === 'nonmember')
+      await f.h.owner`UPDATE memberships SET ends_at=clock_timestamp()
+      WHERE company_id=${company} AND id=${member}`;
+    try {
+      const id = await request(number);
+      if (kind === 'unknown') expect(await f.db.find(id)).toBeNull();
+      const wrong =
+        kind === 'eligible' && (await f.code(id)) === String(987654)
+          ? String(987653)
+          : String(987654);
+      for (let i = 0; i < 26; i++) {
+        const start = performance.now();
+        const response = await f.h.app.inject({
+          method: 'POST',
+          url: '/v1/devices/me/staff-otp/verify',
+          headers: { authorization: `Device ${device.token}`, origin },
+          payload: { challenge_id: id, code: wrong },
+        });
+        expect(response.statusCode).toBe(i < 25 ? 401 : 429);
+        expect(response.json().code).toBe(i < 25 ? 'OTP_INVALID' : 'TOO_MANY_REQUESTS');
+        expect(performance.now() - start).toBeGreaterThanOrEqual(190);
+      }
+    } finally {
+      if (kind === 'suppressed')
+        await f.h
+          .owner`DELETE FROM platform_whatsapp_suppressions WHERE recipient_hash=${phoneHash}`;
+      if (kind === 'nonmember')
+        await f.h
+          .owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${company} AND id=${member}`;
+    }
+  },
+);
 it.each(['lookup-lock', 'phone-lock', 'enqueue-unknown'] as const)(
   '%s produces the same headers/body/window, no late release or send',
   async (failure) => {

@@ -122,6 +122,7 @@ export {
 } from './whatsapp-webhook.js';
 export {
   staffOtpRequestInput,
+  canonicalStaffPhone,
   staffOtpVerifyInput,
   staffOtpAcknowledgement,
   staffSessionContext,

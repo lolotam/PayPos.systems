@@ -10,7 +10,8 @@ import {
   SetMetadata,
 } from '@nestjs/common';
 import { RouteConfig } from '@nestjs/platform-fastify';
-import type { StaffOtpApi, StaffSessions } from '@pospay/auth';
+import { STAFF_AUTH_BODY_BYTES } from '../../../shared/staff-input-limits.ts';
+import { OTP_LIFETIME_MS, OTP_RETRY_MS, type StaffOtpApi, type StaffSessions } from '@pospay/auth';
 import {
   staffOtpRequestInput,
   staffOtpVerifyInput,
@@ -38,7 +39,7 @@ export class StaffOtpController {
   ) {}
 
   @Post('staff-otp/request')
-  @RouteConfig({ bodyLimit: 1024 })
+  @RouteConfig({ bodyLimit: STAFF_AUTH_BODY_BYTES })
   @Authenticated()
   @SetMetadata(STAFF_ROUTE, 'device')
   @HttpCode(202)
@@ -47,9 +48,9 @@ export class StaffOtpController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    this.validate(request);
     if (this.otp === null || request.staffDevice === undefined)
       throw new ApiError('OTP_UNAVAILABLE');
+    this.validate(request);
     const result = await this.otp.request({
       ...input,
       ip: request.ip,
@@ -63,14 +64,14 @@ export class StaffOtpController {
     return {
       status: 'ACCEPTED',
       challenge_id: result.challengeId,
-      expires_in: 300,
-      retry_after: 60,
+      expires_in: OTP_LIFETIME_MS / 1000,
+      retry_after: OTP_RETRY_MS / 1000,
       recovery: 'ASK_MANAGER',
     };
   }
 
   @Post('staff-otp/verify')
-  @RouteConfig({ bodyLimit: 1024 })
+  @RouteConfig({ bodyLimit: STAFF_AUTH_BODY_BYTES })
   @Authenticated()
   @SetMetadata(STAFF_ROUTE, 'device')
   @HttpCode(200)
@@ -79,9 +80,9 @@ export class StaffOtpController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<StaffSessionContext> {
-    this.validate(request);
     if (this.otp === null || request.staffDevice === undefined)
       throw new ApiError('OTP_UNAVAILABLE');
+    this.validate(request);
     const result = await this.otp.verify({
       challengeId: input.challenge_id,
       code: input.code,

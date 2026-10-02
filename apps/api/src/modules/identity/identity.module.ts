@@ -72,13 +72,14 @@ export const identityControllers = [
 ];
 
 /** الربط العام يمر من composition root؛ تفاصيل القراءة والنقل تظل داخل الهوية. */
-export function staffOtpDependencies(
-  database: TenantWrappers,
-  redis: Redis,
-  ids: IdGenerator,
-  hashKey: string,
-  redisUrl: string,
-) {
+export function staffOtpDependencies(options: {
+  database: TenantWrappers;
+  redis: Redis;
+  ids: IdGenerator;
+  hashKey: string;
+  redisUrl: string;
+}) {
+  const { database, redis, ids, hashKey, redisUrl } = options;
   return {
     eligibility: createStaffEligibility(database),
     rates: redisOtpRates(redis, hashKey, ids),
@@ -190,9 +191,6 @@ function staffPinUseCases(
     signIn: new SignInStaffPin(db, authPinHasher, createRedisPinAttempts(redis, ids), {
       sessions,
       ...eligibility,
-      discard: async (cookie, device) => {
-        await sessions.signOut(new Headers({ cookie: cookie.split(';')[0] ?? '' }), device);
-      },
     }),
   };
 }

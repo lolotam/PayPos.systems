@@ -44,4 +44,6 @@ export type {
   StaffSession,
 } from './staff-otp/types.ts';
 export type { StaffSessions } from './staff-sessions.ts';
+export { StaffProofChanged } from './staff-sessions.ts';
+export { OTP_LIFETIME_MS, OTP_RETRY_MS, STAFF_LOGIN_CONCURRENCY } from './staff-otp/policy.ts';
 export { approvePhoneBinding } from './approve-phone-binding.ts';

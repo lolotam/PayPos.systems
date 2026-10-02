@@ -49,7 +49,11 @@ export class SendStaffOtp {
       await this.auth.finish(challengeId, attemptId, null, refused('ADMISSION_REFUSED'));
       return;
     }
-    if (!(await this.capability.ready())) return;
+    if (!(await this.capability.ready())) {
+      this.diagnostics?.record('CAPABILITY_LOST');
+      await this.auth.finish(challengeId, attemptId, null, refused('CONFIG_INVALID'));
+      return;
+    }
     const executionId = this.ids.newId();
     if (!(await this.auth.claim(challengeId, attemptId, executionId))) {
       this.diagnostics?.record('CLAIM_NOT_ACKNOWLEDGED');
@@ -76,7 +80,10 @@ export class SendStaffOtp {
 
   private async awaitPending(challengeId: string, attemptId: string): Promise<OtpPending | null> {
     for (;;) {
-      if (!(await this.capability.ready())) return null;
+      if (!this.capability.available()) {
+        this.diagnostics?.record('CAPABILITY_LOST');
+        return null;
+      }
       const row = await this.auth.pending(challengeId, attemptId);
       if (row === null || row.status !== 'PREPARED') return row;
       const delay = otpPollDelay(this.clock.now(), row.preparationDeadline, row.sendDeadline);

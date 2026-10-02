@@ -107,7 +107,7 @@ export class SessionGuard implements CanActivate {
     if (device === null) throw new ApiError('UNAUTHENTICATED');
     request.staffDevice = device;
     if (policy === 'device') return true;
-    const session = await this.#auth?.staff?.resolve(toWebHeaders(request), device);
+    const session = await this.#auth?.staff.resolve(toWebHeaders(request), device);
     if (
       session === null ||
       session === undefined ||

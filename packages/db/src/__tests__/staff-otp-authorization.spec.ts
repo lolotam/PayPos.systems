@@ -86,7 +86,7 @@ describe('PREPARED is never permission; fresh STOP and immutable deadline gate r
   });
   it('retention never changes suppression and a purged job cannot reconstruct its challenge', async () => {
     await stop();
-    await f.db.cleanup(10, false);
+    await f.db.cleanup(10);
     expect(
       await f.owner`SELECT recipient_hash FROM platform_whatsapp_suppressions WHERE recipient_hash=${hash}`,
     ).toHaveLength(1);

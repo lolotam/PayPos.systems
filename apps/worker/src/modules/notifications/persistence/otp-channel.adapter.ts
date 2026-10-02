@@ -47,6 +47,8 @@ export function createOtpChannel(
         };
       if (result.kind === 'expired')
         return { status: 'EXPIRED', failureCode: 'CHALLENGE_INVALID', outcomeKnown: true };
+      if (result.kind === 'refused')
+        return { status: 'FAILED', failureCode: 'CONFIG_INVALID', outcomeKnown: true };
       return {
         status: 'FAILED',
         failureCode: result.kind === 'rejected' ? 'PROVIDER_REJECTED' : 'PROVIDER_UNKNOWN',

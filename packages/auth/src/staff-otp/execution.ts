@@ -41,7 +41,6 @@ export function createStaffOtpExecution(options: {
       }
     },
     finish: database.finish,
-    retention: (limit: number) => database.cleanup(limit, false),
     readiness: database.ping,
     close: database.close,
   };
@@ -65,7 +64,7 @@ export function createStaffOtpMaintenance(options: {
     if (stopped || active !== undefined) return;
     active = (async () => {
       await database.ping();
-      await database.cleanup(100, false);
+      await database.cleanup(100);
     })().finally(() => {
       active = undefined;
     });

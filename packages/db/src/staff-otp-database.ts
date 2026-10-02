@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, isNotNull, lte } from 'drizzle-orm';
 import {
   authOtpChallenges as challenges,
   authNotificationAttempts as attempts,
@@ -25,9 +25,29 @@ export function createStaffOtpDatabase(options: {
     close: () => runtime.close(),
     rotate: <T extends { id: string }>(device: OtpDeviceContext, create: () => Promise<T>) =>
       otpRotate(runtime, device, create),
-    approvePhone: (input: { userId: string; phone: string; actor: string; auditId: string }) =>
-      otpApprovePhone(runtime, input),
-    cleanup: (limit: number, drained: boolean) => otpCleanup(runtime, limit, drained),
+    bindingValid: (userId: string, authenticatedAt: Date) =>
+      runtime.run(async (tx) => {
+        const [bound] = await tx
+          .select({ id: user.id })
+          .from(user)
+          .where(
+            and(
+              eq(user.id, userId),
+              isNotNull(user.phoneNumber),
+              isNotNull(user.phoneBindingApprovedAt),
+              lte(user.phoneBindingApprovedAt, authenticatedAt),
+            ),
+          );
+        return bound !== undefined;
+      }),
+    approvePhone: (input: {
+      userId: string;
+      phone: string;
+      actor: string;
+      auditId: string;
+      at: Date;
+    }) => otpApprovePhone(runtime, input),
+    cleanup: (limit: number) => otpCleanup(runtime, limit),
   };
 }
 
@@ -65,7 +85,7 @@ const otpRotate = async <T extends { id: string }>(
 
 const otpApprovePhone = async (
   runtime: ReturnType<typeof createOtpRuntime>,
-  input: { userId: string; phone: string; actor: string; auditId: string },
+  input: { userId: string; phone: string; actor: string; auditId: string; at: Date },
 ) =>
   runtime.run(async (tx) => {
     const existing = await tx
@@ -81,22 +101,25 @@ const otpApprovePhone = async (
       .for('update');
     if (bound === undefined) throw new Error('OTP_BINDING_REFUSED');
     await tx
+      .update(challenges)
+      .set({ status: 'SUPERSEDED', codeMac: null, finishedAt: input.at, updatedAt: input.at })
+      .where(and(eq(challenges.userId, input.userId), eq(challenges.status, 'ACTIVE')));
+    await tx
+      .delete(session)
+      .where(and(eq(session.userId, input.userId), eq(session.purpose, 'STAFF_POS')));
+    await tx
       .update(user)
       .set({ phoneNumber: input.phone, phoneNumberVerified: false })
       .where(eq(user.id, input.userId));
     await tx
       .update(user)
-      .set({ phoneBindingApprovedAt: new Date() })
+      .set({ phoneBindingApprovedAt: input.at })
       .where(eq(user.id, input.userId));
     await tx.execute(sql`INSERT INTO platform_audit_log(id,actor,action,target_user_id,details)
         VALUES(${input.auditId},${input.actor},'phone.binding_approved',${input.userId},'{}'::jsonb)`);
   });
 
-const otpCleanup = async (
-  runtime: ReturnType<typeof createOtpRuntime>,
-  limit: number,
-  drained: boolean,
-) =>
+const otpCleanup = async (runtime: ReturnType<typeof createOtpRuntime>, limit: number) =>
   runtime.run(
     async (tx) => {
       if (!Number.isInteger(limit) || limit < 1 || limit > 100)
@@ -122,7 +145,7 @@ const otpCleanup = async (
         .where(
           sql`
         ${challenges.expiresAt} < clock_timestamp() - interval '30 days'
-        AND (${drained} OR NOT EXISTS(SELECT 1 FROM auth_notification_attempts a WHERE a.challenge_id = ${challenges.id} AND a.status = 'SENDING'))`,
+        AND NOT EXISTS(SELECT 1 FROM auth_notification_attempts a WHERE a.challenge_id = ${challenges.id} AND a.status = 'SENDING')`,
         )
         .orderBy(challenges.expiresAt, challenges.id)
         .limit(limit);

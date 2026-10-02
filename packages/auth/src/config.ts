@@ -10,7 +10,7 @@ import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
  * ما يحتاجه Better Auth: الـ pool على pospay_auth، السر، العنوان، الـ origins المسموحة، ومولّد الـ ids.
  */
 export interface AuthOptions {
-  readonly staffPhoneLockKey?: (hash: Uint8Array) => bigint;
+  readonly staffPhoneLockKey: (hash: Uint8Array) => bigint;
   readonly clock?: { now(): Date };
   /** AUTH_DATABASE_URL — pospay_auth; the pool is opened here and never leaves this package. */
   readonly databaseUrl: string;
@@ -62,7 +62,7 @@ export interface VerifiedSession {
  * Better Auth نفسه بيفضل جوه الـ package دي — مفيش package تاني بيشوف أنواعه.
  */
 export interface AuthService {
-  readonly staff?: StaffSessions;
+  readonly staff: StaffSessions;
   /** بيرد على /v1/auth/* (sign-in، sign-out، الـ TOTP…). */
   handler(request: Request): Promise<Response>;
   /** بيرجّع الـ session لو الـ cookie صالح (ومعاها cookies التجديد)، وإلا null. */
@@ -110,7 +110,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   const auth = buildBetterAuth(options, database);
   const staff = staffSessions(options, auth);
   return {
-    ...(staff === undefined ? {} : { staff }),
+    staff,
     handler: async (request) => {
       if (!(await normalPurpose(staff, request.headers, options.onLog)))
         return new Response(null, { status: 403 });
@@ -260,7 +260,7 @@ function staffSessions(
   return createStaffSessions({
     database: createStaffOtpDatabase({
       url: options.databaseUrl,
-      phoneLockKey: options.staffPhoneLockKey ?? (() => 0n),
+      phoneLockKey: options.staffPhoneLockKey,
     }),
     secret: options.secret,
     normalCookie: `${options.secureCookies ? '__Secure-' : ''}pospay.session_token`,

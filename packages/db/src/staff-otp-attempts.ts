@@ -70,7 +70,8 @@ const release = (
     if (found === null || found.attempt.status !== 'PREPARED') return false;
     const blocked = await runtime.suppressed(tx, found.challenge.recipientHash);
     const [clock] = await tx.execute<{ now: Date }>(sql`SELECT clock_timestamp() AS now`);
-    const now = clock === undefined ? deadline : new Date(clock.now);
+    if (clock === undefined) throw new Error('OTP_DATABASE_UNAVAILABLE');
+    const now = new Date(clock.now);
     if (blocked) {
       await tx
         .update(challenges)

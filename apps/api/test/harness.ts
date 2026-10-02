@@ -10,6 +10,7 @@ import {
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { systemUuidV7 } from '@pospay/ids';
+import { phoneLockKey } from '@pospay/notifications';
 import { createLogger, type DestinationStream } from '@pospay/observability';
 import { randomBytes } from 'node:crypto';
 
@@ -277,6 +278,7 @@ function harnessAuth(
   options: HarnessOptions,
 ): Promise<AuthService> {
   return createAuth({
+    staffPhoneLockKey: phoneLockKey,
     databaseUrl: authUrl,
     secret: 'test-secret-that-is-long-enough-for-hmac',
     baseURL: BASE,

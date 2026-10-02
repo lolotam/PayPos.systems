@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { createOtpCrypto, type OtpKeys } from './crypto.ts';
 
 export type OtpConfiguration =
@@ -14,6 +14,7 @@ export type OtpConfiguration =
 export function readStaffOtpConfiguration(
   env: NodeJS.ProcessEnv,
   role: 'api' | 'worker',
+  approval: { readonly names: Readonly<Record<'ar' | 'en', string>> } | null,
 ): OtpConfiguration {
   if (
     env['STAFF_OTP_ENABLED'] === undefined ||
@@ -32,12 +33,8 @@ export function readStaffOtpConfiguration(
         .includes(posOrigin)
     )
       throw new Error('OTP_ORIGIN_INVALID');
-    const templates = {
-      ar: env['STAFF_OTP_TEMPLATE_AR'] ?? '',
-      en: env['STAFF_OTP_TEMPLATE_EN'] ?? '',
-    };
-    if (Object.values(templates).some((name) => !/^[a-z][a-z0-9_]{0,511}$/.test(name)))
-      throw new Error('OTP_TEMPLATE_INVALID');
+    if (approval === null) throw new Error('OTP_TEMPLATE_INVALID');
+    const templates = approval.names;
     const keys: OtpKeys = {
       derivationId: env['STAFF_OTP_DERIVATION_KEY_ID'] ?? '',
       verificationId: env['STAFF_OTP_VERIFICATION_KEY_ID'] ?? '',
@@ -97,20 +94,6 @@ function assertLiveConfiguration(env: NodeJS.ProcessEnv, role: 'api' | 'worker')
     (role === 'worker' && !env['WHATSAPP_ACCESS_TOKEN'])
   )
     throw new Error('OTP_LIVE_GATE_CLOSED');
-  for (const locale of ['AR', 'EN']) {
-    const components: unknown = JSON.parse(env[`STAFF_OTP_COMPONENTS_${locale}`] ?? '');
-    if (
-      !Array.isArray(components) ||
-      components.length !== 2 ||
-      components[0]?.type !== 'body' ||
-      components[1]?.type !== 'button' ||
-      components[1]?.sub_type !== 'url' ||
-      components[1]?.index !== '0' ||
-      Object.keys(components[0]).length !== 1 ||
-      Object.keys(components[1]).length !== 3
-    )
-      throw new Error('OTP_TEMPLATE_INVALID');
-  }
 }
 
 function configurationFingerprint(
@@ -119,7 +102,10 @@ function configurationFingerprint(
   templates: Readonly<Record<'ar' | 'en', string>>,
   keys: OtpKeys,
 ): string {
-  const fingerprint = createHash('sha256')
+  const key = keys.verification.get(keys.verificationId);
+  if (key === undefined) throw new Error('OTP_KEY_UNAVAILABLE');
+  const fingerprint = createHmac('sha256', key)
+    .update('pospay:staff-otp:configuration:v1\0')
     .update(
       JSON.stringify({
         posOrigin,

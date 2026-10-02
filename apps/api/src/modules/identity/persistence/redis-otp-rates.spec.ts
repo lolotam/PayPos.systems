@@ -43,6 +43,7 @@ beforeAll(async () => {
 });
 beforeEach(clean);
 afterAll(async () => {
+  if (redis === undefined) return;
   await clean();
   await redis.quit();
 });
@@ -51,27 +52,27 @@ describe('real Redis clock and shared atomic admission', () => {
   it('admits at precisely sixty seconds and precisely one rolling hour, never a millisecond before', async () => {
     let time = 1_700_000_000_000;
     const rates = clockedRates(() => time);
-    expect(await rates.request(hash, ip)).toBe(0);
+    expect(await rates.request(hash, ip, randomUUID())).toBe(0);
     time += 59_999;
-    expect(await rates.request(hash, ip)).toBe(1);
+    expect(await rates.request(hash, ip, randomUUID())).toBe(1);
     time++;
-    expect(await rates.request(hash, ip)).toBe(0);
+    expect(await rates.request(hash, ip, randomUUID())).toBe(0);
     await clean();
     const start = time;
     for (let i = 0; i < 5; i++) {
       time = start + i * 60_000;
-      expect(await rates.request(hash, ip)).toBe(0);
+      expect(await rates.request(hash, ip, randomUUID())).toBe(0);
     }
     time = start + 3_599_999;
-    expect(await rates.request(hash, ip)).toBe(1);
+    expect(await rates.request(hash, ip, randomUUID())).toBe(1);
     time++;
-    expect(await rates.request(hash, ip)).toBe(0);
+    expect(await rates.request(hash, ip, randomUUID())).toBe(0);
   });
   it('two API instances share the cooldown and reserve only once under concurrent requests', async () => {
     const one = redisOtpRates(redis, syntheticKey, { newId: randomUUID }),
       two = redisOtpRates(redis, syntheticKey, { newId: randomUUID });
     const results = await Promise.all(
-      Array.from({ length: 40 }, (_, i) => (i % 2 ? one : two).request(hash, ip)),
+      Array.from({ length: 40 }, (_, i) => (i % 2 ? one : two).request(hash, ip, randomUUID())),
     );
     expect(results.filter((x) => x === 0)).toHaveLength(1);
     expect(results.filter((x) => x > 0).every((x) => x <= 60)).toBe(true);
@@ -86,47 +87,76 @@ describe('real Redis clock and shared atomic admission', () => {
   it('enforces five phone requests even after cooldown and twenty requests for a shared salon IP', async () => {
     const rates = redisOtpRates(redis, syntheticKey, { newId: randomUUID });
     for (let i = 0; i < 5; i++) {
-      expect(await rates.request(hash, ip)).toBe(0);
+      expect(await rates.request(hash, ip, randomUUID())).toBe(0);
       await redis.del(`staff-otp:cooldown:${hash.toString('hex')}`);
     }
-    expect(await rates.request(hash, ip)).toBeGreaterThan(60);
+    expect(await rates.request(hash, ip, randomUUID())).toBeGreaterThan(60);
     await clean();
     const results = await Promise.all(
-      Array.from({ length: 30 }, (_, i) => rates.request(Buffer.alloc(32, i + 1), ip)),
+      Array.from({ length: 30 }, (_, i) =>
+        rates.request(Buffer.alloc(32, i + 1), ip, randomUUID()),
+      ),
     );
     expect(results.filter((x) => x === 0)).toHaveLength(20);
   });
+});
+describe('request rolling-hour pruning', () => {
   it('prunes expired rolling-hour entries and refuses entries still inside the window', async () => {
     const rates = redisOtpRates(redis, syntheticKey, { newId: randomUUID });
     const [seconds, microseconds] = await redis.time(),
       now = Number(seconds) * 1000 + Math.floor(Number(microseconds) / 1000);
     const key = `staff-otp:request:phone:${hash.toString('hex')}`;
     for (let i = 0; i < 5; i++) await redis.zadd(key, now - 3_600_000 + 1000, `synthetic-${i}`);
-    expect(await rates.request(hash, ip)).toBeGreaterThan(0);
+    expect(await rates.request(hash, ip, randomUUID())).toBeGreaterThan(0);
     for (let i = 0; i < 5; i++) await redis.zadd(key, now - 3_600_000 - 1000, `synthetic-${i}`);
-    expect(await rates.request(hash, ip)).toBe(0);
+    expect(await rates.request(hash, ip, randomUUID())).toBe(0);
   });
 });
 
 describe('verification limits do not trust a client phone or refund uncertain reservations', () => {
+  it.each([true, false])('UUID case aliases share one quota (issued=%s)', async (issued) => {
+    const rates = redisOtpRates(redis, syntheticKey, { newId: randomUUID });
+    const proof = '00000000-0000-7000-8000-0000000000ab';
+    if (issued) expect(await rates.request(hash, ip, proof)).toBe(0);
+    for (let i = 0; i < 25; i++) expect(await rates.verify(proof, ip)).toBe(0);
+    expect(await rates.verify(proof.toUpperCase(), '192.0.2.2')).toBeGreaterThan(0);
+  });
+  it('distinct proof handles for one requested phone share its quota without consulting identity', async () => {
+    const rates = redisOtpRates(redis, syntheticKey, { newId: randomUUID });
+    const first = randomUUID(),
+      second = randomUUID();
+    expect(await rates.request(hash, ip, first)).toBe(0);
+    await redis.del(`staff-otp:cooldown:${hash.toString('hex')}`);
+    expect(await rates.request(hash, ip, second)).toBe(0);
+    for (let i = 0; i < 25; i++) expect(await rates.verify(i % 2 ? first : second, ip)).toBe(0);
+    expect(await rates.verify(first, ip)).toBeGreaterThan(0);
+    expect(await rates.verify(second, '192.0.2.2')).toBeGreaterThan(0);
+    expect(await redis.get(`staff-otp:proof:${first}`)).toBe(hash.toString('hex'));
+  });
   it('twenty-five reservations expire at the exact rolling-hour boundary', async () => {
     let time = 1_700_000_000_000;
     const rates = clockedRates(() => time);
-    for (let i = 0; i < 25; i++) expect(await rates.verify(hash, ip)).toBe(0);
+    await rates.request(hash, ip, 'synthetic-proof');
+    for (let i = 0; i < 25; i++) expect(await rates.verify('synthetic-proof', ip)).toBe(0);
     time += 3_599_999;
-    expect(await rates.verify(hash, ip)).toBe(1);
+    expect(await rates.verify('synthetic-proof', ip)).toBe(1);
     time++;
-    expect(await rates.verify(hash, ip)).toBe(0);
+    expect(await rates.verify('synthetic-proof', ip)).toBe(0);
   });
   it('concurrent verification cannot exceed twenty-five for one challenge phone', async () => {
     const rates = redisOtpRates(redis, syntheticKey, { newId: randomUUID });
-    const results = await Promise.all(Array.from({ length: 40 }, () => rates.verify(hash, ip)));
+    await rates.request(hash, ip, 'synthetic-proof');
+    const results = await Promise.all(
+      Array.from({ length: 40 }, () => rates.verify('synthetic-proof', ip)),
+    );
     expect(results.filter((x) => x === 0)).toHaveLength(25);
-    expect(await rates.verify(hash, '192.0.2.2')).toBeGreaterThan(0);
+    expect(await rates.verify('synthetic-proof', '192.0.2.2')).toBeGreaterThan(0);
   });
   it('absent challenge ids still consume exactly one hundred IP reservations', async () => {
     const rates = redisOtpRates(redis, syntheticKey, { newId: randomUUID });
-    const results = await Promise.all(Array.from({ length: 120 }, () => rates.verify(null, ip)));
+    const results = await Promise.all(
+      Array.from({ length: 120 }, () => rates.verify(randomUUID(), ip)),
+    );
     expect(results.filter((x) => x === 0)).toHaveLength(100);
   });
 });

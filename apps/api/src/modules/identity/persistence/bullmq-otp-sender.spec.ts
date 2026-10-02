@@ -91,3 +91,38 @@ it('a late deadline or unavailable connection never begins enqueue', async () =>
   );
   expect(resources.queue.add).not.toHaveBeenCalled();
 });
+
+it('recreates transport for a later request without replaying the uncertain job', async () => {
+  const transport = createOtpSender('redis://synthetic.invalid');
+  resources.queue.add.mockRejectedValueOnce(new Error('SYNTHETIC_ABORT'));
+  await expect(transport.sender.enqueue(ids, new Date(Date.now() + 200))).rejects.toThrow(
+    'OTP_ENQUEUE_UNKNOWN',
+  );
+  await transport.ready();
+  expect(resources.redisOptions).toHaveBeenCalledTimes(2);
+  expect(resources.queueOptions).toHaveBeenCalledTimes(2);
+  expect(resources.queue.add).toHaveBeenCalledOnce();
+  const next = {
+    challengeId: '00000000-0000-7000-8000-000000000003',
+    attemptId: '00000000-0000-7000-8000-000000000004',
+  };
+  await transport.sender.enqueue(next, new Date(Date.now() + 200));
+  expect(resources.queue.add).toHaveBeenCalledTimes(2);
+  expect(resources.queue.add.mock.calls[1]?.[1]).toEqual({
+    challenge_id: next.challengeId,
+    attempt_id: next.attemptId,
+  });
+  await transport.close();
+  await expect(transport.ready()).rejects.toThrow('OTP_ENQUEUE_UNAVAILABLE');
+});
+
+it('a failed queue cleanup does not permanently poison later transport readiness', async () => {
+  const transport = createOtpSender('redis://synthetic.invalid');
+  resources.queue.add.mockRejectedValueOnce(new Error('SYNTHETIC_ABORT'));
+  resources.queue.close.mockRejectedValueOnce(new Error('SYNTHETIC_CLOSE_FAILED'));
+  await expect(transport.sender.enqueue(ids, new Date(Date.now() + 200))).rejects.toThrow();
+  await transport.ready();
+  expect(resources.redisOptions).toHaveBeenCalledTimes(2);
+  expect(resources.queue.add).toHaveBeenCalledOnce();
+  await transport.close();
+});

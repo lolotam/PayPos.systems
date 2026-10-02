@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { readStaffOtpConfiguration } from './configuration.ts';
+import { createHash, createHmac } from 'node:crypto';
+import { readStaffOtpConfiguration as readConfiguration } from './configuration.ts';
+import { readOtpTemplateApproval } from '../../../notifications/src/templates/staff-otp-preparation.ts';
+
+const readStaffOtpConfiguration = (env: NodeJS.ProcessEnv, role: 'api' | 'worker') =>
+  readConfiguration(env, role, readOtpTemplateApproval(env));
 
 const components = JSON.stringify([
   { type: 'body' },
@@ -74,4 +79,28 @@ describe('OTP capability is independent of ordinary production readiness', () =>
     expect(readStaffOtpConfiguration(env, 'api').state).toBe('UNAVAILABLE');
     expect(readStaffOtpConfiguration(env, 'worker').state).toBe('UNAVAILABLE');
   });
+});
+
+it('publishes a domain-separated keyed fingerprint rather than an offline secret checksum', () => {
+  const config = readStaffOtpConfiguration(valid, 'api');
+  expect(config.state).toBe('READY');
+  if (config.state !== 'READY') throw new Error('SYNTHETIC_CONFIG_MISSING');
+  const payload = JSON.stringify({
+    posOrigin: valid['STAFF_OTP_POS_ORIGIN'],
+    templates: config.templates,
+    componentsAr: valid['STAFF_OTP_COMPONENTS_AR'],
+    componentsEn: valid['STAFF_OTP_COMPONENTS_EN'],
+    derivation: [['synthetic-d', valid['STAFF_OTP_DERIVATION_KEY']]],
+    verification: [['synthetic-v', valid['STAFF_OTP_VERIFICATION_KEY']]],
+    phoneKey: valid['NOTIFICATION_PHONE_HASH_KEY'],
+    phoneKeyId: valid['NOTIFICATION_PHONE_HASH_KEY_ID'],
+    messageKey: valid['NOTIFICATION_MESSAGE_ID_HASH_KEY'],
+  });
+  expect(config.fingerprint).not.toBe(createHash('sha256').update(payload).digest('hex'));
+  expect(config.fingerprint).toBe(
+    createHmac('sha256', Buffer.alloc(32, 29))
+      .update('pospay:staff-otp:configuration:v1\0')
+      .update(payload)
+      .digest('hex'),
+  );
 });

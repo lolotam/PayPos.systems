@@ -62,11 +62,4 @@ export interface StaffPinAuthority {
    * @param device الجهاز المتحقق
    */
   deviceValid(device: StaffDeviceContext): Promise<boolean>;
-  /**
-   * يسحب الجلسة الجديدة إذا تبدل الإثبات قبل إصدار cookie.
-   *
-   * @param cookie اعتماد الجلسة الجديدة في الذاكرة فقط
-   * @param device سياق الجهاز الثابت
-   */
-  discard(cookie: string, device: StaffDeviceContext): Promise<void>;
 }

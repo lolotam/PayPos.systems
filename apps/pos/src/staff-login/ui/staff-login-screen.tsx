@@ -1,4 +1,5 @@
 import { t } from '@pospay/i18n';
+import { StaffHome } from './staff-home';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useStaffLogin } from '../api/use-staff-login';
@@ -35,22 +36,14 @@ export function StaffLoginScreen() {
             </Button>
           ) : null}
         </div>
-      ) : (
-        <>
-          <p>
-            {t(locale, 'staffLogin.expires')} {login.session?.expires_at}
-          </p>
-          <Button onClick={() => setSwitching(true)}>
-            {t(locale, 'staffLogin.switchOperator')}
-          </Button>
-          <Button
-            onClick={() => {
-              void login.signOut();
-            }}
-          >
-            {t(locale, 'staffLogin.signOut')}
-          </Button>
-        </>
+      ) : login.session === null ? null : (
+        <StaffHome
+          session={login.session}
+          onSwitch={() => setSwitching(true)}
+          onSignOut={() => {
+            void login.signOut();
+          }}
+        />
       )}
     </section>
   );

@@ -23,7 +23,7 @@ export const en = {
       'If a code arrives, enter it. Otherwise ask your manager for help signing in on this branch device with your own cashier PIN.',
     reconnect: 'Reconnect to sign in or validate your staff session.',
     signedIn: 'Staff signed in',
-    expires: 'Session ends at',
+    expiresIn: 'Session ends in {minutes} minutes',
     signOut: 'Sign out',
     inputInvalid: 'Enter an international phone and choose a language.',
   },

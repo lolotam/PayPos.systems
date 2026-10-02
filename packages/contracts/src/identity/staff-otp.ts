@@ -1,9 +1,11 @@
 import { z } from 'zod';
 import { id } from '../scalars/id.js';
 
+export const canonicalStaffPhone = z.string().regex(/^\+[1-9]\d{7,14}$/);
+
 export const staffOtpRequestInput = z
   .object({
-    phone: z.string().regex(/^\+[1-9]\d{7,14}$/),
+    phone: canonicalStaffPhone,
     locale: z.enum(['ar', 'en']),
   })
   .strict()
@@ -54,7 +56,7 @@ export type StaffSessionContext = z.infer<typeof staffSessionContext>;
 
 export const staffPinInput = z
   .object({
-    phone: z.string().regex(/^\+[1-9]\d{7,14}$/),
+    phone: canonicalStaffPhone,
     pin: z.string().regex(/^\d{4}$/),
   })
   .strict()

@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import type { Redis } from 'ioredis';
-import type { OtpRates } from '@pospay/auth';
+import { OTP_RETRY_MS, type OtpRates } from '@pospay/auth';
 
 const ADMIT = `
 local t = redis.call('TIME')
@@ -27,6 +27,7 @@ if usePhone and cooldown > 0 then
   if last then retry = math.max(retry,math.ceil((tonumber(last)+cooldown-now)/1000)) end
 end
 if retry > 0 then return retry end
+if ARGV[6] ~= '' then redis.call('SET',KEYS[4],ARGV[6],'PX',hour,'NX') end
 local member = tostring(now)..':'..ARGV[5]
 redis.call('ZADD',KEYS[2],now,member)
 redis.call('PEXPIRE',KEYS[2],hour)
@@ -38,8 +39,13 @@ end
 return 0`;
 
 export function redisOtpRates(redis: Redis, hashKey: string, ids: { newId(): string }): OtpRates {
-  const reserve = async (operation: 'request' | 'verify', hash: Uint8Array | null, ip: string) => {
-    const phone = hash === null ? 'absent' : Buffer.from(hash).toString('hex');
+  const reserve = async (input: {
+    operation: 'request' | 'verify';
+    phone: string;
+    ip: string;
+    challengeId?: string;
+  }) => {
+    const { operation, phone, ip, challengeId } = input;
     const network = createHmac('sha256', hashKey)
       .update('pospay:staff-otp:ip:v1\0')
       .update(ip)
@@ -47,20 +53,33 @@ export function redisOtpRates(redis: Redis, hashKey: string, ids: { newId(): str
     return Number(
       await redis.eval(
         ADMIT,
-        3,
+        4,
         `staff-otp:${operation}:phone:${phone}`,
         `staff-otp:${operation}:ip:${network}`,
         `staff-otp:cooldown:${phone}`,
-        operation === 'request' ? 60_000 : 0,
+        `staff-otp:proof:${challengeId?.toLowerCase() ?? ''}`,
+        operation === 'request' ? OTP_RETRY_MS : 0,
         operation === 'request' ? 5 : 25,
         operation === 'request' ? 20 : 100,
-        hash === null ? 0 : 1,
+        1,
         ids.newId(),
+        operation === 'request' ? phone : '',
       ),
     );
   };
   return {
-    request: (hash, ip) => reserve('request', hash, ip),
-    verify: (hash, ip) => reserve('verify', hash, ip),
+    request: (hash, ip, challengeId) =>
+      reserve({ operation: 'request', phone: Buffer.from(hash).toString('hex'), ip, challengeId }),
+    verify: async (challengeId, ip) => {
+      const proof = challengeId.toLowerCase();
+      const bound = await redis.get(`staff-otp:proof:${proof}`);
+      const phone =
+        bound ??
+        createHmac('sha256', hashKey)
+          .update('pospay:staff-otp:absent-proof:v1\0')
+          .update(proof)
+          .digest('hex');
+      return reserve({ operation: 'verify', phone, ip });
+    },
   };
 }

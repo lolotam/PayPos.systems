@@ -74,7 +74,7 @@ export interface OtpCapability {
 
 export interface OtpRates {
   /** القرار الذري يستخدم ساعة Redis ولا يخزن الهاتف أو عنوان الشبكة. */
-  request(hash: Uint8Array, ip: string): Promise<number>;
-  /** المعرف الغائب يستهلك حصة الشبكة أيضاً ولا يختار الهاتف من الجسم. */
-  verify(hash: Uint8Array | null, ip: string): Promise<number>;
+  request(hash: Uint8Array, ip: string, challengeId: string): Promise<number>;
+  /** كل معرف صادر يرتبط بالبصمة قبل فحص الأهلية، بما فيه الطلب غير المؤهل. */
+  verify(challengeId: string, ip: string): Promise<number>;
 }

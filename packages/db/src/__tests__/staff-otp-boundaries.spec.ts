@@ -54,7 +54,7 @@ it('hourly expiry cleanup clears the terminal MAC without reviving a stale deliv
     VALUES(${id},${hash},'synthetic-h',${f.userId},${f.owner.json(device)},${Buffer.alloc(32, 13)},
       'synthetic-d','synthetic-v','ACTIVE',0,statement_timestamp()-interval '301 seconds',
       statement_timestamp()-interval '1 second',statement_timestamp()-interval '301 seconds')`;
-  await f.db.cleanup(100, true);
+  await f.db.cleanup(100);
   expect(await f.db.find(id)).toMatchObject({ status: 'EXPIRED', codeMac: null });
   expect(await f.db.claim(id, randomUUID(), randomUUID())).toBe(false);
 });
@@ -74,7 +74,7 @@ it('thirty-day purge removes the real ledger and challenges without touching STO
     VALUES(${hash},'synthetic-h','STOP',statement_timestamp(),statement_timestamp())`;
   const before =
     await f.owner`SELECT * FROM platform_whatsapp_suppressions WHERE recipient_hash=${hash}`;
-  expect(await f.db.cleanup(100, false)).toBe(1);
+  expect(await f.db.cleanup(100)).toBe(1);
   expect(await f.db.find(id)).toBeNull();
   expect(await f.db.pending(id, attempt)).toBeNull();
   expect(await f.db.claim(id, attempt, randomUUID())).toBe(false);

@@ -10,7 +10,7 @@ import {
   readStaffOtpConfiguration,
   type StaffOtpExecution,
 } from '@pospay/auth';
-import { createPhoneIdentity, phoneLockKey } from '@pospay/notifications';
+import { createPhoneIdentity, phoneLockKey, readOtpTemplateApproval } from '@pospay/notifications';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
@@ -57,7 +57,12 @@ const inApp = production
       clock: { now: () => new Date() },
     })
   : null;
-const intakeUrl = process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL'];
+if (production)
+  logger.info(
+    { capability: { name: 'TENANT_WHATSAPP', state: 'DISABLED', reason: 'LIVE_NOT_AUTHORIZED' } },
+    'staff OTP capability',
+  );
+const intakeUrl = config.PLATFORM_NOTIFICATIONS_DATABASE_URL;
 let globalDatabase: ReturnType<typeof createPlatformWhatsappDatabase> | undefined;
 let inbound: ReturnType<typeof startWhatsappInbound> | undefined;
 let otp: ReturnType<typeof startStaffOtpWorker> | undefined;
@@ -74,7 +79,8 @@ const maintenance = process.env['AUTH_DATABASE_URL']
         ),
     })
   : undefined;
-const otpConfiguration = () => readStaffOtpConfiguration(process.env, 'worker');
+const otpConfiguration = () =>
+  readStaffOtpConfiguration(process.env, 'worker', readOtpTemplateApproval(process.env));
 const KNOWN_EVENT_TYPES = [
   ...(notifications?.eventTypes ?? []),
   ...(inApp?.eventTypes ?? []),
@@ -120,12 +126,17 @@ try {
       inbound = startWhatsappInbound(globalDatabase, config.REDIS_URL, logger);
       await inbound.ready();
     } catch (error) {
-      if (process.env['STAFF_OTP_ENABLED'] !== 'true') throw error;
-      await inbound?.close().catch(() => undefined);
-      await globalDatabase?.close().catch(() => undefined);
-      inbound = undefined;
-      globalDatabase = undefined;
+      logger.warn(
+        { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+        'staff OTP capability',
+      );
+      throw error;
     }
+  } else {
+    logger.info(
+      { capability: { name: 'WHATSAPP_INTAKE', state: 'DISABLED', reason: 'NOT_CONFIGURED' } },
+      'staff OTP capability',
+    );
   }
   const initialOtp = otpConfiguration();
   if (initialOtp.state === 'READY') {
@@ -134,22 +145,41 @@ try {
         process.env['NOTIFICATION_PHONE_HASH_KEY'] ?? '',
         process.env['NOTIFICATION_PHONE_HASH_KEY_ID'] ?? '',
       );
+      let wasReady: boolean | undefined;
+      let healthy = false;
+      const configured = () => {
+        const current = otpConfiguration();
+        return (
+          current.state === 'READY' &&
+          current.fingerprint === initialOtp.fingerprint &&
+          inbound !== undefined
+        );
+      };
+      const reportCapability = (ready: boolean) => {
+        if (ready !== wasReady)
+          logger.info(
+            { capability: { name: 'STAFF_LOGIN', state: ready ? 'READY' : 'UNAVAILABLE' } },
+            'staff OTP capability',
+          );
+        wasReady = ready;
+        return ready;
+      };
       const capability = {
+        available: () => reportCapability(healthy && configured()),
         ready: async () => {
           try {
-            const current = otpConfiguration();
-            if (
-              current.state !== 'READY' ||
-              current.fingerprint !== initialOtp.fingerprint ||
-              inbound === undefined
-            )
-              return false;
+            if (!configured() || inbound === undefined) {
+              healthy = false;
+              return reportCapability(false);
+            }
             await inbound.ready();
             await otpAuth?.readiness();
             await redis.ping();
-            return true;
+            healthy = true;
+            return reportCapability(true);
           } catch {
-            return false;
+            healthy = false;
+            return reportCapability(false);
           }
         },
       };
@@ -184,11 +214,25 @@ try {
         };
         await publish();
         capabilityTimer = setInterval(() => {
-          void publish().catch(() => undefined);
+          void publish().catch(() =>
+            logger.warn(
+              {
+                capability: {
+                  name: 'STAFF_LOGIN',
+                  state: 'UNAVAILABLE',
+                  reason: 'PUBLISH_FAILED',
+                },
+              },
+              'staff OTP capability',
+            ),
+          );
         }, 1000);
       }
     } catch {
-      /* تفعيل جزئي يغلق OTP فقط، ولا يوقف الخدمات الأخرى. */
+      logger.warn(
+        { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
+        'staff OTP capability',
+      );
       await otp?.close().catch(() => undefined);
       await otpAuth?.close().catch(() => undefined);
       otp = undefined;

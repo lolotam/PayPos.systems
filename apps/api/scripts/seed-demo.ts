@@ -1,4 +1,5 @@
 import { createAuth } from '@pospay/auth';
+import { phoneLockKey } from '@pospay/notifications';
 import { PROVISIONAL_PLAN_ID, createDatabase, grantPlatformPermission } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
@@ -21,6 +22,7 @@ if (origin === undefined) throw new Error('AUTH_TRUSTED_ORIGINS needs at least o
 const ids = systemUuidV7();
 const owner = postgres(ownerUrl, { max: 1, onnotice: () => undefined });
 const auth = await createAuth({
+  staffPhoneLockKey: phoneLockKey,
   databaseUrl: config.AUTH_DATABASE_URL,
   secret: config.BETTER_AUTH_SECRET,
   baseURL: config.BETTER_AUTH_URL,

@@ -3,6 +3,10 @@ import type { StaffDeviceContext } from './types.ts';
 export const OTP_LIFETIME_MS = 300_000;
 export const PREPARATION_MS = 200;
 export const STAFF_SESSION_MS = 28_800_000;
+/** نافذة إعادة طلب الكود موحدة لكل هاتف قبل قراءة الأهلية. */
+export const OTP_RETRY_MS = 60_000;
+/** سقف عمل إثبات الموظف يحمي موارد الدخول إلى الجهاز. */
+export const STAFF_LOGIN_CONCURRENCY = 8;
 
 /**
  * يثبت تطابق سياق الاعتماد بالكامل، فلا يختار الجسم شركة أو جهازاً مختلفاً.

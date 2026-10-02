@@ -16,12 +16,14 @@ export async function approvePhoneBinding(options: {
   approved: boolean;
   ids: { newId(): string };
   phoneLockKey(hash: Uint8Array): bigint;
+  clock: { now(): Date };
+  isCanonicalPhone(phone: string): boolean;
 }): Promise<void> {
   if (
     !options.approved ||
     !options.ownershipVerified ||
     !/^[a-zA-Z][a-zA-Z0-9_.-]{1,63}$/.test(options.operator) ||
-    !/^\+[1-9]\d{7,14}$/.test(options.phone) ||
+    !options.isCanonicalPhone(options.phone) ||
     !/^[a-f0-9-]{36}$/.test(options.userId)
   )
     throw new Error('PHONE_BINDING_REFUSED');
@@ -35,6 +37,7 @@ export async function approvePhoneBinding(options: {
       phone: options.phone,
       actor: options.operator,
       auditId: options.ids.newId(),
+      at: options.clock.now(),
     });
   } catch {
     throw new Error('PHONE_BINDING_REFUSED');

@@ -46,7 +46,6 @@ function execution(state: FixtureState, row: OtpPending): OtpExecution {
     finish: vi.fn(async () => {
       state.status = 'SENT';
     }),
-    retention: vi.fn(async () => 0),
     readiness: vi.fn(async () => undefined),
     close: vi.fn(async () => undefined),
   };
@@ -68,7 +67,7 @@ function fixture() {
   const diagnostic = vi.fn();
   const useCase = new SendStaffOtp(
     auth,
-    { ready },
+    { ready, available: () => state.active },
     { reserve },
     { valid: () => true, send },
     { now: () => new Date(state.now) },
@@ -83,6 +82,7 @@ function fixture() {
     pause,
     useCase,
     diagnostic,
+    ready,
     setState: (value: string) => {
       state.status = value;
     },
@@ -96,6 +96,31 @@ function fixture() {
 }
 
 describe('the same early execution waits without extending PREPARED authorization', () => {
+  it('does not probe DB/Redis capabilities on each five millisecond PREPARED poll', async () => {
+    const f = fixture();
+    await f.useCase.execute('challenge', 'attempt');
+    expect(f.pause.mock.calls.length).toBeGreaterThan(30);
+    expect(f.ready).toHaveBeenCalledOnce();
+  });
+  it('finishes a known refusal and diagnoses capability loss after admission', async () => {
+    const f = fixture();
+    f.setState('PENDING');
+    f.reserve.mockImplementationOnce(async () => {
+      f.disable();
+      return true;
+    });
+    await f.useCase.execute('challenge', 'attempt');
+    expect(f.auth.finish).toHaveBeenCalledWith('challenge', 'attempt', null, {
+      status: 'FAILED',
+      failureCode: 'CONFIG_INVALID',
+      outcomeKnown: true,
+    });
+    expect(f.diagnostic).toHaveBeenCalledWith('CAPABILITY_LOST');
+    expect(f.auth.claim).not.toHaveBeenCalled();
+    expect(f.send).not.toHaveBeenCalled();
+  });
+});
+describe('PREPARED release and timeout', () => {
   it('waits outside reads and sends exactly once only after release and acknowledged claim', async () => {
     const f = fixture();
     f.pause.mockImplementationOnce(async () => {
@@ -151,6 +176,7 @@ describe('the same early execution waits without extending PREPARED authorizatio
     waiting.pause.mockImplementationOnce(async () => waiting.disable());
     await waiting.useCase.execute('challenge', 'attempt');
     expect(waiting.send).not.toHaveBeenCalled();
+    expect(waiting.auth.pending).toHaveBeenCalledOnce();
   });
   it('refuses admission without sleeping or claiming, and handles unknown claim with zero HTTP', async () => {
     const f = fixture();

@@ -1,3 +1,4 @@
+import { refusingStaffSessions } from '../../../../test/refusing-staff-sessions.ts';
 import { Controller, Get, Req } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService } from '@pospay/auth';
@@ -75,6 +76,7 @@ const SESSIONS: Record<string, { userId: string; hint: string | null; platform?:
   operator: { userId: STRANGER, hint: null, platform: ['create:companies:platform'] },
 };
 const fakeAuth: AuthService = {
+  staff: refusingStaffSessions,
   handler: async () => new Response(null, { status: 404 }),
   getSession: async (headers) => {
     const session = SESSIONS[/sid=([\w-]+)/.exec(headers.get('cookie') ?? '')?.[1] ?? ''];

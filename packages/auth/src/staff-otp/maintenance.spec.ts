@@ -23,7 +23,7 @@ it('hourly auth-only cleanup needs no OTP activation, transport configuration or
   expect(database.cleanup).not.toHaveBeenCalled();
   await vi.advanceTimersByTimeAsync(1);
   expect(database.ping).toHaveBeenCalledOnce();
-  expect(database.cleanup).toHaveBeenCalledWith(100, false);
+  expect(database.cleanup).toHaveBeenCalledWith(100);
   expect(failures).not.toHaveBeenCalled();
   await maintenance.close();
   await vi.advanceTimersByTimeAsync(3_600_000);

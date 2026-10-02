@@ -1,4 +1,14 @@
-export type PreparationPhase = 'LOOKUP' | 'ELIGIBILITY' | 'PREPARATION' | 'ENQUEUE' | 'RELEASE';
+export type PreparationPhase =
+  | 'CAPABILITY'
+  | 'LOOKUP'
+  | 'ELIGIBILITY'
+  | 'PREPARATION'
+  | 'ENQUEUE'
+  | 'RELEASE'
+  | 'VERIFY_RATE'
+  | 'VERIFY_LOOKUP'
+  | 'VERIFY_PROOF'
+  | 'VERIFY_SESSION';
 export type PreparationFailure =
   | '55P03'
   | '57014'

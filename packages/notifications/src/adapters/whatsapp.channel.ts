@@ -49,12 +49,14 @@ export class WhatsAppChannel implements Channel {
       input.deadline === null ? 10_000 : input.deadline.getTime() - this.options.now().getTime();
     if (remaining <= 0) return { kind: 'expired' };
     const timer = setTimeout(() => abort.abort(), Math.min(10_000, remaining));
+    let submitted = false;
     try {
       if (this.options.beforeSubmit !== undefined && !(await this.options.beforeSubmit()))
-        return unknown('NETWORK_UNKNOWN');
+        return { kind: 'refused', code: 'CAPABILITY_UNAVAILABLE', outcomeKnown: true };
       // Last clock check and submission are synchronous neighbours; no redirect or automatic retry.
       if (input.deadline !== null && this.options.now().getTime() >= input.deadline.getTime())
         return { kind: 'expired' };
+      submitted = true;
       const response = await this.#request(this.#endpoint, {
         method: 'POST',
         headers,
@@ -72,7 +74,9 @@ export class WhatsAppChannel implements Channel {
       }
       return await acceptedResponse(response);
     } catch {
-      return unknown('NETWORK_UNKNOWN');
+      return submitted
+        ? unknown('NETWORK_UNKNOWN')
+        : { kind: 'refused', code: 'CAPABILITY_UNAVAILABLE', outcomeKnown: true };
     } finally {
       clearTimeout(timer);
     }

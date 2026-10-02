@@ -162,6 +162,63 @@ it('reset requires a covering manager membership and does not accept absent targ
     ).statusCode,
   ).toBe(403);
 });
+
+it('the staff route guard rechecks the approved binding while device and membership remain valid', async () => {
+  const [bound] = await f.h.owner`SELECT phone_binding_approved_at FROM "user" WHERE id=${userId}`;
+  await f.h.owner`UPDATE "user" SET phone_binding_approved_at=NULL WHERE id=${userId}`;
+  try {
+    const response = await f.h.app.inject({
+      method: 'GET',
+      url: '/v1/devices/me/staff-session',
+      headers: { authorization: `Device ${device.token}`, origin, cookie: staffCookie },
+    });
+    expect(response.statusCode).toBe(401);
+  } finally {
+    await f.h
+      .owner`UPDATE "user" SET phone_binding_approved_at=${bound?.['phone_binding_approved_at']} WHERE id=${userId}`;
+  }
+});
+
+it('PIN infrastructure failures return availability instead of wrong proof', async () => {
+  const spy = vi
+    .spyOn(f.h.auth.staff, 'candidate')
+    .mockRejectedValueOnce(new Error('SYNTHETIC_PRIVATE_DETAIL'));
+  try {
+    const response = await signIn();
+    expect(response.statusCode).toBe(503);
+    expect(response.json().code).toBe('NOT_READY');
+    expect(response.body).not.toContain('SYNTHETIC_PRIVATE_DETAIL');
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+it('a post-create PIN binding check failure revokes the new session and preserves the previous operator', async () => {
+  const sessions = f.h.auth.staff;
+  const read = sessions.candidate.bind(sessions);
+  const before = await f.h.owner`SELECT id FROM session WHERE purpose='STAFF_POS'
+    AND staff_device_context->>'deviceId'=${device.id}`;
+  const spy = vi
+    .spyOn(sessions, 'candidate')
+    .mockImplementationOnce(read)
+    .mockImplementationOnce(read)
+    .mockRejectedValueOnce(new Error('SYNTHETIC_POST_CREATE_FAILURE'));
+  try {
+    expect((await signIn()).statusCode).toBe(503);
+    expect(
+      await f.h.owner`SELECT id FROM session WHERE purpose='STAFF_POS'
+      AND staff_device_context->>'deviceId'=${device.id}`,
+    ).toEqual(before);
+    const previous = await f.h.app.inject({
+      method: 'GET',
+      url: '/v1/devices/me/staff-session',
+      headers: { authorization: `Device ${device.token}`, origin, cookie: staffCookie },
+    });
+    expect(previous.statusCode).toBe(200);
+  } finally {
+    spy.mockRestore();
+  }
+});
 it('replacement PIN invalidates old proof; five failures lock even a correct PIN for fifteen minutes', async () => {
   expect((await reset(userId, other)).status).toBe(204);
   expect((await signIn(own)).statusCode).toBe(401);

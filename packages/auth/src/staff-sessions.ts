@@ -7,6 +7,9 @@ import type { StaffDeviceContext, StaffSession } from './staff-otp/types.ts';
 
 export const STAFF_COOKIE = 'pospay-staff.session_token';
 
+/** تغير الإثبات رفض متوقع، منفصل عن فشل البنية التحتية. */
+export class StaffProofChanged extends Error {}
+
 interface SessionRow {
   readonly id: string;
   readonly token: string;
@@ -42,6 +45,7 @@ export interface StaffSessions {
   issue(
     userId: string,
     device: StaffDeviceContext,
+    validate: () => Promise<boolean>,
   ): Promise<{ session: StaffSession; cookie: string }>;
   /** يشترط cookie منفصلاً وسياق الجهاز نفسه، بلا صلاحيات منصة. */
   resolve(headers: Headers, device: StaffDeviceContext): Promise<StaffSession | null>;
@@ -60,56 +64,82 @@ interface SessionOptions {
 }
 
 export function createStaffSessions(options: SessionOptions): StaffSessions {
-  const cookie = (value: string, expires: Date) =>
-    `${STAFF_COOKIE}=${value}; Path=/v1; HttpOnly; Secure; SameSite=Lax; Expires=${expires.toUTCString()}`;
   const resolve = async (headers: Headers, device: StaffDeviceContext) => {
     const token = await verifiedToken(headers, STAFF_COOKIE, options.secret);
     if (token === null) return null;
     const row = await options.primitive.find(token);
-    return row === null ? null : staffRow(row, device, options.now());
+    if (row === null) return null;
+    const session = staffRow(row, device, options.now());
+    return session !== null &&
+      (await options.database.bindingValid(session.userId, session.authenticatedAt))
+      ? session
+      : null;
   };
   return {
     close: () => options.database.close(),
     ready: () => options.database.warm(),
-    candidate: (phone) => options.database.lookup(phone, new Date(Date.now() + 1000)),
-    issue: async (userId, device) => {
-      const now = options.now();
-      const deadline = staffDeadline(now);
-      let made: SessionRow | null = null;
-      let stage: 'CREATE' | 'ROTATE' | 'VALIDATE' | 'SIGN' = 'CREATE';
-      try {
-        const row = await options.database.rotate(device, async () => {
-          made = await options.primitive.create(userId, device, now, deadline);
-          if (made === null) throw new Error('STAFF_SESSION_REFUSED');
-          stage = 'ROTATE';
-          return made;
-        });
-        stage = 'VALIDATE';
-        const session = staffRow(row, device, options.now());
-        if (session === null) throw new Error('STAFF_SESSION_REFUSED');
-        stage = 'SIGN';
-        const signature = await makeSignature(row.token, options.secret);
-        return {
-          session,
-          cookie: cookie(encodeURIComponent(`${row.token}.${signature}`), deadline),
-        };
-      } catch (error) {
-        const uncertain = made as SessionRow | null;
-        if (uncertain !== null)
-          await options.primitive.remove(uncertain.token).catch(() => undefined);
-        throw sessionFailure(error, stage);
-      }
-    },
+    candidate: (phone) => options.database.lookup(phone, new Date(options.now().getTime() + 1000)),
+    issue: (userId, device, validate) => issueStaffSession(options, { userId, device, validate }),
     resolve,
     signOut: async (headers, device) => {
-      if ((await resolve(headers, device)) !== null) {
-        const token = await verifiedToken(headers, STAFF_COOKIE, options.secret);
-        if (token !== null) await options.primitive.remove(token);
-      }
-      return cookie('', new Date(0));
+      const token = await verifiedToken(headers, STAFF_COOKIE, options.secret);
+      const row = token === null ? null : await options.primitive.find(token);
+      if (row !== null && staffRow(row, device, options.now()) !== null)
+        await options.primitive.remove(row.token);
+      return sessionCookie('', new Date(0));
     },
     normalPurpose: (headers) => normalPurpose(options, headers),
   };
+}
+
+const sessionCookie = (value: string, expires: Date) =>
+  `${STAFF_COOKIE}=${value}; Path=/v1; HttpOnly; Secure; SameSite=Lax; Expires=${expires.toUTCString()}`;
+
+async function issueStaffSession(
+  options: SessionOptions,
+  request: {
+    userId: string;
+    device: StaffDeviceContext;
+    validate(): Promise<boolean>;
+  },
+) {
+  const { userId, device, validate } = request;
+  const now = options.now();
+  const deadline = staffDeadline(now);
+  let made: SessionRow | null = null;
+  let stage: 'CREATE' | 'ROTATE' | 'VALIDATE' | 'SIGN' = 'CREATE';
+  let issued: { session: StaffSession; cookie: string } | undefined;
+  let proofChanged = false;
+  try {
+    await options.database.rotate(device, async () => {
+      made = await options.primitive.create(userId, device, now, deadline);
+      if (made === null) throw new Error('STAFF_SESSION_REFUSED');
+      stage = 'VALIDATE';
+      const session = staffRow(made, device, options.now());
+      if (session === null) throw new Error('STAFF_SESSION_REFUSED');
+      if (!(await validate())) {
+        proofChanged = true;
+        throw new StaffProofChanged();
+      }
+      stage = 'SIGN';
+      const signature = await makeSignature(made.token, options.secret);
+      issued = {
+        session,
+        cookie: sessionCookie(encodeURIComponent(`${made.token}.${signature}`), deadline),
+      };
+      stage = 'ROTATE';
+      return made;
+    });
+    if (issued === undefined) throw new Error('STAFF_SESSION_REFUSED');
+    return issued;
+  } catch (error) {
+    const uncertain = made as SessionRow | null;
+    if (uncertain !== null)
+      await options.primitive.remove(uncertain.token).catch((failure) => {
+        throw sessionFailure(failure, 'REVOKE');
+      });
+    throw proofChanged ? new StaffProofChanged() : sessionFailure(error, stage);
+  }
 }
 
 function sessionFailure(error: unknown, stage: string): Error {

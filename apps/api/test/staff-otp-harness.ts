@@ -168,9 +168,9 @@ const otpConfiguration = () => ({
 function observedSessions(staff: StaffSessions, failures: string[]): StaffSessions {
   return {
     ...staff,
-    issue: async (userId, device) => {
+    issue: async (userId, device, validate) => {
       try {
-        return await staff.issue(userId, device);
+        return await staff.issue(userId, device, validate);
       } catch (error) {
         failures.push(error instanceof Error ? error.message : 'OPERATION_FAILED');
         throw error;

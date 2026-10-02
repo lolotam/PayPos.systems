@@ -95,3 +95,25 @@ it('rejects invalid proxy CIDRs without printing input', () => {
     /TRUSTED_PROXY_CIDRS/,
   );
 });
+
+it.each(['true', 'false'])(
+  'OTP=%s does not bypass intake URL or production proxy checks',
+  (enabled) => {
+    expect(() =>
+      readConfig({
+        ...valid,
+        STAFF_OTP_ENABLED: enabled,
+        PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic-invalid',
+      }),
+    ).toThrow(/PLATFORM_NOTIFICATIONS_DATABASE_URL/);
+    expect(() =>
+      readConfig({
+        ...valid,
+        STAFF_OTP_ENABLED: enabled,
+        NODE_ENV: 'production',
+        WHATSAPP_APP_SECRET: 'synthetic',
+        TRUSTED_PROXY_CIDRS: '',
+      }),
+    ).toThrow(/TRUSTED_PROXY_CIDRS/);
+  },
+);

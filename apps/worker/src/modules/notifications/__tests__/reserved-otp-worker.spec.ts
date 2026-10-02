@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { Queue, QueueEvents, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import {
   FakeChannel,
   notificationRedisOptions,
@@ -33,7 +33,6 @@ function execution(rows: Map<string, OtpPending>): OtpExecution {
       const row = rows.get(id);
       if (row !== undefined) rows.set(id, { ...row, status: result.status });
     },
-    retention: async () => 0,
     readiness: async () => undefined,
     close: async () => undefined,
   };
@@ -47,7 +46,7 @@ function useCase(redis: Redis, submitted: number[]) {
       submitted.push(performance.now());
     },
   });
-  const capability = { ready: async () => true };
+  const capability = { available: () => true, ready: async () => true };
   const channel = createOtpChannel(
     fake,
     {
@@ -128,7 +127,7 @@ function capacityHarness() {
   const submitted: number[] = [],
     f = useCase(redis, submitted);
   const tenant = tenantCapacity(connection, prefix);
-  const otp = createReservedOtpWorker(f.send, url, prefix);
+  const otp = createReservedOtpWorker(f.send, url, { prefix, onError: vi.fn() });
   const tenantQueue = new Queue('notifications-send', { connection, prefix });
   const queue = new Queue('notifications-otp', { connection, prefix });
   // Forty independently awaited jobs attach one queue-close listener each.

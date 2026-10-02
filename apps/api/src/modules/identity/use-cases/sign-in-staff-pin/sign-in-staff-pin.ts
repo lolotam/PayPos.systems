@@ -1,4 +1,5 @@
 import type { StaffDeviceContext } from '@pospay/auth';
+import { StaffProofChanged, STAFF_LOGIN_CONCURRENCY } from '@pospay/auth';
 import type { PinAttempts, PinHasher } from '../../ports/cashier-pins.port.ts';
 import type {
   StaffPinAuthority,
@@ -18,7 +19,7 @@ export class SignInStaffPin {
 
   /** الجهاز متحقق مسبقاً، والربط العالمي المعتمد يحدد صاحب الإثبات. */
   async execute(input: { phone: string; pin: string; device: StaffDeviceContext }) {
-    if (this.active >= 8) return null;
+    if (this.active >= STAFF_LOGIN_CONCURRENCY) throw new Error('STAFF_PIN_UNAVAILABLE');
     this.active++;
     try {
       return await this.signIn(input);
@@ -51,20 +52,21 @@ export class SignInStaffPin {
     }
     if ((await this.attempts.succeeded(target, reservation.reservation)) !== 'ok') return null;
     if (!(await this.current(userId, row.id, input))) return null;
-    const issued = await this.authority.sessions.issue(userId, input.device);
     try {
-      if (!(await this.current(userId, row.id, input))) throw new Error('PIN_PROOF_CHANGED');
-      await this.db.run(input.device.companyId, userId, (scope) =>
-        scope.audit.record({
-          entity: 'cashier_pin',
-          entityId: userId,
-          action: 'staff.pin_signed_in',
-        }),
-      );
-      return issued;
-    } catch {
-      await this.authority.discard(issued.cookie, input.device);
-      return null;
+      return await this.authority.sessions.issue(userId, input.device, async () => {
+        if (!(await this.current(userId, row.id, input))) return false;
+        await this.db.run(input.device.companyId, userId, (scope) =>
+          scope.audit.record({
+            entity: 'cashier_pin',
+            entityId: userId,
+            action: 'staff.pin_signed_in',
+          }),
+        );
+        return true;
+      });
+    } catch (error) {
+      if (error instanceof StaffProofChanged) return null;
+      throw error;
     }
   }
 

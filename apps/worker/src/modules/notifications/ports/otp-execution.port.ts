@@ -71,11 +71,6 @@ export interface OtpExecution {
     executionId: string | null,
     result: OtpResult,
   ): Promise<void>;
-  /** يبقي SENDING حتى يتوقف تنفيذه، ولا يمس STOP.
-   *
-   * @param limit حجم الدفعة المحدودة
-   */
-  retention(limit: number): Promise<number>;
   /** يفحص الدور والصلاحيات دون ربطه باستعداد الخدمة العادي. */
   readiness(): Promise<void>;
   /** إغلاق الموارد المحصورة وقت الإيقاف. */
@@ -84,6 +79,8 @@ export interface OtpExecution {
 
 /** استعداد قدرة الدخول مستقل عن استعداد الخدمة. */
 export interface OtpWorkerCapability {
+  /** لقطة الإعداد والصحة الأخيرة أثناء الانتظار فقط؛ لا تنفذ I/O ولا تمنح إذن إرسال. */
+  available(): boolean;
   /** يعاد قبل claim والتكوين وHTTP لأن الطابور قد يحتوي عملاً قديماً. */
   ready(): Promise<boolean>;
 }
@@ -106,6 +103,7 @@ export interface OtpDiagnostics {
   record(
     outcome:
       | 'CAPABILITY_LOST'
+      | 'WORKER_ERROR'
       | 'MISSING_OR_TERMINAL'
       | 'CLAIM_NOT_ACKNOWLEDGED'
       | 'PREPARATION_TIMEOUT_PERSISTENCE_FAILED',
