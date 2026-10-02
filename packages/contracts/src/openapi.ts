@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
 import {
   staffOtpRequestInput,
   staffOtpVerifyInput,
@@ -54,6 +55,9 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  attendanceQrToken,
+  attendanceQrBranch,
+  attendanceQrIssue,
   staffPinInput,
   staffPinResetInput,
   staffOtpRequestInput,
@@ -128,6 +132,17 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  '/v1/devices/me/attendance-qr': {
+    post: {
+      ...operation(
+        'issueAttendanceQr',
+        '200',
+        'Current QR for the authenticated device branch',
+        'AttendanceQrIssue',
+      ),
+      security: [{ DeviceToken: [] }],
+    },
+  },
   '/v1/devices/me/staff-pin/sign-in': {
     post: operation(
       'signInStaffPin',
@@ -379,6 +394,16 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     openapi: '3.0.3',
     info: { title: 'PosPay API', version: '0.0.0' },
     paths: PATHS,
-    components: { schemas: components },
+    components: {
+      schemas: components,
+      securitySchemes: {
+        DeviceToken: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'Authorization',
+          description: 'Device authentication scheme',
+        },
+      },
+    },
   };
 }

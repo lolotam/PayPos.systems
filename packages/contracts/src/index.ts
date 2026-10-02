@@ -121,6 +121,14 @@ export {
   WhatsappEnvelopeInvalidError,
 } from './whatsapp-webhook.js';
 export {
+  attendanceQrToken,
+  attendanceQrBranch,
+  attendanceQrIssue,
+  type AttendanceQrToken,
+  type AttendanceQrBranch,
+  type AttendanceQrIssue,
+} from './staff/attendance-qr.js';
+export {
   staffOtpRequestInput,
   canonicalStaffPhone,
   staffOtpVerifyInput,

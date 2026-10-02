@@ -145,6 +145,13 @@ export const en = {
     retry: 'Retry',
     attendanceTitle: 'Attendance',
     attendanceLater: 'The attendance screen comes later.',
+    attendanceQrLabel: 'Attendance QR code',
+    attendanceClockLabel: 'Branch time',
+    attendanceOffline:
+      'Attendance QR needs an internet connection. The code is hidden while offline.',
+    attendanceUnavailable: 'The attendance code could not be refreshed. Reconnect and try again.',
+    attendanceLoading: 'Loading a fresh attendance code…',
+    attendanceRefreshLead: 'This code refreshes every 60 seconds. Scan it from your staff app.',
     branchLabel: 'Branch',
     unexpected: 'Something went wrong. Try again.',
     networkError: 'The server could not be reached. Try again.',
