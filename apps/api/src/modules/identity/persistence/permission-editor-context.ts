@@ -1,7 +1,50 @@
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { AccessGrant, AccessTarget, ScopeType } from '../domain/access.ts';
-import type { OverrideTerms, PermissionEditContext } from '../domain/permission-edit.ts';
+import type {
+  EditableMembership,
+  OverrideTerms,
+  PermissionEditContext,
+} from '../domain/permission-edit.ts';
+
+async function lockedHolderMemberships(
+  tx: Tx,
+  companyId: string,
+  membershipId: string,
+): Promise<EditableMembership[]> {
+  // قفل الشركة يمنع إدخال عضوية جديدة عبر الـ FK؛ قفل المجموعة يمنع تبديل الدور أو صاحب العضوية أثناء فحص المالك.
+  const [company] = await tx.execute(sql`SELECT id FROM companies
+    WHERE id = ${companyId} AND deleted_at IS NULL FOR UPDATE`);
+  if (company === undefined) return [];
+  await tx.execute(
+    sql`SELECT id FROM memberships WHERE company_id = ${companyId} ORDER BY id FOR UPDATE`,
+  );
+  const rows = await tx.execute<{
+    id: string;
+    user_id: string | null;
+    employee_id: string | null;
+    role_code: string;
+    scope_type: ScopeType;
+    scope_id: string;
+    starts_at: Date;
+    ends_at: Date | null;
+  }>(sql`SELECT m.id, m.user_id, m.employee_id, r.code AS role_code,
+    m.scope_type, m.scope_id, m.starts_at, m.ends_at
+    FROM memberships m JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
+    WHERE m.company_id = ${companyId} AND EXISTS (
+      SELECT 1 FROM memberships target WHERE target.company_id = ${companyId} AND target.id = ${membershipId}
+        AND (m.user_id = target.user_id OR m.employee_id = target.employee_id))`);
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    employeeId: row.employee_id,
+    roleCode: row.role_code,
+    scopeType: row.scope_type,
+    scopeId: row.scope_id,
+    startsAt: new Date(row.starts_at),
+    endsAt: row.ends_at === null ? null : new Date(row.ends_at),
+  }));
+}
 
 async function editorGrants(
   tx: Tx,
@@ -67,47 +110,16 @@ export async function permissionEditorContext(
   membershipId: string,
   terms: OverrideTerms,
 ): Promise<PermissionEditContext> {
-  // قفل عضويات المحرر والهدف بترتيب ثابت يمنع تغيير DENY أثناء التفويض ويمنع deadlock بين محررين.
-  const rows = await tx.execute<{
-    id: string;
-    user_id: string | null;
-    role_id: string;
-    role_owner_key: string;
-    scope_type: ScopeType;
-    scope_id: string;
-    starts_at: Date;
-    ends_at: Date | null;
-  }>(sql`SELECT id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at, ends_at
-    FROM memberships WHERE company_id = ${companyId} AND (id = ${membershipId} OR user_id = ${userId})
-    ORDER BY id FOR UPDATE`);
+  const holderMemberships = await lockedHolderMemberships(tx, companyId, membershipId);
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (time === undefined) throw new Error('Transaction time missing');
   const now = new Date(time.at);
-  const row = rows.find((m) => m.id === membershipId);
-  const [role] =
-    row === undefined
-      ? []
-      : await tx.execute<{ code: string }>(sql`
-    SELECT code FROM roles WHERE id = ${row.role_id} AND owner_key = ${row.role_owner_key}`);
-  const [company] = await tx.execute(
-    sql`SELECT id FROM companies WHERE id = ${companyId} AND deleted_at IS NULL`,
-  );
   const catalog = await tx.execute<{ code: string }>(
     sql`SELECT code FROM permissions WHERE code NOT LIKE '%:platform'`,
   );
   return {
-    membership:
-      row === undefined || company === undefined || role === undefined
-        ? null
-        : {
-            id: row.id,
-            userId: row.user_id,
-            roleCode: role.code,
-            scopeType: row.scope_type,
-            scopeId: row.scope_id,
-            startsAt: new Date(row.starts_at),
-            endsAt: row.ends_at === null ? null : new Date(row.ends_at),
-          },
+    membership: holderMemberships.find((m) => m.id === membershipId) ?? null,
+    holderMemberships,
     ...(await scopeTargets(tx, companyId, terms)),
     catalog: catalog.map((p) => p.code),
     grants: await editorGrants(tx, companyId, userId, now.toISOString()),

@@ -1,6 +1,6 @@
 import type { PermissionOverrideInput } from '@pospay/contracts';
 
-import { permissionEditFailure } from '../../domain/permission-edit.ts';
+import { permissionEditFailure, permissionHolderIsOwner } from '../../domain/permission-edit.ts';
 import { overrideLifecycleFailure } from '../../domain/permission-override-lifecycle.ts';
 import type {
   GrantInvalidator,
@@ -29,7 +29,7 @@ export class GrantPermissionOverride {
       const lifecycle = overrideLifecycleFailure(
         'SAVE',
         previous,
-        context.membership?.roleCode === 'owner',
+        permissionHolderIsOwner(context),
         now,
       );
       if (lifecycle !== null) throw new ApiError(lifecycle);

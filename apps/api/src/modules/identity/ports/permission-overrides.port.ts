@@ -11,7 +11,7 @@ export interface SavedPermissionOverride extends OverrideTerms {
 export interface PermissionOverrideScope {
   readonly audit: AuditTrail;
   /**
-   * بيقفل العضوية وبيقرأ سلطة المدير والكتالوج والهدف من الشركة نفسها لمنع الاعتماد على snapshot قديم.
+   * بيقفل مجموعة عضويات الشركة ثم يقرأ عضويات صاحب الهدف وسلطة المدير؛ تغيير دور المالك لا يسبق فحص الحماية.
    *
    * @param membershipId العضوية المستهدفة
    * @param terms الاستثناء المطلوب

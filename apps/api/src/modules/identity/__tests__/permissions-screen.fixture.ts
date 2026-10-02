@@ -85,6 +85,19 @@ export function terms(
     ...change,
   };
 }
+export async function newHeldMember(
+  f: PermissionFixture,
+  holder: { userId: string } | { employeeId: string },
+  code = 'viewer',
+  company = f.company,
+) {
+  const id = ids.newId();
+  await f.h.owner`INSERT INTO memberships
+    (company_id, id, user_id, employee_id, role_id, role_owner_key, scope_type, scope_id)
+    VALUES (${company}, ${id}, ${'userId' in holder ? holder.userId : null},
+      ${'employeeId' in holder ? holder.employeeId : null}, ${role(code)}, 'global', 'COMPANY', ${company})`;
+  return id;
+}
 export async function seedOverride(
   f: PermissionFixture,
   member: string,

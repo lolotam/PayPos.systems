@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   permissionEditFailure,
+  permissionHolderIsOwner,
   type PermissionEditContext,
   type OverrideTerms,
 } from '../permission-edit.ts';
@@ -26,6 +27,7 @@ const grant = (
 const member = {
   id: 'member',
   userId: 'target',
+  employeeId: null,
   roleCode: 'viewer',
   scopeType: 'BRANCH' as const,
   scopeId: 'original-branch',
@@ -38,6 +40,7 @@ const context: PermissionEditContext = {
   editorUserId: 'editor',
   now,
   membership: member,
+  holderMemberships: [member],
   catalog: [permission],
   target: { companyId },
   descendantTargets: [],
@@ -129,6 +132,34 @@ it('protects owner DENY additions, but permits ending a legacy owner DENY', () =
   );
   expect(permissionEditFailure({ ...terms, effect: 'DENY' }, owner, 'REVOKE')).toBeNull();
   expect(permissionEditFailure(terms, owner)).toBeNull();
+});
+
+it.each(['user', 'employee'])('protects an owner %s through a Viewer sibling', (type) => {
+  const holder = type === 'user' ? member : { ...member, userId: null, employeeId: 'employee' };
+  const snapshot = {
+    ...context,
+    membership: holder,
+    holderMemberships: [{ ...holder, id: 'owner-sibling', roleCode: 'owner' }],
+  };
+  expect(permissionHolderIsOwner(snapshot)).toBe(true);
+  expect(permissionEditFailure({ ...terms, effect: 'DENY' }, snapshot)).toBe(
+    'PERMISSION_OWNER_PROTECTED',
+  );
+  expect(permissionEditFailure(terms, snapshot)).toBeNull();
+  expect(permissionEditFailure({ ...terms, effect: 'DENY' }, snapshot, 'REVOKE')).toBeNull();
+});
+it.each([
+  { startsAt: new Date('2999-01-01') },
+  { endsAt: now },
+  { userId: 'someone-else' },
+  { roleCode: 'viewer' },
+])('ignores an inactive or unrelated owner sibling %j', (change) => {
+  const snapshot = {
+    ...context,
+    holderMemberships: [{ ...member, id: 'sibling', roleCode: 'owner', ...change }],
+  };
+  expect(permissionHolderIsOwner(snapshot)).toBe(false);
+  expect(permissionEditFailure({ ...terms, effect: 'DENY' }, snapshot)).toBeNull();
 });
 
 it.each([null, { companyId: 'other' }])('refuses missing or cross-company targets %j', (target) => {

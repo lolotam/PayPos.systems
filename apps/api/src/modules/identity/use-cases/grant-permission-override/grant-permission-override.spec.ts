@@ -23,9 +23,11 @@ const context: PermissionEditContext = {
   companyId: actor.companyId,
   editorUserId: actor.userId,
   now,
+  holderMemberships: [],
   membership: {
     id: membershipId,
     userId: null,
+    employeeId: 'employee',
     roleCode: 'viewer',
     scopeType: 'COMPANY',
     scopeId: actor.companyId,
@@ -43,14 +45,14 @@ const context: PermissionEditContext = {
   })),
 };
 
-function setup(existing = false, auditFailure = false) {
+function setup(existing = false, auditFailure = false, editContext = context) {
   const events: string[] = [];
   const record = vi.fn(async () => {
     events.push('audit');
     if (auditFailure) throw new Error('audit failed');
   });
   const scope: PermissionOverrideScope = {
-    context: async () => context,
+    context: async () => editContext,
     current: async () => (existing ? [saved] : []),
     find: async () => saved,
     insert: async () => {
@@ -83,6 +85,29 @@ function setup(existing = false, auditFailure = false) {
     revoke: new RevokePermissionOverride(transactions, { invalidate }),
   };
 }
+
+it.each(['DENY', 'REPLACE', 'REVOKE'] as const)(
+  'protects an owner holder through a Viewer membership on %s before any writes',
+  async (operation) => {
+    const membership = context.membership;
+    if (membership === null) throw new Error('Synthetic membership missing');
+    const s = setup(operation !== 'DENY', false, {
+      ...context,
+      holderMemberships: [{ ...membership, id: 'owner-sibling', roleCode: 'owner' }],
+    });
+    const work =
+      operation === 'REVOKE'
+        ? s.revoke.execute(actor, membershipId, saved.id, { reason: 'synthetic' })
+        : s.grant.execute(actor, membershipId, {
+            ...terms,
+            effect: operation === 'DENY' ? 'DENY' : 'ALLOW',
+          });
+    await expect(work).rejects.toMatchObject({ code: 'PERMISSION_OWNER_PROTECTED' });
+    expect(s.events).toEqual(['begin']);
+    expect(s.record).not.toHaveBeenCalled();
+    expect(s.invalidate).not.toHaveBeenCalled();
+  },
+);
 
 describe('permission write ordering', () => {
   it('creates with audit before commit and invalidates the changed membership after it', async () => {

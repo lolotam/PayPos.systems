@@ -20,7 +20,7 @@ export function overrideIsCurrent(decision: OverrideDecision, now: Date): boolea
  *
  * @param operation سحب أو حفظ قرار جديد
  * @param current القرارات السابقة المطلوبة للعملية
- * @param owner هل العضوية صاحبة الشركة
+ * @param owner هل صاحب العضوية يحمل دور المالك في أي عضوية سارية داخل الشركة
  * @param now وقت القرار داخل المعاملة
  * @returns الرفض المسمى أو null لو دورة القرار مسموحة
  */

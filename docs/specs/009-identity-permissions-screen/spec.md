@@ -32,13 +32,34 @@ held by the editor. Never add owner DENYs, or replace/revoke owner ALLOWs.
 Named bilingual errors: PERMISSION_NOT_HELD, PERMISSION_SELF_EDIT,
 PERMISSION_OWNER_PROTECTED, PERMISSION_SCOPE_OUTSIDE_REACH.
 
+PR #73 review correction: protection belongs to the person, identified by the
+membership's user_id or employee_id, within the verified company. An active owner
+membership protects every membership of that holder from new DENYs and from
+replacement/revocation of ALLOWs. Inactive owners and owners in another company
+do not confer this protection. Self-edit refusal compares the editor's user_id
+with the target holder, including the editor's other memberships. Create,
+replacement and revoke use the same locked holder snapshot and domain checks.
+
+The write locks the company root before its memberships in UUID order. The root
+lock prevents insertion of a new sibling membership through the company FK;
+membership locks prevent concurrent role/holder changes. Read holder roles and
+sample decision time only after these locks, then retain them through audit and
+commit. Permission writes briefly serialize membership changes within a company;
+ordinary read queries remain unlocked. No migration or identity mapping outside
+the existing user/employee holder model is needed.
+
+Regression tests exercise owner + Viewer siblings through real Postgres and HTTP
+for DENY, ALLOW replacement and revoke, preserving AuthorizeRequest management
+access; editor siblings, employee holders, non-owner siblings, inactive/cross-company
+owners, and a concurrent sibling promotion to owner while the write waits.
+
 OVERRIDE-LIFECYCLE — owner decision 2026-10-03: create replaces current rows for
 the same membership/permission/scope by ending them and inserting a new decision
 atomically. Revoke ends a current row with a required trimmed reason (1–500).
 Already ended returns PERMISSION_OVERRIDE_ENDED (409); missing returns 404.
 Never delete history; current means expires_at IS NULL OR expires_at > decision
-time, ended means expires_at <= decision time. Acquire target/editor membership
-locks in UUID order before reloading access, then sample decision time inside the
+time, ended means expires_at <= decision time. Lock the company root and its
+memberships in UUID order before reloading access, then sample decision time inside the
 transaction after waiting for locks to avoid ending a newer row at an older time.
 Every create/replace/revoke writes actor, membership, permission, scope, effect,
 before/after and reason to audit in that transaction.
@@ -68,8 +89,8 @@ are outside row 7; PRs 7b/7c own discount parameters.
 
 ## Write sequence and cache
 
-Within one `withTenant(companyId,...,{userId})` transaction: lock membership;
-reload editor access rather than trust guard snapshot; validate tenant scope,
+Within one `withTenant(companyId,...,{userId})` transaction: lock company and memberships;
+reload holder roles and editor access rather than trust guard snapshot; validate tenant scope,
 catalog, membership window and expiry; check edit policy; end replaced rows and insert override, or end revoked row;
 append allowlisted audit before/after. Failure rolls back both writes.
 After successful commit the same use case advances the company's Redis grant

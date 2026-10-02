@@ -8,6 +8,7 @@ export interface EditableMembership {
   readonly startsAt: Date;
   readonly endsAt: Date | null;
   readonly userId: string | null;
+  readonly employeeId: string | null;
   readonly roleCode: string;
 }
 /** بيانات طلب الاستثناء بعد التحقق من عقد الإدخال. */
@@ -22,6 +23,7 @@ export interface OverrideTerms {
 /** بيانات القرار كلها من الشركة المؤكدة وقارئ داخل المعاملة. */
 export interface PermissionEditContext {
   readonly membership: EditableMembership | null;
+  readonly holderMemberships: readonly EditableMembership[];
   readonly catalog: readonly string[];
   readonly target: AccessTarget | null;
   readonly grants: readonly AccessGrant[];
@@ -32,7 +34,26 @@ export interface PermissionEditContext {
 }
 
 /**
- * بيتحقق من صلاحية المدير والكتالوج والنطاق والمدة قبل أي كتابة؛ DENY يظل حاسمًا.
+ * بيحمي الشخص لو أي عضوية سارية له في نفس الشركة تحمل دور المالك؛ اختلاف العضوية لا يلغي الحماية.
+ *
+ * @param context لقطة عضويات صاحب الهدف ووقت القرار بعد القفل داخل الشركة المؤكدة
+ * @returns هل صاحب الهدف مالك نشط مهما كان دور العضوية المستهدفة
+ */
+export function permissionHolderIsOwner(context: PermissionEditContext): boolean {
+  const holder = context.membership;
+  if (holder === null) return false;
+  return [holder, ...context.holderMemberships].some(
+    (candidate) =>
+      ((holder.userId !== null && candidate.userId === holder.userId) ||
+        (holder.employeeId !== null && candidate.employeeId === holder.employeeId)) &&
+      candidate.roleCode === 'owner' &&
+      candidate.startsAt <= context.now &&
+      (candidate.endsAt === null || candidate.endsAt > context.now),
+  );
+}
+
+/**
+ * بيتحقق من سلطة المدير والنطاق والمدة؛ منع تعديل الذات وحماية المالك يتبعان الشخص لا رقم العضوية.
  *
  * @param terms بيانات الاستثناء المطلوبة
  * @param context العضوية والصلاحيات والهدف الموثوق والوقت المحقون
@@ -67,7 +88,7 @@ export function permissionEditFailure(
   if (terms.scope_type === 'COMPANY' && terms.scope_id !== companyId) return 'FORBIDDEN';
   if (operation === 'SAVE' && terms.expires_at !== null && new Date(terms.expires_at) <= now)
     return 'VALIDATION_FAILED';
-  if (operation === 'SAVE' && membership.roleCode === 'owner' && terms.effect === 'DENY')
+  if (operation === 'SAVE' && permissionHolderIsOwner(context) && terms.effect === 'DENY')
     return 'PERMISSION_OWNER_PROTECTED';
   if (!evaluateAccess(context.grants, terms.permission_code, target)) {
     const allowedElsewhere = context.grants.some(
