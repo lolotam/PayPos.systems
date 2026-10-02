@@ -18,6 +18,9 @@ after acknowledged ledger commit, `notifications-otp` reserved capacity and at-m
 It explicitly leaves worker code derivation open and forbids a code in the ledger, event or job.
 ADR-0013 adds monotonic global STOP suppression and reserves suppression-function EXECUTE for auth
 to PR 6. Current worker production wiring keeps outbound WhatsApp disabled pending live admission.
+Staging runs with `NODE_ENV=production`, empty notification settings and outbound disabled. OTP is
+an optional capability; its configuration must not make these existing services unable to start or
+fail their ordinary readiness checks.
 
 The existing POS stores the paired device token in IndexedDB and sends `Authorization: Device …`.
 Its API client omits cookies, and SessionGuard currently gives Device authentication precedence over
@@ -99,11 +102,18 @@ live delivery; the remaining template approval gates and future enrollment desig
    this is not an invented pre-login tenant for the OTP ledger. Never use `withUser(candidateUserId)`
    merely because a phone lookup found an unverified candidate. After OTP proof, user-keyed membership
    discovery may use `withUser(userId)` normally. Auth/worker pools gain no membership/tenant grants.
-4. Unknown phone, missing user, no applicable membership, closed company or permission denial all
-   produce the same generic request acknowledgment, and later the same verification refusal. None
-   enqueues a send or creates an account. Return an indistinguishable fresh challenge-shaped id even
-   when no usable challenge exists; do dummy verification work on unknown ids. Do not return user
-   names, membership counts or account-existence reasons, and equalize observable lookup/compare work.
+4. Run the common activation/availability and rate checks in §6 **before any phone lookup**. Once
+   these pass, eligible, unknown, missing-user, nonmember, closed-company, permission-denied and
+   suppressed phones, plus lookup/preparation/ledger/enqueue failures, all produce the **same HTTP 202
+   acknowledgment, body shape/content and comparable timing**. Refusals and failures grant no send
+   permission; unknown/ineligible phones create no account or send. Return an indistinguishable fresh
+   challenge-shaped id even when no usable challenge exists. Never expose suppression, send success
+   or eligibility in response fields, headers or externally visible diagnostics; show identical
+   recovery guidance to all.
+   Later invalid verification receives the same refusal and dummy comparison work on unknown ids.
+   Do not return user names, membership counts or account-existence reasons. Only the common
+   availability checks before lookup may return 503; downstream errors must not become an enumeration
+   signal through status codes or timing.
 5. On successful proof, recheck the device, current phone mapping and current scope eligibility;
    consume the challenge once, then issue a **Better Auth session with staff POS purpose**, through
    `packages/auth`. Retain 1.7.5; no JWT or independent session-signing implementation. Add server-only,
@@ -208,8 +218,8 @@ messaging control. No global OTP event goes to tenant outbox, delivery log or re
 | `auth_notification_attempts.id`, `challenge_id` | UUID v7 PK and challenge FK; retained challenge identity |
 | `recipient_hash`, `hash_key_id`, `user_id` | phone hash/key metadata; nullable global user id for a suppression-only refusal |
 | `channel`, `template_key`, `template_revision`, `locale`, `provider_template_name` | WHATSAPP, staff_otp, immutable revision and explicit ar/en locale/name; nullable mapping only for configuration failure |
-| `status` | PENDING, SENDING, SENT, FAILED, EXPIRED or SUPPRESSED; never back to PENDING |
-| `authorized_at`, `send_deadline`, `created_at`, `updated_at` | UTC timestamptz; send deadline equals challenge expiry |
+| `status` | PREPARED, PENDING, SENDING, SENT, FAILED, EXPIRED or SUPPRESSED; only acknowledged enqueue permits PREPARED→PENDING, never back to PENDING |
+| `authorized_at`, `send_deadline`, `created_at`, `updated_at` | UTC timestamptz; authorized_at set only at release to PENDING after enqueue acknowledgment and fresh suppression check; send deadline equals challenge expiry |
 | `execution_id`, `sending_at`, `finished_at` | one irreversible execution fence and lifecycle times |
 | `failure_code`, `outcome_known`, `provider_message_digest` | finite diagnostics and optional domain-separated provider-id HMAC; never raw phone-bearing wamid |
 
@@ -227,7 +237,7 @@ reference global identity only; do not grant auth access to devices, employees o
 
 - `pospay_auth`: existing CONNECT/schema USAGE; SELECT and exact column INSERT for both table shapes;
   UPDATE only challenge `status,failed_attempts,code_mac,consumed_at,finished_at,updated_at` and ledger
-  `status,execution_id,sending_at,finished_at,failure_code,outcome_known,provider_message_digest,updated_at`;
+  `status,authorized_at,execution_id,sending_at,finished_at,failure_code,outcome_known,provider_message_digest,updated_at`;
   DELETE for bounded auth-owned retention. No TRUNCATE/REFERENCES/TRIGGER/sequence/schema CREATE,
   role membership, ownership or BYPASSRLS. The session changes remain auth-only under existing grants.
 - Grant auth **EXECUTE only** on `public.platform_whatsapp_is_suppressed(bytea)`; no direct suppression,
@@ -278,23 +288,68 @@ these roots; do not create a differently normalized or independently hashed OTP 
 
 ### 5. Sending, suppression and production gates
 
-Authorize on one short READ COMMITTED **auth** transaction: take ADR-0013's exact company-independent
+OTP is **disabled by default**. Add an explicit `STAFF_OTP_ENABLED` activation setting, default false
+when absent or empty; `NODE_ENV=production`, available secrets or general outbound configuration do
+not implicitly enable it. Bind disabled adapters without requiring OTP-only secrets/templates or
+starting the OTP consumer. API and worker start and remain ordinarily ready with empty notification
+settings and outbound disabled, including staging's production-mode configuration. Disabled OTP
+requests receive the common generic pre-lookup `503 OTP_UNAVAILABLE`, without phone/user/suppression
+lookup, challenge/ledger creation, enqueue or send. The employee's own PIN remains a separate path.
+
+Only explicit activation enables the full live checks: auth role/grants, suppression definer and
+constraint inventory, live STOP subscription, fail-closed Redis admission, id-only OTP queue,
+reserved worker, independent keys, worker WhatsApp credentials and approved ar/en OTP templates.
+Missing/invalid settings, fake mode or allow-all admission close **OTP only**. Keep ordinary API/worker
+startup and readiness independent of this capability; report OTP's DISABLED, UNAVAILABLE or READY
+state separately for internal operations, without propagating it into service readiness. Partially
+configured activation never throws a process-startup error or disables other API/worker functions.
+Both roots must agree on activation and capability availability before request processing; repeat
+the worker capability check before claim/materialization and immediately before HTTP so stale jobs
+cannot send while OTP is disabled/unavailable. Pre-lookup request availability checks use the same
+capability state for every phone and refuse generically when it is not READY.
+
+Prepare on one short READ COMMITTED **auth** transaction: take ADR-0013's exact company-independent
 phone advisory lock, execute the suppression boolean in a fresh statement snapshot, and commit the
-challenge plus unique ledger PENDING row together. A suppression winner records terminal SUPPRESSED,
-no MAC/code, no sender job. Lookup/DB/check errors fail closed. STOP and OTP authorization use the same
-hash, lock and connection for check/insert. STOP committed first blocks OTP; an attempt authorized
-first may finish after STOP, as ADR-0013 specifies. Suppression never blocks the established PIN
-credential or lifts passkey requirements; no SMS/email bypass, START or manager opt-in override.
+challenge plus unique **PREPARED** ledger row together. PREPARED grants no worker claim or send
+permission. A suppression winner records terminal SUPPRESSED, no MAC/code and no sender job.
+Lookup/DB/check errors fail closed internally, with the common 202 response after preflight.
 Request, verification and worker transitions use a consistent phone → challenge → attempt lock order,
 with deterministic id ordering for multiple rows; release these transactions before provider HTTP.
 
 After acknowledged commit, enqueue **once** to `notifications-otp`, payload `{challenge_id, attempt_id}`,
-stable job id based on both ids, `attempts=1`, no phone/code/user claims. Bound the entire API
-preparation/ledger/enqueue path to **200 ms**; never detach an enqueue/send promise after response or
-wait on provider completion. DB/lock or Redis timeouts return generic retryable 503, cancel/drain pending
-operations, and never infer rollback from an unknown commit. A commit/enqueue crash gap may lose OTP;
-there is no ledger sweep that re-enqueues it. The POS makes a new request after the 60-second cooldown.
-An enqueue whose result is unknown can already have produced a job; the fence still prevents duplicates.
+stable job id based on both ids, `attempts=1`, no phone/code/user claims. Only after successful, bounded
+preparation and **acknowledged enqueue** may the API auth facade release PREPARED→PENDING: take the
+same phone lock, perform a fresh suppression check and recheck activation, ACTIVE challenge and expiry,
+then set `authorized_at` and commit. This release is not exposed by the worker facade. STOP committed
+before release blocks authorization; an attempt authorized first may finish after STOP under ADR-0013.
+If STOP wins at release, terminalize the challenge/attempt as SUPPRESSED and clear its MAC; an already
+enqueued job remains unable to claim or send. A release check failure likewise grants no authorization.
+Suppression never blocks the established PIN credential or lifts passkey requirements; no SMS/email
+bypass, START or manager opt-in override.
+
+Bound the entire post-preflight preparation/ledger/enqueue/release path to **200 ms**, including
+cancellation/drain; never detach an enqueue/send/release promise after response or wait on the provider.
+Use the same 200 ms response window for all admitted requests, selected before phone lookup. Complete
+unknown/ineligible/suppressed and early-failure paths in that window too, so fast refusals and bounded
+timeouts do not identify eligible phones. DB/lock/preparation or BullMQ failures/timeouts **still
+return the identical 202**; record finite, secret-free internal outcomes, cancel/drain bounded work,
+and never infer rollback from an unknown commit. Preparation/enqueue failure or an unknown enqueue
+result must not release PREPARED. Terminalize it as FAILED where an acknowledged update is possible;
+otherwise it stays non-sendable until bounded expiry cleanup. An unknown enqueue may have created
+a job, but that job cannot claim PREPARED. A job arriving before release is skipped without retry;
+this deliberate loss is safer than authorizing an uncertain enqueue. A 202, job, enqueue result or
+failed/unknown operation alone grants no send permission; the worker still requires its acknowledged
+PENDING→SENDING fence. No recovery sweep releases or re-enqueues PREPARED rows. Commit/enqueue/release
+crash gaps may lose OTP; the POS makes a new request after the 60-second cooldown.
+
+| Failure / availability state | External request result | Internal effect |
+|---|---|---|
+| Disabled OTP or explicitly enabled but incomplete live configuration | Generic 503 OTP_UNAVAILABLE before phone lookup | No challenge/job/send; OTP closed, ordinary services start and remain ready |
+| Common dependency/capacity availability check fails before phone lookup | Same generic 503 OTP_UNAVAILABLE for every phone | No identity lookup or send authorization; internal capability diagnostic only |
+| Common cooldown/quota check refuses before identity lookup | Generic 429 with Retry-After independent of eligibility | Count/reserve according to settled limits; no send |
+| Unknown/ineligible/suppressed phone, or post-lookup lookup/preparation/DB/lock failure | Identical 202 body and response window | No send permission; finite internal refusal/failure, no usable code/job for suppressed phones |
+| BullMQ failure, timeout or unknown enqueue result | Identical 202 body and response window | No PREPARED→PENDING release; any existing job is non-sendable, record failure/uncertainty internally |
+| Release/claim/result crash or unknown commit | Identical 202 if the request is still in flight | No permission inferred from uncertainty, no retry/sweep; retain acknowledged worker fence and at-most-once rules |
 
 Reserve a **separate OTP worker with concurrency 4**, independent of tenant `notifications-send`
 capacity/limiter, and measure request acceptance → first provider HTTP start at **≤5 seconds under the
@@ -302,7 +357,8 @@ agreed pilot load**. This is a submission target, not a handset-delivery guarant
 Reserve worker/DB/Redis headroom, prioritize OTP over tenant traffic, monitor queue age and fail closed
 on capacity/configuration loss; increase capacity from measurements without sharing away reserved slots.
 
-Worker sequence: load eligible unexpired challenge/attempt → validate mapping/configuration → reserve
+Worker sequence: require activated/READY OTP → load eligible unexpired **PENDING** challenge/attempt
+→ validate mapping/configuration → reserve
 shared recipient admission → atomically claim PENDING→SENDING with execution id and recheck ACTIVE
 challenge/expiry → acknowledge COMMIT → auth derives/checks code and materializes matching destination
 → notification adapter assembles the sensitive template in memory → Channel makes one bounded HTTP
@@ -327,12 +383,12 @@ or tenant event validation to carry codes. Require approved AUTHENTICATION copy/
 Meta names and explicit ar/en mapping with no fallback. Final copy and approved Meta template names
 remain `TODO(spec)` and block live activation; do not invent names or treat example copy as approved.
 
-After PR 6, choose **OTP-only live WhatsApp**, once its gates pass. Check worker main, module factory,
+After PR 6, permit **OTP-only live WhatsApp** only with explicit activation and passing OTP capability
+checks. Check worker main, module factory,
 configuration reader and both queue/template allowlists; replacing a single refusal/default is not
-sufficient. Startup/readiness verifies auth role/grants, suppression definer/constraint inventory,
-live STOP subscription, fail-closed Redis admission, id-only OTP queue, reserved worker, independent
-keys and approved OTP templates. Production/staging refuse fake mode, missing secrets or allow-all
-admission. API has auth/queue/hash secrets but no WhatsApp sending token; only worker Channel receives it.
+sufficient. The full checks above gate OTP capability, never ordinary startup/readiness. API receives
+the required auth/queue/hash secrets for enabled OTP but no WhatsApp sending token; only worker
+Channel receives it. Production-mode staging remains ready with OTP disabled and these settings empty.
 
 Tenant outbound WhatsApp remains disabled separately. Approved per-template Meta names/copy, producer
 events, correct locale/destinations/deadlines and any sensitive link derivation still gate ratings/alerts;
@@ -352,6 +408,12 @@ auth wildcard. Require the configured POS Origin, trusted CORS and bounded reque
 Staff-cookie operations retain origin/CSRF checks. Contract definitions belong to contracts and UI
 strings to i18n, Arabic-first/RTL with English, generated client hooks and shared UI components.
 
+- For the **request endpoint**, run device/origin/body validation, common OTP activation/dependency/
+  capacity availability checks, then common rate admission **before phone-to-user or membership lookup**.
+  Disabled/unavailable OTP returns generic `503 OTP_UNAVAILABLE` identically for every submitted phone;
+  it creates no challenge or job. Only these pre-lookup availability checks may return 503. A dependency
+  that fails later is an internal post-preflight failure and receives 202, not a late 503. Availability
+  must not depend on the candidate user, membership, suppression or recipient-specific send outcome.
 - Redis atomically admits **5 requests/phone/rolling hour**, **20/IP/rolling hour** and a **60-second
   per-phone cooldown**, shared across device/API instances. Count every syntactically valid request,
   including absent/ineligible/suppressed phones once rate-admitted, before identity eligibility; do not refund uncertain
@@ -359,29 +421,38 @@ strings to i18n, Arabic-first/RTL with English, generated client hooks and share
   Use Redis clock, expiry and one atomic admission decision so races cannot overrun any cap.
 - Resolve IP only through the configured trusted proxy; do not accept arbitrary forwarded-IP headers.
   Cooldown/quota refusal returns generic 429 with Retry-After, independent of account existence.
-  Redis unavailable returns 503, never an in-memory/no-limit fallback. Enforce verification limits
+  Request limiter availability is checked before identity lookup: Redis unavailable returns the common
+  generic 503 there, never an in-memory/no-limit fallback. Post-lookup Redis/BullMQ failure returns 202.
+  Enforce verification limits
   **25/phone/hour and 100/IP/hour**, plus the authoritative 5-attempt challenge counter.
   A real challenge supplies its phone hash for verification limits; absent ids still consume IP
   capacity and perform dummy comparison, with no client-supplied phone that could bypass the cap.
-- Request returns HTTP 202 with the same `status=ACCEPTED`, fresh `challenge_id`, `expires_in=300` and
-  `retry_after=60` for eligible, unknown and nonmember phones. Message: “If this phone can sign in,
-  a WhatsApp code will arrive.” It never asserts that a message was sent. A suppressed phone additionally
-  gets `recovery=ASK_MANAGER`, checked independently of whether any user/membership exists; every
-  suppressed phone gets the same manager guidance. This exposes only messaging suppression, not user
-  existence. No useful code/job is created. The recovery copy must tell the employee to ask the
-  manager for help and use the employee's own cashier PIN on this branch device. Draft intent:
-  “WhatsApp sign-in is unavailable. Ask your manager for help signing in on this branch device with
-  your own cashier PIN.” Final bilingual copy remains `TODO(spec)`. Never suggest clearing STOP.
+- After common preflight, request returns HTTP 202 with the same `status=ACCEPTED`, fresh
+  `challenge_id`, `expires_in=300`, `retry_after=60` and `recovery=ASK_MANAGER` for **every outcome**:
+  eligible, unknown, nonmember, suppressed, preparation failure or enqueue failure/timeout/uncertainty.
+  Only the fresh opaque id differs between requests; an id never proves a database challenge exists.
+  Use the same headers, body fields, localized copy and §5 response window; no outcome-dependent
+  recovery flag, error envelope or Retry-After. Draft common copy: “If a code arrives, enter it. If
+  WhatsApp sign-in is unavailable, ask your manager for help signing in on this branch device with
+  your own cashier PIN.” This tells suppressed employees to ask the manager without exposing
+  suppression or eligibility; no useful code/job is created for a suppressed phone. Final bilingual
+  copy remains `TODO(spec)`. Acknowledgment never asserts enqueue/send success. Never suggest clearing STOP.
 - Verify success returns HTTP 200 with permitted staff context and sets the restricted cookie.
   Wrong, absent, expired, exhausted, superseded, consumed, changed-phone or ineligible challenges share
   one HTTP 401 `OTP_INVALID` bilingual envelope; no attempt count, user-existence or expiry reason.
   A bad/revoked device receives the existing generic device-auth refusal before phone lookup.
+  Verify also checks common OTP availability before challenge/user resolution; disabled/unavailable
+  OTP refuses generically without session issuance. Post-resolution failures use the generic
+  verification refusal, not an eligibility-dependent 503. Its successful proof/session contract
+  remains 200; the uniform 202 rule applies to requesting a code, not verifying one.
 
 POS flow: confirm pairing online → enter phone and explicit UI locale → show code entry and 60-second
-new-code countdown → submit code → signed-in staff screen. On success wipe phone/code from form state;
+new-code countdown → submit code → signed-in staff screen. Common pre-lookup OTP unavailability
+shows the manager/own-PIN recovery path. On success wipe phone/code from form state;
 never persist either, a challenge, or a verify/request command in Dexie/service-worker background sync.
 New-code action replaces the current challenge even when an older WhatsApp arrives late. Generic
-missing-code and suppression screens offer the employee's own PIN and manager assistance. Manager
+missing-code/recovery screens show identical own-PIN and manager guidance for every request outcome,
+including suppression; the screen must not infer a phone's eligibility or suppression from a 202. Manager
 assistance never substitutes the manager's credentials for the employee's sign-in.
 
 Offline: request/verification are disabled with a reconnect message; no local OTP verification,
@@ -401,6 +472,13 @@ that lockout is distinct from the staff session, which has no idle timeout.
   phone/user, revocation between request/verify and on the next session request. Prove
   global OTP DB paths never call withTenant and auth cannot read tenant/bridge data; device eligibility
   reads use only the verified device company, and candidate lookup cannot open another company.
+- **Request availability/privacy failures:** disabled-by-default and explicit incomplete activation
+  return the same generic pre-lookup refusal for every phone, with zero lookup/challenge/job/send.
+  Common dependency unavailability yields 503 before any identity lookup; quota checks remain generic.
+  Once preflight passes, eligible/unknown/nonmember/suppressed requests and injected lookup, preparation,
+  DB/lock and BullMQ failures/timeouts/unknown outcomes have identical 202 bodies (apart from opaque ids),
+  headers and recovery guidance, with comparable 200 ms timing distributions. Assert no late 503,
+  eligibility/suppression field or error-response leak; verify post-resolution failure stays generic.
 - **Crypto/challenge:** independent-key/domain test vectors; identical API/worker code and MAC, leading
   zeroes, unbiased conversion, missing/retiring keys, tampered context/MAC, constant-time primitive
   invocation and dummy path; 300-second boundary, fifth failure, parallel failures/successes, replay,
@@ -422,21 +500,32 @@ that lockout is distinct from the staff session, which has no idle timeout.
   SQL/provider errors have no raw-parameter fallback. Retention leaves suppression unchanged and stale
   jobs after purge cannot recreate/send a challenge. New tenant changes, if any, ship RLS negatives.
 - **STOP:** real Postgres tests for both STOP/auth authorization lock orders, fresh snapshot, rollback,
-  unknown commit, suppressed phone without a user, and attempted forbidden opt-in writes; zero code/job/
-  HTTP when STOP wins. Already-authorized behavior stays consistent with ADR-0013.
+  unknown commit, suppressed phone without a user, and attempted forbidden opt-in writes. STOP winning
+  initial preparation produces zero code/job/HTTP; STOP winning release after preparation clears the
+  MAC and prevents any queued job from claiming/sending. Already-authorized behavior stays consistent
+  with ADR-0013. Both paths return the common 202 and identical recovery guidance after preflight.
 - **Redis/transport:** exact cooldown/rolling-hour boundaries, simultaneous API instances and shared
   salon IP, trusted-proxy spoof rejection, verification reservation/count races, Redis unavailable;
   admission shared between queues at 1000 ms, no sleep/retry and zero HTTP on refusal/errors. Id-only
   enqueue, ≤200 ms bound, each commit/enqueue/claim/provider/result crash window, two processors,
   recreated/duplicate/stalled jobs and unknown commit produce ≤1 submission per challenge.
+  Preparation/enqueue failure or unknown enqueue never releases PREPARED or permits HTTP; exercise a
+  job created despite lost enqueue acknowledgment, a job arriving before release, cancellation/drain,
+  no late release after the response and no sweep/retry that revives these rows. Release requires
+  acknowledged enqueue plus a fresh locked STOP/activation/expiry check; STOP winning that lock blocks send.
 - **Worker/templates/gates:** transient OTP-only rendering with exact approved ar/en component order,
   missing locale/name/config fails closed, sensitive tenant parameters remain rejected; current-phone
   hash mismatch skips; expiry advanced after load/claim/materialization and immediately before HTTP;
   acceptance/4xx/429/5xx/timeout through FakeChannel, no provider credentials in CI. Saturate tenant
-  capacity and prove reserved OTP submission ≤5 seconds under specified pilot load; readiness rejects
-  all fake/allow-all/wrong-role/missing-key/template/STOP cases and OTP-only gate refuses tenant sends.
+  capacity and prove reserved OTP submission ≤5 seconds under specified pilot load. Start API and
+  worker with NODE_ENV=production, every notification setting empty and OTP/outbound disabled: both
+  start and stay ordinarily ready. With activation explicitly enabled, fake/allow-all/wrong-role/
+  missing-key/template/STOP configuration closes OTP only, with internal capability diagnostics and
+  no process/startup/readiness failure elsewhere. Prove disabled/unavailable workers skip existing jobs,
+  runtime capability loss prevents new HTTP, valid activation opens only OTP, and tenant sends stay refused.
 - **POS:** Playwright phone → code → sign-in, generic wrong code, countdown/new challenge/late message,
-  suppressed manager guidance/own-PIN path, cookies with Device header, operator replacement across tabs,
+  identical manager guidance/own-PIN path for suppression and other request outcomes, common disabled/
+  unavailable recovery, cookies with Device header, operator replacement across tabs,
   form/cache clearing, offline during request/verify, reconnect/revocation and no persisted login commands.
   PR 20 separately tests personal authenticator enrollment; PR 22 tests per-clock passkey assertions.
 
@@ -455,7 +544,9 @@ that lockout is distinct from the staff session, which has no idle timeout.
   work and from user-session membership discovery; list device-only login endpoints and purpose guards.
 - **ADR-0018 §7:** replace planned phone plugin with the auth-owned flow; specify separate code-MAC
   challenge storage, deterministic worker derivation, hash-only ledger/destination lookup, id-only direct
-  enqueue, reserved OTP concurrency, settled limits, loss/new-challenge recovery and OTP-only live gate.
+  enqueue, non-sendable PREPARED/release ordering, reserved OTP concurrency, settled limits,
+  loss/new-challenge recovery, default-disabled OTP activation independent of service readiness,
+  and uniform post-preflight request responses.
 - **ADR-0009/ADR-0013:** record deliberate non-registration of phoneNumber in PR 6, preserve 1.7.5;
   reconcile auth suppression grant and production gate, preserving STOP commit semantics and PR 20 UV.
 - **Phase 1 SPEC/plan and constitution:** record paired-device session scope, settled owner/orchestrator
@@ -485,6 +576,9 @@ that lockout is distinct from the staff session, which has no idle timeout.
 | Shared worker slots, allow-all admission or automatic resend | tenant bursts starve OTP or bypass owner limits; retry after uncertainty can duplicate submissions |
 | STOP bypass for OTP or tenant manager opt-in override | violates the settled owner decision and monotonic suppression; use the established PIN credential |
 | Enable all outbound WhatsApp when admission lands | admission alone supplies neither approved templates nor producers/sensitive-link transport; open OTP independently |
+| Require live OTP configuration for ordinary production startup/readiness | breaks disabled staging and unrelated services; gate only explicitly activated OTP capability |
+| Return 503 or suppression-specific response after phone lookup | exposes eligibility or suppression through status/body/timing; use the same 202 and recovery guidance after common preflight |
+| Enqueue a worker-claimable attempt before enqueue acknowledgment | an unknown/failed enqueue can still produce a job and send; keep PREPARED non-sendable until acknowledged enqueue and fresh authorization |
 
 ## Consequences
 
@@ -492,9 +586,19 @@ that lockout is distinct from the staff session, which has no idle timeout.
   worker receives a narrow global auth capability, and tenant isolation/dispatcher access are preserved.
 - No persisted plaintext OTP or ledger phone is needed. Two independent auth keys and immutable
   phone/context mapping become operational dependencies; phone changes cancel pending delivery.
+- OTP is opt-in and disabled by default. Empty notification settings in production-mode staging and
+  partial OTP activation do not block ordinary API/worker startup or readiness. Operators inspect a
+  separate internal OTP capability state; only explicitly enabled, fully checked OTP can send.
+- Common availability checks may refuse before phone lookup. After they pass, the same 202/body and
+  response window hide eligibility, suppression and preparation/enqueue failures; 202 is not evidence
+  of a challenge or delivery. Identical manager/own-PIN guidance preserves recovery without revealing
+  suppression. Internal secret-free failure records and metrics carry the operational diagnosis.
 - At-most-once delivery and consumption may lose a code/session on crashes or unknown commits. Recovery
   is a new, rate-limited challenge or the employee's own PIN with manager assistance if needed, never
   automatic resubmission, manager-PIN impersonation or suppression removal.
+- Non-sendable PREPARED attempts prevent preparation/failed or uncertain enqueue from authorizing a
+  send, including jobs created despite lost acknowledgment. Early jobs and crash gaps can lose a
+  code; no background retry/release repairs that gap. Request a new challenge under the settled limits.
 - Better Auth purpose restrictions must cover both Nest guards and its mounted handler. POS cookie
   support and scoped PIN recovery are real implementation work; existing Device/PIN results do not
   constitute completed staff login. OTP-only production activation remains conditional on live gates.
