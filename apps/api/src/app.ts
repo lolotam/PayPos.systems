@@ -33,6 +33,7 @@ import { settingsControllers, settingsProviders } from './modules/settings/index
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
 import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
 import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
+import { customersControllers, customersProviders } from './modules/customers/index.ts';
 import { staffControllers, staffProviders } from './modules/staff/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
@@ -121,6 +122,7 @@ class AppModule {
         },
         { provide: DATABASE, useValue: deps.database ?? null },
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
+        ...customersProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp),
         ...staffProviders(deps.database, deps.redis),
@@ -245,6 +247,7 @@ export async function createApp(
     HealthController,
     ...identityControllers,
     ...tenancyControllers,
+    ...customersControllers,
     ...settingsControllers,
     ...notificationsControllers,
     ...staffControllers,

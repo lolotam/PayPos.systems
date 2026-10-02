@@ -5,6 +5,7 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
   VALIDATION_FAILED: 400,
+  INVALID_CUSTOMER_PHONE: 400,
   BAD_REQUEST: 400,
   UNAUTHENTICATED: 401,
   AUTHENTICATION_FAILED: 401,
@@ -36,6 +37,7 @@ export type ErrorCode = keyof typeof STATUS;
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'VALIDATION_FAILED',
+  'INVALID_CUSTOMER_PHONE',
   'AUTHENTICATION_FAILED',
   'FEATURE_DISABLED',
   'PAIRING_CODE_INVALID',

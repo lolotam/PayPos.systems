@@ -39,6 +39,8 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    INVALID_CUSTOMER_PHONE:
+      'Choose a valid country calling code and enter national digits; Kuwait requires eight digits',
     OTP_UNAVAILABLE:
       'WhatsApp sign-in is unavailable. Ask your manager for help using your own cashier PIN.',
     OTP_INVALID: 'The sign-in code is not valid.',

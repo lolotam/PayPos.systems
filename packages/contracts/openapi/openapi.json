@@ -5,6 +5,55 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/customers/find-or-create": {
+      "post": {
+        "operationId": "findOrCreateCustomer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindOrCreateCustomerInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer with masked phone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "description": "Requires create:customers:company and the customers feature. Existing name and locale are preserved."
+      }
+    },
     "/v1/devices/me/attendance-qr": {
       "post": {
         "operationId": "issueAttendanceQr",
@@ -843,6 +892,87 @@
   },
   "components": {
     "schemas": {
+      "Customer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "ar",
+              "en"
+            ]
+          },
+          "opted_out": {
+            "type": "boolean"
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^\\*{3}[0-9]{2,3}(?![\\s\\S])"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "locale",
+          "opted_out",
+          "phone"
+        ],
+        "additionalProperties": false
+      },
+      "FindOrCreateCustomerInput": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "object",
+            "properties": {
+              "calling_code": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,2}(?![\\s\\S])"
+              },
+              "national_number": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[0-9]+(?![\\s\\S])"
+              }
+            },
+            "required": [
+              "calling_code",
+              "national_number"
+            ],
+            "additionalProperties": false
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[^\\p{Cc}]*(?![\\s\\S])"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "ar",
+              "en"
+            ]
+          }
+        },
+        "required": [
+          "phone",
+          "name",
+          "locale"
+        ],
+        "additionalProperties": false
+      },
       "AttendanceQrToken": {
         "type": "object",
         "properties": {

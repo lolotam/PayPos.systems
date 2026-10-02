@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { customer, findOrCreateCustomerInput } from './customers.js';
+import { customerPaths } from './customers-openapi.js';
 import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
 import {
   staffOtpRequestInput,
@@ -55,6 +57,8 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  customer,
+  findOrCreateCustomerInput,
   attendanceQrToken,
   attendanceQrBranch,
   attendanceQrIssue,
@@ -132,6 +136,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...customerPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(
