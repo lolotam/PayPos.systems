@@ -33,5 +33,7 @@ element by its visible text in either language.
 | 06 | [Commission engine I](06-commission-engine-i.md) — حساب العمولة (المرحلة الأولى) | #64 | nothing to deploy (no screen yet) |
 | 07 | [Package value and sessions](07-package-allocation.md) — قيمة الباقة وجلساتها | #65 | nothing to deploy (no screen yet) |
 | 08 | [Staff sign-in on the POS](08-staff-login-pos.md) — دخول الموظف على جهاز الكاشير | #61 | not yet (POS not deployed); WhatsApp codes need Meta templates + secrets |
+| 09 | [The branch attendance QR](09-attendance-qr.md) — باركود الحضور على جهاز الفرع | #72 | not yet (POS not deployed) |
+| 10 | [Find or create a customer by phone](10-customer-find-or-create.md) — البحث عن عميل أو إضافته برقم الموبايل | #71 | API only until PR 35 |
 
 New journeys are added after every merge.
