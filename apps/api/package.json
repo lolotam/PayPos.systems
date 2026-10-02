@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "start": "node --env-file-if-exists=../../.env dist/main.js",
-    "demo:seed": "tsc -p tsconfig.scripts.json && node --env-file-if-exists=../../.env dist/tools/scripts/seed-demo.js"
+    "demo:seed": "tsc -p tsconfig.scripts.json && node --env-file-if-exists=../../.env dist/tools/scripts/seed-demo.js",
+    "platform:bind-phone": "node --env-file-if-exists=../../.env scripts/bind-phone.ts"
   },
   "dependencies": {
     "@nestjs/common": "12.0.3",

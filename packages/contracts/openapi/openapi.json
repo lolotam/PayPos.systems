@@ -5,6 +5,205 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/devices/me/staff-pin/sign-in": {
+      "post": {
+        "operationId": "signInStaffPin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffPinInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Restricted staff session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSessionContext"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staff-pins/reset": {
+      "post": {
+        "operationId": "resetStaffPin",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffPinResetInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "PIN reset; no session issued"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/me/staff-otp/request": {
+      "post": {
+        "operationId": "requestStaffOtp",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffOtpRequestInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Indistinguishable acknowledgment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOtpAcknowledgement"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/me/staff-otp/verify": {
+      "post": {
+        "operationId": "verifyStaffOtp",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffOtpVerifyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Restricted staff session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSessionContext"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/me/staff-session": {
+      "get": {
+        "operationId": "getStaffSession",
+        "responses": {
+          "200": {
+            "description": "Current device operator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSessionContext"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/devices/me/staff-session/sign-out": {
+      "post": {
+        "operationId": "signOutStaff",
+        "responses": {
+          "200": {
+            "description": "Signed out"
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/webhooks/whatsapp": {
       "get": {
         "operationId": "verifyWhatsappWebhook",
@@ -612,6 +811,169 @@
   },
   "components": {
     "schemas": {
+      "StaffPinInput": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$"
+          },
+          "pin": {
+            "type": "string",
+            "pattern": "^\\d{4}$"
+          }
+        },
+        "required": [
+          "phone",
+          "pin"
+        ],
+        "additionalProperties": false
+      },
+      "StaffPinResetInput": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "pin": {
+            "type": "string",
+            "pattern": "^\\d{4}$"
+          }
+        },
+        "required": [
+          "user_id",
+          "pin"
+        ],
+        "additionalProperties": false
+      },
+      "StaffOtpRequestInput": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "ar",
+              "en"
+            ]
+          }
+        },
+        "required": [
+          "phone",
+          "locale"
+        ],
+        "additionalProperties": false
+      },
+      "StaffOtpVerifyInput": {
+        "type": "object",
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "code"
+        ],
+        "additionalProperties": false
+      },
+      "StaffOtpAcknowledgement": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACCEPTED"
+            ]
+          },
+          "challenge_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "expires_in": {
+            "type": "number",
+            "enum": [
+              300
+            ]
+          },
+          "retry_after": {
+            "type": "number",
+            "enum": [
+              60
+            ]
+          },
+          "recovery": {
+            "type": "string",
+            "enum": [
+              "ASK_MANAGER"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "challenge_id",
+          "expires_in",
+          "retry_after",
+          "recovery"
+        ],
+        "additionalProperties": false
+      },
+      "StaffSessionContext": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "company_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "device_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "user_id",
+          "company_id",
+          "business_id",
+          "branch_id",
+          "device_id",
+          "expires_at"
+        ],
+        "additionalProperties": false
+      },
       "WhatsappWebhookAcknowledgement": {
         "type": "object",
         "properties": {

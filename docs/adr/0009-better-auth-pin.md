@@ -12,10 +12,10 @@ here (`CLAUDE.md` §11: a new library needs an ADR).
 
 ## Decision
 
-| Package | Version | Why |
-|---|---|---|
-| `better-auth` | **1.7.5** | latest stable (2026-09-14), past pnpm's minimum release age; peer range includes `drizzle-orm ^0.45.2` |
-| `@better-auth/drizzle-adapter` | **1.7.5** | the adapter ships as its own package at the same version |
+| Package                        | Version   | Why                                                                                                    |
+| ------------------------------ | --------- | ------------------------------------------------------------------------------------------------------ |
+| `better-auth`                  | **1.7.5** | latest stable (2026-09-14), past pnpm's minimum release age; peer range includes `drizzle-orm ^0.45.2` |
+| `@better-auth/drizzle-adapter` | **1.7.5** | the adapter ships as its own package at the same version                                               |
 
 - **Plugins:** email + password and `two-factor` (TOTP) only. **Not** `organization` (ADR-0003 §5.1).
 - **Sign-up closed:** `emailAndPassword.disableSignUp`. Users are created server-side by `AuthService.provisionUser`,
@@ -54,8 +54,7 @@ here (`CLAUDE.md` §11: a new library needs an ADR).
 ## Amendment — 2026-09-23, T9b
 
 - **`phone-number`:** its columns (`user.phone_number` unique and E.164-checked, `user.phone_number_verified`) are
-  created now (migration 0014), so the identity schema is complete; the plugin is **registered** only when a delivery
-  channel exists (P1-T7). Registering it earlier would expose `/v1/auth/phone-number/*`, whose `sendOTP` has nowhere
+  created now (migration 0014), so the identity schema is complete; ADR-0019 deliberately leaves the plugin **unregistered** in PR 6 and uses an auth-owned, device-bound flow on the unchanged 1.7.5 session primitive. Registering it would expose `/v1/auth/phone-number/*`, whose `sendOTP` has nowhere
   to send. A test asserts those routes answer 404.
 - **`api-key`:** in 1.7 it is no longer part of `better-auth` but the separate package `@better-auth/api-key`.
   Installing it before the public API (P5-T7) would add an unused dependency and supply-chain surface for two phases,
@@ -66,4 +65,4 @@ here (`CLAUDE.md` §11: a new library needs an ADR).
   argon2 / pbkdf2, `better-auth` and `@better-auth/*`, and from `node:crypto` / `crypto` the `scrypt`, `pbkdf2` and
   `argon2` functions plus default and namespace imports (either reaches them). ESLint refuses them in static imports,
   `import()` and `require()` everywhere except `packages/auth` (`allowDatabaseFacade('createAuthDatabase',
-  { credentials: true })`); the `use-cases/` rule, which replaces the base import rule, composes the same list back in.
+{ credentials: true })`); the `use-cases/` rule, which replaces the base import rule, composes the same list back in.

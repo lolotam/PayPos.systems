@@ -4,9 +4,10 @@ import { defineConfig } from 'vitest/config';
 // template per run, one cloned database per spec file.
 export default defineConfig({
   test: {
+    maxWorkers: 2,
     globalSetup: ['../db/test/global-setup.ts'],
     include: ['src/**/*.spec.ts'],
     testTimeout: 20_000,
-    hookTimeout: 60_000,
+    hookTimeout: 120_000,
   },
 });

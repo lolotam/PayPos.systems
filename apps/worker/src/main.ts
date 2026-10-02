@@ -4,6 +4,13 @@ import {
   createPlatformWhatsappDatabase,
 } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import {
+  createStaffOtpExecution,
+  createStaffOtpMaintenance,
+  readStaffOtpConfiguration,
+  type StaffOtpExecution,
+} from '@pospay/auth';
+import { createPhoneIdentity, phoneLockKey } from '@pospay/notifications';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
@@ -14,6 +21,7 @@ import {
   startWhatsappInbound,
   readNotificationConfiguration,
   startNotificationQueue,
+  startStaffOtpWorker,
 } from './modules/notifications/index.ts';
 import { createDispatchLoop } from './outbox/dispatch-loop.ts';
 import { readConfig } from './shared/config.ts';
@@ -31,7 +39,7 @@ redis.on('error', (error: unknown) => {
   logger.warn({ err: error }, 'redis connection error');
 });
 
-// ADR-0013 §5: معالجة in-app والاستقبال مستقلة؛ الإرسال وOTP يظلان مقفولين حتى admission المعتمد في PR 6.
+// ADR-0019: استقبال STOP وin-app مستقلان؛ تفعيل OTP لا يفتح إرسال الشركات.
 const production = process.env['NODE_ENV'] === 'production';
 const notifications = production
   ? null
@@ -50,8 +58,23 @@ const inApp = production
     })
   : null;
 const intakeUrl = process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL'];
-const globalDatabase = intakeUrl ? createPlatformWhatsappDatabase({ url: intakeUrl }) : undefined;
+let globalDatabase: ReturnType<typeof createPlatformWhatsappDatabase> | undefined;
 let inbound: ReturnType<typeof startWhatsappInbound> | undefined;
+let otp: ReturnType<typeof startStaffOtpWorker> | undefined;
+let otpAuth: StaffOtpExecution | undefined;
+let capabilityTimer: NodeJS.Timeout | undefined;
+const maintenance = process.env['AUTH_DATABASE_URL']
+  ? createStaffOtpMaintenance({
+      databaseUrl: process.env['AUTH_DATABASE_URL'],
+      phoneLockKey,
+      onFailure: () =>
+        logger.warn(
+          { capability: { name: 'STAFF_LOGIN', outcome: 'RETENTION_FAILED' } },
+          'staff OTP retention unavailable',
+        ),
+    })
+  : undefined;
+const otpConfiguration = () => readStaffOtpConfiguration(process.env, 'worker');
 const KNOWN_EVENT_TYPES = [
   ...(notifications?.eventTypes ?? []),
   ...(inApp?.eventTypes ?? []),
@@ -74,8 +97,12 @@ const deliver = queue?.deliver ?? businessDeliver;
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
 const release = async (): Promise<void> => {
+  clearInterval(capabilityTimer);
   await Promise.allSettled([
     inbound?.close(),
+    otp?.close(),
+    otpAuth?.close(),
+    maintenance?.close(),
     globalDatabase?.close(),
     queue?.close(),
     dispatcher.close(),
@@ -86,18 +113,106 @@ const release = async (): Promise<void> => {
 };
 
 try {
-  if (globalDatabase !== undefined) {
-    await globalDatabase.ping();
-    inbound = startWhatsappInbound(globalDatabase, config.REDIS_URL, logger);
-    await inbound.ready();
+  if (intakeUrl) {
+    try {
+      globalDatabase = createPlatformWhatsappDatabase({ url: intakeUrl });
+      await globalDatabase.ping();
+      inbound = startWhatsappInbound(globalDatabase, config.REDIS_URL, logger);
+      await inbound.ready();
+    } catch (error) {
+      if (process.env['STAFF_OTP_ENABLED'] !== 'true') throw error;
+      await inbound?.close().catch(() => undefined);
+      await globalDatabase?.close().catch(() => undefined);
+      inbound = undefined;
+      globalDatabase = undefined;
+    }
   }
+  const initialOtp = otpConfiguration();
+  if (initialOtp.state === 'READY') {
+    try {
+      const identity = createPhoneIdentity(
+        process.env['NOTIFICATION_PHONE_HASH_KEY'] ?? '',
+        process.env['NOTIFICATION_PHONE_HASH_KEY_ID'] ?? '',
+      );
+      const capability = {
+        ready: async () => {
+          try {
+            const current = otpConfiguration();
+            if (
+              current.state !== 'READY' ||
+              current.fingerprint !== initialOtp.fingerprint ||
+              inbound === undefined
+            )
+              return false;
+            await inbound.ready();
+            await otpAuth?.readiness();
+            await redis.ping();
+            return true;
+          } catch {
+            return false;
+          }
+        },
+      };
+      otpAuth = createStaffOtpExecution({
+        databaseUrl: process.env['AUTH_DATABASE_URL'] ?? '',
+        configuration: otpConfiguration,
+        capability,
+        strategies: { identify: identity.identify, phoneLockKey },
+      });
+      if (await capability.ready()) {
+        otp = startStaffOtpWorker({
+          env: process.env,
+          auth: otpAuth,
+          capability,
+          redis,
+          redisUrl: config.REDIS_URL,
+          clock: { now: () => new Date() },
+          ids: systemUuidV7(),
+          diagnostics: {
+            record: (outcome) =>
+              logger.info(
+                { capability: { name: 'STAFF_LOGIN', outcome } },
+                'staff OTP execution outcome',
+              ),
+          },
+        });
+        await otp.ready();
+        const publish = async () => {
+          if (await capability.ready())
+            await redis.set('staff-otp:worker-capability', initialOtp.fingerprint, 'PX', 3000);
+          else await redis.del('staff-otp:worker-capability');
+        };
+        await publish();
+        capabilityTimer = setInterval(() => {
+          void publish().catch(() => undefined);
+        }, 1000);
+      }
+    } catch {
+      /* تفعيل جزئي يغلق OTP فقط، ولا يوقف الخدمات الأخرى. */
+      await otp?.close().catch(() => undefined);
+      await otpAuth?.close().catch(() => undefined);
+      otp = undefined;
+    }
+  }
+  logger.info(
+    {
+      capability: {
+        name: 'STAFF_LOGIN',
+        state:
+          initialOtp.state === 'DISABLED'
+            ? 'DISABLED'
+            : otp === undefined
+              ? 'UNAVAILABLE'
+              : 'READY',
+      },
+    },
+    'staff OTP capability',
+  );
   const worker = await createWorker(
     {
       readiness: [
         ...(queue === null ? [] : [{ name: 'notifications', check: () => queue.ready() }]),
-        ...(inbound === undefined
-          ? []
-          : [{ name: 'whatsapp-inbound', check: inbound.ready }]),
+        ...(inbound === undefined ? [] : [{ name: 'whatsapp-inbound', check: inbound.ready }]),
         { name: 'database', check: () => app.ping() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
         { name: 'dispatcher', check: () => dispatcher.ping() },
@@ -109,9 +224,12 @@ try {
         },
       ],
       stopPolling: async () => {
+        maintenance?.stop();
         await loop.stop();
         await queue?.stop();
         await inbound?.stop();
+        clearInterval(capabilityTimer);
+        await otp?.stop();
       },
       release,
     },

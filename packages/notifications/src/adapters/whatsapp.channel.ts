@@ -7,6 +7,7 @@ export interface WhatsAppOptions {
   readonly phoneNumberId: string;
   readonly now: () => Date;
   readonly request?: typeof fetch;
+  readonly beforeSubmit?: () => Promise<boolean>;
 }
 
 const MESSAGE_ID = /^[a-zA-Z0-9._=-]{1,512}$/;
@@ -49,6 +50,8 @@ export class WhatsAppChannel implements Channel {
     if (remaining <= 0) return { kind: 'expired' };
     const timer = setTimeout(() => abort.abort(), Math.min(10_000, remaining));
     try {
+      if (this.options.beforeSubmit !== undefined && !(await this.options.beforeSubmit()))
+        return unknown('NETWORK_UNKNOWN');
       // Last clock check and submission are synchronous neighbours; no redirect or automatic retry.
       if (input.deadline !== null && this.options.now().getTime() >= input.deadline.getTime())
         return { kind: 'expired' };

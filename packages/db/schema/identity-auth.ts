@@ -4,6 +4,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -34,6 +35,8 @@ export const user = pgTable(
     // channel (P1-T7), so nothing can set them yet. E.164, stored whole: this is the auth database, never a log.
     phoneNumber: text('phone_number'),
     phoneNumberVerified: boolean('phone_number_verified'),
+    // ربط معتمد عبر واجهة المنصة المراجعة، وليس تغيير مدير الشركة للهاتف العام.
+    phoneBindingApprovedAt: timestamp('phone_binding_approved_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -62,6 +65,11 @@ export const session = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     // hint بس (ADR-0003 §4): بيتراجع على الـ memberships في كل request، ومبيدّيش أي صلاحية لوحده.
     activeCompanyId: uuid('active_company_id'),
+    // بيانات خادم فقط؛ لا تمنح عضوية ولا تسمح لجلسة الجهاز بفتح الإدارة.
+    purpose: text('purpose'),
+    staffDeviceContext: jsonb('staff_device_context'),
+    staffAuthenticatedAt: timestamp('staff_authenticated_at', { withTimezone: true }),
+    staffAbsoluteDeadline: timestamp('staff_absolute_deadline', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [uniqueIndex('session_token_key').on(t.token), index('session_user_id_idx').on(t.userId)],

@@ -75,13 +75,21 @@ export type ApiConfig = z.output<typeof schema>;
  * @returns the validated configuration
  */
 export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
-  const result = schema.safeParse(env);
+  const input =
+    env['STAFF_OTP_ENABLED'] === 'true' &&
+    !schema.shape.PLATFORM_NOTIFICATIONS_DATABASE_URL.safeParse(
+      env['PLATFORM_NOTIFICATIONS_DATABASE_URL'],
+    ).success
+      ? { ...env, PLATFORM_NOTIFICATIONS_DATABASE_URL: undefined }
+      : env;
+  const result = schema.safeParse(input);
   if (!result.success) {
     const keys = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(`Invalid API configuration: ${keys.join(', ')} — see .env.example`);
   }
   if (
     env['NODE_ENV'] === 'production' &&
+    env['STAFF_OTP_ENABLED'] !== 'true' &&
     (env['WHATSAPP_APP_SECRET'] || env['WHATSAPP_WEBHOOK_VERIFY_TOKEN']) &&
     result.data.TRUSTED_PROXY_CIDRS.length === 0
   )

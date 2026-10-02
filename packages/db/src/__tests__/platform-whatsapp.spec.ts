@@ -79,10 +79,10 @@ it('intake cannot delete/truncate/audit-read/update or assume the reader', async
   await expect(intake`SET ROLE pospay_suppression_reader`).rejects.toThrow(/permission denied/);
 });
 
-it('app gets only the boolean function; auth/dispatcher/intake cannot execute it', async () => {
+it('app and auth get only the boolean function; dispatcher/intake cannot execute it', async () => {
   for (const [url, allowed] of [
     [test.appUrl, true],
-    [test.authUrl, false],
+    [test.authUrl, true],
     [test.dispatcherUrl, false],
     [test.notificationsUrl, false],
   ] as const) {
