@@ -35,7 +35,7 @@ let otpDependencies: ReturnType<typeof staffOtpDependencies> | undefined;
 const otpConfiguration = () =>
   readStaffOtpConfiguration(process.env, 'api', readOtpTemplateApproval(process.env));
 const intakeUrl = config.PLATFORM_NOTIFICATIONS_DATABASE_URL;
-const globalDatabase = intakeUrl ? createPlatformWhatsappDatabase({ url: intakeUrl }) : undefined;
+let globalDatabase: ReturnType<typeof createPlatformWhatsappDatabase> | undefined;
 let whatsapp: ReturnType<typeof createWhatsappIntake> | undefined;
 
 // No offline queue: while Redis is down a command fails at once, so /ready reports it instead of hanging.
@@ -76,22 +76,38 @@ const release = async (): Promise<void> => {
 };
 
 try {
-  if (globalDatabase !== undefined) {
+  if (intakeUrl !== undefined) {
     try {
       if (process.env['NODE_ENV'] === 'production' && config.TRUSTED_PROXY_CIDRS.length === 0)
         throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
+      globalDatabase = createPlatformWhatsappDatabase({ url: intakeUrl });
       whatsapp = createWhatsappIntake(globalDatabase, config.REDIS_URL, process.env, logger);
-      await globalDatabase.ping();
-    } catch (error) {
+      await whatsapp.ready();
+      logger.info(
+        { capability: { name: 'WHATSAPP_INTAKE', state: 'READY' } },
+        'staff OTP capability',
+      );
+    } catch {
       logger.warn(
         { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
         'staff OTP capability',
       );
-      throw error;
+      await whatsapp?.close().catch(() => undefined);
+      await globalDatabase?.close().catch(() => undefined);
+      whatsapp = undefined;
+      globalDatabase = undefined;
     }
   } else {
     logger.info(
-      { capability: { name: 'WHATSAPP_INTAKE', state: 'DISABLED', reason: 'NOT_CONFIGURED' } },
+      {
+        capability: {
+          name: 'WHATSAPP_INTAKE',
+          state: process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL'] ? 'UNAVAILABLE' : 'DISABLED',
+          reason: process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL']
+            ? 'INVALID_CONFIGURATION'
+            : 'NOT_CONFIGURED',
+        },
+      },
       'staff OTP capability',
     );
   }
@@ -111,7 +127,7 @@ try {
   });
   const service = auth;
   const initialOtp = otpConfiguration();
-  if (initialOtp.state === 'READY') {
+  if (initialOtp.state === 'READY' && whatsapp !== undefined) {
     try {
       otpDependencies = staffOtpDependencies({
         database,
@@ -208,13 +224,9 @@ try {
     },
     'staff OTP capability',
   );
-  const intake = whatsapp;
   const app = await createApp(
     {
       readiness: [
-        ...(intake === undefined
-          ? []
-          : [{ name: 'whatsapp-inbound', check: () => intake.ready() }]),
         { name: 'database', check: () => database.ping() },
         { name: 'auth', check: () => service.ping() },
         {

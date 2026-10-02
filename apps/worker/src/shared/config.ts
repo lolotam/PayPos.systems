@@ -5,7 +5,10 @@ import { z } from 'zod';
 const schema = z.object({
   PLATFORM_NOTIFICATIONS_DATABASE_URL: z.preprocess(
     (value) => (value === '' ? undefined : value),
-    z.url({ protocol: /^postgres(ql)?$/ }).optional(),
+    z
+      .url({ protocol: /^postgres(ql)?$/ })
+      .optional()
+      .catch(undefined),
   ),
   // pospay_app — consumers apply effects inside withTenant(event.company_id).
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),

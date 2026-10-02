@@ -90,6 +90,12 @@ it('publishes a domain-separated keyed fingerprint rather than an offline secret
     templates: config.templates,
     componentsAr: valid['STAFF_OTP_COMPONENTS_AR'],
     componentsEn: valid['STAFF_OTP_COMPONENTS_EN'],
+    sender: { wabaId: valid['WHATSAPP_WABA_ID'], phoneNumberId: valid['WHATSAPP_PHONE_NUMBER_ID'] },
+    stopIntake: {
+      appSecret: valid['WHATSAPP_APP_SECRET'],
+      verifyToken: valid['WHATSAPP_WEBHOOK_VERIFY_TOKEN'],
+      stopButtonId: valid['WHATSAPP_STOP_BUTTON_ID'] || null,
+    },
     derivation: [['synthetic-d', valid['STAFF_OTP_DERIVATION_KEY']]],
     verification: [['synthetic-v', valid['STAFF_OTP_VERIFICATION_KEY']]],
     phoneKey: valid['NOTIFICATION_PHONE_HASH_KEY'],
@@ -103,4 +109,18 @@ it('publishes a domain-separated keyed fingerprint rather than an offline secret
       .update(payload)
       .digest('hex'),
   );
+});
+
+it.each([
+  'WHATSAPP_WABA_ID',
+  'WHATSAPP_PHONE_NUMBER_ID',
+  'WHATSAPP_APP_SECRET',
+  'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+  'WHATSAPP_STOP_BUTTON_ID',
+])('refuses root agreement when sender/STOP identity %s differs', (name) => {
+  const api = readStaffOtpConfiguration(valid, 'api');
+  const worker = readStaffOtpConfiguration({ ...valid, [name]: 'synthetic-other' }, 'worker');
+  if (api.state !== 'READY' || worker.state !== 'READY')
+    throw new Error('SYNTHETIC_CONFIG_MISSING');
+  expect(api.fingerprint).not.toBe(worker.fingerprint);
 });

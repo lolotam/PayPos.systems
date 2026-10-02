@@ -10,7 +10,12 @@ import {
   readStaffOtpConfiguration,
   type StaffOtpExecution,
 } from '@pospay/auth';
-import { createPhoneIdentity, phoneLockKey, readOtpTemplateApproval } from '@pospay/notifications';
+import {
+  createPhoneIdentity,
+  phoneLockKey,
+  readOtpTemplateApproval,
+  readWhatsappWebhookConfiguration,
+} from '@pospay/notifications';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
@@ -121,25 +126,42 @@ const release = async (): Promise<void> => {
 try {
   if (intakeUrl) {
     try {
+      readWhatsappWebhookConfiguration(process.env);
       globalDatabase = createPlatformWhatsappDatabase({ url: intakeUrl });
       await globalDatabase.ping();
       inbound = startWhatsappInbound(globalDatabase, config.REDIS_URL, logger);
       await inbound.ready();
-    } catch (error) {
+      logger.info(
+        { capability: { name: 'WHATSAPP_INTAKE', state: 'READY' } },
+        'staff OTP capability',
+      );
+    } catch {
       logger.warn(
         { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
         'staff OTP capability',
       );
-      throw error;
+      await inbound?.stop().catch(() => undefined);
+      await inbound?.close().catch(() => undefined);
+      await globalDatabase?.close().catch(() => undefined);
+      inbound = undefined;
+      globalDatabase = undefined;
     }
   } else {
     logger.info(
-      { capability: { name: 'WHATSAPP_INTAKE', state: 'DISABLED', reason: 'NOT_CONFIGURED' } },
+      {
+        capability: {
+          name: 'WHATSAPP_INTAKE',
+          state: process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL'] ? 'UNAVAILABLE' : 'DISABLED',
+          reason: process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL']
+            ? 'INVALID_CONFIGURATION'
+            : 'NOT_CONFIGURED',
+        },
+      },
       'staff OTP capability',
     );
   }
   const initialOtp = otpConfiguration();
-  if (initialOtp.state === 'READY') {
+  if (initialOtp.state === 'READY' && inbound !== undefined) {
     try {
       const identity = createPhoneIdentity(
         process.env['NOTIFICATION_PHONE_HASH_KEY'] ?? '',
@@ -256,7 +278,6 @@ try {
     {
       readiness: [
         ...(queue === null ? [] : [{ name: 'notifications', check: () => queue.ready() }]),
-        ...(inbound === undefined ? [] : [{ name: 'whatsapp-inbound', check: inbound.ready }]),
         { name: 'database', check: () => app.ping() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
         { name: 'dispatcher', check: () => dispatcher.ping() },

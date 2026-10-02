@@ -7,14 +7,14 @@ const valid = {
   REDIS_URL: 'redis://127.0.0.1:6379',
 };
 
-it.each(['true', 'false'])('OTP=%s does not bypass intake configuration validation', (enabled) => {
-  expect(() =>
+it.each(['true', 'false'])('OTP=%s isolates invalid optional intake configuration', (enabled) => {
+  expect(
     readConfig({
       ...valid,
       STAFF_OTP_ENABLED: enabled,
       PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic-invalid',
-    }),
-  ).toThrow(/PLATFORM_NOTIFICATIONS_DATABASE_URL/);
+    }).PLATFORM_NOTIFICATIONS_DATABASE_URL,
+  ).toBeUndefined();
   expect(
     readConfig({ ...valid, NODE_ENV: 'production', PLATFORM_NOTIFICATIONS_DATABASE_URL: '' })
       .PLATFORM_NOTIFICATIONS_DATABASE_URL,

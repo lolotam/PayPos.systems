@@ -1,5 +1,5 @@
 import { present } from '../../../db/test/present.ts';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
@@ -47,6 +47,20 @@ afterAll(async () => {
   await auth?.close();
   await owner?.end();
   await test?.drop();
+});
+
+it('keys unknown-phone PIN counters with an auth-owned domain-separated HMAC', () => {
+  const phone = '+99900000001';
+  const key = auth.staff.pinCounterKey(phone);
+  expect(key).toBe(
+    `staff-phone:${createHmac('sha256', 'synthetic'.repeat(8))
+      .update('pospay:staff-pin:counter:v1\0')
+      .update(phone)
+      .digest('hex')}`,
+  );
+  expect(key).toMatch(/^staff-phone:[a-f0-9]{64}$/);
+  expect(key).not.toContain(phone);
+  expect(key).not.toBe(auth.staff.pinCounterKey('+99900000002'));
 });
 
 it('persists server-only fields and a host-only Secure HttpOnly isolated cookie', async () => {

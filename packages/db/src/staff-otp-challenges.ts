@@ -9,17 +9,22 @@ import type { OtpChallengeRecord, OtpDeviceContext, OtpPreparation } from './sta
 
 export function otpChallenges(runtime: OtpRuntime) {
   return {
-    mappingValid: (userId: string, hash: Uint8Array, identify: (phone: string) => Uint8Array) =>
-      mappingValid(runtime, userId, hash, identify),
+    mappingValid: (
+      userId: string,
+      hash: Uint8Array,
+      identify: (phone: string) => Uint8Array,
+      deadline?: Date,
+    ) => mappingValid(runtime, { userId, hash, identify, deadline }),
     lookup: (phone: string, deadline: Date) => lookup(runtime, phone, deadline),
     prepare: (input: OtpPreparation) => prepare(runtime, input),
-    find: (id: string) => find(runtime, id),
+    find: (id: string, deadline?: Date) => find(runtime, id, deadline),
     consume: (
       id: string,
       device: OtpDeviceContext,
       compare: (c: OtpChallengeRecord) => boolean,
       identify: (phone: string) => Uint8Array,
-    ) => consume(runtime, id, device, compare, identify),
+      deadline?: Date,
+    ) => consume(runtime, { id, device, compare, identify, deadline }),
   };
 }
 
@@ -75,28 +80,32 @@ const prepare = (runtime: OtpRuntime, input: OtpPreparation) =>
     return !blocked;
   }, input.preparationDeadline);
 
-const find = (runtime: OtpRuntime, id: string) =>
+const find = (runtime: OtpRuntime, id: string, deadline?: Date) =>
   runtime.run(async (tx): Promise<OtpChallengeRecord | null> => {
     const [row] = await tx.select().from(challenges).where(eq(challenges.id, id));
     return row === undefined
       ? null
       : { ...row, deviceContext: row.deviceContext as OtpDeviceContext };
-  });
+  }, deadline);
 
 const consume = (
   runtime: OtpRuntime,
-  id: string,
-  device: OtpDeviceContext,
-  compare: (c: OtpChallengeRecord) => boolean,
-  identify: (phone: string) => Uint8Array,
+  input: {
+    id: string;
+    device: OtpDeviceContext;
+    compare: (c: OtpChallengeRecord) => boolean;
+    identify: (phone: string) => Uint8Array;
+    deadline: Date | undefined;
+  },
 ) =>
   runtime.run(async (tx): Promise<string | null> => {
+    const { id, device, compare, identify } = input;
     const [hint] = await tx
       .select({ hash: challenges.recipientHash })
       .from(challenges)
       .where(eq(challenges.id, id));
     if (hint === undefined) return null;
-    const now = await runtime.lock(tx, hint.hash);
+    await runtime.lock(tx, hint.hash);
     const [row] = await tx.select().from(challenges).where(eq(challenges.id, id)).for('update');
     if (row === undefined || row.status !== 'ACTIVE') return null;
     const c = { ...row, deviceContext: row.deviceContext as OtpDeviceContext };
@@ -113,6 +122,7 @@ const consume = (
       JSON.stringify(Object.entries(c.deviceContext).sort()) ===
       JSON.stringify(Object.entries(device).sort());
     if (!scope) return null;
+    const now = await runtime.now(tx);
     if (now >= row.expiresAt || !mapped) {
       await tx
         .update(challenges)
@@ -137,15 +147,19 @@ const consume = (
     if (matched && row.userId !== null)
       await tx.update(user).set({ phoneNumberVerified: true }).where(eq(user.id, row.userId));
     return matched ? row.userId : null;
-  });
+  }, input.deadline);
 
 const mappingValid = (
   runtime: OtpRuntime,
-  userId: string,
-  hash: Uint8Array,
-  identify: (phone: string) => Uint8Array,
+  input: {
+    userId: string;
+    hash: Uint8Array;
+    identify: (phone: string) => Uint8Array;
+    deadline: Date | undefined;
+  },
 ) =>
   runtime.run(async (tx) => {
+    const { userId, hash, identify } = input;
     const [row] = await tx
       .select({ phone: user.phoneNumber, approved: user.phoneBindingApprovedAt })
       .from(user)
@@ -155,4 +169,4 @@ const mappingValid = (
       row.approved != null &&
       Buffer.from(identify(row.phone)).equals(Buffer.from(hash))
     );
-  });
+  }, input.deadline);

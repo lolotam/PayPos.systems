@@ -53,6 +53,7 @@ function fixture(configuration: OtpConfiguration = ready) {
     sessions: {
       ready: vi.fn(async () => undefined),
       candidate: vi.fn(async () => null),
+      pinCounterKey: vi.fn(() => 'synthetic-counter'),
       close: vi.fn(async () => undefined),
       issue: vi.fn(async (_user, _device, validate) => {
         if (!(await validate())) throw new StaffProofChanged();
@@ -254,6 +255,12 @@ it.each(['missing', 'suppressed', 'wrong', 'database'])(
       present(db.find.mock.invocationCallOrder[0]),
     );
     expect(f.options.clock.waitUntil).toHaveBeenCalledWith(new Date(200));
+    expect(db.find).toHaveBeenCalledWith(input.challengeId, new Date(200));
+    if (outcome === 'wrong') {
+      expect(f.options.eligibility.deviceValid).toHaveBeenCalledWith(context, new Date(200));
+      expect(f.options.eligibility.eligible).toHaveBeenCalledWith('user', context, new Date(200));
+      expect(db.consume.mock.calls[0]?.at(-1)).toEqual(new Date(200));
+    }
   },
 );
 

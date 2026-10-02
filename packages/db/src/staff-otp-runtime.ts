@@ -9,6 +9,8 @@ export interface OtpRuntime {
   run<T>(work: (tx: Tx) => Promise<T>, deadline?: Date): Promise<T>;
   /** يقفل الهوية نفسها التي يستعملها STOP، ثم يقرأ ساعة قاعدة البيانات. */
   lock(tx: Tx, hash: Uint8Array): Promise<Date>;
+  /** ساعة جديدة بعد اكتمال الأقفال؛ الانتظار لا يمد صلاحية الاعتماد. */
+  now(tx: Tx): Promise<Date>;
   /** لقطة statement جديدة بعد القفل تمنع تفويت STOP المعتمد. */
   suppressed(tx: Tx, hash: Uint8Array): Promise<boolean>;
 }
@@ -21,6 +23,7 @@ export function createOtpRuntime(
   return {
     warm: pool.warm,
     close: pool.close,
+    now: databaseNow,
     run: async (work, deadline = new Date(Date.now() + 1000)) => {
       try {
         return await pool.run(async (tx) => {
@@ -48,9 +51,7 @@ export function createOtpRuntime(
       } catch (error) {
         throw operationFailure('PHONE_LOCK', error);
       }
-      const [row] = await tx.execute<{ now: Date }>(sql`SELECT clock_timestamp() AS now`);
-      if (row === undefined) throw new Error('OTP_DATABASE_UNAVAILABLE');
-      return new Date(row.now);
+      return databaseNow(tx);
     },
     suppressed: async (tx, hash) => {
       const [row] = await tx.execute<{ blocked: boolean }>(sql`
@@ -59,6 +60,12 @@ export function createOtpRuntime(
       return row.blocked;
     },
   };
+}
+
+async function databaseNow(tx: Tx): Promise<Date> {
+  const [row] = await tx.execute<{ now: Date }>(sql`SELECT clock_timestamp() AS now`);
+  if (row === undefined) throw new Error('OTP_DATABASE_UNAVAILABLE');
+  return new Date(row.now);
 }
 
 function operationFailure(operation: string, error: unknown): Error {

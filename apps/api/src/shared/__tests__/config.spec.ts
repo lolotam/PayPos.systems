@@ -68,15 +68,17 @@ it('allows empty notification settings in production and validates the optional 
       WHATSAPP_WEBHOOK_VERIFY_TOKEN: '',
     }),
   ).toMatchObject({ PLATFORM_NOTIFICATIONS_DATABASE_URL: undefined, TRUSTED_PROXY_CIDRS: [] });
-  expect(() =>
-    readConfig({ ...valid, PLATFORM_NOTIFICATIONS_DATABASE_URL: 'invalid-test-secret' }),
-  ).toThrow(/PLATFORM_NOTIFICATIONS_DATABASE_URL/);
+  expect(
+    readConfig({ ...valid, PLATFORM_NOTIFICATIONS_DATABASE_URL: 'invalid-test-secret' })
+      .PLATFORM_NOTIFICATIONS_DATABASE_URL,
+  ).toBeUndefined();
 });
 
-it('requires trusted proxies when webhook secrets are configured in production', () => {
-  expect(() =>
-    readConfig({ ...valid, NODE_ENV: 'production', WHATSAPP_APP_SECRET: 'test-secret' }),
-  ).toThrow(/TRUSTED_PROXY_CIDRS/);
+it('leaves the webhook trusted-proxy requirement to the optional intake capability', () => {
+  expect(
+    readConfig({ ...valid, NODE_ENV: 'production', WHATSAPP_APP_SECRET: 'test-secret' })
+      .TRUSTED_PROXY_CIDRS,
+  ).toEqual([]);
   expect(
     readConfig({
       ...valid,
@@ -97,23 +99,23 @@ it('rejects invalid proxy CIDRs without printing input', () => {
 });
 
 it.each(['true', 'false'])(
-  'OTP=%s does not bypass intake URL or production proxy checks',
+  'OTP=%s isolates invalid optional settings from core configuration',
   (enabled) => {
-    expect(() =>
+    expect(
       readConfig({
         ...valid,
         STAFF_OTP_ENABLED: enabled,
         PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic-invalid',
-      }),
-    ).toThrow(/PLATFORM_NOTIFICATIONS_DATABASE_URL/);
-    expect(() =>
+      }).PLATFORM_NOTIFICATIONS_DATABASE_URL,
+    ).toBeUndefined();
+    expect(
       readConfig({
         ...valid,
         STAFF_OTP_ENABLED: enabled,
         NODE_ENV: 'production',
         WHATSAPP_APP_SECRET: 'synthetic',
         TRUSTED_PROXY_CIDRS: '',
-      }),
-    ).toThrow(/TRUSTED_PROXY_CIDRS/);
+      }).TRUSTED_PROXY_CIDRS,
+    ).toEqual([]);
   },
 );

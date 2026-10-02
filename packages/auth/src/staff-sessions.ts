@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { makeSignature } from 'better-auth/crypto';
 import { parseCookies } from 'better-auth/cookies/utils';
 import type { StaffOtpDatabase } from '@pospay/db';
@@ -41,6 +41,8 @@ export interface StaffSessions {
   ready(): Promise<void>;
   /** يقرأ الربط العالمي المعتمد فقط؛ لا ينشئ مستخدماً ولا يمنح صلاحية شركة. */
   candidate(phone: string): Promise<string | null>;
+  /** بصمة keyed خاصة بعداد PIN؛ الهاتف الغائب لا يشترك مع بقية الهواتف في قفل واحد. */
+  pinCounterKey(phone: string): string;
   /** يتم تدوير المشغل بعد إنشاء الجلسة الجديدة وتأكيد المعاملة فقط. */
   issue(
     userId: string,
@@ -79,6 +81,11 @@ export function createStaffSessions(options: SessionOptions): StaffSessions {
     close: () => options.database.close(),
     ready: () => options.database.warm(),
     candidate: (phone) => options.database.lookup(phone, new Date(options.now().getTime() + 1000)),
+    pinCounterKey: (phone) =>
+      `staff-phone:${createHmac('sha256', options.secret)
+        .update('pospay:staff-pin:counter:v1\0')
+        .update(phone)
+        .digest('hex')}`,
     issue: (userId, device, validate) => issueStaffSession(options, { userId, device, validate }),
     resolve,
     signOut: async (headers, device) => {

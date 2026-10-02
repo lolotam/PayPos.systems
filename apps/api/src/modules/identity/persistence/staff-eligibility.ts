@@ -26,8 +26,8 @@ export function createStaffEligibility(database: TenantWrappers) {
     );
   return {
     context,
-    deviceValid: async (device: StaffDeviceContext) =>
-      (await context(device))?.businessId === device.businessId,
+    deviceValid: async (device: StaffDeviceContext, deadline?: Date) =>
+      (await context(device, deadline))?.businessId === device.businessId,
     eligible: async (userId: string, device: StaffDeviceContext, deadline?: Date) => {
       return database.withTenant(
         device.companyId,

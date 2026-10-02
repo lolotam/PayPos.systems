@@ -112,6 +112,12 @@ function configurationFingerprint(
         templates,
         componentsAr: env['STAFF_OTP_COMPONENTS_AR'],
         componentsEn: env['STAFF_OTP_COMPONENTS_EN'],
+        sender: { wabaId: env['WHATSAPP_WABA_ID'], phoneNumberId: env['WHATSAPP_PHONE_NUMBER_ID'] },
+        stopIntake: {
+          appSecret: env['WHATSAPP_APP_SECRET'],
+          verifyToken: env['WHATSAPP_WEBHOOK_VERIFY_TOKEN'],
+          stopButtonId: env['WHATSAPP_STOP_BUTTON_ID'] || null,
+        },
         derivation: [...keys.derivation].map(([id, k]) => [id, Buffer.from(k).toString('base64')]),
         verification: [...keys.verification].map(([id, k]) => [
           id,

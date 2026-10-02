@@ -33,10 +33,16 @@ export class SignInStaffPin {
     const userId = await this.authority.sessions.candidate(input.phone);
     const target = {
       companyId: input.device.companyId,
-      employeeId: `staff-user:${userId ?? 'absent'}`,
+      employeeId:
+        userId === null
+          ? this.authority.sessions.pinCounterKey(input.phone)
+          : `staff-user:${userId}`,
     };
     const reservation = await this.attempts.reserve(target);
-    if (reservation.kind !== 'ok') return null;
+    if (reservation.kind !== 'ok') {
+      await this.hasher.verify(input.pin, null);
+      return null;
+    }
     let row: StaffPinRecord | null;
     let matches: boolean;
     try {

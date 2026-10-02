@@ -15,21 +15,21 @@ interface Verification {
 
 export async function otpVerify(request: Verification) {
   const { options, database, availability, input } = request;
-  const deadline = preparationDeadline(options.clock.now());
   const config = await availability();
   if (config === null) return { kind: 'unavailable' as const };
+  const rate = await verifyRate(options, input);
+  if (rate === null) return { kind: 'unavailable' as const };
+  const deadline = preparationDeadline(options.clock.now());
   const crypto = createOtpCrypto(config.keys);
   const run = phaseRunner(options.onFailure);
   try {
-    const rate = await verifyRate(options, input);
-    if (rate === null) return { kind: 'unavailable' as const };
     if (rate > 0) return { kind: 'limited' as const, retryAfter: rate };
-    const candidate = await run('VERIFY_LOOKUP', () => database.find(input.challengeId));
+    const candidate = await run('VERIFY_LOOKUP', () => database.find(input.challengeId, deadline));
     if (
       candidate?.userId === null ||
       candidate?.userId === undefined ||
       !(await run('VERIFY_PROOF', () =>
-        eligible(options, candidate.userId as string, input.device),
+        eligible(options, candidate.userId as string, input.device, deadline),
       ))
     ) {
       crypto.dummy(input.code);
@@ -45,6 +45,7 @@ export async function otpVerify(request: Verification) {
           return crypto.compare(c, input.code);
         },
         (phone) => options.strategies.identify(phone).hash,
+        deadline,
       ),
     );
     if (!compared) crypto.dummy(input.code);
@@ -60,7 +61,7 @@ export async function otpVerify(request: Verification) {
     );
   } catch {
     crypto.dummy(input.code);
-    // Lock failures on eligible challenges must not disclose eligibility (ADR-0019 §6).
+    // فشل قفل تحدٍ مؤهل لا يكشف الأهلية؛ الرد العام بعد صرف الإلغاء داخل المهلة (ADR-0019 §6).
     return { kind: 'invalid' as const };
   } finally {
     await options.clock.waitUntil(deadline);
@@ -77,10 +78,15 @@ async function verifyRate(options: StaffOtpApiOptions, input: Verification['inpu
   }
 }
 
-async function eligible(options: StaffOtpApiOptions, userId: string, device: StaffDeviceContext) {
+async function eligible(
+  options: StaffOtpApiOptions,
+  userId: string,
+  device: StaffDeviceContext,
+  deadline?: Date,
+) {
   return (
-    (await options.eligibility.deviceValid(device)) &&
-    (await options.eligibility.eligible(userId, device))
+    (await options.eligibility.deviceValid(device, deadline)) &&
+    (await options.eligibility.eligible(userId, device, deadline))
   );
 }
 

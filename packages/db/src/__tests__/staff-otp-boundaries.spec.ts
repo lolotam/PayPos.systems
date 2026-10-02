@@ -31,10 +31,7 @@ it.each([-1, 0, 1])(
       ...runtime,
       // This checks the auth-expiry edge with a frozen business clock; transport deadlines have separate tests.
       run: (work) => runtime.run(work, new Date(Date.now() + 5000)),
-      lock: async (tx, phoneHash) => {
-        await runtime.lock(tx, phoneHash);
-        return clock;
-      },
+      now: async () => clock,
     });
     const compare = vi.fn(() => true);
     expect(await reader.consume(id, device, compare, () => hash)).toBe(
@@ -57,6 +54,41 @@ it('hourly expiry cleanup clears the terminal MAC without reviving a stale deliv
   await f.db.cleanup(100);
   expect(await f.db.find(id)).toMatchObject({ status: 'EXPIRED', codeMac: null });
   expect(await f.db.claim(id, randomUUID(), randomUUID())).toBe(false);
+});
+
+it('rechecks expiry after the user lock wait and never compares or consumes an expired proof', async () => {
+  const id = randomUUID();
+  const [stored] =
+    await f.owner`INSERT INTO auth_otp_challenges(id,recipient_hash,hash_key_id,user_id,device_context,
+    code_mac,derivation_key_id,verification_key_id,status,created_at,expires_at,updated_at)
+    VALUES(${id},${hash},'synthetic-h',${f.userId},${f.owner.json(device)},${Buffer.alloc(32, 13)},
+      'synthetic-d','synthetic-v','ACTIVE',statement_timestamp()-interval '299.65 seconds',
+      statement_timestamp()+interval '350 milliseconds',statement_timestamp()) RETURNING expires_at`;
+  if (stored === undefined) throw new Error('SYNTHETIC_CHALLENGE_MISSING');
+  let signalLocked!: (now: Date) => void;
+  const locked = new Promise<Date>((resolve) => {
+    signalLocked = resolve;
+  });
+  const reader = otpChallenges({
+    ...runtime,
+    lock: async (tx, phoneHash) => {
+      const now = await runtime.lock(tx, phoneHash);
+      signalLocked(now);
+      return now;
+    },
+  });
+  const compare = vi.fn(() => true);
+  let consumption: Promise<string | null> | undefined;
+  await f.owner.begin(async (tx) => {
+    await tx`SELECT id FROM "user" WHERE id=${f.userId} FOR UPDATE`;
+    consumption = reader.consume(id, device, compare, () => hash);
+    void consumption.catch(() => undefined);
+    expect((await locked).getTime()).toBeLessThan(new Date(stored['expires_at']).getTime());
+    await tx`SELECT pg_sleep(greatest(0,extract(epoch FROM (${stored['expires_at']}::timestamptz-clock_timestamp())))+0.02)`;
+  });
+  expect(await consumption).toBeNull();
+  expect(compare).not.toHaveBeenCalled();
+  expect(await f.db.find(id)).toMatchObject({ status: 'EXPIRED', codeMac: null, consumedAt: null });
 });
 it('thirty-day purge removes the real ledger and challenges without touching STOP or reviving stale jobs', async () => {
   const id = randomUUID(),

@@ -4,6 +4,7 @@ import type { StaffSessions } from '@pospay/auth';
 export const refusingStaffSessions: StaffSessions = {
   ready: async () => undefined,
   candidate: async () => null,
+  pinCounterKey: () => 'synthetic-counter',
   issue: async () => {
     throw new Error('SYNTHETIC_STAFF_UNAVAILABLE');
   },

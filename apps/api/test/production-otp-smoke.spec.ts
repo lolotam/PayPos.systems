@@ -33,7 +33,7 @@ afterAll(async () => {
   await h?.close();
 });
 
-function environment(port: number): NodeJS.ProcessEnv {
+function environment(port: number, variant: 'empty' | 'intake-url-only'): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const name of Object.keys(env)) {
     if (/^(STAFF_OTP_|WHATSAPP_)|NOTIFICATION/.test(name)) env[name] = '';
@@ -61,43 +61,61 @@ function environment(port: number): NodeJS.ProcessEnv {
     WORKER_HOST: '127.0.0.1',
     LOG_LEVEL: 'info',
     TRUSTED_PROXY_CIDRS: '',
+    PLATFORM_NOTIFICATIONS_DATABASE_URL:
+      variant === 'empty'
+        ? ''
+        : pgUrl(
+            pg,
+            'pospay_notifications',
+            pg.notificationsPassword,
+            new URL(h.urls.owner).pathname.slice(1),
+          ),
   };
 }
 
-it('built production API and worker stay ready with every OTP/notification/WhatsApp setting empty', async () => {
-  const apiPort = randomInt(40000, 45000),
-    workerPort = randomInt(45000, 50000);
-  const before = await h.owner`SELECT count(*)::int AS count FROM auth_otp_challenges`;
-  const connection = h.redis.duplicate({ keyPrefix: '' });
-  connection.on('error', () => undefined);
-  const queue = new Queue('notifications-otp', { connection });
-  const jobsBefore = await queue.getJobCounts();
-  try {
-    await builtSmoke('api', environment(apiPort), apiPort, async (base) => {
-      const response = await fetch(`${base}/v1/devices/me/staff-otp/request`, {
-        method: 'POST',
-        headers: {
-          authorization: `Device ${device.token}`,
-          origin,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ phone, locale: 'ar' }),
-        signal: AbortSignal.timeout(3000),
+it.each(['empty', 'intake-url-only'] as const)(
+  'built production API and worker stay ready with %s optional settings',
+  async (variant) => {
+    const apiPort = randomInt(40000, 45000),
+      workerPort = randomInt(45000, 50000);
+    const before = await h.owner`SELECT count(*)::int AS count FROM auth_otp_challenges`;
+    const connection = h.redis.duplicate({ keyPrefix: '' });
+    connection.on('error', () => undefined);
+    const queue = new Queue('notifications-otp', { connection });
+    const jobsBefore = await queue.getJobCounts();
+    process.stdout.write(`SMOKE scenario=${variant}\n`);
+    try {
+      await builtSmoke('api', environment(apiPort, variant), apiPort, async (base) => {
+        const response = await fetch(`${base}/v1/devices/me/staff-otp/request`, {
+          method: 'POST',
+          headers: {
+            authorization: `Device ${device.token}`,
+            origin,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ phone, locale: 'ar' }),
+          signal: AbortSignal.timeout(3000),
+        });
+        const body = await response.json();
+        expect(response.status).toBe(503);
+        expect(body).toMatchObject({ code: 'OTP_UNAVAILABLE' });
+        process.stdout.write(`SMOKE API OTP request: ${response.status} ${JSON.stringify(body)}\n`);
       });
-      const body = await response.json();
-      expect(response.status).toBe(503);
-      expect(body).toMatchObject({ code: 'OTP_UNAVAILABLE' });
-      process.stdout.write(`SMOKE API OTP request: ${response.status} ${JSON.stringify(body)}\n`);
-    });
-    await builtSmoke('worker', environment(workerPort), workerPort, async () => undefined);
-    expect(await queue.getJobCounts()).toEqual(jobsBefore);
-  } finally {
-    await queue.close();
-    connection.disconnect();
-  }
-  expect(await h.owner`SELECT count(*)::int AS count FROM auth_otp_challenges`).toEqual(before);
-  expect(
-    (await h.owner`SELECT count(*)::int AS count FROM auth_notification_attempts`)[0]?.['count'],
-  ).toBe(0);
-  process.stdout.write('SMOKE OTP challenges=0 attempts=0 jobs-created=0\n');
-});
+      await builtSmoke(
+        'worker',
+        environment(workerPort, variant),
+        workerPort,
+        async () => undefined,
+      );
+      expect(await queue.getJobCounts()).toEqual(jobsBefore);
+    } finally {
+      await queue.close();
+      connection.disconnect();
+    }
+    expect(await h.owner`SELECT count(*)::int AS count FROM auth_otp_challenges`).toEqual(before);
+    expect(
+      (await h.owner`SELECT count(*)::int AS count FROM auth_notification_attempts`)[0]?.['count'],
+    ).toBe(0);
+    process.stdout.write('SMOKE OTP challenges=0 attempts=0 jobs-created=0\n');
+  },
+);

@@ -229,3 +229,31 @@ it('replacement PIN invalidates old proof; five failures lock even a correct PIN
   expect(ttl).toBeGreaterThan(890_000);
   expect(ttl).toBeLessThanOrEqual(900_000);
 });
+
+it('unknown-phone lockouts are independent and locked/fresh/approved refusals perform comparable work', async () => {
+  const unknown = '+99900000002',
+    fresh = '+99900000003';
+  const base = `pin:${company}:staff-user:${userId}`;
+  await f.h.redis.del(`${base}:lock`, `${base}:failures`, `${base}:reservations`);
+  for (let i = 0; i < 5; i++) expect((await signIn(own, unknown)).statusCode).toBe(401);
+  const samples = new Map<string, number[]>();
+  for (let i = 0; i < 3; i++) {
+    for (const number of [unknown, fresh, phone]) {
+      const start = performance.now();
+      expect((await signIn(String(9876), number)).statusCode).toBe(401);
+      const durations = samples.get(number) ?? [];
+      durations.push(performance.now() - start);
+      samples.set(number, durations);
+    }
+  }
+  const average = (number: string) =>
+    present(samples.get(number)).reduce((sum, value) => sum + value, 0) / 3;
+  expect(average(unknown)).toBeGreaterThan(average(phone) / 2);
+  expect(average(fresh)).toBeGreaterThan(average(phone) / 2);
+  const lockedKey = f.h.auth.staff.pinCounterKey(unknown),
+    freshKey = f.h.auth.staff.pinCounterKey(fresh);
+  expect(lockedKey).not.toBe(freshKey);
+  expect(await f.h.redis.get(`pin:${company}:${lockedKey}:lock`)).toBe('1');
+  expect(await f.h.redis.get(`pin:${company}:${freshKey}:failures`)).toBe('3');
+  for (const key of [lockedKey, freshKey]) expect(key).not.toMatch(/\+999/);
+});

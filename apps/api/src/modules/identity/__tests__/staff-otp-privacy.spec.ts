@@ -82,6 +82,14 @@ async function request(number = phone) {
   expect(duration).toBeLessThan(350);
   return response.json().challenge_id as string;
 }
+const verify = (challengeId: string, code: string) =>
+  f.h.app.inject({
+    method: 'POST',
+    url: '/v1/devices/me/staff-otp/verify',
+    headers: { authorization: `Device ${device.token}`, origin },
+    payload: { challenge_id: challengeId, code },
+  });
+const verifyWindow = () => performance.now() - present(f.windowStarts.at(-1));
 it('eligible and unknown requests have comparable real HTTP post-preflight timing distributions', async () => {
   for (let i = 0; i < 3; i++) {
     await request();
@@ -89,36 +97,55 @@ it('eligible and unknown requests have comparable real HTTP post-preflight timin
   }
 });
 
-it('eligible verify lock failure has exactly the wrong-code envelope and a bounded diagnostic', async () => {
-  const id = await request();
-  expect((await f.db.find(id))?.userId).toBeTruthy();
-  const correct = await f.code(id);
-  const wrong = correct === String(987654) ? String(987653) : String(987654);
-  const verify = (challengeId: string, code: string) =>
-    f.h.app.inject({
-      method: 'POST',
-      url: '/v1/devices/me/staff-otp/verify',
-      headers: { authorization: `Device ${device.token}`, origin },
-      payload: { challenge_id: challengeId, code },
+it.each(['phone', 'lookup', 'eligibility', 'user'] as const)(
+  'eligible verify %s lock failure shares the wrong-code envelope and response window',
+  async (lock) => {
+    const id = await request();
+    const userId = present((await f.db.find(id))?.userId);
+    const correct = await f.code(id);
+    const wrong = correct === String(987654) ? String(987653) : String(987654);
+    const baseline = await verify(id, wrong);
+    expect(baseline.statusCode).toBe(401);
+    expect(baseline.json().code).toBe('OTP_INVALID');
+    const before = f.failures.length;
+    await f.h.owner.begin(async (tx) => {
+      if (lock === 'phone')
+        await tx`SELECT pg_advisory_xact_lock(${phoneLockKey(identity.identify(phone).hash).toString()}::bigint)`;
+      if (lock === 'lookup') await tx`LOCK TABLE auth_otp_challenges IN ACCESS EXCLUSIVE MODE`;
+      if (lock === 'eligibility') await tx`LOCK TABLE memberships IN ACCESS EXCLUSIVE MODE`;
+      if (lock === 'user') await tx`SELECT id FROM "user" WHERE id=${userId} FOR UPDATE`;
+      const response = await verify(id, correct);
+      const lockedDuration = verifyWindow();
+      expect(lockedDuration).toBeGreaterThanOrEqual(190);
+      expect(lockedDuration).toBeLessThan(260);
+      expect(response.statusCode).toBe(baseline.statusCode);
+      expect(response.body).toBe(baseline.body);
+      expect(response.headers['content-type']).toBe(baseline.headers['content-type']);
+      expect(response.headers['retry-after']).toBeUndefined();
+      expect(response.headers['set-cookie']).toBeUndefined();
+      const unknown = await verify(randomUUID(), wrong);
+      const unknownDuration = verifyWindow();
+      expect(unknownDuration).toBeGreaterThanOrEqual(190);
+      expect(unknownDuration).toBeLessThan(260);
+      expect(Math.abs(lockedDuration - unknownDuration)).toBeLessThan(60);
+      expect(unknown.statusCode).toBe(baseline.statusCode);
+      expect(unknown.body).toBe(baseline.body);
+      const [pending] = await tx`SELECT count(*)::int AS waiting FROM pg_stat_activity
+      WHERE datname=current_database() AND usename IN ('pospay_auth','pospay_app') AND wait_event_type='Lock'`;
+      expect(pending?.['waiting']).toBe(0);
+      process.stdout.write(
+        `VERIFY_WINDOW ${lock}: locked=${Math.round(lockedDuration)}ms unknown=${Math.round(unknownDuration)}ms drained=true\n`,
+      );
     });
-  const baseline = await verify(id, wrong);
-  expect(baseline.statusCode).toBe(401);
-  expect(baseline.json().code).toBe('OTP_INVALID');
-  const before = f.failures.length;
-  await f.h.owner.begin(async (tx) => {
-    await tx`SELECT pg_advisory_xact_lock(${phoneLockKey(identity.identify(phone).hash).toString()}::bigint)`;
-    const response = await verify(id, correct);
-    expect(response.statusCode).toBe(baseline.statusCode);
-    expect(response.body).toBe(baseline.body);
-    expect(response.headers['content-type']).toBe(baseline.headers['content-type']);
-    expect(response.headers['retry-after']).toBeUndefined();
-    expect(response.headers['set-cookie']).toBeUndefined();
-    const unknown = await verify(randomUUID(), wrong);
-    expect(unknown.statusCode).toBe(baseline.statusCode);
-    expect(unknown.body).toBe(baseline.body);
-  });
-  expect(f.failures.slice(before)).toEqual(['VERIFY_PROOF:OPERATION_FAILED']);
-});
+    const failures = f.failures.slice(before);
+    expect(failures).toHaveLength(lock === 'lookup' ? 2 : 1);
+    for (const failure of failures)
+      expect(failure).toMatch(
+        /^VERIFY_(LOOKUP|PROOF):(OPERATION_FAILED|57014|BOUNDED_DATABASE_UNAVAILABLE|BOUNDED_COMMIT_UNKNOWN)$/,
+      );
+    expect(await f.db.find(id)).toMatchObject({ status: 'ACTIVE', failedAttempts: 1 });
+  },
+);
 
 it.each(['eligible', 'unknown', 'suppressed', 'nonmember'] as const)(
   'twenty-six wrong proofs have the same limits and verify window for %s',

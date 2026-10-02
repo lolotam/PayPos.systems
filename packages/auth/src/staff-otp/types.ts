@@ -64,7 +64,7 @@ export interface StaffEligibility {
   /** لا يفتح الشركة إلا بعد إثبات الجهاز، ولا يستعمل العضوية لتخمين سياق آخر. */
   eligible(userId: string, device: StaffDeviceContext, deadline?: Date): Promise<boolean>;
   /** يثبت الجهاز ثانية قبل الإصدار وعلى كل طلب. */
-  deviceValid(device: StaffDeviceContext): Promise<boolean>;
+  deviceValid(device: StaffDeviceContext, deadline?: Date): Promise<boolean>;
 }
 
 export interface OtpCapability {
