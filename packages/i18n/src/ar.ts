@@ -2,6 +2,21 @@ import type { Catalog } from './catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  roles: {
+    owner: 'صاحب الشركة',
+    general_manager: 'مدير عام',
+    accountant: 'محاسب',
+    business_manager: 'مدير نشاط',
+    branch_manager: 'مدير فرع',
+    shift_supervisor: 'مشرف وردية',
+    cashier: 'كاشير',
+    waiter: 'ويتر',
+    kitchen: 'مطبخ',
+    storekeeper: 'أمين مخزن',
+    staff: 'موظف',
+    marketing: 'تسويق',
+    viewer: 'مشاهد',
+  },
   permissions: {
     title: 'الصلاحيات',
     person: 'العضوية',
@@ -11,8 +26,10 @@ export const ar: Catalog = {
     empty: 'لا توجد عضويات.',
     noDefaults: 'لم تُزرع صلاحيات افتراضية لهذا الدور.',
     noOverrides: 'لا توجد استثناءات في هذه الصفحة.',
-    provisional: 'أكواد الأدوار وصلاحياتها مؤقتة حتى قرار D-07.',
-    policyPending: 'تعديل الاستثناءات ينتظر قرار المالك عن التفويض والصلاحيات الحساسة.',
+    readOnly: 'لا يمكنك تعديل صلاحيات هذه العضوية.',
+    history: 'الاستثناءات المنتهية',
+    revoke: 'سحب الاستثناء',
+    revoked: 'تم سحب الاستثناء.',
     permission: 'الصلاحية',
     effect: 'القرار',
     allow: 'سماح',
@@ -50,8 +67,11 @@ export const ar: Catalog = {
     generic_notice: 'تحديث بخصوص {{subject}}',
   },
   errors: {
-    PERMISSION_POLICY_UNRESOLVED: 'تعديل الصلاحيات ينتظر قرار المالك',
-    PERMISSION_OVERRIDE_EXISTS: 'يوجد استثناء ساري لهذه الصلاحية في نفس النطاق',
+    PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
+    PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
+    PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
+    PERMISSION_SCOPE_OUTSIDE_REACH: 'النطاق المطلوب خارج نطاق صلاحيتك',
+    PERMISSION_OVERRIDE_ENDED: 'هذا الاستثناء انتهى بالفعل',
     VALIDATION_FAILED: 'البيانات المرسلة غير صحيحة',
     BAD_REQUEST: 'الطلب غير صالح',
     UNAUTHENTICATED: 'يجب تسجيل الدخول',

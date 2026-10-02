@@ -1,5 +1,20 @@
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  roles: {
+    owner: 'Owner',
+    general_manager: 'General Manager',
+    accountant: 'Accountant',
+    business_manager: 'Business Manager',
+    branch_manager: 'Branch Manager',
+    shift_supervisor: 'Shift Supervisor',
+    cashier: 'Cashier',
+    waiter: 'Waiter',
+    kitchen: 'Kitchen',
+    storekeeper: 'Storekeeper',
+    staff: 'Staff',
+    marketing: 'Marketing',
+    viewer: 'Viewer',
+  },
   permissions: {
     title: 'Permissions',
     person: 'Membership',
@@ -9,9 +24,10 @@ export const en = {
     empty: 'No memberships found.',
     noDefaults: 'This role has no seeded defaults.',
     noOverrides: 'No overrides on this page.',
-    provisional: 'Role codes and defaults are provisional pending D-07.',
-    policyPending:
-      'Override editing awaits the owner’s delegation and sensitive-permission policy.',
+    readOnly: 'You cannot edit this membership’s permissions.',
+    history: 'Ended overrides',
+    revoke: 'Revoke override',
+    revoked: 'Override revoked.',
     permission: 'Permission',
     effect: 'Decision',
     allow: 'Allow',
@@ -49,8 +65,11 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
-    PERMISSION_POLICY_UNRESOLVED: 'Permission editing awaits an owner decision',
-    PERMISSION_OVERRIDE_EXISTS: 'An active override already exists for this permission and scope',
+    PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
+    PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
+    PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
+    PERMISSION_SCOPE_OUTSIDE_REACH: 'The target scope is outside your permission’s reach',
+    PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',
     UNAUTHENTICATED: 'Authentication is required',

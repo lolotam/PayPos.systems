@@ -7,6 +7,10 @@ export { id } from './scalars/id.js';
 export { timestamp } from './scalars/timestamp.js';
 export {
   membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  type RevokePermissionOverrideInput,
+  type MembershipPermissionsQuery,
   permissionOverrideInput,
   permissionOverride,
   permissionMembership,

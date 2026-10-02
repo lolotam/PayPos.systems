@@ -6,6 +6,7 @@ import {
   permissionMembershipPage,
   permissionOverride,
   type PermissionOverrideInput,
+  type RevokePermissionOverrideInput,
 } from '@pospay/contracts';
 import { apiClient } from '@/shared/api/client';
 
@@ -28,17 +29,38 @@ async function fetchPermissions(
   membershipId: string,
   cursor: string | undefined,
   signal: AbortSignal,
+  historyCursor: string | undefined,
 ) {
   const response = await apiClient().GET('/v1/permissions/memberships/{membershipId}', {
     params: {
       header: header(companyId),
       path: { membershipId },
-      query: { limit: 20, ...(cursor ? { cursor } : {}) },
+      query: {
+        limit: 20,
+        ...(cursor ? { cursor } : {}),
+        ...(historyCursor ? { history_cursor: historyCursor } : {}),
+      },
     },
     signal,
   });
   if (response.error) throw response.error;
   return membershipPermissions.parse(response.data);
+}
+async function revokeOverride(
+  companyId: string,
+  membershipId: string,
+  overrideId: string,
+  body: RevokePermissionOverrideInput,
+) {
+  const response = await apiClient().POST(
+    '/v1/permissions/memberships/{membershipId}/overrides/{overrideId}/revoke',
+    {
+      params: { header: header(companyId), path: { membershipId, overrideId } },
+      body,
+    },
+  );
+  if (response.error) throw response.error;
+  return permissionOverride.parse(response.data);
 }
 async function saveOverride(
   companyId: string,
@@ -64,11 +86,13 @@ export function usePermissions(
   userId: string,
   membershipId: string,
   cursor?: string,
+  historyCursor?: string,
 ) {
   const client = useQueryClient();
   const detail = useQuery({
-    queryKey: [...key(companyId, userId), membershipId, cursor],
-    queryFn: ({ signal }) => fetchPermissions(companyId, membershipId, cursor, signal),
+    queryKey: [...key(companyId, userId), membershipId, cursor, historyCursor],
+    queryFn: ({ signal }) =>
+      fetchPermissions(companyId, membershipId, cursor, signal, historyCursor),
     enabled: membershipId !== '',
     refetchInterval: 30_000,
   });
@@ -77,5 +101,11 @@ export function usePermissions(
     onMutate: () => ({ queryKey: key(companyId, userId) }),
     onSuccess: (_saved, _body, context) => client.invalidateQueries({ queryKey: context.queryKey }),
   });
-  return { detail, save };
+  const revoke = useMutation({
+    mutationFn: ({ overrideId, reason }: { overrideId: string; reason: string }) =>
+      revokeOverride(companyId, membershipId, overrideId, { reason }),
+    onMutate: () => ({ queryKey: key(companyId, userId) }),
+    onSuccess: (_saved, _body, context) => client.invalidateQueries({ queryKey: context.queryKey }),
+  });
+  return { detail, save, revoke };
 }

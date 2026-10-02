@@ -32,7 +32,12 @@ export const permissionPaths = {
   '/v1/permissions/memberships/{membershipId}': {
     get: {
       ...operation('getMembershipPermissions', 'MembershipPermissions'),
-      parameters: [company, member, ...pagination],
+      parameters: [
+        company,
+        member,
+        ...pagination,
+        parameter('query', 'history_cursor', false, { type: 'string', format: 'uuid' }),
+      ],
     },
   },
   '/v1/permissions/memberships/{membershipId}/overrides': {
@@ -40,6 +45,17 @@ export const permissionPaths = {
       ...operation('grantPermissionOverride', 'PermissionOverride', '201'),
       parameters: [company, member],
       requestBody: { required: true, content: json('PermissionOverrideInput') },
+    },
+  },
+  '/v1/permissions/memberships/{membershipId}/overrides/{overrideId}/revoke': {
+    post: {
+      ...operation('revokePermissionOverride', 'PermissionOverride'),
+      parameters: [
+        company,
+        member,
+        parameter('path', 'overrideId', true, { type: 'string', format: 'uuid' }),
+      ],
+      requestBody: { required: true, content: json('RevokePermissionOverrideInput') },
     },
   },
 };

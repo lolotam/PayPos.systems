@@ -15,21 +15,43 @@ export interface PermissionOverrideScope {
    *
    * @param membershipId العضوية المستهدفة
    * @param terms الاستثناء المطلوب
-   * @param now الوقت المحقون
    */
-  context(membershipId: string, terms: OverrideTerms, now: Date): Promise<PermissionEditContext>;
+  context(membershipId: string, terms: OverrideTerms): Promise<PermissionEditContext>;
   /**
-   * بيضيف الاستثناء بعد قفل العضوية؛ التعارض يرفض بدل إضافة ALLOW وDENY متناقضين.
+   * بيقرأ القرارات الحالية بعد القفل حتى يحمي سماح المالك وينهي المستبدل.
+   *
+   * @param membershipId العضوية المقفولة
+   * @param terms مفتاح القرار المطلوب
+   * @param now وقت المعاملة
+   */
+  current(
+    membershipId: string,
+    terms: OverrideTerms,
+    now: Date,
+  ): Promise<SavedPermissionOverride[]>;
+  /**
+   * بيقرأ صف السحب تحت الشركة والعضوية؛ لا يكشف صفوف شركة تانية.
+   *
+   * @param membershipId العضوية المستهدفة
+   * @param overrideId القرار المطلوب
+   */
+  find(membershipId: string, overrideId: string): Promise<SavedPermissionOverride | null>;
+  /**
+   * بينهي القرار ويحافظ على السبب القديم؛ سبب السحب يتسجل في التدقيق.
+   *
+   * @param membershipId العضوية المستهدفة
+   * @param overrideId القرار الجاري
+   * @param now وقت الإنهاء
+   */
+  end(membershipId: string, overrideId: string, now: Date): Promise<SavedPermissionOverride>;
+  /**
+   * بيضيف القرار الجديد بعد إنهاء القرار السابق جوه نفس المعاملة.
    *
    * @param membershipId العضوية المقفولة
    * @param terms الاستثناء بعد التحقق
    * @param now وقت التغيير
    */
-  insert(
-    membershipId: string,
-    terms: OverrideTerms,
-    now: Date,
-  ): Promise<SavedPermissionOverride | null>;
+  insert(membershipId: string, terms: OverrideTerms, now: Date): Promise<SavedPermissionOverride>;
 }
 /** حدود قاعدة البيانات حتى تظل خطوة العمل قابلة للاختبار بدون Postgres. */
 export interface PermissionOverrideTransactions {
@@ -52,6 +74,7 @@ export interface GrantInvalidator {
    * بيغير إصدار منح الشركة بعد commit؛ القارئ الحالي يقرأ قاعدة البيانات في كل طلب.
    *
    * @param companyId الشركة المتغيرة
+   * @param membershipId العضوية المتغيرة؛ إصدار الشركة يبطل باقي عضويات نفس الشخص أيضًا
    */
-  invalidate(companyId: string): Promise<void>;
+  invalidate(companyId: string, membershipId: string): Promise<void>;
 }

@@ -8,6 +8,12 @@ export const permissionScopeType = z.enum(['COMPANY', 'BUSINESS', 'BRANCH']);
 export const membershipPageQuery = pageQuery
   .extend({ cursor: id.optional() })
   .meta({ id: 'MembershipPageQuery' });
+export const membershipPermissionsQuery = membershipPageQuery
+  .extend({ history_cursor: id.optional() })
+  .meta({ id: 'MembershipPermissionsQuery' });
+export const revokePermissionOverrideInput = z
+  .strictObject({ reason: z.string().trim().min(1).max(500) })
+  .meta({ id: 'RevokePermissionOverrideInput' });
 export const permissionOverrideInput = z
   .strictObject({
     permission_code: z.string().regex(/^[a-z][a-z-]*:[a-z][a-z-]*:(company|business|branch)$/),
@@ -51,11 +57,14 @@ export const membershipPermissions = z
     role_defaults: z.array(z.string()),
     permission_catalog: z.array(z.string()),
     overrides: permissionOverridePage,
+    ended_overrides: permissionOverridePage,
     editing_enabled: z.boolean(),
   })
   .meta({ id: 'MembershipPermissions' });
 
 export type PermissionOverrideInput = z.infer<typeof permissionOverrideInput>;
+export type RevokePermissionOverrideInput = z.infer<typeof revokePermissionOverrideInput>;
+export type MembershipPermissionsQuery = z.infer<typeof membershipPermissionsQuery>;
 export type PermissionOverride = z.infer<typeof permissionOverride>;
 export type PermissionMembership = z.infer<typeof permissionMembership>;
 export type MembershipPermissions = z.infer<typeof membershipPermissions>;

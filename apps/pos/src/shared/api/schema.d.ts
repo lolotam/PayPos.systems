@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/permissions/memberships/{membershipId}/overrides/{overrideId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokePermissionOverride"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/webhooks/whatsapp": {
         parameters: {
             query?: never;
@@ -249,6 +265,17 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        MembershipPermissionsQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            /** Format: uuid */
+            history_cursor?: string;
+        };
+        RevokePermissionOverrideInput: {
+            reason: string;
+        };
         MembershipPageQuery: {
             /** Format: uuid */
             cursor?: string;
@@ -317,6 +344,7 @@ export interface components {
             role_defaults: string[];
             permission_catalog: string[];
             overrides: components["schemas"]["PermissionOverridePage"];
+            ended_overrides: components["schemas"]["PermissionOverridePage"];
             editing_enabled: boolean;
         };
         WhatsappWebhookAcknowledgement: {
@@ -679,6 +707,7 @@ export interface operations {
             query?: {
                 cursor?: string;
                 limit?: number;
+                history_cursor?: string;
             };
             header: {
                 "x-company-id": string;
@@ -729,6 +758,44 @@ export interface operations {
         responses: {
             /** @description Permission screen result */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionOverride"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokePermissionOverride: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+                overrideId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokePermissionOverrideInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

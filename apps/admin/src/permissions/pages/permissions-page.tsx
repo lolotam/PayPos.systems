@@ -1,6 +1,6 @@
 'use client';
 
-import { t } from '@pospay/i18n';
+import { roleName, t } from '@pospay/i18n';
 import { Label, Select } from '@pospay/ui';
 import { useState } from 'react';
 
@@ -38,7 +38,7 @@ export function PermissionsPage({
             placeholder={t(locale, 'permissions.choose')}
             options={list.data.items.map((item) => ({
               value: item.id,
-              label: `${locale === 'ar' ? (item.role_name_ar ?? item.role_name_en) : item.role_name_en} · ${item.user_id ?? item.employee_id} · ${item.scope_id}`,
+              label: `${roleName(locale, item.role_code, locale === 'ar' ? (item.role_name_ar ?? item.role_name_en) : item.role_name_en)} · ${item.user_id ?? item.employee_id} · ${item.scope_id}`,
             }))}
             onValueChange={setMembershipId}
           />

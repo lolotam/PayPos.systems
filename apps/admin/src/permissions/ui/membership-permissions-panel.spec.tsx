@@ -1,7 +1,7 @@
 import { membershipPermissions } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { expect, it, vi } from 'vitest';
 
 import { MembershipPermissionsPanel } from './membership-permissions-panel';
 
@@ -22,6 +22,7 @@ const fixture = membershipPermissions.parse({
   role_defaults: [],
   permission_catalog: ['read:memberships:company'],
   editing_enabled: false,
+  ended_overrides: { items: [], next_cursor: null },
   overrides: {
     items: [
       {
@@ -39,40 +40,105 @@ const fixture = membershipPermissions.parse({
     next_cursor: null,
   },
 });
-const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en', error: false }));
+const state = vi.hoisted(() => ({
+  locale: 'en' as 'ar' | 'en',
+  error: false,
+  editing: false,
+  revoke: vi.fn(),
+  mutationError: false,
+}));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 vi.mock('../api/use-permissions', () => ({
   usePermissions: () => ({
-    detail: { isPending: false, isError: state.error, error: {}, data: fixture },
+    detail: {
+      isPending: false,
+      isError: state.error,
+      error: {},
+      data: { ...fixture, editing_enabled: state.editing },
+    },
     save: { isPending: false, isSuccess: false, isError: false, mutate: vi.fn() },
+    revoke: {
+      isPending: false,
+      isSuccess: false,
+      isError: state.mutationError,
+      mutate: state.revoke,
+      error: {
+        code: 'PERMISSION_NOT_HELD',
+        message_ar: t('ar', 'errors.PERMISSION_NOT_HELD'),
+        message_en: 'You do not currently hold this permission over the target scope',
+      },
+    },
   }),
 }));
 
-describe('permissions panel', () => {
-  it.each(['en', 'ar'] as const)(
-    'shows real defaults, DENY and the unresolved policy in %s',
-    (locale) => {
-      state.locale = locale;
-      state.error = false;
-      render(
-        <MembershipPermissionsPanel companyId={company} userId={company} membershipId={company} />,
-      );
-      expect(screen.getByText(t(locale, 'permissions.noDefaults'))).toBeTruthy();
-      expect(screen.getByText(t(locale, 'permissions.deny'), { selector: 'span' })).toBeTruthy();
-      expect(screen.getByRole('status').textContent).toBe(t(locale, 'permissions.policyPending'));
-      expect(
-        screen.getByRole('button', { name: t(locale, 'permissions.save') }).closest('fieldset')
-          ?.disabled,
-      ).toBe(true);
-    },
-  );
-  it('shows a localized error and removes stale editable controls after a refused refresh', () => {
-    state.error = true;
-    state.locale = 'en';
+it.each(['en', 'ar'] as const)(
+  'shows real defaults, DENY, final localized role and read-only availability in %s',
+  (locale) => {
+    state.locale = locale;
+    state.error = false;
+    state.editing = false;
+    state.mutationError = false;
     render(
       <MembershipPermissionsPanel companyId={company} userId={company} membershipId={company} />,
     );
-    expect(screen.getByRole('alert').textContent).toBe(t('en', 'admin.unexpected'));
-    expect(screen.queryByRole('button', { name: t('en', 'permissions.save') })).toBeNull();
-  });
+    expect(screen.getByText(t(locale, 'permissions.noDefaults'))).toBeTruthy();
+    expect(screen.getAllByText(t(locale, 'permissions.deny')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('status').textContent).toBe(t(locale, 'permissions.readOnly'));
+    expect(screen.getByText(t(locale, 'roles.viewer'))).toBeTruthy();
+    expect(screen.getByText(t(locale, 'permissions.history'))).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: t(locale, 'permissions.save') }).closest('fieldset')
+        ?.disabled,
+    ).toBe(true);
+  },
+);
+it.each(['ar', 'en'] as const)(
+  'enables edits and sends a validated mandatory revoke reason in %s',
+  (locale) => {
+    state.locale = locale;
+    state.error = false;
+    state.editing = true;
+    state.mutationError = false;
+    state.revoke.mockClear();
+    render(
+      <MembershipPermissionsPanel companyId={company} userId={company} membershipId={company} />,
+    );
+    expect(
+      screen.getByRole('button', { name: t(locale, 'permissions.save') }).closest('fieldset')
+        ?.disabled,
+    ).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: t(locale, 'permissions.revoke') }));
+    expect(state.revoke).not.toHaveBeenCalled();
+    fireEvent.change(
+      screen.getByLabelText(t(locale, 'permissions.reason'), {
+        selector: `input[id="revoke-${company}"]`,
+      }),
+      { target: { value: ' synthetic revoke ' } },
+    );
+    fireEvent.click(screen.getByRole('button', { name: t(locale, 'permissions.revoke') }));
+    expect(state.revoke).toHaveBeenCalledWith({
+      overrideId: company,
+      reason: 'synthetic revoke',
+    });
+  },
+);
+it.each(['ar', 'en'] as const)('shows the named policy error in %s', (locale) => {
+  state.locale = locale;
+  state.error = false;
+  state.editing = true;
+  state.mutationError = true;
+  render(
+    <MembershipPermissionsPanel companyId={company} userId={company} membershipId={company} />,
+  );
+  expect(screen.getByRole('alert').textContent).toBe(t(locale, 'errors.PERMISSION_NOT_HELD'));
+  state.mutationError = false;
+});
+it('shows a localized error and removes stale editable controls after a refused refresh', () => {
+  state.error = true;
+  state.locale = 'en';
+  render(
+    <MembershipPermissionsPanel companyId={company} userId={company} membershipId={company} />,
+  );
+  expect(screen.getByRole('alert').textContent).toBe(t('en', 'admin.unexpected'));
+  expect(screen.queryByRole('button', { name: t('en', 'permissions.save') })).toBeNull();
 });

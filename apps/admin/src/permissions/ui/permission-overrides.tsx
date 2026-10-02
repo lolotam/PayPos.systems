@@ -5,13 +5,18 @@ import { formatInstant, t } from '@pospay/i18n';
 import { Badge } from '@pospay/ui';
 
 import { useLocale } from '@/shared/locale/locale-context';
+import { PermissionRevokeForm } from './permission-revoke-form';
 
 export function PermissionOverrides({
   items,
   branchTimeZones,
+  onRevoke,
+  pending = false,
 }: {
   items: readonly PermissionOverride[];
   branchTimeZones: Readonly<Record<string, string>>;
+  onRevoke?: (overrideId: string, reason: string) => void;
+  pending?: boolean;
 }) {
   const locale = useLocale();
   if (items.length === 0) return <p>{t(locale, 'permissions.noOverrides')}</p>;
@@ -35,6 +40,9 @@ export function PermissionOverrides({
             )}{' '}
             · {row.scope_id}
           </p>
+          {onRevoke ? (
+            <PermissionRevokeForm overrideId={row.id} disabled={pending} onRevoke={onRevoke} />
+          ) : null}
           <p>
             {t(locale, 'permissions.reason')}: {row.reason}
           </p>

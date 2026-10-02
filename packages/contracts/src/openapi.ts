@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { permissionPaths } from './identity/permissions-openapi.js';
 import {
   membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
   permissionOverrideInput,
   permissionOverride,
   permissionMembership,
@@ -56,6 +58,8 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
   membershipPageQuery,
   permissionOverrideInput,
   permissionOverride,

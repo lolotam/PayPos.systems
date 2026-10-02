@@ -126,6 +126,15 @@
               "maximum": 100,
               "default": 20
             }
+          },
+          {
+            "in": "query",
+            "name": "history_cursor",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ]
       }
@@ -181,6 +190,72 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PermissionOverrideInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/permissions/memberships/{membershipId}/overrides/{overrideId}/revoke": {
+      "post": {
+        "operationId": "revokePermissionOverride",
+        "responses": {
+          "200": {
+            "description": "Permission screen result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionOverride"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "membershipId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "overrideId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokePermissionOverrideInput"
               }
             }
           }
@@ -794,6 +869,41 @@
   },
   "components": {
     "schemas": {
+      "MembershipPermissionsQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "history_cursor": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        }
+      },
+      "RevokePermissionOverrideInput": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      },
       "MembershipPageQuery": {
         "type": "object",
         "properties": {
@@ -1053,6 +1163,9 @@
           "overrides": {
             "$ref": "#/components/schemas/PermissionOverridePage"
           },
+          "ended_overrides": {
+            "$ref": "#/components/schemas/PermissionOverridePage"
+          },
           "editing_enabled": {
             "type": "boolean"
           }
@@ -1062,6 +1175,7 @@
           "role_defaults",
           "permission_catalog",
           "overrides",
+          "ended_overrides",
           "editing_enabled"
         ]
       },

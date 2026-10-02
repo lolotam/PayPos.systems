@@ -1,99 +1,137 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PermissionOverrideInput } from '@pospay/contracts';
-
 import type {
   PermissionOverrideScope,
   PermissionOverrideTransactions,
 } from '../../ports/permission-overrides.port.ts';
 import { GrantPermissionOverride } from './grant-permission-override.ts';
-
-// اختبار ترتيب الخطوات فقط؛ سياسة الإنتاج تظل مقفولة وتختبرها اختبارات domain وHTTP الحقيقية.
-vi.mock('../../domain/permission-edit.ts', () => ({
-  permissionEditFailure: () => null,
-  permissionEditingEnabled: () => false,
-}));
-
-const companyId = '01920000-0000-7000-8000-0000000000a0';
-const userId = '01920000-0000-7000-8000-0000000000a1';
-const membershipId = '01920000-0000-7000-8000-0000000000a2';
-const overrideId = '01920000-0000-7000-8000-0000000000a3';
-const now = new Date('2026-10-02T10:00:00Z');
-const terms: PermissionOverrideInput = {
+import { RevokePermissionOverride } from '../revoke-permission-override/revoke-permission-override.ts';
+import type { PermissionEditContext } from '../../domain/permission-edit.ts';
+const now = new Date('2026-10-03T10:00:00Z');
+const actor = { companyId: 'company', userId: 'editor' };
+const membershipId = 'member';
+const terms = {
   permission_code: 'read:memberships:company',
-  effect: 'DENY',
-  scope_type: 'COMPANY',
-  scope_id: companyId,
-  reason: 'synthetic change',
+  effect: 'ALLOW' as const,
+  scope_type: 'COMPANY' as const,
+  scope_id: actor.companyId,
+  reason: 'synthetic',
   expires_at: null,
 };
-const saved = { ...terms, id: overrideId, granted_by: userId, granted_at: now.toISOString() };
+const saved = { ...terms, id: 'override', granted_by: actor.userId, granted_at: now.toISOString() };
 
-function setup(failure?: 'audit' | 'duplicate') {
+const context: PermissionEditContext = {
+  companyId: actor.companyId,
+  editorUserId: actor.userId,
+  now,
+  membership: {
+    id: membershipId,
+    userId: null,
+    roleCode: 'viewer',
+    scopeType: 'COMPANY',
+    scopeId: actor.companyId,
+    startsAt: new Date('2020-01-01'),
+    endsAt: null,
+  },
+  target: { companyId: actor.companyId },
+  descendantTargets: [],
+  catalog: [terms.permission_code],
+  grants: [terms.permission_code, 'manage:memberships:company'].map((permission) => ({
+    permission,
+    effect: 'ALLOW',
+    scopeType: 'COMPANY',
+    scopeId: actor.companyId,
+  })),
+};
+
+function setup(existing = false, auditFailure = false) {
   const events: string[] = [];
-  const audit = vi.fn(async () => {
+  const record = vi.fn(async () => {
     events.push('audit');
-    if (failure === 'audit') throw new Error('audit failed');
+    if (auditFailure) throw new Error('audit failed');
   });
   const scope: PermissionOverrideScope = {
-    context: async () => ({
-      companyId,
-      now,
-      membership: null,
-      target: null,
-      catalog: [],
-      grants: [],
-    }),
+    context: async () => context,
+    current: async () => (existing ? [saved] : []),
+    find: async () => saved,
     insert: async () => {
       events.push('insert');
-      return failure === 'duplicate' ? null : saved;
+      return saved;
     },
-    audit: { record: audit },
+    end: async () => {
+      events.push('end');
+      return { ...saved, expires_at: now.toISOString() };
+    },
+    audit: { record },
   };
   const transactions: PermissionOverrideTransactions = {
-    run: async (company, actor, work) => {
-      expect([company, actor]).toEqual([companyId, userId]);
+    run: async (companyId, userId, work) => {
+      expect({ companyId, userId }).toEqual(actor);
       events.push('begin');
       const result = await work(scope);
       events.push('commit');
       return result;
     },
   };
-  const invalidate = vi.fn(async (company: string) => {
-    expect(company).toBe(companyId);
+  const invalidate = vi.fn(async () => {
     events.push('invalidate');
   });
-  const useCase = new GrantPermissionOverride(transactions, { invalidate }, { now: () => now });
-  return { useCase, events, audit, invalidate };
+  return {
+    events,
+    record,
+    invalidate,
+    grant: new GrantPermissionOverride(transactions, { invalidate }),
+    revoke: new RevokePermissionOverride(transactions, { invalidate }),
+  };
 }
 
-describe('permission override write ordering', () => {
-  it('records the exact actor, decision and membership before commit, then invalidates grants', async () => {
-    const { useCase, events, audit } = setup();
-    expect(await useCase.execute({ companyId, userId }, membershipId, terms)).toEqual(saved);
-    expect(events).toEqual(['begin', 'insert', 'audit', 'commit', 'invalidate']);
-    expect(audit).toHaveBeenCalledWith({
+describe('permission write ordering', () => {
+  it('creates with audit before commit and invalidates the changed membership after it', async () => {
+    const s = setup();
+    expect(await s.grant.execute(actor, membershipId, terms)).toEqual(saved);
+    expect(s.events).toEqual(['begin', 'insert', 'audit', 'commit', 'invalidate']);
+    expect(s.invalidate).toHaveBeenCalledWith(actor.companyId, membershipId);
+    expect(s.record).toHaveBeenCalledWith({
       entity: 'permission_override',
-      entityId: overrideId,
+      entityId: saved.id,
       action: 'permission.granted',
       before: null,
       after: { ...saved, membership_id: membershipId },
     });
   });
-  it('does not commit or invalidate when the audit fails', async () => {
-    const { useCase, events, invalidate } = setup('audit');
-    await expect(useCase.execute({ companyId, userId }, membershipId, terms)).rejects.toThrow(
-      'audit failed',
+  it('ends the previous decision before inserting a replacement, retaining before/after', async () => {
+    const s = setup(true);
+    await s.grant.execute(actor, membershipId, { ...terms, effect: 'DENY' });
+    expect(s.events).toEqual(['begin', 'end', 'insert', 'audit', 'commit', 'invalidate']);
+    expect(s.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'permission.replaced',
+        before: [{ ...saved, membership_id: membershipId }],
+      }),
     );
-    expect(events).toEqual(['begin', 'insert', 'audit']);
-    expect(invalidate).not.toHaveBeenCalled();
   });
-  it('does not audit or invalidate a conflicting active override', async () => {
-    const { useCase, events, audit, invalidate } = setup('duplicate');
-    await expect(useCase.execute({ companyId, userId }, membershipId, terms)).rejects.toMatchObject(
-      { code: 'PERMISSION_OVERRIDE_EXISTS' },
+  it('revokes with the mandatory reason in the audit and retains the original reason on the row', async () => {
+    const s = setup(true);
+    const ended = await s.revoke.execute(actor, membershipId, saved.id, { reason: 'end now' });
+    expect(ended.reason).toBe('synthetic');
+    expect(s.events).toEqual(['begin', 'end', 'audit', 'commit', 'invalidate']);
+    expect(s.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'permission.revoked',
+        after: { ...ended, membership_id: membershipId, reason: 'end now' },
+      }),
     );
-    expect(events).toEqual(['begin', 'insert']);
-    expect(audit).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
   });
+  it.each(['grant', 'revoke'] as const)(
+    'never commits or invalidates if %s audit fails',
+    async (operation) => {
+      const s = setup(true, true);
+      const work =
+        operation === 'grant'
+          ? s.grant.execute(actor, membershipId, terms)
+          : s.revoke.execute(actor, membershipId, saved.id, { reason: 'end now' });
+      await expect(work).rejects.toThrow('audit failed');
+      expect(s.events).not.toContain('commit');
+      expect(s.invalidate).not.toHaveBeenCalled();
+    },
+  );
 });

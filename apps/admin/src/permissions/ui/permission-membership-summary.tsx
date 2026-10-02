@@ -13,7 +13,6 @@ export function PermissionMembershipSummary({
   const locale = useLocale();
   return (
     <>
-      <p>{t(locale, 'permissions.provisional')}</p>
       <p>
         {t(locale, 'permissions.holder')}: {data.membership.user_id ?? data.membership.employee_id}
       </p>

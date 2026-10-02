@@ -34,8 +34,8 @@ export interface SystemRole {
   readonly nameEn: string;
 }
 
-// TODO(spec): الـ codes مؤقتة لحد قرار D-07 (PRD §13) — تغيير الاسم بعدين data migration. الأسماء العربي
-// مستنية نفس القرار. استثناء ADR-0018: المديرون يقرأون سجل الإرسال؛ باقي الـ bundles مستنية D-07.
+// قرار المالك 2026-10-03: أكواد الأدوار البشرية الـ 13 نهائية؛ الأسماء المحلية في packages/i18n.
+// مصفوفة الحزم في docs/specs/009-identity-permissions-screen/spec.md؛ تطبيقها في PR 7a بدون تغيير seed هنا.
 export const SYSTEM_ROLES: readonly SystemRole[] = [
   { id: '01920000-0000-7000-8000-000000000101', code: 'owner', nameEn: 'Owner' },
   {

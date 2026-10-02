@@ -4,6 +4,7 @@ import { PermissionsController } from './http/permissions.controller.ts';
 import { createPermissionOverrideTransactions } from './persistence/permission-override-transactions.ts';
 import { createGrantInvalidator } from './persistence/grant-invalidator.ts';
 import { GrantPermissionOverride } from './use-cases/grant-permission-override/grant-permission-override.ts';
+import { RevokePermissionOverride } from './use-cases/revoke-permission-override/revoke-permission-override.ts';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
@@ -90,7 +91,16 @@ export function identityProviders(
           : new GrantPermissionOverride(
               createPermissionOverrideTransactions(database, ids),
               createGrantInvalidator(redis),
-              systemClock,
+            ),
+    },
+    {
+      provide: RevokePermissionOverride,
+      useValue:
+        database === undefined
+          ? null
+          : new RevokePermissionOverride(
+              createPermissionOverrideTransactions(database, ids),
+              createGrantInvalidator(redis),
             ),
     },
     { provide: WORKSPACE_NAMES, useValue: names },

@@ -1,7 +1,11 @@
-import { Body, Controller, Get, Inject, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Req } from '@nestjs/common';
 import {
   id,
   membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  type MembershipPermissionsQuery,
+  type RevokePermissionOverrideInput,
   permissionOverrideInput,
   type PageQuery,
   type PermissionOverrideInput,
@@ -17,12 +21,14 @@ import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { getMembershipPermissions } from '../queries/membership-permissions.query.ts';
 import { listPermissionMemberships } from '../queries/permission-memberships.query.ts';
 import { GrantPermissionOverride } from '../use-cases/grant-permission-override/grant-permission-override.ts';
+import { RevokePermissionOverride } from '../use-cases/revoke-permission-override/revoke-permission-override.ts';
 
 @Controller('permissions/memberships')
 export class PermissionsController {
   constructor(
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
     @Inject(GrantPermissionOverride) private readonly grant: GrantPermissionOverride | null,
+    @Inject(RevokePermissionOverride) private readonly revoke: RevokePermissionOverride | null,
   ) {}
 
   @Get()
@@ -39,7 +45,7 @@ export class PermissionsController {
   @Require('read:memberships:company')
   async detail(
     @Param('membershipId', new ZodValidationPipe(id)) membershipId: string,
-    @Query(new ZodValidationPipe(membershipPageQuery)) page: PageQuery,
+    @Query(new ZodValidationPipe(membershipPermissionsQuery)) page: MembershipPermissionsQuery,
     @Req() request: FastifyRequest,
   ) {
     if (this.database === null) throw new ApiError('NOT_READY');
@@ -48,10 +54,23 @@ export class PermissionsController {
       actorOf(request),
       membershipId,
       page,
-      this.grant?.editingEnabled ?? false,
     );
     if (result === null) throw new ApiError('NOT_FOUND');
     return result;
+  }
+
+  @Post(':membershipId/overrides/:overrideId/revoke')
+  @HttpCode(200)
+  @Require('manage:memberships:company')
+  async end(
+    @Param('membershipId', new ZodValidationPipe(id)) membershipId: string,
+    @Param('overrideId', new ZodValidationPipe(id)) overrideId: string,
+    @Body(new ZodValidationPipe(revokePermissionOverrideInput))
+    input: RevokePermissionOverrideInput,
+    @Req() request: FastifyRequest,
+  ) {
+    if (this.revoke === null) throw new ApiError('NOT_READY');
+    return this.revoke.execute(actorOf(request), membershipId, overrideId, input);
   }
 
   @Post(':membershipId/overrides')

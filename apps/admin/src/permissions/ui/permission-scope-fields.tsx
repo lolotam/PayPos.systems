@@ -1,21 +1,32 @@
 'use client';
 import type { PermissionOverrideInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Input, Label } from '@pospay/ui';
-import { useFormContext } from 'react-hook-form';
+import { Input, Label, Select } from '@pospay/ui';
+import { Controller, useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 
 export function PermissionScopeFields() {
   const locale = useLocale();
-  const { register } = useFormContext<PermissionOverrideInput>();
+  const { register, control } = useFormContext<PermissionOverrideInput>();
   return (
     <>
       <Label htmlFor="override-scope">{t(locale, 'permissions.scope')}</Label>
-      <select id="override-scope" {...register('scope_type')}>
-        <option value="COMPANY">{t(locale, 'permissions.company')}</option>
-        <option value="BUSINESS">{t(locale, 'permissions.business')}</option>
-        <option value="BRANCH">{t(locale, 'permissions.branch')}</option>
-      </select>
+      <Controller
+        name="scope_type"
+        control={control}
+        render={({ field }) => (
+          <Select
+            id="override-scope"
+            value={field.value}
+            onValueChange={field.onChange}
+            options={[
+              { value: 'COMPANY', label: t(locale, 'permissions.company') },
+              { value: 'BUSINESS', label: t(locale, 'permissions.business') },
+              { value: 'BRANCH', label: t(locale, 'permissions.branch') },
+            ]}
+          />
+        )}
+      />
       <Label htmlFor="override-scope-id">{t(locale, 'permissions.scopeId')}</Label>
       <Input id="override-scope-id" {...register('scope_id')} />
       <Label htmlFor="override-reason">{t(locale, 'permissions.reason')}</Label>

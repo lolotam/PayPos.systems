@@ -1,5 +1,4 @@
-import type { PermissionOverrideInput } from '@pospay/contracts';
-
+import type { RevokePermissionOverrideInput } from '@pospay/contracts';
 import { permissionEditFailure } from '../../domain/permission-edit.ts';
 import { overrideLifecycleFailure } from '../../domain/permission-override-lifecycle.ts';
 import type {
@@ -8,8 +7,8 @@ import type {
 } from '../../ports/permission-overrides.port.ts';
 import { ApiError } from '../../../../shared/errors.ts';
 
-// بيضيف استثناء صلاحية مدقق في معاملة واحدة ثم يبطل إصدار المنح بعد نجاح commit.
-export class GrantPermissionOverride {
+// بينهي الاستثناء بسبب إلزامي مع تدقيقه، وبعد commit يبطل منح العضوية.
+export class RevokePermissionOverride {
   constructor(
     private readonly transactions: PermissionOverrideTransactions,
     private readonly invalidator: GrantInvalidator,
@@ -18,34 +17,33 @@ export class GrantPermissionOverride {
   async execute(
     actor: { companyId: string; userId: string },
     membershipId: string,
-    terms: PermissionOverrideInput,
+    overrideId: string,
+    input: RevokePermissionOverrideInput,
   ) {
     const saved = await this.transactions.run(actor.companyId, actor.userId, async (scope) => {
-      const context = await scope.context(membershipId, terms);
-      const now = context.now;
-      const failure = permissionEditFailure(terms, context);
+      const found = await scope.find(membershipId, overrideId);
+      if (found === null) throw new ApiError('NOT_FOUND');
+      const context = await scope.context(membershipId, found);
+      const previous = await scope.find(membershipId, overrideId);
+      if (previous === null) throw new ApiError('NOT_FOUND');
+      const failure = permissionEditFailure(previous, context, 'REVOKE');
       if (failure !== null) throw new ApiError(failure);
-      const previous = await scope.current(membershipId, terms, now);
       const lifecycle = overrideLifecycleFailure(
-        'SAVE',
-        previous,
+        'REVOKE',
+        [previous],
         context.membership?.roleCode === 'owner',
-        now,
+        context.now,
       );
       if (lifecycle !== null) throw new ApiError(lifecycle);
-      for (const row of previous) await scope.end(membershipId, row.id, now);
-      const override = await scope.insert(membershipId, terms, now);
+      const ended = await scope.end(membershipId, overrideId, context.now);
       await scope.audit.record({
         entity: 'permission_override',
-        entityId: override.id,
-        action: previous.length === 0 ? 'permission.granted' : 'permission.replaced',
-        before:
-          previous.length === 0
-            ? null
-            : previous.map((row) => ({ ...row, membership_id: membershipId })),
-        after: { ...override, membership_id: membershipId },
+        entityId: ended.id,
+        action: 'permission.revoked',
+        before: { ...previous, membership_id: membershipId },
+        after: { ...ended, membership_id: membershipId, reason: input.reason },
       });
-      return override;
+      return ended;
     });
     await this.invalidator.invalidate(actor.companyId, membershipId);
     return saved;
