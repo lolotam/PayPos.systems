@@ -6,6 +6,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createTestDatabase, type TestDatabase } from '../../../db/test/test-database.ts';
+import { phoneLockKey } from '../../../notifications/src/phone-identity.ts';
 import {
   grantPlatformPermission,
   revokePlatformPermission,
@@ -31,6 +32,7 @@ const logged: AuthLogEntry[] = [];
 
 const optionsFor = (databaseUrl: string): AuthOptions => ({
   databaseUrl,
+  staffPhoneLockKey: phoneLockKey,
   secret: 'test-secret-that-is-long-enough-for-hmac',
   baseURL: BASE,
   trustedOrigins: [ORIGIN],
@@ -47,9 +49,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await auth.close();
-  await owner.end();
-  await testDb.drop();
+  await auth?.close();
+  await owner?.end();
+  await testDb?.drop();
 });
 
 const post = (path: string, body: unknown, cookie?: string) =>

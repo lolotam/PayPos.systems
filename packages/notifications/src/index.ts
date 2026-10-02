@@ -37,3 +37,8 @@ export {
   whatsappInboundJob,
   WhatsappQueueUnavailableError,
 } from './whatsapp-inbound-queue.ts';
+export {
+  readOtpTemplateApproval,
+  prepareStaffOtp,
+  type OtpTemplateApproval,
+} from './templates/staff-otp-preparation.ts';

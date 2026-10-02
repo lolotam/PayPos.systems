@@ -33,10 +33,51 @@ export async function migrateDatabase(ownerUrl: string, passwords: RolePasswords
   }
   // max_lifetime null: postgres.js would otherwise recycle the one connection after 30–60 minutes, and a long
   // migration would continue on a new session that no longer holds the advisory lock.
-  const sql = postgres(ownerUrl, { max: 1, max_lifetime: null, onnotice: () => undefined });
+  const connection = migrationClient(ownerUrl);
   try {
-    await applyMigrations(sql, MIGRATIONS_FOLDER);
+    await applyMigrations(connection.sql, MIGRATIONS_FOLDER);
   } finally {
-    await sql.end();
+    await connection.close();
   }
+}
+
+/** ينتظر إغلاق socket فعلياً؛ end() قد يحل بعد ReadyForQuery وقبل خروج اتصال القالب. */
+export function migrationClient(url: string) {
+  let open = false;
+  let acknowledged: (() => void) | undefined;
+  const sql = postgres(url, {
+    max: 1,
+    max_lifetime: null,
+    onnotice: () => undefined,
+    connection: { application_name: 'pospay-migrations' },
+    onparameter: () => {
+      open = true;
+    },
+    onclose: () => {
+      open = false;
+      acknowledged?.();
+    },
+  });
+  return {
+    sql,
+    close: async () => {
+      const closed = open
+        ? new Promise<void>((resolve) => {
+            acknowledged = resolve;
+          })
+        : Promise.resolve();
+      await sql.end({ timeout: 5 });
+      let timer: NodeJS.Timeout | undefined;
+      try {
+        await Promise.race([
+          closed,
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Migration connection did not close')), 5000);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
 }

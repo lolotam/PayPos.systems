@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { APP_GUARD, NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import type { AuthService } from '@pospay/auth';
+import type { AuthService, StaffOtpApi, StaffSessions } from '@pospay/auth';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Redis } from 'ioredis';
 import { systemUuidV7 } from '@pospay/ids';
@@ -46,6 +46,11 @@ import { READINESS_CHECKS, singleFlight, type ReadinessCheck } from './shared/re
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
 
 export interface AppDependencies {
+  readonly staff?: {
+    api: StaffOtpApi | null;
+    sessions: StaffSessions | null;
+    origin: string | null;
+  };
   readonly readiness: readonly ReadinessCheck[];
   /** Releases what main.ts opened (pools, clients). Runs on app.close() and on SIGTERM/SIGINT. */
   readonly onShutdown?: () => Promise<void>;
@@ -108,7 +113,7 @@ class AppModule {
         // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
-        ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
+        ...identityProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis, deps.staff),
         {
           provide: RATE_LIMITER,
           useValue: deps.redis === undefined ? null : createRedisRateLimiter(deps.redis),
@@ -129,7 +134,13 @@ function enableCors(app: NestFastifyApplication, corsOrigins: readonly string[])
     origin: [...corsOrigins],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['content-type', 'idempotency-key', 'x-request-id', COMPANY_HEADER],
+    allowedHeaders: [
+      'content-type',
+      'idempotency-key',
+      'x-request-id',
+      'authorization',
+      COMPANY_HEADER,
+    ],
     // The admin app reads the id back to quote it in a support request.
     exposedHeaders: ['x-request-id'],
     maxAge: 600,
@@ -175,7 +186,11 @@ function buildAdapter(
     }) => {
       // Provider request headers can carry phone-bearing message ids too; generate our own diagnostic id.
       try {
-        if (decodeURIComponent((request.url ?? '').split('?')[0] ?? '').startsWith('/v1/webhooks/'))
+        if (
+          /^\/v1\/(webhooks\/|devices\/me\/staff-)/.test(
+            decodeURIComponent((request.url ?? '').split('?')[0] ?? ''),
+          )
+        )
           return ids.newId();
       } catch {
         return ids.newId();
@@ -235,6 +250,10 @@ export async function createApp(
   assertEveryRouteGuarded(controllers);
   const adapter = buildAdapter(logger, deps.ids ?? systemUuidV7(), deps.trustedProxy ?? []);
   mountWhatsappSecurity(adapter, deps.whatsapp, deps.redis);
+  adapter.getInstance().addHook('onRoute', (route) => {
+    if (/^\/v1\/devices\/me\/staff-(otp\/(request|verify)|pin\/sign-in)$/.test(route.url))
+      route.bodyLimit = 1024;
+  });
   if (deps.auth !== undefined) {
     mountAuthRoutes(adapter.getInstance(), deps.auth.service, {
       baseURL: deps.auth.baseURL,

@@ -12,6 +12,7 @@
     "start": "node --env-file-if-exists=../../.env dist/main.js"
   },
   "dependencies": {
+    "@pospay/auth": "workspace:*",
     "@pospay/contracts": "workspace:*",
     "@pospay/notifications": "workspace:*",
     "bullmq": "6.2.0",

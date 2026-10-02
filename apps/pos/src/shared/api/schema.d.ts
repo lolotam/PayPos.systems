@@ -68,6 +68,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/devices/me/staff-pin/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["signInStaffPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff-pins/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resetStaffPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-otp/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestStaffOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-otp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["verifyStaffOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getStaffSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-session/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["signOutStaff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/webhooks/whatsapp": {
         parameters: {
             query?: never;
@@ -346,6 +442,51 @@ export interface components {
             overrides: components["schemas"]["PermissionOverridePage"];
             ended_overrides: components["schemas"]["PermissionOverridePage"];
             editing_enabled: boolean;
+        };
+        StaffPinInput: {
+            phone: string;
+            pin: string;
+        };
+        StaffPinResetInput: {
+            /** Format: uuid */
+            user_id: string;
+            pin: string;
+        };
+        StaffOtpRequestInput: {
+            phone: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+        };
+        StaffOtpVerifyInput: {
+            /** Format: uuid */
+            challenge_id: string;
+            code: string;
+        };
+        StaffOtpAcknowledgement: {
+            /** @enum {string} */
+            status: "ACCEPTED";
+            /** Format: uuid */
+            challenge_id: string;
+            /** @enum {number} */
+            expires_in: 300;
+            /** @enum {number} */
+            retry_after: 60;
+            /** @enum {string} */
+            recovery: "ASK_MANAGER";
+        };
+        StaffSessionContext: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            device_id: string;
+            /** Format: date-time */
+            expires_at: string;
         };
         WhatsappWebhookAcknowledgement: {
             /** @enum {boolean} */
@@ -804,6 +945,194 @@ export interface operations {
                 };
             };
             /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    signInStaffPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPinInput"];
+            };
+        };
+        responses: {
+            /** @description Restricted staff session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionContext"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resetStaffPin: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPinResetInput"];
+            };
+        };
+        responses: {
+            /** @description PIN reset; no session issued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestStaffOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffOtpRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Indistinguishable acknowledgment */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOtpAcknowledgement"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    verifyStaffOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffOtpVerifyInput"];
+            };
+        };
+        responses: {
+            /** @description Restricted staff session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionContext"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current device operator */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionContext"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    signOutStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
             default: {
                 headers: {
                     [name: string]: unknown;
