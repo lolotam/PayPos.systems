@@ -220,6 +220,7 @@ messaging control. No global OTP event goes to tenant outbox, delivery log or re
 | `channel`, `template_key`, `template_revision`, `locale`, `provider_template_name` | WHATSAPP, staff_otp, immutable revision and explicit ar/en locale/name; nullable mapping only for configuration failure |
 | `status` | PREPARED, PENDING, SENDING, SENT, FAILED, EXPIRED or SUPPRESSED; only acknowledged enqueue permits PREPARED→PENDING, never back to PENDING |
 | `authorized_at`, `send_deadline`, `created_at`, `updated_at` | UTC timestamptz; authorized_at set only at release to PENDING after enqueue acknowledgment and fresh suppression check; send deadline equals challenge expiry |
+| `preparation_deadline` | Immutable UTC timestamptz copied from the common post-preflight 200 ms window; bounds API release and worker waiting, never extended by dequeue or polling |
 | `execution_id`, `sending_at`, `finished_at` | one irreversible execution fence and lifecycle times |
 | `failure_code`, `outcome_known`, `provider_message_digest` | finite diagnostics and optional domain-separated provider-id HMAC; never raw phone-bearing wamid |
 
@@ -319,8 +320,10 @@ with deterministic id ordering for multiple rows; release these transactions bef
 After acknowledged commit, enqueue **once** to `notifications-otp`, payload `{challenge_id, attempt_id}`,
 stable job id based on both ids, `attempts=1`, no phone/code/user claims. Only after successful, bounded
 preparation and **acknowledged enqueue** may the API auth facade release PREPARED→PENDING: take the
-same phone lock, perform a fresh suppression check and recheck activation, ACTIVE challenge and expiry,
-then set `authorized_at` and commit. This release is not exposed by the worker facade. STOP committed
+same phone lock, perform a fresh suppression check and recheck activation, ACTIVE challenge, expiry
+and fresh database wall-clock time after lock acquisition strictly before the immutable
+`preparation_deadline`, then set `authorized_at` and commit. This release is not exposed by the
+worker facade. STOP committed
 before release blocks authorization; an attempt authorized first may finish after STOP under ADR-0013.
 If STOP wins at release, terminalize the challenge/attempt as SUPPRESSED and clear its MAC; an already
 enqueued job remains unable to claim or send. A release check failure likewise grants no authorization.
@@ -335,12 +338,29 @@ timeouts do not identify eligible phones. DB/lock/preparation or BullMQ failures
 return the identical 202**; record finite, secret-free internal outcomes, cancel/drain bounded work,
 and never infer rollback from an unknown commit. Preparation/enqueue failure or an unknown enqueue
 result must not release PREPARED. Terminalize it as FAILED where an acknowledged update is possible;
-otherwise it stays non-sendable until bounded expiry cleanup. An unknown enqueue may have created
-a job, but that job cannot claim PREPARED. A job arriving before release is skipped without retry;
-this deliberate loss is safer than authorizing an uncertain enqueue. A 202, job, enqueue result or
+otherwise it stays non-sendable until worker timeout or bounded expiry cleanup. An unknown enqueue
+may have created a job, but that job cannot claim PREPARED. A 202, job, enqueue result or
 failed/unknown operation alone grants no send permission; the worker still requires its acknowledged
 PENDING→SENDING fence. No recovery sweep releases or re-enqueues PREPARED rows. Commit/enqueue/release
 crash gaps may lose OTP; the POS makes a new request after the 60-second cooldown.
+
+If a job finds **PREPARED**, keep that same job execution alive and **wait boundedly outside every
+database transaction** for the API's release. The auth facade returns status and the immutable
+`preparation_deadline` established from the common 200 ms window before phone lookup; no code or
+destination is materialized while waiting. Use bounded status polling with short reads, releasing
+each transaction/connection before the timer wait. Do not restart the window at dequeue, hold a
+database lock/transaction during a wait, re-enqueue or retry the job. Stop waiting on PENDING, a
+terminal/missing row, capability loss, challenge expiry or the preparation deadline. PENDING proceeds
+through the normal admission and acknowledged claim fence; PREPARED itself never permits a send.
+
+At the deadline, perform a final short locked state check. If the attempt is still PREPARED,
+conditionally mark it FAILED with the finite outcome `PREPARATION_WINDOW_ENDED` and complete the
+job with **zero sends**; if persistence fails, record a secret-free internal failure and grant no
+permission. A concurrently observed PENDING row released before the deadline may proceed normally;
+the API's locked deadline check prohibits a late release after timeout terminalization. Terminal,
+missing or otherwise invalid rows record their finite skip outcome and do not send. This bounded
+wait preserves an early job until a successful release without weakening failed/uncertain enqueue
+handling or the at-most-once submission fence.
 
 | Failure / availability state | External request result | Internal effect |
 |---|---|---|
@@ -349,6 +369,7 @@ crash gaps may lose OTP; the POS makes a new request after the 60-second cooldow
 | Common cooldown/quota check refuses before identity lookup | Generic 429 with Retry-After independent of eligibility | Count/reserve according to settled limits; no send |
 | Unknown/ineligible/suppressed phone, or post-lookup lookup/preparation/DB/lock failure | Identical 202 body and response window | No send permission; finite internal refusal/failure, no usable code/job for suppressed phones |
 | BullMQ failure, timeout or unknown enqueue result | Identical 202 body and response window | No PREPARED→PENDING release; any existing job is non-sendable, record failure/uncertainty internally |
+| Worker observes PREPARED before API release | Identical 202 body and response window | Wait outside DB transactions only until the fixed preparation deadline; proceed only on valid PENDING, otherwise record the outcome and send nothing |
 | Release/claim/result crash or unknown commit | Identical 202 if the request is still in flight | No permission inferred from uncertainty, no retry/sweep; retain acknowledged worker fence and at-most-once rules |
 
 Reserve a **separate OTP worker with concurrency 4**, independent of tenant `notifications-send`
@@ -357,8 +378,9 @@ agreed pilot load**. This is a submission target, not a handset-delivery guarant
 Reserve worker/DB/Redis headroom, prioritize OTP over tenant traffic, monitor queue age and fail closed
 on capacity/configuration loss; increase capacity from measurements without sharing away reserved slots.
 
-Worker sequence: require activated/READY OTP → load eligible unexpired **PENDING** challenge/attempt
-→ validate mapping/configuration → reserve
+Worker sequence: require activated/READY OTP → load challenge/attempt → if PREPARED, bounded wait
+outside DB transactions for API release → require eligible unexpired **PENDING** → validate
+mapping/configuration → reserve
 shared recipient admission → atomically claim PENDING→SENDING with execution id and recheck ACTIVE
 challenge/expiry → acknowledge COMMIT → auth derives/checks code and materializes matching destination
 → notification adapter assembles the sensitive template in memory → Channel makes one bounded HTTP
@@ -510,9 +532,16 @@ that lockout is distinct from the staff session, which has no idle timeout.
   enqueue, ≤200 ms bound, each commit/enqueue/claim/provider/result crash window, two processors,
   recreated/duplicate/stalled jobs and unknown commit produce ≤1 submission per challenge.
   Preparation/enqueue failure or unknown enqueue never releases PREPARED or permits HTTP; exercise a
-  job created despite lost enqueue acknowledgment, a job arriving before release, cancellation/drain,
+  job created despite lost enqueue acknowledgment, cancellation/drain,
   no late release after the response and no sweep/retry that revives these rows. Release requires
   acknowledged enqueue plus a fresh locked STOP/activation/expiry check; STOP winning that lock blocks send.
+  Deterministically pause the API before release, let an idle worker observe PREPARED and enter its
+  bounded wait, then release PENDING within the preparation window: prove **exactly one delivery**
+  (one provider submission), with materialization/HTTP only after acknowledged PENDING→SENDING.
+  In a separate release-never-happens scenario, advance the injected clock to the fixed deadline:
+  prove **zero sends**, recorded PREPARATION_WINDOW_ENDED and no subsequent release/retry. Prove all
+  waits hold no DB transaction/lock/connection, dequeue/polling cannot extend the window, and final
+  timeout/release races cannot send from PREPARED or authorize after the deadline.
 - **Worker/templates/gates:** transient OTP-only rendering with exact approved ar/en component order,
   missing locale/name/config fails closed, sensitive tenant parameters remain rejected; current-phone
   hash mismatch skips; expiry advanced after load/claim/materialization and immediately before HTTP;
@@ -544,7 +573,8 @@ that lockout is distinct from the staff session, which has no idle timeout.
   work and from user-session membership discovery; list device-only login endpoints and purpose guards.
 - **ADR-0018 §7:** replace planned phone plugin with the auth-owned flow; specify separate code-MAC
   challenge storage, deterministic worker derivation, hash-only ledger/destination lookup, id-only direct
-  enqueue, non-sendable PREPARED/release ordering, reserved OTP concurrency, settled limits,
+  enqueue, non-sendable PREPARED/release ordering and bounded worker wait, reserved OTP concurrency,
+  settled limits,
   loss/new-challenge recovery, default-disabled OTP activation independent of service readiness,
   and uniform post-preflight request responses.
 - **ADR-0009/ADR-0013:** record deliberate non-registration of phoneNumber in PR 6, preserve 1.7.5;
@@ -597,8 +627,11 @@ that lockout is distinct from the staff session, which has no idle timeout.
   is a new, rate-limited challenge or the employee's own PIN with manager assistance if needed, never
   automatic resubmission, manager-PIN impersonation or suppression removal.
 - Non-sendable PREPARED attempts prevent preparation/failed or uncertain enqueue from authorizing a
-  send, including jobs created despite lost acknowledgment. Early jobs and crash gaps can lose a
-  code; no background retry/release repairs that gap. Request a new challenge under the settled limits.
+  send, including jobs created despite lost acknowledgment. An early worker waits outside DB
+  transactions within the fixed preparation window and sends only after valid PENDING and an
+  acknowledged claim, avoiding routine loss before API release. A release that never happens records
+  the timeout and sends nothing; crash gaps can still lose a code, with no background retry/release
+  repairing the gap. Request a new challenge under the settled limits.
 - Better Auth purpose restrictions must cover both Nest guards and its mounted handler. POS cookie
   support and scoped PIN recovery are real implementation work; existing Device/PIN results do not
   constitute completed staff login. OTP-only production activation remains conditional on live gates.
