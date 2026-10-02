@@ -1,6 +1,6 @@
 # ADR-0012 — Statement approval pending-outbox count
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-02
 - **Slice:** Phase 1 · G2 · before PR 53 (`approve-statement`)
 
@@ -84,7 +84,13 @@ to the app or reader; the existing idempotency sweep and suppression definer kee
 PR 53 uses the existing `withTenant` connection as `pospay_app`, at READ COMMITTED. Capture the database start time,
 lock the statement, recheck the ended period, owner permission, REVIEWED status, current/reviewed fingerprints,
 missing performers/configuration and blocked corrections, then call the count through a persistence adapter.
-Count > 0 returns bilingual retryable 409 and rolls back without frozen lines, status change or approval audit.
+Count > 0 **refuses approval with retryable HTTP 409**, using the English message
+**"updates are still being calculated, try again shortly"** and its ar/en i18n translation. Roll back without
+frozen lines, status change or approval audit; the user retries manually in a fresh transaction. Do not poll,
+auto-approve, bypass the count or approve an incomplete statement after a timeout. If a relevant event is parked,
+raise an owner-visible operational alert through the existing outbox/notification boundary, independent of the
+rolled-back approval transaction; parking never discharges the event. Alerting must not require app SELECT on
+outbox or reading event payloads in this function.
 Count = 0 permits freezing the lines/fingerprint and recording approval/audit atomically, still holding the lock.
 
 A consumer that committed before the lock is reflected in the fingerprint; one waiting behind approval observes
@@ -110,7 +116,10 @@ Run against real PostgreSQL as the restricted roles (ADR-0006), with two synthet
 4. Search-path attacks: synthetic temporary objects shadow `outbox`, `consumed_events` and `app_company_id`;
    changing the caller's path cannot redirect the read, bypass RLS or cause writes.
 5. Atomicity: a consumer rollback leaves its event pending; a committed effect/mark discharges it. Pending events
-   return 409 with no approval side effects. A failure while freezing rolls back lines, fingerprint, status/audit.
+   return retryable 409 with the specified ar/en message and no approval side effects. Manual retry after processing
+   uses a fresh cutoff and can approve; parked events still refuse approval and produce the owner alert independently
+   of approval rollback. No timeout or automatic retry approves incomplete inputs. A failure while freezing rolls
+   back lines, fingerprint, status/audit.
 6. Concurrency with barriers rather than sleeps: consumer before/after approval, two approvers, producer begun
    before cutoff but committing after the check, session/redemption/refund/salary/tip events, and plan/override
    writers. Each input lands in the frozen result or a correction; plan/override writers recheck closed status.
@@ -118,6 +127,12 @@ Run against real PostgreSQL as the restricted roles (ADR-0006), with two synthet
    `(company_id, event_type, created_at, id)`; the existing consumed-events PK covers its anti-join. Generate a new
    migration and update the privilege/definer inventory allowlists; do not rewrite existing migrations or tests
    to permit arbitrary future definers.
+
+### 5. Owner decisions — 2026-10-02
+
+- **Waleed:** pending commission outbox events refuse approval with a retryable 409:
+  "updates are still being calculated, try again shortly". Retry is manual; alert the owner if an event is parked.
+  Never approve an incomplete statement. §3 applies this decision without weakening the company-wide check.
 
 ## Alternatives considered
 
@@ -135,11 +150,10 @@ Run against real PostgreSQL as the restricted roles (ADR-0006), with two synthet
   not expand. The reader role is part of the definer/ACL inventory, not a new runtime login or raw DB facade.
 - A relevant backlog anywhere in the company can block a business's approval. Parked commission events require
   operational repair; they are never ignored to make the count zero.
-- PR 53 must deliver the function, policies/grants, index, adapter and listed tests together. G2 proposes that
-  contract; this document does not establish runtime correctness or owner acceptance.
+- PR 53 must deliver the function, policies/grants, index, adapter and listed tests together. G2 accepts that
+  design contract; this document does not claim implementation or runtime correctness.
 
 ## Open questions for the owner
 
-1. **Backlog UX (`TODO(spec)`):** recommend a bilingual 409 explaining that commission processing is still pending,
-   with manual retry and an owner-visible operational alert for parked events. No approval bypass or arbitrary
-   timeout that treats pending as processed. The company-wide scope and strict cutoff are already fixed by SPEC §6.
+None for G2: the backlog UX is settled by the owner decision above. The company-wide scope and strict cutoff
+remain fixed by SPEC §6; PR 53 must implement and verify the accepted contract.

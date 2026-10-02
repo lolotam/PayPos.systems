@@ -1,6 +1,6 @@
 # ADR-0011 — Public rating link
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-02
 - **Slice:** Phase 1 · G3 · before PRs 58–60
 
@@ -82,13 +82,21 @@ ar/en i18n, RTL-safe UI, and no component fetches.
 
 Apply a **per-IP Redis rate limit before token lookup**, across GET/submit/opt-out and all company prefixes;
 use the verified proxy-derived IP, not arbitrary forwarded headers. Missing rate-limit infrastructure fails
-closed for public token operations. The numeric cap is an owner question below, not a silent default.
+closed for public token operations. The orchestrator decided **30 requests/IP/minute**, shared across all rating
+operations, with a generic bilingual 429 and `Retry-After`.
 
 The page and its data response disclose **only the business name and the stars form** (1–5 stars, optional
 comment, submit and opt-out control). No customer name/phone, staff names, performer ids, session details, dates,
 prices, rating history, averages or business profile data. Validate the token before loading the business name;
 unknown links get the generic unavailable view. After consumption, show a generic completion state and keep
 opt-out accessible until expiry; do not return the submitted rating/comment to the browser.
+
+The comment is **optional plain text, at most 1,000 Unicode characters**, with no images, attachments or links.
+Enforce the limit and reject link-bearing content on the server; render accepted text with escaping, never HTML,
+Markdown or automatic linkification. Comments are visible **only to the owner/manager**, within their authorized
+tenant/business scope; staff, reception and public responses never expose them. The owner decided this policy;
+it overrides any earlier staff-comment visibility toggle. The orchestrator requires owner approval of ar/en
+submit, opt-out and unavailable/expired-link copy before PR 60; no extra profile fields.
 
 Use HTTPS, `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, no third-party scripts or trackers and no
 search indexing. Prefer the token in the link's URL fragment; the frontend sends it in a dedicated, explicitly
@@ -102,7 +110,7 @@ callbacks, worker jobs, and the public rating link (this ADR). State that the li
 tenant, then its hash/expiry is validated inside `withTenant` before any rating/business data is returned.
 Record the 7-day life, atomic single-rating consumption, same-token opt-out until expiry, per-IP limit and
 minimal business-name/stars page. Preserve the existing dispatcher/auth/global-messaging exceptions.
-Add **V3.7 (2026-10-02)** in the changelog, linking this Proposed design; acceptance is still an owner decision.
+The **V3.7 (2026-10-02)** changelog entry links the amendment as initially proposed; this ADR now records acceptance.
 
 Other documents' three-path descriptions are older summaries. This ADR explicitly amends that enumeration,
 without permitting a new raw-client facade or cross-module write. This lane applies only the requested
@@ -124,7 +132,20 @@ CLAUDE.md amendment; companion-document synchronization belongs to the orchestra
   Verify page opt-out leaves global STOP suppression unchanged and cannot re-subscribe.
 - **Privacy/admission:** exact business-name/form DTO allowlist and rendered page, ar/en/RTL, no PII/token in
   logs/traces/events/jobs/access URLs, no-cache/no-referrer headers, per-IP limits before lookup across prefixes
-  and trusted-proxy spoof rejection; unauthenticated routes still pass route-access coverage.
+  at 30 requests/minute, bilingual 429/Retry-After and trusted-proxy spoof rejection; unauthenticated routes still
+  pass route-access coverage.
+- **Comments:** absent/empty and 1,000-character comments accepted, 1,001 rejected (including Unicode input),
+  links/images rejected and markup never executed; invalid input leaves the token unconsumed. Owner/manager
+  scope permits comment reads; staff/reception, public and cross-tenant reads cannot reveal comments.
+
+### 7. Owner decisions — 2026-10-02
+
+- **Waleed:** allow an optional plain-text comment of at most 1,000 characters, no images or links, visible only
+  to the owner/manager. This is the accepted comment policy in §4.
+- **Orchestrator:** accept 30 requests/IP/minute across rating operations and require owner approval of ar/en
+  public-form copy before PR 60, as recorded in §4.
+- **Deferred to the ratings slice:** token delivery remains open below; acceptance does not authorize an
+  unresolved bearer-token transport or enable rating sends.
 
 ## Alternatives considered
 
@@ -148,9 +169,7 @@ CLAUDE.md amendment; companion-document synchronization belongs to the orchestra
 
 ## Open questions for the owner
 
-1. **Public-link rate cap (`TODO(spec)`):** recommend 30 requests/IP/minute shared across all rating operations,
-   with generic bilingual 429 and Retry-After. Confirm before PR 58; shared salon/mobile NATs should be considered.
-2. **Hash-only token delivery (`TODO(spec)`, before PR 59b):** a CSPRNG token cannot be recovered from its hash by
+1. **Hash-only token delivery (`TODO(spec)`, before PR 59b):** a CSPRNG token cannot be recovered from its hash by
    a later queued sender. ADR-0018 forbids bearer links in event/job JSON and defers this transport to ratings.
    Recommend a separately approved keyed, domain-separated 256-bit pseudorandom derivation from immutable
    company/request identity, with the derivation secret only in Dokploy and token produced only in sender
@@ -158,5 +177,3 @@ CLAUDE.md amendment; companion-document synchronization belongs to the orchestra
    with no notifications contact read or customer write port. Approve whether this meets the required random
    token policy and settle key lifetime/rotation; until then **do not enable rating sends or add plaintext or
    encrypted bearer-token storage silently**. This proposal does not relax the CSPRNG issuance contract above.
-3. **Public form copy/comment cap (`TODO(spec)`):** recommend 1,000 Unicode characters, plain text, with ar/en
-   submit/opt-out/expired-link wording approved by the owner before PR 60. No extra profile fields.
