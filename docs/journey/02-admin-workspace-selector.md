@@ -13,7 +13,7 @@ user needs memberships in two companies, a business with two branches, and one i
 2. اختار شركة ← قائمة النشاط تتملي بأنشطة الشركة دي بس ← اختار نشاط ← قائمة الفرع تتملي بفروعه بس.
 3. الفرع غير النشط بيظهر وجنبه كلمة **غير نشط**، وتقدر تختاره.
 4. **مساحة العمل** في النص تعرض أسامي الشركة والنشاط والفرع اللي اخترتهم.
-5. غيّر الشركة ← النشاط والفرع يتمسحوا ويتطلب منك تختار تاني.
+5. غيّر الشركة ← اختيار النشاط والفرع بتاع الشركة القديمة يتشال؛ لو فيه نشاط أو فرع واحد بس بيتختار لوحده، غير كده تختار تاني.
 6. اقفل الصفحة وافتحها تاني ← نفس الاختيار يفضل محفوظ.
 7. مستخدم عضويته على فرع واحد بس: يشوف الفرع ده ونشاطه بس، مش باقي الفروع.
 
@@ -22,11 +22,12 @@ user needs memberships in two companies, a business with two branches, and one i
 ## English
 
 1. After signing in, the top bar shows three lists: **Company** (الشركة), **Business** (النشاط), **Branch** (الفرع).
-   One membership → chosen automatically; none → "No company yet" (لا توجد شركة).
+   One available company → chosen automatically; none → "No company yet" (لا توجد شركة).
 2. Choose a company → Business lists only that company's businesses → choose one → Branch lists only its branches.
 3. An inactive branch is shown with **Inactive** (غير نشط) and can still be chosen.
 4. The **Workspace** card shows the chosen company, business and branch names.
-5. Change the company → business and branch are cleared and must be chosen again.
+5. Change the company → the previous company's business and branch are discarded; a sole business or branch is
+   selected automatically, otherwise choose again.
 6. Reload the page → the same choice is still selected.
 7. A user whose membership is one branch sees only that branch and its business.
 
@@ -35,4 +36,4 @@ user needs memberships in two companies, a business with two branches, and one i
 ## For an agent
 
 - Lists are comboboxes labelled **Company / Business / Branch** (الشركة / النشاط / الفرع).
-- API check: every request after a choice carries the `x-company-id` header of the chosen company.
+- API check: requests through the generated admin API client carry the chosen `x-company-id`; auth-client calls do not.
