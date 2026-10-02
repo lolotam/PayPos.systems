@@ -27,8 +27,7 @@ with PR 35. Local only.
    `{ "name": "عميل تجربة", "locale": "ar", "phone": { "calling_code": "965", "national_number": "9xxxxxxx" } }`
    (8 أرقام لرقم كويتي) ← رد **200** فيه `id` والاسم واللغة و`opted_out: false`، والموبايل **مخفي** (`***` + آخر 3 أرقام).
 2. **نفس الرقم تاني:** ابعت نفس الطلب باسم مختلف ← **نفس الـ `id`**، والاسم القديم **ما بيتغيرش**.
-3. **صيغة الرقم:** الـ API بيقبل **أرقام بس** في `national_number` — مسافة أو قوس أو شرطة ← **400** (`INVALID_CUSTOMER_PHONE`)؛
-   شاشة الاستقبال (PR 35) هي اللي هتنضّف الفواصل. الأصفار في أول الرقم بتتشال: `"09xxxxxxx"` = نفس العميل.
+3. **صيغة الرقم:** الـ API بيقبل **أرقام بس** في `national_number` — مسافة أو قوس أو شرطة ← **400** (`INVALID_CUSTOMER_PHONE`). الأصفار في أول الرقم بتتشال: `"09xxxxxxx"` = نفس العميل.
 4. **رقم كويتي غلط:** 7 أرقام، أو 9 أرقام مش بادئة بصفر، مع `965` ← **400** برسالة **اختر رمز اتصال بلد صالحاً وأدخل أرقام الهاتف الوطني؛ الكويت
    تتطلب ثمانية أرقام** — والرقم نفسه مش موجود في الرد.
 5. **اسم فيه رموز تحكم مخفية** ← **400** (`VALIDATION_FAILED`).
@@ -47,7 +46,7 @@ with PR 35. Local only.
    the last 3 digits).
 2. **Same phone again** with another name → the **same `id`**; the stored name is **not** changed.
 3. **Number format:** the API accepts **digits only** in `national_number` — a space, bracket or dash → **400**
-   (`INVALID_CUSTOMER_PHONE`); the reception screen (PR 35) will strip separators. Leading zeros are removed:
+   (`INVALID_CUSTOMER_PHONE`). Leading zeros are removed:
    `"09xxxxxxx"` is the same customer.
 4. **Wrong Kuwaiti length** (7 digits, or 9 digits not starting with 0, with `965`) → **400** "Choose a valid country calling code and enter national
    digits; Kuwait requires eight digits" — the number is not echoed back.
