@@ -1,7 +1,11 @@
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Queue } from 'bullmq';
 import { systemUuidV7 } from '@pospay/ids';
-import { notificationRedisOptions, whatsappInboundJob } from '@pospay/notifications';
+import {
+  createPhoneIdentity,
+  notificationRedisOptions,
+  whatsappInboundJob,
+} from '@pospay/notifications';
 import { platformHarness, redeliver } from './platform-harness.ts';
 import { NOW, PHONE } from './harness.ts';
 import { createWhatsappInboxRepository } from '../persistence/drizzle-whatsapp-inbox.repository.ts';
@@ -96,4 +100,72 @@ it('rejects missing or unapplied STOP rows while preserving already processed id
   await h.owner`UPDATE platform_whatsapp_inbox SET suppression_applied_at = NULL WHERE id = ${id}`;
   await expect(repo.process(id, NOW)).rejects.toThrow('WHATSAPP_INBOX_NOT_PROCESSABLE');
   expect(await redeliver(() => repo.unfinished())).toContain(id);
+});
+
+it('commits 100 distinct STOPs through the real 200 ms facade without a partial rollback loop', async () => {
+  const phones = createPhoneIdentity('test-secret'.repeat(4), 'test-v1');
+  const messages = Array.from({ length: 100 }, (_, index) => ({
+    ...h.message(`test.bulk-stop.${index}`),
+    recipientHash: phones.identify(`+96500000${String(index + 2).padStart(3, '0')}`).hash,
+  }));
+  const started = performance.now();
+  const ids = await redeliver(() => h.acceptMessages(messages));
+  expect(performance.now() - started).toBeLessThan(1500);
+  expect(ids).toHaveLength(100);
+  expect(
+    await h.owner`SELECT id FROM platform_whatsapp_inbox WHERE suppression_applied_at IS NOT NULL`,
+  ).toHaveLength(101);
+  expect(await h.owner`SELECT recipient_hash FROM platform_whatsapp_suppressions`).toHaveLength(
+    101,
+  );
+  expect(await h.owner`SELECT id FROM platform_whatsapp_audit`).toHaveLength(101);
+  expect(await redeliver(() => h.acceptMessages([...messages].reverse()))).toEqual(ids);
+  expect(await h.owner`SELECT id FROM platform_whatsapp_audit`).toHaveLength(101);
+});
+
+it('drains more than 100 expired payloads while retaining digests, suppression and audit', async () => {
+  await h.owner`INSERT INTO platform_whatsapp_inbox
+    (id,provider_message_digest,recipient_hash,hash_key_id,command,provider_timestamp,received_at,raw_event)
+    SELECT gen_random_uuid(),decode(lpad(to_hex(n),64,'0'),'hex'),recipient_hash,hash_key_id,'OTHER',provider_timestamp,received_at,'{"command":"OTHER"}'::jsonb
+    FROM platform_whatsapp_inbox CROSS JOIN generate_series(1,200) AS n`;
+  const before =
+    await h.owner`SELECT id,provider_message_digest FROM platform_whatsapp_inbox ORDER BY id`;
+  const suppression = await h.owner`SELECT * FROM platform_whatsapp_suppressions`;
+  const audit = await h.owner`SELECT * FROM platform_whatsapp_audit`;
+  const cleanup = new ClearWhatsappPayloads(createWhatsappInboxRepository(h.global), {
+    now: () => new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000),
+  });
+  expect(await cleanup.execute()).toBe(201);
+  expect(
+    await h.owner`SELECT id FROM platform_whatsapp_inbox WHERE raw_event IS NOT NULL`,
+  ).toHaveLength(0);
+  expect(
+    await h.owner`SELECT id,provider_message_digest FROM platform_whatsapp_inbox ORDER BY id`,
+  ).toEqual(before);
+  expect(await h.owner`SELECT * FROM platform_whatsapp_suppressions`).toEqual(suppression);
+  expect(await h.owner`SELECT * FROM platform_whatsapp_audit`).toEqual(audit);
+});
+
+it('caps retention at 100 bounded transactions and continues on the next run', async () => {
+  const transactions = vi.spyOn(h.global, 'withGlobal').mockResolvedValue(100);
+  const repo = createWhatsappInboxRepository(h.global);
+  expect(await repo.clearPayloads(NOW)).toBe(10000);
+  expect(transactions).toHaveBeenCalledTimes(100);
+  transactions.mockResolvedValueOnce(1);
+  expect(await repo.clearPayloads(NOW)).toBe(1);
+  expect(transactions).toHaveBeenCalledTimes(101);
+});
+
+it('dedupes within a batch while auditing each new STOP on the same phone once', async () => {
+  const first = h.message('test.same-phone.1');
+  const second = h.message('test.same-phone.2');
+  const ids = await redeliver(() =>
+    h.acceptMessages([first, { ...first, command: 'OTHER' }, second]),
+  );
+  expect(ids).toHaveLength(2);
+  expect(await h.owner`SELECT recipient_hash FROM platform_whatsapp_suppressions`).toHaveLength(1);
+  expect(await h.owner`SELECT id FROM platform_whatsapp_audit`).toHaveLength(3);
+  expect(
+    await h.owner`SELECT id FROM platform_whatsapp_inbox WHERE command='STOP' AND suppression_applied_at IS NOT NULL`,
+  ).toHaveLength(3);
 });

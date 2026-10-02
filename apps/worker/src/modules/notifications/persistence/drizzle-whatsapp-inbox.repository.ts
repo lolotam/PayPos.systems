@@ -33,13 +33,22 @@ export function createWhatsappInboxRepository(
           if (existing?.processed_at == null) throw new Error('WHATSAPP_INBOX_NOT_PROCESSABLE');
         }
       }),
-    clearPayloads: (cutoff) =>
-      database.withGlobal(async (tx) => {
-        const rows = await tx.execute(sql`WITH batch AS (
+    clearPayloads: (cutoff) => drainPayloads(database, cutoff),
+  };
+}
+
+async function drainPayloads(database: PlatformWhatsappDatabase, cutoff: Date): Promise<number> {
+  let cleared = 0;
+  for (let batch = 0; batch < 100; batch++) {
+    const count = await database.withGlobal(async (tx) => {
+      const rows = await tx.execute(sql`WITH batch AS (
         SELECT id FROM public.platform_whatsapp_inbox WHERE raw_event IS NOT NULL
           AND received_at <= ${cutoff.toISOString()} ORDER BY received_at,id LIMIT 100 FOR UPDATE SKIP LOCKED)
         UPDATE public.platform_whatsapp_inbox SET raw_event = NULL WHERE id IN (SELECT id FROM batch) RETURNING id`);
-        return rows.length;
-      }),
-  };
+      return rows.length;
+    });
+    cleared += count;
+    if (count < 100) break;
+  }
+  return cleared;
 }

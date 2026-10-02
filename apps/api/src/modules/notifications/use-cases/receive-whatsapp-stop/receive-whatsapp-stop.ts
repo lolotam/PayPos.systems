@@ -17,12 +17,10 @@ export class ReceiveWhatsappStop {
   ) {}
 
   async execute(messages: readonly ScrubbedWhatsappMessage[]): Promise<void> {
-    for (const batch of whatsappMessageBatches(messages)) await this.receiveBatch(batch);
-  }
-
-  private async receiveBatch(messages: readonly ScrubbedWhatsappMessage[]): Promise<void> {
-    const ids = await this.inbox.accept(messages, this.clock.now());
-    for (const id of ids) {
+    const ids: string[] = [];
+    for (const batch of whatsappMessageBatches(messages))
+      ids.push(...(await this.inbox.accept(batch, this.clock.now())));
+    for (const id of new Set(ids)) {
       await this.queue.enqueue(id);
       await this.inbox.confirmEnqueue(id, this.clock.now());
     }

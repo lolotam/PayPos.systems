@@ -112,25 +112,19 @@ it('unknown committed outcome retries by digest without another STOP or timestam
   const unknown: PlatformWhatsappDatabase = {
     ...h.global,
     withGlobal: async (work) => {
-      await h.global.withGlobal(work);
+      // النتيجة المجهولة قد تعني rollback؛ هذا السيناريو يحقن فقد الرد فقط بعد commit مؤكَّد.
+      await redeliver(() => h.global.withGlobal(work));
       throw new Error('TEST_COMMIT_ACK_LOST');
     },
   };
   await expect(h.accept(unknown)).rejects.toThrow(/TEST_COMMIT_ACK_LOST|outcome unknown/);
-  const before = await committedSuppression();
+  const before = await h.owner`SELECT * FROM platform_whatsapp_suppressions`;
+  expect(before).toHaveLength(1);
   await redeliver(() => h.accept());
   expect(await h.owner`SELECT * FROM platform_whatsapp_suppressions`).toEqual(before);
   expect(await h.owner`SELECT id FROM platform_whatsapp_inbox`).toHaveLength(1);
   expect(await h.owner`SELECT id FROM platform_whatsapp_audit`).toHaveLength(1);
 });
-
-async function committedSuppression() {
-  for (let i = 0; i < 100; i++) {
-    const rows = await h.owner`SELECT * FROM platform_whatsapp_suppressions`;
-    if (rows.length === 1) return rows;
-  }
-  throw new Error('TEST_COMMITTED_STOP_MISSING');
-}
 
 it('lock timeout never commits a partial STOP or exposes raw input', async () => {
   const entered = barrier();

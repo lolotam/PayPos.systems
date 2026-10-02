@@ -45,6 +45,7 @@ interface PlatformHarness extends Awaited<ReturnType<typeof notificationHarness>
   intake: postgres.Sql;
   identity: ReturnType<ReturnType<typeof createPhoneIdentity>['identify']>;
   message(id?: string): ScrubbedWhatsappMessage;
+  acceptMessages(messages: readonly ScrubbedWhatsappMessage[]): Promise<readonly string[]>;
   accept(database?: PlatformWhatsappDatabase, id?: string): Promise<readonly string[]>;
   authorize(
     company?: string,
@@ -101,6 +102,7 @@ export async function platformHarness(): Promise<PlatformHarness> {
     identity,
     message,
     accept,
+    acceptMessages: (messages) => createWhatsappInboxRepository(global, ids).accept(messages, NOW),
     authorize,
     waiting,
     freshCheck: (company: string) =>

@@ -4,51 +4,18 @@ import { sql } from 'drizzle-orm';
 import type { ScrubbedWhatsappMessage } from '../domain/whatsapp-command.ts';
 import type { WhatsappInboxRepository } from '../ports/whatsapp-inbox.repository.ts';
 
+type InboxRow = { id: string; digest: string };
+type NewMessage = { id: string; message: ScrubbedWhatsappMessage };
+
 export function createWhatsappInboxRepository(
   database: PlatformWhatsappDatabase,
   ids: IdGenerator,
 ): WhatsappInboxRepository {
   return {
     accept: (messages, at) =>
-      database.withGlobal(async (tx) => {
-        const ordered = [...messages].sort((a, b) =>
-          Buffer.compare(Buffer.from(a.digest), Buffer.from(b.digest)),
-        );
-        const accepted: string[] = [];
-        const fresh: { id: string; message: ScrubbedWhatsappMessage }[] = [];
-        for (const message of ordered) {
-          const [row] = await tx.execute<{ id: string }>(sql`
-          INSERT INTO public.platform_whatsapp_inbox
-            (id, provider_message_digest, recipient_hash, hash_key_id, command, provider_timestamp, received_at, raw_event)
-          VALUES (${ids.newId()}, ${Buffer.from(message.digest)}, ${Buffer.from(message.recipientHash)}, ${message.hashKeyId},
-            ${message.command}, ${message.providerTimestamp.toISOString()}, ${at.toISOString()}, ${JSON.stringify(message.rawEvent)}::jsonb)
-          ON CONFLICT (provider_message_digest) DO NOTHING RETURNING id`);
-          if (row !== undefined) {
-            fresh.push({ id: row.id, message });
-            accepted.push(row.id);
-          } else {
-            const [existing] = await tx.execute<{
-              id: string;
-            }>(sql`SELECT id FROM public.platform_whatsapp_inbox
-            WHERE provider_message_digest = ${Buffer.from(message.digest)}`);
-            if (existing === undefined) throw new Error('WHATSAPP_DEDUPE_MISSING');
-            accepted.push(existing.id);
-          }
-        }
-        const locks = [
-          ...new Set(
-            fresh
-              .filter((r) => r.message.command === 'STOP')
-              .map((r) => phoneLockKey(r.message.recipientHash).toString()),
-          ),
-        ].sort();
-        for (const key of locks)
-          await tx.execute(sql`SELECT pg_advisory_xact_lock(${key}::bigint)`);
-        for (const row of fresh)
-          if (row.message.command === 'STOP')
-            await applyStop({ tx, id: row.id, message: row.message, at, auditId: ids.newId() });
-        return [...new Set(accepted)];
-      }),
+      messages.length === 0
+        ? Promise.resolve([])
+        : database.withGlobal((tx) => acceptBatch({ tx, messages, at, ids })),
     confirmEnqueue: (id, at) =>
       database.withGlobal(async (tx) => {
         await tx.execute(
@@ -59,24 +26,102 @@ export function createWhatsappInboxRepository(
   };
 }
 
-async function applyStop(request: {
+async function acceptBatch(request: {
   tx: Tx;
-  id: string;
-  message: ScrubbedWhatsappMessage;
+  messages: readonly ScrubbedWhatsappMessage[];
   at: Date;
-  auditId: string;
+  ids: IdGenerator;
+}): Promise<readonly string[]> {
+  const { tx, messages, at, ids } = request;
+  const unique = new Map<string, ScrubbedWhatsappMessage>();
+  for (const message of messages) {
+    const digest = Buffer.from(message.digest).toString('hex');
+    if (!unique.has(digest)) unique.set(digest, message);
+  }
+  const ordered = [...unique.values()].sort((a, b) =>
+    Buffer.compare(Buffer.from(a.digest), Buffer.from(b.digest)),
+  );
+  const fresh = await insertInbox({ tx, messages: ordered, at, ids });
+  const stops = fresh.flatMap((row) => {
+    const message = unique.get(row.digest);
+    if (message === undefined) throw new Error('WHATSAPP_DEDUPE_MISSING');
+    return message.command === 'STOP' ? [{ id: row.id, message }] : [];
+  });
+  if (stops.length !== 0) await applyStops({ tx, stops, at, ids });
+  // لقطة جديدة بعد INSERT تنتظر التسليم المتزامن وتجد صفه حتى لو لم يكن مرئياً قبل التعارض.
+  const accepted = await tx.execute<{ id: string }>(sql`
+    SELECT id FROM public.platform_whatsapp_inbox
+    WHERE provider_message_digest IN (${sql.join(
+      ordered.map((message) => sql`${Buffer.from(message.digest)}`),
+      sql`, `,
+    )})
+    ORDER BY provider_message_digest`);
+  if (accepted.length !== ordered.length) throw new Error('WHATSAPP_DEDUPE_MISSING');
+  return accepted.map((row) => row.id);
+}
+
+function insertInbox(request: {
+  tx: Tx;
+  messages: readonly ScrubbedWhatsappMessage[];
+  at: Date;
+  ids: IdGenerator;
+}) {
+  const { tx, messages, at, ids } = request;
+  const values = messages.map(
+    (message) => sql`(
+    ${ids.newId()}, ${Buffer.from(message.digest)}, ${Buffer.from(message.recipientHash)}, ${message.hashKeyId},
+    ${message.command}, ${message.providerTimestamp.toISOString()}, ${at.toISOString()}, ${JSON.stringify(message.rawEvent)}::jsonb)`,
+  );
+  return tx.execute<InboxRow>(sql`
+    INSERT INTO public.platform_whatsapp_inbox
+      (id,provider_message_digest,recipient_hash,hash_key_id,command,provider_timestamp,received_at,raw_event)
+    VALUES ${sql.join(values, sql`, `)}
+    ON CONFLICT (provider_message_digest) DO NOTHING
+    RETURNING id, encode(provider_message_digest,'hex') AS digest`);
+}
+
+async function lockPhones(tx: Tx, stops: readonly NewMessage[]): Promise<void> {
+  const keys = [...new Set(stops.map((row) => phoneLockKey(row.message.recipientHash).toString()))];
+  // OFFSET يمنع دمج الاستعلام الفرعي؛ الترتيب يحصل قبل تقييم دالة القفل ذات الأثر الجانبي.
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(lock_key) FROM (
+    SELECT lock_key FROM (VALUES ${sql.join(
+      keys.map((key) => sql`(${key}::bigint)`),
+      sql`, `,
+    )}) AS phones(lock_key)
+    ORDER BY lock_key OFFSET 0
+  ) AS ordered_phones`);
+}
+
+async function applyStops(request: {
+  tx: Tx;
+  stops: readonly NewMessage[];
+  at: Date;
+  ids: IdGenerator;
 }): Promise<void> {
-  const { tx, id, message, at, auditId } = request;
-  const hash = Buffer.from(message.recipientHash);
+  const { tx, stops, at, ids } = request;
+  await lockPhones(tx, stops);
+  const phones = new Map(
+    stops.map((row) => [Buffer.from(row.message.recipientHash).toString('hex'), row.message]),
+  );
+  const suppressions = [...phones.values()].map(
+    (message) => sql`(
+    ${Buffer.from(message.recipientHash)},${message.hashKeyId},'STOP',${at.toISOString()},${at.toISOString()})`,
+  );
   await tx.execute(sql`INSERT INTO public.platform_whatsapp_suppressions
     (recipient_hash,hash_key_id,source,first_opted_out_at,last_opted_out_at)
-    VALUES (${hash},${message.hashKeyId},'STOP',${at.toISOString()},${at.toISOString()})
+    VALUES ${sql.join(suppressions, sql`, `)}
     ON CONFLICT (recipient_hash) DO UPDATE SET source = 'STOP',
       last_opted_out_at = GREATEST(platform_whatsapp_suppressions.last_opted_out_at, EXCLUDED.last_opted_out_at)`);
+  const audit = stops.map(
+    ({ id, message }) => sql`(
+    ${ids.newId()},${Buffer.from(message.recipientHash)},${message.hashKeyId},'STOP',${id},'OPT_OUT','RECIPIENT_STOP',${at.toISOString()})`,
+  );
   await tx.execute(sql`INSERT INTO public.platform_whatsapp_audit
     (id,recipient_hash,hash_key_id,source,inbox_id,action,reason,occurred_at)
-    VALUES (${auditId},${hash},${message.hashKeyId},'STOP',${id},'OPT_OUT','RECIPIENT_STOP',${at.toISOString()})`);
-  await tx.execute(
-    sql`UPDATE public.platform_whatsapp_inbox SET suppression_applied_at = ${at.toISOString()} WHERE id = ${id}`,
-  );
+    VALUES ${sql.join(audit, sql`, `)}`);
+  await tx.execute(sql`UPDATE public.platform_whatsapp_inbox SET suppression_applied_at = ${at.toISOString()}
+    WHERE id IN (${sql.join(
+      stops.map((row) => sql`${row.id}::uuid`),
+      sql`, `,
+    )})`);
 }
