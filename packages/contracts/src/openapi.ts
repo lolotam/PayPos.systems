@@ -1,4 +1,14 @@
 import { z } from 'zod';
+import { permissionPaths } from './identity/permissions-openapi.js';
+import {
+  membershipPageQuery,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
+} from './identity/permissions.js';
 
 import { errorEnvelope } from './errors/envelope.js';
 import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
@@ -46,6 +56,13 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  membershipPageQuery,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
   whatsappWebhookAcknowledgement,
   whatsappEnvelope,
   whatsappHandshake,
@@ -114,6 +131,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...permissionPaths,
   '/v1/webhooks/whatsapp': {
     get: {
       operationId: 'verifyWhatsappWebhook',

@@ -4,6 +4,54 @@
  */
 
 export interface paths {
+    "/v1/permissions/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPermissionMemberships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/memberships/{membershipId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMembershipPermissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/memberships/{membershipId}/overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["grantPermissionOverride"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/webhooks/whatsapp": {
         parameters: {
             query?: never;
@@ -201,6 +249,76 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        MembershipPageQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        PermissionOverrideInput: {
+            permission_code: string;
+            /** @enum {string} */
+            effect: "ALLOW" | "DENY";
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            reason: string;
+            /** Format: date-time */
+            expires_at: string | null;
+        };
+        PermissionOverride: {
+            permission_code: string;
+            /** @enum {string} */
+            effect: "ALLOW" | "DENY";
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            reason: string;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            granted_by: string;
+            /** Format: date-time */
+            granted_at: string;
+        };
+        PermissionMembership: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: uuid */
+            employee_id: string | null;
+            role_code: string;
+            role_name_ar: string | null;
+            role_name_en: string;
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string | null;
+        };
+        PermissionMembershipPage: {
+            items: components["schemas"]["PermissionMembership"][];
+            next_cursor: string | null;
+        };
+        PermissionOverridePage: {
+            items: components["schemas"]["PermissionOverride"][];
+            next_cursor: string | null;
+        };
+        MembershipPermissions: {
+            membership: components["schemas"]["PermissionMembership"];
+            role_defaults: string[];
+            permission_catalog: string[];
+            overrides: components["schemas"]["PermissionOverridePage"];
+            editing_enabled: boolean;
+        };
         WhatsappWebhookAcknowledgement: {
             /** @enum {boolean} */
             received: true;
@@ -522,6 +640,113 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listPermissionMemberships: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionMembershipPage"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMembershipPermissions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPermissions"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    grantPermissionOverride: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PermissionOverrideInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionOverride"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     verifyWhatsappWebhook: {
         parameters: {
             query: {

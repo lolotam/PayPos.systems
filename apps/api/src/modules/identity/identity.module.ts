@@ -1,5 +1,9 @@
 import type { Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { PermissionsController } from './http/permissions.controller.ts';
+import { createPermissionOverrideTransactions } from './persistence/permission-override-transactions.ts';
+import { createGrantInvalidator } from './persistence/grant-invalidator.ts';
+import { GrantPermissionOverride } from './use-cases/grant-permission-override/grant-permission-override.ts';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
@@ -44,6 +48,7 @@ import { VerifyCashierPin } from './use-cases/verify-cashier-pin/verify-cashier-
 
 /** The controllers identity mounts. */
 export const identityControllers = [
+  PermissionsController,
   CompaniesController,
   DevicesController,
   CashierPinsController,
@@ -77,6 +82,17 @@ export function identityProviders(
         );
   const devices = database === undefined ? null : deviceUseCases(database, ids, redis);
   return [
+    {
+      provide: GrantPermissionOverride,
+      useValue:
+        database === undefined
+          ? null
+          : new GrantPermissionOverride(
+              createPermissionOverrideTransactions(database, ids),
+              createGrantInvalidator(redis),
+              systemClock,
+            ),
+    },
     { provide: WORKSPACE_NAMES, useValue: names },
     { provide: OnboardCompany, useValue: onboard },
     { provide: DEVICE_USE_CASES, useValue: devices?.useCases ?? null },

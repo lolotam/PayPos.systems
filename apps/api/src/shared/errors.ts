@@ -4,6 +4,8 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
+  PERMISSION_POLICY_UNRESOLVED: 409,
+  PERMISSION_OVERRIDE_EXISTS: 409,
   VALIDATION_FAILED: 400,
   BAD_REQUEST: 400,
   UNAUTHENTICATED: 401,
@@ -33,6 +35,8 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'PERMISSION_POLICY_UNRESOLVED',
+  'PERMISSION_OVERRIDE_EXISTS',
   'VALIDATION_FAILED',
   'AUTHENTICATION_FAILED',
   'FEATURE_DISABLED',
