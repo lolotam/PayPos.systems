@@ -12,7 +12,12 @@ export const findOrCreateCustomerInput = z
         .max(64)
         .regex(/^[0-9]+(?![\s\S])/),
     }),
-    name: z.string().trim().min(1).max(200),
+    name: z
+      .string()
+      .regex(/^[^\p{Cc}]*(?![\s\S])/u)
+      .trim()
+      .min(1)
+      .max(200),
     locale: z.enum(['ar', 'en']),
   })
   .meta({ id: 'FindOrCreateCustomerInput' });

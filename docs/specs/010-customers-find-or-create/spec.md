@@ -33,6 +33,8 @@ Reception selects a country (Kuwait by default in PR 35) and enters the national
 - This slice does not verify allocation or ownership of a number.
 - A competing creation that commits is read by the next statement inside the same tenant transaction. A competing rollback permits the waiting insert to create the row.
 - Existing opted-out customers remain opted out; lookup is not consent to receive messages.
+- Customer names reject Unicode control characters (C0, DEL and C1), including NUL, before whitespace trimming; the existing trimmed 1–200 character bounds remain. Invalid names return `VALIDATION_FAILED` without input details.
+- Every database failure crossing the customer persistence boundary becomes a fresh `CustomerPersistenceError` (`CUSTOMER_PERSISTENCE_FAILED`), without the driver's cause, message, parameters or stack. This applies to customer writes/lookup, audit writes and transaction completion; the HTTP envelope remains `INTERNAL_ERROR`.
 
 ## Requirements
 
@@ -92,6 +94,7 @@ None published or consumed: SPEC §3 names no event for this step. Orders' `Cust
 - **Domain unit**: selected calling code, separators/leading zeros, Kuwait length and E.164 boundaries; invalid error has no input; masking; privacy projection with opt-out.
 - **Use-case unit**: normalization before transaction; deterministic injected time/ids; audit only for insert; preserve existing; repository/audit rollback covered by integration.
 - **Integration**: CUS-01…08 using real API/auth and Postgres, synthetic reserved phone fixtures, captured logs; concurrency and rollback.
+- **Privacy regression**: NUL-name HTTP requests return 400 without phone data; bypassing the contract reproduces PostgreSQL SQLSTATE 22021 and proves the adapter exposes only a fresh named error, including when caught inside the transaction callback.
 - **RLS negative**: restricted app role, cross-tenant SELECT=0, INSERT refused, no UPDATE/DELETE privilege, foreign roles denied, identical ids across companies allowed, no context reads.
 - **Contracts**: strict nested digit-only phone input, calling-code bounds, locale/name limits, masked-only response, generated path/status parity; country-length and composed E.164 rules stay in domain.
 - **Queries**: no standalone read endpoint or `queries/` implementation in this write slice; command repository lookup uses company/phone unique index.

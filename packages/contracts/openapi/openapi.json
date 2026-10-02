@@ -923,7 +923,8 @@
           "name": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200
+            "maxLength": 200,
+            "pattern": "^[^\\p{Cc}]*(?![\\s\\S])"
           },
           "locale": {
             "type": "string",

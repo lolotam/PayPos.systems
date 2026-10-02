@@ -16,6 +16,27 @@ const response = {
   opted_out: false,
 };
 
+describe('customer name contract', () => {
+  it.each(Array.from({ length: 65 }, (_, index) => (index < 32 ? index : index + 95)))(
+    'rejects control character U+%s in names before trimming',
+    (code) => {
+      const control = String.fromCharCode(code);
+      for (const name of [`Synthetic${control}name`, `${control}Example`, `Example${control}`]) {
+        expect(findOrCreateCustomerInput.safeParse({ ...input, name }).success).toBe(false);
+      }
+    },
+  );
+
+  it('keeps trimmed name length limits and accepts Arabic names', () => {
+    expect(
+      findOrCreateCustomerInput.parse({ ...input, name: ` ${'a'.repeat(200)} ` }).name,
+    ).toHaveLength(200);
+    expect(findOrCreateCustomerInput.safeParse({ ...input, name: 'عميل تجريبي' }).success).toBe(
+      true,
+    );
+  });
+});
+
 describe('customer contracts', () => {
   it('requires explicit locale and strips surrounding name whitespace', () => {
     expect(findOrCreateCustomerInput.parse({ ...input, name: ' Example ' })).toEqual(input);

@@ -176,6 +176,27 @@ it('CUS-08 disabled feature refuses writes and restoring it permits lookup', asy
   expect((await send()).status).toBe(200);
 });
 
+it('CUS-06 rejects a NUL name with the named validation error before customer persistence', async () => {
+  const statementsBefore = h.calls.statements.length;
+  const result = await send(phoneInput('2025550126'), { name: 'Synthetic\u0000name' });
+  expect(result.status).toBe(400);
+  expect(result.body).toMatchObject({
+    code: 'VALIDATION_FAILED',
+    message_ar: expect.any(String),
+    message_en: expect.any(String),
+  });
+  expect(result.body).not.toHaveProperty('details');
+  for (const value of ['+12025550126', '12025550126', '2025550126']) {
+    expect(result.text).not.toContain(value);
+    expect(logs).not.toContain(value);
+  }
+  expect(
+    h.calls.statements
+      .slice(statementsBefore)
+      .some((entry) => /INSERT INTO customers/i.test(entry.sql)),
+  ).toBe(false);
+});
+
 it('CUS-07 failed audit rolls back a new customer inside withTenant', async () => {
   const db = createDatabase({ url: h.urls.app, ids: { newId: () => idA } });
   const ids = { newId: () => '01920000-0000-7000-8000-00000000abcd' };

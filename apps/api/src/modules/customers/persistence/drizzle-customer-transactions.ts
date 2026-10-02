@@ -12,6 +12,22 @@ type CustomerRow = {
   opted_out_at: Date | null;
 };
 
+class CustomerPersistenceError extends Error {
+  constructor() {
+    super('CUSTOMER_PERSISTENCE_FAILED');
+    this.name = 'CustomerPersistenceError';
+  }
+}
+
+// أخطاء Drizzle تحمل الهاتف في params والـ stack؛ لا نعبر الحد بأي جزء من خطأ السائق.
+async function safely<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch {
+    throw new CustomerPersistenceError();
+  }
+}
+
 function mapCustomer(row: CustomerRow): CustomerRecord {
   return {
     id: row.id,
@@ -44,14 +60,16 @@ export function createCustomerTransactions(
 ): CustomerTransactions {
   return {
     run: ({ companyId, userId }, work) =>
-      db.withTenant(
-        companyId,
-        (tx) =>
-          work({
-            findOrCreate: (customer) => findOrCreate(tx, companyId, customer),
-            audit: { record: (entry) => appendAuditLog(tx, ids.newId(), entry) },
-          }),
-        { userId },
+      safely(() =>
+        db.withTenant(
+          companyId,
+          (tx) =>
+            work({
+              findOrCreate: (customer) => safely(() => findOrCreate(tx, companyId, customer)),
+              audit: { record: (entry) => safely(() => appendAuditLog(tx, ids.newId(), entry)) },
+            }),
+          { userId },
+        ),
       ),
   };
 }
