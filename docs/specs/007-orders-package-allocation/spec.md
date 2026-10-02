@@ -43,7 +43,7 @@ Later package writers need deterministic decisions on the snapshots they load un
 2. PKG-08: Refund selects exactly the requested positive integer count of highest FREE ordinals and sums their stored values; insufficient capacity rejects the whole selection.
 3. PKG-09: Redemption and refund are allowed on expires_on and refused the following branch-local date; an extended date is used as supplied.
 4. PKG-10: Cancellation can free a USED slot only for its current unreversed redemption; reversed or stale snapshots are no-ops.
-5. PKG-11: Types, sale definitions and import definitions share rejection of empty components, duplicate service ids, non-positive/non-integer sessions and negative prices.
+5. PKG-11: Types, sale definitions and import definitions share rejection of empty components, duplicate service ids, non-positive/non-integer sessions, more than 365 sessions per component (owner decision 2026-10-03) and negative prices.
 
 ### Edge Cases
 
@@ -77,7 +77,7 @@ SPEC §8 is the allocation rule: largest remainder and floor-plus-final-remainde
 so independently applying roundKwd to proportional shares would violate conservation. Money stays
 bigint mills and uses the shared kernel's range checks and exact summation (ADR-0005).
 No new rounding policy is introduced. Ordering uses a deterministic lexical service-id comparison;
-production service ids are canonical UUIDs. Session counts and ordinals are safe integers.
+production service ids are canonical UUIDs. Session counts are integers from 1 to 365 (owner decision 2026-10-03); ordinals are safe integers.
 
 ### Schema changes
 

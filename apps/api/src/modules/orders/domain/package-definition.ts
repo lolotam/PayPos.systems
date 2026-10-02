@@ -2,6 +2,9 @@ import { assertMoney, type Money } from '@pospay/domain';
 
 import { PackageRuleError } from './errors.js';
 
+/** قرار المالك 2026-10-03: سنة اشتراك يومي هي أكبر باقة معقولة، وأي رقم أكبر غالباً غلطة كتابة. */
+export const MAX_PACKAGE_SESSIONS = 365;
+
 /** تعريف مشترك للنوع والبيع والاستيراد؛ العدد الأصلي هو أساس التقييم دائماً. */
 export interface PackageComponentDefinition {
   readonly serviceId: string;
@@ -27,7 +30,7 @@ export function validatePackagePrice(price: Money): Money {
 
 /**
  * بيحمي تعريف النوع والبيع والاستيراد بنفس القواعد عشان المعاينة والتنفيذ ما يختلفوش.
- * المتبقي اختياري للتعريف الجديد، ولو موجود لازم يقع بين صفر والعدد الأصلي.
+ * عدد الجلسات من 1 لـ MAX_PACKAGE_SESSIONS؛ المتبقي اختياري للتعريف الجديد، ولو موجود لازم يقع بين صفر والعدد الأصلي.
  *
  * @param price سعر الباقة الأصلي أو المدفوع بالفلوس
  * @param components مكونات الباقة بأعداد الجلسات الأصلية
@@ -44,7 +47,11 @@ export function validatePackageDefinition(
     if (component.serviceId.length === 0) throw new PackageRuleError('INVALID_COMPONENTS');
     if (seen.has(component.serviceId)) throw new PackageRuleError('DUPLICATE_SERVICE');
     seen.add(component.serviceId);
-    if (!Number.isSafeInteger(component.sessions) || component.sessions < 1) {
+    if (
+      !Number.isSafeInteger(component.sessions) ||
+      component.sessions < 1 ||
+      component.sessions > MAX_PACKAGE_SESSIONS
+    ) {
       throw new PackageRuleError('INVALID_SESSIONS');
     }
     const remaining = component.remainingSessions;

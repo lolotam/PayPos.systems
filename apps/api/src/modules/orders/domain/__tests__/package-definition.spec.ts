@@ -39,7 +39,7 @@ describe('shared type/sale/import validation (PKG-06/11)', () => {
     );
   });
 
-  it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
+  it.each([0, -1, 1.5, NaN, Infinity, 366, 4_294_967_296, Number.MAX_SAFE_INTEGER + 1])(
     'rejects original sessions %s',
     (sessions) => {
       expect(() => validatePackageDefinition(1n, [{ ...component, sessions }])).toThrow(
@@ -48,6 +48,14 @@ describe('shared type/sale/import validation (PKG-06/11)', () => {
       expect(() => createPackageSlots(1n, sessions)).toThrow(PackageRuleError);
     },
   );
+
+  it('accepts the 365-session maximum and conserves its value', () => {
+    const slots = createPackageSlots(1_000n, 365);
+    expect(slots).toHaveLength(365);
+    expect(slots.reduce((sum, slot) => sum + slot.unitValue, 0n)).toBe(1_000n);
+    expect(slots[0]?.unitValue).toBe(2n);
+    expect(slots[364]?.unitValue).toBe(272n);
+  });
 
   it.each([-1, 4, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
     'rejects remaining sessions %s',

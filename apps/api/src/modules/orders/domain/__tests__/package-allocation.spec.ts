@@ -2,6 +2,7 @@ import { MONEY_MAX, roundKwd, sumMoney } from '@pospay/domain';
 import { describe, expect, it } from 'vitest';
 
 import { allocatePackagePrice } from '../package-allocation.js';
+import { MAX_PACKAGE_SESSIONS } from '../package-definition.js';
 import { createPackageSlots } from '../package-slots.js';
 import { allocationFixtures } from './fixtures/package-allocation.js';
 
@@ -68,8 +69,8 @@ describe('package allocation precision and original snapshots', () => {
 
   it('weights and products exceed the money range without float conversion', () => {
     const result = allocatePackagePrice(MONEY_MAX, [
-      { serviceId: 'a', sessions: Number.MAX_SAFE_INTEGER, listPriceSnapshot: MONEY_MAX },
-      { serviceId: 'b', sessions: Number.MAX_SAFE_INTEGER, listPriceSnapshot: MONEY_MAX },
+      { serviceId: 'a', sessions: MAX_PACKAGE_SESSIONS, listPriceSnapshot: MONEY_MAX },
+      { serviceId: 'b', sessions: MAX_PACKAGE_SESSIONS, listPriceSnapshot: MONEY_MAX },
     ]);
     expect(result.map((component) => component.componentValue)).toEqual([
       50_000_000_000_000n,
