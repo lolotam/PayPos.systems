@@ -28,7 +28,10 @@ function validProxy(value: string): boolean {
 const schema = z.object({
   PLATFORM_NOTIFICATIONS_DATABASE_URL: z.preprocess(
     (value) => (value === '' ? undefined : value),
-    z.url({ protocol: /^postgres(ql)?$/ }).optional(),
+    z
+      .url({ protocol: /^postgres(ql)?$/ })
+      .optional()
+      .catch(undefined),
   ),
   TRUSTED_PROXY_CIDRS: trustedProxies,
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
@@ -80,11 +83,5 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
     const keys = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(`Invalid API configuration: ${keys.join(', ')} — see .env.example`);
   }
-  if (
-    env['NODE_ENV'] === 'production' &&
-    (env['WHATSAPP_APP_SECRET'] || env['WHATSAPP_WEBHOOK_VERIFY_TOKEN']) &&
-    result.data.TRUSTED_PROXY_CIDRS.length === 0
-  )
-    throw new Error('Invalid API configuration: TRUSTED_PROXY_CIDRS — see .env.example');
   return result.data;
 }

@@ -34,14 +34,20 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   // CREATE DATABASE ... TEMPLATE بيفشل لو ملفين نسخوا في نفس اللحظة، فبنعمله واحد ورا التاني.
   // الـ lock على مستوى الـ session (مش transaction) لأن CREATE DATABASE مينفعش جوه transaction،
   // و max: 1 بيضمن إن الـ lock والـ CREATE على نفس الاتصال.
-  // الـ dev Postgres عليه lock_timeout=10s للسيرفر كله؛ طابور النسخ بيطول لما ملفات كتير تبدأ مع بعض، فالاتصال ده بس
-  // بيستنى دوره من غير حد — ده انتظار في أداة الاختبار، مش سلوك في المنتج.
-  await maintenance`SET lock_timeout = 0`;
-  await maintenance`SELECT pg_advisory_lock(hashtext('pospay:clone-template'))`;
+  // تجهيز النسخة له مهلة محدودة، منفصلة عن نافذة OTP ذات 200ms.
+  // ملفات اختبارات DB متسلسلة؛ انتظار clone lock أيضاً محدود حتى لا يترك setup الموقوف pool حياً.
   try {
-    await maintenance.unsafe(`CREATE DATABASE "${name}" TEMPLATE "${pg.template}"`);
-  } finally {
-    await maintenance`SELECT pg_advisory_unlock(hashtext('pospay:clone-template'))`;
+    await maintenance`SET lock_timeout = '10s'`;
+    await maintenance`SET statement_timeout = '60s'`;
+    await maintenance`SELECT pg_advisory_lock(hashtext('pospay:clone-template'))`;
+    try {
+      await maintenance.unsafe(`CREATE DATABASE "${name}" TEMPLATE "${pg.template}"`);
+    } finally {
+      await maintenance`SELECT pg_advisory_unlock(hashtext('pospay:clone-template'))`;
+    }
+  } catch (error) {
+    await maintenance.end();
+    throw error;
   }
   return {
     name,
@@ -51,8 +57,11 @@ export async function createTestDatabase(): Promise<TestDatabase> {
     notificationsUrl: pgUrl(pg, 'pospay_notifications', pg.notificationsPassword, name),
     ownerUrl: pgUrl(pg, pg.ownerUser, pg.ownerPassword, name),
     drop: async () => {
-      await maintenance.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
-      await maintenance.end();
+      try {
+        await maintenance.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+      } finally {
+        await maintenance.end();
+      }
     },
   };
 }

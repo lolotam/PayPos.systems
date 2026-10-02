@@ -12,3 +12,4 @@ export * from './identity-cashier-pins.ts';
 export * from './settings.ts';
 export * from './notifications.ts';
 export * from './platform-whatsapp.ts';
+export * from './identity-staff-otp.ts';

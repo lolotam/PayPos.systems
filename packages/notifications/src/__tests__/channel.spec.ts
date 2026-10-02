@@ -13,6 +13,29 @@ const request: ChannelRequest = {
   deadline: null,
 };
 
+it.each(['refused', 'failure'])(
+  'beforeSubmit %s is a known local refusal with zero HTTP',
+  async (outcome) => {
+    const http = vi.fn<typeof fetch>();
+    const channel = new WhatsAppChannel({
+      accessToken: 'synthetic',
+      phoneNumberId: '00000001',
+      now: () => now,
+      request: http,
+      beforeSubmit: async () => {
+        if (outcome === 'failure') throw new Error('SYNTHETIC_CAPABILITY_FAILURE');
+        return false;
+      },
+    });
+    expect(await channel.send(request)).toEqual({
+      kind: 'refused',
+      code: 'CAPABILITY_UNAVAILABLE',
+      outcomeKnown: true,
+    });
+    expect(http).not.toHaveBeenCalled();
+  },
+);
+
 describe('fake one-submission channel', () => {
   it.each(['accepted', '4xx', '429', '5xx', 'timeout'] as const)(
     '%s returns bounded diagnostics',

@@ -133,7 +133,7 @@ async function assertConstraintAndFunction(tx: Pick<Tx, 'execute'>): Promise<voi
       AND proconfig = ARRAY['search_path=pg_catalog, pg_temp']
       AND provolatile = 'v' AND prorettype = 'boolean'::regtype
       AND has_function_privilege('pospay_app',oid,'EXECUTE')
-      AND NOT has_function_privilege('pospay_auth',oid,'EXECUTE')
+      AND has_function_privilege('pospay_auth',oid,'EXECUTE')
       AND NOT has_function_privilege('pospay_dispatcher',oid,'EXECUTE')
       AND NOT has_function_privilege('pospay_notifications',oid,'EXECUTE')
       AND NOT EXISTS (SELECT 1 FROM aclexplode(proacl) a WHERE a.grantee = 0) AS valid

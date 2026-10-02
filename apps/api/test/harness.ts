@@ -1,5 +1,5 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createAuth, createPlatformUser, type AuthService } from '@pospay/auth';
+import { createAuth, createPlatformUser, type AuthService, type StaffOtpApi } from '@pospay/auth';
 import {
   createDatabase,
   type Database,
@@ -10,6 +10,7 @@ import {
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { systemUuidV7 } from '@pospay/ids';
+import { phoneLockKey } from '@pospay/notifications';
 import { createLogger, type DestinationStream } from '@pospay/observability';
 import { randomBytes } from 'node:crypto';
 
@@ -19,6 +20,7 @@ import postgres from 'postgres';
 import { grantPlatformPermission } from '../../../packages/db/src/platform-grants.ts';
 import { PROVISIONAL_PLAN_ID, seedReferenceData } from '../../../packages/db/src/seed.ts';
 import { createTestDatabase, type TestDatabase } from '../../../packages/db/test/test-database.ts';
+import { cleanupStack } from './cleanup-stack.ts';
 import { createApp } from '../src/app.ts';
 
 // A real API over a cloned database with real Better Auth sessions. Users are made the way an operator makes them,
@@ -158,38 +160,82 @@ function operatorMaker(
  * @param options.logs a destination stream for the API's logger
  * @returns a started API, its database, and helpers that go through the real HTTP paths
  */
-export async function startHarness(options: { logs?: DestinationStream } = {}): Promise<Harness> {
-  const testDb: TestDatabase = await createTestDatabase();
+interface HarnessOptions {
+  logs?: DestinationStream;
+  staffOrigin?: string;
+  staffOtpFactory?: (
+    auth: AuthService,
+    authUrl: string,
+    database: TenantWrappers,
+    redis: Redis,
+  ) => StaffOtpApi;
+}
+
+export async function startHarness(options: HarnessOptions = {}): Promise<Harness> {
+  const cleanup = cleanupStack();
+  try {
+    const testDb = cleanup.own(await createTestDatabase(), (value) => value.drop());
+    const resources = await prepareHarness(testDb, options, cleanup);
+    return describeHarness(testDb, resources, cleanup);
+  } catch (error) {
+    await cleanup.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+async function prepareHarness(
+  testDb: TestDatabase,
+  options: HarnessOptions,
+  cleanup: ReturnType<typeof cleanupStack>,
+) {
   await seedReferenceData(testDb.ownerUrl);
   const ids = systemUuidV7();
-  const owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
-  const auth: AuthService = await createAuth({
-    databaseUrl: testDb.authUrl,
-    secret: 'test-secret-that-is-long-enough-for-hmac',
-    baseURL: BASE,
-    trustedOrigins: [ORIGIN],
-    ids,
-    secureCookies: false,
-    onLog: () => undefined,
-  });
-  const database = createDatabase({ url: testDb.appUrl, ids });
-  const redis = testRedis();
-  const calls: Harness['calls'] = { tenant: [], user: [], newTenant: [], statements: [] };
-  const app = await createApp(
-    {
-      readiness: [],
-      auth: { service: auth, baseURL: BASE },
-      database: spied(database, calls),
-      ids,
-      redis,
-    },
-    {
-      logger:
-        options.logs === undefined
-          ? createLogger('silent')
-          : createLogger('info', { destination: options.logs }),
-    },
+  const owner = cleanup.own(
+    postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined }),
+    (value) => value.end(),
   );
+  const auth = cleanup.own(await harnessAuth(testDb.authUrl, ids, options), (value) =>
+    value.close(),
+  );
+  const database = cleanup.own(
+    createDatabase({
+      url: testDb.appUrl,
+      ids,
+      boundedTenantTransactions: options.staffOtpFactory !== undefined,
+    }),
+    (value) => value.close(),
+  );
+  await database.ping();
+  const redis = cleanup.own(testRedis(), (value) => value.quit());
+  const calls: Harness['calls'] = { tenant: [], user: [], newTenant: [], statements: [] };
+  const wrappers = spied(database, calls);
+  const staffOtp = options.staffOtpFactory?.(auth, testDb.authUrl, wrappers, redis);
+  if (staffOtp !== undefined) cleanup.own(staffOtp, (value) => value.close());
+  const app = cleanup.own(
+    await createApp(
+      {
+        readiness: [],
+        auth: { service: auth, baseURL: BASE },
+        database: wrappers,
+        ...staffWiring(options, staffOtp, auth),
+        ids,
+        redis,
+      },
+      {
+        logger: harnessLogger(options),
+      },
+    ),
+    (value) => value.close(),
+  );
+  return { app, owner, auth, redis, calls, ids };
+}
+
+function describeHarness(
+  testDb: TestDatabase,
+  resources: Awaited<ReturnType<typeof prepareHarness>>,
+  cleanup: ReturnType<typeof cleanupStack>,
+): Harness {
+  const { app, owner, auth, redis, calls, ids } = resources;
   const send = sender(app);
   return {
     app,
@@ -210,11 +256,35 @@ export async function startHarness(options: { logs?: DestinationStream } = {}): 
       if (res.status !== 201) throw new Error(`onboarding failed with ${res.status}`);
       return res.body['id'] as string;
     },
-    close: async () => {
-      await app.close();
-      await Promise.all([database.close(), auth.close(), redis.quit()]);
-      await owner.end();
-      await testDb.drop();
-    },
+    close: cleanup.close,
   };
+}
+
+function staffWiring(options: HarnessOptions, api: StaffOtpApi | undefined, auth: AuthService) {
+  return options.staffOrigin === undefined
+    ? {}
+    : { staff: { api: api ?? null, sessions: auth.staff ?? null, origin: options.staffOrigin } };
+}
+
+function harnessLogger(options: HarnessOptions) {
+  return options.logs === undefined
+    ? createLogger('silent')
+    : createLogger('info', { destination: options.logs });
+}
+
+function harnessAuth(
+  authUrl: string,
+  ids: IdGenerator,
+  options: HarnessOptions,
+): Promise<AuthService> {
+  return createAuth({
+    staffPhoneLockKey: phoneLockKey,
+    databaseUrl: authUrl,
+    secret: 'test-secret-that-is-long-enough-for-hmac',
+    baseURL: BASE,
+    trustedOrigins: [ORIGIN, ...(options.staffOrigin === undefined ? [] : [options.staffOrigin])],
+    ids,
+    secureCookies: false,
+    onLog: () => undefined,
+  });
 }

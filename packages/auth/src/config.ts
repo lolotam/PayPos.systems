@@ -1,14 +1,17 @@
 import { randomBytes } from 'node:crypto';
 
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
-import { createAuthDatabase } from '@pospay/db';
+import { createAuthDatabase, createStaffOtpDatabase } from '@pospay/db';
 import { betterAuth } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins';
+import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
 
 /**
  * ما يحتاجه Better Auth: الـ pool على pospay_auth، السر، العنوان، الـ origins المسموحة، ومولّد الـ ids.
  */
 export interface AuthOptions {
+  readonly staffPhoneLockKey: (hash: Uint8Array) => bigint;
+  readonly clock?: { now(): Date };
   /** AUTH_DATABASE_URL — pospay_auth; the pool is opened here and never leaves this package. */
   readonly databaseUrl: string;
   /** BETTER_AUTH_SECRET — بيوقّع الـ cookies ويشفّر سر الـ TOTP؛ 32 حرف على الأقل. */
@@ -59,6 +62,7 @@ export interface VerifiedSession {
  * Better Auth نفسه بيفضل جوه الـ package دي — مفيش package تاني بيشوف أنواعه.
  */
 export interface AuthService {
+  readonly staff: StaffSessions;
   /** بيرد على /v1/auth/* (sign-in، sign-out، الـ TOTP…). */
   handler(request: Request): Promise<Response>;
   /** بيرجّع الـ session لو الـ cookie صالح (ومعاها cookies التجديد)، وإلا null. */
@@ -104,9 +108,16 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
     throw error;
   }
   const auth = buildBetterAuth(options, database);
+  const staff = staffSessions(options, auth);
   return {
-    handler: (request) => auth.handler(request),
+    staff,
+    handler: async (request) => {
+      if (!(await normalPurpose(staff, request.headers, options.onLog)))
+        return new Response(null, { status: 403 });
+      return auth.handler(request);
+    },
     getSession: async (headers) => {
+      if (!(await normalPurpose(staff, headers, options.onLog))) return null;
       const { headers: out, response } = await auth.api.getSession({
         headers,
         returnHeaders: true,
@@ -129,7 +140,9 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
     recordPlatformAction: (entry) =>
       database.recordPlatformAction({ id: options.ids.newId(), ...entry }),
     ping: () => database.ping(),
-    close: () => database.close(),
+    close: async () => {
+      await Promise.all([database.close(), staff.close()]);
+    },
   };
 }
 
@@ -191,6 +204,10 @@ function buildBetterAuth(options: AuthOptions, database: ReturnType<typeof creat
     emailAndPassword: { enabled: true, disableSignUp: true },
     session: {
       additionalFields: {
+        purpose: { type: 'string', required: false, input: false },
+        staffDeviceContext: { type: 'json', required: false, input: false },
+        staffAuthenticatedAt: { type: 'date', required: false, input: false },
+        staffAbsoluteDeadline: { type: 'date', required: false, input: false },
         // A hint only, re-verified against memberships on every request (ADR-0003 §4.1); never client input.
         activeCompanyId: { type: 'string', required: false, input: false },
       },
@@ -234,4 +251,54 @@ function toLogEntry(
     .filter((value): value is Error => value instanceof Error)
     .map((error) => error.name);
   return { level, message: text, errorNames };
+}
+
+function staffSessions(
+  options: AuthOptions,
+  auth: ReturnType<typeof buildBetterAuth>,
+): StaffSessions {
+  return createStaffSessions({
+    database: createStaffOtpDatabase({
+      url: options.databaseUrl,
+      phoneLockKey: options.staffPhoneLockKey,
+    }),
+    secret: options.secret,
+    normalCookie: `${options.secureCookies ? '__Secure-' : ''}pospay.session_token`,
+    now: () => options.clock?.now() ?? new Date(),
+    primitive: {
+      create: async (userId, device, now, deadline) =>
+        (await auth.$context).internalAdapter.createSession(
+          userId,
+          false,
+          {
+            purpose: 'STAFF_POS',
+            staffDeviceContext: device,
+            staffAuthenticatedAt: now,
+            staffAbsoluteDeadline: deadline,
+            expiresAt: deadline,
+            ipAddress: null,
+            userAgent: null,
+          },
+          true,
+        ),
+      find: async (token) =>
+        (await (await auth.$context).internalAdapter.findSession(token))?.session ?? null,
+      remove: async (token) => {
+        await (await auth.$context).internalAdapter.deleteSession(token);
+      },
+    },
+  });
+}
+
+async function normalPurpose(
+  staff: StaffSessions,
+  headers: Headers,
+  log: AuthOptions['onLog'],
+): Promise<boolean> {
+  try {
+    return await staff.normalPurpose(headers);
+  } catch (error) {
+    log(toLogEntry('error', 'INTERNAL_SERVER_ERROR', [error]));
+    throw error;
+  }
 }

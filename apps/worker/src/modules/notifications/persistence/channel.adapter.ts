@@ -41,6 +41,7 @@ export function createChannelAdapter(
         providerTemplateName: prepared.name,
         components: prepared.components,
       });
+      if (result.kind === 'refused') return refusedResult('CONFIG_INVALID');
       return submissionResult(result);
     },
   };
