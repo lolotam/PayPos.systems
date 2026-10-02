@@ -20,6 +20,7 @@
     "@pospay/auth": "workspace:*",
     "@pospay/contracts": "workspace:*",
     "@pospay/db": "workspace:*",
+    "@pospay/domain": "workspace:*",
     "@pospay/i18n": "workspace:*",
     "@pospay/ids": "workspace:*",
     "@pospay/notifications": "workspace:*",
