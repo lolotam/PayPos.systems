@@ -4,7 +4,9 @@
 redeeming with later slices. This is the rule core they will call. You check it through its tests and the
 worked examples below. Nothing to deploy.
 
-**Before you start / قبل ما تبدأ:** [00 Local setup](00-local-setup.md) steps 1–3 only. No database is needed.
+**Before you start / قبل ما تبدأ:** no database, Redis, `.env` or server. From the repo root run `pnpm install`, then
+`pnpm --filter @pospay/domain build` (the tests import the built shared money package).
+مش محتاج قاعدة بيانات ولا Redis ولا `.env`: شغّل `pnpm install` وبعدها `pnpm --filter @pospay/domain build`.
 
 ## العربي
 

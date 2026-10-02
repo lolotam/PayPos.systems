@@ -4,7 +4,9 @@
 (PR 30 versions and validation, then the statement screens) call. You check it through its tests and the worked
 examples below. Nothing to deploy.
 
-**Before you start / قبل ما تبدأ:** [00 Local setup](00-local-setup.md) steps 1–3 only. No database is needed.
+**Before you start / قبل ما تبدأ:** no database, Redis, `.env` or server. From the repo root run `pnpm install`, then
+`pnpm --filter @pospay/domain build` (the tests import the built shared money package).
+مش محتاج قاعدة بيانات ولا Redis ولا `.env`: شغّل `pnpm install` وبعدها `pnpm --filter @pospay/domain build`.
 
 ## العربي
 
@@ -31,8 +33,8 @@ examples below. Nothing to deploy.
 1. Run the commission tests alone:
    `pnpm --filter @pospay/api exec vitest run --config vitest.unit.config.ts src/modules/commissions`
    **You must see:** every test passed, with Postgres not running.
-2. **Owner example:** an employee's share of a line is 1,000 KWD, the first tier starts at 500 KWD at 5%, base pay
-   off → **25.000 KWD** (nothing on the first 500, 5% on the next 500).
+2. **Owner example:** an employee's share of a line is 1,000 KWD, the first tier starts at 500 KWD at 5%, base
+   commission off → **25.000 KWD** (nothing on the first 500, 5% on the next 500).
 3. **Tier edges:** steps 0 → 5%, 50 KWD → 10%, 100 KWD → a fixed amount. The employee had 40 KWD before this line
    and their share is 60 KWD → **5.500 KWD** (10 × 5% + 50 × 10%). The line ends exactly at 100, so the fixed step is
    not touched.
