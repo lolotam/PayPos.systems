@@ -24,6 +24,21 @@ const logLine = (entry: Record<string, unknown>): string =>
 
 const SECRETS = ['4821', 'hunter2hunter2', 'tok_live_abcdef', 'key_live_123', 'rt_xyz'];
 
+it('email addresses and operational bodies never enter diagnostics at any depth', () => {
+  const email = 'synthetic.owner@example.invalid';
+  const line = logLine({
+    recipientEmail: email,
+    nested: [{ EMAIL_ADDRESS: email }],
+    note: `Delivery failed for ${email}`,
+    emailHtml: 'private email body',
+    emailText: 'private email body',
+    providerBody: { to: email },
+    rawBody: 'private email body',
+  });
+  expect(line).not.toContain(email);
+  expect(line).not.toContain('private email body');
+});
+
 describe('secrets are removed at any depth (CLAUDE.md §8)', () => {
   it('top level, nested three levels deep, and inside arrays', () => {
     const line = logLine({

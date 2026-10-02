@@ -1,4 +1,8 @@
-import { notificationRequest, type InAppRecipient } from '@pospay/contracts';
+import {
+  notificationRequest,
+  type InAppRecipient,
+  type NotificationRecipient,
+} from '@pospay/contracts';
 import type { ClaimedEvent, Tx } from '@pospay/db';
 import type { createPhoneIdentity, createTemplateRegistry } from '@pospay/notifications';
 
@@ -6,6 +10,11 @@ import type { OutboxConsumer } from '../../../../outbox/consumer.ts';
 import type { AuthorizeNotification } from '../../use-cases/authorize-notification/authorize-notification.ts';
 import type { StoreInAppNotification } from '../../use-cases/store-in-app-notification/store-in-app-notification.ts';
 import { validInAppTemplate } from '@pospay/notifications';
+type EmailRecipient = Extract<NotificationRecipient, { channel: 'email' }>;
+type EmailScope = {
+  business_id?: string | null | undefined;
+  branch_id?: string | null | undefined;
+};
 
 export const NOTIFICATION_SOURCE_EVENTS = [
   'PaymentFailed',
@@ -30,23 +39,25 @@ export function notificationRequestConsumer(
   identity: Pick<ReturnType<typeof createPhoneIdentity>, 'identify'>,
   registry: ReturnType<typeof createTemplateRegistry>,
   store: (tx: Tx) => StoreInAppNotification,
+  email?: (
+    tx: Tx,
+    event: ClaimedEvent,
+    recipient: EmailRecipient,
+    scope: EmailScope,
+  ) => Promise<void>,
 ): OutboxConsumer {
   return {
     id: 'notifications.authorize-v1',
     eventTypes: NOTIFICATION_SOURCE_EVENTS,
     handle: async (tx, event: ClaimedEvent) => {
-      const parsed = notificationRequest.safeParse(event.payload);
-      if (!parsed.success) {
-        // Producers without notification recipients have no request for this consumer.
-        if (
-          typeof event.payload === 'object' &&
-          event.payload !== null &&
-          !('notification_recipients' in event.payload)
-        )
-          return;
-        throw new Error('NOTIFICATION_REQUEST_INVALID');
-      }
+      const parsed = parseRequest(event);
+      if (!parsed.success) return;
       for (const recipient of parsed.data.notification_recipients) {
+        if (recipient.channel === 'email') {
+          if (email === undefined) throw new Error('EMAIL_DISABLED');
+          await email(tx, event, recipient, parsed.data);
+          continue;
+        }
         if (recipient.channel === 'IN_APP') {
           await storeRecipient(store(tx), event, recipient, parsed.data);
           continue;
@@ -80,6 +91,20 @@ export function notificationRequestConsumer(
       }
     },
   };
+}
+
+function parseRequest(event: ClaimedEvent) {
+  const parsed = notificationRequest.safeParse(event.payload);
+  if (
+    !parsed.success &&
+    !(
+      typeof event.payload === 'object' &&
+      event.payload !== null &&
+      !('notification_recipients' in event.payload)
+    )
+  )
+    throw new Error('NOTIFICATION_REQUEST_INVALID');
+  return parsed;
 }
 
 function storeRecipient(

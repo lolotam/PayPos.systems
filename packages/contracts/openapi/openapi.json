@@ -873,7 +873,8 @@
           "channel": {
             "type": "string",
             "enum": [
-              "whatsapp"
+              "whatsapp",
+              "email"
             ]
           },
           "template_key": {
@@ -893,6 +894,7 @@
             ]
           },
           "phone_last3": {
+            "nullable": true,
             "type": "string",
             "pattern": "^\\d{3}$"
           },

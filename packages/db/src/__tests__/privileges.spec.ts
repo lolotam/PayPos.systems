@@ -341,6 +341,11 @@ describe('function inventory', () => {
         proconfig: ['search_path=public, pg_temp'],
       },
       {
+        proname: 'notification_email_destination_guard',
+        prosecdef: false,
+        proconfig: ['search_path=public, pg_temp'],
+      },
+      {
         proname: 'platform_whatsapp_is_suppressed',
         prosecdef: true,
         proconfig: ['search_path=pg_catalog, pg_temp'],

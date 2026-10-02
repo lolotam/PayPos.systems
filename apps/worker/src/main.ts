@@ -6,6 +6,7 @@ import {
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
+import { readEmailConfiguration } from '@pospay/notifications';
 
 import { createDeliverer } from './outbox/deliver.ts';
 import {
@@ -22,6 +23,11 @@ import { createWorker } from './worker.ts';
 
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: WORKER_LOG_EVENTS });
+const emailConfiguration = readEmailConfiguration(process.env);
+logger.info(
+  { capability: { channel: 'email', enabled: false, reason: emailConfiguration.reason } },
+  'email disabled',
+);
 
 const app = createDatabase({ url: config.DATABASE_URL, ids: systemUuidV7() });
 const dispatcher = createOutboxDispatcherDatabase({ url: config.DISPATCHER_DATABASE_URL });
@@ -41,12 +47,14 @@ const notifications = production
       clock: { now: () => new Date() },
       configuration: readNotificationConfiguration(process.env),
       production,
+      emailConfiguration,
     });
 const inApp = production
   ? createInAppNotificationModule({
       database: app,
       ids: systemUuidV7(),
       clock: { now: () => new Date() },
+      emailConfiguration,
     })
   : null;
 const intakeUrl = process.env['PLATFORM_NOTIFICATIONS_DATABASE_URL'];
@@ -95,9 +103,7 @@ try {
     {
       readiness: [
         ...(queue === null ? [] : [{ name: 'notifications', check: () => queue.ready() }]),
-        ...(inbound === undefined
-          ? []
-          : [{ name: 'whatsapp-inbound', check: inbound.ready }]),
+        ...(inbound === undefined ? [] : [{ name: 'whatsapp-inbound', check: inbound.ready }]),
         { name: 'database', check: () => app.ping() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
         { name: 'dispatcher', check: () => dispatcher.ping() },

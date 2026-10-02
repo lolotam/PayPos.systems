@@ -52,6 +52,7 @@ import { RecoverWhatsappInbox } from './use-cases/recover-whatsapp-inbox/recover
 import { ClearWhatsappPayloads } from './use-cases/clear-whatsapp-payloads/clear-whatsapp-payloads.ts';
 import { whatsappInboundProcessor } from './jobs/whatsapp-inbound.processor.ts';
 import { whatsappMaintenanceProcessor } from './jobs/whatsapp-maintenance.processor.ts';
+import { createEmailModule, type EmailModuleOptions } from './email.module.ts';
 
 export interface NotificationModuleOptions {
   readonly database: Pick<TenantWrappers, 'withTenant'>;
@@ -63,6 +64,8 @@ export interface NotificationModuleOptions {
   readonly registry?: ReturnType<typeof createTemplateRegistry>;
   readonly suppression?: (tx: Tx) => SuppressionGate;
   readonly admission?: SendAdmission;
+  readonly emailConfiguration?: EmailModuleOptions['configuration'];
+  readonly emailTesting?: EmailModuleOptions['testing'];
 }
 
 export function createNotificationModule(options: NotificationModuleOptions) {
@@ -75,9 +78,19 @@ export function createNotificationModule(options: NotificationModuleOptions) {
   const registry = options.registry ?? createTemplateRegistry();
   const channel = options.channel ?? bindChannel(configuration, clock);
   const adapter = createChannelAdapter(channel, registry);
+  const email = createEmailModule({
+    production: options.production || configuration.mode === 'live',
+    clock,
+    ids,
+    ...(options.emailConfiguration === undefined
+      ? {}
+      : { configuration: options.emailConfiguration }),
+    ...(options.emailTesting === undefined ? {} : { testing: options.emailTesting }),
+  });
+  const { routed, destinations } = routeChannels(adapter, identity, email);
   const attempts = createAttemptsRepository(options.database);
   const admission = options.admission ?? { reserve: async () => true };
-  const send = new SendNotification(attempts, adapter, admission, identity, adapter, clock, ids);
+  const send = new SendNotification(attempts, routed, admission, destinations, routed, clock, ids);
   const consumer = notificationRequestConsumer(
     (tx) =>
       new AuthorizeNotification(
@@ -91,12 +104,14 @@ export function createNotificationModule(options: NotificationModuleOptions) {
     identity,
     registry,
     (tx) => new StoreInAppNotification(createInAppRepository(tx), clock, ids),
+    email.authorize,
   );
   return {
     consumer,
     send,
     process: notificationProcessor(send),
     channel,
+    emailCapability: email.capability,
     cleanup: destinationCleanupProcessor(new ClearAbandonedDestination(attempts, clock, ids)),
     eventTypes: [
       ...NOTIFICATION_SOURCE_EVENTS,
@@ -104,6 +119,25 @@ export function createNotificationModule(options: NotificationModuleOptions) {
       'NotificationDelivered',
       'NotificationFailed',
     ],
+  };
+}
+
+function routeChannels(
+  adapter: ReturnType<typeof createChannelAdapter>,
+  identity: ReturnType<typeof createPhoneIdentity>,
+  email: ReturnType<typeof createEmailModule>,
+) {
+  return {
+    routed: {
+      send: (attempt: Parameters<typeof adapter.send>[0]) =>
+        (attempt.channel === 'email' ? email.adapter : adapter).send(attempt),
+      failure: (attempt: Parameters<typeof adapter.failure>[0]) =>
+        (attempt.channel === 'email' ? email.adapter : adapter).failure(attempt),
+    },
+    destinations: {
+      matches: (value: string, stored: Parameters<typeof identity.matches>[1]) =>
+        (stored.last3 === '' ? email : identity).matches(value, stored),
+    },
   };
 }
 
@@ -151,8 +185,16 @@ export { readNotificationConfiguration };
 export { notificationRedisOptions };
 
 export function createInAppNotificationModule(
-  options: Pick<NotificationModuleOptions, 'database' | 'ids' | 'clock'>,
+  options: Pick<NotificationModuleOptions, 'database' | 'ids' | 'clock' | 'emailConfiguration'>,
 ) {
+  const email = createEmailModule({
+    production: true,
+    ids: options.ids,
+    clock: options.clock,
+    ...(options.emailConfiguration === undefined
+      ? {}
+      : { configuration: options.emailConfiguration }),
+  });
   const consumer = notificationRequestConsumer(
     () => {
       throw new Error('NOTIFICATIONS_LIVE_REQUIRES_PR6');
@@ -164,9 +206,11 @@ export function createInAppNotificationModule(
     },
     createTemplateRegistry(),
     (tx) => new StoreInAppNotification(createInAppRepository(tx), options.clock, options.ids),
+    email.authorize,
   );
   return {
     consumer,
+    emailCapability: email.capability,
     eventTypes: [...NOTIFICATION_SOURCE_EVENTS, 'NotificationDelivered', 'NotificationFailed'],
   };
 }

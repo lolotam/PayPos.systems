@@ -218,6 +218,20 @@
       "when": 1790887883996,
       "tag": "0030_2026-10-01_platform-whatsapp-grants",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790977655909,
+      "tag": "0031_2026-10-02_email-destination",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790977701398,
+      "tag": "0032_2026-10-02_email-destination-guard",
+      "breakpoints": true
     }
   ]
 }

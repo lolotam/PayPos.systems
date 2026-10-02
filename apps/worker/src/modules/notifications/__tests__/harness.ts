@@ -1,6 +1,11 @@
 import { appendOutboxEvent, createDatabase, type ClaimedEvent, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
-import { createTemplateRegistry, FakeChannel } from '@pospay/notifications';
+import {
+  createTemplateRegistry,
+  FakeChannel,
+  readEmailConfiguration,
+  type EmailRequest,
+} from '@pospay/notifications';
 import { createLogger, type Logger } from '@pospay/observability';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
@@ -24,6 +29,7 @@ export async function notificationHarness() {
   let suppressed = false;
   const clock = { now: () => new Date(current) };
   const channel = new FakeChannel(clock.now);
+  const emailChannel = new FakeChannel<EmailRequest>(clock.now);
   const registry = testRegistry();
   const module = createNotificationModule({
     database: db,
@@ -32,6 +38,7 @@ export async function notificationHarness() {
     channel,
     registry,
     production: false,
+    ...testEmailOptions(emailChannel, () => suppressed),
     suppression: () => ({ isSuppressed: async () => suppressed }),
     configuration: {
       mode: 'fake',
@@ -48,6 +55,7 @@ export async function notificationHarness() {
     testDb,
     module,
     channel,
+    emailChannel,
     clock,
     deliver,
     ...queries,
@@ -63,6 +71,19 @@ export async function notificationHarness() {
       await owner.end();
       await testDb.drop();
     },
+  };
+}
+
+export function testEmailOptions(
+  channel: FakeChannel<EmailRequest>,
+  suppressed: () => boolean = () => false,
+) {
+  return {
+    emailConfiguration: readEmailConfiguration({
+      NOTIFICATION_EMAIL_HASH_KEY: 'synthetic-email-identity'.repeat(3),
+      NOTIFICATION_EMAIL_HASH_KEY_ID: 'email-test-v1',
+    }),
+    emailTesting: { channel, suppression: () => ({ isSuppressed: async () => suppressed() }) },
   };
 }
 
@@ -116,7 +137,9 @@ function testRequester(db: Database, ids: ReturnType<typeof systemUuidV7>) {
     const payload = {
       notification_recipients: [
         {
-          phone: PHONE,
+          ...(recipient['channel'] === 'email'
+            ? { email: 'synthetic.owner@example.invalid' }
+            : { phone: PHONE }),
           locale: 'ar',
           channel: 'whatsapp',
           template_key: 'test_notice',
