@@ -1,12 +1,22 @@
 import { render, screen } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { DeviceSession } from '@/device/api/use-device-session';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 
 import { DeviceBody } from './device-body';
+
+vi.mock('@/attendance/api/use-attendance-qr', () => ({
+  useAttendanceQr: () => ({
+    branch: undefined,
+    now: null,
+    payload: null,
+    notice: 'loading',
+    retry: () => undefined,
+  }),
+}));
 
 function renderBody(session: DeviceSession) {
   return render(

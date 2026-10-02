@@ -16,5 +16,5 @@ export function DeviceBody({ session }: { session: DeviceSession }) {
   if (screen.kind === 'waiting') return <WaitingScreen onStartOver={session.startOver} />;
   if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
   if (screen.kind === 'unsupported') return <UnsupportedNotice />;
-  return <AttendanceHome branchId={screen.branchId} />;
+  return <AttendanceHome branchId={screen.branchId} onRejected={session.retry} />;
 }

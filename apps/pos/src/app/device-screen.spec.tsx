@@ -10,6 +10,16 @@ import { DeviceScreen } from './device-screen';
 
 const mockUseDeviceSession = vi.fn();
 
+vi.mock('@/attendance/api/use-attendance-qr', () => ({
+  useAttendanceQr: () => ({
+    branch: undefined,
+    now: null,
+    payload: null,
+    notice: 'loading',
+    retry: () => undefined,
+  }),
+}));
+
 vi.mock('@/device/api/use-device-session', () => ({
   useDeviceSession: () => mockUseDeviceSession(),
 }));

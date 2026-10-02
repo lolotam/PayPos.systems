@@ -10,6 +10,26 @@ const CALENDARS: Record<CalendarSystem, string> = {
 };
 
 /**
+ * بيعرض ساعة الفرع في اللغتين بنفس الأرقام عشان شاشة الحضور ما تستخدمش توقيت الجهاز بالخطأ.
+ *
+ * @param instant اللحظة اللي السيرفر أكدها
+ * @param options اللغة والتوقيت الفعلي للفرع
+ * @param options.locale لغة العرض
+ * @param options.timeZone توقيت الفرع أو النشاط البديل
+ * @returns الساعة بالدقائق والثواني
+ */
+export function formatTime(instant: Date, options: { locale: Locale; timeZone: string }): string {
+  return new Intl.DateTimeFormat(options.locale, {
+    timeZone: options.timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+    numberingSystem: 'latn',
+  }).format(instant);
+}
+
+/**
  * هل الاسم ده time zone معروف (IANA) — قبل ما يتحفظ في فرع أو نشاط.
  *
  * @param name الاسم زي Asia/Kuwait
