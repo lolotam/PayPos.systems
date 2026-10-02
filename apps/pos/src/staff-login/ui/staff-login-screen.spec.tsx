@@ -37,7 +37,7 @@ it('changing operator preserves the old server session until new proof, and canc
   expect(calls.signOut).not.toHaveBeenCalled();
 });
 
-it('lands on attendance with operator controls and a localized remaining duration', () => {
+it('shows operator controls and a localized remaining duration after sign-in', () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-02T10:00:00Z'));
   try {
@@ -46,8 +46,7 @@ it('lands on attendance with operator controls and a localized remaining duratio
         <StaffLoginScreen />
       </LocaleProvider>,
     );
-    expect(screen.getByRole('heading', { name: t('en', 'pos.attendanceTitle') })).toBeDefined();
-    expect(screen.getByText('synthetic-branch')).toBeDefined();
+    expect(screen.getByRole('heading', { name: t('en', 'staffLogin.signedIn') })).toBeDefined();
     expect(screen.getByText('Session ends in 8 minutes')).toBeDefined();
     expect(screen.getByRole('button', { name: t('en', 'staffLogin.signOut') })).toBeDefined();
     expect(

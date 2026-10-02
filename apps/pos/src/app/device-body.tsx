@@ -1,4 +1,5 @@
 import { StaffLoginScreen } from '@/staff-login/ui/staff-login-screen';
+import { AttendanceHome } from '@/attendance/ui/attendance-home';
 import type { DeviceSession } from '@/device/api/use-device-session';
 import { OfflineNotice } from '@/device/ui/offline-notice';
 import { PairingScreen } from '@/device/ui/pairing-screen';
@@ -16,5 +17,10 @@ export function DeviceBody({ session }: { session: DeviceSession }) {
   if (screen.kind === 'waiting') return <WaitingScreen onStartOver={session.startOver} />;
   if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
   if (screen.kind === 'unsupported') return <UnsupportedNotice />;
-  return <StaffLoginScreen />;
+  return (
+    <div className="flex flex-col gap-8">
+      <StaffLoginScreen />
+      <AttendanceHome branchId={screen.branchId} onRejected={session.retry} />
+    </div>
+  );
 }

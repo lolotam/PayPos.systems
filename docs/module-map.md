@@ -69,6 +69,9 @@ This adds no tenant exception, business import/write arrow, notifications → id
 
 ## 3. Port arrows (runtime reads, no compile-time edge)
 
+ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
+`describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.
+
 PR 4b personal inbox/bell uses event-supplied user recipients and session/company/recipient authorization
 (ADR-0018 §6). In-app storage/results stay inside the notification consumer transaction; no new import,
 port or event arrow. The admin composes its notification business area in `app/(dashboard)/_frame`.
@@ -211,6 +214,7 @@ sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
   - identity -> tenancy.describeWorkspaces @ apps/api/src/modules/identity/persistence/workspace-names.adapter.ts
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/tenancy-attendance-branch.adapter.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be

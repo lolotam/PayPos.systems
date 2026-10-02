@@ -13,6 +13,16 @@ vi.mock('@/staff-login/ui/staff-login-screen', () => ({
   StaffLoginScreen: () => <h2>{t('ar', 'staffLogin.title')}</h2>,
 }));
 
+vi.mock('@/attendance/api/use-attendance-qr', () => ({
+  useAttendanceQr: () => ({
+    branch: undefined,
+    now: null,
+    payload: null,
+    notice: 'loading',
+    retry: () => undefined,
+  }),
+}));
+
 vi.mock('@/device/api/use-device-session', () => ({
   useDeviceSession: () => mockUseDeviceSession(),
 }));

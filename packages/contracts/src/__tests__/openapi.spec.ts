@@ -4,6 +4,9 @@ import committed from '../../openapi/openapi.json' with { type: 'json' };
 import { buildOpenApiDocument } from '../openapi.js';
 
 const expectedSchemas = [
+  'AttendanceQrBranch',
+  'AttendanceQrIssue',
+  'AttendanceQrToken',
   'Branch',
   'Business',
   'BusinessSettings',

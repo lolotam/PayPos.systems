@@ -6,6 +6,6 @@ export {
   type Locale,
   type MessageKey,
 } from './catalog.js';
-export { formatDate, isTimeZone, localDate, type CalendarSystem } from './dates.js';
+export { formatDate, formatTime, isTimeZone, localDate, type CalendarSystem } from './dates.js';
 export { formatKwd } from './format-kwd.js';
 export { formatRemainingMinutes } from './remaining-minutes.js';

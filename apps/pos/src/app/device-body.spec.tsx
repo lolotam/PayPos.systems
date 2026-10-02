@@ -11,6 +11,16 @@ vi.mock('@/staff-login/ui/staff-login-screen', () => ({
   StaffLoginScreen: () => <h2>{t('ar', 'staffLogin.title')}</h2>,
 }));
 
+vi.mock('@/attendance/api/use-attendance-qr', () => ({
+  useAttendanceQr: () => ({
+    branch: undefined,
+    now: null,
+    payload: null,
+    notice: 'loading',
+    retry: () => undefined,
+  }),
+}));
+
 function renderBody(session: DeviceSession) {
   return render(
     <DirectionProvider dir="rtl">
@@ -56,5 +66,6 @@ describe('DeviceBody', () => {
     renderBody(makeSession({ kind: 'ready', branchId }));
 
     expect(screen.getByRole('heading', { name: t('ar', 'staffLogin.title') })).not.toBeNull();
+    expect(screen.getByRole('heading', { name: t('ar', 'pos.attendanceTitle') })).not.toBeNull();
   });
 });
