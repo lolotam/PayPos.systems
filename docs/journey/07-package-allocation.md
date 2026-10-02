@@ -49,5 +49,6 @@ changes with input order; more than 365 sessions per service; any arithmetic in 
 ## For an agent
 
 - No browser step. Run the command in step 1 and assert exit code 0 and `passed` in the summary.
-- The scenarios are the `PKG-01`…`PKG-11` tests in `apps/api/src/modules/orders/domain/__tests__/`; amounts there
+- The spec scenarios `PKG-01`…`PKG-11` are covered by the tests in `apps/api/src/modules/orders/domain/__tests__/`
+  (some carry the id in their name); amounts there
   are in mills (1 KWD = 1000).
