@@ -1,3 +1,4 @@
+import { OWNER_ROLE_ID } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createSalaryTransactions } from '../persistence/drizzle-salary-transactions.ts';
 import { SetSalaryUseCase } from '../use-cases/set-salary/set-salary.usecase.ts';
@@ -12,6 +13,9 @@ export async function salaryFixture() {
     businessId: f.business,
     input: termsFor(f),
   });
+  // حالة الراتب تبدأ بالمالك الحقيقي؛ محرر الموظف المخصص لا يكتسب افتراضيات المالك.
+  await f.h.owner`UPDATE memberships SET role_id=${OWNER_ROLE_ID},role_owner_key='global'
+    WHERE company_id=${f.company} AND id=${f.memberId}`;
   const set = new SetSalaryUseCase(createSalaryTransactions(f.db, salaryIds), salaryIds);
   return {
     ...f,

@@ -46,7 +46,7 @@ export async function readEmployeeSalaryAccess(
       evaluateAccess(access.grants, permission, { companyId, businessId, branchId }),
     );
   const read = allowed('read:salaries:business');
-  // TODO(spec): SS-Q1 إدارة بلا قراءة: نطلب الإذنين حتى لا يكشف رد الكتابة وجود الراتب؛ نوصي بمنحهما معاً.
+  // قرار المالك 2026-10-04: إدارة الراتب تتطلب القراءة أيضاً، حتى لا تكشف الكتابة سجلّاً غير مقروء.
   return {
     read,
     manage: read && allowed('manage:salaries:business'),

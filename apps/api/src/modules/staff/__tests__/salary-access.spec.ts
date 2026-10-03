@@ -34,7 +34,13 @@ it('default owner access has no role bundle and HTTP requires an idempotency key
   });
   expect(result.body['code']).toBe('IDEMPOTENCY_KEY_REQUIRED');
 });
-it('DENY wins for an owner at persisted branch and is identical to missing/foreign business', async () => {
+it('DENY wins for a delegated nonowner at persisted branch and matches missing/foreign business', async () => {
+  const [manager] = await f.h
+    .owner`SELECT id FROM roles WHERE code='business_manager' AND company_id IS NULL`;
+  await f.h
+    .owner`UPDATE memberships SET role_id=${manager?.['id'] as string},role_owner_key='global' WHERE company_id=${f.company} AND id=${f.memberId}`;
+  await override('read:salaries:business', 'ALLOW');
+  await override('manage:salaries:business', 'ALLOW');
   await override('read:salaries:business', 'DENY', null, 'BRANCH', f.branch);
   const denied = await read();
   const missing = await read(
@@ -47,7 +53,7 @@ it('DENY wins for an owner at persisted branch and is identical to missing/forei
   expect(denied.body).toEqual(missing.body);
   expect(denied.body).toEqual(foreign.body);
   await f.h
-    .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND membership_id=${f.memberId} AND permission_code='read:salaries:business'`;
+    .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND membership_id=${f.memberId} AND permission_code IN ('read:salaries:business','manage:salaries:business')`;
 });
 it('nonowner role grants do not grant salary; explicit branch personal ALLOW does', async () => {
   await f.h.signedInOperator('synthetic-backup-owner@example.test');

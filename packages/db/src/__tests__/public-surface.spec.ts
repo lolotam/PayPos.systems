@@ -9,6 +9,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'FEATURE_FLAGS',
       'IdempotencyKeyBusyError',
       'IdempotencyKeyReusedError',
+      'OWNER_DERIVED_PERMISSIONS',
       'OWNER_ROLE_ID',
       'PERMISSIONS',
       'PLATFORM_ROLES',
@@ -17,6 +18,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'appendAuditLog',
       'appendAuditLogs',
       'appendOutboxEvent',
+      'canonicalOwnerSql',
       'createAuthDatabase',
       'createDatabase',
       'createOutboxDispatcherDatabase',
@@ -26,6 +28,8 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'markEventConsumed',
       'revokePlatformPermission',
       'runIdempotent',
+      'systemRoleOverrideAllowedSql',
+      'systemRolePolicy',
       'verticalTemplate',
     ]);
   });

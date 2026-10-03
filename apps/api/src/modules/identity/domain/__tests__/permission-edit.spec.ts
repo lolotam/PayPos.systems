@@ -29,6 +29,9 @@ const member = {
   userId: 'target',
   employeeId: null,
   roleCode: 'viewer',
+  systemRoleCode: null,
+  allowedPermissions: null,
+  isCompanyOwner: false,
   scopeType: 'BRANCH' as const,
   scopeId: 'original-branch',
   startsAt: new Date('2020-01-01'),
@@ -126,7 +129,16 @@ it.each(['SAVE', 'REVOKE'] as const)('never permits self %s', (operation) => {
   ).toBe('PERMISSION_SELF_EDIT');
 });
 it('protects owner DENY additions, but permits ending a legacy owner DENY', () => {
-  const owner = { ...context, membership: { ...member, roleCode: 'owner' } };
+  const owner = {
+    ...context,
+    membership: {
+      ...member,
+      roleCode: 'owner',
+      isCompanyOwner: true,
+      scopeType: 'COMPANY' as const,
+      scopeId: companyId,
+    },
+  };
   expect(permissionEditFailure({ ...terms, effect: 'DENY' }, owner)).toBe(
     'PERMISSION_OWNER_PROTECTED',
   );
@@ -139,7 +151,16 @@ it.each(['user', 'employee'])('protects an owner %s through a Viewer sibling', (
   const snapshot = {
     ...context,
     membership: holder,
-    holderMemberships: [{ ...holder, id: 'owner-sibling', roleCode: 'owner' }],
+    holderMemberships: [
+      {
+        ...holder,
+        id: 'owner-sibling',
+        roleCode: 'owner',
+        isCompanyOwner: true,
+        scopeType: 'COMPANY' as const,
+        scopeId: companyId,
+      },
+    ],
   };
   expect(permissionHolderIsOwner(snapshot)).toBe(true);
   expect(permissionEditFailure({ ...terms, effect: 'DENY' }, snapshot)).toBe(
@@ -152,11 +173,21 @@ it.each([
   { startsAt: new Date('2999-01-01') },
   { endsAt: now },
   { userId: 'someone-else' },
-  { roleCode: 'viewer' },
+  { roleCode: 'viewer', isCompanyOwner: false },
 ])('ignores an inactive or unrelated owner sibling %j', (change) => {
   const snapshot = {
     ...context,
-    holderMemberships: [{ ...member, id: 'sibling', roleCode: 'owner', ...change }],
+    holderMemberships: [
+      {
+        ...member,
+        id: 'sibling',
+        roleCode: 'owner',
+        isCompanyOwner: true,
+        scopeType: 'COMPANY' as const,
+        scopeId: companyId,
+        ...change,
+      },
+    ],
   };
   expect(permissionHolderIsOwner(snapshot)).toBe(false);
   expect(permissionEditFailure({ ...terms, effect: 'DENY' }, snapshot)).toBeNull();

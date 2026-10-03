@@ -58,11 +58,18 @@ const send = (phone: unknown = payload.phone, extra: object = {}) =>
     body: { ...payload, phone, ...extra },
   });
 
-it('CUS-08 catalog grants no role; missing permission and session are refused', async () => {
+it('CUS-08 Owner default exists; Viewer without a grant and missing session are refused', async () => {
   expect(
     await h.owner`SELECT 1 FROM role_permissions WHERE permission_code = 'create:customers:company'`,
-  ).toHaveLength(0);
-  expect((await send()).status).toBe(403);
+  ).toHaveLength(1);
+  const deniedCookie = await h.signedInOperator('customers-viewer@example.test');
+  const [viewer] = await h.owner`SELECT id FROM "user" WHERE email='customers-viewer@example.test'`;
+  await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES (${A},'01920000-0000-7000-8000-000000009901',${viewer?.['id']},
+      '01920000-0000-7000-8000-00000000010d','global','COMPANY',${A})`;
+  expect(
+    (await h.send('POST', PATH, { cookie: deniedCookie, company: A, body: payload })).status,
+  ).toBe(403);
   expect((await h.app.inject({ method: 'POST', url: PATH, payload })).statusCode).toBe(401);
   expect(await h.owner`SELECT 1 FROM customers`).toHaveLength(0);
   await grant(A);

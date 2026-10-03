@@ -1,5 +1,5 @@
 // الـ catalog بتاع الصلاحيات والـ roles اللي بيتزرع من الكود (ADR-0003 §2.3). كل slice بتضيف صلاحياتها هنا
-// في نفس الـ PR اللي بيعمل الـ route بتاعها؛ استثناء الاستقبال مؤجل إلى PR 7a بقرار المالك لهذا الـ slice.
+// في نفس الـ PR اللي بيعمل الـ route بتاعها؛ الحزم النظامية موثقة في ADR-0025.
 
 /**
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
@@ -11,17 +11,15 @@ export const PERMISSIONS = [
   'manage:schedules:business',
   'read:salaries:business',
   'manage:salaries:business',
-  // owner decision 2026-10-03: منح Owner وGM وBM لنشاطه في PR 7a؛ لا تعديل role_permissions هنا.
   'manage:files:business',
   'read:files:business',
   'login:staff:branch',
-  // TODO(spec): حزم manage:employees:business مؤجلة إلى PR 7a، بدون منح تلقائي لأي دور.
   'manage:employees:business',
   'read:memberships:company',
-  // TODO(spec): منح صلاحية الاستقبال للأدوار مؤجل إلى PR 7a؛ إضافتها للـ catalog لا تمنحها للـ Owner تلقائياً.
+  'read:memberships:business',
   'create:customers:company',
   'manage:memberships:company',
-  // TODO(spec): حزم إدارة الخصم مؤجلة إلى PR 7a؛ الكود هنا لا يمنحها لأي دور.
+  'manage:memberships:business',
   'manage:discounts:company',
   'read:businesses:company',
   'create:businesses:company',
@@ -51,7 +49,7 @@ export interface SystemRole {
 }
 
 // قرار المالك 2026-10-03: أكواد الأدوار البشرية الـ 13 نهائية؛ الأسماء المحلية في packages/i18n.
-// مصفوفة الحزم في docs/specs/009-identity-permissions-screen/spec.md؛ تطبيقها في PR 7a بدون تغيير seed هنا.
+// مصفوفة الحزم في docs/specs/019-identity-role-default-grants/spec.md وADR-0025.
 export const SYSTEM_ROLES: readonly SystemRole[] = [
   { id: '01920000-0000-7000-8000-000000000101', code: 'owner', nameEn: 'Owner' },
   {

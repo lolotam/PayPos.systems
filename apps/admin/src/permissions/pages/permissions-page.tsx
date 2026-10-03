@@ -1,16 +1,13 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { PageHeader, EmptyState, UserRound } from '@pospay/ui';
+import { PageHeader } from '@pospay/ui';
 import { useState } from 'react';
 
 import { useLocale } from '@/shared/locale/locale-context';
-import { usePermissionMemberships } from '../api/use-permissions';
-import { MembershipPermissionsPanel } from '../ui/membership-permissions-panel';
-import { PermissionPageNavigation } from '../ui/permission-page-navigation';
-import { PermissionMembershipTable } from '../ui/permission-membership-table';
+import { PermissionMembershipBrowser } from '../ui/permission-membership-browser';
 import { BusinessDiscountDefault } from '../ui/business-discount-default';
-import { PermissionListFeedback } from '../ui/permission-list-feedback';
+import { PermissionManagementScope } from '../ui/permission-management-scope';
 
 type Props = {
   companyId: string;
@@ -23,15 +20,17 @@ type Props = {
 export function PermissionsPage(props: Props) {
   const { companyId, userId, branchTimeZones, scopeNames, business } = props;
   const locale = useLocale();
-  const [cursor, setCursor] = useState<string>();
-  const [membershipId, setMembershipId] = useState('');
-  const list = usePermissionMemberships(companyId, userId, cursor);
+  const [scope, setScope] = useState(business ? 'business' : 'company');
+  const businessId = scope === 'business' ? business?.id : undefined;
   return (
     <section className="flex min-w-0 flex-col gap-12 text-start">
       <PageHeader
         title={t(locale, 'permissions.title')}
         description={t(locale, 'shell.permissionsLead')}
       />
+      {business ? (
+        <PermissionManagementScope value={scope} businessName={business.name} onChange={setScope} />
+      ) : null}
       {business ? (
         <BusinessDiscountDefault
           key={business.id}
@@ -41,38 +40,14 @@ export function PermissionsPage(props: Props) {
           businessName={business.name}
         />
       ) : null}
-      <PermissionListFeedback pending={list.isPending} failed={list.isError} error={list.error} />
-      {list.data ? (
-        <>
-          {list.data.items.length === 0 ? (
-            <EmptyState icon={<UserRound />} title={t(locale, 'permissions.empty')} />
-          ) : (
-            <PermissionMembershipTable
-              items={list.data.items}
-              selectedId={membershipId}
-              scopeNames={scopeNames}
-              onSelect={setMembershipId}
-            />
-          )}
-          <PermissionPageNavigation
-            cursor={cursor}
-            next={list.data.next_cursor}
-            onChange={(next) => {
-              setCursor(next);
-              setMembershipId('');
-            }}
-          />
-        </>
-      ) : null}
-      {membershipId ? (
-        <MembershipPermissionsPanel
-          key={membershipId}
-          companyId={companyId}
-          userId={userId}
-          membershipId={membershipId}
-          branchTimeZones={branchTimeZones}
-        />
-      ) : null}
+      <PermissionMembershipBrowser
+        key={businessId ?? companyId}
+        companyId={companyId}
+        userId={userId}
+        businessId={businessId}
+        scopeNames={scopeNames}
+        branchTimeZones={branchTimeZones}
+      />
     </section>
   );
 }

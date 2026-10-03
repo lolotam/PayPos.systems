@@ -1,9 +1,21 @@
-import type { Tx, TenantWrappers } from '@pospay/db';
+import {
+  canonicalOwnerSql,
+  OWNER_DERIVED_PERMISSIONS,
+  systemRoleOverrideAllowedSql,
+  type Tx,
+  type TenantWrappers,
+} from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import type { ScopeType } from '../domain/access.ts';
+import { protectOwnerAccess } from '../domain/owner-access.ts';
 import type { AccessReader, ActiveMembership, SourcedGrant } from '../ports/access-reader.port.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
+
+const SALARY_CODES = sql.join(
+  OWNER_DERIVED_PERMISSIONS.map((p) => sql`${p}`),
+  sql`,`,
+);
 
 const ACTIVE = sql`m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > now())`;
 
@@ -57,8 +69,13 @@ export async function readAccessTransaction(
 ): ReturnType<AccessReader['accessIn']> {
   const at = decisionAt === undefined ? sql`now()` : sql`${decisionAt.toISOString()}::timestamptz`;
   const active = sql`m.starts_at <= ${at} AND (m.ends_at IS NULL OR m.ends_at > ${at})`;
-  const memberships = await tx.execute<{ scope_type: ScopeType; scope_id: string }>(sql`
-        SELECT m.scope_type, m.scope_id FROM memberships m
+  const memberships = await tx.execute<{
+    scope_type: ScopeType;
+    scope_id: string;
+    is_owner: boolean;
+  }>(sql`
+        SELECT m.scope_type, m.scope_id, (${canonicalOwnerSql('m', companyId)}) AS is_owner FROM memberships m
+        JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}`);
   const grants = await tx.execute<{
     permission: string;
@@ -71,31 +88,34 @@ export async function readAccessTransaction(
         FROM memberships m
         JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
-          AND rp.permission_code NOT IN ('read:salaries:business', 'manage:salaries:business')
+          AND rp.permission_code NOT IN (${SALARY_CODES})
         UNION ALL
         SELECT p.code, 'ALLOW', 'role', m.scope_type, m.scope_id
         FROM memberships m
-        JOIN roles r ON r.id=m.role_id AND r.owner_key=m.role_owner_key
         CROSS JOIN permissions p
-        WHERE m.company_id=${companyId} AND m.user_id=${userId} AND ${active} AND r.code='owner'
-          AND p.code IN ('read:salaries:business','manage:salaries:business')
+        WHERE m.company_id=${companyId} AND m.user_id=${userId} AND ${active} AND ${canonicalOwnerSql('m', companyId)}
+          AND p.code IN (${SALARY_CODES})
         UNION ALL
         SELECT o.permission_code, o.effect, 'override', o.scope_type, o.scope_id
         FROM permission_overrides o
         JOIN memberships m ON m.company_id = o.company_id AND m.id = o.membership_id
         WHERE o.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
-          AND (o.expires_at IS NULL OR o.expires_at > ${at})`);
+          AND (o.expires_at IS NULL OR o.expires_at > ${at})
+          AND ${systemRoleOverrideAllowedSql('m', 'o')}`);
   return {
     memberships: memberships.map((row): ActiveMembership => ({
       scopeType: row.scope_type,
       scopeId: row.scope_id,
     })),
-    grants: grants.map((row): SourcedGrant => ({
-      permission: row.permission,
-      effect: row.effect,
-      source: row.source,
-      scopeType: row.scope_type,
-      scopeId: row.scope_id,
-    })),
+    grants: protectOwnerAccess(
+      grants.map((row): SourcedGrant => ({
+        permission: row.permission,
+        effect: row.effect,
+        source: row.source,
+        scopeType: row.scope_type,
+        scopeId: row.scope_id,
+      })),
+      memberships.some((m) => m.is_owner),
+    ),
   };
 }

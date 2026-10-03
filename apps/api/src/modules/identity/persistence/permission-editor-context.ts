@@ -1,4 +1,4 @@
-import type { Tx } from '@pospay/db';
+import { canonicalOwnerSql, systemRolePolicy, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { readAccessTransaction } from './access-reader.ts';
 import type { AccessGrant, AccessTarget, ScopeType } from '../domain/access.ts';
@@ -25,11 +25,15 @@ async function lockedHolderMemberships(
     user_id: string | null;
     employee_id: string | null;
     role_code: string;
+    role_id: string;
+    role_owner_key: string;
+    is_owner: boolean;
     scope_type: ScopeType;
     scope_id: string;
     starts_at: Date;
     ends_at: Date | null;
   }>(sql`SELECT m.id, m.user_id, m.employee_id, r.code AS role_code,
+    m.role_id, m.role_owner_key, (${canonicalOwnerSql('m', companyId)}) AS is_owner,
     m.scope_type, m.scope_id, m.starts_at, m.ends_at
     FROM memberships m JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
     WHERE m.company_id = ${companyId} AND EXISTS (
@@ -40,6 +44,9 @@ async function lockedHolderMemberships(
     userId: row.user_id,
     employeeId: row.employee_id,
     roleCode: row.role_code,
+    systemRoleCode: systemRolePolicy(row.role_id, row.role_owner_key)?.code ?? null,
+    allowedPermissions: systemRolePolicy(row.role_id, row.role_owner_key)?.permissions ?? null,
+    isCompanyOwner: row.is_owner,
     scopeType: row.scope_type,
     scopeId: row.scope_id,
     startsAt: new Date(row.starts_at),
@@ -98,8 +105,19 @@ export async function permissionEditorContext(
   const catalog = await tx.execute<{ code: string }>(
     sql`SELECT code FROM permissions WHERE code NOT LIKE '%:platform'`,
   );
+  const membership = holderMemberships.find((m) => m.id === membershipId) ?? null;
   return {
-    membership: holderMemberships.find((m) => m.id === membershipId) ?? null,
+    membership,
+    membershipTarget:
+      membership === null
+        ? null
+        : (
+            await scopeTargets(tx, companyId, {
+              ...terms,
+              scope_type: membership.scopeType,
+              scope_id: membership.scopeId,
+            })
+          ).target,
     holderMemberships,
     ...(await scopeTargets(tx, companyId, terms)),
     catalog: catalog.map((p) => p.code),

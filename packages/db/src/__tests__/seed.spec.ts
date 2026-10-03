@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import templates from '../../seed/vertical-templates.json' with { type: 'json' };
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
-import { OWNER_ROLE_ID, PERMISSIONS, PLATFORM_ROLES, SYSTEM_ROLES } from '../access-catalog.ts';
+import { PERMISSIONS, PLATFORM_ROLES, SYSTEM_ROLES } from '../access-catalog.ts';
+import { ROLE_DEFAULTS } from '../role-defaults.ts';
 import { FEATURE_FLAGS, seedReferenceData } from '../seed.ts';
 
 let testDb: TestDatabase;
@@ -18,19 +19,18 @@ afterAll(async () => {
   await owner.end();
   await testDb.drop();
 });
-// التوقع مستقل عن استعلام الزرع: يمنع فتح صلاحيات القوالب لمدير الفرع أو موظف التطبيق.
-function expectedManagerGrants() {
+// توقع مستقل لحزم PR 16؛ بقية المرجع يغطيه اختبار المصفوفة الكاملة.
+function expectedScheduleGrants() {
   return SYSTEM_ROLES.flatMap((r) => {
-    const manager = ['general_manager', 'business_manager', 'branch_manager'].includes(r.code);
-    const businessManager = ['general_manager', 'business_manager'].includes(r.code);
-    const permissions = [
-      ...(manager
-        ? ['view:notifications:business', 'read:schedules:branch', 'manage:schedules:branch']
+    const codes = [
+      ...(['owner', 'general_manager', 'business_manager', 'branch_manager'].includes(r.code)
+        ? ['read:schedules:branch', 'manage:schedules:branch']
         : []),
-      ...(businessManager ? ['read:schedules:business', 'manage:schedules:business'] : []),
-      ...(r.code === 'staff' ? ['login:staff:branch'] : []),
+      ...(['owner', 'general_manager', 'business_manager'].includes(r.code)
+        ? ['read:schedules:business', 'manage:schedules:business']
+        : []),
     ];
-    return permissions.map((permission_code) => ({ role_id: r.id, permission_code }));
+    return codes.map((permission_code) => ({ role_id: r.id, permission_code }));
   }).sort(
     (a, b) =>
       a.permission_code.localeCompare(b.permission_code) || a.role_id.localeCompare(b.role_id),
@@ -57,24 +57,34 @@ describe('seedReferenceData', () => {
     expect(SYSTEM_ROLES).toHaveLength(14);
   });
 
-  it('keeps customer defaults pending PR 7a and staff login explicit; preserves Owner and manager grants', async () => {
-    const owned = await owner<{ role_id: string; permission_code: string }[]>`
-      SELECT role_id, permission_code FROM role_permissions ORDER BY permission_code, role_id`;
-    expect(owned.filter((r) => r.role_id !== OWNER_ROLE_ID)).toEqual(expectedManagerGrants());
-    expect(owned.filter((r) => r.role_id === OWNER_ROLE_ID).map((r) => r.permission_code)).toEqual(
-      PERMISSIONS.filter(
-        (p) =>
-          !p.endsWith(':platform') &&
-          p !== 'manage:files:business' &&
-          p !== 'read:files:business' &&
-          p !== 'create:customers:company' &&
-          p !== 'manage:discounts:company' &&
-          p !== 'manage:employees:business' &&
-          p !== 'read:salaries:business' &&
-          p !== 'manage:salaries:business' &&
-          p !== 'login:staff:branch',
-      ).sort(),
+  it('seeds the complete stored system bundles and never grants platform permission', async () => {
+    const actual = await owner<
+      { role_id: string; permission_code: string }[]
+    >`SELECT role_id, permission_code
+      FROM role_permissions WHERE role_owner_key = 'global' ORDER BY permission_code, role_id`;
+    const expected = PERMISSIONS.flatMap((permission) => {
+      const roles: readonly string[] = ROLE_DEFAULTS[permission];
+      return SYSTEM_ROLES.filter((r) => roles.includes(r.code)).map((r) => ({
+        role_id: r.id,
+        permission_code: permission,
+      }));
+    }).sort(
+      (a, b) =>
+        a.permission_code.localeCompare(b.permission_code) || a.role_id.localeCompare(b.role_id),
     );
+    expect(Array.from(actual)).toEqual(expected);
+  });
+
+  it('preserves PR 16 schedule bundles and PR 10 no salary role defaults', async () => {
+    const rows = await owner<
+      { role_id: string; permission_code: string }[]
+    >`SELECT role_id,permission_code FROM role_permissions WHERE role_owner_key='global'
+        AND permission_code LIKE '%:schedules:%' ORDER BY permission_code,role_id`;
+    expect(Array.from(rows)).toEqual(expectedScheduleGrants());
+    expect(
+      await owner`SELECT 1 FROM role_permissions WHERE permission_code IN
+      ('read:salaries:business','manage:salaries:business')`,
+    ).toHaveLength(0);
   });
 
   it('seeds the five provisional platform roles into platform_roles, never into the tenant roles table', async () => {

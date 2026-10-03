@@ -15,6 +15,7 @@ type Props = {
   companyId: string;
   userId: string;
   membershipId: string;
+  businessId?: string | undefined;
   branchTimeZones?: Readonly<Record<string, string>>;
 };
 
@@ -22,6 +23,7 @@ export function MembershipPermissionsPanel({
   companyId,
   userId,
   membershipId,
+  businessId,
   branchTimeZones = {},
 }: Props) {
   const [cursor, setCursor] = useState<string>();
@@ -32,6 +34,7 @@ export function MembershipPermissionsPanel({
     membershipId,
     cursor,
     historyCursor,
+    businessId,
   );
   if (detail.isPending || detail.isError)
     return <PermissionDetailState pending={detail.isPending} error={detail.error} />;
@@ -47,6 +50,7 @@ export function MembershipPermissionsPanel({
         <PermissionMembershipDecisions
           data={data}
           companyId={companyId}
+          businessId={businessId}
           branchTimeZones={branchTimeZones}
           save={save}
           revoke={revoke}
@@ -58,7 +62,7 @@ export function MembershipPermissionsPanel({
           userId={userId}
           membershipId={membershipId}
           limitBps={data.discount_limit.limit_bps}
-          disabled={!data.editing_enabled}
+          disabled={businessId !== undefined || !data.editing_enabled}
         />
         <PermissionMembershipHistory
           data={data}

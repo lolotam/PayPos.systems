@@ -49,7 +49,7 @@ const version = () => f.h.redis.get(`identity:grants:${f.company}:version`);
 it('returns stored defaults, excludes platform catalog and allows editing only for a current manager of someone else', async () => {
   const detail = membershipPermissions.parse((await get(`/${member}`)).body);
   expect(detail.membership.employee_id).toBeTruthy();
-  expect(detail.role_defaults).toEqual([]);
+  expect(detail.role_defaults).toEqual(['read:branches:branch', 'read:businesses:company']);
   expect(detail.permission_catalog).not.toContain('create:companies:platform');
   expect(detail.editing_enabled).toBe(true);
   expect(membershipPermissions.parse((await get(`/${f.ownMember}`)).body).editing_enabled).toBe(
@@ -254,30 +254,31 @@ it('reloads management and edited grants in the transaction after an earlier gua
   const authorize = new AuthorizeRequest(createAccessReader(f.db));
   expect(
     await authorize.execute({
-      userId: f.userId,
+      userId: f.managerId,
       requestedCompany: f.company,
       permission: 'manage:memberships:company',
     }),
   ).not.toBeNull();
-  const deny = await seedOverride(f, f.ownMember, { effect: 'DENY' });
+  const allow = await seedOverride(f, f.managerMember);
+  const deny = await seedOverride(f, f.managerMember, { effect: 'DENY' });
   const grant = new GrantPermissionOverride(
     createPermissionOverrideTransactions(f.db, f.ids),
     createGrantInvalidator(f.h.redis),
   );
   await expect(
-    grant.execute({ companyId: f.company, userId: f.userId }, member, terms(f)),
+    grant.execute({ companyId: f.company, userId: f.managerId }, member, terms(f)),
   ).rejects.toMatchObject({ code: 'PERMISSION_NOT_HELD' });
   await f.h
     .owner`UPDATE permission_overrides SET expires_at = now() WHERE company_id = ${f.company} AND id = ${deny}`;
-  const manageDeny = await seedOverride(f, f.ownMember, {
+  const manageDeny = await seedOverride(f, f.managerMember, {
     effect: 'DENY',
     permission_code: 'manage:memberships:company',
   });
   await expect(
-    grant.execute({ companyId: f.company, userId: f.userId }, member, terms(f)),
+    grant.execute({ companyId: f.company, userId: f.managerId }, member, terms(f)),
   ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   await f.h
-    .owner`UPDATE permission_overrides SET expires_at = now() WHERE company_id = ${f.company} AND id = ${manageDeny}`;
+    .owner`UPDATE permission_overrides SET expires_at = now() WHERE company_id = ${f.company} AND id IN (${manageDeny}, ${allow})`;
 });
 
 it('rolls replacement back when audit fails, preserving the old current decision and cache version', async () => {

@@ -11,3 +11,4 @@ export { formatKwd } from './format-kwd.js';
 export { formatInstant } from './format-instant.js';
 export { roleName } from './role-name.js';
 export { formatRemainingMinutes } from './remaining-minutes.js';
+export { permissionName } from './permission-name.js';

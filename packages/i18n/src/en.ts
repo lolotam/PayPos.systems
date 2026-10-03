@@ -1,5 +1,30 @@
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  permissionCodes: {
+    readSchedulesBranch: 'Read branch schedules',
+    manageSchedulesBranch: 'Manage branch schedules',
+    readSchedulesBusiness: 'Read business shift templates',
+    manageSchedulesBusiness: 'Manage business shift templates',
+    readMembershipsCompany: 'Read company memberships',
+    manageMembershipsCompany: 'Manage company permissions',
+    readMembershipsBusiness: 'Read business memberships',
+    manageMembershipsBusiness: 'Manage business permissions',
+    readBusinessesCompany: 'Read businesses',
+    createBusinessesCompany: 'Create businesses',
+    createBranchesBusiness: 'Create business branches',
+    readBranchesBranch: 'Read branches',
+    manageDevicesBranch: 'Manage branch devices',
+    readSettingsBusiness: 'Read business settings',
+    manageSettingsBusiness: 'Manage business settings',
+    viewNotificationsBusiness: 'Read notification delivery log',
+    manageFilesBusiness: 'Upload business files',
+    readFilesBusiness: 'Read business files',
+    manageEmployeesBusiness: 'Manage business employees',
+    manageDiscountsCompany: 'Manage personal discount limits',
+    createCustomersCompany: 'Create company customers',
+    loginStaffBranch: 'Sign in to staff app',
+    createCompaniesPlatform: 'Create companies on the platform',
+  },
   brand: {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',
@@ -196,6 +221,7 @@ export const en = {
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
     PERMISSION_SCOPE_OUTSIDE_REACH: 'The target scope is outside your permission’s reach',
+    PERMISSION_ROLE_FORBIDDEN: 'This system role cannot receive this permission',
     PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
     TRANSACTION_RETRY_REQUIRED:
       'The change conflicted with another transaction and was not saved. Please retry.',

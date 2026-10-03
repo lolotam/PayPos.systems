@@ -407,6 +407,13 @@
       "when": 1791061348231,
       "tag": "0057_2026-10-03_staff-schedules-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1791064382943,
+      "tag": "0058_2026-10-03_system-role-default-bundles",
+      "breakpoints": true
     }
   ]
 }

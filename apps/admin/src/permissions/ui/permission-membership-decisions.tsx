@@ -10,6 +10,7 @@ import { PermissionDecisionNotices } from './permission-decision-notices';
 type Props = {
   data: MembershipPermissions;
   companyId: string;
+  businessId?: string | undefined;
   branchTimeZones: Readonly<Record<string, string>>;
   save: ReturnType<typeof usePermissions>['save'];
   revoke: ReturnType<typeof usePermissions>['revoke'];
@@ -19,6 +20,7 @@ type Props = {
 export function PermissionMembershipDecisions({
   data,
   companyId,
+  businessId,
   branchTimeZones,
   save,
   revoke,
@@ -31,6 +33,7 @@ export function PermissionMembershipDecisions({
       <h2 className="font-bold">{t(locale, 'permissions.overrides')}</h2>
       <PermissionOverrides
         items={data.overrides.items}
+        businessScoped={businessId !== undefined}
         branchTimeZones={branchTimeZones}
         pending={save.isPending || revoke.isPending}
         {...(data.editing_enabled
@@ -48,6 +51,7 @@ export function PermissionMembershipDecisions({
       {!data.editing_enabled ? <p role="status">{t(locale, 'permissions.readOnly')}</p> : null}
       <PermissionOverrideForm
         companyId={companyId}
+        businessId={businessId}
         catalog={data.permission_catalog}
         disabled={!data.editing_enabled}
         pending={save.isPending || revoke.isPending}

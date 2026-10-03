@@ -50,8 +50,9 @@ pnpm check with FORCE_COLOR unset; touched app builds; production API/worker opt
 
 ## Open questions for the owner
 
-SS-Q1: a manage-only personal grant without read must not reveal salary existence. Pending explicit policy,
-require both read and manage for writes (TODO(spec) in salary access). Recommendation: grant both for salary editors.
+SS-Q1 resolved by owner decision 2026-10-04: salary management requires both read and manage.
+Every human system role is eligible for explicit personal ALLOW; Device is forbidden.
+Owner defaults remain canonical-identity-derived with no salary role_permissions rows.
 
 SS-Q2: the current salary section is inside the employee edit panel. A salary-only delegate without
 manage:employees:business cannot reach it: employee list/detail authorization remains unchanged.

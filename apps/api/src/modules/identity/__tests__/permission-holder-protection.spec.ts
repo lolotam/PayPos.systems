@@ -29,7 +29,10 @@ afterAll(async () => {
   await f?.h.close();
 });
 
-async function sibling(holder: { userId: string } | { employeeId: string }, code = 'viewer') {
+async function sibling(
+  holder: { userId: string } | { employeeId: string },
+  code = 'synthetic_viewer',
+) {
   const member = await newHeldMember(f, holder, code);
   touched.push(member);
   return member;
@@ -68,21 +71,24 @@ it.each([
   ['employee', 'DENY'],
   ['employee', 'REPLACE'],
   ['employee', 'REVOKE'],
-])('protects an owner %s through a second Viewer membership on %s', async (type, operation) => {
-  const holder = type === 'user' ? { userId: f.userId } : { employeeId: f.ids.newId() };
-  if (type === 'employee') await sibling(holder, 'owner');
-  const member = await sibling(holder);
-  expect(await managementAccess()).not.toBeNull();
-  const priorVersion = await f.h.redis.get(`identity:grants:${f.company}:version`);
-  const [before] = await f.h
-    .owner`SELECT count(*) AS n FROM audit_log WHERE company_id = ${f.company}`;
-  refusal(await attempt(operation, member), 'PERMISSION_OWNER_PROTECTED');
-  expect(await managementAccess()).not.toBeNull();
-  const [after] = await f.h
-    .owner`SELECT count(*) AS n FROM audit_log WHERE company_id = ${f.company}`;
-  expect(after?.['n']).toBe(before?.['n']);
-  expect(await f.h.redis.get(`identity:grants:${f.company}:version`)).toBe(priorVersion);
-});
+])(
+  'protects an owner %s through a second custom-role membership on %s',
+  async (type, operation) => {
+    const holder = type === 'user' ? { userId: f.userId } : { employeeId: f.ids.newId() };
+    if (type === 'employee') await sibling(holder, 'owner');
+    const member = await sibling(holder);
+    expect(await managementAccess()).not.toBeNull();
+    const priorVersion = await f.h.redis.get(`identity:grants:${f.company}:version`);
+    const [before] = await f.h
+      .owner`SELECT count(*) AS n FROM audit_log WHERE company_id = ${f.company}`;
+    refusal(await attempt(operation, member), 'PERMISSION_OWNER_PROTECTED');
+    expect(await managementAccess()).not.toBeNull();
+    const [after] = await f.h
+      .owner`SELECT count(*) AS n FROM audit_log WHERE company_id = ${f.company}`;
+    expect(after?.['n']).toBe(before?.['n']);
+    expect(await f.h.redis.get(`identity:grants:${f.company}:version`)).toBe(priorVersion);
+  },
+);
 
 it.each(['DENY', 'REPLACE', 'REVOKE'])(
   'refuses self %s through another user membership',

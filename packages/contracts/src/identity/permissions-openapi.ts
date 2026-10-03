@@ -49,7 +49,7 @@ function operation(operationId: string, schema: string, status = '200') {
     },
   };
 }
-export const permissionPaths = {
+const companyPermissionPaths = {
   '/v1/permissions/memberships/{membershipId}/discount-limit': {
     post: {
       ...operation('setMembershipDiscountLimit', 'DiscountLimit'),
@@ -92,4 +92,27 @@ export const permissionPaths = {
       requestBody: { required: true, content: json('RevokePermissionOverrideInput') },
     },
   },
+};
+
+const business = parameter('path', 'businessId', true, { type: 'string', format: 'uuid' });
+// نفس العقود والصفحات، لكن الحارس يستهدف النشاط وتصفية العضوية تسبق LIMIT.
+export const permissionPaths = {
+  ...companyPermissionPaths,
+  ...Object.fromEntries(
+    Object.entries(companyPermissionPaths)
+      .filter(([path]) => !path.endsWith('/discount-limit'))
+      .map(([path, methods]) => [
+        path.replace('/v1/permissions', '/v1/businesses/{businessId}/permissions'),
+        Object.fromEntries(
+          Object.entries(methods).map(([method, operation]) => [
+            method,
+            {
+              ...operation,
+              operationId: `business_${operation.operationId}`,
+              parameters: [business, ...operation.parameters],
+            },
+          ]),
+        ),
+      ]),
+  ),
 };

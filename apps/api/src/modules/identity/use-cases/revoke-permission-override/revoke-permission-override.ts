@@ -15,16 +15,19 @@ export class RevokePermissionOverride {
   ) {}
 
   async execute(
-    actor: { companyId: string; userId: string },
+    actor: { companyId: string; userId: string; businessId?: string },
     membershipId: string,
     overrideId: string,
     input: RevokePermissionOverrideInput,
   ) {
     const saved = await this.transactions.run(actor.companyId, actor.userId, async (scope) => {
-      const found = await scope.find(membershipId, overrideId);
+      const found = await scope.find(membershipId, overrideId, actor.businessId);
       if (found === null) throw new ApiError('NOT_FOUND');
-      const context = await scope.context(membershipId, found);
-      const previous = await scope.find(membershipId, overrideId);
+      const context = {
+        ...(await scope.context(membershipId, found)),
+        ...(actor.businessId === undefined ? {} : { managementBusinessId: actor.businessId }),
+      };
+      const previous = await scope.find(membershipId, overrideId, actor.businessId);
       if (previous === null) throw new ApiError('NOT_FOUND');
       const failure = permissionEditFailure(previous, context, 'REVOKE');
       if (failure !== null) throw new ApiError(failure);

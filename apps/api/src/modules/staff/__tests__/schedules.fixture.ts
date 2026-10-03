@@ -1,3 +1,4 @@
+import { SYSTEM_ROLES } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { employeesFixture, grantEmployeeCreation, termsFor } from './employees.fixture.ts';
 import { createScheduleTransactions } from '../persistence/drizzle-schedules.ts';
@@ -22,6 +23,11 @@ export async function schedulesFixture() {
     businessId: f.business,
     input: termsFor(f),
   });
+  // مدير نشاط نظامي يختبر حزم PR 16؛ الدور المخصص في تجهيز الموظفين له سياسة مستقلة.
+  const manager = SYSTEM_ROLES.find((role) => role.code === 'business_manager');
+  await f.h
+    .owner`UPDATE memberships SET role_id=${manager?.id as string},role_owner_key='global',scope_type='BUSINESS',scope_id=${f.business}
+    WHERE company_id=${f.company} AND id=${f.memberId}`;
   const secondBranch = scheduleIds.newId();
   await f.h
     .owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.company},${secondBranch},${f.business},'Synthetic second branch')`;

@@ -58,16 +58,16 @@ beforeAll(async () => {
       body: { vertical_type: 'salon', name_en: 'Synthetic' },
     })
   ).body['id'] as string;
-  await h.owner`INSERT INTO role_permissions (role_id,role_owner_key,company_id,permission_code)
-    VALUES ('01920000-0000-7000-8000-000000000101','global',NULL,'manage:files:business'),
-    ('01920000-0000-7000-8000-000000000101','global',NULL,'read:files:business')`;
   readerCookie = await h.signedInOperator('files-reader@synthetic.invalid');
   const [user] =
     await h.owner`SELECT id FROM "user" WHERE email = 'files-reader@synthetic.invalid'`;
   readerId = user?.['id'] as string;
   readerMembership = ids.newId();
+  const readerRole = ids.newId();
+  await h.owner`INSERT INTO roles(id,company_id,code,name_en)
+    VALUES (${readerRole},${company},'synthetic_files_reader','Synthetic files reader')`;
   await h.owner`INSERT INTO memberships (company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
-    VALUES (${company},${readerMembership},${readerId},'01920000-0000-7000-8000-00000000010d','global','BUSINESS',${business})`;
+    VALUES (${company},${readerMembership},${readerId},${readerRole},${company},'BUSINESS',${business})`;
   db = createDatabase({ url: h.urls.app, ids });
   verifier = new VerifyUpload(
     verificationRepository(db),
