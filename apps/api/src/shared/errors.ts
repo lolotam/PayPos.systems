@@ -4,6 +4,13 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
+  STORAGE_NOT_CONFIGURED: 503,
+  STORAGE_UNAVAILABLE: 503,
+  FILE_NOT_FOUND: 404,
+  FILE_NOT_READY: 409,
+  FILE_TYPE_INVALID: 415,
+  FILE_SIZE_INVALID: 413,
+  FILE_CONTENT_INVALID: 422,
   EMPLOYEE_BUSINESS_NOT_FOUND: 404,
   EMPLOYEE_BRANCH_NOT_FOUND: 404,
   EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 400,
@@ -48,6 +55,13 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'STORAGE_NOT_CONFIGURED',
+  'STORAGE_UNAVAILABLE',
+  'FILE_NOT_FOUND',
+  'FILE_NOT_READY',
+  'FILE_TYPE_INVALID',
+  'FILE_SIZE_INVALID',
+  'FILE_CONTENT_INVALID',
   'EMPLOYEE_BUSINESS_NOT_FOUND',
   'EMPLOYEE_BRANCH_NOT_FOUND',
   'EMPLOYEE_BRANCH_BUSINESS_MISMATCH',

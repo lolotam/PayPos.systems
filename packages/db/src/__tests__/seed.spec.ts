@@ -58,6 +58,8 @@ describe('seedReferenceData', () => {
       PERMISSIONS.filter(
         (p) =>
           !p.endsWith(':platform') &&
+          p !== 'manage:files:business' &&
+          p !== 'read:files:business' &&
           p !== 'create:customers:company' &&
           p !== 'manage:employees:business' &&
           p !== 'login:staff:branch',

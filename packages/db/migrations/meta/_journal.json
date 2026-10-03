@@ -288,6 +288,48 @@
       "when": 1790992182745,
       "tag": "0040_2026-10-03_staff-active-user-business",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791009188165,
+      "tag": "0041_2026-10-03_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791009192495,
+      "tag": "0042_2026-10-03_files-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791009200974,
+      "tag": "0043_2026-10-03_files-retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1791009206926,
+      "tag": "0044_2026-10-03_files-retention-grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1791011586398,
+      "tag": "0045_2026-10-03_files-cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1791011593581,
+      "tag": "0046_2026-10-03_files-cleanup-rls",
+      "breakpoints": true
     }
   ]
 }

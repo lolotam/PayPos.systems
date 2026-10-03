@@ -109,6 +109,13 @@ export const ar: Catalog = {
     generic_notice: 'تحديث بخصوص {{subject}}',
   },
   errors: {
+    STORAGE_NOT_CONFIGURED: 'تخزين الملفات الخاصة غير مُعدّ',
+    STORAGE_UNAVAILABLE: 'تخزين الملفات الخاصة غير متاح مؤقتاً',
+    FILE_NOT_FOUND: 'الملف غير موجود',
+    FILE_NOT_READY: 'الملف لم يجتز التحقق بعد',
+    FILE_TYPE_INVALID: 'نوع المحتوى لا يطابق نوع الرفع المسموح',
+    FILE_SIZE_INVALID: 'حجم الملف لا يطابق التصريح أو يتجاوز الحد المسموح',
+    FILE_CONTENT_INVALID: 'تعذر التحقق من محتوى الملف',
     EMPLOYEE_BUSINESS_NOT_FOUND: 'لم يتم العثور على نشاط الموظف.',
     EMPLOYEE_BRANCH_NOT_FOUND: 'لم يتم العثور على الفرع الرئيسي.',
     EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 'الفرع الرئيسي يجب أن يتبع نشاط الموظف.',

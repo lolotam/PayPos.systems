@@ -5,6 +5,252 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/files/download": {
+      "post": {
+        "operationId": "issueFileDownloadByKey",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileDownloadByKey"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "FileDownload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDownload"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/files/uploads": {
+      "post": {
+        "operationId": "requestFileUpload",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestFileUpload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "FileUploadTicket",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUploadTicket"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{id}/confirm": {
+      "post": {
+        "operationId": "confirmFileUpload",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "FileConfirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileConfirmation"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{id}": {
+      "get": {
+        "operationId": "getFileStatus",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "FileStatus",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/files/{id}/download": {
+      "post": {
+        "operationId": "issueFileDownload",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "FileDownload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDownload"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/employees": {
       "post": {
         "operationId": "createEmployee",
@@ -1294,6 +1540,195 @@
   },
   "components": {
     "schemas": {
+      "RequestFileUpload": {
+        "type": "object",
+        "properties": {
+          "owner_module": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,49}$"
+          },
+          "owner_entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "application/pdf",
+              "image/jpeg",
+              "image/png"
+            ]
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 10485760
+          },
+          "required_permission": {
+            "type": "string",
+            "pattern": "^[a-z]+:[a-z-]+:(company|business|branch)$"
+          }
+        },
+        "required": [
+          "owner_module",
+          "owner_entity_id",
+          "content_type",
+          "size_bytes",
+          "required_permission"
+        ],
+        "additionalProperties": false
+      },
+      "FileUploadTicket": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "upload_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expires_in": {
+            "type": "number",
+            "enum": [
+              120
+            ]
+          },
+          "headers": {
+            "type": "object",
+            "properties": {
+              "content-type": {
+                "type": "string"
+              },
+              "content-length": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "content-type",
+              "content-length"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "upload_url",
+          "expires_in",
+          "headers"
+        ],
+        "additionalProperties": false
+      },
+      "FileStatus": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "VERIFYING",
+              "READY",
+              "REJECTED"
+            ]
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "storage_key": {
+            "type": "string"
+          },
+          "rejection_code": {
+            "type": "string",
+            "enum": [
+              "FILE_TYPE_INVALID",
+              "FILE_SIZE_INVALID",
+              "FILE_CONTENT_INVALID"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "content_type",
+          "size_bytes"
+        ],
+        "additionalProperties": false
+      },
+      "FileConfirmation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "QUEUED"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "FileDownload": {
+        "type": "object",
+        "properties": {
+          "download_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expires_in": {
+            "type": "number",
+            "enum": [
+              60
+            ]
+          }
+        },
+        "required": [
+          "download_url",
+          "expires_in"
+        ],
+        "additionalProperties": false
+      },
+      "FileDownloadByKey": {
+        "type": "object",
+        "properties": {
+          "storage_key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          }
+        },
+        "required": [
+          "storage_key"
+        ],
+        "additionalProperties": false
+      },
       "Employee": {
         "type": "object",
         "properties": {

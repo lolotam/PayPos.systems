@@ -175,3 +175,15 @@ export {
   type StaffOtpAcknowledgement,
   type StaffSessionContext,
 } from './identity/staff-otp.js';
+export {
+  requestFileUpload,
+  fileUploadTicket,
+  fileStatus,
+  fileConfirmation,
+  fileDownload,
+  fileDownloadByKey,
+  fileVerificationJob,
+  fileRetentionJob,
+  type RequestFileUpload,
+  type FileStatus,
+} from './files.js';

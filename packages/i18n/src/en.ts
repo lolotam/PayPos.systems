@@ -107,6 +107,13 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    STORAGE_NOT_CONFIGURED: 'Private file storage is not configured',
+    STORAGE_UNAVAILABLE: 'Private file storage is temporarily unavailable',
+    FILE_NOT_FOUND: 'File not found',
+    FILE_NOT_READY: 'The file has not passed verification',
+    FILE_TYPE_INVALID: 'The detected file type does not match an allowed upload type',
+    FILE_SIZE_INVALID: 'The file size does not match the upload or exceeds its limit',
+    FILE_CONTENT_INVALID: 'The file content could not be verified',
     EMPLOYEE_BUSINESS_NOT_FOUND: 'The employee business was not found.',
     EMPLOYEE_BRANCH_NOT_FOUND: 'The primary branch was not found.',
     EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 'The primary branch must belong to the employee business.',

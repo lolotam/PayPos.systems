@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { filePaths, fileSchemas } from './files-openapi.js';
 import { employee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
 import { staffPaths } from './staff/staff-openapi.js';
 import { permissionPaths } from './identity/permissions-openapi.js';
@@ -72,6 +73,7 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...fileSchemas,
   employee,
   createEmployeeInput,
   employeeRoleCode,
@@ -164,6 +166,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...filePaths,
   ...staffPaths,
   ...permissionPaths,
   ...customerPaths,

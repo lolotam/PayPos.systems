@@ -8,6 +8,7 @@
 **/node_modules
 **/dist
 **/.turbo
+**/.next
 **/coverage
 .git
 .github

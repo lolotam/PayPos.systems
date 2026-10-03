@@ -13,6 +13,7 @@ import { Redis } from 'ioredis';
 import { readEmailConfiguration } from '@pospay/notifications';
 
 import { createApp } from './app.ts';
+import { filesRuntime } from './modules/files/index.ts';
 import { createWhatsappIntake } from './modules/notifications/index.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { staffOtpDependencies } from './modules/identity/index.ts';
@@ -59,6 +60,7 @@ redis.on('error', (error: unknown) => {
 });
 
 const RELEASE_DEADLINE_MS = 5_000;
+const files = filesRuntime(process.env, redis);
 
 // One bounded cleanup for both startup failure and shutdown: close gracefully, then force the Redis
 // socket shut if the deadline passes (the database close has its own 5 s forced end).
@@ -72,6 +74,7 @@ const release = async (): Promise<void> => {
       whatsapp?.close(true),
       globalDatabase?.close(true),
       database.close(),
+      files?.close(),
       auth?.close(),
       otp?.close(),
       otpDependencies?.transport.close(true),
@@ -271,6 +274,7 @@ try {
         origin: process.env['STAFF_OTP_POS_ORIGIN'] || null,
       },
       database,
+      files,
       redis,
       corsOrigins: config.AUTH_TRUSTED_ORIGINS,
       ...(whatsapp === undefined ? {} : { whatsapp }),

@@ -1,4 +1,5 @@
 import type { Provider } from '@nestjs/common';
+import { REQUEST_AUTHORIZER } from '../../shared/request-authorizer.ts';
 import { APP_GUARD } from '@nestjs/core';
 import { PermissionsController } from './http/permissions.controller.ts';
 import { createPermissionOverrideTransactions } from './persistence/permission-override-transactions.ts';
@@ -145,6 +146,7 @@ export function identityProviders(
       useValue: database === undefined ? null : cashierPinUseCases(database, ids, redis),
     },
     { provide: AuthorizeRequest, useValue: reader === null ? null : new AuthorizeRequest(reader) },
+    { provide: REQUEST_AUTHORIZER, useExisting: AuthorizeRequest },
     { provide: CheckFeature, useValue: reader === null ? null : new CheckFeature(reader) },
     { provide: APP_GUARD, useClass: AccessGuard },
     { provide: APP_GUARD, useClass: FeatureGuard },
