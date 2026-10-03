@@ -92,6 +92,13 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    STORAGE_NOT_CONFIGURED: 'Private file storage is not configured',
+    STORAGE_UNAVAILABLE: 'Private file storage is temporarily unavailable',
+    FILE_NOT_FOUND: 'File not found',
+    FILE_NOT_READY: 'The file has not passed verification',
+    FILE_TYPE_INVALID: 'The detected file type does not match an allowed upload type',
+    FILE_SIZE_INVALID: 'The file size does not match the upload or exceeds its limit',
+    FILE_CONTENT_INVALID: 'The file content could not be verified',
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',

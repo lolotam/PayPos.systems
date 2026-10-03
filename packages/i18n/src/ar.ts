@@ -94,6 +94,13 @@ export const ar: Catalog = {
     generic_notice: 'تحديث بخصوص {{subject}}',
   },
   errors: {
+    STORAGE_NOT_CONFIGURED: 'تخزين الملفات الخاصة غير مُعدّ',
+    STORAGE_UNAVAILABLE: 'تخزين الملفات الخاصة غير متاح مؤقتاً',
+    FILE_NOT_FOUND: 'الملف غير موجود',
+    FILE_NOT_READY: 'الملف لم يجتز التحقق بعد',
+    FILE_TYPE_INVALID: 'نوع المحتوى لا يطابق نوع الرفع المسموح',
+    FILE_SIZE_INVALID: 'حجم الملف لا يطابق التصريح أو يتجاوز الحد المسموح',
+    FILE_CONTENT_INVALID: 'تعذر التحقق من محتوى الملف',
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',

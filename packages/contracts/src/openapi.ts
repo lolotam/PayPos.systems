@@ -1,4 +1,13 @@
 import { z } from 'zod';
+import { filePaths } from './files-openapi.js';
+import {
+  requestFileUpload,
+  fileUploadTicket,
+  fileStatus,
+  fileConfirmation,
+  fileDownload,
+  fileDownloadByKey,
+} from './files.js';
 import { permissionPaths } from './identity/permissions-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import {
@@ -70,6 +79,12 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  requestFileUpload,
+  fileUploadTicket,
+  fileStatus,
+  fileConfirmation,
+  fileDownload,
+  fileDownloadByKey,
   membershipPermissionsQuery,
   revokePermissionOverrideInput,
   membershipPageQuery,
@@ -158,6 +173,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...filePaths,
   ...permissionPaths,
   ...customerPaths,
   '/v1/devices/me/attendance-qr': {

@@ -267,6 +267,34 @@
       "when": 1790984026175,
       "tag": "0037_2026-10-02_email-destination-guard",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790988252534,
+      "tag": "0038_2026-10-03_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1790988265076,
+      "tag": "0039_2026-10-03_files-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790992296407,
+      "tag": "0040_2026-10-03_files-retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790992298916,
+      "tag": "0041_2026-10-03_files-retention-grants",
+      "breakpoints": true
     }
   ]
 }
