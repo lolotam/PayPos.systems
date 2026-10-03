@@ -58,7 +58,9 @@ it('non-primary source DENY prevents detaching it or updating any field', async 
     ['ALLOW', 'BUSINESS', f.business],
     ['DENY', 'BRANCH', f.sibling],
   ]);
-  expect(await patchEmployee(f, record, { branch_ids: [f.branch] })).toMatchObject({
+  expect(
+    await patchEmployee(f, record, { branch_ids: [f.branch], branch_effective_date: '2026-10-04' }),
+  ).toMatchObject({
     status: 404,
     body: { code: 'NOT_FOUND' },
   });
@@ -72,12 +74,20 @@ it('non-primary source DENY prevents detaching it or updating any field', async 
   });
   expect(detail.status).toBe(404);
   await reset();
-  record = await executeUpdate(f, record, { branch_ids: [f.branch] });
+  record = await executeUpdate(f, record, {
+    branch_ids: [f.branch],
+    branch_effective_date: '2026-10-04',
+  });
 });
 it('branch-only ALLOW permits source edit but requires target ALLOW for a move', async () => {
   await employeeGrants(f, [['ALLOW', 'BRANCH', f.branch]]);
   record = await executeUpdate(f, record, { name_en: 'Allowed branch edit' });
-  expect(await patchEmployee(f, record, { branch_ids: [f.branch, f.sibling] })).toMatchObject({
+  expect(
+    await patchEmployee(f, record, {
+      branch_ids: [f.branch, f.sibling],
+      branch_effective_date: '2026-10-04',
+    }),
+  ).toMatchObject({
     status: 403,
     body: { code: 'FORBIDDEN' },
   });
@@ -89,6 +99,7 @@ it('branch-only ALLOW permits source edit but requires target ALLOW for a move',
     await executeUpdate(f, record, {
       primary_branch_id: f.sibling,
       branch_ids: [f.branch, f.sibling],
+      branch_effective_date: '2026-10-04',
     }),
   ).toMatchObject({ primary_branch_id: f.sibling });
   await reset();

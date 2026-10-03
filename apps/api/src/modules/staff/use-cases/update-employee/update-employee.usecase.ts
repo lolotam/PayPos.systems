@@ -26,7 +26,7 @@ export class UpdateEmployeeUseCase {
       const plan = planEmployeeUpdate(
         current.record,
         command.input,
-        current.active,
+        current.history,
         await scope.contexts(current.record, command.input.branch_ids),
       );
       if (!(await scope.authorize(current.record.business_id, command.input.branch_ids)))

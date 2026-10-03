@@ -111,7 +111,9 @@ export const ar: Catalog = {
   errors: {
     EMPLOYEE_REVISION_CONFLICT: 'عدّل مدير آخر هذا الموظف. أعد تحميل أحدث سجل قبل الحفظ.',
     EMPLOYEE_PRIMARY_BRANCH_REQUIRED: 'أدرج الفرع الرئيسي ضمن فروع العمل.',
-    EMPLOYEE_BRANCH_DATE_BEFORE_START: 'لا يمكن أن ينتهي ارتباط الفرع قبل تاريخ بدايته.',
+    EMPLOYEE_BRANCH_DATE_BEFORE_START: 'يجب أن ينتهي ارتباط الفرع بعد تاريخ بدايته.',
+    EMPLOYEE_BRANCH_HISTORY_OVERLAP: 'يتداخل ارتباط الفرع مع فترة مسجلة سابقاً.',
+    EMPLOYEE_BRANCH_HISTORY_IMMUTABLE: 'لا يمكن تعديل تاريخ ارتباط الفرع بعد إغلاقه.',
     EMPLOYEE_BUSINESS_NOT_FOUND: 'لم يتم العثور على نشاط الموظف.',
     EMPLOYEE_BRANCH_NOT_FOUND: 'لم يتم العثور على الفرع الرئيسي.',
     EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 'الفرع الرئيسي يجب أن يتبع نشاط الموظف.',

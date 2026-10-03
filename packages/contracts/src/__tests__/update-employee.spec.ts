@@ -46,10 +46,14 @@ it('bounds cursor pages and requires current branch metadata on edit details', (
 it('publishes list/detail/update paths and named conflict HTTP status', () => {
   const paths = buildOpenApiDocument()['paths'] as Record<
     string,
-    { get?: { responses: object }; patch?: { responses: object } }
+    { get?: { responses: object }; patch?: { responses: object; description: string } }
   >;
   expect(paths['/v1/businesses/{businessId}/employees']?.get?.responses).toHaveProperty('200');
   expect(
     paths['/v1/businesses/{businessId}/employees/{employeeId}']?.patch?.responses,
   ).toHaveProperty('409');
+  const patch = paths['/v1/businesses/{businessId}/employees/{employeeId}']?.patch;
+  expect(patch?.description).toContain('EMPLOYEE_BRANCH_HISTORY_OVERLAP (409)');
+  expect(patch?.description).toContain('EMPLOYEE_BRANCH_HISTORY_IMMUTABLE, 409');
+  expect(patch?.description).toContain('Adjacent intervals are allowed');
 });

@@ -302,6 +302,20 @@
       "when": 1791009253084,
       "tag": "0042_2026-10-03_staff-update-employee-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791013197347,
+      "tag": "0043_2026-10-03_employee-branch-intervals",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1791013203168,
+      "tag": "0044_2026-10-03_employee-branch-history-rls",
+      "breakpoints": true
     }
   ]
 }

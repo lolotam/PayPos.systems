@@ -110,7 +110,9 @@ export const en = {
     EMPLOYEE_REVISION_CONFLICT:
       'Another manager changed this employee. Reload the latest record before saving.',
     EMPLOYEE_PRIMARY_BRANCH_REQUIRED: 'Include the primary branch in the working branches.',
-    EMPLOYEE_BRANCH_DATE_BEFORE_START: 'A branch attachment cannot end before it starts.',
+    EMPLOYEE_BRANCH_DATE_BEFORE_START: 'A branch attachment must end after it starts.',
+    EMPLOYEE_BRANCH_HISTORY_OVERLAP: 'This branch attachment overlaps existing history.',
+    EMPLOYEE_BRANCH_HISTORY_IMMUTABLE: 'Closed branch attachment history cannot be changed.',
     EMPLOYEE_BUSINESS_NOT_FOUND: 'The employee business was not found.',
     EMPLOYEE_BRANCH_NOT_FOUND: 'The primary branch was not found.',
     EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 'The primary branch must belong to the employee business.',

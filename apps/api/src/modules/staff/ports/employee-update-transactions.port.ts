@@ -12,12 +12,12 @@ export interface EmployeeUpdateScope {
    *
    * @param businessId النشاط المتحقق منه
    * @param employeeId الموظف المطلوب
-   * @returns السجل الحالي وارتباطاته أو الغياب الموحد
+   * @returns السجل الحالي والتاريخ الكامل لارتباطاته أو الغياب الموحد
    */
   load(
     businessId: string,
     employeeId: string,
-  ): Promise<{ record: EditableEmployee; active: readonly BranchAttachment[] } | null>;
+  ): Promise<{ record: EditableEmployee; history: readonly BranchAttachment[] } | null>;
   /**
    * يعيد الإذن عند كل الفروع المطلوبة؛ لا يسمح بالنقل إلى فرع ممنوع.
    *

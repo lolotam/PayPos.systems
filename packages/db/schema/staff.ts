@@ -88,6 +88,8 @@ export const employeeBranches = pgTable(
   },
   (t) => [
     primaryKey({ name: 'employee_branches_pkey', columns: [t.companyId, t.id] }),
+    check('employee_branches_nonempty_interval', sql`${t.to} IS NULL OR ${t.to} > ${t.from}`),
+    // GiST exclusion قيد SQL في migration employee-branch-intervals؛ Drizzle لا يمثل استبعاد تقاطع الفترات.
     uniqueIndex('employee_branches_active_key')
       .on(t.companyId, t.employeeId, t.branchId)
       .where(sql`${t.to} IS NULL`),

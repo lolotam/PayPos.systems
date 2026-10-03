@@ -47,7 +47,7 @@ PATCH `/v1/businesses/{businessId}/employees/{employeeId}` accepts all editable 
 `expected_revision`, a unique nonempty `branch_ids` set and `branch_effective_date`.
 The manager supplies an explicit Gregorian date for changed attachments; no server/browser timezone
 is silently substituted. Existing attachments' `from` values are never rewritten when hire date changes.
-An end before its existing start is structurally invalid and refused as EMPLOYEE_BRANCH_DATE_BEFORE_START.
+An end at or before its existing start is structurally invalid and refused as EMPLOYEE_BRANCH_DATE_BEFORE_START.
 **UE-Q1 — owner decision 2026-10-03**: the manager enters attach/detach dates as Gregorian calendar dates.
 Intervals are start-inclusive and end-exclusive (`from <= date < to`, with no upper bound when `to` is null).
 A move on the 15th stores the old attachment's `to` and the new attachment's `from` as the 15th:
@@ -71,6 +71,27 @@ dated branch eligibility and the clock-in snapshot, belong to PR 22 and are not 
 - Separate custom migration: FORCE RLS UPDATE policies with tenant USING/WITH CHECK; column grants
   only for editable employee data/revision and attachment `to`. No DELETE or re-home grants.
 
+### PR #83 review: interval integrity
+
+Every new attachment is checked against the employee's full history for that branch, including closed
+intervals. An open-ended attachment starting October 10 cannot follow an interval ending October 15;
+it returns EMPLOYEE_BRANCH_HISTORY_OVERLAP (409), without changing revision, history or audit.
+Adjacent intervals are allowed: an interval ending October 15 and another starting October 15 do not overlap.
+Concurrent API saves still use the company → memberships → employee lock order and optimistic revision.
+
+New migrations after 0042 add the PostgreSQL contrib dependency `btree_gist` and a tenant-qualified GiST
+exclusion constraint over `(company_id, employee_id, branch_id, daterange(from, to, '[)'))`. This also
+refuses overlaps from concurrent direct database writers; the partial open-attachment index alone cannot.
+Both its exclusion violation and an overlapping duplicate open attachment map to the named 409 above.
+An independent CHECK requires `to IS NULL OR to > from`; a BEFORE UPDATE trigger permits only closing
+an open interval. A closed interval cannot be updated or reopened, including by `pospay_app` under
+the existing same-company UPDATE grant. Guard violations map defensively to
+EMPLOYEE_BRANCH_HISTORY_IMMUTABLE (409). Existing migrations 0041 and 0042 remain unchanged.
+
+The new constraints validate existing data without rewriting it. Migration refuses pre-existing empty,
+reversed or overlapping histories; any repair requires a separate reviewed data correction. Adding the
+exclusion constraint takes a table lock and builds its GiST index, so schedule the migration accordingly.
+
 ### API and permissions
 
 GET collection returns EmployeePage (bounded id cursor; access filtering precedes LIMIT, so cursors name only visible employees). GET detail extends the existing employee response with revision
@@ -87,6 +108,7 @@ existing staff → identity boundary; no per-employee permission-query loop or c
 Errors include existing create refusals, NOT_FOUND, FEATURE_DISABLED, FORBIDDEN,
 EMPLOYEE_REVISION_CONFLICT (409), EMPLOYEE_PRIMARY_BRANCH_REQUIRED (400),
 EMPLOYEE_BRANCH_DATE_BEFORE_START (400), and TRANSACTION_RETRY_REQUIRED.
+Branch history conflicts also return EMPLOYEE_BRANCH_HISTORY_OVERLAP or EMPLOYEE_BRANCH_HISTORY_IMMUTABLE (409).
 No money/stock effect: no Idempotency-Key. No update event is named by SPEC §3: no outbox event.
 
 ### Test plan
@@ -94,7 +116,9 @@ No money/stock effect: no Idempotency-Key. No update event is named by SPEC §3:
 Domain: branch set/primary/history/date/revision and contract ordering; create rules remain reused.
 Contracts: full replacement validation, unknown claims, unique branches, real dates and revision bounds.
 Integration: UE-01…UE-08, future moves with shared exclusive/inclusive boundary dates,
-race conflict/unique links, history reattachment, source/target DENY,
+race conflict/unique links, history reattachment, reported October 15/October 10 overlap and concurrent
+reattachment, adjacent intervals, direct concurrent database overlaps, immutable closed history as pospay_app,
+source/target DENY,
 branch-only ALLOW, tenant/business isolation, inactive links, feature revocation, no access mutations,
 audit before/after and rollback. RLS negatives prove UPDATE isolation/column grants/immutable history.
 Queries: exact result shape, cursor boundaries, authorization filtering and EXPLAIN ANALYZE index assertions.
@@ -109,7 +133,8 @@ an avenue to read or move its employees. Both languages expose the same editing 
 
 ## Assumptions
 
-Admin is online; no dependencies added. Revisions start at 1 for existing records. An unchanged save
+Admin is online; no npm dependencies added. PostgreSQL requires the btree_gist contrib extension
+documented in ADR-0021. Revisions start at 1 for existing records. An unchanged save
 returns the existing revision without an audit row because it changes nothing. List paging uses stable
 UUID ordering; page sizes bound visible rows after SQL scope filtering.
 

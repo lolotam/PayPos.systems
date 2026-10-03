@@ -36,7 +36,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** @description Full editable employee replacement against expected_revision. All persisted and requested branches require manage:employees:business and staff feature. Never grants access. Preserves branch history using the supplied branch_effective_date. Stale revision returns EMPLOYEE_REVISION_CONFLICT (409). */
+        /** @description Full editable employee replacement against expected_revision. All persisted and requested branches require manage:employees:business and staff feature. Never grants access. Preserves branch history using the supplied branch_effective_date, with start-inclusive/end-exclusive intervals. Closing requires a date strictly after the start. Overlap with open or closed history returns EMPLOYEE_BRANCH_HISTORY_OVERLAP (409); closed history is immutable (EMPLOYEE_BRANCH_HISTORY_IMMUTABLE, 409). Adjacent intervals are allowed. Stale revision returns EMPLOYEE_REVISION_CONFLICT (409). */
         patch: operations["updateEmployee"];
         trace?: never;
     };

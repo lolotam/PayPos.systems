@@ -15,6 +15,7 @@ export interface BranchAttachment {
   readonly id: string;
   readonly branchId: string;
   readonly from: string;
+  readonly to: string | null;
 }
 /** الطلب يحمل النسخة التي قرأها المدير لمنع استبدال تعديل أحدث. */
 export interface EmployeeUpdateTerms {
@@ -42,14 +43,14 @@ export interface EmployeeUpdatePlan {
  *
  * @param before السجل المحفوظ قبل التعديل
  * @param terms بيانات المدير كاملة مع النسخة والتاريخ الصريح
- * @param active الارتباطات الحالية التي لا يجوز حذف تاريخها
+ * @param history التاريخ الكامل للفروع، حتى لا يتقاطع ارتباط جديد مع فترة مغلقة
  * @param contexts تبعية كل فرع مطلوب داخل الشركة
  * @returns خطة واحدة للحفظ والتدقيق أو رفض مسمى
  */
 export function planEmployeeUpdate(
   before: EditableEmployee,
   terms: EmployeeUpdateTerms,
-  active: readonly BranchAttachment[],
+  history: readonly BranchAttachment[],
   contexts: readonly EmployeeCreationContext[],
 ): EmployeeUpdatePlan {
   if (terms.expected_revision !== before.revision)
@@ -69,10 +70,21 @@ export function planEmployeeUpdate(
     branch_ids: branchIds,
   };
   for (const context of contexts) validateEmployeeCreation(after, context);
+  const active = history.filter((row) => row.to === null);
   const attach = branchIds.filter((branch) => !active.some((row) => row.branchId === branch));
   const removed = active.filter((row) => !branchIds.includes(row.branchId));
-  if (removed.some((row) => terms.branch_effective_date < row.from))
+  if (removed.some((row) => terms.branch_effective_date <= row.from))
     throw new EmployeeCreationError('EMPLOYEE_BRANCH_DATE_BEFORE_START');
+  // الفترة الجديدة بلا نهاية؛ كل فترة لنفس الفرع تنتهي بعد بدايتها تتقاطع معها، حتى لو كانت مغلقة.
+  if (
+    attach.some((branch) =>
+      history.some(
+        (row) =>
+          row.branchId === branch && (row.to === null || terms.branch_effective_date < row.to),
+      ),
+    )
+  )
+    throw new EmployeeCreationError('EMPLOYEE_BRANCH_HISTORY_OVERLAP');
   // قرار المالك 2026-10-03: تاريخ الفروع ميلادي يدخله المدير؛ البداية شاملة والنهاية مستبعدة والتحركات المستقبلية مسموحة.
   // قرار المالك 2026-10-03: التصحيح لا يعيد كتابة الحضور أو التاريخ السابق ولا يغيّر جلسة مفتوحة؛ القواعد الجديدة من الدخول التالي.
   // PR 22 يطبق تفاصيل الحضور وفترات أهلية الفروع؛ هذا التعديل يحفظ البيانات والتدقيق فقط.

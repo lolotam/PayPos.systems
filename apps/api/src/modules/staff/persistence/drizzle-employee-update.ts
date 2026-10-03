@@ -87,6 +87,16 @@ function updateError(error: unknown): never {
   if (error instanceof EmployeeCreationError) throw error;
   const cause = error instanceof Error && 'cause' in error ? error.cause : error;
   if (typeof cause === 'object' && cause !== null && 'constraint_name' in cause) {
+    if (
+      ['employee_branches_no_overlap', 'employee_branches_active_key'].includes(
+        String(cause.constraint_name),
+      )
+    )
+      throw new EmployeeCreationError('EMPLOYEE_BRANCH_HISTORY_OVERLAP');
+    if (cause.constraint_name === 'employee_branches_close_once')
+      throw new EmployeeCreationError('EMPLOYEE_BRANCH_HISTORY_IMMUTABLE');
+    if (cause.constraint_name === 'employee_branches_nonempty_interval')
+      throw new EmployeeCreationError('EMPLOYEE_BRANCH_DATE_BEFORE_START');
     if (cause.constraint_name === 'employees_active_user_business_key')
       throw new EmployeeCreationError('EMPLOYEE_USER_ALREADY_LINKED');
     if (cause.constraint_name === 'employees_user_id_user_id_fk')
