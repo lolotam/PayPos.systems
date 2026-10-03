@@ -10,8 +10,9 @@ process.loadEnvFile(new URL('../../.env', import.meta.url));
 // الثلاث روابط لازم تشاور على نفس السيرفر ونفس قاعدة البيانات (الاسم صريح)، والأدوار بس هي اللي بتختلف.
 const targets = ['DATABASE_URL', 'AUTH_DATABASE_URL', 'MIGRATION_DATABASE_URL'].map((name) => {
   const url = new URL(process.env[name] ?? '');
-  const database = decodeURIComponent(url.pathname.slice(1));
-  assert.ok(database.length > 0 && !database.includes('/'), `${name}: DATABASE_NAME_REQUIRED`);
+  // postgres.js بياخد الاسم من الـ path من غير فك ترميز، فبنقارنه زي ما هو ونرفض الأسماء المرمّزة.
+  const database = url.pathname.slice(1);
+  assert.ok(/^[^/%]+$/.test(database), `${name}: DATABASE_NAME_REQUIRED`);
   return `${url.hostname}:${url.port || '5432'}/${database}`;
 });
 assert.ok(
