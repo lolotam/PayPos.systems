@@ -1,16 +1,22 @@
 import type { Tx } from '@pospay/db';
 
-import { employeeUserLinkAvailable, lockEmployeeCreationAccess } from '../../identity/index.ts';
+import {
+  employeeUserLinkAvailable,
+  lockEmployeeCreationAccess,
+  readEmployeeBranchAccess,
+} from '../../identity/index.ts';
 import { employeeWorkplace } from '../../tenancy/index.ts';
 import type { EmployeeRecord } from '../domain/create-employee.ts';
+import { validateEmployeeBranch } from '../domain/create-employee.ts';
 
-export function authorizeEmployeeCreation(
+export async function authorizeEmployeeCreation(
   tx: Tx,
   companyId: string,
   userId: string,
   businessId: string,
   branchId: string,
 ) {
+  validateEmployeeBranch(businessId, await employeeWorkplace(tx, companyId, businessId, branchId));
   return lockEmployeeCreationAccess(tx, companyId, userId, businessId, branchId);
 }
 
@@ -20,4 +26,14 @@ export function employeeContext(tx: Tx, companyId: string, record: EmployeeRecor
 
 export function canLinkEmployeeUser(tx: Tx, companyId: string, userId: string) {
   return employeeUserLinkAvailable(tx, companyId, userId);
+}
+
+export function employeeBranchAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchIds: readonly string[],
+) {
+  return readEmployeeBranchAccess(tx, companyId, userId, businessId, branchIds);
 }

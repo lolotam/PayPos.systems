@@ -75,7 +75,7 @@ it('same-tenant business cannot reference a branch or employee from another busi
   await expect(asA(attachmentInsert(A.company, other, A.branch))).rejects.toThrow();
 });
 it.each(['employees', 'employee_branches'])(
-  '%s has no runtime update/delete/re-home permission',
+  '%s has no runtime delete or immutable tenant-key update permission',
   async (table) => {
     await expect(
       asA(sql`UPDATE ${sql.identifier(table)} SET company_id=${B.company} WHERE id=${ID}`),

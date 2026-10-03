@@ -6,6 +6,7 @@ export {
 } from './persistence/employee-scope-access.ts';
 export { assertEveryRouteGuarded } from './http/route-coverage.ts';
 export { identityControllers, identityProviders, staffOtpDependencies } from './identity.module.ts';
+export { readEmployeeBranchAccess } from './persistence/employee-scope-access.ts';
 export {
   readMembershipDiscountLimit,
   type MembershipDiscountLimitResult,

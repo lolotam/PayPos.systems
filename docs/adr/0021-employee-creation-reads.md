@@ -34,6 +34,41 @@ membership/PIN references require a real employee; deployment must account for t
 
 ## Consequences
 
+PR #83 branch privacy correction reuses the existing tenancy readers. Identity's bulk scope read
+resolves actual business branches through its workspace-names adapter before evaluating grants;
+an ALLOW on one business cannot confer access on another business's branch by pairing their IDs.
+Staff validates requested branch ownership before target diagnostics, using one identical
+EMPLOYEE_BRANCH_NOT_FOUND (404) for missing, other-business and other-company branches. Create's
+selected-company guard replaces the business-only precheck so its primary branch follows the same
+ordering; the write still checks live permission and the staff feature under the existing locks.
+Source denial still hides an existing employee as NOT_FOUND. No new read arrow, schema or dependency is needed.
+
+PR #83 review adds a PostgreSQL contrib dependency: `btree_gist`, installed by a new migration with
+`CREATE EXTENSION IF NOT EXISTS btree_gist`. Its UUID GiST operator classes combine tenant/employee/branch
+equality with `daterange(from, to, '[)') &&` in `employee_branches_no_overlap`. We choose an exclusion
+constraint over an application-only serialized check because every writer, including concurrent direct SQL,
+must preserve non-overlap. The domain validates full history under the existing lock order for a useful
+EMPLOYEE_BRANCH_HISTORY_OVERLAP (409); the database is the final enforcement boundary. Adjacent dates
+are allowed, NULL ends are unbounded, and the existing partial active index remains for read projections.
+
+A separate new guard migration makes UPDATE close-only and closed rows immutable. A strict interval
+CHECK rejects `to <= from`. The guard is SECURITY INVOKER, pins `search_path=pg_catalog`, and has no
+PUBLIC EXECUTE grant. Function-inventory tests retain the exact application-function allowlist and
+separately verify that the installed btree_gist extension functions have no SECURITY DEFINER capability.
+There is no new npm dependency, runtime table privilege, cross-module arrow or attendance write.
+These migrations validate existing data and never repair it silently; invalid history stops migration.
+The GiST exclusion index requires a table lock during creation; deploy in a suitable migration window.
+
+PR 9 extends this same read boundary with readEmployeeBranchAccess. It evaluates persisted/current
+and proposed branch scopes in one grants read, so employee list filtering does not issue an identity
+query for each row. The existing tenancy.describeWorkspaces reader supplies business branches;
+SQL scope filtering precedes LIMIT, so cursors only identify readable employees. No authority or membership write is added. Updates take the existing company
+and ordered membership locks before locking/reloading the employee; every persisted source and
+requested target branch must allow management. Optimistic revisions protect editors after the
+lock wait. The staff module's existing index and business indexes cover cursor reads; the additive
+history index permits one active attachment per branch. Audit and all branch history writes share
+the employee transaction; no update event is invented.
+
 Employee creation briefly serializes per company with permission editors. User-link races cannot
 evade the partial unique active user/business index (owner decision 2026-10-03). Duplicate names and future
 hire dates are allowed; no local-date or duplicate-name lookup is needed. Reads retain the same RLS transaction, no global identity access,

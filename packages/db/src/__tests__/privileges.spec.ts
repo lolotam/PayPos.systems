@@ -118,6 +118,18 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.parked_at:pospay_dispatcher:UPDATE',
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
+// تعديل الموظف يفتح أعمدة الموارد البشرية فقط؛ هوية الشركة والنشاط وبداية الارتباط والحذف تبقى محمية.
+const EMPLOYEE_COLUMN_GRANTS = [
+  'employee_branches.to:pospay_app:UPDATE',
+  'employees.contract_end:pospay_app:UPDATE',
+  'employees.hire_date:pospay_app:UPDATE',
+  'employees.name_ar:pospay_app:UPDATE',
+  'employees.name_en:pospay_app:UPDATE',
+  'employees.primary_branch_id:pospay_app:UPDATE',
+  'employees.revision:pospay_app:UPDATE',
+  'employees.role_code:pospay_app:UPDATE',
+  'employees.user_id:pospay_app:UPDATE',
+];
 const TENANT_TABLES = [
   'file_objects',
   'file_access_audit',
@@ -192,7 +204,7 @@ describe('direct privileges match the reviewed allowlist', () => {
     expect(await aclGrants('PUBLIC')).toEqual([]);
   });
 
-  it('column grants match the reviewed OTP, file verification and outbox allowlists', async () => {
+  it('column grants match the reviewed employee, OTP, file verification and outbox allowlists', async () => {
     const rows = await owner<{ grant: string }[]>`
       SELECT c.relname || '.' || a.attname || ':' || coalesce(r.rolname, 'PUBLIC') || ':' || x.privilege_type AS grant
       FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
@@ -201,7 +213,14 @@ describe('direct privileges match the reviewed allowlist', () => {
       ORDER BY 1`;
     expect(
       rows.filter((r) => !r.grant.startsWith('platform_whatsapp_')).map((r) => r.grant),
-    ).toEqual([...OTP_COLUMN_GRANTS, ...FILE_COLUMN_GRANTS, ...OUTBOX_COLUMN_GRANTS].sort());
+    ).toEqual(
+      [
+        ...OTP_COLUMN_GRANTS,
+        ...FILE_COLUMN_GRANTS,
+        ...OUTBOX_COLUMN_GRANTS,
+        ...EMPLOYEE_COLUMN_GRANTS,
+      ].sort(),
+    );
   });
 
   it.each(APP_ROLES)(
@@ -341,9 +360,21 @@ describe('effective access', () => {
 describe('function inventory', () => {
   it('lists every function; the one SECURITY DEFINER pins its search_path', async () => {
     const rows = await owner`
-      SELECT proname, prosecdef, proconfig FROM pg_proc
-      WHERE pronamespace = 'public'::regnamespace ORDER BY proname`;
+      SELECT proname, prosecdef, proconfig FROM pg_proc p
+      WHERE pronamespace = 'public'::regnamespace AND NOT EXISTS (
+        SELECT 1 FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
+        WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.refclassid='pg_extension'::regclass
+          AND d.deptype='e' AND e.extname='btree_gist') ORDER BY proname`;
     expect(Array.from(rows)).toEqual(FUNCTION_INVENTORY);
+  });
+
+  it('btree_gist is installed and its extension functions cannot acquire definer privileges', async () => {
+    expect(await owner`SELECT 1 FROM pg_extension WHERE extname='btree_gist'`).toHaveLength(1);
+    expect(
+      await owner`SELECT p.proname FROM pg_proc p JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid
+      JOIN pg_extension e ON d.refclassid='pg_extension'::regclass AND e.oid=d.refobjid
+      WHERE d.deptype='e' AND e.extname='btree_gist' AND p.prosecdef`,
+    ).toHaveLength(0);
   });
 
   it('only pospay_dispatcher may execute the SECURITY DEFINER sweep', async () => {

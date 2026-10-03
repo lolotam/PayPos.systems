@@ -1,5 +1,5 @@
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
-import { id, type Employee } from '@pospay/contracts';
+import { id, type EmployeeDetail } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
@@ -13,7 +13,7 @@ import {
 } from '../queries/employee-detail.query.ts';
 
 export interface EmployeeDetailRequest extends FastifyRequest {
-  employeeRecord?: Employee;
+  employeeRecord?: EmployeeDetail;
 }
 
 /** إذن الموظف يتطلب الفرع المحفوظ؛ فحص النشاط وحده يخفي ALLOW الفرع ويتجاوز DENY عليه. */

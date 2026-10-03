@@ -344,6 +344,34 @@
       "when": 1791016836150,
       "tag": "0048_2026-10-03_identity-discount-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791023585760,
+      "tag": "0049_2026-10-03_staff-update-employee",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791023592160,
+      "tag": "0050_2026-10-03_staff-update-employee-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791023600474,
+      "tag": "0051_2026-10-03_employee-branch-intervals",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791023605424,
+      "tag": "0052_2026-10-03_employee-branch-history-rls",
+      "breakpoints": true
     }
   ]
 }

@@ -32,9 +32,9 @@ describe('create-employee owner decision 2026-10-03', () => {
     ).not.toThrow();
   });
   it.each([
-    [{ businessExists: false }, 'EMPLOYEE_BUSINESS_NOT_FOUND'],
+    [{ businessExists: false }, 'EMPLOYEE_BRANCH_NOT_FOUND'],
     [{ branchBusinessId: null }, 'EMPLOYEE_BRANCH_NOT_FOUND'],
-    [{ branchBusinessId: 'other' }, 'EMPLOYEE_BRANCH_BUSINESS_MISMATCH'],
+    [{ branchBusinessId: 'other' }, 'EMPLOYEE_BRANCH_NOT_FOUND'],
   ] as const)('refuses boundary mismatch %j', (change, code) => {
     expect(() => validateEmployeeCreation(record, { ...context, ...change })).toThrow(
       new EmployeeCreationError(code),
@@ -48,4 +48,15 @@ describe('create-employee owner decision 2026-10-03', () => {
       validateEmployeeCreation({ ...record, contract_end: '2026-08-31' }, context),
     ).toThrow(new EmployeeCreationError('EMPLOYEE_CONTRACT_END_BEFORE_HIRE'));
   });
+  it.each([null, 'other'])(
+    'hides invalid branch %s before diagnosing contract dates',
+    (branchBusinessId) => {
+      expect(() =>
+        validateEmployeeCreation(
+          { ...record, contract_end: '2025-01-01' },
+          { ...context, branchBusinessId },
+        ),
+      ).toThrow('EMPLOYEE_BRANCH_NOT_FOUND');
+    },
+  );
 });

@@ -7,6 +7,7 @@ import {
   authorizeEmployeeCreation,
   canLinkEmployeeUser,
   employeeContext,
+  employeeBranchAccess,
 } from './employee-context.adapter.ts';
 
 async function insertEmployee(tx: Tx, companyId: string, r: EmployeeRecord, attachmentId: string) {
@@ -58,8 +59,16 @@ export function createEmployeeTransactions(
           companyId,
           (tx) =>
             work({
-              authorize: (businessId, branchId) =>
-                authorizeEmployeeCreation(tx, companyId, userId, businessId, branchId),
+              authorize: async (businessId, branchId) => {
+                if (!(await authorizeEmployeeCreation(tx, companyId, userId, businessId, branchId)))
+                  return false;
+                const decision = await employeeBranchAccess(tx, companyId, userId, businessId, [
+                  branchId,
+                ]);
+                if (!decision.allowedBranchIds.includes(branchId)) return false;
+                if (!decision.featureEnabled) throw new EmployeeCreationError('FEATURE_DISABLED');
+                return true;
+              },
               context: (record) => employeeContext(tx, companyId, record),
               canLinkUser: (linkedUserId) => canLinkEmployeeUser(tx, companyId, linkedUserId),
               insert: (record, attachmentId) => insertEmployee(tx, companyId, record, attachmentId),
