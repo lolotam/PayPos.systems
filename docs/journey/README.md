@@ -40,5 +40,8 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 10 | [Find or create a customer by phone](10-customer-find-or-create.md) — البحث عن عميل أو إضافته برقم الموبايل | #71 | API only until PR 35 |
 | 11 | [The email channel (built, sending off)](11-email-channel-disabled.md) — قناة الإيميل (جاهزة، والإرسال مقفول) | #75 | nothing to test live until feedback intake ships |
 | 12 | [The permissions screen](12-permissions-screen.md) — شاشة الصلاحيات | #73 | not yet (admin not deployed, issue #54) |
+| 13 | [Create employee](13-create-employee.md) — إضافة موظف | #79 | not yet (admin not deployed, issue #54) |
+| 14 | [Private files](14-private-files.md) — الملفات الخاصة | #82 | API only (no screen yet; deployment not verified here) |
+| 15 | [Per-person discount limit](15-discount-limit.md) — حد الخصم للشخص | #84 | not yet (admin not deployed, issue #54) |
 
 New journeys are added after every merge.
