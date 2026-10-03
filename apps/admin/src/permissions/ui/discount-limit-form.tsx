@@ -8,11 +8,11 @@ import {
   type DiscountLimitInput,
 } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, Input, Label } from '@pospay/ui';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { displayDiscountPercentage } from '../model/discount-percentage';
+import { DiscountLimitFields } from './discount-limit-fields';
 
 export function DiscountLimitForm({
   limitBps,
@@ -40,28 +40,26 @@ export function DiscountLimitForm({
     if (result.success) onSave(result.data);
   };
   return (
-    <form onSubmit={form.handleSubmit(onSave)} className="flex flex-col gap-3 text-start">
-      <p>
-        {t(locale, 'permissions.discountCurrent')}:{' '}
-        {limitBps === null
-          ? t(locale, 'permissions.discountUnset')
-          : `${displayDiscountPercentage(limitBps)}%`}
-      </p>
-      <fieldset disabled={disabled || pending} className="flex flex-col gap-3">
-        <Label htmlFor="discount-percentage">{t(locale, 'permissions.discountLimit')}</Label>
-        <Input id="discount-percentage" inputMode="decimal" {...form.register('percentage')} />
-        <Label htmlFor="discount-reason">{t(locale, 'permissions.reason')}</Label>
-        <Input id="discount-reason" maxLength={500} {...form.register('reason')} />
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit">{t(locale, 'permissions.discountSave')}</Button>
-          <Button type="button" onClick={clear}>
-            {t(locale, 'permissions.discountClear')}
-          </Button>
-        </div>
-      </fieldset>
-      {invalidClear || Object.keys(form.formState.errors).length > 0 ? (
-        <p role="alert">{t(locale, 'permissions.discountInvalid')}</p>
-      ) : null}
-    </form>
+    <FormProvider {...form}>
+      <form
+        onSubmit={form.handleSubmit(onSave)}
+        className="flex flex-col gap-2 rounded-card border border-border bg-secondary/30 p-4 text-start"
+      >
+        <p className="mb-2 text-sm font-semibold">
+          {t(locale, 'permissions.discountCurrent')}:{' '}
+          {limitBps === null ? (
+            t(locale, 'permissions.discountUnset')
+          ) : (
+            <span className="tabular-nums">{displayDiscountPercentage(limitBps)}%</span>
+          )}
+        </p>
+        <DiscountLimitFields disabled={disabled || pending} onClear={clear} />
+        {invalidClear || Object.keys(form.formState.errors).length > 0 ? (
+          <p role="alert" className="text-sm text-destructive">
+            {t(locale, 'permissions.discountInvalid')}
+          </p>
+        ) : null}
+      </form>
+    </FormProvider>
   );
 }

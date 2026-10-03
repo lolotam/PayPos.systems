@@ -12,20 +12,25 @@ export function PermissionOverrides({
   branchTimeZones,
   onRevoke,
   pending = false,
+  ended = false,
 }: {
   items: readonly PermissionOverride[];
   branchTimeZones: Readonly<Record<string, string>>;
   onRevoke?: (overrideId: string, reason: string) => void;
   pending?: boolean;
+  ended?: boolean;
 }) {
   const locale = useLocale();
   if (items.length === 0) return <p>{t(locale, 'permissions.noOverrides')}</p>;
   return (
     <ul className="flex flex-col gap-3 text-start">
       {items.map((row) => (
-        <li key={row.id} className="rounded-card border p-3">
+        <li
+          key={row.id}
+          className={`min-w-0 break-words rounded-card border border-border p-4 ${ended ? 'bg-secondary/50 text-muted-foreground' : 'bg-card'}`}
+        >
           <span dir="ltr">{row.permission_code}</span>{' '}
-          <Badge>
+          <Badge variant={ended ? 'neutral' : row.effect === 'ALLOW' ? 'brand' : 'danger'}>
             {t(locale, row.effect === 'ALLOW' ? 'permissions.allow' : 'permissions.deny')}
           </Badge>
           <p>

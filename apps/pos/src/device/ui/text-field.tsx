@@ -15,9 +15,11 @@ export function TextField({ id, label, error, ...input }: TextFieldProps) {
   const locale = useLocale();
   return (
     <div className="flex flex-col gap-1">
-      <Label htmlFor={id}>{label}</Label>
+      <Label className="text-base" htmlFor={id}>
+        {label}
+      </Label>
       <Input id={id} aria-invalid={error ? true : undefined} {...input} />
-      {error ? <p className="text-start text-sm text-destructive">{t(locale, error)}</p> : null}
+      {error ? <p className="text-start text-base text-destructive">{t(locale, error)}</p> : null}
     </div>
   );
 }

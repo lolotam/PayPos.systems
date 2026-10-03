@@ -3,6 +3,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
+import { seedEmployee } from '../../test/staff-fixtures.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { createDatabase, type Database } from '../index.ts';
 
@@ -21,6 +22,7 @@ beforeAll(async () => {
   await seedTwoTenants(testDb.ownerUrl);
   const owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   try {
+    await seedEmployee(owner, B.company, EMPLOYEE_B);
     await owner`INSERT INTO cashier_pins (company_id, id, employee_id, pin_hash, set_at)
                 VALUES (${B.company}, ${PIN_B}, ${EMPLOYEE_B}, ${HASH}, now())`;
   } finally {

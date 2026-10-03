@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
 
-import { Card, CardContent, CardHeader } from '@pospay/ui';
+import { BrandedPanel, BrandLockup } from '@pospay/ui';
+import { t } from '@pospay/i18n';
+import { useLocale } from '@/shared/locale/locale-context';
+import { LocaleSwitch } from '@/shared/locale/locale-switch';
 
 export function GuestFrame({
   title,
@@ -11,15 +14,26 @@ export function GuestFrame({
   lead: string;
   children: ReactNode;
 }) {
+  const locale = useLocale();
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <h1 className="text-start text-lg font-bold leading-tight">{title}</h1>
-          <p className="text-start text-sm text-muted-foreground">{lead}</p>
-        </CardHeader>
-        <CardContent>{children}</CardContent>
-      </Card>
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 ps-4 pe-4 py-12">
+      <BrandedPanel
+        brandTitle={t(locale, 'brand.title')}
+        brand={
+          <BrandLockup
+            title={t(locale, 'brand.title')}
+            latinName={t(locale, 'brand.latinName')}
+            arabicName={t(locale, 'brand.arabicName')}
+            className="mx-auto mb-4"
+          />
+        }
+        title={title}
+        description={lead}
+        className="max-w-md"
+      >
+        {children}
+      </BrandedPanel>
+      <LocaleSwitch />
     </main>
   );
 }

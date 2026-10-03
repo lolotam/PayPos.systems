@@ -16,8 +16,8 @@ apply: the 13 final roles, editing only within the editor's own permissions, one
 
 ## العربي
 
-1. من فوق دوس **الصلاحيات** ← قائمة العضويات (**العضوية**). لو مفيش: **لا توجد عضويات.**
-2. اختار عضوية ← تظهر **الدور** باسمه بالعربي (مثلاً **مدير فرع**)، و**مدة العضوية**، و**صلاحيات الدور الافتراضية**،
+1. من القائمة الجانبية دوس **الصلاحيات** (عليها نقطة برتقالي وأنت فيها) ← قائمة العضويات (**العضوية**). لو مفيش: **لا توجد عضويات.**
+2. دوس **عرض** على العضوية ← تظهر **الدور** باسمه بالعربي (مثلاً **مدير فرع**)، و**مدة العضوية**، و**صلاحيات الدور الافتراضية**،
    و**استثناءات الشخص**، و**الاستثناءات المنتهية**.
 3. **استثناء جديد** (على العضو العادي): اختار **الصلاحية** (من صلاحيات الشركة بس)، **القرار** (**سماح** أو **منع**)،
    **النطاق** (**الشركة** / **النشاط** / **الفرع**) ومعرّفه، **السبب** (إلزامي)، و**انتهاء الصلاحية** (اختياري، UTC، في
@@ -40,8 +40,8 @@ apply: the 13 final roles, editing only within the editor's own permissions, one
 
 ## English
 
-1. Top bar **Permissions** (الصلاحيات) → the membership list (**Membership**). None: "No memberships found."
-2. Choose a membership → **Role** with its localized name (for example **Branch Manager**), **Membership window**,
+1. Sidebar **Permissions** (الصلاحيات) (an orange dot marks the current page) → the membership list (**Membership**). None: "No memberships found."
+2. Press **View** (عرض) on a membership → **Role** with its localized name (for example **Branch Manager**), **Membership window**,
    **Role defaults**, **Personal overrides** and **Ended overrides**.
 3. **New override** (on the ordinary member): **Permission** (tenant permissions only), **Decision** (**Allow** /
    **Deny**), **Scope** (**Company** / **Business** / **Branch**) and its identifier, **Reason** (required), optional

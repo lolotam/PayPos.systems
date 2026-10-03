@@ -14,6 +14,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { user } from './identity-auth.ts';
+import { employees } from './staff.ts';
 import { branches, businesses, companies } from './tenancy.ts';
 
 // الصلاحيات (ADR-0003 §2.2، §2.3): memberships و permission_overrides هما الـ bridge (RLS على اليوزر وعلى الشركة)،
@@ -120,7 +121,7 @@ export const memberships = pgTable(
     id: uuid('id').notNull(),
     // صاحب العضوية واحد بس: يوزر أو موظف (بـ PIN على جهاز، T9b) — ADR-0003 §4 path B.
     userId: uuid('user_id').references(() => user.id),
-    // الـ FK على staff.employees بييجي مع staff في Phase 1 (ADR-0003 §4.2).
+    // الاعتماد باسم موظف لا يعبر حدود الشركة (ADR-0003 §4.2).
     employeeId: uuid('employee_id'),
     roleId: uuid('role_id').notNull(),
     roleOwnerKey: text('role_owner_key').notNull(),
@@ -133,6 +134,11 @@ export const memberships = pgTable(
   },
   (t) => [
     primaryKey({ name: 'memberships_pkey', columns: [t.companyId, t.id] }),
+    foreignKey({
+      name: 'memberships_employee_fk',
+      columns: [t.companyId, t.employeeId],
+      foreignColumns: [employees.companyId, employees.id],
+    }),
     foreignKey({
       name: 'memberships_role_fk',
       columns: [t.roleId, t.roleOwnerKey],

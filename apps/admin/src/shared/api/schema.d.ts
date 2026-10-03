@@ -4,6 +4,120 @@
  */
 
 export interface paths {
+    "/v1/files/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueFileDownloadByKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/files/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFileStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueFileDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires manage:employees:business and staff feature. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). */
+        post: operations["createEmployee"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires manage:employees:business at the persisted employee business and primary branch, with DENY winning, and the staff feature. Branch-only ALLOW is accepted. Inaccessible and missing employees share NOT_FOUND (404). */
+        get: operations["getEmployee"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/permissions/memberships/{membershipId}/discount-limit": {
         parameters: {
             query?: never;
@@ -417,6 +531,12 @@ export interface components {
             limit_bps: number | null;
             reason: string;
         };
+        MembershipPageQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
         MembershipPermissionsQuery: {
             /** Format: uuid */
             cursor?: string;
@@ -427,12 +547,6 @@ export interface components {
         };
         RevokePermissionOverrideInput: {
             reason: string;
-        };
-        MembershipPageQuery: {
-            /** Format: uuid */
-            cursor?: string;
-            /** @default 20 */
-            limit: number;
         };
         PermissionOverrideInput: {
             permission_code: string;
@@ -500,6 +614,87 @@ export interface components {
             editing_enabled: boolean;
             discount_limit: components["schemas"]["DiscountLimit"];
         };
+        RequestFileUpload: {
+            owner_module: string;
+            /** Format: uuid */
+            owner_entity_id: string;
+            /** Format: uuid */
+            branch_id?: string;
+            /** @enum {string} */
+            content_type: "application/pdf" | "image/jpeg" | "image/png";
+            size_bytes: number;
+            required_permission: string;
+        };
+        FileUploadTicket: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uri */
+            upload_url: string;
+            /** @enum {number} */
+            expires_in: 120;
+            headers: {
+                "content-type": string;
+                "content-length": string;
+            };
+        };
+        FileStatus: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "PENDING" | "VERIFYING" | "READY" | "REJECTED";
+            content_type: string;
+            size_bytes: number;
+            storage_key?: string;
+            /** @enum {string} */
+            rejection_code?: "FILE_TYPE_INVALID" | "FILE_SIZE_INVALID" | "FILE_CONTENT_INVALID";
+        };
+        FileConfirmation: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "QUEUED";
+        };
+        FileDownload: {
+            /** Format: uri */
+            download_url: string;
+            /** @enum {number} */
+            expires_in: 60;
+        };
+        FileDownloadByKey: {
+            storage_key: string;
+        };
+        Employee: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CreateEmployeeInput: {
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar?: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end?: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id?: string | null;
+        };
+        /** @enum {string} */
+        EmployeeRoleCode: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
+        /** Format: date */
+        EmployeeDate: string;
         Customer: {
             /** Format: uuid */
             id: string;
@@ -907,6 +1102,275 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    issueFileDownloadByKey: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDownloadByKey"];
+            };
+        };
+        responses: {
+            /** @description FileDownload */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownload"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestFileUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestFileUpload"];
+            };
+        };
+        responses: {
+            /** @description FileUploadTicket */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUploadTicket"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirmFileUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FileConfirmation */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileConfirmation"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFileStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FileStatus */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileStatus"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    issueFileDownload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FileDownload */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownload"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createEmployee: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEmployeeInput"];
+            };
+        };
+        responses: {
+            /** @description Created employee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getEmployee: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Persisted employee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     setMembershipDiscountLimit: {
         parameters: {
             query?: never;

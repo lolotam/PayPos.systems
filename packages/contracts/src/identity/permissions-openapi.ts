@@ -1,3 +1,30 @@
+import { discountLimit, discountLimitInput } from './discount-limit.js';
+import {
+  membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
+} from './permissions.js';
+
+export const permissionSchemas = [
+  discountLimit,
+  discountLimitInput,
+  membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
+];
+
 const json = (name: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${name}` } },
 });

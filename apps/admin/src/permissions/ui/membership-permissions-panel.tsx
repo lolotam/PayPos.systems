@@ -1,18 +1,15 @@
 'use client';
 
-import { t } from '@pospay/i18n';
 import { Card, CardContent } from '@pospay/ui';
 import { useState } from 'react';
 
-import { envelopeMessage } from '@/shared/api/api-error';
-import { useLocale } from '@/shared/locale/locale-context';
 import { usePermissions } from '../api/use-permissions';
 import { PermissionMembershipDecisions } from './permission-membership-decisions';
-import { PermissionOverrides } from './permission-overrides';
 import { PermissionMembershipSummary } from './permission-membership-summary';
-import { PermissionPageNavigation } from './permission-page-navigation';
+import { PermissionMembershipHistory } from './permission-membership-history';
 import { MembershipDiscountLimit } from './membership-discount-limit';
-import { PermissionMembershipTitle } from './permission-membership-title';
+import { PermissionMembershipHeading } from './permission-membership-heading';
+import { PermissionDetailState } from './permission-detail-state';
 
 type Props = {
   companyId: string;
@@ -27,7 +24,6 @@ export function MembershipPermissionsPanel({
   membershipId,
   branchTimeZones = {},
 }: Props) {
-  const locale = useLocale();
   const [cursor, setCursor] = useState<string>();
   const [historyCursor, setHistoryCursor] = useState<string>();
   const { detail, save, revoke } = usePermissions(
@@ -37,13 +33,13 @@ export function MembershipPermissionsPanel({
     cursor,
     historyCursor,
   );
-  if (detail.isPending) return <p>{t(locale, 'admin.loading')}</p>;
-  if (detail.isError) return <p role="alert">{envelopeMessage(detail.error, locale)}</p>;
+  if (detail.isPending || detail.isError)
+    return <PermissionDetailState pending={detail.isPending} error={detail.error} />;
   const data = detail.data;
   return (
     <Card>
-      <PermissionMembershipTitle membership={data.membership} />
-      <CardContent className="flex flex-col gap-4 text-start">
+      <PermissionMembershipHeading membership={data.membership} />
+      <CardContent className="flex min-w-0 flex-col gap-6 text-start">
         <PermissionMembershipSummary
           data={data}
           timeZone={branchTimeZones[data.membership.scope_id] ?? 'UTC'}
@@ -64,12 +60,11 @@ export function MembershipPermissionsPanel({
           limitBps={data.discount_limit.limit_bps}
           disabled={!data.editing_enabled}
         />
-        <h2>{t(locale, 'permissions.history')}</h2>
-        <PermissionOverrides items={data.ended_overrides.items} branchTimeZones={branchTimeZones} />
-        <PermissionPageNavigation
+        <PermissionMembershipHistory
+          data={data}
+          branchTimeZones={branchTimeZones}
           cursor={historyCursor}
-          next={data.ended_overrides.next_cursor}
-          onChange={setHistoryCursor}
+          onCursorChange={setHistoryCursor}
         />
       </CardContent>
     </Card>

@@ -1,7 +1,7 @@
 # Feature Specification: Membership discount limit
 
 **Created**: 2026-10-03
-**Status**: Implemented; two policy recommendations remain provisional pending owner decisions
+**Status**: Implemented; owner decisions recorded 2026-10-03; integrated with the design brand shell
 **Input**: Phase 1 PR 7b, per-person discount permission parameter.
 
 Sources: Phase 1 SPEC §4 and M13; plan rows 7b/7c/35/38/39; PRD D-56,

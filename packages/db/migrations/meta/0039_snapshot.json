@@ -1,6 +1,6 @@
 {
-  "id": "2e47144d-1a0c-4986-8065-8ad74fcff911",
-  "prevId": "334138d2-10e2-4a23-8e14-f970d6fcb621",
+  "id": "f1ede3d6-16b4-4c4a-9b5b-073341c800b3",
+  "prevId": "48971440-4645-438b-96b4-e1990580bb6d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -138,7 +138,17 @@
           ]
         }
       },
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "branches_company_business_id_key": {
+          "name": "branches_company_business_id_key",
+          "columns": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
       "policies": {},
       "checkConstraints": {
         "branches_geo_pair": {
@@ -630,6 +640,466 @@
         "customers_name": {
           "name": "customers_name",
           "value": "length(btrim(\"customers\".\"name\")) BETWEEN 1 AND 200"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.employee_branches": {
+      "name": "employee_branches",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from": {
+          "name": "from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to": {
+          "name": "to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "employee_branches_company_employee_from_idx": {
+          "name": "employee_branches_company_employee_from_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "employee_branches_company_branch_from_idx": {
+          "name": "employee_branches_company_branch_from_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "employee_branches_company_business_idx": {
+          "name": "employee_branches_company_business_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "employee_branches_company_id_companies_id_fk": {
+          "name": "employee_branches_company_id_companies_id_fk",
+          "tableFrom": "employee_branches",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "tableTo": "companies",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "employee_branches_employee_fk": {
+          "name": "employee_branches_employee_fk",
+          "tableFrom": "employee_branches",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "employee_id"
+          ],
+          "tableTo": "employees",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "employee_branches_branch_fk": {
+          "name": "employee_branches_branch_fk",
+          "tableFrom": "employee_branches",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "branch_id"
+          ],
+          "tableTo": "branches",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "employee_branches_pkey": {
+          "name": "employee_branches_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.employees": {
+      "name": "employees",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "primary_branch_id": {
+          "name": "primary_branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_ar": {
+          "name": "name_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role_code": {
+          "name": "role_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hire_date": {
+          "name": "hire_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contract_end": {
+          "name": "contract_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "employees_company_business_id_idx": {
+          "name": "employees_company_business_id_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "employees_company_primary_branch_idx": {
+          "name": "employees_company_primary_branch_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "primary_branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "employees_company_user_idx": {
+          "name": "employees_company_user_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "employees_user_id_idx": {
+          "name": "employees_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "employees_company_id_companies_id_fk": {
+          "name": "employees_company_id_companies_id_fk",
+          "tableFrom": "employees",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "tableTo": "companies",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "employees_user_id_user_id_fk": {
+          "name": "employees_user_id_user_id_fk",
+          "tableFrom": "employees",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "employees_business_fk": {
+          "name": "employees_business_fk",
+          "tableFrom": "employees",
+          "columnsFrom": [
+            "company_id",
+            "business_id"
+          ],
+          "tableTo": "businesses",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "employees_primary_branch_fk": {
+          "name": "employees_primary_branch_fk",
+          "tableFrom": "employees",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "primary_branch_id"
+          ],
+          "tableTo": "branches",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "employees_pkey": {
+          "name": "employees_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "employees_company_business_id_key": {
+          "name": "employees_company_business_id_key",
+          "columns": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "employees_name_en_length": {
+          "name": "employees_name_en_length",
+          "value": "char_length(trim(\"employees\".\"name_en\")) BETWEEN 1 AND 255"
+        },
+        "employees_name_ar_length": {
+          "name": "employees_name_ar_length",
+          "value": "\"employees\".\"name_ar\" IS NULL OR char_length(trim(\"employees\".\"name_ar\")) BETWEEN 1 AND 255"
+        },
+        "employees_role_code": {
+          "name": "employees_role_code",
+          "value": "\"employees\".\"role_code\" IN ('owner','general_manager','accountant','business_manager','branch_manager','shift_supervisor','cashier','waiter','kitchen','storekeeper','staff','marketing','viewer')"
         }
       },
       "isRLSEnabled": false
@@ -1862,12 +2332,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "limit_bps": {
-          "name": "limit_bps",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2004,6 +2468,21 @@
           "onUpdate": "no action",
           "onDelete": "no action"
         },
+        "memberships_employee_fk": {
+          "name": "memberships_employee_fk",
+          "tableFrom": "memberships",
+          "columnsFrom": [
+            "company_id",
+            "employee_id"
+          ],
+          "tableTo": "employees",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
         "memberships_role_fk": {
           "name": "memberships_role_fk",
           "tableFrom": "memberships",
@@ -2081,10 +2560,6 @@
         "memberships_window": {
           "name": "memberships_window",
           "value": "\"memberships\".\"ends_at\" IS NULL OR \"memberships\".\"ends_at\" > \"memberships\".\"starts_at\""
-        },
-        "memberships_limit_bps": {
-          "name": "memberships_limit_bps",
-          "value": "\"memberships\".\"limit_bps\" IS NULL OR \"memberships\".\"limit_bps\" BETWEEN 0 AND 10000"
         }
       },
       "isRLSEnabled": false
@@ -3310,6 +3785,21 @@
           ],
           "tableTo": "user",
           "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "cashier_pins_employee_fk": {
+          "name": "cashier_pins_employee_fk",
+          "tableFrom": "cashier_pins",
+          "columnsFrom": [
+            "company_id",
+            "employee_id"
+          ],
+          "tableTo": "employees",
+          "columnsTo": [
+            "company_id",
             "id"
           ],
           "onUpdate": "no action",

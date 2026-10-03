@@ -22,6 +22,7 @@ import { PROVISIONAL_PLAN_ID, seedReferenceData } from '../../../packages/db/src
 import { createTestDatabase, type TestDatabase } from '../../../packages/db/test/test-database.ts';
 import { cleanupStack } from './cleanup-stack.ts';
 import { createApp } from '../src/app.ts';
+import type { FilesRuntime } from '../src/modules/files/index.ts';
 
 // A real API over a cloned database with real Better Auth sessions. Users are made the way an operator makes them,
 // and every company goes through POST /v1/companies — the production path, never a raw insert.
@@ -161,6 +162,7 @@ function operatorMaker(
  * @returns a started API, its database, and helpers that go through the real HTTP paths
  */
 interface HarnessOptions {
+  files?: FilesRuntime;
   logs?: DestinationStream;
   staffOrigin?: string;
   staffOtpFactory?: (
@@ -217,6 +219,7 @@ async function prepareHarness(
         readiness: [],
         auth: { service: auth, baseURL: BASE },
         database: wrappers,
+        ...(options.files === undefined ? {} : { files: options.files }),
         ...staffWiring(options, staffOtp, auth),
         ids,
         redis,

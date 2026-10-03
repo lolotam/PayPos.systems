@@ -6,7 +6,7 @@ export function AttendanceClock({ now, timeZone }: { now: Date; timeZone: string
   const locale = useLocale();
   return (
     <time
-      className="text-5xl font-bold tabular-nums"
+      className="text-4xl font-bold tabular-nums sm:text-5xl"
       dateTime={now.toISOString()}
       aria-label={t(locale, 'pos.attendanceClockLabel')}
     >

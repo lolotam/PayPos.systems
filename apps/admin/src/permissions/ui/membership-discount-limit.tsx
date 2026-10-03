@@ -22,7 +22,7 @@ export function MembershipDiscountLimit({
   const locale = useLocale();
   const mutation = useDiscountLimit(companyId, userId, membershipId);
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-2">
       <DiscountLimitForm
         key={`${membershipId}:${limitBps}`}
         limitBps={limitBps}
@@ -30,8 +30,16 @@ export function MembershipDiscountLimit({
         pending={mutation.isPending}
         onSave={(input) => mutation.mutate(input)}
       />
-      {mutation.isError ? <p role="alert">{envelopeMessage(mutation.error, locale)}</p> : null}
-      {mutation.isSuccess ? <p role="status">{t(locale, 'permissions.discountSaved')}</p> : null}
+      {mutation.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {envelopeMessage(mutation.error, locale)}
+        </p>
+      ) : null}
+      {mutation.isSuccess ? (
+        <p role="status" className="text-sm text-success">
+          {t(locale, 'permissions.discountSaved')}
+        </p>
+      ) : null}
     </section>
   );
 }
