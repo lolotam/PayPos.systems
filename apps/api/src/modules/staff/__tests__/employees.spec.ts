@@ -92,7 +92,7 @@ it.each([
   [
     'different business branch',
     (x: EmployeeFixture) => ({ primary_branch_id: x.otherBranch }),
-    'EMPLOYEE_BRANCH_BUSINESS_MISMATCH',
+    'EMPLOYEE_BRANCH_NOT_FOUND',
   ],
   [
     'unknown branch',

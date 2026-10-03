@@ -219,6 +219,6 @@ it.each([{ business: 'foreign' }, { branch: 'foreign' }, { branch: 'other' }])(
         : {},
       change.business ? f.secondBusiness : f.business,
     );
-    expect(response.status).toBe(change.branch === 'other' ? 400 : 404);
+    expect(response.status).toBe(404);
   },
 );

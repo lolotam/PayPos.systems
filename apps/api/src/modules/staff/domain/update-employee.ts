@@ -1,6 +1,7 @@
 import {
   EmployeeCreationError,
   validateEmployeeCreation,
+  validateEmployeeBranch,
   type EmployeeRecord,
   type EmployeeCreationContext,
 } from './create-employee.ts';
@@ -39,7 +40,7 @@ export interface EmployeeUpdatePlan {
 }
 
 /**
- * يبني حالة الموظف التالية؛ الفرع الرئيسي دائماً ضمن الارتباطات والنسخة القديمة لا تكتب فوق الجديدة.
+ * يرفض الفروع الخارجية كالغياب أولاً؛ يبني حالة الموظف التالية مع الفرع الرئيسي والنسخة المحمية.
  *
  * @param before السجل المحفوظ قبل التعديل
  * @param terms بيانات المدير كاملة مع النسخة والتاريخ الصريح
@@ -53,6 +54,7 @@ export function planEmployeeUpdate(
   history: readonly BranchAttachment[],
   contexts: readonly EmployeeCreationContext[],
 ): EmployeeUpdatePlan {
+  for (const context of contexts) validateEmployeeBranch(before.business_id, context);
   if (terms.expected_revision !== before.revision)
     throw new EmployeeCreationError('EMPLOYEE_REVISION_CONFLICT');
   const branchIds = [...new Set(terms.branch_ids)].sort();

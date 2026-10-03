@@ -44,6 +44,10 @@ phone binding, passkey or membership administration is implemented.
 - FR-006: create form uses bilingual labels, the existing workspace selector and generated client.
 - FR-007 (PR #79 review): resolve user-link eligibility through a company-scoped identity read inside the existing write transaction, after the company and ordered membership locks. Never probe global user existence.
 - FR-008 (PR #79 review): every single-employee read resolves the persisted scope before checking effective grants. No-access and missing records are indistinguishable; staff feature enforcement remains mandatory.
+- FR-009 (PR #83 review): after selected-company authentication, resolve the primary branch before
+  target permission, feature, contract or user-link diagnostics. A missing branch, a branch of another
+  business and a branch of another company share the identical EMPLOYEE_BRANCH_NOT_FOUND (404)
+  envelope. A valid branch belongs to this business in this company; branch-only ALLOW works and DENY wins.
 
 ### Key Entities
 
@@ -91,7 +95,9 @@ a later owner-approved repair; NOT VALID enforcement protects new writes without
 - Both require `manage:employees:business` and the `staff` feature; company comes from the verified principal.
 - GET uses one `@Authenticated` declaration plus selected-company and employee-detail guards: active company membership first, then the guarded detail query checks permission at the persisted primary branch. The query's identity read also enforces the staff feature after permission succeeds. This avoids a business-only precheck rejecting branch ALLOW, or exposing branch-DENY records. Inaccessible, foreign-tenant/business, deleted and missing employees return the same 404 envelope to an active company member; callers without company membership are uniformly refused before tenant lookup.
 - Input: primary_branch_id, name_en, optional nullable name_ar/user_id/contract_end, role_code, hire_date.
-- Errors: EMPLOYEE_BUSINESS_NOT_FOUND, EMPLOYEE_BRANCH_NOT_FOUND, EMPLOYEE_BRANCH_BUSINESS_MISMATCH,
+- POST uses one @Authenticated declaration plus SelectedCompanyGuard. The write transaction resolves
+  branch ownership before checking manage:employees:business and the staff feature under PR 7 locks.
+- Errors: EMPLOYEE_BRANCH_NOT_FOUND (404, also for a branch outside the requested business/company),
   EMPLOYEE_USER_LINK_UNAVAILABLE (400), EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400), EMPLOYEE_USER_ALREADY_LINKED (409),
   plus standard access/validation/retry envelopes.
 
@@ -113,6 +119,8 @@ audit actor and rollback, cross-business links, concurrent same-business links a
 Direct DB negatives prove partial uniqueness and permit different businesses/tenants, null links and soft-deleted predecessors.
 RLS negatives for both tables: SELECT/INSERT/context/FKs, immutable runtime grants, other roles denied.
 Detail query result shape + EXPLAIN ANALYZE index assertion. HTTP access/validation/error coverage.
+PR #83 regressions compare complete HTTP refusal bodies/status for missing, denied other-business and
+other-company primary branches, including requests with other invalid employee terms, and accept own-business branches.
 PR #79 regressions: unknown versus foreign user links have identical 400 envelopes and no writes;
 inactive/future memberships fail, active memberships in another business of this company succeed,
 and an ended target membership after a lock wait is refused. Business ALLOW + branch DENY,

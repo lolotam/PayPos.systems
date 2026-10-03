@@ -94,6 +94,15 @@ exclusion constraint takes a table lock and builds its GiST index, so schedule t
 
 ### API and permissions
 
+PR #83 branch privacy correction: after authenticating the selected company and authorising the
+persisted employee scope, resolve every requested attachment and primary branch in that company.
+Each must belong to the employee's persisted business. Missing, other-business and other-company
+branches share the exact EMPLOYEE_BRANCH_NOT_FOUND (404) envelope, without branch identifiers or
+mismatch details. This check precedes target permission, staff feature, revision, primary-set,
+contract and user-link diagnostics. Valid branches still require live management access; DENY wins.
+Create uses the same rule for its primary branch before permission/feature and employee diagnostics.
+Input shape validation and inaccessible/missing employee protection remain the entry prerequisites.
+
 GET collection returns EmployeePage (bounded id cursor; access filtering precedes LIMIT, so cursors name only visible employees). GET detail extends the existing employee response with revision
 and sorted active branch ids. PATCH returns the same detail. Contracts are strict Zod; OpenAPI paths
 remain in staff-openapi.ts and both generated clients are refreshed.
@@ -119,6 +128,8 @@ Integration: UE-01…UE-08, future moves with shared exclusive/inclusive boundar
 race conflict/unique links, history reattachment, reported October 15/October 10 overlap and concurrent
 reattachment, adjacent intervals, direct concurrent database overlaps, immutable closed history as pospay_app,
 source/target DENY,
+HTTP create/update equality for missing, other-business DENY and other-company branches, invalid
+branch diagnostic priority, and successful own-business branch creation/moves,
 branch-only ALLOW, tenant/business isolation, inactive links, feature revocation, no access mutations,
 audit before/after and rollback. RLS negatives prove UPDATE isolation/column grants/immutable history.
 Queries: exact result shape, cursor boundaries, authorization filtering and EXPLAIN ANALYZE index assertions.

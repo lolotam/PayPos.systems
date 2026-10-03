@@ -138,9 +138,9 @@ it.each([
   expect(() => planEmployeeUpdate(before, { ...terms, ...change }, active, contexts)).toThrow(code);
 });
 it.each([
-  [{ businessExists: false, branchBusinessId: null }, 'EMPLOYEE_BUSINESS_NOT_FOUND'],
+  [{ businessExists: false, branchBusinessId: null }, 'EMPLOYEE_BRANCH_NOT_FOUND'],
   [{ businessExists: true, branchBusinessId: null }, 'EMPLOYEE_BRANCH_NOT_FOUND'],
-  [{ businessExists: true, branchBusinessId: 'foreign' }, 'EMPLOYEE_BRANCH_BUSINESS_MISMATCH'],
+  [{ businessExists: true, branchBusinessId: 'foreign' }, 'EMPLOYEE_BRANCH_NOT_FOUND'],
 ] as const)('reuses create scope refusals %j', (context, code) => {
   expect(() => planEmployeeUpdate(before, terms, active, [context])).toThrow(code);
 });
@@ -162,3 +162,16 @@ it('rejects an empty interval and permits a primary-only change within active br
   );
   expect(plan).toMatchObject({ changed: true, attach: [], detach: [] });
 });
+it.each([null, 'foreign'])(
+  'hides invalid branch %s before other edit diagnostics',
+  (branchBusinessId) => {
+    expect(() =>
+      planEmployeeUpdate(
+        before,
+        { ...terms, expected_revision: 2, primary_branch_id: 'absent', contract_end: '2025-01-01' },
+        active,
+        [{ businessExists: true, branchBusinessId }],
+      ),
+    ).toThrow('EMPLOYEE_BRANCH_NOT_FOUND');
+  },
+);

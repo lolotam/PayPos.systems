@@ -34,6 +34,15 @@ membership/PIN references require a real employee; deployment must account for t
 
 ## Consequences
 
+PR #83 branch privacy correction reuses the existing tenancy readers. Identity's bulk scope read
+resolves actual business branches through its workspace-names adapter before evaluating grants;
+an ALLOW on one business cannot confer access on another business's branch by pairing their IDs.
+Staff validates requested branch ownership before target diagnostics, using one identical
+EMPLOYEE_BRANCH_NOT_FOUND (404) for missing, other-business and other-company branches. Create's
+selected-company guard replaces the business-only precheck so its primary branch follows the same
+ordering; the write still checks live permission and the staff feature under the existing locks.
+Source denial still hides an existing employee as NOT_FOUND. No new read arrow, schema or dependency is needed.
+
 PR #83 review adds a PostgreSQL contrib dependency: `btree_gist`, installed by a new migration with
 `CREATE EXTENSION IF NOT EXISTS btree_gist`. Its UUID GiST operator classes combine tenant/employee/branch
 equality with `daterange(from, to, '[)') &&` in `employee_branches_no_overlap`. We choose an exclusion

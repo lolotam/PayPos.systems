@@ -27,8 +27,10 @@ const execute = (name: string, businessId = f.business) =>
     input: termsFor(f, name),
   });
 
-it('denies another business and another tenant before writing', async () => {
-  await expect(execute('Other business', f.secondBusiness)).rejects.toThrow('FORBIDDEN');
+it('hides invalid branches of another business or tenant before writing', async () => {
+  await expect(execute('Other business', f.secondBusiness)).rejects.toThrow(
+    'EMPLOYEE_BRANCH_NOT_FOUND',
+  );
   await expect(
     f.useCase.execute({
       companyId: f.otherCompany,
@@ -36,7 +38,7 @@ it('denies another business and another tenant before writing', async () => {
       businessId: f.business,
       input: termsFor(f),
     }),
-  ).rejects.toThrow('FORBIDDEN');
+  ).rejects.toThrow('EMPLOYEE_BRANCH_NOT_FOUND');
 });
 it('applies a branch DENY while business ALLOW remains held', async () => {
   const deny = ids.newId();
@@ -49,14 +51,14 @@ it('applies a branch DENY while business ALLOW remains held', async () => {
     await f.h.owner`DELETE FROM permission_overrides WHERE id=${deny}`;
   }
 });
-it('names a missing business when an explicit company grant covers the target', async () => {
+it('hides a branch outside a missing business even with an explicit company grant', async () => {
   const grant = ids.newId();
   await f.h
     .owner`INSERT INTO permission_overrides (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
     VALUES (${f.company},${grant},${f.memberId},'manage:employees:business','ALLOW','COMPANY',${f.company},'Synthetic grant',${f.userId})`;
   try {
     await expect(execute('Missing business', ids.newId())).rejects.toThrow(
-      'EMPLOYEE_BUSINESS_NOT_FOUND',
+      'EMPLOYEE_BRANCH_NOT_FOUND',
     );
   } finally {
     await f.h.owner`DELETE FROM permission_overrides WHERE id=${grant}`;

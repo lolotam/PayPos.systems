@@ -116,7 +116,6 @@ export const ar: Catalog = {
     EMPLOYEE_BRANCH_HISTORY_IMMUTABLE: 'لا يمكن تعديل تاريخ ارتباط الفرع بعد إغلاقه.',
     EMPLOYEE_BUSINESS_NOT_FOUND: 'لم يتم العثور على نشاط الموظف.',
     EMPLOYEE_BRANCH_NOT_FOUND: 'لم يتم العثور على الفرع الرئيسي.',
-    EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 'الفرع الرئيسي يجب أن يتبع نشاط الموظف.',
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',

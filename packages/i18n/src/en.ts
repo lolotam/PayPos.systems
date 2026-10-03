@@ -115,7 +115,6 @@ export const en = {
     EMPLOYEE_BRANCH_HISTORY_IMMUTABLE: 'Closed branch attachment history cannot be changed.',
     EMPLOYEE_BUSINESS_NOT_FOUND: 'The employee business was not found.',
     EMPLOYEE_BRANCH_NOT_FOUND: 'The primary branch was not found.',
-    EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 'The primary branch must belong to the employee business.',
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'The existing user could not be linked.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:

@@ -40,7 +40,6 @@ export class EmployeeCreationError extends Error {
     readonly code:
       | 'EMPLOYEE_BUSINESS_NOT_FOUND'
       | 'EMPLOYEE_BRANCH_NOT_FOUND'
-      | 'EMPLOYEE_BRANCH_BUSINESS_MISMATCH'
       | 'EMPLOYEE_CONTRACT_END_BEFORE_HIRE'
       | 'EMPLOYEE_USER_ALREADY_LINKED'
       | 'EMPLOYEE_USER_LINK_UNAVAILABLE'
@@ -59,7 +58,18 @@ export class EmployeeCreationError extends Error {
   }
 }
 /**
- * يثبت تبعية الفرع للنشاط وترتيب تواريخ العقد؛ قرار المالك 2026-10-03 يسمح بالتعيين المستقبلي والأسماء المكررة.
+ * يوحد رفض الفرع المفقود أو الخارج عن نشاط الموظف وشركته قبل أي تشخيص آخر، حتى لا يكشف وجوده.
+ *
+ * @param businessId نشاط الموظف المطلوب
+ * @param context وجود النشاط وتبعية الفرع داخل الشركة
+ * @returns لا شيء عند تطابق النطاق أو رفض الغياب الموحد
+ */
+export function validateEmployeeBranch(businessId: string, context: EmployeeCreationContext): void {
+  if (!context.businessExists || context.branchBusinessId !== businessId)
+    throw new EmployeeCreationError('EMPLOYEE_BRANCH_NOT_FOUND');
+}
+/**
+ * يثبت تبعية الفرع برفض موحد قبل ترتيب العقد؛ قرار المالك 2026-10-03 يسمح بالتعيين المستقبلي والأسماء المكررة.
  *
  * @param record بيانات الموظف المراد إنشاؤه
  * @param context وجود النشاط وتبعية الفرع داخل الشركة
@@ -69,11 +79,7 @@ export function validateEmployeeCreation(
   record: EmployeeRecord,
   context: EmployeeCreationContext,
 ): void {
-  if (!context.businessExists) throw new EmployeeCreationError('EMPLOYEE_BUSINESS_NOT_FOUND');
-  if (context.branchBusinessId === null)
-    throw new EmployeeCreationError('EMPLOYEE_BRANCH_NOT_FOUND');
-  if (context.branchBusinessId !== record.business_id)
-    throw new EmployeeCreationError('EMPLOYEE_BRANCH_BUSINESS_MISMATCH');
+  validateEmployeeBranch(record.business_id, context);
   if (record.contract_end !== null && record.contract_end < record.hire_date)
     throw new EmployeeCreationError('EMPLOYEE_CONTRACT_END_BEFORE_HIRE');
 }

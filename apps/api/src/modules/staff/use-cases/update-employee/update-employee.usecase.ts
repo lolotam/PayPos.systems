@@ -1,6 +1,6 @@
 import type { EmployeeDetail, UpdateEmployeeInput } from '@pospay/contracts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
-import { EmployeeCreationError } from '../../domain/create-employee.ts';
+import { EmployeeCreationError, validateEmployeeBranch } from '../../domain/create-employee.ts';
 import { planEmployeeUpdate } from '../../domain/update-employee.ts';
 import type { EmployeeUpdateTransactions } from '../../ports/employee-update-transactions.port.ts';
 
@@ -23,15 +23,15 @@ export class UpdateEmployeeUseCase {
     return this.transactions.run(command, async (scope) => {
       const current = await scope.load(command.businessId, command.employeeId);
       if (current === null) throw new EmployeeCreationError('NOT_FOUND');
-      // الصلاحية قبل فحص السجل: لو اتفحص التداخل الأول، رسالة الخطأ بتكشف تاريخ فرع ممنوع عليك.
-      if (!(await scope.authorize(current.record.business_id, command.input.branch_ids)))
+      const requested = [
+        ...new Set([...command.input.branch_ids, command.input.primary_branch_id]),
+      ];
+      const contexts = await scope.contexts(current.record, requested);
+      // تبعية الفروع قبل تشخيص الهدف؛ المفقود والخارج عن النشاط لهما نفس الرد، والمنع يسبق كشف التاريخ.
+      for (const context of contexts) validateEmployeeBranch(current.record.business_id, context);
+      if (!(await scope.authorize(current.record.business_id, requested)))
         throw new EmployeeCreationError('FORBIDDEN');
-      const plan = planEmployeeUpdate(
-        current.record,
-        command.input,
-        current.history,
-        await scope.contexts(current.record, command.input.branch_ids),
-      );
+      const plan = planEmployeeUpdate(current.record, command.input, current.history, contexts);
       if (plan.after.user_id !== null && !(await scope.canLinkUser(plan.after.user_id)))
         throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
       if (plan.changed)

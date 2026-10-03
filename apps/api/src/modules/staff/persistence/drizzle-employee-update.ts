@@ -38,7 +38,6 @@ async function loadEmployee(
     )
   )
     return null;
-  if (!decision.featureEnabled) throw new EmployeeCreationError('FEATURE_DISABLED');
   return current;
 }
 

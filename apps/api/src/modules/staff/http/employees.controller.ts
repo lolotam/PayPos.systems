@@ -23,7 +23,7 @@ import { id, employeeListQuery, updateEmployeeInput } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
-import { Authenticated, Require, RequiresFeature } from '../../../shared/access.decorators.ts';
+import { Authenticated } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
@@ -53,8 +53,8 @@ export class EmployeesController {
 
   @Post()
   @HttpCode(201)
-  @Require('manage:employees:business', { business: 'businessId' })
-  @RequiresFeature('staff')
+  @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
   async create(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Body(new EmployeeInputPipe()) input: CreateEmployeeInput,

@@ -7,14 +7,16 @@ import {
 } from '../../identity/index.ts';
 import { employeeWorkplace } from '../../tenancy/index.ts';
 import type { EmployeeRecord } from '../domain/create-employee.ts';
+import { validateEmployeeBranch } from '../domain/create-employee.ts';
 
-export function authorizeEmployeeCreation(
+export async function authorizeEmployeeCreation(
   tx: Tx,
   companyId: string,
   userId: string,
   businessId: string,
   branchId: string,
 ) {
+  validateEmployeeBranch(businessId, await employeeWorkplace(tx, companyId, businessId, branchId));
   return lockEmployeeCreationAccess(tx, companyId, userId, businessId, branchId);
 }
 
