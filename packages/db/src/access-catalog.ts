@@ -1,11 +1,14 @@
 // الـ catalog بتاع الصلاحيات والـ roles اللي بيتزرع من الكود (ADR-0003 §2.3). كل slice بتضيف صلاحياتها هنا
-// في نفس الـ PR اللي بيعمل الـ route بتاعها، والـ Owner بياخدها أوتوماتيك (قرار Waleed 2026-09-23).
+// في نفس الـ PR اللي بيعمل الـ route بتاعها؛ استثناء الاستقبال مؤجل إلى PR 7a بقرار المالك لهذا الـ slice.
 
 /**
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
  */
 export const PERMISSIONS = [
+  'login:staff:branch',
   'read:memberships:company',
+  // TODO(spec): منح صلاحية الاستقبال للأدوار مؤجل إلى PR 7a؛ إضافتها للـ catalog لا تمنحها للـ Owner تلقائياً.
+  'create:customers:company',
   'manage:memberships:company',
   'read:businesses:company',
   'create:businesses:company',

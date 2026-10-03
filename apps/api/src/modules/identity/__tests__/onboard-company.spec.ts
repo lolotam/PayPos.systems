@@ -1,5 +1,6 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createAuth, createPlatformUser, type AuthService } from '@pospay/auth';
+import { phoneLockKey } from '@pospay/notifications';
 import { errorEnvelope } from '@pospay/contracts';
 import { createDatabase, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
@@ -33,6 +34,7 @@ beforeAll(async () => {
   await seedReferenceData(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   auth = await createAuth({
+    staffPhoneLockKey: phoneLockKey,
     databaseUrl: testDb.authUrl,
     secret: 'test-secret-that-is-long-enough-for-hmac',
     baseURL: BASE,
@@ -49,10 +51,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await app.close();
-  await Promise.all([database.close(), auth.close()]);
-  await owner.end();
-  await testDb.drop();
+  await app?.close();
+  await Promise.all([database?.close(), auth?.close()]);
+  await owner?.end();
+  await testDb?.drop();
 });
 
 const authPost = (path: string, payload: object, cookie?: string) =>

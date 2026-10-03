@@ -389,6 +389,16 @@ export function checkModules(root, map) {
         const pkg = /^@pospay\/([\w-]+)/.exec(dep.spec)?.[1];
         if (
           pkg === 'db' &&
+          !dep.typeOnly &&
+          !(map.compositionRoots['staff-otp-db'] ?? []).includes(rel) &&
+          dep.names.some((name) =>
+            ['createStaffOtpDatabase', 'createAuthDatabase', '*'].includes(name),
+          )
+        ) {
+          problems.push(`${rel}: auth database facades are private to packages/auth (ADR-0019)`);
+        }
+        if (
+          pkg === 'db' &&
           (dep.names.includes('createPlatformWhatsappDatabase') ||
             (!dep.typeOnly && dep.names.includes('*'))) &&
           !(map.compositionRoots['platform-whatsapp-db'] ?? []).includes(rel)

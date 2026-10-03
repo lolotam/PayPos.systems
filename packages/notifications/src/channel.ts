@@ -16,6 +16,11 @@ export interface ChannelRequest {
 export type ChannelResult =
   | { readonly kind: 'accepted'; readonly providerMessageId: string }
   | { readonly kind: 'expired' }
+  | {
+      readonly kind: 'refused';
+      readonly code: 'CAPABILITY_UNAVAILABLE';
+      readonly outcomeKnown: true;
+    }
   | { readonly kind: 'rejected'; readonly code: 'PROVIDER_4XX'; readonly outcomeKnown: true }
   | {
       readonly kind: 'unknown';

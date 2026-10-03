@@ -5,6 +5,17 @@ import type { Redis } from 'ioredis';
 
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { DEVICE_AUTHENTICATOR } from '../../shared/device-authenticator.ts';
+import { STAFF_AUTHENTICATION } from '../../shared/staff-authentication.ts';
+import {
+  StaffOtpController,
+  STAFF_OTP_API,
+  STAFF_SESSIONS,
+  STAFF_POS_ORIGIN,
+} from './http/staff-otp.controller.ts';
+import { createStaffEligibility } from './persistence/staff-eligibility.ts';
+import type { StaffOtpApi, StaffSessions } from '@pospay/auth';
+import { redisOtpRates } from './persistence/redis-otp-rates.ts';
+import { createOtpSender } from './persistence/bullmq-otp-sender.ts';
 
 import { AccessGuard, FeatureGuard } from './http/access.guard.ts';
 import {
@@ -41,6 +52,14 @@ import { RegisterDevice } from './use-cases/register-device/register-device.ts';
 import { RevokeDevice } from './use-cases/revoke-device/revoke-device.ts';
 import { SetCashierPin } from './use-cases/set-cashier-pin/set-cashier-pin.ts';
 import { VerifyCashierPin } from './use-cases/verify-cashier-pin/verify-cashier-pin.ts';
+import {
+  StaffPinController,
+  STAFF_PIN_USE_CASES,
+  type StaffPinUseCases,
+} from './http/staff-pin.controller.ts';
+import { createStaffPinTransactions } from './persistence/staff-pin-transactions.ts';
+import { SignInStaffPin } from './use-cases/sign-in-staff-pin/sign-in-staff-pin.ts';
+import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
 
 /** The controllers identity mounts. */
 export const identityControllers = [
@@ -48,7 +67,25 @@ export const identityControllers = [
   DevicesController,
   CashierPinsController,
   MeController,
+  StaffOtpController,
+  StaffPinController,
 ];
+
+/** الربط العام يمر من composition root؛ تفاصيل القراءة والنقل تظل داخل الهوية. */
+export function staffOtpDependencies(options: {
+  database: TenantWrappers;
+  redis: Redis;
+  ids: IdGenerator;
+  hashKey: string;
+  redisUrl: string;
+}) {
+  const { database, redis, ids, hashKey, redisUrl } = options;
+  return {
+    eligibility: createStaffEligibility(database),
+    rates: redisOtpRates(redis, hashKey, ids),
+    transport: createOtpSender(redisUrl),
+  };
+}
 
 /**
  * The identity wiring — the one place its port is bound to the Postgres adapter. The two guards are registered
@@ -64,6 +101,7 @@ export function identityProviders(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
   redis?: Redis,
+  staff?: { api: StaffOtpApi | null; sessions: StaffSessions | null; origin: string | null },
 ): Provider[] {
   const reader = database === undefined ? null : createAccessReader(database);
   const names: WorkspaceNames | null = database === undefined ? null : createWorkspaceNames();
@@ -77,6 +115,20 @@ export function identityProviders(
         );
   const devices = database === undefined ? null : deviceUseCases(database, ids, redis);
   return [
+    {
+      provide: STAFF_AUTHENTICATION,
+      useValue: database === undefined ? null : createStaffEligibility(database),
+    },
+    { provide: STAFF_OTP_API, useValue: staff?.api ?? null },
+    { provide: STAFF_SESSIONS, useValue: staff?.sessions ?? null },
+    { provide: STAFF_POS_ORIGIN, useValue: staff?.origin ?? null },
+    {
+      provide: STAFF_PIN_USE_CASES,
+      useValue:
+        database === undefined
+          ? null
+          : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
+    },
     { provide: WORKSPACE_NAMES, useValue: names },
     { provide: OnboardCompany, useValue: onboard },
     { provide: DEVICE_USE_CASES, useValue: devices?.useCases ?? null },
@@ -122,5 +174,23 @@ function cashierPinUseCases(
       authPinHasher,
       createRedisPinAttempts(redis, ids),
     ),
+  };
+}
+
+function staffPinUseCases(
+  database: TenantWrappers,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+  sessions: StaffSessions | null,
+): StaffPinUseCases | null {
+  if (redis === undefined || sessions === null) return null;
+  const db = createStaffPinTransactions(database, ids);
+  const eligibility = createStaffEligibility(database);
+  return {
+    reset: new ResetStaffPin(db, authPinHasher, systemClock),
+    signIn: new SignInStaffPin(db, authPinHasher, createRedisPinAttempts(redis, ids), {
+      sessions,
+      ...eligibility,
+    }),
   };
 }

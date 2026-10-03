@@ -30,5 +30,8 @@ element by its visible text in either language.
 | 03 | [Pairing a POS device](03-pos-device-pairing.md) — ربط جهاز الكاشير | #55 | not yet (POS not deployed) |
 | 04 | [The notifications bell](04-admin-notifications-bell.md) — جرس الإشعارات | #58 | not yet |
 | 05 | [A customer replies STOP on WhatsApp](05-whatsapp-stop.md) — العميل يرد "إيقاف" | #60 | needs Meta webhook + secrets |
+| 06 | [Commission engine I](06-commission-engine-i.md) — حساب العمولة (المرحلة الأولى) | #64 | nothing to deploy (no screen yet) |
+| 07 | [Package value and sessions](07-package-allocation.md) — قيمة الباقة وجلساتها | #65 | nothing to deploy (no screen yet) |
+| 08 | [Staff sign-in on the POS](08-staff-login-pos.md) — دخول الموظف على جهاز الكاشير | #61 | not yet (POS not deployed); WhatsApp codes need Meta templates + secrets |
 
 New journeys are added after every merge.

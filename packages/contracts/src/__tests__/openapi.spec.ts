@@ -4,6 +4,9 @@ import committed from '../../openapi/openapi.json' with { type: 'json' };
 import { buildOpenApiDocument } from '../openapi.js';
 
 const expectedSchemas = [
+  'AttendanceQrBranch',
+  'AttendanceQrIssue',
+  'AttendanceQrToken',
   'Branch',
   'Business',
   'BusinessSettings',
@@ -15,6 +18,7 @@ const expectedSchemas = [
   'CreateBusinessInput',
   'CreateCompanyInput',
   'Currency',
+  'Customer',
   'DeliveryLogItem',
   'DeliveryLogPage',
   'DeliveryLogQuery',
@@ -22,6 +26,7 @@ const expectedSchemas = [
   'DeviceRegistration',
   'DeviceToken',
   'ErrorEnvelope',
+  'FindOrCreateCustomerInput',
   'GeoPoint',
   'InAppNotification',
   'InAppNotificationPage',
@@ -35,6 +40,12 @@ const expectedSchemas = [
   'PairingCode',
   'Plan',
   'RegisterDeviceInput',
+  'StaffOtpAcknowledgement',
+  'StaffOtpRequestInput',
+  'StaffOtpVerifyInput',
+  'StaffPinInput',
+  'StaffPinResetInput',
+  'StaffSessionContext',
   'TaxRule',
   'TimeZone',
   'UpdateBusinessSettingsInput',

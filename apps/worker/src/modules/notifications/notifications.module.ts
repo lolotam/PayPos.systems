@@ -21,7 +21,7 @@ import {
   type NotificationConfiguration,
 } from '@pospay/notifications';
 import type { Logger } from '@pospay/observability';
-import { Queue, Worker } from 'bullmq';
+import { Worker, type Queue } from 'bullmq';
 
 import type { Clock } from './ports/clock.port.ts';
 import type { IdGenerator } from './ports/id-generator.port.ts';
@@ -53,6 +53,7 @@ import { ClearWhatsappPayloads } from './use-cases/clear-whatsapp-payloads/clear
 import { whatsappInboundProcessor } from './jobs/whatsapp-inbound.processor.ts';
 import { whatsappMaintenanceProcessor } from './jobs/whatsapp-maintenance.processor.ts';
 import { createEmailModule, type EmailModuleOptions } from './email.module.ts';
+import { notificationQueue } from './jobs/notification-queue.ts';
 
 export interface NotificationModuleOptions {
   readonly database: Pick<TenantWrappers, 'withTenant'>;
@@ -66,6 +67,7 @@ export interface NotificationModuleOptions {
   readonly admission?: SendAdmission;
   readonly emailConfiguration?: EmailModuleOptions['configuration'];
   readonly emailTesting?: EmailModuleOptions['testing'];
+  readonly email?: ReturnType<typeof createEmailModule>;
 }
 
 export function createNotificationModule(options: NotificationModuleOptions) {
@@ -78,15 +80,17 @@ export function createNotificationModule(options: NotificationModuleOptions) {
   const registry = options.registry ?? createTemplateRegistry();
   const channel = options.channel ?? bindChannel(configuration, clock);
   const adapter = createChannelAdapter(channel, registry);
-  const email = createEmailModule({
-    production: options.production || configuration.mode === 'live',
-    clock,
-    ids,
-    ...(options.emailConfiguration === undefined
-      ? {}
-      : { configuration: options.emailConfiguration }),
-    ...(options.emailTesting === undefined ? {} : { testing: options.emailTesting }),
-  });
+  const email =
+    options.email ??
+    createEmailModule({
+      production: options.production || configuration.mode === 'live',
+      clock,
+      ids,
+      ...(options.emailConfiguration === undefined
+        ? {}
+        : { configuration: options.emailConfiguration }),
+      ...(options.emailTesting === undefined ? {} : { testing: options.emailTesting }),
+    });
   const { routed, destinations } = routeChannels(adapter, identity, email);
   const attempts = createAttemptsRepository(options.database);
   const admission = options.admission ?? { reserve: async () => true };
@@ -159,9 +163,10 @@ export function startNotificationQueue(
   logger: Logger,
 ) {
   const connection = notificationRedisOptions(redisUrl);
-  const queue = new Queue(NOTIFICATIONS_QUEUE, {
-    connection: { ...connection, enableOfflineQueue: false, maxRetriesPerRequest: 1 },
-  });
+  const resource = notificationQueue(NOTIFICATIONS_QUEUE, connection, () =>
+    logger.warn({}, 'notification queue error'),
+  );
+  const queue = resource.queue;
   const worker = new Worker(NOTIFICATIONS_QUEUE, module.process, { connection, concurrency: 4 });
   const logError = (error: unknown) => logger.warn({ err: error }, 'notification queue error');
   queue.on('error', logError);
@@ -176,7 +181,9 @@ export function startNotificationQueue(
       await worker.waitUntilReady();
     },
     stop: () => worker.close(),
-    close: () => queue.close(),
+    close: async (force = false) => {
+      await Promise.allSettled([worker.close(force), resource.close(force)]);
+    },
   };
 }
 
@@ -185,16 +192,21 @@ export { readNotificationConfiguration };
 export { notificationRedisOptions };
 
 export function createInAppNotificationModule(
-  options: Pick<NotificationModuleOptions, 'database' | 'ids' | 'clock' | 'emailConfiguration'>,
+  options: Pick<
+    NotificationModuleOptions,
+    'database' | 'ids' | 'clock' | 'emailConfiguration' | 'email'
+  >,
 ) {
-  const email = createEmailModule({
-    production: true,
-    ids: options.ids,
-    clock: options.clock,
-    ...(options.emailConfiguration === undefined
-      ? {}
-      : { configuration: options.emailConfiguration }),
-  });
+  const email =
+    options.email ??
+    createEmailModule({
+      production: true,
+      ids: options.ids,
+      clock: options.clock,
+      ...(options.emailConfiguration === undefined
+        ? {}
+        : { configuration: options.emailConfiguration }),
+    });
   const consumer = notificationRequestConsumer(
     () => {
       throw new Error('NOTIFICATIONS_LIVE_REQUIRES_PR6');
@@ -221,17 +233,22 @@ export function startWhatsappInbound(
   logger: Logger,
 ) {
   const connection = notificationRedisOptions(redisUrl);
-  const queue = new Queue(WHATSAPP_INBOUND_QUEUE, {
-    connection: { ...connection, enableOfflineQueue: false, maxRetriesPerRequest: 1 },
-  });
-  const maintenanceQueue = new Queue('notifications-inbound-maintenance', {
-    connection: { ...connection, enableOfflineQueue: false, maxRetriesPerRequest: 1 },
-  });
+  const error = () => logger.warn({}, 'whatsapp inbox queue error');
+  const resource = notificationQueue(WHATSAPP_INBOUND_QUEUE, connection, error);
+  const maintenanceResource = notificationQueue(
+    'notifications-inbound-maintenance',
+    connection,
+    error,
+  );
+  const queue = resource.queue,
+    maintenanceQueue = maintenanceResource.queue;
   const { worker, maintenanceWorker } = bindWhatsappProcessors(database, queue, connection);
   logWhatsappQueues([queue, maintenanceQueue], [worker, maintenanceWorker], logger);
   let scheduled = false;
+  let closed = false;
   return {
     ready: async () => {
+      if (closed) throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
       await database.ping();
       await Promise.all([
         queue.waitUntilReady(),
@@ -239,35 +256,47 @@ export function startWhatsappInbound(
         worker.waitUntilReady(),
         maintenanceWorker.waitUntilReady(),
       ]);
+      if (closed) throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
       if (!scheduled) {
-        await maintenanceQueue.upsertJobScheduler(
-          'recover-inbox',
-          { every: 30_000 },
-          {
-            name: 'recover-inbox',
-            data: {},
-            opts: { attempts: 1, removeOnComplete: true, removeOnFail: true },
-          },
-        );
-        await maintenanceQueue.upsertJobScheduler(
-          'clear-payloads',
-          { every: 60 * 60 * 1000 },
-          {
-            name: 'clear-payloads',
-            data: {},
-            opts: { attempts: 1, removeOnComplete: true, removeOnFail: true },
-          },
-        );
+        await scheduleWhatsappMaintenance(maintenanceQueue, () => closed);
         scheduled = true;
       }
     },
     stop: async () => {
       await Promise.all([worker.close(), maintenanceWorker.close()]);
     },
-    close: async () => {
-      await Promise.all([queue.close(), maintenanceQueue.close()]);
+    close: async (force = false) => {
+      closed = true;
+      await Promise.allSettled([
+        worker.close(force),
+        maintenanceWorker.close(force),
+        resource.close(force),
+        maintenanceResource.close(force),
+      ]);
     },
   };
+}
+
+async function scheduleWhatsappMaintenance(queue: Queue, closed: () => boolean) {
+  await queue.upsertJobScheduler(
+    'recover-inbox',
+    { every: 30_000 },
+    {
+      name: 'recover-inbox',
+      data: {},
+      opts: { attempts: 1, removeOnComplete: true, removeOnFail: true },
+    },
+  );
+  if (closed()) throw new Error('WHATSAPP_CAPABILITY_UNAVAILABLE');
+  await queue.upsertJobScheduler(
+    'clear-payloads',
+    { every: 60 * 60 * 1000 },
+    {
+      name: 'clear-payloads',
+      data: {},
+      opts: { attempts: 1, removeOnComplete: true, removeOnFail: true },
+    },
+  );
 }
 
 function bindWhatsappProcessors(

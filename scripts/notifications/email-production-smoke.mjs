@@ -8,7 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.loadEnvFile(new URL('../../.env', import.meta.url));
 for (const name of ['DATABASE_URL', 'AUTH_DATABASE_URL', 'MIGRATION_DATABASE_URL'])
-  assert.equal(new URL(process.env[name]).pathname, '/pospay_wt_l5', 'WORKTREE_DATABASE_MISMATCH');
+  assert.equal(new URL(process.env[name]).pathname, '/pospay_wt_l5b', 'WORKTREE_DATABASE_MISMATCH');
 const env = { ...process.env, NODE_ENV: 'production', LOG_LEVEL: 'info' };
 delete env.FORCE_COLOR;
 for (const name of [
@@ -16,6 +16,7 @@ for (const name of [
   'NOTIFICATIONS_MODE',
   'NOTIFICATION_PHONE_HASH_KEY',
   'NOTIFICATION_PHONE_HASH_KEY_ID',
+  'NOTIFICATION_MESSAGE_ID_HASH_KEY',
   'WHATSAPP_ACCESS_TOKEN',
   'WHATSAPP_PHONE_NUMBER_ID',
   'WHATSAPP_APP_SECRET',
@@ -29,6 +30,21 @@ for (const name of [
   'EMAIL_ADMIN_ORIGIN',
   'NOTIFICATION_EMAIL_HASH_KEY',
   'NOTIFICATION_EMAIL_HASH_KEY_ID',
+  'STAFF_OTP_ENABLED',
+  'STAFF_OTP_POS_ORIGIN',
+  'STAFF_OTP_DERIVATION_KEY',
+  'STAFF_OTP_DERIVATION_KEY_ID',
+  'STAFF_OTP_DERIVATION_RETIRED_KEYS',
+  'STAFF_OTP_VERIFICATION_KEY',
+  'STAFF_OTP_VERIFICATION_KEY_ID',
+  'STAFF_OTP_VERIFICATION_RETIRED_KEYS',
+  'STAFF_OTP_TEMPLATES_APPROVED',
+  'STAFF_OTP_TEMPLATE_AR',
+  'STAFF_OTP_TEMPLATE_EN',
+  'STAFF_OTP_COMPONENTS_AR',
+  'STAFF_OTP_COMPONENTS_EN',
+  'WHATSAPP_STOP_SUBSCRIPTION_CONFIRMED',
+  'WHATSAPP_STOP_BUTTON_ID',
   'COOKIE_DOMAIN',
   'AUTH_TRUSTED_ORIGINS',
   'TRUSTED_PROXY_CIDRS',
@@ -57,7 +73,7 @@ async function smoke(app) {
           API_PORT: String(port),
           BETTER_AUTH_URL: `http://127.0.0.1:${port}`,
         }
-      : { WORKER_HOST: '127.0.0.1', WORKER_PORT: String(port) };
+      : { WORKER_HOST: '127.0.0.1', WORKER_PORT: String(port), AUTH_DATABASE_URL: '' };
   const child = spawn(process.execPath, [`apps/${app}/dist/main.js`], {
     cwd: root,
     env: { ...env, ...options },
@@ -111,6 +127,15 @@ async function smoke(app) {
       output,
       /"channel":"email","enabled":false,"reason":"EMAIL_FEEDBACK_NOT_IMPLEMENTED"/,
     );
+    for (const name of [
+      'STAFF_LOGIN',
+      'WHATSAPP_INTAKE',
+      ...(app === 'worker' ? ['TENANT_WHATSAPP', 'STAFF_MAINTENANCE'] : []),
+    ])
+      assert.ok(
+        output.includes(`"name":"${name}","state":"DISABLED"`),
+        `${app}: optional capability ${name} was not disabled`,
+      );
     if (app === 'api') {
       const webhook = await fetch(`http://127.0.0.1:${port}/v1/webhooks/whatsapp`, {
         method: 'POST',

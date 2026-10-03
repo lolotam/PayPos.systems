@@ -72,6 +72,10 @@ and prohibit both destinations at terminal states or mixing channels. Add email 
 anti-repopulation guard. Existing FORCE RLS, app SELECT/INSERT/UPDATE, no DELETE, tenant PK/FKs and
 identity/log/status indexes remain; no new table, role, global facade, scan or filter/index is needed.
 Generate an expand migration and a separate custom guard migration; never edit existing migrations.
+After integrating PRs 6/19/34, main's migrations 0031–0035 and metadata are authoritative;
+regenerate the email schema/guard as 0036/0037 on top. Startup binds email through an isolated,
+bounded composition helper. Missing, invalid or hung email setup cannot affect ordinary readiness
+or other optional capabilities; shutdown stops and closes the email capability.
 
 ### API contract and permissions
 

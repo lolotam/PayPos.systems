@@ -3,6 +3,13 @@ import { z } from 'zod';
 
 // Read once at startup; a missing or malformed value stops the process instead of failing later.
 const schema = z.object({
+  PLATFORM_NOTIFICATIONS_DATABASE_URL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z
+      .url({ protocol: /^postgres(ql)?$/ })
+      .optional()
+      .catch(undefined),
+  ),
   // pospay_app — consumers apply effects inside withTenant(event.company_id).
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   // pospay_dispatcher — reads and marks the outbox across tenants (ADR-0003 §3).

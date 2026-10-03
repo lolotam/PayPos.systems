@@ -1,5 +1,32 @@
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  staffLogin: {
+    switchOperator: 'Change operator',
+    cancelSwitch: 'Return to current operator',
+    ownPin: 'Your own four-digit cashier PIN',
+    pinInvalid: 'Sign-in was refused. Check your own PIN or ask your manager for help.',
+    pinSignIn: 'Sign in with my PIN',
+    usePin: 'Use my cashier PIN',
+    useWhatsApp: 'Use WhatsApp',
+    title: 'Staff sign-in',
+    phone: 'International phone number',
+    language: 'Code language',
+    chooseLanguage: 'Choose a language',
+    arabic: 'Arabic',
+    english: 'English',
+    request: 'Request code',
+    code: 'Six-digit code',
+    verify: 'Sign in',
+    newCode: 'Request a new code',
+    countdown: 'New code in seconds:',
+    recovery:
+      'If a code arrives, enter it. Otherwise ask your manager for help signing in on this branch device with your own cashier PIN.',
+    reconnect: 'Reconnect to sign in or validate your staff session.',
+    signedIn: 'Staff signed in',
+    expiresIn: 'Session ends in {minutes} minutes',
+    signOut: 'Sign out',
+    inputInvalid: 'Enter an international phone and choose a language.',
+  },
   inApp: {
     title: 'Notifications',
     unread: 'Unread',
@@ -12,6 +39,11 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    INVALID_CUSTOMER_PHONE:
+      'Choose a valid country calling code and enter national digits; Kuwait requires eight digits',
+    OTP_UNAVAILABLE:
+      'WhatsApp sign-in is unavailable. Ask your manager for help using your own cashier PIN.',
+    OTP_INVALID: 'The sign-in code is not valid.',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',
     UNAUTHENTICATED: 'Authentication is required',
@@ -115,6 +147,13 @@ export const en = {
     retry: 'Retry',
     attendanceTitle: 'Attendance',
     attendanceLater: 'The attendance screen comes later.',
+    attendanceQrLabel: 'Attendance QR code',
+    attendanceClockLabel: 'Branch time',
+    attendanceOffline:
+      'Attendance QR needs an internet connection. The code is hidden while offline.',
+    attendanceUnavailable: 'The attendance code could not be refreshed. Reconnect and try again.',
+    attendanceLoading: 'Loading a fresh attendance code…',
+    attendanceRefreshLead: 'This code refreshes every 60 seconds. Scan it from your staff app.',
     branchLabel: 'Branch',
     unexpected: 'Something went wrong. Try again.',
     networkError: 'The server could not be reached. Try again.',

@@ -29,19 +29,18 @@ export function createEmailChannelAdapter(
         attempt.locale === null
       )
         return refusedResult('DESTINATION_INVALID');
-      return submissionResult(
-        await channel.send({
-          email: attempt.email,
-          locale: attempt.locale,
-          templateKey: attempt.templateKey,
-          templateRevision: attempt.templateRevision,
-          safeParameters: attempt.safeParameters,
-          companyId: attempt.companyId,
-          attemptId: attempt.id,
-          executionId: attempt.executionId,
-          deadline: attempt.deadline,
-        }),
-      );
+      const result = await channel.send({
+        email: attempt.email,
+        locale: attempt.locale,
+        templateKey: attempt.templateKey,
+        templateRevision: attempt.templateRevision,
+        safeParameters: attempt.safeParameters,
+        companyId: attempt.companyId,
+        attemptId: attempt.id,
+        executionId: attempt.executionId,
+        deadline: attempt.deadline,
+      });
+      return result.kind === 'refused' ? refusedResult('CONFIG_INVALID') : submissionResult(result);
     },
   };
 }

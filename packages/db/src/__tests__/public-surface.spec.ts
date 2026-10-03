@@ -20,6 +20,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'createDatabase',
       'createOutboxDispatcherDatabase',
       'createPlatformWhatsappDatabase',
+      'createStaffOtpDatabase',
       'grantPlatformPermission',
       'markEventConsumed',
       'revokePlatformPermission',

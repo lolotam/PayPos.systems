@@ -23,6 +23,9 @@ const SECRET_SUFFIXES = [
   'otpcode',
   'securitycode',
   'verificationcode',
+  'codemac',
+  'derivationkey',
+  'verificationkey',
   'cvv',
   // a hash of a secret (pin_hash, token_hash, password_hash) is still sensitive
   'hash',
@@ -58,6 +61,7 @@ const PRIVATE_PAYLOAD_KEYS = new Set([
   'jobdata',
   'providerbody',
   'rawbody',
+  'requestbody',
   'safeparameters',
   'components',
   'emailbody',
@@ -160,6 +164,7 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
       if (typeof child === 'function') continue;
       if (
         isSecretKey(key) ||
+        (normalizeKey(key) === 'code' && typeof child === 'string' && /^\d{6}$/.test(child)) ||
         (maskPhones && (isEmailKey(key) || PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
       )
         out[key] = REDACTED;

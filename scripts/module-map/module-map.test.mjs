@@ -2,7 +2,7 @@
 // (plan v4 T12b), including the ways around a naive import scan.
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 
@@ -35,7 +35,9 @@ const roots = [];
 after(() => roots.forEach((root) => rmSync(root, { recursive: true, force: true })));
 
 function repo(files) {
-  const root = mkdtempSync(join(tmpdir(), 'module-map-'));
+  const base = resolve('.turbo/module-map-tests');
+  mkdirSync(base, { recursive: true });
+  const root = mkdtempSync(join(base, 'case-'));
   roots.push(root);
   const all = {
     'apps/api/package.json': '{"name":"@pospay/api","dependencies":{}}',
@@ -359,6 +361,35 @@ describe('the generated YAML', () => {
       () =>
         parseModuleMap('## 6. Machine-readable source\n```yaml\nimports:\n  tenancy: tenancy\n```'),
       /cannot read line/,
+    );
+  });
+});
+
+describe('ADR-0019 private auth OTP database facade', () => {
+  it('rejects aliases, namespaces, reexports and dynamic imports outside auth', () => {
+    for (const code of [
+      "import { createStaffOtpDatabase as bind } from '@pospay/db'; void bind;",
+      "import * as database from '@pospay/db'; void database;",
+      "export { createStaffOtpDatabase } from '@pospay/db';",
+      "void import('@pospay/db');",
+    ])
+      assert.match(
+        checkModules(repo({ 'apps/api/src/modules/identity/persistence/otp.ts': code }), MAP).join(
+          '\n',
+        ),
+        /auth database facades/,
+      );
+  });
+  it('permits erased types without handing out a runtime database capability', () => {
+    assert.equal(
+      checkModules(
+        repo({
+          'apps/api/src/modules/identity/ports/otp.ts':
+            "import type { StaffOtpDatabase } from '@pospay/db'; export type D=StaffOtpDatabase;",
+        }),
+        MAP,
+      ).join('\n'),
+      '',
     );
   });
 });

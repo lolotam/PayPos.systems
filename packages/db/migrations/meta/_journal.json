@@ -222,15 +222,50 @@
     {
       "idx": 31,
       "version": "7",
-      "when": 1790977655909,
-      "tag": "0031_2026-10-02_email-destination",
+      "when": 1790921986025,
+      "tag": "0031_2026-10-02_identity-staff-otp",
       "breakpoints": true
     },
     {
       "idx": 32,
       "version": "7",
-      "when": 1790977701398,
-      "tag": "0032_2026-10-02_email-destination-guard",
+      "when": 1790922004299,
+      "tag": "0032_2026-10-02_identity-staff-otp-grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790931058669,
+      "tag": "0033_2026-10-02_identity-staff-pin-recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790979791126,
+      "tag": "0034_2026-10-02_customers",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790979810717,
+      "tag": "0035_2026-10-02_customers-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790984018732,
+      "tag": "0036_2026-10-02_email-destination",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790984026175,
+      "tag": "0037_2026-10-02_email-destination-guard",
       "breakpoints": true
     }
   ]
