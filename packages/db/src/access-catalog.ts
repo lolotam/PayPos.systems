@@ -5,6 +5,10 @@
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
  */
 export const PERMISSIONS = [
+  'read:schedules:branch',
+  'manage:schedules:branch',
+  'read:schedules:business',
+  'manage:schedules:business',
   // owner decision 2026-10-03: منح Owner وGM وBM لنشاطه في PR 7a؛ لا تعديل role_permissions هنا.
   'manage:files:business',
   'read:files:business',

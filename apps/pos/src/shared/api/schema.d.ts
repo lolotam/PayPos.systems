@@ -116,6 +116,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["branchScheduleWeek"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/schedules/{employeeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["employeeScheduleWeek"];
+        put: operations["setEmployeeScheduleWeek"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/shift-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listShiftTemplates"];
+        put?: never;
+        post: operations["createShiftTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/shift-templates/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateShiftTemplate"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/shift-templates/{templateId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["archiveShiftTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/shift-templates/{templateId}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["applyShiftTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees": {
         parameters: {
             query?: never;
@@ -558,6 +654,120 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        TemplateListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        ScheduleShift: {
+            day: number;
+            start: string;
+            end: string;
+        };
+        SchedulePattern: components["schemas"]["ScheduleShift"][];
+        SetScheduleInput: {
+            week_start: components["schemas"]["EmployeeDate"];
+            expected_revision: number;
+            shifts: components["schemas"]["SchedulePattern"];
+            reason?: string;
+        };
+        ConcreteShift: {
+            day: number;
+            start: string;
+            end: string;
+            working_date: components["schemas"]["EmployeeDate"];
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+        };
+        StaffSchedule: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            week_start: components["schemas"]["EmployeeDate"];
+            timezone: components["schemas"]["TimeZone"];
+            revision: number;
+            shifts: components["schemas"]["ConcreteShift"][];
+        };
+        ScheduleWeekQuery: {
+            week_start: components["schemas"]["EmployeeDate"];
+        };
+        ScheduleListQuery: {
+            week_start: components["schemas"]["EmployeeDate"];
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        ScheduleWeekResult: {
+            schedule: components["schemas"]["StaffSchedule"] | null;
+        };
+        ScheduleGridRow: {
+            /** Format: uuid */
+            employee_id: string;
+            name_en: string;
+            name_ar: string | null;
+            schedule: components["schemas"]["StaffSchedule"] | null;
+        };
+        ScheduleGrid: {
+            week_start: components["schemas"]["EmployeeDate"];
+            days: components["schemas"]["EmployeeDate"][];
+            timezone: components["schemas"]["TimeZone"];
+            items: components["schemas"]["ScheduleGridRow"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+        };
+        TemplateTerms: {
+            name_en: string;
+            name_ar?: string | null;
+            shifts: components["schemas"]["SchedulePattern"];
+        };
+        UpdateTemplateInput: {
+            name_en: string;
+            name_ar?: string | null;
+            shifts: components["schemas"]["SchedulePattern"];
+            expected_revision: number;
+        };
+        ArchiveTemplateInput: {
+            expected_revision: number;
+        };
+        ShiftTemplate: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            name_en: string;
+            name_ar: string | null;
+            shifts: components["schemas"]["SchedulePattern"];
+            revision: number;
+            /** Format: date-time */
+            archived_at: string | null;
+        };
+        TemplatePage: {
+            items: components["schemas"]["ShiftTemplate"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+        };
+        /** @description At most 12 weeks and 20 employee-week copies per synchronous application; larger applications require a future worker path. */
+        ApplyTemplateInput: {
+            /** Format: uuid */
+            branch_id: string;
+            employee_ids: string[];
+            weeks: components["schemas"]["EmployeeDate"][];
+            /** @default false */
+            replace: boolean;
+            reason?: string;
+        };
+        ApplyTemplateResult: {
+            schedules: components["schemas"]["StaffSchedule"][];
+        };
         UpdateEmployeeInput: {
             /** Format: uuid */
             primary_branch_id: string;
@@ -1458,6 +1668,307 @@ export interface operations {
                 };
             };
             /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    branchScheduleWeek: {
+        parameters: {
+            query: {
+                week_start: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ScheduleGrid */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleGrid"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeScheduleWeek: {
+        parameters: {
+            query: {
+                week_start: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ScheduleWeekResult */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleWeekResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setEmployeeScheduleWeek: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetScheduleInput"];
+            };
+        };
+        responses: {
+            /** @description StaffSchedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSchedule"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listShiftTemplates: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description TemplatePage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplatePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createShiftTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateTerms"];
+            };
+        };
+        responses: {
+            /** @description ShiftTemplate */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateShiftTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTemplateInput"];
+            };
+        };
+        responses: {
+            /** @description ShiftTemplate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    archiveShiftTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveTemplateInput"];
+            };
+        };
+        responses: {
+            /** @description ShiftTemplate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    applyShiftTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyTemplateInput"];
+            };
+        };
+        responses: {
+            /** @description ApplyTemplateResult */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyTemplateResult"];
+                };
+            };
+            /** @description Bilingual refusal */
             default: {
                 headers: {
                     [name: string]: unknown;

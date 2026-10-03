@@ -1,6 +1,7 @@
 import { FUNCTION_INVENTORY } from '../../test/function-inventory.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
 import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
+import { SCHEDULE_COLUMN_GRANTS } from '../../test/schedule-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -76,6 +77,13 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'roles:INSERT',
     'roles:SELECT',
     'roles:UPDATE',
+    'staff_schedule_shifts:DELETE',
+    'staff_schedule_shifts:INSERT',
+    'staff_schedule_shifts:SELECT',
+    'staff_schedules:INSERT',
+    'staff_schedules:SELECT',
+    'staff_shift_templates:INSERT',
+    'staff_shift_templates:SELECT',
   ],
   // Global identity (ADR-0003 §2.1): Better Auth's tables, reading platform grants and appending to their audit log.
   pospay_auth: [
@@ -136,6 +144,9 @@ const TENANT_TABLES = [
   'file_cleanup_objects',
   'employees',
   'employee_branches',
+  'staff_schedules',
+  'staff_schedule_shifts',
+  'staff_shift_templates',
   'in_app_notifications',
   'notification_attempts',
   'companies',
@@ -219,6 +230,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...FILE_COLUMN_GRANTS,
         ...OUTBOX_COLUMN_GRANTS,
         ...EMPLOYEE_COLUMN_GRANTS,
+        ...SCHEDULE_COLUMN_GRANTS,
       ].sort(),
     );
   });

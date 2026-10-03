@@ -4,6 +4,17 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
+  SCHEDULE_WEEK_INVALID: 400,
+  SCHEDULE_SHIFT_INVALID: 400,
+  SCHEDULE_SHIFT_OVERLAP: 409,
+  SCHEDULE_LOCAL_TIME_INVALID: 400,
+  SCHEDULE_EMPLOYEE_INELIGIBLE: 400,
+  SCHEDULE_PAST_REASON_REQUIRED: 400,
+  SCHEDULE_REVISION_CONFLICT: 409,
+  SCHEDULE_APPLY_CONFLICT: 409,
+  SCHEDULE_APPLY_BATCH_TOO_LARGE: 422,
+  SCHEDULE_REPLACE_REASON_REQUIRED: 400,
+  SCHEDULE_TEMPLATE_ARCHIVED: 409,
   EMPLOYEE_REVISION_CONFLICT: 409,
   EMPLOYEE_PRIMARY_BRANCH_REQUIRED: 400,
   EMPLOYEE_BRANCH_DATE_BEFORE_START: 400,
@@ -59,6 +70,17 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'SCHEDULE_WEEK_INVALID',
+  'SCHEDULE_SHIFT_INVALID',
+  'SCHEDULE_SHIFT_OVERLAP',
+  'SCHEDULE_LOCAL_TIME_INVALID',
+  'SCHEDULE_EMPLOYEE_INELIGIBLE',
+  'SCHEDULE_PAST_REASON_REQUIRED',
+  'SCHEDULE_REVISION_CONFLICT',
+  'SCHEDULE_APPLY_CONFLICT',
+  'SCHEDULE_APPLY_BATCH_TOO_LARGE',
+  'SCHEDULE_REPLACE_REASON_REQUIRED',
+  'SCHEDULE_TEMPLATE_ARCHIVED',
   'EMPLOYEE_REVISION_CONFLICT',
   'EMPLOYEE_PRIMARY_BRANCH_REQUIRED',
   'EMPLOYEE_BRANCH_DATE_BEFORE_START',

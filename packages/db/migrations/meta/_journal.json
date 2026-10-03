@@ -379,6 +379,20 @@
       "when": 1791031033432,
       "tag": "0053_2026-10-03_business-discount-default",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791048550595,
+      "tag": "0054_2026-10-03_staff-schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1791048552805,
+      "tag": "0055_2026-10-03_staff-schedules-rls",
+      "breakpoints": true
     }
   ]
 }

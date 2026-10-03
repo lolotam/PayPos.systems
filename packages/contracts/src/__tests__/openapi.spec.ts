@@ -4,6 +4,24 @@ import committed from '../../openapi/openapi.json' with { type: 'json' };
 import { buildOpenApiDocument } from '../openapi.js';
 
 const expectedSchemas = [
+  'ApplyTemplateInput',
+  'ApplyTemplateResult',
+  'ArchiveTemplateInput',
+  'ConcreteShift',
+  'ScheduleGrid',
+  'ScheduleGridRow',
+  'ScheduleListQuery',
+  'SchedulePattern',
+  'ScheduleShift',
+  'ScheduleWeekQuery',
+  'ScheduleWeekResult',
+  'SetScheduleInput',
+  'ShiftTemplate',
+  'StaffSchedule',
+  'TemplateListQuery',
+  'TemplatePage',
+  'TemplateTerms',
+  'UpdateTemplateInput',
   'AttendanceQrBranch',
   'AttendanceQrIssue',
   'AttendanceQrToken',
@@ -83,7 +101,7 @@ const expectedSchemas = [
   'WorkspaceBranch',
   'WorkspaceBusiness',
   'WorkspaceCompany',
-];
+].sort();
 
 describe('openapi/openapi.json', () => {
   it('matches the contracts — run `pnpm contracts:openapi` after changing a schema', () => {

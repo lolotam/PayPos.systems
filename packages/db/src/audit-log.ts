@@ -30,11 +30,31 @@ export interface AuditEntry {
  * @returns بيخلص لما الصف يتكتب (لسه مش committed)
  */
 export async function appendAuditLog(tx: Tx, id: string, entry: AuditEntry): Promise<void> {
+  await appendAuditLogs(tx, [{ id, entry }]);
+}
+
+/**
+ * يكتب تدقيق دفعة ذرية في أمر واحد بنفس تنقية الأسرار وهوية السياق المستخدمة للصف المفرد.
+ *
+ * @param tx معاملة الشركة
+ * @param entries معرفات السجل والتغييرات المعتمدة
+ * @returns يكتمل عند إدخال كل الصفوف داخل المعاملة
+ */
+export async function appendAuditLogs(
+  tx: Tx,
+  entries: readonly { id: string; entry: AuditEntry }[],
+): Promise<void> {
+  if (entries.length === 0) return;
   const json = (value: unknown, name: string) =>
     value === undefined ? sql`NULL` : sql`${toJsonb(redactSecrets(value), name)}::jsonb`;
+  const values = entries.map(
+    ({
+      id,
+      entry,
+    }) => sql`(app_company_id(), ${assertUuid(id, 'id')}, app_user_id(), ${entry.entity},
+    ${assertUuid(entry.entityId, 'entityId')}, ${entry.action}, ${json(entry.before, 'before')}, ${json(entry.after, 'after')})`,
+  );
   await tx.execute(sql`
     INSERT INTO audit_log (company_id, id, actor_user_id, entity, entity_id, action, before, after)
-    VALUES (app_company_id(), ${assertUuid(id, 'id')}, app_user_id(), ${entry.entity},
-            ${assertUuid(entry.entityId, 'entityId')}, ${entry.action},
-            ${json(entry.before, 'before')}, ${json(entry.after, 'after')})`);
+    VALUES ${sql.join(values, sql`,`)}`);
 }

@@ -85,6 +85,13 @@ async function seedAccessCatalog(sql: postgres.Sql): Promise<void> {
       WHERE company_id IS NULL AND code = 'staff'
       ON CONFLICT DO NOTHING`;
     await tx`
+      INSERT INTO role_permissions (role_id,role_owner_key,company_id,permission_code)
+      SELECT r.id,'global',NULL,p.code FROM roles r CROSS JOIN permissions p
+      WHERE r.company_id IS NULL AND
+      ((r.code IN ('owner','general_manager','business_manager','branch_manager') AND p.code IN ('read:schedules:branch','manage:schedules:branch'))
+      OR (r.code IN ('owner','general_manager','business_manager') AND p.code IN ('read:schedules:business','manage:schedules:business')))
+      ON CONFLICT DO NOTHING`;
+    await tx`
       INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code)
       SELECT id, 'global', NULL, 'view:notifications:business' FROM roles
       WHERE company_id IS NULL AND code IN ('general_manager', 'business_manager', 'branch_manager')

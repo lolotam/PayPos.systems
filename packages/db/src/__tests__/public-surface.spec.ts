@@ -15,6 +15,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'PROVISIONAL_PLAN_ID',
       'SYSTEM_ROLES',
       'appendAuditLog',
+      'appendAuditLogs',
       'appendOutboxEvent',
       'createAuthDatabase',
       'createDatabase',

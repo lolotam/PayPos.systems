@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scheduleSchemas } from './staff/schedules.js';
 import { settingsPaths } from './settings/settings-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
@@ -71,6 +72,7 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...scheduleSchemas,
   updateEmployeeInput,
   employeeDetailRecord,
   employeeListItem,
