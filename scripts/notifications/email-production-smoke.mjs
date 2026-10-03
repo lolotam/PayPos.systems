@@ -7,8 +7,14 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.loadEnvFile(new URL('../../.env', import.meta.url));
-for (const name of ['DATABASE_URL', 'AUTH_DATABASE_URL', 'MIGRATION_DATABASE_URL'])
-  assert.equal(new URL(process.env[name]).pathname, '/pospay_wt_l5b', 'WORKTREE_DATABASE_MISMATCH');
+// الثلاث روابط لازم تشاور على نفس قاعدة البيانات، أياً كان اسمها على الجهاز ده.
+const databases = ['DATABASE_URL', 'AUTH_DATABASE_URL', 'MIGRATION_DATABASE_URL'].map(
+  (name) => new URL(process.env[name] ?? '').pathname,
+);
+assert.ok(
+  databases.every((path) => path === databases[0]),
+  'DATABASE_URL_MISMATCH',
+);
 const env = { ...process.env, NODE_ENV: 'production', LOG_LEVEL: 'info' };
 delete env.FORCE_COLOR;
 for (const name of [
