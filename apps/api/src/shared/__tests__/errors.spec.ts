@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createBusinessInput, errorEnvelope } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
@@ -31,6 +31,12 @@ class ProbeController {
   @Get('throw-string')
   throwString(): never {
     throw 'token=tok_thrown_string';
+  }
+
+  @Get('transaction-conflict/:code/:wrapped')
+  transactionConflict(@Param('code') code: string, @Param('wrapped') wrapped: string): never {
+    const driver = Object.assign(new Error('Synthetic private SQL'), { code });
+    throw wrapped === 'true' ? new Error('Synthetic Drizzle query', { cause: driver }) : driver;
   }
 
   @Get('throw-object')
@@ -76,6 +82,29 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
+});
+
+describe('transaction conflict envelopes', () => {
+  it.each(['40P01', '40001'])(
+    'maps direct and wrapped PostgreSQL %s to a retryable 409',
+    async (code) => {
+      for (const wrapped of [false, true]) {
+        const res = await request('GET', `/v1/probe/transaction-conflict/${code}/${wrapped}`);
+        expect(res.status).toBe(409);
+        const envelope = errorEnvelope.parse(res.body);
+        expect(envelope.code).toBe('TRANSACTION_RETRY_REQUIRED');
+        expect(envelope.message_ar.length).toBeGreaterThan(0);
+        expect(envelope.message_en).toContain('retry');
+        expect(JSON.stringify(envelope)).not.toMatch(/SQL|Drizzle|40P01|40001/);
+      }
+    },
+  );
+
+  it('keeps unrelated PostgreSQL failures internal', async () => {
+    const res = await request('GET', '/v1/probe/transaction-conflict/23503/true');
+    expect(res.status).toBe(500);
+    expect(errorEnvelope.parse(res.body).code).toBe('INTERNAL_ERROR');
+  });
 });
 
 describe('every error is the bilingual envelope', () => {

@@ -99,6 +99,7 @@ export const ar: Catalog = {
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
     PERMISSION_SCOPE_OUTSIDE_REACH: 'النطاق المطلوب خارج نطاق صلاحيتك',
     PERMISSION_OVERRIDE_ENDED: 'هذا الاستثناء انتهى بالفعل',
+    TRANSACTION_RETRY_REQUIRED: 'تعارض التغيير مع عملية أخرى ولم يُحفظ. حاول مرة أخرى.',
     OTP_UNAVAILABLE: 'الدخول بواتساب غير متاح. اطلب مساعدة المدير للدخول بالرقم السري الخاص بك.',
     OTP_INVALID: 'رمز الدخول غير صحيح.',
     VALIDATION_FAILED: 'البيانات المرسلة غير صحيحة',

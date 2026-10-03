@@ -97,6 +97,8 @@ export const en = {
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
     PERMISSION_SCOPE_OUTSIDE_REACH: 'The target scope is outside your permission’s reach',
     PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
+    TRANSACTION_RETRY_REQUIRED:
+      'The change conflicted with another transaction and was not saved. Please retry.',
     OTP_UNAVAILABLE:
       'WhatsApp sign-in is unavailable. Ask your manager for help using your own cashier PIN.',
     OTP_INVALID: 'The sign-in code is not valid.',

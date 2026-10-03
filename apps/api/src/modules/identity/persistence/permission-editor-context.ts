@@ -12,9 +12,9 @@ async function lockedHolderMemberships(
   companyId: string,
   membershipId: string,
 ): Promise<EditableMembership[]> {
-  // قفل الشركة يمنع إدخال عضوية جديدة عبر الـ FK؛ قفل المجموعة يمنع تبديل الدور أو صاحب العضوية أثناء فحص المالك.
+  // نقفل الشركة NO KEY UPDATE ثم العضويات بترتيب id ثم الاستثناءات؛ فحص المالك يثبت، وKEY SHARE لإدراج سجل التدقيق لا ينتظر قفل الشركة.
   const [company] = await tx.execute(sql`SELECT id FROM companies
-    WHERE id = ${companyId} AND deleted_at IS NULL FOR UPDATE`);
+    WHERE id = ${companyId} AND deleted_at IS NULL FOR NO KEY UPDATE`);
   if (company === undefined) return [];
   await tx.execute(
     sql`SELECT id FROM memberships WHERE company_id = ${companyId} ORDER BY id FOR UPDATE`,

@@ -40,18 +40,44 @@ do not confer this protection. Self-edit refusal compares the editor's user_id
 with the target holder, including the editor's other memberships. Create,
 replacement and revoke use the same locked holder snapshot and domain checks.
 
-The write locks the company root before its memberships in UUID order. The root
-lock prevents insertion of a new sibling membership through the company FK;
-membership locks prevent concurrent role/holder changes. Read holder roles and
+PR #73 P2 correction: lock the company root FOR NO KEY UPDATE, then company
+memberships FOR UPDATE in ascending id order, then current overrides in id order.
+The company lock serializes permission editors while remaining compatible with
+the KEY SHARE lock taken by membership/audit foreign-key checks. Membership locks
+prevent concurrent role/holder changes. Read holder roles and
 sample decision time only after these locks, then retain them through audit and
 commit. Permission writes briefly serialize membership changes within a company;
 ordinary read queries remain unlocked. No migration or identity mapping outside
-the existing user/employee holder model is needed.
+the existing user/employee holder model is needed. Foreign-key inserts are not
+blocked by the company lock. The current writer inventory contains only onboarding
+inserts into a newly created company (register-company + addOwnerMembership),
+whose rows are invisible to other transactions until commit. There is no existing
+production membership create/update or role-change endpoint for an existing company.
+Future membership writers must coordinate owner/holder changes with this locking
+protocol; a company FK alone is not a serialization mechanism.
+
+Inventory: device transactions lock/update devices and append audit; cashier/staff
+PIN transactions read memberships, upsert PINs and append audit; OTP eligibility
+reads memberships and its sign-in audit is platform-scoped. Tenancy business/branch,
+settings and worker notification attempts append tenant audit through appendAuditLog.
+None locks a company after a membership write; audited membership/role updates
+are nevertheless covered by the regression. The deferred last-owner trigger uses
+its separate company-owner advisory lock and a plain membership read, which
+permission editors do not acquire.
+
+Any PostgreSQL deadlock (40P01) or serialization failure (40001), including a
+wrapped driver cause, returns TRANSACTION_RETRY_REQUIRED (409) through the shared
+bilingual error envelope. It asks the caller to retry after rollback; no automatic
+retry or SQL diagnostics are exposed.
 
 Regression tests exercise owner + Viewer siblings through real Postgres and HTTP
 for DENY, ALLOW replacement and revoke, preserving AuthorizeRequest management
 access; editor siblings, employee holders, non-owner siblings, inactive/cross-company
-owners, and a concurrent sibling promotion to owner while the write waits.
+owners, and a concurrent sibling promotion to owner while the write waits. The
+audited variant holds the membership row first, waits for the permission write,
+then inserts audit and commits: both transactions finish without deadlock and
+the permission write observes the committed owner protection.
+The non-owner variant commits both the membership audit and the new override.
 
 OVERRIDE-LIFECYCLE — owner decision 2026-10-03: create replaces current rows for
 the same membership/permission/scope by ending them and inserting a new decision
