@@ -1,6 +1,7 @@
 'use client';
 
 import { t } from '@pospay/i18n';
+import { BrandedPanel } from '@pospay/ui';
 
 import { AppFrame } from '@/shared/frame/app-frame';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -29,12 +30,14 @@ export function EnrolPage() {
         </>
       }
     >
-      <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
-        <h1 className="text-start text-xl font-bold">{t(locale, 'admin.enrolTitle')}</h1>
-        <p className="text-start text-sm text-muted-foreground">{t(locale, 'admin.enrolLead')}</p>
-        <p className="text-start text-sm">{lead}</p>
+      <BrandedPanel
+        brandTitle={t(locale, 'brand.title')}
+        title={t(locale, 'admin.enrolTitle')}
+        description={t(locale, 'admin.enrolLead')}
+      >
+        <p className="mb-6 text-start text-sm">{lead}</p>
         <EnrolStep enrol={enrol} />
-      </div>
+      </BrandedPanel>
     </AppFrame>
   );
 }

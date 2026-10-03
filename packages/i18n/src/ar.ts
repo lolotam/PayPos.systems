@@ -2,6 +2,19 @@ import type { Catalog } from './catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  brand: {
+    title: 'PosPay — بوس باي',
+    latinName: 'PosPay',
+    arabicName: 'بوس باي',
+  },
+  shell: {
+    navigation: 'التنقل في مساحة العمل',
+    openNavigation: 'فتح قائمة التنقل',
+    closeNavigation: 'إغلاق قائمة التنقل',
+    account: 'الحساب المسجّل',
+    workspaceLead: 'نظرة على شركتك ونشاطك وفرعك.',
+    permissionsLead: 'راجع صلاحيات الدور وأدر قرارات الوصول لكل شخص.',
+  },
   roles: {
     owner: 'صاحب الشركة',
     general_manager: 'مدير عام',
@@ -18,6 +31,8 @@ export const ar: Catalog = {
     viewer: 'مشاهد',
   },
   permissions: {
+    view: 'عرض',
+    copyHolder: 'نسخ المعرّف',
     title: 'الصلاحيات',
     person: 'العضوية',
     choose: 'اختر الشخص',

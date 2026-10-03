@@ -15,12 +15,12 @@ export function NotificationItem({
   onRead: (id: string) => void;
 }) {
   return (
-    <li className="flex flex-col gap-2 border-b border-border py-3 text-start">
+    <li className="flex flex-col gap-2 border-b border-border py-4 text-start last:border-b-0">
       <p lang={item.locale} dir={item.locale === 'ar' ? 'rtl' : 'ltr'}>
         {renderNotification(item)}
       </p>
       <div className="flex items-center gap-2">
-        <Badge variant={item.read_at === null ? 'default' : 'secondary'}>
+        <Badge variant={item.read_at === null ? 'brand' : 'neutral'}>
           {t(locale, item.read_at === null ? 'inApp.unread' : 'inApp.read')}
         </Badge>
         {item.read_at === null ? (

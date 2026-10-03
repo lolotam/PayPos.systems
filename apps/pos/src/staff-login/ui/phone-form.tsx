@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { staffOtpRequestInput, type StaffOtpRequestInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, Input, Label } from '@pospay/ui';
+import { Button, Input, Label, NativeSelect } from '@pospay/ui';
 import { useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 
@@ -16,7 +16,9 @@ export function PhoneForm({
   const form = useForm<StaffOtpRequestInput>({ resolver: zodResolver(staffOtpRequestInput) });
   return (
     <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)}>
-      <Label htmlFor="staff-phone">{t(locale, 'staffLogin.phone')}</Label>
+      <Label className="text-base" htmlFor="staff-phone">
+        {t(locale, 'staffLogin.phone')}
+      </Label>
       <Input
         id="staff-phone"
         type="tel"
@@ -24,13 +26,14 @@ export function PhoneForm({
         disabled={pending}
         {...form.register('phone')}
       />
-      <Label htmlFor="staff-language">{t(locale, 'staffLogin.language')}</Label>
-      <select
+      <Label className="text-base" htmlFor="staff-language">
+        {t(locale, 'staffLogin.language')}
+      </Label>
+      <NativeSelect
         id="staff-language"
         defaultValue=""
         required
         disabled={pending}
-        className="rounded-control border p-3 text-start"
         {...form.register('locale')}
       >
         <option value="" disabled>
@@ -38,11 +41,11 @@ export function PhoneForm({
         </option>
         <option value="ar">{t(locale, 'staffLogin.arabic')}</option>
         <option value="en">{t(locale, 'staffLogin.english')}</option>
-      </select>
+      </NativeSelect>
       {form.formState.errors.phone !== undefined || form.formState.errors.locale !== undefined ? (
         <p role="alert">{t(locale, 'staffLogin.inputInvalid')}</p>
       ) : null}
-      <Button type="submit" disabled={pending}>
+      <Button size="touch" type="submit" disabled={pending}>
         {t(locale, 'staffLogin.request')}
       </Button>
     </form>

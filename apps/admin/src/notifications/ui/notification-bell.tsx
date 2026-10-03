@@ -47,7 +47,12 @@ export function NotificationBell({ companyId, userId }: NotificationBellProps) {
       >
         <Bell aria-hidden="true" className="size-5" />
         {unread > 0 ? (
-          <Badge aria-label={`${t(locale, 'inApp.unread')}: ${unread}`} aria-live="polite">
+          <Badge
+            variant="brand"
+            className="tabular-nums"
+            aria-label={`${t(locale, 'inApp.unread')}: ${unread}`}
+            aria-live="polite"
+          >
             {unread}
           </Badge>
         ) : null}

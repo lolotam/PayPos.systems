@@ -21,7 +21,9 @@ export function CodeForm({
   });
   return (
     <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)}>
-      <Label htmlFor="staff-code">{t(locale, 'staffLogin.code')}</Label>
+      <Label className="text-base" htmlFor="staff-code">
+        {t(locale, 'staffLogin.code')}
+      </Label>
       <Input
         id="staff-code"
         inputMode="numeric"
@@ -29,7 +31,7 @@ export function CodeForm({
         disabled={pending}
         {...form.register('code')}
       />
-      <Button type="submit" disabled={pending}>
+      <Button size="touch" type="submit" disabled={pending}>
         {t(locale, 'staffLogin.verify')}
       </Button>
     </form>

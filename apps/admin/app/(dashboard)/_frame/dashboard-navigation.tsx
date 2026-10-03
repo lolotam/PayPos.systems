@@ -1,0 +1,31 @@
+'use client';
+import { t } from '@pospay/i18n';
+import { AppSidebarGroup, AppSidebarItem, House, ShieldCheck } from '@pospay/ui';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useLocale } from '@/shared/locale/locale-context';
+
+export function DashboardNavigation() {
+  const locale = useLocale();
+  const pathname = usePathname();
+  return (
+    <AppSidebarGroup>
+      <AppSidebarItem
+        asChild
+        icon={<House />}
+        label={t(locale, 'admin.homeTitle')}
+        active={pathname === '/'}
+      >
+        <Link href="/" />
+      </AppSidebarItem>
+      <AppSidebarItem
+        asChild
+        icon={<ShieldCheck />}
+        label={t(locale, 'permissions.title')}
+        active={pathname === '/permissions'}
+      >
+        <Link href="/permissions" />
+      </AppSidebarItem>
+    </AppSidebarGroup>
+  );
+}

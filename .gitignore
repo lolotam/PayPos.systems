@@ -34,6 +34,7 @@ Thumbs.db
 # Claude Code worktrees (each is a full checkout of this repo)
 .claude/worktrees/
 .claude/settings.local.json
+.playwright-mcp/
 # .agents/skills holds a personal skill library; only the spec-kit skills belong to this project
 .agents/skills/*
 !.agents/skills/speckit-*/
