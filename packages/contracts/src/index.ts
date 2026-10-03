@@ -1,5 +1,13 @@
 export { nameAr, nameEn } from './bilingual/names.js';
 export {
+  employee,
+  createEmployeeInput,
+  employeeRoleCode,
+  employeeDate,
+  type Employee,
+  type CreateEmployeeInput,
+} from './staff/employee.js';
+export {
   customer,
   findOrCreateCustomerInput,
   type Customer,

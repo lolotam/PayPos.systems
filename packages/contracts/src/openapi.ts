@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { employee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
+import { staffPaths } from './staff/staff-openapi.js';
 import { permissionPaths } from './identity/permissions-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import {
@@ -70,6 +72,10 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  employee,
+  createEmployeeInput,
+  employeeRoleCode,
+  employeeDate,
   membershipPermissionsQuery,
   revokePermissionOverrideInput,
   membershipPageQuery,
@@ -158,6 +164,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...staffPaths,
   ...permissionPaths,
   ...customerPaths,
   '/v1/devices/me/attendance-qr': {

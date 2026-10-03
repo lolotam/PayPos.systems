@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/v1/businesses/{businessId}/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires manage:employees:business and staff feature. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). */
+        post: operations["createEmployee"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires manage:employees:business at the persisted employee business and primary branch, with DENY winning, and the staff feature. Branch-only ALLOW is accepted. Inaccessible and missing employees share NOT_FOUND (404). */
+        get: operations["getEmployee"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/permissions/memberships": {
         parameters: {
             query?: never;
@@ -394,6 +428,38 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Employee: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CreateEmployeeInput: {
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar?: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end?: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id?: string | null;
+        };
+        /** @enum {string} */
+        EmployeeRoleCode: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
+        /** Format: date */
+        EmployeeDate: string;
         MembershipPermissionsQuery: {
             /** Format: uuid */
             cursor?: string;
@@ -883,6 +949,104 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    createEmployee: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEmployeeInput"];
+            };
+        };
+        responses: {
+            /** @description Created employee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getEmployee: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Persisted employee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listPermissionMemberships: {
         parameters: {
             query?: {
