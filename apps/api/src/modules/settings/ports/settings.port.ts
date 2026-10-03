@@ -1,10 +1,12 @@
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { SettingsOverrides } from '../domain/business-settings.ts';
+import type { BusinessDiscountAccess } from './business-discount-access.port.ts';
 
 /**
  * صف إعدادات النشاط زي ما اتخزن — التعديلات بس، مش القيم الفعلية.
  */
 export interface StoredSettings extends SettingsOverrides {
+  readonly limitBps: number | null;
   /** قاعدة الضريبة زي ما اتخزنت (شكل الـ contract)، أو null = مفيش ضريبة. */
   readonly taxRule: unknown;
   /** آخر تعديل، ISO زي ما Postgres كتبه. */
@@ -15,6 +17,7 @@ export interface StoredSettings extends SettingsOverrides {
  * التغيير المطلوب: مفتاح مش موجود = سيبه، null = رجّعه للـ template.
  */
 export interface SettingsChange {
+  readonly limitBps?: number | null;
   readonly defaultLanguage?: SettingsOverrides['defaultLanguage'];
   readonly calendar?: SettingsOverrides['calendar'];
 }
@@ -23,6 +26,7 @@ export interface SettingsChange {
  * القرايات والكتابات بتاعة الإعدادات جوه transaction واحدة في الشركة.
  */
 export interface SettingsScope {
+  readonly discountAccess: BusinessDiscountAccess;
   readonly audit: AuditTrail;
   /**
    * صف الإعدادات مقفول لحد آخر الـ transaction، أو null لو النشاط لسه ما غيّرش حاجة — عشان الـ audit يسجل قبل وبعد صح.

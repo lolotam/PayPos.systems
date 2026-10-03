@@ -372,6 +372,13 @@
       "when": 1791023605424,
       "tag": "0052_2026-10-03_employee-branch-history-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1791031033432,
+      "tag": "0053_2026-10-03_business-discount-default",
+      "breakpoints": true
     }
   ]
 }

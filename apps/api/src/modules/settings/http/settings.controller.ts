@@ -1,6 +1,9 @@
-import { Body, Controller, Get, Inject, Param, Patch, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Req } from '@nestjs/common';
 import {
   updateBusinessSettingsInput,
+  discountLimitInput,
+  type DiscountLimitInput,
+  type DiscountLimit,
   type BusinessSettings,
   type UpdateBusinessSettingsInput,
 } from '@pospay/contracts';
@@ -18,8 +21,10 @@ import {
   type SettingsTemplate,
 } from '../queries/business-settings.query.ts';
 import type { UpdateBusinessSettings } from '../use-cases/update-business-settings/update-business-settings.ts';
+import type { SetBusinessDiscountDefault } from '../use-cases/set-business-discount-default/set-business-discount-default.ts';
 
 export interface SettingsWiring {
+  readonly discount: SetBusinessDiscountDefault;
   readonly update: UpdateBusinessSettings;
   readonly cache: SettingsReadCache;
   readonly template: SettingsTemplate;
@@ -37,6 +42,18 @@ export class SettingsController {
   ) {
     this.#wiring = wiring;
     this.#db = db;
+  }
+
+  @Post('businesses/:businessId/settings/discount-limit')
+  @HttpCode(200)
+  @Require('manage:settings:business', { business: 'businessId' })
+  async setDiscount(
+    @Param('businessId') businessId: string,
+    @Body(new ZodValidationPipe(discountLimitInput)) input: DiscountLimitInput,
+    @Req() request: FastifyRequest,
+  ): Promise<DiscountLimit> {
+    if (this.#wiring === null) throw new ApiError('NOT_READY');
+    return this.#wiring.discount.execute(actorOf(request), businessId.toLowerCase(), input);
   }
 
   @Get('businesses/:businessId/settings')

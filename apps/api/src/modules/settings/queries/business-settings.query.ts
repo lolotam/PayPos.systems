@@ -13,6 +13,7 @@ export interface SettingsReadCache {
 
 /** The template values the read falls back to — handed in by the module wiring, from domain/business-settings.ts. */
 export interface SettingsTemplate {
+  readonly limitBps?: number | null;
   readonly defaultLanguage: string;
   readonly calendar: string;
 }
@@ -35,7 +36,10 @@ export async function businessSettingsQuery(
   businessId: string,
 ): Promise<BusinessSettings> {
   const cached = await cache.read(access.companyId, businessId);
-  if (cached.json !== null) return JSON.parse(cached.json) as BusinessSettings;
+  if (cached.json !== null) {
+    const value = JSON.parse(cached.json) as BusinessSettings;
+    if ('limit_bps' in value) return value;
+  }
   // Screen: admin › business settings. One business by its key; no row yet means every value is the template's.
   const [row] = await db.withTenant(
     access.companyId,
@@ -45,10 +49,12 @@ export async function businessSettingsQuery(
           SELECT ${businessId}::uuid AS business_id,
                  COALESCE(s.default_language, ${template.defaultLanguage}) AS default_language,
                  COALESCE(s.calendar, ${template.calendar}) AS calendar,
+                 COALESCE(s.limit_bps, ${template.limitBps ?? null}::integer) AS limit_bps,
                  s.tax_rule,
                  array_remove(ARRAY[
                    CASE WHEN s.default_language IS NOT NULL THEN 'default_language' END,
-                   CASE WHEN s.calendar IS NOT NULL THEN 'calendar' END
+                   CASE WHEN s.calendar IS NOT NULL THEN 'calendar' END,
+                   CASE WHEN s.limit_bps IS NOT NULL THEN 'limit_bps' END
                  ], NULL) AS overridden,
                  to_json(s.updated_at) #>> '{}' AS updated_at
           FROM (SELECT 1) AS one

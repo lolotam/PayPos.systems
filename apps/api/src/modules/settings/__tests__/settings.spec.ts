@@ -54,6 +54,7 @@ describe('business settings', () => {
   it('a business that changed nothing reads the template', async () => {
     expect(await read()).toEqual({
       business_id: business,
+      limit_bps: null,
       default_language: 'ar',
       calendar: 'gregorian',
       tax_rule: null,

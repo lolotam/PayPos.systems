@@ -61,6 +61,7 @@ export class UpdateBusinessSettings {
     const effective = effectiveSettings(this.#template, saved);
     return {
       business_id: businessId,
+      limit_bps: effective.limitBps,
       default_language: effective.defaultLanguage,
       calendar: effective.calendar,
       tax_rule: (saved.taxRule ?? null) as BusinessSettings['tax_rule'],

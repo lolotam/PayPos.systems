@@ -1,24 +1,27 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { PageHeader, EmptyState, CircleAlert, UserRound, LoaderCircle } from '@pospay/ui';
+import { PageHeader, EmptyState, UserRound } from '@pospay/ui';
 import { useState } from 'react';
 
-import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { usePermissionMemberships } from '../api/use-permissions';
 import { MembershipPermissionsPanel } from '../ui/membership-permissions-panel';
 import { PermissionPageNavigation } from '../ui/permission-page-navigation';
 import { PermissionMembershipTable } from '../ui/permission-membership-table';
+import { BusinessDiscountDefault } from '../ui/business-discount-default';
+import { PermissionListFeedback } from '../ui/permission-list-feedback';
 
 type Props = {
   companyId: string;
   userId: string;
   branchTimeZones: Readonly<Record<string, string>>;
   scopeNames: Readonly<Record<string, string>>;
+  business?: { id: string; name: string } | undefined;
 };
 
-export function PermissionsPage({ companyId, userId, branchTimeZones, scopeNames }: Props) {
+export function PermissionsPage(props: Props) {
+  const { companyId, userId, branchTimeZones, scopeNames, business } = props;
   const locale = useLocale();
   const [cursor, setCursor] = useState<string>();
   const [membershipId, setMembershipId] = useState('');
@@ -29,17 +32,16 @@ export function PermissionsPage({ companyId, userId, branchTimeZones, scopeNames
         title={t(locale, 'permissions.title')}
         description={t(locale, 'shell.permissionsLead')}
       />
-      {list.isPending ? (
-        <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />
-      ) : null}
-      {list.isError ? (
-        <EmptyState
-          role="alert"
-          tone="danger"
-          icon={<CircleAlert />}
-          title={envelopeMessage(list.error, locale)}
+      {business ? (
+        <BusinessDiscountDefault
+          key={business.id}
+          companyId={companyId}
+          userId={userId}
+          businessId={business.id}
+          businessName={business.name}
         />
       ) : null}
+      <PermissionListFeedback pending={list.isPending} failed={list.isError} error={list.error} />
       {list.data ? (
         <>
           {list.data.items.length === 0 ? (

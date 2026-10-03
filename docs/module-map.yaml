@@ -18,7 +18,7 @@ imports:
   platform: [tenancy]
   realtime: [identity]
   reporting: []
-  settings: [tenancy]
+  settings: [tenancy, identity]
   staff: [tenancy, identity]
   tenancy: []
 packages_restricted:
@@ -35,6 +35,11 @@ composition_roots:
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
 reads:
+  - { from: settings, to: identity, symbol: lockBusinessDiscountAccess, file: apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts }
+  - { from: settings, to: identity, symbol: readBusinessDiscountAccess, file: apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts }
+  - { from: settings, to: identity, symbol: lockMembershipDiscountSubject, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }
+  - { from: settings, to: identity, symbol: readMembershipDiscountSubject, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }
+  - { from: settings, to: tenancy, symbol: businessDiscountScope, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts }
   - { from: staff, to: identity, symbol: readEmployeeBranchAccess, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
   - { from: staff, to: identity, symbol: readEmployeeBranchAccess, file: apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts }

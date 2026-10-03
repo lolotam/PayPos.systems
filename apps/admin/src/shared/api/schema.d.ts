@@ -4,6 +4,38 @@
  */
 
 export interface paths {
+    "/v1/businesses/{businessId}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getBusinessSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateBusinessSettings"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/settings/discount-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setBusinessDiscountDefault"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/files/download": {
         parameters: {
             query?: never;
@@ -1110,8 +1142,9 @@ export interface components {
             business_id: string;
             default_language: components["schemas"]["Language"];
             calendar: components["schemas"]["Calendar"];
+            limit_bps: number | null;
             tax_rule: components["schemas"]["TaxRule"] | null;
-            overridden: ("default_language" | "calendar")[];
+            overridden: ("default_language" | "calendar" | "limit_bps")[];
             /** Format: date-time */
             updated_at: string | null;
         };
@@ -1157,6 +1190,113 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getBusinessSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessSettings"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateBusinessSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBusinessSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessSettings"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBusinessDiscountDefault: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountLimitInput"];
+            };
+        };
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountLimit"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     issueFileDownloadByKey: {
         parameters: {
             query?: never;

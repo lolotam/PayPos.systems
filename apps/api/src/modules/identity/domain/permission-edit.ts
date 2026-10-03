@@ -53,6 +53,37 @@ export function permissionHolderIsOwner(context: PermissionEditContext): boolean
 }
 
 /**
+ * بيطبق سياسة PR 7 لامتلاك الإذن عبر النطاق كله؛ DENY في أي فرع تابع يمنع تعديل سلطة النشاط.
+ * مشاركة القاعدة تحافظ على نفس سياسة الحد الشخصي وافتراضي النشاط بدون نسختين مختلفتين.
+ *
+ * @param grants الصلاحيات السارية
+ * @param permission الإذن المراد تعديله
+ * @param target النطاق المؤكد
+ * @param descendants النطاقات التابعة التي سيؤثر فيها التعديل
+ * @returns سبب الرفض أو null لو كل النطاق مغطى
+ */
+export function permissionPossessionFailure(
+  grants: readonly AccessGrant[],
+  permission: string,
+  target: AccessTarget,
+  descendants: readonly AccessTarget[],
+): 'PERMISSION_NOT_HELD' | 'PERMISSION_SCOPE_OUTSIDE_REACH' | null {
+  if (!evaluateAccess(grants, permission, target)) {
+    const elsewhere = grants.some((g) => g.permission === permission && g.effect === 'ALLOW');
+    const denied = grants.some(
+      (g) =>
+        g.permission === permission &&
+        g.effect === 'DENY' &&
+        evaluateAccess([{ ...g, effect: 'ALLOW' }], permission, target),
+    );
+    return elsewhere && !denied ? 'PERMISSION_SCOPE_OUTSIDE_REACH' : 'PERMISSION_NOT_HELD';
+  }
+  return descendants.some((child) => !evaluateAccess(grants, permission, child))
+    ? 'PERMISSION_NOT_HELD'
+    : null;
+}
+
+/**
  * بيتحقق من سلطة المدير والنطاق والمدة؛ منع تعديل الذات وحماية المالك يتبعان الشخص لا رقم العضوية.
  *
  * @param terms بيانات الاستثناء المطلوبة
@@ -90,25 +121,10 @@ export function permissionEditFailure(
     return 'VALIDATION_FAILED';
   if (operation === 'SAVE' && permissionHolderIsOwner(context) && terms.effect === 'DENY')
     return 'PERMISSION_OWNER_PROTECTED';
-  if (!evaluateAccess(context.grants, terms.permission_code, target)) {
-    const allowedElsewhere = context.grants.some(
-      (g) => g.permission === terms.permission_code && g.effect === 'ALLOW',
-    );
-    const deniedHere = context.grants.some(
-      (g) =>
-        g.permission === terms.permission_code &&
-        g.effect === 'DENY' &&
-        evaluateAccess([{ ...g, effect: 'ALLOW' }], terms.permission_code, target),
-    );
-    return allowedElsewhere && !deniedHere
-      ? 'PERMISSION_SCOPE_OUTSIDE_REACH'
-      : 'PERMISSION_NOT_HELD';
-  }
-  if (
-    context.descendantTargets.some(
-      (child) => !evaluateAccess(context.grants, terms.permission_code, child),
-    )
-  )
-    return 'PERMISSION_NOT_HELD';
-  return null;
+  return permissionPossessionFailure(
+    context.grants,
+    terms.permission_code,
+    target,
+    context.descendantTargets,
+  );
 }

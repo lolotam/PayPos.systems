@@ -5,6 +5,165 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/businesses/{businessId}/settings": {
+      "get": {
+        "operationId": "getBusinessSettings",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business settings result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateBusinessSettings",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business settings result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBusinessSettingsInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/settings/discount-limit": {
+      "post": {
+        "operationId": "setBusinessDiscountDefault",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business settings result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscountLimit"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscountLimitInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/files/download": {
       "post": {
         "operationId": "issueFileDownloadByKey",
@@ -4123,6 +4282,12 @@
           "calendar": {
             "$ref": "#/components/schemas/Calendar"
           },
+          "limit_bps": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
           "tax_rule": {
             "nullable": true,
             "allOf": [
@@ -4137,7 +4302,8 @@
               "type": "string",
               "enum": [
                 "default_language",
-                "calendar"
+                "calendar",
+                "limit_bps"
               ]
             }
           },
@@ -4152,6 +4318,7 @@
           "business_id",
           "default_language",
           "calendar",
+          "limit_bps",
           "tax_rule",
           "overridden",
           "updated_at"

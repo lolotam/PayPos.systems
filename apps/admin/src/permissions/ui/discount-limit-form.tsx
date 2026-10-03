@@ -19,11 +19,15 @@ export function DiscountLimitForm({
   disabled,
   pending,
   onSave,
+  label,
+  unsetText,
 }: {
   limitBps: number | null;
   disabled: boolean;
   pending: boolean;
   onSave: (input: DiscountLimitInput) => void;
+  label?: string | undefined;
+  unsetText?: string | undefined;
 }) {
   const locale = useLocale();
   const [invalidClear, setInvalidClear] = useState(false);
@@ -48,12 +52,12 @@ export function DiscountLimitForm({
         <p className="mb-2 text-sm font-semibold">
           {t(locale, 'permissions.discountCurrent')}:{' '}
           {limitBps === null ? (
-            t(locale, 'permissions.discountUnset')
+            (unsetText ?? t(locale, 'permissions.discountUnset'))
           ) : (
             <span className="tabular-nums">{displayDiscountPercentage(limitBps)}%</span>
           )}
         </p>
-        <DiscountLimitFields disabled={disabled || pending} onClear={clear} />
+        <DiscountLimitFields disabled={disabled || pending} onClear={clear} label={label} />
         {invalidClear || Object.keys(form.formState.errors).length > 0 ? (
           <p role="alert" className="text-sm text-destructive">
             {t(locale, 'permissions.discountInvalid')}

@@ -4,30 +4,36 @@ import type { DiscountLimitFormValues } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
 import { useFormContext } from 'react-hook-form';
+import { useId } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 
 export function DiscountLimitFields({
   disabled,
   onClear,
+  label,
 }: {
   disabled: boolean;
   onClear: () => void;
+  label?: string | undefined;
 }) {
   const locale = useLocale();
   const form = useFormContext<DiscountLimitFormValues>();
+  const fieldId = useId();
   return (
     <fieldset disabled={disabled} className="flex flex-col gap-2">
-      <Label htmlFor="discount-percentage">{t(locale, 'permissions.discountLimit')}</Label>
+      <Label htmlFor={`${fieldId}-percentage`}>
+        {label ?? t(locale, 'permissions.discountLimit')}
+      </Label>
       <Input
-        id="discount-percentage"
+        id={`${fieldId}-percentage`}
         inputMode="decimal"
         aria-invalid={Boolean(form.formState.errors.percentage)}
         className="tabular-nums"
         {...form.register('percentage')}
       />
-      <Label htmlFor="discount-reason">{t(locale, 'permissions.reason')}</Label>
+      <Label htmlFor={`${fieldId}-reason`}>{t(locale, 'permissions.reason')}</Label>
       <Input
-        id="discount-reason"
+        id={`${fieldId}-reason`}
         maxLength={500}
         aria-invalid={Boolean(form.formState.errors.reason)}
         {...form.register('reason')}
