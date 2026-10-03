@@ -1,4 +1,10 @@
 export { nameAr, nameEn } from './bilingual/names.js';
+export {
+  customer,
+  findOrCreateCustomerInput,
+  type Customer,
+  type FindOrCreateCustomerInput,
+} from './customers.js';
 export { errorEnvelope, type ErrorEnvelope } from './errors/envelope.js';
 export { page, pageQuery, type PageQuery, type PageQueryRequest } from './pagination/cursor.js';
 export { currency } from './reference/currency.js';
@@ -137,6 +143,14 @@ export {
   whatsappMessage,
   WhatsappEnvelopeInvalidError,
 } from './whatsapp-webhook.js';
+export {
+  attendanceQrToken,
+  attendanceQrBranch,
+  attendanceQrIssue,
+  type AttendanceQrToken,
+  type AttendanceQrBranch,
+  type AttendanceQrIssue,
+} from './staff/attendance-qr.js';
 export {
   staffOtpRequestInput,
   canonicalStaffPhone,

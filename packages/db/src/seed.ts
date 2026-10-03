@@ -33,7 +33,7 @@ export const PROVISIONAL_PLAN_ID = '01920000-0000-7000-8000-000000000001';
 
 /**
  * بيحط الـ plan المؤقت: كل flag مفعّل (قرار Waleed 2026-09-23) لحد ما D-06 يحدد الـ plans الحقيقية.
- * وبيزرع catalog الصلاحيات والـ roles النظامية من الكود، والـ Owner بياخد كل صلاحية في الـ catalog.
+ * وبيزرع catalog الصلاحيات والـ roles النظامية؛ منح صلاحية الاستقبال مؤجل إلى PR 7a.
  * مبيعملش أي شركة — الشركة من غير owner ممنوعة (ADR-0003 §5.3)، والـ demo بييجي في T8 عن طريق onboard-company.
  *
  * @param ownerUrl اتصال كـ pospay_owner — الـ app معندوش صلاحية كتابة على plans ولا على الصفوف النظامية
@@ -72,7 +72,9 @@ async function seedAccessCatalog(sql: postgres.Sql): Promise<void> {
       INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code)
       SELECT ${OWNER_ROLE_ID}, 'global', NULL, code FROM permissions
       -- a platform permission is a platform grant (ADR-0003 §3), never part of a tenant role
-      WHERE code NOT LIKE '%:platform' AND code <> 'login:staff:branch'
+      WHERE code NOT LIKE '%:platform'
+        AND code <> 'create:customers:company'
+        AND code <> 'login:staff:branch'
       ON CONFLICT DO NOTHING`;
     await tx`
       INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code)

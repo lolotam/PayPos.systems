@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { permissionPaths } from './identity/permissions-openapi.js';
+import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import {
   membershipPageQuery,
   membershipPermissionsQuery,
@@ -11,6 +12,9 @@ import {
   permissionOverridePage,
   membershipPermissions,
 } from './identity/permissions.js';
+import { customer, findOrCreateCustomerInput } from './customers.js';
+import { customerPaths } from './customers-openapi.js';
+import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
 import {
   staffOtpRequestInput,
   staffOtpVerifyInput,
@@ -75,6 +79,11 @@ const SCHEMAS = [
   permissionMembershipPage,
   permissionOverridePage,
   membershipPermissions,
+  customer,
+  findOrCreateCustomerInput,
+  attendanceQrToken,
+  attendanceQrBranch,
+  attendanceQrIssue,
   staffPinInput,
   staffPinResetInput,
   staffOtpRequestInput,
@@ -150,63 +159,19 @@ function operation(
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
   ...permissionPaths,
-  '/v1/devices/me/staff-pin/sign-in': {
-    post: operation(
-      'signInStaffPin',
-      '200',
-      'Restricted staff session',
-      'StaffSessionContext',
-      'StaffPinInput',
-    ),
-  },
-  '/v1/staff-pins/reset': {
+  ...customerPaths,
+  '/v1/devices/me/attendance-qr': {
     post: {
-      operationId: 'resetStaffPin',
-      parameters: [
-        {
-          in: 'header',
-          name: 'x-company-id',
-          required: true,
-          schema: { type: 'string', format: 'uuid' },
-        },
-      ],
-      requestBody: { required: true, content: json('StaffPinResetInput') },
-      responses: {
-        '204': { description: 'PIN reset; no session issued' },
-        default: { description: 'Error', content: json('ErrorEnvelope') },
-      },
+      ...operation(
+        'issueAttendanceQr',
+        '200',
+        'Current QR for the authenticated device branch',
+        'AttendanceQrIssue',
+      ),
+      security: [{ DeviceToken: [] }],
     },
   },
-  '/v1/devices/me/staff-otp/request': {
-    post: operation(
-      'requestStaffOtp',
-      '202',
-      'Indistinguishable acknowledgment',
-      'StaffOtpAcknowledgement',
-      'StaffOtpRequestInput',
-    ),
-  },
-  '/v1/devices/me/staff-otp/verify': {
-    post: operation(
-      'verifyStaffOtp',
-      '200',
-      'Restricted staff session',
-      'StaffSessionContext',
-      'StaffOtpVerifyInput',
-    ),
-  },
-  '/v1/devices/me/staff-session': {
-    get: operation('getStaffSession', '200', 'Current device operator', 'StaffSessionContext'),
-  },
-  '/v1/devices/me/staff-session/sign-out': {
-    post: {
-      operationId: 'signOutStaff',
-      responses: {
-        '200': { description: 'Signed out' },
-        default: { description: 'Error', content: json('ErrorEnvelope') },
-      },
-    },
-  },
+  ...staffSignInPaths,
   '/v1/webhooks/whatsapp': {
     get: {
       operationId: 'verifyWhatsappWebhook',
@@ -401,6 +366,16 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     openapi: '3.0.3',
     info: { title: 'PosPay API', version: '0.0.0' },
     paths: PATHS,
-    components: { schemas: components },
+    components: {
+      schemas: components,
+      securitySchemes: {
+        DeviceToken: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'Authorization',
+          description: 'Device authentication scheme',
+        },
+      },
+    },
   };
 }

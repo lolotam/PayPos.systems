@@ -39,7 +39,7 @@ describe('seedReferenceData', () => {
     expect(SYSTEM_ROLES).toHaveLength(14);
   });
 
-  it('requires explicit staff login grants, excludes Owner, and preserves manager notification logs', async () => {
+  it('keeps customer defaults pending PR 7a and staff login explicit; preserves Owner and manager grants', async () => {
     const owned = await owner<{ role_id: string; permission_code: string }[]>`
       SELECT role_id, permission_code FROM role_permissions ORDER BY permission_code, role_id`;
     expect(owned.filter((r) => r.role_id !== OWNER_ROLE_ID)).toEqual(
@@ -55,7 +55,12 @@ describe('seedReferenceData', () => {
       ),
     );
     expect(owned.filter((r) => r.role_id === OWNER_ROLE_ID).map((r) => r.permission_code)).toEqual(
-      PERMISSIONS.filter((p) => !p.endsWith(':platform') && p !== 'login:staff:branch').sort(),
+      PERMISSIONS.filter(
+        (p) =>
+          !p.endsWith(':platform') &&
+          p !== 'create:customers:company' &&
+          p !== 'login:staff:branch',
+      ).sort(),
     );
   });
 

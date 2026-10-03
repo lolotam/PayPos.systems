@@ -68,6 +68,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/customers/find-or-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires create:customers:company and the customers feature. Existing name and locale are preserved. */
+        post: operations["findOrCreateCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/attendance-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueAttendanceQr"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices/me/staff-pin/sign-in": {
         parameters: {
             query?: never;
@@ -442,6 +475,47 @@ export interface components {
             overrides: components["schemas"]["PermissionOverridePage"];
             ended_overrides: components["schemas"]["PermissionOverridePage"];
             editing_enabled: boolean;
+        };
+        Customer: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            opted_out: boolean;
+            phone: string;
+        };
+        FindOrCreateCustomerInput: {
+            phone: {
+                calling_code: string;
+                national_number: string;
+            };
+            name: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+        };
+        AttendanceQrToken: {
+            /** Format: uuid */
+            branch_id: string;
+            window: number;
+            sig: string;
+        };
+        AttendanceQrBranch: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            effective_timezone: components["schemas"]["TimeZone"];
+        };
+        AttendanceQrIssue: {
+            token: components["schemas"]["AttendanceQrToken"];
+            branch: components["schemas"]["AttendanceQrBranch"];
+            /** Format: date-time */
+            server_time: string;
+            /** Format: date-time */
+            refresh_at: string;
+            /** Format: date-time */
+            expires_at: string;
         };
         StaffPinInput: {
             phone: string;
@@ -942,6 +1016,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PermissionOverride"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    findOrCreateCustomer: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+            };
+        };
+        responses: {
+            /** @description Customer with masked phone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    issueAttendanceQr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current QR for the authenticated device branch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceQrIssue"];
                 };
             };
             /** @description The API error envelope */
