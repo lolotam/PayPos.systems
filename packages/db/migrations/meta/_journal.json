@@ -379,6 +379,13 @@
       "when": 1791031033432,
       "tag": "0053_2026-10-03_business-discount-default",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791048388050,
+      "tag": "0054_2026-10-03_system-role-default-bundles",
+      "breakpoints": true
     }
   ]
 }

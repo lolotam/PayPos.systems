@@ -16,12 +16,15 @@ export class GrantPermissionOverride {
   ) {}
 
   async execute(
-    actor: { companyId: string; userId: string },
+    actor: { companyId: string; userId: string; businessId?: string },
     membershipId: string,
     terms: PermissionOverrideInput,
   ) {
     const saved = await this.transactions.run(actor.companyId, actor.userId, async (scope) => {
-      const context = await scope.context(membershipId, terms);
+      const context = {
+        ...(await scope.context(membershipId, terms)),
+        ...(actor.businessId === undefined ? {} : { managementBusinessId: actor.businessId }),
+      };
       const now = context.now;
       const failure = permissionEditFailure(terms, context);
       if (failure !== null) throw new ApiError(failure);

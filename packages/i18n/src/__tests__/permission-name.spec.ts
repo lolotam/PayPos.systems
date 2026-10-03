@@ -1,0 +1,21 @@
+import { expect, it } from 'vitest';
+import { permissionName } from '../permission-name.js';
+
+it.each(['ar', 'en'] as const)(
+  'labels every scoped permission and the later catalog additions in %s',
+  (locale) => {
+    for (const code of [
+      'read:memberships:business',
+      'manage:memberships:business',
+      'manage:employees:business',
+      'manage:files:business',
+      'read:files:business',
+      'manage:discounts:company',
+      'create:customers:company',
+      'read:settings:business',
+      'manage:settings:business',
+    ])
+      expect(permissionName(locale, code)).not.toBe(code);
+    expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');
+  },
+);

@@ -1,4 +1,4 @@
-import { createDatabase, OWNER_ROLE_ID } from '@pospay/db';
+import { createDatabase, OWNER_ROLE_ID, SYSTEM_ROLES } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 const employeeIds = systemUuidV7();
 import { startHarness } from '../../../../test/harness.ts';
@@ -9,12 +9,16 @@ import { employeeDetail } from '../queries/employee-detail.query.ts';
 
 export async function employeesFixture() {
   const h = await startHarness();
+  const ownerCookie = await h.signedInOperator('employee-owner@example.test');
   const cookie = await h.signedInOperator('employee-manager@example.test');
-  const company = await h.onboard(cookie, 'Synthetic employer');
+  const company = await h.onboard(ownerCookie, 'Synthetic employer');
   const otherCompany = await h.onboard(cookie, 'Synthetic other employer');
-  const [holder] = await h.owner`SELECT user_id, id FROM memberships WHERE company_id=${company}`;
-  const userId = holder?.['user_id'] as string;
-  const memberId = holder?.['id'] as string;
+  const [holder] = await h.owner`SELECT id FROM "user" WHERE email='employee-manager@example.test'`;
+  const userId = holder?.['id'] as string;
+  const memberId = employeeIds.newId();
+  const viewer = SYSTEM_ROLES.find((r) => r.code === 'viewer')?.id ?? '';
+  await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES (${company},${memberId},${userId},${viewer},'global','COMPANY',${company})`;
   const business = employeeIds.newId();
   const secondBusiness = employeeIds.newId();
   const foreignBusiness = employeeIds.newId();

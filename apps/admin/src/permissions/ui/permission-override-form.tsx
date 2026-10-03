@@ -13,12 +13,14 @@ import { PermissionScopeFields } from './permission-scope-fields';
 export function PermissionOverrideForm({
   catalog,
   companyId,
+  businessId,
   disabled,
   pending,
   onSave,
 }: {
   catalog: readonly string[];
   companyId: string;
+  businessId?: string | undefined;
   disabled: boolean;
   pending: boolean;
   onSave: (terms: PermissionOverrideInput) => void;
@@ -29,8 +31,8 @@ export function PermissionOverrideForm({
     defaultValues: {
       permission_code: '',
       effect: 'DENY',
-      scope_type: 'COMPANY',
-      scope_id: companyId,
+      scope_type: businessId === undefined ? 'COMPANY' : 'BUSINESS',
+      scope_id: businessId ?? companyId,
       reason: '',
       expires_at: null,
     },
@@ -43,7 +45,7 @@ export function PermissionOverrideForm({
       >
         <fieldset disabled={disabled || pending} className="flex flex-col gap-2">
           <PermissionDecisionFields catalog={catalog} />
-          <PermissionScopeFields />
+          <PermissionScopeFields businessScoped={businessId !== undefined} />
           <Button type="submit" className="mt-4 sm:self-end">
             {t(locale, 'permissions.save')}
           </Button>

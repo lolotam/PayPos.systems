@@ -66,6 +66,9 @@ vi.mock('../../modules/notifications/index.ts', () => ({
 vi.mock('../../modules/identity/index.ts', () => ({
   staffOtpDependencies: () => ({ transport: resources.transport, rates: {}, eligibility: {} }),
 }));
+// الاختبار يعزل تركيب OTP؛ لا نحمل SDK الملفات أو إعداداتها من .env داخل نافذة مهلة بدء OTP.
+// تشغيل API وworker المبنيين مع الملفات والإعدادات الاختيارية الفارغة مغطى في files/production.spec.ts.
+vi.mock('../../modules/files/index.ts', () => ({ filesRuntime: () => null }));
 vi.mock('../config.ts', () => ({
   readConfig: () => ({
     DATABASE_URL: 'synthetic',

@@ -2,6 +2,27 @@ import type { Catalog } from './catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  permissionCodes: {
+    readMembershipsCompany: 'عرض عضويات الشركة',
+    manageMembershipsCompany: 'إدارة صلاحيات الشركة',
+    readMembershipsBusiness: 'عرض عضويات النشاط',
+    manageMembershipsBusiness: 'إدارة صلاحيات النشاط',
+    readBusinessesCompany: 'عرض الأنشطة',
+    createBusinessesCompany: 'إنشاء الأنشطة',
+    createBranchesBusiness: 'إنشاء فروع النشاط',
+    readBranchesBranch: 'عرض الفروع',
+    manageDevicesBranch: 'إدارة أجهزة الفرع',
+    readSettingsBusiness: 'عرض إعدادات النشاط',
+    manageSettingsBusiness: 'إدارة إعدادات النشاط',
+    viewNotificationsBusiness: 'عرض سجل إرسال الإشعارات',
+    manageFilesBusiness: 'رفع ملفات النشاط',
+    readFilesBusiness: 'عرض ملفات النشاط',
+    manageEmployeesBusiness: 'إدارة موظفي النشاط',
+    manageDiscountsCompany: 'إدارة حدود الخصم الشخصية',
+    createCustomersCompany: 'إنشاء عملاء الشركة',
+    loginStaffBranch: 'الدخول إلى تطبيق الموظفين',
+    createCompaniesPlatform: 'إنشاء شركات على المنصة',
+  },
   brand: {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',

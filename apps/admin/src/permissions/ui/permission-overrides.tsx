@@ -1,11 +1,20 @@
 'use client';
 
 import type { PermissionOverride } from '@pospay/contracts';
-import { formatInstant, t } from '@pospay/i18n';
+import { formatInstant, permissionName, t } from '@pospay/i18n';
 import { Badge } from '@pospay/ui';
 
 import { useLocale } from '@/shared/locale/locale-context';
 import { PermissionRevokeForm } from './permission-revoke-form';
+
+type Props = {
+  items: readonly PermissionOverride[];
+  branchTimeZones: Readonly<Record<string, string>>;
+  onRevoke?: (overrideId: string, reason: string) => void;
+  pending?: boolean;
+  ended?: boolean;
+  businessScoped?: boolean;
+};
 
 export function PermissionOverrides({
   items,
@@ -13,13 +22,8 @@ export function PermissionOverrides({
   onRevoke,
   pending = false,
   ended = false,
-}: {
-  items: readonly PermissionOverride[];
-  branchTimeZones: Readonly<Record<string, string>>;
-  onRevoke?: (overrideId: string, reason: string) => void;
-  pending?: boolean;
-  ended?: boolean;
-}) {
+  businessScoped = false,
+}: Props) {
   const locale = useLocale();
   if (items.length === 0) return <p>{t(locale, 'permissions.noOverrides')}</p>;
   return (
@@ -29,7 +33,7 @@ export function PermissionOverrides({
           key={row.id}
           className={`min-w-0 break-words rounded-card border border-border p-4 ${ended ? 'bg-secondary/50 text-muted-foreground' : 'bg-card'}`}
         >
-          <span dir="ltr">{row.permission_code}</span>{' '}
+          {permissionName(locale, row.permission_code)} <span dir="ltr">{row.permission_code}</span>{' '}
           <Badge variant={ended ? 'neutral' : row.effect === 'ALLOW' ? 'brand' : 'danger'}>
             {t(locale, row.effect === 'ALLOW' ? 'permissions.allow' : 'permissions.deny')}
           </Badge>
@@ -45,7 +49,7 @@ export function PermissionOverrides({
             )}{' '}
             · {row.scope_id}
           </p>
-          {onRevoke ? (
+          {onRevoke && (!businessScoped || row.scope_type !== 'COMPANY') ? (
             <PermissionRevokeForm overrideId={row.id} disabled={pending} onRevoke={onRevoke} />
           ) : null}
           <p>

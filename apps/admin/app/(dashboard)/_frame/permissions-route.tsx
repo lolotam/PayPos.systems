@@ -14,7 +14,7 @@ export function PermissionsRoute() {
   if (workspace.status !== 'ready' || userId === null) return null;
   return (
     <PermissionsPage
-      key={`${workspace.company.id}:${userId}`}
+      key={`${workspace.company.id}:${workspace.business?.id ?? ''}:${userId}`}
       companyId={workspace.company.id}
       userId={userId}
       business={

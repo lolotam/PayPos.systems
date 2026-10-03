@@ -71,11 +71,6 @@ beforeAll(async () => {
       VALUES (${company},${memberId},${u?.['id']},${r?.['id']},'global',${scope},${scope === 'BUSINESS' ? business : company})`;
     actors.push({ role, cookie: memberCookie, membership: memberId, scope });
   }
-  // المنح هنا fixtures معزولة تحاكي PR 7a؛ لا تعديل role_permissions حتى داخل هذه التجربة.
-  for (const actor of actors)
-    for (const permission of ['manage:files:business', 'read:files:business'])
-      await h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
-      VALUES (${company},${ids.newId()},${actor.membership},${permission},'ALLOW',${actor.scope},${actor.scope === 'BUSINESS' ? business : company},'Synthetic PR 7a grant',${ownerUser})`;
   db = createDatabase({ url: h.urls.app, ids });
 });
 afterAll(async () => {
@@ -84,12 +79,12 @@ afterAll(async () => {
   storage?.close();
   await fake?.close();
 });
-it('keeps PR 7a role grants untouched, rejects other types/oversize and broader staff read permissions', async () => {
+it('uses PR 7a file role bundles and rejects other types/oversize and broader staff read permissions', async () => {
   expect(
     Array.from(
       await h.owner`SELECT permission_code FROM role_permissions WHERE permission_code IN ('manage:files:business','read:files:business')`,
     ),
-  ).toEqual([]);
+  ).toHaveLength(6);
   for (const patch of [
     { content_type: 'image/webp' },
     { content_type: 'text/plain' },

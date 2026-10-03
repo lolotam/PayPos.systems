@@ -273,7 +273,7 @@ describe('membership window and overrides', () => {
     expect(await get('/v1/probe/access/company', 'stranger', B)).toMatchObject({ status: 403 });
   });
 
-  it("a DENY override beats the owner role's ALLOW; an expired DENY does not", async () => {
+  it('a historical DENY cannot reduce an active owner; expired DENY remains harmless', async () => {
     const membership = await member(STRANGER, C, OWNER_ROLE_ID, ['COMPANY', C]);
     expect(await get('/v1/probe/access/company', 'stranger', C)).toMatchObject({ status: 200 });
     await override(
@@ -286,7 +286,7 @@ describe('membership window and overrides', () => {
     );
     expect(await get('/v1/probe/access/company', 'stranger', C)).toMatchObject({ status: 200 });
     await override(C, membership, 'read:memberships:company', 'DENY', ['COMPANY', C]);
-    expect(await get('/v1/probe/access/company', 'stranger', C)).toMatchObject({ status: 403 });
+    expect(await get('/v1/probe/access/company', 'stranger', C)).toMatchObject({ status: 200 });
   });
 });
 
@@ -315,7 +315,7 @@ describe('evaluation at the branch target (PRD D-31)', () => {
     }
   });
 
-  it('the viewer role itself grants nothing yet (TODO(spec) D-07)', async () => {
+  it('the viewer defaults never include company membership management', async () => {
     expect(await get('/v1/probe/access/company', 'viewer', A)).toMatchObject({ status: 403 });
   });
 });

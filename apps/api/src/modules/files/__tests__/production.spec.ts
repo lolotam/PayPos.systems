@@ -17,8 +17,6 @@ beforeAll(async () => {
       body: { vertical_type: 'salon', name_en: 'Synthetic' },
     })
   ).body['id'] as string;
-  await h.owner`INSERT INTO role_permissions (role_id,role_owner_key,company_id,permission_code)
-    VALUES ('01920000-0000-7000-8000-000000000101','global',NULL,'manage:files:business')`;
 });
 afterAll(async () => {
   await h?.close();

@@ -5,7 +5,7 @@ import { Input, Label, Select } from '@pospay/ui';
 import { Controller, useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 
-export function PermissionScopeFields() {
+export function PermissionScopeFields({ businessScoped = false }: { businessScoped?: boolean }) {
   const locale = useLocale();
   const { register, control } = useFormContext<PermissionOverrideInput>();
   return (
@@ -20,7 +20,9 @@ export function PermissionScopeFields() {
             value={field.value}
             onValueChange={field.onChange}
             options={[
-              { value: 'COMPANY', label: t(locale, 'permissions.company') },
+              ...(businessScoped
+                ? []
+                : [{ value: 'COMPANY', label: t(locale, 'permissions.company') }]),
               { value: 'BUSINESS', label: t(locale, 'permissions.business') },
               { value: 'BRANCH', label: t(locale, 'permissions.branch') },
             ]}

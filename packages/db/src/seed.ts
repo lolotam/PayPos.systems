@@ -1,6 +1,7 @@
 import postgres from 'postgres';
 
-import { OWNER_ROLE_ID, PERMISSIONS, PLATFORM_ROLES, SYSTEM_ROLES } from './access-catalog.ts';
+import { PERMISSIONS, PLATFORM_ROLES, SYSTEM_ROLES } from './access-catalog.ts';
+import { ROLE_DEFAULTS } from './role-defaults.ts';
 
 /**
  * كل الـ modules اللي ليها feature flag — أسماءها نفس أسماء الـ modules في docs/module-map.md.
@@ -33,7 +34,7 @@ export const PROVISIONAL_PLAN_ID = '01920000-0000-7000-8000-000000000001';
 
 /**
  * بيحط الـ plan المؤقت: كل flag مفعّل (قرار Waleed 2026-09-23) لحد ما D-06 يحدد الـ plans الحقيقية.
- * وبيزرع catalog الصلاحيات والـ roles النظامية؛ منح صلاحية الاستقبال مؤجل إلى PR 7a.
+ * وبيزرع catalog الصلاحيات وحزم الأدوار النظامية نفسها للشركات القديمة والجديدة (ADR-0025).
  * مبيعملش أي شركة — الشركة من غير owner ممنوعة (ADR-0003 §5.3)، والـ demo بييجي في T8 عن طريق onboard-company.
  *
  * @param ownerUrl اتصال كـ pospay_owner — الـ app معندوش صلاحية كتابة على plans ولا على الصفوف النظامية
@@ -68,26 +69,19 @@ async function seedAccessCatalog(sql: postgres.Sql): Promise<void> {
         INSERT INTO platform_roles (code, name_en) VALUES (${role.code}, ${role.nameEn})
         ON CONFLICT (code) DO UPDATE SET name_en = EXCLUDED.name_en`;
     }
-    await tx`
-      INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code)
-      SELECT ${OWNER_ROLE_ID}, 'global', NULL, code FROM permissions
-      -- a platform permission is a platform grant (ADR-0003 §3), never part of a tenant role
-      WHERE code NOT LIKE '%:platform'
-        AND code <> 'create:customers:company'
-        AND code <> 'manage:discounts:company'
-        AND code <> 'manage:employees:business'
-        AND code <> 'login:staff:branch'
-        AND code NOT IN ('manage:files:business', 'read:files:business')
-      ON CONFLICT DO NOTHING`;
-    await tx`
-      INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code)
-      SELECT id, 'global', NULL, 'login:staff:branch' FROM roles
-      WHERE company_id IS NULL AND code = 'staff'
-      ON CONFLICT DO NOTHING`;
-    await tx`
-      INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code)
-      SELECT id, 'global', NULL, 'view:notifications:business' FROM roles
-      WHERE company_id IS NULL AND code IN ('general_manager', 'business_manager', 'branch_manager')
-      ON CONFLICT DO NOTHING`;
+    await seedRoleDefaults(tx);
   });
+}
+
+async function seedRoleDefaults(tx: postgres.TransactionSql): Promise<void> {
+  await tx`DELETE FROM role_permissions WHERE role_owner_key = 'global'
+    AND role_id = ANY(${SYSTEM_ROLES.filter((r) => r.code !== 'device').map((r) => r.id)}::uuid[])
+    AND permission_code = ANY(${[...PERMISSIONS]}::text[])`;
+  for (const permission of PERMISSIONS) {
+    const defaults: readonly string[] = ROLE_DEFAULTS[permission];
+    for (const role of SYSTEM_ROLES.filter((r) => defaults.includes(r.code))) {
+      await tx`INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code)
+        VALUES (${role.id}, 'global', NULL, ${permission}) ON CONFLICT DO NOTHING`;
+    }
+  }
 }

@@ -1,6 +1,6 @@
 'use client';
 import type { MembershipPermissions } from '@pospay/contracts';
-import { formatInstant, t } from '@pospay/i18n';
+import { formatInstant, permissionName, t } from '@pospay/i18n';
 import { Badge } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 
@@ -30,8 +30,10 @@ export function PermissionMembershipSummary({
       ) : (
         <ul className="flex flex-wrap gap-2">
           {data.role_defaults.map((code) => (
-            <li key={code} dir="ltr">
-              <Badge variant="neutral">{code}</Badge>
+            <li key={code}>
+              <Badge variant="neutral">
+                {permissionName(locale, code)} · <span dir="ltr">{code}</span>
+              </Badge>
             </li>
           ))}
         </ul>

@@ -1,6 +1,7 @@
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { AccessGrant, AccessTarget, ScopeType } from '../domain/access.ts';
+import type { AccessTarget, ScopeType } from '../domain/access.ts';
+import { readAccessTransaction } from './access-reader.ts';
 import type {
   EditableMembership,
   OverrideTerms,
@@ -46,36 +47,6 @@ async function lockedHolderMemberships(
   }));
 }
 
-async function editorGrants(
-  tx: Tx,
-  companyId: string,
-  userId: string,
-  now: string,
-): Promise<AccessGrant[]> {
-  const rows = await tx.execute<{
-    permission: string;
-    effect: 'ALLOW' | 'DENY';
-    scope_type: ScopeType;
-    scope_id: string;
-  }>(sql`
-    SELECT rp.permission_code AS permission, 'ALLOW' AS effect, m.scope_type, m.scope_id
-    FROM memberships m JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
-    WHERE m.company_id = ${companyId} AND m.user_id = ${userId}
-      AND m.starts_at <= ${now}::timestamptz AND (m.ends_at IS NULL OR m.ends_at > ${now}::timestamptz)
-    UNION ALL
-    SELECT o.permission_code, o.effect, o.scope_type, o.scope_id
-    FROM permission_overrides o JOIN memberships m ON m.company_id = o.company_id AND m.id = o.membership_id
-    WHERE o.company_id = ${companyId} AND m.user_id = ${userId}
-      AND m.starts_at <= ${now}::timestamptz AND (m.ends_at IS NULL OR m.ends_at > ${now}::timestamptz)
-      AND (o.expires_at IS NULL OR o.expires_at > ${now}::timestamptz)`);
-  return rows.map((row) => ({
-    permission: row.permission,
-    effect: row.effect,
-    scopeType: row.scope_type,
-    scopeId: row.scope_id,
-  }));
-}
-
 async function scopeTargets(tx: Tx, companyId: string, terms: OverrideTerms) {
   const rows = await tx.execute<{ business_id: string; branch_id: string | null }>(sql`
     SELECT b.id AS business_id, NULL::uuid AS branch_id FROM businesses b
@@ -117,12 +88,23 @@ export async function permissionEditorContext(
   const catalog = await tx.execute<{ code: string }>(
     sql`SELECT code FROM permissions WHERE code NOT LIKE '%:platform'`,
   );
+  const membership = holderMemberships.find((m) => m.id === membershipId) ?? null;
   return {
-    membership: holderMemberships.find((m) => m.id === membershipId) ?? null,
+    membership,
+    membershipTarget:
+      membership === null
+        ? null
+        : (
+            await scopeTargets(tx, companyId, {
+              ...terms,
+              scope_type: membership.scopeType,
+              scope_id: membership.scopeId,
+            })
+          ).target,
     holderMemberships,
     ...(await scopeTargets(tx, companyId, terms)),
     catalog: catalog.map((p) => p.code),
-    grants: await editorGrants(tx, companyId, userId, now.toISOString()),
+    grants: (await readAccessTransaction(tx, companyId, userId, now)).grants,
     companyId,
     editorUserId: userId,
     now,

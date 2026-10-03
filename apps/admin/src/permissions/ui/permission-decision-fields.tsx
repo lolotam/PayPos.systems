@@ -1,6 +1,6 @@
 'use client';
 import type { PermissionOverrideInput } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import { permissionName, t } from '@pospay/i18n';
 import { Label, Select } from '@pospay/ui';
 import { Controller, useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -20,7 +20,10 @@ export function PermissionDecisionFields({ catalog }: { catalog: readonly string
             value={field.value}
             onValueChange={field.onChange}
             placeholder={t(locale, 'permissions.choosePermission')}
-            options={catalog.map((code) => ({ value: code, label: code }))}
+            options={catalog.map((code) => ({
+              value: code,
+              label: `${permissionName(locale, code)} · ${code}`,
+            }))}
           />
         )}
       />

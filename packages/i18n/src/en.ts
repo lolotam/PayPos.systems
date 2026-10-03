@@ -1,5 +1,26 @@
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  permissionCodes: {
+    readMembershipsCompany: 'Read company memberships',
+    manageMembershipsCompany: 'Manage company permissions',
+    readMembershipsBusiness: 'Read business memberships',
+    manageMembershipsBusiness: 'Manage business permissions',
+    readBusinessesCompany: 'Read businesses',
+    createBusinessesCompany: 'Create businesses',
+    createBranchesBusiness: 'Create business branches',
+    readBranchesBranch: 'Read branches',
+    manageDevicesBranch: 'Manage branch devices',
+    readSettingsBusiness: 'Read business settings',
+    manageSettingsBusiness: 'Manage business settings',
+    viewNotificationsBusiness: 'Read notification delivery log',
+    manageFilesBusiness: 'Upload business files',
+    readFilesBusiness: 'Read business files',
+    manageEmployeesBusiness: 'Manage business employees',
+    manageDiscountsCompany: 'Manage personal discount limits',
+    createCustomersCompany: 'Create company customers',
+    loginStaffBranch: 'Sign in to staff app',
+    createCompaniesPlatform: 'Create companies on the platform',
+  },
   brand: {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',

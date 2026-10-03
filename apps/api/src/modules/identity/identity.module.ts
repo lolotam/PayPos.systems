@@ -1,6 +1,7 @@
 import type { Provider } from '@nestjs/common';
 import { REQUEST_AUTHORIZER } from '../../shared/request-authorizer.ts';
 import { APP_GUARD } from '@nestjs/core';
+import { BusinessPermissionsController } from './http/business-permissions.controller.ts';
 import { PermissionsController } from './http/permissions.controller.ts';
 import { SetDiscountLimit } from './use-cases/set-discount-limit/set-discount-limit.ts';
 import { createDiscountLimitTransactions } from './persistence/discount-limit-transactions.ts';
@@ -72,6 +73,7 @@ import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
 /** The controllers identity mounts. */
 export const identityControllers = [
   PermissionsController,
+  BusinessPermissionsController,
   CompaniesController,
   DevicesController,
   CashierPinsController,

@@ -1,10 +1,11 @@
 import { permissionMembershipPage, type PageQuery } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import { membershipInBusiness } from './permission-business-scope.query.ts';
 
 export async function listPermissionMemberships(
   db: TenantWrappers,
-  actor: { companyId: string; userId: string },
+  actor: { companyId: string; userId: string; businessId?: string },
   page: PageQuery,
 ) {
   return db.withTenant(
@@ -17,6 +18,7 @@ export async function listPermissionMemberships(
         to_json(m.starts_at) #>> '{}' AS starts_at, to_json(m.ends_at) #>> '{}' AS ends_at
       FROM memberships m JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
       WHERE m.company_id = ${actor.companyId}
+        AND ${membershipInBusiness(actor.companyId, actor.businessId)}
         AND EXISTS (SELECT 1 FROM companies WHERE id = ${actor.companyId} AND deleted_at IS NULL)
         ${page.cursor === undefined ? sql`` : sql`AND m.id > ${page.cursor}::uuid`}
       ORDER BY m.id LIMIT ${page.limit + 1}`);

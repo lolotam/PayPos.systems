@@ -96,11 +96,11 @@ describe('the bridge: a user sees their own rows, a company sees its own (§2.2)
     const roles = await asTenant(A.company, sql`SELECT id FROM roles`);
     expect(roles.map((r) => r['id']).sort()).toEqual([...SYSTEM_ROLES.map((r) => r.id), RA].sort());
     const perms = await asTenant(A.company, sql`SELECT DISTINCT role_id FROM role_permissions`);
-    const managers = SYSTEM_ROLES.filter((r) =>
-      ['general_manager', 'business_manager', 'branch_manager', 'staff'].includes(r.code),
+    const grantedRoles = SYSTEM_ROLES.filter(
+      (r) => !['kitchen', 'marketing', 'device'].includes(r.code),
     );
     expect(perms.map((r) => r['role_id']).sort()).toEqual(
-      [OWNER_ROLE_ID, RA, ...managers.map((r) => r.id)].sort(),
+      [RA, ...grantedRoles.map((r) => r.id)].sort(),
     );
   });
 });

@@ -31,6 +31,28 @@ export interface PermissionEditContext {
   readonly now: Date;
   readonly editorUserId: string;
   readonly descendantTargets: readonly AccessTarget[];
+  readonly membershipTarget?: AccessTarget | null;
+  readonly managementBusinessId?: string | undefined;
+}
+
+/**
+ * بيحصر إدارة النشاط في عضوياته وقراراته بعد تحميل النطاق الحقيقي؛ إذن النشاط لا يفتح إدارة الشركة.
+ *
+ * @param context لقطة المدير والهدف داخل المعاملة
+ * @returns هل سلطة الإدارة تغطي العضوية والقرار معاً
+ */
+export function membershipManagementAllowed(context: PermissionEditContext): boolean {
+  const { companyId, managementBusinessId, membershipTarget, target } = context;
+  if (managementBusinessId === undefined)
+    return evaluateAccess(context.grants, 'manage:memberships:company', { companyId });
+  if (
+    membershipTarget?.businessId !== managementBusinessId ||
+    target?.businessId !== managementBusinessId
+  )
+    return false;
+  return [membershipTarget, target, ...context.descendantTargets].every((scope) =>
+    evaluateAccess(context.grants, 'manage:memberships:business', scope),
+  );
 }
 
 /**
@@ -84,7 +106,8 @@ export function permissionPossessionFailure(
 }
 
 /**
- * بيتحقق من سلطة المدير والنطاق والمدة؛ منع تعديل الذات وحماية المالك يتبعان الشخص لا رقم العضوية.
+ * بيتحقق من السلطة والنطاق والمدة؛ تفويض كودي إدارة النشاط لمديره لا يتجاوز نشاط عضويته.
+ * منع تعديل الذات وحماية المالك يتبعان الشخص لا رقم العضوية.
  *
  * @param terms بيانات الاستثناء المطلوبة
  * @param context العضوية والصلاحيات والهدف الموثوق والوقت المحقون
@@ -104,8 +127,7 @@ export function permissionEditFailure(
   | 'PERMISSION_SCOPE_OUTSIDE_REACH'
   | null {
   const { membership, target, companyId, now } = context;
-  if (!evaluateAccess(context.grants, 'manage:memberships:company', { companyId }))
-    return 'FORBIDDEN';
+  if (!membershipManagementAllowed(context)) return 'FORBIDDEN';
   if (membership === null || target === null) return 'FORBIDDEN';
   if (target.companyId !== companyId) return 'FORBIDDEN';
   if (membership.userId === context.editorUserId) return 'PERMISSION_SELF_EDIT';
@@ -121,6 +143,16 @@ export function permissionEditFailure(
     return 'VALIDATION_FAILED';
   if (operation === 'SAVE' && permissionHolderIsOwner(context) && terms.effect === 'DENY')
     return 'PERMISSION_OWNER_PROTECTED';
+  if (
+    operation === 'SAVE' &&
+    terms.effect === 'ALLOW' &&
+    membership.roleCode === 'business_manager' &&
+    ['read:memberships:business', 'manage:memberships:business'].includes(terms.permission_code) &&
+    (context.membershipTarget?.businessId === undefined ||
+      target.businessId !== context.membershipTarget.businessId)
+  )
+    return 'PERMISSION_SCOPE_OUTSIDE_REACH';
+  // TODO(spec): نحتاج تأكيد هل ❌ يمنع ALLOW الشخصي أيضاً؛ نحافظ على سياسة استثناءات PR 7 لحين الحسم.
   return permissionPossessionFailure(
     context.grants,
     terms.permission_code,

@@ -99,20 +99,30 @@ it('the uploader also retains its branch scope for metadata, confirmation and an
   const branch = ids.newId();
   await h.owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES (${company},${branch},${business},'Synthetic managed branch')`;
-  const ticket = await upload({ branch_id: branch });
-  const [member] =
-    await h.owner`SELECT id,user_id FROM memberships WHERE company_id = ${company} AND scope_type = 'COMPANY' AND scope_id = ${company}`;
+  await grantRead();
+  await h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES (${company},${ids.newId()},${readerMembership},'manage:files:business','ALLOW','BUSINESS',${business},'Synthetic uploader grant',${readerId})`;
+  const created = await h.send('POST', `/v1/businesses/${business}/files/uploads`, {
+    cookie: readerCookie,
+    company,
+    body: { ...input(), branch_id: branch },
+  });
+  expect(created.status).toBe(201);
+  const ticket = { id: created.body['id'] as string };
   const deny = ids.newId();
   await h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
-    VALUES (${company},${deny},${member?.['id']},'manage:files:business','DENY','BRANCH',${branch},'Synthetic management deny',${member?.['user_id']})`;
-  expect((await h.send('GET', `/v1/files/${ticket.id}`, { cookie, company })).status).toBe(404);
-  expect((await h.send('POST', `/v1/files/${ticket.id}/confirm`, { cookie, company })).status).toBe(
-    404,
-  );
+    VALUES (${company},${deny},${readerMembership},'manage:files:business','DENY','BRANCH',${branch},'Synthetic management deny',${readerId})`;
+  expect(
+    (await h.send('GET', `/v1/files/${ticket.id}`, { cookie: readerCookie, company })).status,
+  ).toBe(404);
+  expect(
+    (await h.send('POST', `/v1/files/${ticket.id}/confirm`, { cookie: readerCookie, company }))
+      .status,
+  ).toBe(404);
   expect(
     (
       await h.send('POST', `/v1/businesses/${business}/files/uploads`, {
-        cookie,
+        cookie: readerCookie,
         company,
         body: { ...input(), branch_id: branch },
       })
@@ -121,7 +131,7 @@ it('the uploader also retains its branch scope for metadata, confirmation and an
   expect(
     (
       await h.send('POST', `/v1/businesses/${business}/files/uploads`, {
-        cookie,
+        cookie: readerCookie,
         company,
         body: input(),
       })

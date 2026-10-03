@@ -26,7 +26,8 @@ export interface AccessReader {
    */
   companiesOf(userId: string): Promise<readonly string[]>;
   /**
-   * العضويات السارية والصلاحيات (role + overrides بالـ DENY) للمستخدم في الشركة دي — بعد ما عضويته اتأكدت.
+   * العضويات السارية والصلاحيات (role + overrides بالـ DENY) للمستخدم بعد تأكيد الشركة.
+   * DENY الإداري التاريخي لا يقلل سلطة المالك النشط؛ دخول الموظفين يبقى مستقلاً حسب ADR-0019.
    *
    * @param companyId الشركة اللي عضويته فيها اتأكدت
    * @param userId    المستخدم
