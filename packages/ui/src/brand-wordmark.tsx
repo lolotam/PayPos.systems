@@ -19,7 +19,7 @@ export function BrandWordmark({
     <span
       className={cn(
         'flex flex-col gap-2 font-sans font-bold leading-none',
-        tone === 'light' ? 'text-sand-50' : 'text-ink-950',
+        tone === 'light' ? 'text-sand-50' : 'text-foreground',
         className,
       )}
       {...props}

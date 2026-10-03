@@ -53,7 +53,7 @@ export function AttendanceHome({
                 : 'pos.attendanceLoading',
           )}
           action={
-            <Button variant="secondary" onClick={qr.retry}>
+            <Button size="touch" variant="secondary" onClick={qr.retry}>
               {t(locale, 'pos.retry')}
             </Button>
           }

@@ -39,6 +39,13 @@ Visual QA round 1, owner instructions:
   eight characters plus ellipsis, full-value titles and a localized copy control. Row action is View / عرض.
 - Sign-in uses a centered bilingual BrandLockup above its heading. Browser-tool output is ignored.
 
+PR review fixes:
+- POS controls carry their touch sizing in rendered utility classes: labels/input/select text
+  is at least 16px, button text 18px and controls at least 48px high. No layered sizing overrides.
+- The default wordmark follows the theme foreground token on cards and headers, including dark mode.
+  Explicit light tone remains for the Ink sidebar; tile geometry and colours never change.
+- Regression assertions cover rendered control classes and both wordmark tones in light/dark themes.
+
 1. Preserve existing component APIs, form handlers, data hooks, selection, session,
    authorization, polling and QR hiding behavior. Change only composition and appearance.
 2. Add shared sidebar, page header, empty state, stat and bordered table frame components.

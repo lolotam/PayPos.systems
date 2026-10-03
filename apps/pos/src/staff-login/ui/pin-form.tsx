@@ -17,7 +17,9 @@ export function PinForm({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(submit)}>
       <p className="text-base text-muted-foreground">{t(locale, 'staffLogin.recovery')}</p>
-      <Label htmlFor="pin-phone">{t(locale, 'staffLogin.phone')}</Label>
+      <Label className="text-base" htmlFor="pin-phone">
+        {t(locale, 'staffLogin.phone')}
+      </Label>
       <Input
         id="pin-phone"
         type="tel"
@@ -25,7 +27,9 @@ export function PinForm({ onSignedIn }: { onSignedIn: () => void }) {
         disabled={login.pending}
         {...form.register('phone')}
       />
-      <Label htmlFor="staff-pin">{t(locale, 'staffLogin.ownPin')}</Label>
+      <Label className="text-base" htmlFor="staff-pin">
+        {t(locale, 'staffLogin.ownPin')}
+      </Label>
       <Input
         id="staff-pin"
         type="password"
@@ -40,7 +44,7 @@ export function PinForm({ onSignedIn }: { onSignedIn: () => void }) {
           {t(locale, 'staffLogin.pinInvalid')}
         </p>
       ) : null}
-      <Button type="submit" disabled={login.pending}>
+      <Button size="touch" type="submit" disabled={login.pending}>
         {t(locale, 'staffLogin.pinSignIn')}
       </Button>
     </form>

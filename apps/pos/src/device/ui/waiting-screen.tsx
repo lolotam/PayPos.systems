@@ -12,7 +12,7 @@ export function WaitingScreen({ onStartOver }: { onStartOver: () => Promise<void
       description={t(locale, 'pos.waitingLead')}
       icon={<Clock3 className="size-8 text-warning" />}
     >
-      <Button type="button" variant="outline" onClick={() => void onStartOver()}>
+      <Button size="touch" type="button" variant="outline" onClick={() => void onStartOver()}>
         {t(locale, 'pos.startOver')}
       </Button>
     </BrandedPanel>

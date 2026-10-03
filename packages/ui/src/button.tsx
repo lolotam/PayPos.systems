@@ -30,6 +30,7 @@ export const buttonVariants = cva(
         sm: 'min-h-11 ps-3 pe-3 py-2',
         md: 'min-h-12 ps-4 pe-4 py-2',
         lg: 'min-h-14 ps-6 pe-6 py-3',
+        touch: 'min-h-12 ps-4 pe-4 py-2 text-lg',
         icon: 'size-11',
       },
     },

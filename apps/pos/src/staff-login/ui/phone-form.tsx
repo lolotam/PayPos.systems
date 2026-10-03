@@ -16,7 +16,9 @@ export function PhoneForm({
   const form = useForm<StaffOtpRequestInput>({ resolver: zodResolver(staffOtpRequestInput) });
   return (
     <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)}>
-      <Label htmlFor="staff-phone">{t(locale, 'staffLogin.phone')}</Label>
+      <Label className="text-base" htmlFor="staff-phone">
+        {t(locale, 'staffLogin.phone')}
+      </Label>
       <Input
         id="staff-phone"
         type="tel"
@@ -24,7 +26,9 @@ export function PhoneForm({
         disabled={pending}
         {...form.register('phone')}
       />
-      <Label htmlFor="staff-language">{t(locale, 'staffLogin.language')}</Label>
+      <Label className="text-base" htmlFor="staff-language">
+        {t(locale, 'staffLogin.language')}
+      </Label>
       <NativeSelect
         id="staff-language"
         defaultValue=""
@@ -41,7 +45,7 @@ export function PhoneForm({
       {form.formState.errors.phone !== undefined || form.formState.errors.locale !== undefined ? (
         <p role="alert">{t(locale, 'staffLogin.inputInvalid')}</p>
       ) : null}
-      <Button type="submit" disabled={pending}>
+      <Button size="touch" type="submit" disabled={pending}>
         {t(locale, 'staffLogin.request')}
       </Button>
     </form>

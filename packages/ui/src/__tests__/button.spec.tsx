@@ -31,10 +31,20 @@ it.each([
   ['sm', 'min-h-11'],
   ['md', 'min-h-12'],
   ['lg', 'min-h-14'],
+  ['touch', 'min-h-12'],
   ['icon', 'size-11'],
 ] as const)('renders the %s size', (size, expected) => {
   render(<Button size={size} aria-label={label} />);
   expect(screen.getByRole('button').classList.contains(expected)).toBe(true);
+});
+
+it('uses touch text sizing without retaining the smaller admin font utility', () => {
+  render(<Button size="touch">{label}</Button>);
+  const classes = screen.getByRole('button').classList;
+  expect(classes.contains('text-lg')).toBe(true);
+  expect(classes.contains('font-semibold')).toBe(true);
+  expect(classes.contains('text-[15px]')).toBe(false);
+  expect(classes.contains('min-h-11')).toBe(false);
 });
 
 it('preserves refs, overrides and disabled interaction', () => {

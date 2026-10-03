@@ -59,7 +59,7 @@ export function PairingForm({
           className="p-4"
         />
       ) : null}
-      <Button type="submit" disabled={pending}>
+      <Button size="touch" type="submit" disabled={pending}>
         {t(locale, pending ? 'pos.loading' : 'pos.pairSubmit')}
       </Button>
     </form>

@@ -18,10 +18,10 @@ export function StaffHome({
       <p className="mb-4 tabular-nums text-muted-foreground">
         {formatRemainingMinutes(new Date(session.expires_at), new Date(), locale)}
       </p>
-      <Button variant="secondary" onClick={onSwitch}>
+      <Button size="touch" variant="secondary" onClick={onSwitch}>
         {t(locale, 'staffLogin.switchOperator')}
       </Button>
-      <Button variant="ghost" onClick={onSignOut}>
+      <Button size="touch" variant="ghost" onClick={onSignOut}>
         {t(locale, 'staffLogin.signOut')}
       </Button>
     </div>

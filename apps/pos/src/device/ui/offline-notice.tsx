@@ -12,7 +12,7 @@ export function OfflineNotice({ onRetry }: { onRetry: () => Promise<void> }) {
       description={t(locale, 'pos.offlineLead')}
       icon={<WifiOff className="size-8 text-warning" />}
     >
-      <Button type="button" onClick={() => void onRetry()}>
+      <Button size="touch" type="button" onClick={() => void onRetry()}>
         {t(locale, 'pos.retry')}
       </Button>
     </BrandedPanel>

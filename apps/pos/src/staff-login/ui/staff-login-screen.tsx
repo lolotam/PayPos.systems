@@ -36,11 +36,11 @@ export function StaffLoginScreen() {
       {formVisible ? (
         <div className="flex flex-col gap-4" key={login.epoch}>
           {pin ? <PinForm onSignedIn={signedIn} /> : <OtpForm onSignedIn={signedIn} />}
-          <Button variant="outline" onClick={() => setPin(!pin)}>
+          <Button size="touch" variant="outline" onClick={() => setPin(!pin)}>
             {t(locale, pin ? 'staffLogin.useWhatsApp' : 'staffLogin.usePin')}
           </Button>
           {switching ? (
-            <Button variant="ghost" onClick={() => setSwitching(false)}>
+            <Button size="touch" variant="ghost" onClick={() => setSwitching(false)}>
               {t(locale, 'staffLogin.cancelSwitch')}
             </Button>
           ) : null}

@@ -29,6 +29,7 @@ export function OtpForm({ onSignedIn }: { onSignedIn(): void }) {
             {t(locale, 'staffLogin.countdown')} {remaining}
           </p>
           <Button
+            size="touch"
             variant="outline"
             disabled={pending || remaining > 0}
             onClick={() => {
