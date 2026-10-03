@@ -23,6 +23,13 @@ function operation(operationId: string, schema: string, status = '200') {
   };
 }
 export const permissionPaths = {
+  '/v1/permissions/memberships/{membershipId}/discount-limit': {
+    post: {
+      ...operation('setMembershipDiscountLimit', 'DiscountLimit'),
+      parameters: [company, member],
+      requestBody: { required: true, content: json('DiscountLimitInput') },
+    },
+  },
   '/v1/permissions/memberships': {
     get: {
       ...operation('listPermissionMemberships', 'PermissionMembershipPage'),

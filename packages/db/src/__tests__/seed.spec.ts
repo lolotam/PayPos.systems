@@ -59,6 +59,7 @@ describe('seedReferenceData', () => {
         (p) =>
           !p.endsWith(':platform') &&
           p !== 'create:customers:company' &&
+          p !== 'manage:discounts:company' &&
           p !== 'login:staff:branch',
       ).sort(),
     );

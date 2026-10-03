@@ -16,6 +16,13 @@ export const en = {
     viewer: 'Viewer',
   },
   permissions: {
+    discountLimit: 'Discount limit (%)',
+    discountUnset: 'No personal limit set.',
+    discountCurrent: 'Current discount limit',
+    discountSave: 'Save discount limit',
+    discountClear: 'Clear discount limit',
+    discountSaved: 'Discount limit saved.',
+    discountInvalid: 'Enter a percentage from 0 to 100 with at most two decimals and a reason.',
     title: 'Permissions',
     person: 'Membership',
     choose: 'Choose a person',

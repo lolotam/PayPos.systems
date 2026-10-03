@@ -1,7 +1,7 @@
 'use client';
 
-import { roleName, t } from '@pospay/i18n';
-import { Card, CardContent, CardHeader, CardTitle } from '@pospay/ui';
+import { t } from '@pospay/i18n';
+import { Card, CardContent } from '@pospay/ui';
 import { useState } from 'react';
 
 import { envelopeMessage } from '@/shared/api/api-error';
@@ -11,6 +11,8 @@ import { PermissionMembershipDecisions } from './permission-membership-decisions
 import { PermissionOverrides } from './permission-overrides';
 import { PermissionMembershipSummary } from './permission-membership-summary';
 import { PermissionPageNavigation } from './permission-page-navigation';
+import { MembershipDiscountLimit } from './membership-discount-limit';
+import { PermissionMembershipTitle } from './permission-membership-title';
 
 type Props = {
   companyId: string;
@@ -40,17 +42,7 @@ export function MembershipPermissionsPanel({
   const data = detail.data;
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>
-          {roleName(
-            locale,
-            data.membership.role_code,
-            locale === 'ar'
-              ? (data.membership.role_name_ar ?? data.membership.role_name_en)
-              : data.membership.role_name_en,
-          )}
-        </CardTitle>
-      </CardHeader>
+      <PermissionMembershipTitle membership={data.membership} />
       <CardContent className="flex flex-col gap-4 text-start">
         <PermissionMembershipSummary
           data={data}
@@ -64,6 +56,13 @@ export function MembershipPermissionsPanel({
           revoke={revoke}
           cursor={cursor}
           onCursorChange={setCursor}
+        />
+        <MembershipDiscountLimit
+          companyId={companyId}
+          userId={userId}
+          membershipId={membershipId}
+          limitBps={data.discount_limit.limit_bps}
+          disabled={!data.editing_enabled}
         />
         <h2>{t(locale, 'permissions.history')}</h2>
         <PermissionOverrides items={data.ended_overrides.items} branchTimeZones={branchTimeZones} />

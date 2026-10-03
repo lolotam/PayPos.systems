@@ -18,6 +18,13 @@ export const ar: Catalog = {
     viewer: 'مشاهد',
   },
   permissions: {
+    discountLimit: 'حد الخصم (%)',
+    discountUnset: 'لم يتم تعيين حد شخصي.',
+    discountCurrent: 'حد الخصم الحالي',
+    discountSave: 'حفظ حد الخصم',
+    discountClear: 'مسح حد الخصم',
+    discountSaved: 'تم حفظ حد الخصم.',
+    discountInvalid: 'أدخل نسبة من 0 إلى 100 بمنزلتين عشريتين كحد أقصى مع السبب.',
     title: 'الصلاحيات',
     person: 'العضوية',
     choose: 'اختر الشخص',

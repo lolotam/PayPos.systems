@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/v1/permissions/memberships/{membershipId}/discount-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setMembershipDiscountLimit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/permissions/memberships": {
         parameters: {
             query?: never;
@@ -394,6 +410,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        DiscountLimit: {
+            limit_bps: number | null;
+        };
+        DiscountLimitInput: {
+            limit_bps: number | null;
+            reason: string;
+        };
         MembershipPermissionsQuery: {
             /** Format: uuid */
             cursor?: string;
@@ -475,6 +498,7 @@ export interface components {
             overrides: components["schemas"]["PermissionOverridePage"];
             ended_overrides: components["schemas"]["PermissionOverridePage"];
             editing_enabled: boolean;
+            discount_limit: components["schemas"]["DiscountLimit"];
         };
         Customer: {
             /** Format: uuid */
@@ -883,6 +907,43 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    setMembershipDiscountLimit: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountLimitInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountLimit"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listPermissionMemberships: {
         parameters: {
             query?: {

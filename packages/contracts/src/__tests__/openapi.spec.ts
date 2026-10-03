@@ -25,6 +25,8 @@ const expectedSchemas = [
   'DeviceIdentity',
   'DeviceRegistration',
   'DeviceToken',
+  'DiscountLimit',
+  'DiscountLimitInput',
   'ErrorEnvelope',
   'FindOrCreateCustomerInput',
   'GeoPoint',

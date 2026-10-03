@@ -267,6 +267,20 @@
       "when": 1790984026175,
       "tag": "0037_2026-10-02_email-destination-guard",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790995440921,
+      "tag": "0038_2026-10-03_identity-discount-limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1790995501080,
+      "tag": "0039_2026-10-03_identity-discount-permission",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,8 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Req } from '@nestjs/common';
 import {
   id,
+  discountLimitInput,
+  type DiscountLimitInput,
   membershipPageQuery,
   membershipPermissionsQuery,
   revokePermissionOverrideInput,
@@ -22,6 +24,7 @@ import { getMembershipPermissions } from '../queries/membership-permissions.quer
 import { listPermissionMemberships } from '../queries/permission-memberships.query.ts';
 import { GrantPermissionOverride } from '../use-cases/grant-permission-override/grant-permission-override.ts';
 import { RevokePermissionOverride } from '../use-cases/revoke-permission-override/revoke-permission-override.ts';
+import { SetDiscountLimit } from '../use-cases/set-discount-limit/set-discount-limit.ts';
 
 @Controller('permissions/memberships')
 export class PermissionsController {
@@ -29,6 +32,7 @@ export class PermissionsController {
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
     @Inject(GrantPermissionOverride) private readonly grant: GrantPermissionOverride | null,
     @Inject(RevokePermissionOverride) private readonly revoke: RevokePermissionOverride | null,
+    @Inject(SetDiscountLimit) private readonly discountLimit: SetDiscountLimit | null,
   ) {}
 
   @Get()
@@ -82,5 +86,17 @@ export class PermissionsController {
   ) {
     if (this.grant === null) throw new ApiError('NOT_READY');
     return this.grant.execute(actorOf(request), membershipId, terms);
+  }
+
+  @Post(':membershipId/discount-limit')
+  @HttpCode(200)
+  @Require('manage:memberships:company')
+  async setLimit(
+    @Param('membershipId', new ZodValidationPipe(id)) membershipId: string,
+    @Body(new ZodValidationPipe(discountLimitInput)) input: DiscountLimitInput,
+    @Req() request: FastifyRequest,
+  ) {
+    if (this.discountLimit === null) throw new ApiError('NOT_READY');
+    return this.discountLimit.execute(actorOf(request), membershipId, input);
   }
 }

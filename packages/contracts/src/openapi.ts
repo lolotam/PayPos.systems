@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { discountLimit, discountLimitInput } from './identity/discount-limit.js';
 import { permissionPaths } from './identity/permissions-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import {
@@ -70,6 +71,8 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  discountLimit,
+  discountLimitInput,
   membershipPermissionsQuery,
   revokePermissionOverrideInput,
   membershipPageQuery,

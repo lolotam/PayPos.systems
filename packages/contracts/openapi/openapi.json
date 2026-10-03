@@ -5,6 +5,63 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/permissions/memberships/{membershipId}/discount-limit": {
+      "post": {
+        "operationId": "setMembershipDiscountLimit",
+        "responses": {
+          "200": {
+            "description": "Permission screen result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscountLimit"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "membershipId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscountLimitInput"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/permissions/memberships": {
       "get": {
         "operationId": "listPermissionMemberships",
@@ -1149,6 +1206,41 @@
   },
   "components": {
     "schemas": {
+      "DiscountLimit": {
+        "type": "object",
+        "properties": {
+          "limit_bps": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        },
+        "required": [
+          "limit_bps"
+        ]
+      },
+      "DiscountLimitInput": {
+        "type": "object",
+        "properties": {
+          "limit_bps": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "limit_bps",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
       "MembershipPermissionsQuery": {
         "type": "object",
         "properties": {
@@ -1448,6 +1540,9 @@
           },
           "editing_enabled": {
             "type": "boolean"
+          },
+          "discount_limit": {
+            "$ref": "#/components/schemas/DiscountLimit"
           }
         },
         "required": [
@@ -1456,7 +1551,8 @@
           "permission_catalog",
           "overrides",
           "ended_overrides",
-          "editing_enabled"
+          "editing_enabled",
+          "discount_limit"
         ]
       },
       "Customer": {

@@ -3,6 +3,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -126,6 +127,8 @@ export const memberships = pgTable(
     ...scopeColumns(),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull().defaultNow(),
     endsAt: timestamp('ends_at', { withTimezone: true }),
+    // NULL يعني مفيش حد شخصي؛ إعداد النشاط يُطبق لاحقاً في PR 7c، والصفر حد صريح.
+    limitBps: integer('limit_bps'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -157,6 +160,7 @@ export const memberships = pgTable(
       sql`${t.scopeType} <> 'COMPANY' OR ${t.scopeId} = ${t.companyId}`,
     ),
     check('memberships_window', sql`${t.endsAt} IS NULL OR ${t.endsAt} > ${t.startsAt}`),
+    check('memberships_limit_bps', sql`${t.limitBps} IS NULL OR ${t.limitBps} BETWEEN 0 AND 10000`),
     index('memberships_user_id_idx').on(t.userId),
     index('memberships_company_id_employee_id_idx').on(t.companyId, t.employeeId),
     index('memberships_role_idx').on(t.roleId, t.roleOwnerKey),

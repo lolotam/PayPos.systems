@@ -1,6 +1,8 @@
 import type { Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { PermissionsController } from './http/permissions.controller.ts';
+import { SetDiscountLimit } from './use-cases/set-discount-limit/set-discount-limit.ts';
+import { createDiscountLimitTransactions } from './persistence/discount-limit-transactions.ts';
 import { createPermissionOverrideTransactions } from './persistence/permission-override-transactions.ts';
 import { createGrantInvalidator } from './persistence/grant-invalidator.ts';
 import { GrantPermissionOverride } from './use-cases/grant-permission-override/grant-permission-override.ts';
@@ -158,6 +160,16 @@ function permissionProviders(
   redis: Redis | undefined,
 ): Provider[] {
   return [
+    {
+      provide: SetDiscountLimit,
+      useValue:
+        database === undefined
+          ? null
+          : new SetDiscountLimit(
+              createDiscountLimitTransactions(database, ids),
+              createGrantInvalidator(redis),
+            ),
+    },
     {
       provide: GrantPermissionOverride,
       useValue:
