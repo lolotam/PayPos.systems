@@ -145,3 +145,24 @@ it('own-business branches work over HTTP with branch-only ALLOW on create and up
     body: { primary_branch_id: f.sibling, branch_ids: [f.sibling], revision: 2 },
   });
 });
+
+it('an uppercase own-business branch UUID is accepted on create and update', async () => {
+  const upper = f.sibling.toUpperCase();
+  const created = await create({ primary_branch_id: upper });
+  expect(created).toMatchObject({ status: 201, body: { primary_branch_id: f.sibling } });
+  const fresh = {
+    ...(created.body as unknown as EmployeeDetail),
+    revision: 1,
+    branch_ids: [f.sibling],
+  };
+  expect(
+    await patchEmployee(f, fresh, {
+      primary_branch_id: upper,
+      branch_ids: [upper, f.branch.toUpperCase()],
+      branch_effective_date: '2026-10-16',
+    }),
+  ).toMatchObject({
+    status: 200,
+    body: { primary_branch_id: f.sibling, branch_ids: [f.branch, f.sibling].sort() },
+  });
+});

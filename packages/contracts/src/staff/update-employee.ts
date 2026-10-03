@@ -2,11 +2,11 @@ import { z } from 'zod';
 
 import { id } from '../scalars/id.js';
 import { page } from '../pagination/cursor.js';
-import { createEmployeeInput, employee, employeeDate } from './employee.js';
+import { createEmployeeInput, employee, employeeDate, employeeInputId } from './employee.js';
 
 const revision = z.number().int().min(1).max(2_147_483_646);
 const branches = z
-  .array(id)
+  .array(employeeInputId)
   .min(1)
   .max(100)
   .refine((values) => new Set(values).size === values.length);
