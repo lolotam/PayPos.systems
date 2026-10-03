@@ -1,11 +1,13 @@
 'use client';
 import type { WorkspaceBusiness } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, Card, EmptyState, CircleAlert, LoaderCircle } from '@pospay/ui';
+import { Card, EmptyState, CircleAlert, LoaderCircle } from '@pospay/ui';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeEdit } from '../api/use-employees';
 import { EditEmployeeForm } from './edit-employee-form';
+import { EmployeeSalarySection } from './employee-salary-section';
+import { EmployeeEditActions } from './employee-edit-actions';
 
 export function EmployeeEditPanel({
   companyId,
@@ -47,21 +49,19 @@ export function EmployeeEditPanel({
       ) : null}
       {save.isError ? <p role="alert">{envelopeMessage(save.error, locale)}</p> : null}
       {save.isSuccess ? <p role="status">{t(locale, 'staff.saved')}</p> : null}
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          disabled={save.isPending || record.isFetching}
-          onClick={() => {
-            save.reset();
-            void record.refetch();
-          }}
-        >
-          {t(locale, 'staff.reload')}
-        </Button>
-        <Button variant="outline" disabled={save.isPending} onClick={onClose}>
-          {t(locale, 'staff.cancel')}
-        </Button>
-      </div>
+      {/* TODO(spec) SS-Q2: الوصول هنا يتطلب manage:employees:business؛ مدخل مستقل لمفوّض الرواتب ينتظر قرار المالك. */}
+      {record.data && !record.isError ? (
+        <EmployeeSalarySection {...{ companyId, businessId: business.id, userId, employeeId }} />
+      ) : null}
+      <EmployeeEditActions
+        pending={save.isPending}
+        fetching={record.isFetching}
+        onReload={() => {
+          save.reset();
+          void record.refetch();
+        }}
+        onClose={onClose}
+      />
     </Card>
   );
 }

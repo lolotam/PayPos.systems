@@ -5,6 +5,22 @@ export const en = {
     latinName: 'PosPay',
     arabicName: 'بوس باي',
   },
+  salary: {
+    title: 'Monthly basic salary',
+    lead: 'Basic salary only, without allowances or overtime. Setting the same date replaces its entry.',
+    date: 'Effective from',
+    amount: 'Monthly basic salary (KWD, 3 decimals)',
+    reason: 'Reason',
+    revision: 'Revision',
+    set: 'Set salary',
+    saved: 'Salary saved.',
+    invalid:
+      'Enter a valid date, a nonnegative KWD amount with 3 decimals and a reason (1–500 characters).',
+    readPermission: 'Read salary history',
+    managePermission: 'Set salary',
+    employeeAccessHint:
+      'Salaries are managed from the employee screen and also require employee-management access.',
+  },
   shell: {
     navigation: 'Workspace navigation',
     openNavigation: 'Open navigation',

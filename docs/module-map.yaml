@@ -35,6 +35,8 @@ composition_roots:
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
 reads:
+  - { from: staff, to: identity, symbol: lockEmployeeSalaryAccess, file: apps/api/src/modules/staff/persistence/employee-salary-access.adapter.ts }
+  - { from: staff, to: identity, symbol: readEmployeeSalaryAccess, file: apps/api/src/modules/staff/persistence/employee-salary-access.adapter.ts }
   - { from: settings, to: identity, symbol: lockBusinessDiscountAccess, file: apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts }
   - { from: settings, to: identity, symbol: readBusinessDiscountAccess, file: apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts }
   - { from: settings, to: identity, symbol: lockMembershipDiscountSubject, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }
