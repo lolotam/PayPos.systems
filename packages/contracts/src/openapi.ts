@@ -4,6 +4,13 @@ import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
 import { employee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
 import { staffPaths } from './staff/staff-openapi.js';
+import {
+  updateEmployeeInput,
+  employeeDetailRecord,
+  employeeListItem,
+  employeePage,
+  employeeListQuery,
+} from './staff/update-employee.js';
 import { permissionPaths, permissionSchemas } from './identity/permissions-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import { customer, findOrCreateCustomerInput } from './customers.js';
@@ -64,6 +71,11 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  updateEmployeeInput,
+  employeeDetailRecord,
+  employeeListItem,
+  employeePage,
+  employeeListQuery,
   ...permissionSchemas,
   ...fileSchemas,
   employee,

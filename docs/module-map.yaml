@@ -40,6 +40,9 @@ reads:
   - { from: settings, to: identity, symbol: lockMembershipDiscountSubject, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }
   - { from: settings, to: identity, symbol: readMembershipDiscountSubject, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }
   - { from: settings, to: tenancy, symbol: businessDiscountScope, file: apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts }
+  - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts }
+  - { from: staff, to: identity, symbol: readEmployeeBranchAccess, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
+  - { from: staff, to: identity, symbol: readEmployeeBranchAccess, file: apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts }
   - { from: staff, to: tenancy, symbol: employeeWorkplace, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
   - { from: staff, to: identity, symbol: lockEmployeeCreationAccess, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
   - { from: staff, to: identity, symbol: employeeUserLinkAvailable, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }

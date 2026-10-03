@@ -118,6 +118,12 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    EMPLOYEE_REVISION_CONFLICT:
+      'Another manager changed this employee. Reload the latest record before saving.',
+    EMPLOYEE_PRIMARY_BRANCH_REQUIRED: 'Include the primary branch in the working branches.',
+    EMPLOYEE_BRANCH_DATE_BEFORE_START: 'A branch attachment must end after it starts.',
+    EMPLOYEE_BRANCH_HISTORY_OVERLAP: 'This branch attachment overlaps existing history.',
+    EMPLOYEE_BRANCH_HISTORY_IMMUTABLE: 'Closed branch attachment history cannot be changed.',
     STORAGE_NOT_CONFIGURED: 'Private file storage is not configured',
     STORAGE_UNAVAILABLE: 'Private file storage is temporarily unavailable',
     FILE_NOT_FOUND: 'File not found',
@@ -127,7 +133,6 @@ export const en = {
     FILE_CONTENT_INVALID: 'The file content could not be verified',
     EMPLOYEE_BUSINESS_NOT_FOUND: 'The employee business was not found.',
     EMPLOYEE_BRANCH_NOT_FOUND: 'The primary branch was not found.',
-    EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 'The primary branch must belong to the employee business.',
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'The existing user could not be linked.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:
@@ -170,6 +175,22 @@ export const en = {
     INTERNAL_ERROR: 'An unexpected error occurred',
   },
   staff: {
+    listTitle: 'Employees',
+    listLead: 'Manage employee records and working branches.',
+    empty: 'No employees on this page.',
+    edit: 'Edit',
+    editTitle: 'Edit employee',
+    save: 'Save changes',
+    saved: 'Employee updated.',
+    branches: 'Working branches',
+    effectiveDate: 'Branch change date (Gregorian)',
+    historyHint:
+      'This date starts new attachments and ends removed attachments. Existing history is kept.',
+    reload: 'Reload employee',
+    cancel: 'Back to employees',
+    next: 'Next page',
+    first: 'First page',
+    name: 'Name',
     title: 'Create employee',
     nameEn: 'English name',
     nameAr: 'Arabic name (optional)',

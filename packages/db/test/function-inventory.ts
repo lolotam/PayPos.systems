@@ -1,5 +1,10 @@
 export const FUNCTION_INVENTORY = [
   {
+    proname: 'employee_branches_close_once',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog'],
+  },
+  {
     proname: 'enforce_staff_otp_attempt',
     prosecdef: false,
     proconfig: ['search_path=pg_catalog'],

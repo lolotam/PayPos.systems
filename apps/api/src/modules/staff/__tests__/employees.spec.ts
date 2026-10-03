@@ -81,7 +81,7 @@ it('CE-01 creates UUIDv7 employee + dated primary attachment + allowlisted audit
       .owner`SELECT actor_user_id,action,after FROM audit_log WHERE company_id=${f.company} AND entity='employee' AND entity_id=${createdId}`,
   ).toEqual([{ actor_user_id: f.userId, action: 'created', after: record }]);
   expect(await f.h.owner`SELECT 1 FROM outbox WHERE aggregate_id=${createdId}`).toHaveLength(0);
-  expect(await detailFor(f, f.company, f.business, createdId)).toEqual(record);
+  expect(await detailFor(f, f.company, f.business, createdId)).toMatchObject(record);
 });
 it.each([
   [
@@ -92,7 +92,7 @@ it.each([
   [
     'different business branch',
     (x: EmployeeFixture) => ({ primary_branch_id: x.otherBranch }),
-    'EMPLOYEE_BRANCH_BUSINESS_MISMATCH',
+    'EMPLOYEE_BRANCH_NOT_FOUND',
   ],
   [
     'unknown branch',

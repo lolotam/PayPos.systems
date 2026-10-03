@@ -3,11 +3,11 @@ import type { EmployeeCreationContext, EmployeeRecord } from '../domain/create-e
 /** معاملة الموظف لا تكتب عضويات؛ امتلاك role_code وحده ليس صلاحية دخول. */
 export interface EmployeeCreationScope {
   /**
-   * يعيد الإذن الحي بعد قفل الشركة والعضويات وفق بروتوكول PR 7 لمنع سباق المنع والإنشاء.
+   * يوحد رفض تبعية الفرع أولاً ثم يفحص الإذن والميزة تحت أقفال PR 7 لمنع سباق المنع والإنشاء.
    *
    * @param businessId النشاط المستهدف
    * @param branchId الفرع المستهدف لفحص المنع الأدق
-   * @returns هل يملك الفاعل الإذن الحي
+   * @returns هل يملك الفاعل الإذن الحي؛ يرفض الفرع الخارجي أو الميزة المعطلة بخطأ مسمى
    */
   authorize(businessId: string, branchId: string): Promise<boolean>;
   /**

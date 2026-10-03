@@ -4,6 +4,11 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
+  EMPLOYEE_REVISION_CONFLICT: 409,
+  EMPLOYEE_PRIMARY_BRANCH_REQUIRED: 400,
+  EMPLOYEE_BRANCH_DATE_BEFORE_START: 400,
+  EMPLOYEE_BRANCH_HISTORY_OVERLAP: 409,
+  EMPLOYEE_BRANCH_HISTORY_IMMUTABLE: 409,
   STORAGE_NOT_CONFIGURED: 503,
   STORAGE_UNAVAILABLE: 503,
   FILE_NOT_FOUND: 404,
@@ -13,7 +18,6 @@ const STATUS = {
   FILE_CONTENT_INVALID: 422,
   EMPLOYEE_BUSINESS_NOT_FOUND: 404,
   EMPLOYEE_BRANCH_NOT_FOUND: 404,
-  EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 400,
   EMPLOYEE_USER_LINK_UNAVAILABLE: 400,
   EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 400,
   EMPLOYEE_USER_ALREADY_LINKED: 409,
@@ -55,6 +59,11 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'EMPLOYEE_REVISION_CONFLICT',
+  'EMPLOYEE_PRIMARY_BRANCH_REQUIRED',
+  'EMPLOYEE_BRANCH_DATE_BEFORE_START',
+  'EMPLOYEE_BRANCH_HISTORY_OVERLAP',
+  'EMPLOYEE_BRANCH_HISTORY_IMMUTABLE',
   'STORAGE_NOT_CONFIGURED',
   'STORAGE_UNAVAILABLE',
   'FILE_NOT_FOUND',
@@ -64,7 +73,6 @@ const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'FILE_CONTENT_INVALID',
   'EMPLOYEE_BUSINESS_NOT_FOUND',
   'EMPLOYEE_BRANCH_NOT_FOUND',
-  'EMPLOYEE_BRANCH_BUSINESS_MISMATCH',
   'EMPLOYEE_USER_LINK_UNAVAILABLE',
   'EMPLOYEE_CONTRACT_END_BEFORE_HIRE',
   'EMPLOYEE_USER_ALREADY_LINKED',

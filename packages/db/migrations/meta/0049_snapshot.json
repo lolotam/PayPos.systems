@@ -1,5 +1,5 @@
 {
-  "id": "3a917c43-c0af-4890-975b-44c8d1fdab58",
+  "id": "6d826c89-b04a-4321-8561-43c5ff989361",
   "prevId": "247438ab-78ab-4622-80ee-7e4a542a34d1",
   "version": "7",
   "dialect": "postgresql",
@@ -692,6 +692,34 @@
         }
       },
       "indexes": {
+        "employee_branches_active_key": {
+          "name": "employee_branches_active_key",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"employee_branches\".\"to\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "employee_branches_company_employee_from_idx": {
           "name": "employee_branches_company_employee_from_idx",
           "columns": [
@@ -907,6 +935,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
         }
       },
       "indexes": {
@@ -1117,6 +1152,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "employees_revision_positive": {
+          "name": "employees_revision_positive",
+          "value": "\"employees\".\"revision\" > 0"
+        },
         "employees_name_en_length": {
           "name": "employees_name_en_length",
           "value": "char_length(trim(\"employees\".\"name_en\")) BETWEEN 1 AND 255"
@@ -3912,12 +3951,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "limit_bps": {
-          "name": "limit_bps",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "tax_rule": {
           "name": "tax_rule",
           "type": "jsonb",
@@ -4004,10 +4037,6 @@
         "business_settings_calendar": {
           "name": "business_settings_calendar",
           "value": "\"business_settings\".\"calendar\" IS NULL OR \"business_settings\".\"calendar\" IN ('gregorian', 'hijri')"
-        },
-        "business_settings_limit_bps": {
-          "name": "business_settings_limit_bps",
-          "value": "\"business_settings\".\"limit_bps\" IS NULL OR \"business_settings\".\"limit_bps\" BETWEEN 0 AND 10000"
         }
       },
       "isRLSEnabled": false

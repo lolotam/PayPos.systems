@@ -4,6 +4,7 @@ import {
   date,
   foreignKey,
   index,
+  integer,
   pgTable,
   primaryKey,
   text,
@@ -34,9 +35,12 @@ export const employees = pgTable(
     contractEnd: date('contract_end'),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // عداد تعديل الموارد البشرية يمنع مديرين من الكتابة فوق نفس النسخة.
+    revision: integer('revision').notNull().default(1),
   },
   (t) => [
     primaryKey({ name: 'employees_pkey', columns: [t.companyId, t.id] }),
+    check('employees_revision_positive', sql`${t.revision} > 0`),
     unique('employees_company_business_id_key').on(t.companyId, t.businessId, t.id),
     foreignKey({
       name: 'employees_business_fk',
@@ -84,6 +88,11 @@ export const employeeBranches = pgTable(
   },
   (t) => [
     primaryKey({ name: 'employee_branches_pkey', columns: [t.companyId, t.id] }),
+    check('employee_branches_nonempty_interval', sql`${t.to} IS NULL OR ${t.to} > ${t.from}`),
+    // GiST exclusion قيد SQL في migration employee-branch-intervals؛ Drizzle لا يمثل استبعاد تقاطع الفترات.
+    uniqueIndex('employee_branches_active_key')
+      .on(t.companyId, t.employeeId, t.branchId)
+      .where(sql`${t.to} IS NULL`),
     foreignKey({
       name: 'employee_branches_employee_fk',
       columns: [t.companyId, t.businessId, t.employeeId],

@@ -23,15 +23,17 @@ export const employeeRoleCode = z
   ])
   .meta({ id: 'EmployeeRoleCode' });
 export const employeeDate = z.iso.date().meta({ id: 'EmployeeDate' });
+// Postgres يعيد UUID بحروف صغيرة والمقارنات بعدها نصية؛ توحيد المدخل يمنع رفض فرع صحيح كُتب بحروف كبيرة.
+export const employeeInputId = id.toLowerCase();
 export const createEmployeeInput = z
   .strictObject({
-    primary_branch_id: id,
+    primary_branch_id: employeeInputId,
     name_en: nameEn,
     name_ar: nameAr.nullable().optional(),
     role_code: employeeRoleCode,
     hire_date: employeeDate,
     contract_end: employeeDate.nullable().optional(),
-    user_id: id.nullable().optional(),
+    user_id: employeeInputId.nullable().optional(),
   })
   .meta({ id: 'CreateEmployeeInput' });
 export const employee = z
