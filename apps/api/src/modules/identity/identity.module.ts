@@ -1,5 +1,10 @@
 import type { Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { PermissionsController } from './http/permissions.controller.ts';
+import { createPermissionOverrideTransactions } from './persistence/permission-override-transactions.ts';
+import { createGrantInvalidator } from './persistence/grant-invalidator.ts';
+import { GrantPermissionOverride } from './use-cases/grant-permission-override/grant-permission-override.ts';
+import { RevokePermissionOverride } from './use-cases/revoke-permission-override/revoke-permission-override.ts';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
@@ -63,6 +68,7 @@ import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
 
 /** The controllers identity mounts. */
 export const identityControllers = [
+  PermissionsController,
   CompaniesController,
   DevicesController,
   CashierPinsController,
@@ -115,6 +121,7 @@ export function identityProviders(
         );
   const devices = database === undefined ? null : deviceUseCases(database, ids, redis);
   return [
+    ...permissionProviders(database, ids, redis),
     {
       provide: STAFF_AUTHENTICATION,
       useValue: database === undefined ? null : createStaffEligibility(database),
@@ -141,6 +148,36 @@ export function identityProviders(
     { provide: CheckFeature, useValue: reader === null ? null : new CheckFeature(reader) },
     { provide: APP_GUARD, useClass: AccessGuard },
     { provide: APP_GUARD, useClass: FeatureGuard },
+  ];
+}
+
+// يبقى ربط الصلاحيات هنا مع فصل المجموعة حتى لا تتضخم دالة تركيب الهوية.
+function permissionProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+): Provider[] {
+  return [
+    {
+      provide: GrantPermissionOverride,
+      useValue:
+        database === undefined
+          ? null
+          : new GrantPermissionOverride(
+              createPermissionOverrideTransactions(database, ids),
+              createGrantInvalidator(redis),
+            ),
+    },
+    {
+      provide: RevokePermissionOverride,
+      useValue:
+        database === undefined
+          ? null
+          : new RevokePermissionOverride(
+              createPermissionOverrideTransactions(database, ids),
+              createGrantInvalidator(redis),
+            ),
+    },
   ];
 }
 

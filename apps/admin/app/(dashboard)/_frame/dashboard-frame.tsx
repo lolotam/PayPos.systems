@@ -2,6 +2,7 @@
 
 import { t } from '@pospay/i18n';
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 
 import { EnrolLink } from '@/session/ui/enrol-link';
 import { SignOutButton } from '@/session/ui/sign-out-button';
@@ -29,6 +30,7 @@ export function DashboardFrame({ children }: { children: ReactNode }) {
       selector={<WorkspaceSelector />}
       actions={
         <>
+          <Link href="/permissions">{t(locale, 'permissions.title')}</Link>
           <NotificationBell
             key={`${companyId ?? 'unselected'}:${userId ?? 'anonymous'}`}
             companyId={companyId}

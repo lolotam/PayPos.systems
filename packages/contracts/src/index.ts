@@ -11,6 +11,23 @@ export { currency } from './reference/currency.js';
 export { timeZone } from './reference/time-zone.js';
 export { id } from './scalars/id.js';
 export { timestamp } from './scalars/timestamp.js';
+export {
+  membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  type RevokePermissionOverrideInput,
+  type MembershipPermissionsQuery,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
+  type PermissionOverrideInput,
+  type PermissionOverride,
+  type PermissionMembership,
+  type MembershipPermissions,
+} from './identity/permissions.js';
 export { buildOpenApiDocument } from './openapi.js';
 export {
   business,

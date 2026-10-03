@@ -1,4 +1,17 @@
 import { z } from 'zod';
+import { permissionPaths } from './identity/permissions-openapi.js';
+import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
+import {
+  membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
+} from './identity/permissions.js';
 import { customer, findOrCreateCustomerInput } from './customers.js';
 import { customerPaths } from './customers-openapi.js';
 import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
@@ -57,6 +70,15 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  membershipPageQuery,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
   customer,
   findOrCreateCustomerInput,
   attendanceQrToken,
@@ -136,6 +158,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...permissionPaths,
   ...customerPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
@@ -148,63 +171,7 @@ const PATHS = {
       security: [{ DeviceToken: [] }],
     },
   },
-  '/v1/devices/me/staff-pin/sign-in': {
-    post: operation(
-      'signInStaffPin',
-      '200',
-      'Restricted staff session',
-      'StaffSessionContext',
-      'StaffPinInput',
-    ),
-  },
-  '/v1/staff-pins/reset': {
-    post: {
-      operationId: 'resetStaffPin',
-      parameters: [
-        {
-          in: 'header',
-          name: 'x-company-id',
-          required: true,
-          schema: { type: 'string', format: 'uuid' },
-        },
-      ],
-      requestBody: { required: true, content: json('StaffPinResetInput') },
-      responses: {
-        '204': { description: 'PIN reset; no session issued' },
-        default: { description: 'Error', content: json('ErrorEnvelope') },
-      },
-    },
-  },
-  '/v1/devices/me/staff-otp/request': {
-    post: operation(
-      'requestStaffOtp',
-      '202',
-      'Indistinguishable acknowledgment',
-      'StaffOtpAcknowledgement',
-      'StaffOtpRequestInput',
-    ),
-  },
-  '/v1/devices/me/staff-otp/verify': {
-    post: operation(
-      'verifyStaffOtp',
-      '200',
-      'Restricted staff session',
-      'StaffSessionContext',
-      'StaffOtpVerifyInput',
-    ),
-  },
-  '/v1/devices/me/staff-session': {
-    get: operation('getStaffSession', '200', 'Current device operator', 'StaffSessionContext'),
-  },
-  '/v1/devices/me/staff-session/sign-out': {
-    post: {
-      operationId: 'signOutStaff',
-      responses: {
-        '200': { description: 'Signed out' },
-        default: { description: 'Error', content: json('ErrorEnvelope') },
-      },
-    },
-  },
+  ...staffSignInPaths,
   '/v1/webhooks/whatsapp': {
     get: {
       operationId: 'verifyWhatsappWebhook',
