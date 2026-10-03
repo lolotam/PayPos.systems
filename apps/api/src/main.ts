@@ -10,6 +10,7 @@ import { createDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
+import { readEmailConfiguration } from '@pospay/notifications';
 
 import { createApp } from './app.ts';
 import { createWhatsappIntake } from './modules/notifications/index.ts';
@@ -20,6 +21,10 @@ import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 
 const config = readConfig(process.env);
 const logger = createLogger(config.LOG_LEVEL, { events: API_LOG_EVENTS });
+logger.info(
+  { capability: { channel: 'email', enabled: false, reason: readEmailConfiguration({}).reason } },
+  'email disabled',
+);
 
 // UUID v7 on the system clock and Web Crypto — bound to @pospay/db's IdGenerator here, at the composition root.
 const database = createDatabase({

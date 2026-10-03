@@ -53,13 +53,14 @@ export class SendNotification {
       const result = await this.channel.send(attempt);
       await this.recordResult(attempt, result);
     } finally {
-      Object.assign(attempt, { phone: null });
+      Object.assign(attempt, { phone: null, email: null });
     }
   }
 
   private preflight(attempt: Attempt): TerminalResult | null {
     if (!mayStart(attempt.deadline, this.clock.now())) return refusedResult('DEADLINE_EXPIRED');
-    if (attempt.phone === null || !this.identity.matches(attempt.phone, attempt.identity))
+    const destination = attempt.channel === 'email' ? attempt.email : attempt.phone;
+    if (destination == null || !this.identity.matches(destination, attempt.identity))
       return refusedResult('DESTINATION_INVALID');
     const failure = this.configuration.failure(attempt);
     return failure === null ? null : refusedResult(failure);

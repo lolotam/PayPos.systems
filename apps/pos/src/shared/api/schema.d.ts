@@ -630,12 +630,12 @@ export interface components {
             /** Format: uuid */
             source_event_id: string;
             /** @enum {string} */
-            channel: "whatsapp";
+            channel: "whatsapp" | "email";
             template_key: string;
             template_revision: number;
             /** @enum {string|null} */
             locale: "ar" | "en" | null;
-            phone_last3: string;
+            phone_last3: string | null;
             /** @enum {string} */
             status: "PENDING" | "SENDING" | "SENT" | "FAILED" | "EXPIRED" | "SUPPRESSED";
             /** Format: date-time */

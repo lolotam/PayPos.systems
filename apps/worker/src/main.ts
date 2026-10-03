@@ -27,6 +27,7 @@ import {
   readNotificationConfiguration,
   startNotificationQueue,
   startStaffOtpWorker,
+  startEmailCapability,
 } from './modules/notifications/index.ts';
 import { createDispatchLoop } from './outbox/dispatch-loop.ts';
 import { readConfig } from './shared/config.ts';
@@ -47,6 +48,13 @@ redis.on('error', (error: unknown) => {
 
 // ADR-0019: استقبال STOP وin-app مستقلان؛ تفعيل OTP لا يفتح إرسال الشركات.
 const production = process.env['NODE_ENV'] === 'production';
+const email = await startEmailCapability({
+  env: process.env,
+  production,
+  logger,
+  ids: systemUuidV7(),
+  clock: { now: () => new Date() },
+});
 let notifications: ReturnType<typeof createNotificationModule> | null = null;
 if (!production) {
   try {
@@ -56,6 +64,7 @@ if (!production) {
       clock: { now: () => new Date() },
       configuration: readNotificationConfiguration(process.env),
       production,
+      email: email.module,
     });
   } catch {
     logger.warn(
@@ -69,6 +78,7 @@ const inApp = production
       database: app,
       ids: systemUuidV7(),
       clock: { now: () => new Date() },
+      email: email.module,
     })
   : null;
 if (production)
@@ -116,6 +126,7 @@ const release = async (): Promise<void> => {
         maintenance?.close(),
         globalDatabase?.close(true),
         queue?.close(true),
+        email.close(),
         dispatcher.close(),
         app.close(),
         redis.quit(),
@@ -354,6 +365,7 @@ try {
       ],
       stopPolling: async () => {
         stopping = true;
+        email.stop();
         maintenance?.stop();
         await loop.stop();
         await closeOptional([() => queue?.stop(), () => inbound?.stop()]);

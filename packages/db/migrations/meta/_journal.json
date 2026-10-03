@@ -253,6 +253,20 @@
       "when": 1790979810717,
       "tag": "0035_2026-10-02_customers-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790984018732,
+      "tag": "0036_2026-10-02_email-destination",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790984026175,
+      "tag": "0037_2026-10-02_email-destination-guard",
+      "breakpoints": true
     }
   ]
 }

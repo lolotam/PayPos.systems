@@ -29,7 +29,7 @@ export type ChannelResult =
     };
 
 /** قناة إرسال واحدة؛ مسؤولية الإعادة والتسجيل تبقى عند المستهلك. */
-export interface Channel {
+export interface Channel<Request = ChannelRequest> {
   /** يقدم طلبًا واحدًا فقط ويعيد دليل القبول أو الرفض أو عدم اليقين بدون جسم المزود. */
-  send(request: ChannelRequest): Promise<ChannelResult>;
+  send(request: Request): Promise<ChannelResult>;
 }

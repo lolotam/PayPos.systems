@@ -1,5 +1,6 @@
 // Every message the worker logs (CLAUDE.md §8). Anything else is replaced by "log message withheld".
 export const WORKER_LOG_EVENTS = [
+  'email disabled',
   'staff OTP capability',
   'staff OTP execution outcome',
   'staff OTP retention unavailable',
