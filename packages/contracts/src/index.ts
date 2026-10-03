@@ -175,3 +175,15 @@ export {
   type StaffOtpAcknowledgement,
   type StaffSessionContext,
 } from './identity/staff-otp.js';
+export {
+  updateEmployeeInput,
+  employeeDetailRecord,
+  employeeListItem,
+  employeePage,
+  employeeListQuery,
+  type UpdateEmployeeInput,
+  type EmployeeDetail,
+  type EmployeeListItem,
+  type EmployeePage,
+  type EmployeeListQuery,
+} from './staff/update-employee.js';

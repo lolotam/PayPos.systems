@@ -11,6 +11,8 @@ import { createEmployeeDetailAccess } from './persistence/employee-detail-access
 import { EMPLOYEE_DETAIL_ACCESS } from './queries/employee-detail.query.ts';
 import { createEmployeeTransactions } from './persistence/drizzle-employee-transactions.ts';
 import { CreateEmployeeUseCase } from './use-cases/create-employee/create-employee.usecase.ts';
+import { UpdateEmployeeUseCase } from './use-cases/update-employee/update-employee.usecase.ts';
+import { createEmployeeUpdateTransactions } from './persistence/drizzle-employee-update.ts';
 import { hmacAttendanceQr } from './persistence/hmac-attendance-qr.ts';
 import { createRedisAttendanceQrSecrets } from './persistence/redis-attendance-qr-secrets.ts';
 import { createAttendanceBranchReader } from './persistence/tenancy-attendance-branch.adapter.ts';
@@ -24,6 +26,13 @@ export function staffProviders(database?: TenantWrappers, redis?: Redis): Provid
   const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
+    {
+      provide: UpdateEmployeeUseCase,
+      useValue:
+        database === undefined
+          ? null
+          : new UpdateEmployeeUseCase(createEmployeeUpdateTransactions(database, ids), ids),
+    },
     EmployeeDetailGuard,
     {
       provide: EMPLOYEE_DETAIL_ACCESS,

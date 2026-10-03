@@ -34,6 +34,16 @@ membership/PIN references require a real employee; deployment must account for t
 
 ## Consequences
 
+PR 9 extends this same read boundary with readEmployeeBranchAccess. It evaluates persisted/current
+and proposed branch scopes in one grants read, so employee list filtering does not issue an identity
+query for each row. The existing tenancy.describeWorkspaces reader supplies business branches;
+SQL scope filtering precedes LIMIT, so cursors only identify readable employees. No authority or membership write is added. Updates take the existing company
+and ordered membership locks before locking/reloading the employee; every persisted source and
+requested target branch must allow management. Optimistic revisions protect editors after the
+lock wait. The staff module's existing index and business indexes cover cursor reads; the additive
+history index permits one active attachment per branch. Audit and all branch history writes share
+the employee transaction; no update event is invented.
+
 Employee creation briefly serializes per company with permission editors. User-link races cannot
 evade the partial unique active user/business index (owner decision 2026-10-03). Duplicate names and future
 hire dates are allowed; no local-date or duplicate-name lookup is needed. Reads retain the same RLS transaction, no global identity access,

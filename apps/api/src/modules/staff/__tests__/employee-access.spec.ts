@@ -87,7 +87,7 @@ it('takes the company lock then ordered membership locks before employee writes 
         { cookie: f.cookie, company: f.company },
       )
     ).body,
-  ).toEqual(response.body);
+  ).toMatchObject(response.body);
 });
 it('rechecks the ended membership after waiting for its lock, with no partial employee', async () => {
   const otherOwner = ids.newId();

@@ -29,10 +29,10 @@ export function DashboardNavigation() {
       <AppSidebarItem
         asChild
         icon={<UserRound />}
-        label={t(locale, 'staff.title')}
-        active={pathname === '/staff/create'}
+        label={t(locale, 'staff.listTitle')}
+        active={pathname.startsWith('/staff')}
       >
-        <Link href="/staff/create" />
+        <Link href="/staff" />
       </AppSidebarItem>
     </AppSidebarGroup>
   );

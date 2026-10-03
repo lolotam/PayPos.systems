@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { employee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
 import { staffPaths } from './staff/staff-openapi.js';
+import {
+  updateEmployeeInput,
+  employeeDetailRecord,
+  employeeListItem,
+  employeePage,
+  employeeListQuery,
+} from './staff/update-employee.js';
 import { permissionPaths } from './identity/permissions-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import {
@@ -72,6 +79,11 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  updateEmployeeInput,
+  employeeDetailRecord,
+  employeeListItem,
+  employeePage,
+  employeeListQuery,
   employee,
   createEmployeeInput,
   employeeRoleCode,

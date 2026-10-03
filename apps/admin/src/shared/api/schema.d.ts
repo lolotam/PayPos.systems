@@ -11,7 +11,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. */
+        get: operations["listEmployees"];
         put?: never;
         /** @description Requires manage:employees:business and staff feature. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). */
         post: operations["createEmployee"];
@@ -35,7 +36,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** @description Full editable employee replacement against expected_revision. All persisted and requested branches require manage:employees:business and staff feature. Never grants access. Preserves branch history using the supplied branch_effective_date. Stale revision returns EMPLOYEE_REVISION_CONFLICT (409). */
+        patch: operations["updateEmployee"];
         trace?: never;
     };
     "/v1/permissions/memberships": {
@@ -428,6 +430,59 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        UpdateEmployeeInput: {
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar?: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end?: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id?: string | null;
+            expected_revision: number;
+            branch_ids: string[];
+            branch_effective_date: components["schemas"]["EmployeeDate"];
+        };
+        EmployeeDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+            revision: number;
+            branch_ids: string[];
+        };
+        EmployeeListItem: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            /** Format: uuid */
+            primary_branch_id: string;
+            hire_date: components["schemas"]["EmployeeDate"];
+        };
+        EmployeePage: {
+            items: components["schemas"]["EmployeeListItem"][];
+            next_cursor: string | null;
+        };
+        EmployeeListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
         Employee: {
             /** Format: uuid */
             id: string;
@@ -949,6 +1004,42 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listEmployees: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Employee page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     createEmployee: {
         parameters: {
             query?: never;
@@ -1024,11 +1115,85 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Employee"];
+                    "application/json": components["schemas"]["EmployeeDetail"];
                 };
             };
             /** @description Bilingual refusal */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateEmployee: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEmployeeInput"];
+            };
+        };
+        responses: {
+            /** @description Updated employee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -288,6 +288,20 @@
       "when": 1790992182745,
       "tag": "0040_2026-10-03_staff-active-user-business",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791009251063,
+      "tag": "0041_2026-10-03_staff-update-employee",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791009253084,
+      "tag": "0042_2026-10-03_staff-update-employee-rls",
+      "breakpoints": true
     }
   ]
 }

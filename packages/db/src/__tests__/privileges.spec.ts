@@ -111,6 +111,18 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.parked_at:pospay_dispatcher:UPDATE',
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
+// تعديل الموظف يفتح أعمدة الموارد البشرية فقط؛ هوية الشركة والنشاط وبداية الارتباط والحذف تبقى محمية.
+const EMPLOYEE_COLUMN_GRANTS = [
+  'employee_branches.to:pospay_app:UPDATE',
+  'employees.contract_end:pospay_app:UPDATE',
+  'employees.hire_date:pospay_app:UPDATE',
+  'employees.name_ar:pospay_app:UPDATE',
+  'employees.name_en:pospay_app:UPDATE',
+  'employees.primary_branch_id:pospay_app:UPDATE',
+  'employees.revision:pospay_app:UPDATE',
+  'employees.role_code:pospay_app:UPDATE',
+  'employees.user_id:pospay_app:UPDATE',
+];
 const TENANT_TABLES = [
   'employees',
   'employee_branches',
@@ -182,7 +194,7 @@ describe('direct privileges match the reviewed allowlist', () => {
     expect(await aclGrants('PUBLIC')).toEqual([]);
   });
 
-  it('the only column-level grants are the delivery metadata of outbox, to the dispatcher', async () => {
+  it('column grants match the reviewed employee, OTP and delivery metadata allowlists', async () => {
     const rows = await owner<{ grant: string }[]>`
       SELECT c.relname || '.' || a.attname || ':' || coalesce(r.rolname, 'PUBLIC') || ':' || x.privilege_type AS grant
       FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
@@ -191,7 +203,7 @@ describe('direct privileges match the reviewed allowlist', () => {
       ORDER BY 1`;
     expect(
       rows.filter((r) => !r.grant.startsWith('platform_whatsapp_')).map((r) => r.grant),
-    ).toEqual([...OTP_COLUMN_GRANTS, ...OUTBOX_COLUMN_GRANTS].sort());
+    ).toEqual([...OTP_COLUMN_GRANTS, ...OUTBOX_COLUMN_GRANTS, ...EMPLOYEE_COLUMN_GRANTS].sort());
   });
 
   it.each(APP_ROLES)(
