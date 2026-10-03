@@ -95,9 +95,11 @@ export const notificationAttempts = pgTable(
     providerTemplateName: text('provider_template_name'),
     // الوجهة مؤقتة حتى النتيجة النهائية؛ الهوية المشفرة تبقى لمنع إعادة الإرسال.
     recipientPhone: text('recipient_phone'),
+    // البريد وجهة مؤقتة مستقلة؛ لا يُعاد بناؤه من الهوية بعد المسح.
+    recipientEmail: text('recipient_email'),
     recipientHash: bytea('recipient_hash').notNull(),
     hashKeyId: text('hash_key_id').notNull(),
-    phoneLast3: text('phone_last3').notNull(),
+    phoneLast3: text('phone_last3'),
     safeParameters: jsonb('safe_parameters').notNull(),
     status: text('status').notNull(),
     authorizedAt: timestamp('authorized_at', { withTimezone: true }).notNull(),
@@ -142,11 +144,15 @@ export const notificationAttempts = pgTable(
     ),
     check(
       'notification_attempts_phone',
-      sql`(${t.status} NOT IN ('SENT','FAILED','EXPIRED','SUPPRESSED') OR ${t.recipientPhone} IS NULL) AND (${t.status} <> 'PENDING' OR ${t.recipientPhone} IS NOT NULL) AND (${t.recipientPhone} IS NULL OR ${t.recipientPhone} ~ '^[+][1-9][0-9]{7,14}$')`,
+      sql`(${t.status} NOT IN ('SENT','FAILED','EXPIRED','SUPPRESSED') OR ${t.recipientPhone} IS NULL) AND (${t.status} <> 'PENDING' OR ${t.channel} <> 'whatsapp' OR ${t.recipientPhone} IS NOT NULL) AND (${t.recipientPhone} IS NULL OR ${t.recipientPhone} ~ '^[+][1-9][0-9]{7,14}$') AND (${t.channel} = 'whatsapp' OR ${t.recipientPhone} IS NULL)`,
+    ),
+    check(
+      'notification_attempts_email',
+      sql`(${t.status} NOT IN ('SENT','FAILED','EXPIRED','SUPPRESSED') OR ${t.recipientEmail} IS NULL) AND (${t.status} <> 'PENDING' OR ${t.channel} <> 'email' OR ${t.recipientEmail} IS NOT NULL) AND (${t.channel} = 'email' OR ${t.recipientEmail} IS NULL) AND (${t.recipientEmail} IS NULL OR (length(${t.recipientEmail}) <= 254 AND ${t.recipientEmail} ~ '^[^[:space:]@]+@[a-z0-9.-]+[.][a-z]{2,63}$'))`,
     ),
     check(
       'notification_attempts_hash',
-      sql`octet_length(${t.recipientHash}) = 32 AND ${t.phoneLast3} ~ '^[0-9]{3}$'`,
+      sql`octet_length(${t.recipientHash}) = 32 AND ((${t.channel} = 'whatsapp' AND ${t.phoneLast3} IS NOT NULL AND ${t.phoneLast3} ~ '^[0-9]{3}$') OR (${t.channel} = 'email' AND ${t.phoneLast3} IS NULL))`,
     ),
     check('notification_attempts_revision', sql`${t.templateRevision} > 0`),
     check(
@@ -158,7 +164,7 @@ export const notificationAttempts = pgTable(
       sql`${t.failureCode} IS NULL OR ${t.failureCode} IN ('LOCALE_MISSING','LOCALE_UNSUPPORTED','DESTINATION_INVALID','CONFIG_INVALID','PARAMETERS_INVALID','ADMISSION_REFUSED','DEADLINE_EXPIRED','SUPPRESSED','PROVIDER_4XX','PROVIDER_5XX','NETWORK_UNKNOWN','RESPONSE_INVALID')`,
     ),
     check('notification_attempts_parameters', sql`jsonb_typeof(${t.safeParameters}) = 'array'`),
-    check('notification_attempts_channel', sql`${t.channel} = 'whatsapp'`),
+    check('notification_attempts_channel', sql`${t.channel} IN ('whatsapp','email')`),
     index('notification_attempts_business_idx').on(t.companyId, t.businessId),
     index('notification_attempts_branch_idx').on(t.companyId, t.branchId),
     index('notification_attempts_log_idx').on(t.companyId, t.createdAt.desc(), t.id.desc()),

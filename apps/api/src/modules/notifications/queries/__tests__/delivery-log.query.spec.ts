@@ -139,3 +139,24 @@ it('EXPLAIN ANALYZE uses the tenant ordered index without a notification-table s
   expect(plan).toContain('notification_attempts_log_idx');
   expect(plan).not.toMatch(/Seq Scan on notification_attempts/);
 });
+
+it('projects owner-visible EMAIL failure without address/hash/body or a phone suffix', async () => {
+  await db.withTenant(TENANT.A.company, (tx) =>
+    tx.execute(sql`
+    INSERT INTO notification_attempts (company_id,id,source_event_id,channel,template_key,template_revision,
+      locale,recipient_hash,hash_key_id,phone_last3,safe_parameters,status,failure_code,authorized_at,
+      finished_at,outcome_known,created_at,updated_at)
+    VALUES (${TENANT.A.company},'01920000-0000-7000-8000-00000000ee11','01920000-0000-7000-8000-00000000ee12',
+      'email','document_expiring',1,'en',decode(repeat('04',32),'hex'),'email-test-v1',NULL,'[]','FAILED',
+      'CONFIG_INVALID',now(),now(),true,now(),now())`),
+  );
+  const page = await deliveryLogQueryResult(db, access, {}, { limit: 1 });
+  expect(deliveryLogItem.parse(page.items[0])).toMatchObject({
+    channel: 'email',
+    status: 'FAILED',
+    failure_code: 'CONFIG_INVALID',
+    phone_last3: null,
+  });
+  for (const field of ['recipient_email', 'recipient_hash', 'safe_parameters'])
+    expect(JSON.stringify(page)).not.toContain(field);
+});

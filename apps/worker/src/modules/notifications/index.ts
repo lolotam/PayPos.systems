@@ -11,3 +11,4 @@ export type {
 } from './events/published.ts';
 export { createInAppNotificationModule, startWhatsappInbound } from './notifications.module.ts';
 export { startStaffOtpWorker } from './otp.module.ts';
+export { startEmailCapability } from './email-startup.module.ts';

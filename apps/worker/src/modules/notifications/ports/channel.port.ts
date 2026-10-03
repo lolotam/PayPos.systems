@@ -13,9 +13,9 @@ export interface ChannelPort {
   send(attempt: Attempt): Promise<TerminalResult>;
 }
 export interface DestinationIdentity {
-  /** يثبت أن الهاتف المخزن يطابق الهوية ومفتاحها وآخر ثلاثة أرقام قبل حيازة التنفيذ.
+  /** يثبت أن الوجهة المخزنة تطابق هوية قناتها ومفتاحها قبل حيازة التنفيذ.
    *
-   * @param phone الوجهة المؤقتة
+   * @param phone الوجهة المؤقتة للهاتف أو البريد
    * @param identity الهوية المخزنة
    */
   matches(phone: string, identity: PhoneIdentity): boolean;

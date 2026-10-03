@@ -2,6 +2,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { HealthController } from './health.controller.ts';
 import type * as Notifications from '@pospay/notifications';
+import type * as NotificationModule from '../modules/notifications/index.ts';
+// تحميل تركيب القنوات خارج مهلة اختبار بدء التشغيل حتى لا يستهلك التحويل البارد مهلة العزل.
+import '../modules/notifications/index.ts';
 
 const resources = vi.hoisted(() => ({
   database: { close: vi.fn(async () => undefined), ping: vi.fn() },
@@ -52,7 +55,8 @@ vi.mock('../worker.ts', () => ({
 }));
 vi.mock('../outbox/deliver.ts', () => ({ createDeliverer: vi.fn() }));
 vi.mock('../outbox/dispatch-loop.ts', () => ({ createDispatchLoop: () => resources.loop }));
-vi.mock('../modules/notifications/index.ts', () => ({
+vi.mock('../modules/notifications/index.ts', async (original) => ({
+  ...(await original<typeof NotificationModule>()),
   createNotificationModule: vi.fn(),
   createInAppNotificationModule: () => ({ eventTypes: [] }),
   startWhatsappInbound: () => resources.inbound,
@@ -131,6 +135,33 @@ it('malformed optional auth URL disables maintenance without preventing worker /
     'staff OTP capability',
   );
   await ordinaryReadiness();
+});
+
+it('invalid email identity settings disable email alone without affecting ordinary readiness', async () => {
+  vi.stubEnv('NOTIFICATION_EMAIL_HASH_KEY', 'synthetic-short');
+  vi.stubEnv('NOTIFICATION_EMAIL_HASH_KEY_ID', 'synthetic-email');
+  await import('../main.ts');
+  expect(resources.listen).toHaveBeenCalledOnce();
+  expect(resources.logger.fatal).not.toHaveBeenCalled();
+  expect(resources.logger.info).toHaveBeenCalledWith(
+    {
+      capability: {
+        channel: 'email',
+        enabled: false,
+        reason: 'EMAIL_FEEDBACK_NOT_IMPLEMENTED',
+        name: 'EMAIL',
+        state: 'UNAVAILABLE',
+      },
+    },
+    'email disabled',
+  );
+  await ordinaryReadiness();
+  const options = resources.workerOptions.mock.calls.at(-1)?.[0];
+  expect(options.readiness.map((check: { name: string }) => check.name)).toEqual([
+    'database',
+    'dispatcher',
+    'redis',
+  ]);
 });
 
 it('hung optional intake database readiness is force-closed before worker listens', async () => {

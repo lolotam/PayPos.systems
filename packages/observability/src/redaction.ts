@@ -64,6 +64,9 @@ const PRIVATE_PAYLOAD_KEYS = new Set([
   'requestbody',
   'safeparameters',
   'components',
+  'emailbody',
+  'emailhtml',
+  'emailtext',
 ]);
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
 // A plural container ("passwords", "tokens", "hashes") holds secrets under ordinary child keys, so the key
@@ -76,6 +79,8 @@ const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
 const isSecretKey = (key: string): boolean =>
   endsWithAny(key, SECRET_SUFFIXES) && !STRUCTURAL_KEYS.has(normalizeKey(key));
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
+const isEmailKey = (key: string): boolean =>
+  endsWithAny(key, ['email', 'emails', 'emailaddress', 'emailaddresses']);
 
 // URLs are checked in every string value, because their key (DATABASE_URL, url, link) looks harmless. A URL
 // is PARSED, not pattern-matched: the parser knows that the last "@" before the host ends the userinfo (a
@@ -84,6 +89,8 @@ const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 // phone number in the query (even a bare `?token`), and no name or pattern tells those from harmless ones.
 const URL_START = /^\s*[a-z][a-z0-9+.-]*:\/\//i;
 const URL_IN_TEXT = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
+const EMAIL_OR_URL =
+  /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+|[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9.-]+/gi;
 
 function scrubUrl(candidate: string): string {
   try {
@@ -137,7 +144,11 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
     if (typeof node === 'bigint') return node.toString();
     if (typeof node === 'string') {
       const text = scrubUrlCredentials(node);
-      return maskPhones ? text.replace(/\+[1-9]\d{7,14}/g, maskPhone) : text;
+      return maskPhones
+        ? text
+            .replace(/\+[1-9]\d{7,14}/g, maskPhone)
+            .replace(EMAIL_OR_URL, (part) => (URL_START.test(part) ? part : REDACTED))
+        : text;
     }
     if (node === null || typeof node !== 'object') return node;
     if (node instanceof Date) return Number.isNaN(node.getTime()) ? null : node.toISOString();
@@ -154,7 +165,7 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
       if (
         isSecretKey(key) ||
         (normalizeKey(key) === 'code' && typeof child === 'string' && /^\d{6}$/.test(child)) ||
-        (maskPhones && PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key)))
+        (maskPhones && (isEmailKey(key) || PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
       )
         out[key] = REDACTED;
       else if (maskPhones && isPhoneKey(key))

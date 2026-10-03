@@ -22,7 +22,7 @@ export interface SafeParameter {
   readonly type: 'text' | 'number';
   readonly value: string | number;
 }
-/** هوية هاتف منصة ثابتة مع آخر ثلاثة أرقام ونتيجة التحقق. */
+/** هوية وجهة منصة ثابتة؛ لاحقة الهاتف فارغة للبريد ونتيجة التحقق لا تستعيد الوجهة. */
 export interface PhoneIdentity {
   readonly hash: Uint8Array;
   readonly hashKeyId: string;
@@ -36,9 +36,10 @@ export interface NotificationInput {
   readonly businessId: string | null;
   readonly branchId: string | null;
   readonly phone: string;
+  readonly email?: string | null;
   readonly identity: PhoneIdentity;
   readonly locale: string | null;
-  readonly channel: 'whatsapp';
+  readonly channel: 'whatsapp' | 'email';
   readonly templateKey: string;
   readonly templateRevision: number;
   readonly providerTemplateName: string | null;

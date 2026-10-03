@@ -6,7 +6,9 @@ export interface FakeChannelHooks {
   readonly afterSubmission?: () => void | Promise<void>;
 }
 
-export class FakeChannel implements Channel {
+export class FakeChannel<
+  Request extends { readonly deadline: Date | null } = ChannelRequest,
+> implements Channel<Request> {
   calls = 0;
   outcome: FakeOutcome = 'accepted';
   constructor(
@@ -14,7 +16,7 @@ export class FakeChannel implements Channel {
     readonly hooks: FakeChannelHooks = {},
   ) {}
 
-  async send(request: ChannelRequest): Promise<ChannelResult> {
+  async send(request: Request): Promise<ChannelResult> {
     await this.hooks.beforeSubmission?.();
     if (request.deadline !== null && this.now().getTime() >= request.deadline.getTime())
       return { kind: 'expired' };
