@@ -47,5 +47,6 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 17 | [Business discount default](17-business-discount-default.md) — حد الخصم الافتراضي للنشاط | #86 | not yet (admin not deployed, issue #54) |
 | 18 | [Set salary](18-set-salary.md) — تعيين الراتب | #88 | not yet (admin not deployed, issue #54) |
 | 19 | [Schedules](19-schedules.md) — جداول العمل | #89 | not yet (admin not deployed, issue #54); templates API only |
+| 20 | [Role default permissions](20-role-default-permissions.md) — صلاحيات الدور الافتراضية | #91 | not yet (admin not deployed, issue #54) |
 
 New journeys are added after every merge.
