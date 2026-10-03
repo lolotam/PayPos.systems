@@ -9,7 +9,7 @@ test notification in step 1 is inserted by Claude.
 ## العربي
 
 1. Claude يضيف إشعارين تجريبيين للمستخدم ده في الشركة المختارة.
-2. خلال دقيقة بالكتير الجرس اللي فوق يظهر عليه رقم **2**.
+2. خلال دقيقة بالكتير الجرس اللي في الشريط اللي فوق يظهر عليه رقم **2**.
 3. دوس على الجرس ← قائمة **الإشعارات** فيها الإشعارين وعليهم **غير مقروء**.
 4. دوس **تحديد كمقروء** على واحد ← يتحول **مقروء** والرقم يبقى **1**.
 5. دوس **تحديد الكل كمقروء** ← الرقم يختفي.
@@ -22,7 +22,7 @@ test notification in step 1 is inserted by Claude.
 ## English
 
 1. Claude inserts two test notifications for this user in the chosen company.
-2. Within a minute the bell in the top bar shows **2**.
+2. Within a minute the bell in the slim top row shows **2**.
 3. Click the bell → **Notifications** (الإشعارات) lists both as **Unread** (غير مقروء).
 4. **Mark read** (تحديد كمقروء) on one → it becomes **Read** (مقروء); the badge shows **1**.
 5. **Mark all read** (تحديد الكل كمقروء) → the badge disappears.

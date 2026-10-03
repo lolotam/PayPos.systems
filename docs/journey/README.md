@@ -22,6 +22,9 @@ element by its visible text in either language.
 
 ## Journeys
 
+Since #80 the admin has a dark sidebar (logo, company/business/branch, navigation, account and authenticator at the bottom) and a slim top row (notifications bell, language). On a phone the sidebar opens from the ☰ button.
+من بعد #80 لوحة الإدارة فيها قائمة جانبية كحلي (اللوجو، الشركة/النشاط/الفرع، القائمة، والحساب والمصادقة تحت) وشريط صغير فوق (الجرس واللغة). على الموبايل القائمة بتفتح من زرار ☰.
+
 | # | Journey | Shipped in | Runs on staging? |
 |---|---|---|---|
 | 00 | [Local setup](00-local-setup.md) — تشغيل النظام على جهازك | — | — |
