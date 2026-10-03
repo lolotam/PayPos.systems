@@ -213,6 +213,8 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> tenancy.employeeWorkplace @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
+  - staff -> identity.lockEmployeeCreationAccess @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
   - identity -> tenancy.describeWorkspaces @ apps/api/src/modules/identity/persistence/workspace-names.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/tenancy-attendance-branch.adapter.ts
 ```

@@ -6,6 +6,8 @@
  */
 export const PERMISSIONS = [
   'login:staff:branch',
+  // TODO(spec): حزم manage:employees:business مؤجلة إلى PR 7a، بدون منح تلقائي لأي دور.
+  'manage:employees:business',
   'read:memberships:company',
   // TODO(spec): منح صلاحية الاستقبال للأدوار مؤجل إلى PR 7a؛ إضافتها للـ catalog لا تمنحها للـ Owner تلقائياً.
   'create:customers:company',

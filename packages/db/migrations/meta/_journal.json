@@ -267,6 +267,27 @@
       "when": 1790984026175,
       "tag": "0037_2026-10-02_email-destination-guard",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790988259215,
+      "tag": "0038_2026-10-03_staff-employees",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1790988268707,
+      "tag": "0039_2026-10-03_staff-employees-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790992182745,
+      "tag": "0040_2026-10-03_staff-active-user-business",
+      "breakpoints": true
     }
   ]
 }

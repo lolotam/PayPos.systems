@@ -1,0 +1,69 @@
+﻿import { createDatabase } from '@pospay/db';
+import { systemUuidV7 } from '@pospay/ids';
+const employeeIds = systemUuidV7();
+import { startHarness } from '../../../../test/harness.ts';
+import { createEmployeeTransactions } from '../persistence/drizzle-employee-transactions.ts';
+import { CreateEmployeeUseCase } from '../use-cases/create-employee/create-employee.usecase.ts';
+
+export async function employeesFixture() {
+  const h = await startHarness();
+  const cookie = await h.signedInOperator('employee-manager@example.test');
+  const company = await h.onboard(cookie, 'Synthetic employer');
+  const otherCompany = await h.onboard(cookie, 'Synthetic other employer');
+  const [holder] = await h.owner`SELECT user_id, id FROM memberships WHERE company_id=${company}`;
+  const userId = holder?.['user_id'] as string;
+  const memberId = holder?.['id'] as string;
+  const business = employeeIds.newId();
+  const secondBusiness = employeeIds.newId();
+  const foreignBusiness = employeeIds.newId();
+  for (const [co, bu] of [
+    [company, business],
+    [company, secondBusiness],
+    [otherCompany, foreignBusiness],
+  ]) {
+    await h.owner`INSERT INTO businesses (company_id,id,name_en,vertical_type) VALUES (${co as string},${bu as string},'Synthetic business','salon')`;
+  }
+  const branch = employeeIds.newId();
+  const otherBranch = employeeIds.newId();
+  const foreignBranch = employeeIds.newId();
+  for (const [co, bu, br] of [
+    [company, business, branch],
+    [company, secondBusiness, otherBranch],
+    [otherCompany, foreignBusiness, foreignBranch],
+  ]) {
+    await h.owner`INSERT INTO branches (company_id,id,business_id,name_en) VALUES (${co as string},${br as string},${bu as string},'Synthetic branch')`;
+  }
+  const db = createDatabase({ url: h.urls.app, ids: employeeIds });
+  const transactions = createEmployeeTransactions(db, employeeIds);
+  const useCase = new CreateEmployeeUseCase(transactions, employeeIds, {
+    now: () => new Date('2026-10-03T10:00:00Z'),
+  });
+  return {
+    h,
+    cookie,
+    company,
+    otherCompany,
+    userId,
+    memberId,
+    business,
+    secondBusiness,
+    branch,
+    otherBranch,
+    foreignBranch,
+    db,
+    transactions,
+    useCase,
+  };
+}
+export type EmployeeFixture = Awaited<ReturnType<typeof employeesFixture>>;
+export const termsFor = (f: EmployeeFixture, name = 'Synthetic employee') => ({
+  primary_branch_id: f.branch,
+  name_en: name,
+  role_code: 'staff' as const,
+  hire_date: '2026-01-01',
+});
+export async function grantEmployeeCreation(f: EmployeeFixture, business = f.business) {
+  await f.h
+    .owner`INSERT INTO permission_overrides (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES (${f.company},${employeeIds.newId()},${f.memberId},'manage:employees:business','ALLOW','BUSINESS',${business},'Synthetic grant',${f.userId})`;
+}

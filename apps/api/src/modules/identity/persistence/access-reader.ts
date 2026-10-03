@@ -62,10 +62,13 @@ export async function readAccessTransaction(
   tx: Tx,
   companyId: string,
   userId: string,
+  decisionAt?: Date,
 ): ReturnType<AccessReader['accessIn']> {
+  const at = decisionAt === undefined ? sql`now()` : sql`${decisionAt.toISOString()}::timestamptz`;
+  const active = sql`m.starts_at <= ${at} AND (m.ends_at IS NULL OR m.ends_at > ${at})`;
   const memberships = await tx.execute<{ scope_type: ScopeType; scope_id: string }>(sql`
         SELECT m.scope_type, m.scope_id FROM memberships m
-        WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${ACTIVE}`);
+        WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}`);
   const grants = await tx.execute<{
     permission: string;
     effect: 'ALLOW' | 'DENY';
@@ -76,13 +79,13 @@ export async function readAccessTransaction(
         SELECT rp.permission_code AS permission, 'ALLOW' AS effect, 'role' AS source, m.scope_type, m.scope_id
         FROM memberships m
         JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
-        WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${ACTIVE}
+        WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
         UNION ALL
         SELECT o.permission_code, o.effect, 'override', o.scope_type, o.scope_id
         FROM permission_overrides o
         JOIN memberships m ON m.company_id = o.company_id AND m.id = o.membership_id
-        WHERE o.company_id = ${companyId} AND m.user_id = ${userId} AND ${ACTIVE}
-          AND (o.expires_at IS NULL OR o.expires_at > now())`);
+        WHERE o.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
+          AND (o.expires_at IS NULL OR o.expires_at > ${at})`);
   return {
     memberships: memberships.map((row): ActiveMembership => ({
       scopeType: row.scope_type,

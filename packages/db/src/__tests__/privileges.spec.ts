@@ -37,6 +37,10 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'devices:INSERT',
     'devices:SELECT',
     'devices:UPDATE',
+    'employee_branches:INSERT',
+    'employee_branches:SELECT',
+    'employees:INSERT',
+    'employees:SELECT',
     'idempotency_keys:INSERT',
     'idempotency_keys:SELECT',
     'idempotency_keys:UPDATE',
@@ -108,6 +112,8 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
 const TENANT_TABLES = [
+  'employees',
+  'employee_branches',
   'in_app_notifications',
   'notification_attempts',
   'companies',

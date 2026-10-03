@@ -31,6 +31,7 @@ export function DashboardFrame({ children }: { children: ReactNode }) {
       actions={
         <>
           <Link href="/permissions">{t(locale, 'permissions.title')}</Link>
+          <Link href="/staff/create">{t(locale, 'staff.title')}</Link>
           <NotificationBell
             key={`${companyId ?? 'unselected'}:${userId ?? 'anonymous'}`}
             companyId={companyId}

@@ -92,6 +92,13 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    EMPLOYEE_BUSINESS_NOT_FOUND: 'The employee business was not found.',
+    EMPLOYEE_BRANCH_NOT_FOUND: 'The primary branch was not found.',
+    EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 'The primary branch must belong to the employee business.',
+    EMPLOYEE_USER_LINK_UNAVAILABLE: 'The existing user could not be linked.',
+    EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
+    EMPLOYEE_USER_ALREADY_LINKED:
+      'This user already has an active employee record in this business.',
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
@@ -128,6 +135,19 @@ export const en = {
     IDEMPOTENCY_KEY_REUSED: 'This Idempotency-Key was already used with a different request',
     NOT_READY: 'The service is not ready',
     INTERNAL_ERROR: 'An unexpected error occurred',
+  },
+  staff: {
+    title: 'Create employee',
+    nameEn: 'English name',
+    nameAr: 'Arabic name (optional)',
+    primaryBranch: 'Primary branch',
+    role: 'Role',
+    hireDate: 'Hire date',
+    contractEnd: 'Contract end (optional)',
+    userId: 'Existing user ID (optional)',
+    create: 'Create employee',
+    created: 'Employee created:',
+    invalid: 'Check the employee details, dates and user ID.',
   },
   admin: {
     appName: 'PosPay',
