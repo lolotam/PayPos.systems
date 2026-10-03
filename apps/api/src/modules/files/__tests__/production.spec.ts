@@ -56,7 +56,16 @@ function environment(port: number): NodeJS.ProcessEnv {
     WORKER_HOST: '127.0.0.1',
     TRUSTED_PROXY_CIDRS: '',
     LOG_LEVEL: 'info',
+    REDIS_URL: redisUrl(),
   };
+}
+
+// زي الـ harness: CI بيكتب REDIS_PASSWORD بس، فنبني العنوان منه لو REDIS_URL مش موجود.
+function redisUrl(): string {
+  const configured = process.env['REDIS_URL'];
+  if (configured !== undefined && configured !== '') return configured;
+  const password = encodeURIComponent(process.env['REDIS_PASSWORD'] ?? '');
+  return `redis://:${password}@${process.env['REDIS_HOST'] ?? '127.0.0.1'}:${process.env['REDIS_PORT'] ?? '6379'}`;
 }
 
 it('built production API and worker are ready with empty optional settings; all files routes give a named unavailable error', async () => {

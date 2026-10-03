@@ -123,7 +123,7 @@ it('checks stored permission live, then DENY, expiry and membership removal; aud
   expect((await h.send('POST', path, { cookie: readerCookie, company })).status).toBe(404);
   await grantRead();
   expect((await h.send('POST', path, { cookie: readerCookie, company })).status).toBe(200);
-  await h.owner`UPDATE memberships SET ends_at = now() - interval '1 second' WHERE company_id = ${company} AND id = ${readerMembership}`;
+  await h.owner`UPDATE memberships SET starts_at = now() - interval '1 hour', ends_at = now() - interval '1 second' WHERE company_id = ${company} AND id = ${readerMembership}`;
   expect((await h.send('POST', path, { cookie: readerCookie, company })).status).toBe(403);
   const rows =
     await h.owner`SELECT outcome FROM file_access_audit WHERE company_id = ${company} AND file_id = ${ticket.id} AND actor_user_id = ${readerId} ORDER BY accessed_at`;
