@@ -61,3 +61,21 @@ Keep node:24-alpine in both production Dockerfiles. Their final stages execute a
 one-shot sharp-backed JPEG/PNG inspection after bundling production dependencies, so the existing CI Docker
 build checks the musl native binary and bundled production dependencies. Local
 Docker build/run evidence is reported separately; no compose changes are needed.
+
+## PR #82 durable artifact cleanup (2026-10-03)
+
+Complete stored business/branch scope is passed to live authorization regardless
+of the permission suffix; DENY wins. Unknown and inaccessible files share the same
+404 envelope; internal DENY access audits remain.
+
+Add a tenant-qualified immutable-key cleanup ledger. Reserve candidate ownership
+before PUT; atomically mark it published alongside READY and staging cleanup intake.
+Cleanup claims fence publication and can never target the published key. The same
+two hourly schedules also process bounded artifact batches, with immediate sweeps
+from verification/replay. Storage IO remains outside transactions. Failure releases
+the cleanup claim; acknowledged deletion and its first system audit commit together.
+Recheck staging after PUT expiry and retain daily reconciled tombstones for late
+writes. Candidate cleanup waits beyond the verification lease and a bounded IO grace.
+This changes no verified-object retention (owner decision 2026-10-03), dependency,
+module arrow, or role grant. No Docker images are built for this review-fix run;
+the previously verified sharp native smoke remains the Docker compatibility evidence.

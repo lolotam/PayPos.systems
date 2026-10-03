@@ -8,11 +8,8 @@ export function filePermissions(authorizer: RequestAuthorizer): FilePermissions 
         userId: actor.userId,
         requestedCompany: actor.companyId,
         permission,
-        ...(permission.endsWith(':branch')
-          ? { branchParam: branchId }
-          : permission.endsWith(':business')
-            ? { businessParam: businessId }
-            : {}),
+        businessParam: businessId,
+        ...(branchId === null ? {} : { branchParam: branchId }),
       })) !== null,
   };
 }

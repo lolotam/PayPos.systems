@@ -31,7 +31,7 @@ export class IssueDownload {
     );
     if (!allowed) {
       await this.repository.audit(actor, file.id, 'DENY', this.clock.now());
-      throw new FileError('FORBIDDEN');
+      throw new FileError('FILE_NOT_FOUND');
     }
     const key = readyKey(file);
     const url = await this.storage.download(key, file.contentType);

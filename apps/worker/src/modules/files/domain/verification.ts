@@ -6,6 +6,12 @@ export interface PendingFile {
   type: string;
   size: number;
 }
+/** محتوى مفحوص في ذاكرة محدودة؛ لا يعبر إلى Redis. */
+export interface InspectedFile {
+  bytes: Uint8Array;
+  type: string;
+  size: number;
+}
 /** نتيجة الفحص التي تصلح للنشر بمفتاح مستقل. */
 export interface VerifiedFile {
   key: string;

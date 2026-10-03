@@ -37,13 +37,10 @@ export class FileStatusQuery {
       userId: actor.userId,
       requestedCompany: actor.companyId,
       permission,
-      ...(permission.endsWith(':branch')
-        ? { branchParam: row.branch_id }
-        : permission.endsWith(':business')
-          ? { businessParam: row.business_id }
-          : {}),
+      businessParam: row.business_id,
+      ...(row.branch_id === null ? {} : { branchParam: row.branch_id }),
     });
-    if (authorized === null) throw new ApiError('FORBIDDEN');
+    if (authorized === null) throw new ApiError('FILE_NOT_FOUND');
     return fileStatus.parse({
       id: row.id,
       status: row.status,

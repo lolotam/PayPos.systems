@@ -16,3 +16,4 @@ export * from './notifications.ts';
 export * from './platform-whatsapp.ts';
 export * from './identity-staff-otp.ts';
 export * from './files.ts';
+export * from './files-cleanup.ts';

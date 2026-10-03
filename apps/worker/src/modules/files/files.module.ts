@@ -1,5 +1,7 @@
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { optionalStorage } from '@pospay/storage';
+import { CleanupArtifacts } from './use-cases/cleanup-artifacts/cleanup-artifacts.ts';
+import { artifactRepository } from './persistence/artifact.repository.ts';
 import { VerifyUpload } from './use-cases/verify-upload/verify-upload.ts';
 import { verificationRepository } from './persistence/verification.repository.ts';
 import { verificationStorage } from './persistence/verification-storage.adapter.ts';
@@ -17,16 +19,28 @@ export function startFilesWorker(
 ) {
   const capability = optionalStorage(env);
   if (capability === null) return null;
+  const clock = { now: () => new Date() };
+  const artifacts = new CleanupArtifacts(
+    artifactRepository(db, ids),
+    capability.storage,
+    ids,
+    clock,
+  );
   const useCase = new VerifyUpload(
     verificationRepository(db),
     verificationStorage(capability.storage, capability.policy),
     ids,
-    { now: () => new Date() },
+    clock,
+    artifacts,
   );
   const processor = startVerificationProcessor(useCase, redisUrl);
-  const cleanup = new CleanupFiles(retentionRepository(db, ids), capability.storage, ids, {
-    now: () => new Date(),
-  });
+  const cleanup = new CleanupFiles(
+    retentionRepository(db, ids),
+    capability.storage,
+    ids,
+    clock,
+    artifacts,
+  );
   const retention = startRetentionProcessors(cleanup, redisUrl);
   return {
     deliver: retention.deliver,

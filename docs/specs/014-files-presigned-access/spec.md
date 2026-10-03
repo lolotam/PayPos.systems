@@ -37,7 +37,7 @@ company-qualified unique index and performs the same live permission check and
 audit as download by id. This lets staff keep only the object key and open its
 documents through files without a business-module import.
 
-Unknown/cross-tenant ids or keys return FILE_NOT_FOUND. Pending/rejected objects cannot
+Unknown, cross-tenant and inaccessible ids/keys return the identical 404 FILE_NOT_FOUND envelope. DENY remains internally audited. Pending/rejected objects cannot
 be downloaded. STORAGE_NOT_CONFIGURED closes file capabilities only; empty or
 incomplete settings never prevent production API/worker readiness.
 Identity's existing authorization engine is exposed through an application shared
@@ -108,7 +108,7 @@ F4 both tenant tables: cross-tenant reads/writes, composite FK, no context,
 runtime grants, immutable audit; status query shape/index EXPLAIN.
 F5 contract/OpenAPI and generated clients; built production API/worker smoke
 with empty optional settings, ready=200 and guarded files=503 named error.
-F6 pnpm db:migrate on pospay_wt_l3b, pnpm check, API and worker builds exit zero.
+F6 pnpm db:migrate on pospay_wt_l3c, pnpm check, API and worker builds exit zero.
 
 F7 fixed PDF/JPEG/PNG cap and configuration without a policy setting; rejection
 of WebP and other types, content mismatch and oversize bodies.
@@ -117,3 +117,36 @@ bounded batches, concurrent confirmation fencing, provider retry and one audit
 per deletion; real BullMQ schedules and outbox registration/retry.
 F9 sharp native decode/re-encode in both production Docker images, also enforced
 by the existing CI Docker build.
+
+## PR #82 review fixes (2026-10-03)
+
+Always evaluate the complete recorded business and optional branch, independent
+of the permission suffix. Branch DENY overrides business/company ALLOW for both
+metadata and download. Metadata hides inaccessible files with the same 404.
+
+Persist every verified candidate's ownership before the storage PUT. Conditional
+publication must own both the verification lease and the unpublished candidate.
+A tenant-qualified cleanup ledger records candidate and staging keys internally;
+keys never enter audit payloads, Redis or logs. Publication and the pending staging
+cleanup entry commit atomically. A cleanup claim fences publication, and published
+candidates are permanently excluded from deletion.
+
+The existing hourly retention jobs also sweep at most 50 cleanup entries each.
+Verification triggers this bounded sweep immediately, including on job replay of
+a READY file. Deletion failures release their cleanup lease for retry. Successful
+staging deletion schedules another sweep after the original 120-second PUT has
+expired (creation is recorded after signing, plus a one-second boundary margin).
+Unpublished candidates wait until the verification lease plus a 20-minute IO grace
+has elapsed. Tombstones reconcile daily to remove late/replayed writes even after
+an earlier successful deletion. Every first cleanup has one atomic system audit
+with file id and artifact kind only. A stale cleanup cannot acknowledge a newer
+claim, and no cleanup can delete the published verified key. READY object retention
+and owner decision 2026-10-03 remain unchanged.
+
+F10 real authorization: business ALLOW with branch DENY blocks metadata and both
+download paths; unknown/inaccessible envelopes match exactly, while DENY audits remain.
+F11 provider deletion failure then retry; replayed PUT is removed after expiry
+without deleting the verified object; durable ledger survives restart.
+F12 ownership exists before PUT; publication failure, lost lease and crash leave
+recoverable candidates; bounded, idempotent cleanup, stale-claim fencing, published
+key exclusion, tenant RLS negative tests and minimum grants.

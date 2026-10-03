@@ -34,7 +34,7 @@ export interface ObjectStorage {
    */
   put(key: string, bytes: Uint8Array, type: string): Promise<void>;
   /**
-   * يمسح نسخة مؤقتة بعد نشر النسخة الموثقة فقط.
+   * يمسح جسماً داخلياً مملوكاً؛ الاستدعاء لا يستهدف الوثيقة المنشورة.
    *
    * @param key المفتاح الداخلي
    * @returns نتيجة العملية المطلوبة

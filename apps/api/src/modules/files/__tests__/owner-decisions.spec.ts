@@ -1,3 +1,5 @@
+import { CleanupArtifacts } from '../../../../../worker/src/modules/files/use-cases/cleanup-artifacts/cleanup-artifacts.ts';
+import { artifactRepository } from '../../../../../worker/src/modules/files/persistence/artifact.repository.ts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createDatabase, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
@@ -118,6 +120,7 @@ it('owner/GM read and upload across own company; BM has only own-business access
     verificationStorage(storage, FILE_UPLOAD_POLICY),
     ids,
     { now: () => new Date() },
+    new CleanupArtifacts(artifactRepository(db, ids), storage, ids, { now: () => new Date() }),
   );
   for (const actor of actors) {
     const own = await h.send('POST', `/v1/businesses/${business}/files/uploads`, {
@@ -155,5 +158,5 @@ it('owner/GM read and upload across own company; BM has only own-business access
           company,
         })
       ).status,
-    ).toBe(actor.role === 'business_manager' ? 403 : 200);
+    ).toBe(actor.role === 'business_manager' ? 404 : 200);
 });

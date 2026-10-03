@@ -20,7 +20,12 @@ export class ConfirmUpload {
     if (file === null) throw new FileError('FILE_NOT_FOUND');
     if (
       file.createdBy !== actor.userId ||
-      !(await this.permissions.allowed(actor, 'manage:files:business', file.businessId, null))
+      !(await this.permissions.allowed(
+        actor,
+        'manage:files:business',
+        file.businessId,
+        file.branchId,
+      ))
     )
       throw new FileError('FORBIDDEN');
     if (file.status === 'REJECTED') throw new FileError('FILE_NOT_READY');

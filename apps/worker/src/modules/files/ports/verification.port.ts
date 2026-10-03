@@ -1,4 +1,9 @@
-import type { PendingFile, VerifiedFile, VerificationRejected } from '../domain/verification.ts';
+import type {
+  PendingFile,
+  VerifiedFile,
+  VerificationRejected,
+  InspectedFile,
+} from '../domain/verification.ts';
 
 /** حد مطالبة الفحص والنشر المشروط داخل الشركة. */
 export interface VerificationRepository {
@@ -19,6 +24,26 @@ export interface VerificationRepository {
     at: Date,
     until: Date,
   ): Promise<PendingFile | null>;
+  /** يحفظ ملكية المفتاح قبل PUT ويجدد المطالبة السارية؛ الفشل لا يسمح بالكتابة.
+   *
+   * @param companyId الشركة
+   * @param fileId الملف
+   * @param leaseId مطالبة التحقق
+   * @param candidateId هوية النسخة
+   * @param key المفتاح الداخلي المولد
+   * @param at وقت حجز الملكية
+   * @param until نهاية المطالبة المجددة
+   * @returns هل تم حجز الملكية قبل الكتابة
+   */
+  reserve(
+    companyId: string,
+    fileId: string,
+    leaseId: string,
+    candidateId: string,
+    key: string,
+    at: Date,
+    until: Date,
+  ): Promise<boolean>;
   /**
    * ينشر المفتاح المفحوص فقط إذا ما زالت المطالبة تخص نفس العامل.
    *
@@ -26,6 +51,7 @@ export interface VerificationRepository {
    * @param fileId هوية الملف
    * @param leaseId هوية محاولة العامل
    * @param result النسخة المفحوصة
+   * @param at وقت النشر والتحقق من انتهاء المطالبة
    * @returns نتيجة العملية المطلوبة
    */
   complete(
@@ -33,6 +59,7 @@ export interface VerificationRepository {
     fileId: string,
     leaseId: string,
     result: VerifiedFile,
+    at: Date,
   ): Promise<boolean>;
   /**
    * يجعل رفض المحتوى نهائياً مع رمز آمن بدلاً من خطأ المزود.
@@ -63,26 +90,27 @@ export interface VerificationRepository {
 }
 /** حد قراءة المحتوى وفحصه وإعادة ترميزه خارج المعاملة. */
 export interface VerificationStorage {
-  /**
-   * يقرأ بايتات محدودة ويفحصها ويعيد ترميز الصور ثم يكتب نسخة بمفتاح جديد.
+  /** يفحص البايتات ويعيد ترميز الصور قبل امتلاك نسخة قابلة للنشر.
    *
-   * @param companyId الشركة الموثقة
-   * @param file سجل الملف
-   * @param candidateId هوية نسخة جديدة
-   * @returns نتيجة العملية المطلوبة
+   * @param file بيانات الجسم المؤقت
+   * @returns محتوى مفحوص محدود في الذاكرة
    */
-  verify(
-    companyId: string,
-    file: PendingFile,
-    candidateId: string,
-  ): Promise<{ key: string; type: string; size: number }>;
-  /**
-   * يحذف المؤقت بعد نجاح النشر؛ الفشل لا يلغي صلاحية النسخة الموثقة.
+  inspect(file: PendingFile): Promise<InspectedFile>;
+  /** يولد مفتاحاً مستقلاً عن PUT دون كتابته قبل تسجيل ملكيته.
    *
-   * @param key المفتاح الداخلي
-   * @returns نتيجة العملية المطلوبة
+   * @param companyId الشركة
+   * @param businessId النشاط
+   * @param candidateId هوية النسخة
+   * @returns مفتاح مرشح مولد
    */
-  removeStaging(key: string): Promise<void>;
+  candidateKey(companyId: string, businessId: string, candidateId: string): string;
+  /** يكتب المفتاح المملوك مسبقاً خارج المعاملة.
+   *
+   * @param key المفتاح المسجل
+   * @param content البايتات المفحوصة
+   * @returns ينتهي عند كتابة النسخة المستقلة
+   */
+  write(key: string, content: InspectedFile): Promise<void>;
 }
 /** مصدر الوقت المحقون لمطالبات العامل. */
 export interface Clock {

@@ -44,6 +44,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'employees:SELECT',
     'file_access_audit:INSERT',
     'file_access_audit:SELECT',
+    'file_cleanup_objects:INSERT',
+    'file_cleanup_objects:SELECT',
     'file_objects:INSERT',
     'file_objects:SELECT',
     'idempotency_keys:INSERT',
@@ -119,6 +121,7 @@ const OUTBOX_COLUMN_GRANTS = [
 const TENANT_TABLES = [
   'file_objects',
   'file_access_audit',
+  'file_cleanup_objects',
   'employees',
   'employee_branches',
   'in_app_notifications',

@@ -20,7 +20,12 @@ export class RequestUpload {
   ) {}
   async execute(actor: Actor, businessId: string, input: RequestFileUpload) {
     if (
-      !(await this.permissions.allowed(actor, 'manage:files:business', businessId, null)) ||
+      !(await this.permissions.allowed(
+        actor,
+        'manage:files:business',
+        businessId,
+        input.branch_id ?? null,
+      )) ||
       !(await this.permissions.allowed(
         actor,
         input.required_permission,

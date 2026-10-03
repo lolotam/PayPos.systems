@@ -1,6 +1,7 @@
 import type { TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { VerificationRepository } from '../ports/verification.port.ts';
+import { reserveCandidate, publishCandidate } from './candidate-ownership.ts';
 
 async function safely<T>(work: () => Promise<T>): Promise<T> {
   try {
@@ -43,15 +44,15 @@ export function verificationRepository(db: TenantWrappers): VerificationReposito
           };
         }),
       ),
-    complete: (companyId, id, leaseId, result) =>
+    reserve: (companyId, id, leaseId, candidateId, key, at, until) =>
       safely(() =>
-        db.withTenant(companyId, async (tx) => {
-          const rows =
-            await tx.execute(sql`UPDATE file_objects SET status = 'READY', storage_key = ${result.key},
-        content_type = ${result.type}, size_bytes = ${result.size}, lease_id = NULL, lease_until = NULL
-        WHERE company_id = ${companyId} AND id = ${id} AND lease_id = ${leaseId} AND status = 'VERIFYING' RETURNING id`);
-          return rows.length === 1;
-        }),
+        db.withTenant(companyId, (tx) =>
+          reserveCandidate(tx, companyId, id, leaseId, candidateId, key, at, until),
+        ),
+      ),
+    complete: (companyId, id, leaseId, result, at) =>
+      safely(() =>
+        db.withTenant(companyId, (tx) => publishCandidate(tx, companyId, id, leaseId, result, at)),
       ),
     reject: (companyId, id, leaseId, code, at) =>
       safely(() =>

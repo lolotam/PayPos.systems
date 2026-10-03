@@ -1,3 +1,4 @@
+import type { ArtifactCleanup } from '../../ports/artifact-cleanup.port.ts';
 import { VerificationRejected, verificationDeadline } from '../../domain/verification.ts';
 import type {
   Clock,
@@ -13,6 +14,7 @@ export class VerifyUpload {
     private readonly storage: VerificationStorage,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
+    private readonly artifacts: ArtifactCleanup,
   ) {}
   async execute(companyId: string, fileId: string): Promise<void> {
     const leaseId = this.ids.newId(),
@@ -24,11 +26,38 @@ export class VerifyUpload {
       at,
       verificationDeadline(at),
     );
-    if (file === null) return;
+    if (file === null) {
+      await this.artifacts.execute(companyId);
+      return;
+    }
     try {
-      const verified = await this.storage.verify(companyId, file, this.ids.newId());
-      if (await this.repository.complete(companyId, fileId, leaseId, verified)) {
-        await this.storage.removeStaging(file.stagingKey).catch(() => undefined);
+      const content = await this.storage.inspect(file);
+      const candidateId = this.ids.newId();
+      const key = this.storage.candidateKey(companyId, file.businessId, candidateId);
+      const reservedAt = this.clock.now();
+      if (
+        !(await this.repository.reserve(
+          companyId,
+          fileId,
+          leaseId,
+          candidateId,
+          key,
+          reservedAt,
+          verificationDeadline(reservedAt),
+        ))
+      )
+        return;
+      await this.storage.write(key, content);
+      if (
+        await this.repository.complete(
+          companyId,
+          fileId,
+          leaseId,
+          { key, type: content.type, size: content.size },
+          this.clock.now(),
+        )
+      ) {
+        await this.artifacts.execute(companyId);
       }
     } catch (error) {
       if (error instanceof VerificationRejected) {
