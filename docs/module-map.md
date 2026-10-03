@@ -93,6 +93,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `settings` | `BusinessDiscountAccess`, `DiscountSubjectReader` | `identity` | locked discount-management authority and scoped personal limit/active owner metadata (ADR-0023) |
 | `settings` | `DiscountSubjectReader` | `tenancy` | business and branch scope confirmed before identity membership read (ADR-0023) |
 | `staff` | `EmployeeDetailAccess` (read-side interface beside the query) | `identity` | effective grants at the persisted business/primary branch and staff feature; never global user existence (ADR-0021, PR #79) |
+| `staff` | `ScheduleScope`, `ScheduleReadAccess` | `identity` | schedule permissions and staff feature; writes retain company and ordered membership locks (ADR-0024) |
+| `staff` | `ScheduleScope`, `ScheduleReadAccess` | `tenancy` | branch ownership and effective timezone through describeWorkspaces, using PR 19 fallback (ADR-0024) |
 | `orders`                            | `CustomerLookupPort`                                                                    | `customers` | `exists(customerId)` — reception finds or creates the customer first through `customers`' own endpoint (ADR-0010)                                                    |
 | `orders`                            | `PerformerCheckPort`                                                                    | `staff`     | employee active and attached to the branch on the date (ADR-0010)                                                                                                    |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
@@ -217,6 +219,8 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> identity.scheduleAccess @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts
   - staff -> identity.lockEmployeeSalaryAccess @ apps/api/src/modules/staff/persistence/employee-salary-access.adapter.ts
   - staff -> identity.readEmployeeSalaryAccess @ apps/api/src/modules/staff/persistence/employee-salary-access.adapter.ts
   - settings -> identity.lockBusinessDiscountAccess @ apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts

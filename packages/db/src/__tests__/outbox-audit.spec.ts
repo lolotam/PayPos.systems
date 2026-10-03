@@ -3,7 +3,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { TENANT, USER, seedTwoTenants } from '../../test/tenancy-fixtures.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
-import { appendAuditLog, appendOutboxEvent, createDatabase, type Database } from '../index.ts';
+import {
+  appendAuditLog,
+  appendAuditLogs,
+  appendOutboxEvent,
+  createDatabase,
+  type Database,
+} from '../index.ts';
 
 // plan v4 T7: the outbox row lives and dies with the caller's transaction; audit_log is insert-only;
 // both take the company (and the actor) from the context, never from the caller.
@@ -147,6 +153,33 @@ describe('audit_log', () => {
 });
 
 describe('audit_log snapshots', () => {
+  it('batches preserve actor/tenant, redact every snapshot, and roll back together', async () => {
+    const ids = [nextId(), nextId()];
+    const entries = ids.map((id) => ({
+      id,
+      entry: { ...entry, after: { token: 'synthetic-token', name: 'Synthetic' } },
+    }));
+    await database.withTenant(TENANT.A.company, (tx) => appendAuditLogs(tx, entries), {
+      userId: USER,
+    });
+    const rows =
+      await owner`SELECT company_id,actor_user_id,after FROM audit_log WHERE id=ANY(${ids}::uuid[])`;
+    expect(Array.from(rows)).toEqual(
+      ids.map(() => ({
+        company_id: TENANT.A.company,
+        actor_user_id: USER,
+        after: { token: '[REDACTED]', name: 'Synthetic' },
+      })),
+    );
+    const rollbackId = nextId();
+    await expect(
+      database.withTenant(TENANT.A.company, async (tx) => {
+        await appendAuditLogs(tx, [{ id: rollbackId, entry }]);
+        throw new Error('Synthetic rollback');
+      }),
+    ).rejects.toThrow('Synthetic rollback');
+    expect(await owner`SELECT id FROM audit_log WHERE id=${rollbackId}`).toHaveLength(0);
+  });
   it('never stores a secret in a snapshot — the row is kept forever', async () => {
     const id = nextId();
     await database.withTenant(TENANT.A.company, (tx) =>

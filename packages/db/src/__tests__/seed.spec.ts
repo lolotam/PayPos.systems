@@ -18,6 +18,24 @@ afterAll(async () => {
   await owner.end();
   await testDb.drop();
 });
+// التوقع مستقل عن استعلام الزرع: يمنع فتح صلاحيات القوالب لمدير الفرع أو موظف التطبيق.
+function expectedManagerGrants() {
+  return SYSTEM_ROLES.flatMap((r) => {
+    const manager = ['general_manager', 'business_manager', 'branch_manager'].includes(r.code);
+    const businessManager = ['general_manager', 'business_manager'].includes(r.code);
+    const permissions = [
+      ...(manager
+        ? ['view:notifications:business', 'read:schedules:branch', 'manage:schedules:branch']
+        : []),
+      ...(businessManager ? ['read:schedules:business', 'manage:schedules:business'] : []),
+      ...(r.code === 'staff' ? ['login:staff:branch'] : []),
+    ];
+    return permissions.map((permission_code) => ({ role_id: r.id, permission_code }));
+  }).sort(
+    (a, b) =>
+      a.permission_code.localeCompare(b.permission_code) || a.role_id.localeCompare(b.role_id),
+  );
+}
 
 describe('seedReferenceData', () => {
   it('writes one provisional plan with every module flag enabled, and is idempotent', async () => {
@@ -42,18 +60,7 @@ describe('seedReferenceData', () => {
   it('keeps customer defaults pending PR 7a and staff login explicit; preserves Owner and manager grants', async () => {
     const owned = await owner<{ role_id: string; permission_code: string }[]>`
       SELECT role_id, permission_code FROM role_permissions ORDER BY permission_code, role_id`;
-    expect(owned.filter((r) => r.role_id !== OWNER_ROLE_ID)).toEqual(
-      SYSTEM_ROLES.flatMap((r) =>
-        ['general_manager', 'business_manager', 'branch_manager'].includes(r.code)
-          ? [{ role_id: r.id, permission_code: 'view:notifications:business' }]
-          : r.code === 'staff'
-            ? [{ role_id: r.id, permission_code: 'login:staff:branch' }]
-            : [],
-      ).sort(
-        (a, b) =>
-          a.permission_code.localeCompare(b.permission_code) || a.role_id.localeCompare(b.role_id),
-      ),
-    );
+    expect(owned.filter((r) => r.role_id !== OWNER_ROLE_ID)).toEqual(expectedManagerGrants());
     expect(owned.filter((r) => r.role_id === OWNER_ROLE_ID).map((r) => r.permission_code)).toEqual(
       PERMISSIONS.filter(
         (p) =>

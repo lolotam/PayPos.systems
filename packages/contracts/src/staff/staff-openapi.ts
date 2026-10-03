@@ -1,3 +1,4 @@
+import { schedulesPaths } from './schedules-openapi.js';
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
 });
@@ -12,6 +13,7 @@ const parameters = [
 ];
 const errors = { description: 'Bilingual refusal', content: json('ErrorEnvelope') };
 export const staffPaths = {
+  ...schedulesPaths,
   '/v1/businesses/{businessId}/employees/{employeeId}/salaries': {
     get: {
       operationId: 'salaryHistory',

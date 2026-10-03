@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scheduleSchemas } from './staff/schedules.js';
 import {
   setSalaryInput,
   employeeSalary,
@@ -77,6 +78,7 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...scheduleSchemas,
   setSalaryInput,
   employeeSalary,
   salaryHistoryQuery,
