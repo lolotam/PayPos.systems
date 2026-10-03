@@ -15,6 +15,8 @@ export const PERMISSIONS = [
   // TODO(spec): منح صلاحية الاستقبال للأدوار مؤجل إلى PR 7a؛ إضافتها للـ catalog لا تمنحها للـ Owner تلقائياً.
   'create:customers:company',
   'manage:memberships:company',
+  // TODO(spec): حزم إدارة الخصم مؤجلة إلى PR 7a؛ الكود هنا لا يمنحها لأي دور.
+  'manage:discounts:company',
   'read:businesses:company',
   'create:businesses:company',
   'create:branches:business',

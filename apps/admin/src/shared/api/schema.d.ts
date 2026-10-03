@@ -118,6 +118,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/permissions/memberships/{membershipId}/discount-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setMembershipDiscountLimit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/permissions/memberships": {
         parameters: {
             query?: never;
@@ -508,6 +524,96 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        DiscountLimit: {
+            limit_bps: number | null;
+        };
+        DiscountLimitInput: {
+            limit_bps: number | null;
+            reason: string;
+        };
+        MembershipPageQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        MembershipPermissionsQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            /** Format: uuid */
+            history_cursor?: string;
+        };
+        RevokePermissionOverrideInput: {
+            reason: string;
+        };
+        PermissionOverrideInput: {
+            permission_code: string;
+            /** @enum {string} */
+            effect: "ALLOW" | "DENY";
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            reason: string;
+            /** Format: date-time */
+            expires_at: string | null;
+        };
+        PermissionOverride: {
+            permission_code: string;
+            /** @enum {string} */
+            effect: "ALLOW" | "DENY";
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            reason: string;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            granted_by: string;
+            /** Format: date-time */
+            granted_at: string;
+        };
+        PermissionMembership: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: uuid */
+            employee_id: string | null;
+            role_code: string;
+            role_name_ar: string | null;
+            role_name_en: string;
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string | null;
+        };
+        PermissionMembershipPage: {
+            items: components["schemas"]["PermissionMembership"][];
+            next_cursor: string | null;
+        };
+        PermissionOverridePage: {
+            items: components["schemas"]["PermissionOverride"][];
+            next_cursor: string | null;
+        };
+        MembershipPermissions: {
+            membership: components["schemas"]["PermissionMembership"];
+            role_defaults: string[];
+            permission_catalog: string[];
+            overrides: components["schemas"]["PermissionOverridePage"];
+            ended_overrides: components["schemas"]["PermissionOverridePage"];
+            editing_enabled: boolean;
+            discount_limit: components["schemas"]["DiscountLimit"];
+        };
         RequestFileUpload: {
             owner_module: string;
             /** Format: uuid */
@@ -589,88 +695,6 @@ export interface components {
         EmployeeRoleCode: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
         /** Format: date */
         EmployeeDate: string;
-        MembershipPermissionsQuery: {
-            /** Format: uuid */
-            cursor?: string;
-            /** @default 20 */
-            limit: number;
-            /** Format: uuid */
-            history_cursor?: string;
-        };
-        RevokePermissionOverrideInput: {
-            reason: string;
-        };
-        MembershipPageQuery: {
-            /** Format: uuid */
-            cursor?: string;
-            /** @default 20 */
-            limit: number;
-        };
-        PermissionOverrideInput: {
-            permission_code: string;
-            /** @enum {string} */
-            effect: "ALLOW" | "DENY";
-            /** @enum {string} */
-            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
-            /** Format: uuid */
-            scope_id: string;
-            reason: string;
-            /** Format: date-time */
-            expires_at: string | null;
-        };
-        PermissionOverride: {
-            permission_code: string;
-            /** @enum {string} */
-            effect: "ALLOW" | "DENY";
-            /** @enum {string} */
-            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
-            /** Format: uuid */
-            scope_id: string;
-            reason: string;
-            /** Format: date-time */
-            expires_at: string | null;
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            granted_by: string;
-            /** Format: date-time */
-            granted_at: string;
-        };
-        PermissionMembership: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            user_id: string | null;
-            /** Format: uuid */
-            employee_id: string | null;
-            role_code: string;
-            role_name_ar: string | null;
-            role_name_en: string;
-            /** @enum {string} */
-            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
-            /** Format: uuid */
-            scope_id: string;
-            /** Format: date-time */
-            starts_at: string;
-            /** Format: date-time */
-            ends_at: string | null;
-        };
-        PermissionMembershipPage: {
-            items: components["schemas"]["PermissionMembership"][];
-            next_cursor: string | null;
-        };
-        PermissionOverridePage: {
-            items: components["schemas"]["PermissionOverride"][];
-            next_cursor: string | null;
-        };
-        MembershipPermissions: {
-            membership: components["schemas"]["PermissionMembership"];
-            role_defaults: string[];
-            permission_catalog: string[];
-            overrides: components["schemas"]["PermissionOverridePage"];
-            ended_overrides: components["schemas"]["PermissionOverridePage"];
-            editing_enabled: boolean;
-        };
         Customer: {
             /** Format: uuid */
             id: string;
@@ -1337,6 +1361,43 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setMembershipDiscountLimit: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountLimitInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountLimit"];
+                };
+            };
+            /** @description The API error envelope */
             default: {
                 headers: {
                     [name: string]: unknown;

@@ -47,6 +47,7 @@ function detailStatement(
       WHERE p.code NOT LIKE '%:platform') AS permission_catalog,
     ${overrideRows(companyId, page, false)} AS overrides,
     ${overrideRows(companyId, page, true)} AS ended_overrides,
+    jsonb_build_object('limit_bps', m.limit_bps) AS discount_limit,
     ${editingAllowed(companyId, userId)} AS editing_enabled
     FROM memberships m JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
     WHERE m.company_id = ${companyId} AND m.id = ${membershipId}

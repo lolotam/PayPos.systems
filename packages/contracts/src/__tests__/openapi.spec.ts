@@ -26,6 +26,8 @@ const expectedSchemas = [
   'DeviceIdentity',
   'DeviceRegistration',
   'DeviceToken',
+  'DiscountLimit',
+  'DiscountLimitInput',
   'Employee',
   'EmployeeDate',
   'EmployeeRoleCode',

@@ -176,6 +176,18 @@ export {
   type StaffSessionContext,
 } from './identity/staff-otp.js';
 export {
+  discountLimit,
+  discountLimitInput,
+  discountLimitBps,
+  type DiscountLimit,
+  type DiscountLimitInput,
+} from './identity/discount-limit.js';
+export {
+  discountPercentage,
+  discountLimitFormInput,
+  type DiscountLimitFormValues,
+} from './identity/discount-limit.js';
+export {
   requestFileUpload,
   fileUploadTicket,
   fileStatus,

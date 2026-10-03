@@ -330,6 +330,20 @@
       "when": 1791011593581,
       "tag": "0046_2026-10-03_files-cleanup-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1791016800806,
+      "tag": "0047_2026-10-03_identity-discount-limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791016836150,
+      "tag": "0048_2026-10-03_identity-discount-permission",
+      "breakpoints": true
     }
   ]
 }

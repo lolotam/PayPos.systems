@@ -61,6 +61,7 @@ describe('seedReferenceData', () => {
           p !== 'manage:files:business' &&
           p !== 'read:files:business' &&
           p !== 'create:customers:company' &&
+          p !== 'manage:discounts:company' &&
           p !== 'manage:employees:business' &&
           p !== 'login:staff:branch',
       ).sort(),

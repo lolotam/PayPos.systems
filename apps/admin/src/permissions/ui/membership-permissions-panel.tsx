@@ -1,16 +1,15 @@
 'use client';
 
-import { t } from '@pospay/i18n';
-import { Card, CardContent, EmptyState, CircleAlert, LoaderCircle } from '@pospay/ui';
+import { Card, CardContent } from '@pospay/ui';
 import { useState } from 'react';
 
-import { envelopeMessage } from '@/shared/api/api-error';
-import { useLocale } from '@/shared/locale/locale-context';
 import { usePermissions } from '../api/use-permissions';
 import { PermissionMembershipDecisions } from './permission-membership-decisions';
 import { PermissionMembershipSummary } from './permission-membership-summary';
 import { PermissionMembershipHistory } from './permission-membership-history';
+import { MembershipDiscountLimit } from './membership-discount-limit';
 import { PermissionMembershipHeading } from './permission-membership-heading';
+import { PermissionDetailState } from './permission-detail-state';
 
 type Props = {
   companyId: string;
@@ -25,7 +24,6 @@ export function MembershipPermissionsPanel({
   membershipId,
   branchTimeZones = {},
 }: Props) {
-  const locale = useLocale();
   const [cursor, setCursor] = useState<string>();
   const [historyCursor, setHistoryCursor] = useState<string>();
   const { detail, save, revoke } = usePermissions(
@@ -35,17 +33,8 @@ export function MembershipPermissionsPanel({
     cursor,
     historyCursor,
   );
-  if (detail.isPending)
-    return <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />;
-  if (detail.isError)
-    return (
-      <EmptyState
-        role="alert"
-        tone="danger"
-        icon={<CircleAlert />}
-        title={envelopeMessage(detail.error, locale)}
-      />
-    );
+  if (detail.isPending || detail.isError)
+    return <PermissionDetailState pending={detail.isPending} error={detail.error} />;
   const data = detail.data;
   return (
     <Card>
@@ -63,6 +52,13 @@ export function MembershipPermissionsPanel({
           revoke={revoke}
           cursor={cursor}
           onCursorChange={setCursor}
+        />
+        <MembershipDiscountLimit
+          companyId={companyId}
+          userId={userId}
+          membershipId={membershipId}
+          limitBps={data.discount_limit.limit_bps}
+          disabled={!data.editing_enabled}
         />
         <PermissionMembershipHistory
           data={data}

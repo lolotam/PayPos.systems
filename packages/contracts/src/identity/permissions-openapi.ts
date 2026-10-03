@@ -1,3 +1,30 @@
+import { discountLimit, discountLimitInput } from './discount-limit.js';
+import {
+  membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
+} from './permissions.js';
+
+export const permissionSchemas = [
+  discountLimit,
+  discountLimitInput,
+  membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
+];
+
 const json = (name: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${name}` } },
 });
@@ -23,6 +50,13 @@ function operation(operationId: string, schema: string, status = '200') {
   };
 }
 export const permissionPaths = {
+  '/v1/permissions/memberships/{membershipId}/discount-limit': {
+    post: {
+      ...operation('setMembershipDiscountLimit', 'DiscountLimit'),
+      parameters: [company, member],
+      requestBody: { required: true, content: json('DiscountLimitInput') },
+    },
+  },
   '/v1/permissions/memberships': {
     get: {
       ...operation('listPermissionMemberships', 'PermissionMembershipPage'),

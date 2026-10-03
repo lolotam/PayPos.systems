@@ -22,6 +22,7 @@ const fixture = membershipPermissions.parse({
   role_defaults: [],
   permission_catalog: ['read:memberships:company'],
   editing_enabled: false,
+  discount_limit: { limit_bps: null },
   ended_overrides: { items: [], next_cursor: null },
   overrides: {
     items: [
@@ -48,6 +49,9 @@ const state = vi.hoisted(() => ({
   mutationError: false,
 }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
+vi.mock('../api/use-discount-limit', () => ({
+  useDiscountLimit: () => ({ isPending: false, isError: false, isSuccess: false, mutate: vi.fn() }),
+}));
 vi.mock('../api/use-permissions', () => ({
   usePermissions: () => ({
     detail: {
