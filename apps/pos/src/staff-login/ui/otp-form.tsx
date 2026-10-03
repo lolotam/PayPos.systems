@@ -1,5 +1,5 @@
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
+import { Button, EmptyState, CircleAlert } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useOtpForm } from '../api/use-otp-form';
 import { PhoneForm } from './phone-form';
@@ -10,11 +10,15 @@ export function OtpForm({ onSignedIn }: { onSignedIn(): void }) {
   const { phone, challenge, remaining, pending, error, request, verify } = useOtpForm(onSignedIn);
   return (
     <section className="flex flex-col gap-4">
-      <p>{t(locale, 'staffLogin.recovery')}</p>
+      <p className="text-base text-muted-foreground">{t(locale, 'staffLogin.recovery')}</p>
       {error === null ? null : (
-        <p role="alert">
-          {t(locale, error === 'invalid' ? 'errors.OTP_INVALID' : 'errors.OTP_UNAVAILABLE')}
-        </p>
+        <EmptyState
+          role="alert"
+          tone="danger"
+          icon={<CircleAlert />}
+          title={t(locale, error === 'invalid' ? 'errors.OTP_INVALID' : 'errors.OTP_UNAVAILABLE')}
+          className="p-4"
+        />
       )}
       {challenge === null ? (
         <PhoneForm pending={pending} onSubmit={request} />
@@ -25,6 +29,8 @@ export function OtpForm({ onSignedIn }: { onSignedIn(): void }) {
             {t(locale, 'staffLogin.countdown')} {remaining}
           </p>
           <Button
+            size="touch"
+            variant="outline"
             disabled={pending || remaining > 0}
             onClick={() => {
               if (phone !== null) void request(phone);

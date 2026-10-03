@@ -9,7 +9,7 @@ import '@/styles/app.css';
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await readRequestLocale();
-  return { title: t(locale, 'admin.appName') };
+  return { title: t(locale, 'admin.appName'), icons: { icon: '/icon.svg' } };
 }
 
 export async function RootLayout({ children }: { children: ReactNode }) {

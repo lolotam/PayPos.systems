@@ -5,6 +5,7 @@ import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
+import { seedEmployee } from '../../../../../../packages/db/test/staff-fixtures.ts';
 import { CASHIER_PIN_USE_CASES, type CashierPinUseCases } from '../http/cashier-pins.controller.ts';
 import { createRedisPinAttempts } from '../persistence/redis-pin-attempts.ts';
 import type { PinAttempts } from '../ports/cashier-pins.port.ts';
@@ -79,6 +80,7 @@ beforeAll(async () => {
   company = await h.onboard(owner, 'Pins Co');
   otherCompany = await h.onboard(owner, 'Other Pins Co');
   deviceToken = await approvedDevice(company, await branchIn(company, 'pins'));
+  await branchIn(otherCompany, 'other-pins');
 });
 
 afterAll(async () => {
@@ -94,8 +96,10 @@ const verify = (body: object, headers: Record<string, string> = {}) =>
   });
 const code = (res: Awaited<ReturnType<typeof verify>>) =>
   [res.statusCode, res.statusCode === 200 ? 'OK' : errorEnvelope.parse(res.json()).code] as const;
-const setPin = (employeeId: string, pin: string, companyId = company) =>
-  pins.setCashierPin.execute({ companyId, userId: managerId, employeeId, pin });
+const setPin = async (employeeId: string, pin: string, companyId = company) => {
+  await seedEmployee(h.owner, companyId, employeeId);
+  return pins.setCashierPin.execute({ companyId, userId: managerId, employeeId, pin });
+};
 const pinKey = (employeeId: string, part: string) => `pin:${company}:${employeeId}:${part}`;
 const unlock = (employeeId: string) =>
   h.redis.del(...['failures', 'reservations', 'lock'].map((part) => pinKey(employeeId, part)));

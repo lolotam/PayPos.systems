@@ -10,6 +10,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -115,6 +116,7 @@ export const branches = pgTable(
       foreignColumns: [businesses.companyId, businesses.id],
     }),
     primaryKey({ name: 'branches_pkey', columns: [t.companyId, t.id] }),
+    unique('branches_company_business_id_key').on(t.companyId, t.businessId, t.id),
     index('branches_company_id_business_id_idx').on(t.companyId, t.businessId),
     check('branches_geo_pair', sql`(${t.geoLat} IS NULL) = (${t.geoLng} IS NULL)`),
     check('branches_geo_lat_range', sql`${t.geoLat} IS NULL OR ${t.geoLat} BETWEEN -90 AND 90`),

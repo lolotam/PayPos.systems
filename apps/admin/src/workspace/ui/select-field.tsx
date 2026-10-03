@@ -20,7 +20,7 @@ export function SelectField({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex min-w-40 flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-2">
       <Label htmlFor={id}>{label}</Label>
       <Select
         id={id}

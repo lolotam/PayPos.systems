@@ -20,7 +20,7 @@ const components: readonly (readonly [string, Primitive, string, string, string]
   ['Label', Label, 'label', 'text-sm', 'text-base'],
   ['Badge', Badge, 'span', 'py-1', 'py-2'],
   ['Separator', Separator, 'div', 'bg-border', 'bg-primary'],
-  ['Card', Card, 'div', 'shadow-sm', 'shadow-none'],
+  ['Card', Card, 'div', 'border-border', 'border-transparent'],
   ['CardHeader', CardHeader, 'div', 'gap-2', 'gap-4'],
   ['CardTitle', CardTitle, 'h3', 'text-lg', 'text-xl'],
   ['CardContent', CardContent, 'div', 'py-6', 'py-8'],

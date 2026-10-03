@@ -2,6 +2,7 @@ import { createDatabase, SYSTEM_ROLES } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import type { PermissionOverrideInput } from '@pospay/contracts';
 import { startHarness, type Harness } from '../../../../test/harness.ts';
+import { seedEmployee } from '../../../../../../packages/db/test/staff-fixtures.ts';
 
 const ids = systemUuidV7();
 const role = (code: string) => SYSTEM_ROLES.find((r) => r.code === code)?.id ?? '';
@@ -66,9 +67,11 @@ async function newBranch(h: Harness, company: string, business: string) {
 }
 export async function newMember(f: PermissionFixture, code = 'viewer', company = f.company) {
   const id = ids.newId();
+  const employeeId = ids.newId();
+  await seedEmployee(f.h.owner, company, employeeId);
   await f.h
     .owner`INSERT INTO memberships (company_id, id, employee_id, role_id, role_owner_key, scope_type, scope_id)
-    VALUES (${company}, ${id}, ${ids.newId()}, ${role(code)}, 'global', 'COMPANY', ${company})`;
+    VALUES (${company}, ${id}, ${employeeId}, ${role(code)}, 'global', 'COMPANY', ${company})`;
   return id;
 }
 export function terms(
@@ -92,6 +95,7 @@ export async function newHeldMember(
   company = f.company,
 ) {
   const id = ids.newId();
+  if ('employeeId' in holder) await seedEmployee(f.h.owner, company, holder.employeeId);
   await f.h.owner`INSERT INTO memberships
     (company_id, id, user_id, employee_id, role_id, role_owner_key, scope_type, scope_id)
     VALUES (${company}, ${id}, ${'userId' in holder ? holder.userId : null},

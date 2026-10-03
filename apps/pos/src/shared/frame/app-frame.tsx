@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { BrandLockup } from '@pospay/ui';
+import { t } from '@pospay/i18n';
+import { useLocale } from '@/shared/locale/locale-context';
 
 export function AppFrame({
   brand,
@@ -9,13 +12,23 @@ export function AppFrame({
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const locale = useLocale();
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
-        <p className="text-start font-medium">{brand}</p>
-        <div className="ms-auto flex flex-wrap items-center gap-3">{actions}</div>
+    <div className="pos-shell flex min-h-dvh flex-col text-lg">
+      <header
+        aria-label={typeof brand === 'string' ? brand : undefined}
+        className="flex flex-wrap items-center gap-2 border-b border-border bg-card ps-4 pe-4 py-4 sm:ps-8 sm:pe-8"
+      >
+        <BrandLockup
+          title={t(locale, 'brand.title')}
+          latinName={t(locale, 'brand.latinName')}
+          arabicName={t(locale, 'brand.arabicName')}
+        />
+        <div className="ms-auto flex items-center gap-2">{actions}</div>
       </header>
-      <main className="flex-1 px-4 py-6">{children}</main>
+      <main className="flex min-w-0 flex-1 flex-col justify-center ps-4 pe-4 py-12 sm:ps-8 sm:pe-8">
+        {children}
+      </main>
     </div>
   );
 }

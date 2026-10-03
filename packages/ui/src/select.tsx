@@ -23,7 +23,7 @@ export interface SelectProps {
 }
 
 const triggerClass =
-  'flex min-h-12 w-full items-center justify-between gap-2 rounded-interactive border border-input bg-background ps-3 pe-3 text-start text-base text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50';
+  'flex min-h-12 w-full items-center justify-between gap-2 rounded-interactive border border-input bg-card ps-3 pe-3 text-start text-base text-card-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50';
 
 const itemClass =
   'flex cursor-pointer items-center rounded-interactive px-3 py-2 text-start outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground';

@@ -2,6 +2,7 @@
 
 import { t } from '@pospay/i18n';
 import type { ReactNode } from 'react';
+import { EmptyState, Building2, CircleAlert, LoaderCircle } from '@pospay/ui';
 
 import { useLocale } from '@/shared/locale/locale-context';
 
@@ -11,25 +12,24 @@ export function WorkspaceBody({ children }: { children: ReactNode }) {
   const locale = useLocale();
   const workspace = useWorkspace();
   if (workspace.status === 'loading') {
-    return <p className="text-start">{t(locale, 'admin.loading')}</p>;
+    return <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />;
   }
   if (workspace.status === 'error') {
     return (
-      <p role="alert" className="text-start">
-        {workspace.message}
-      </p>
+      <EmptyState role="alert" tone="danger" icon={<CircleAlert />} title={workspace.message} />
     );
   }
   if (workspace.status === 'empty') {
     return (
-      <section className="flex max-w-xl flex-col gap-2">
-        <h1 className="text-start text-xl font-bold">{t(locale, 'admin.workspaceEmptyTitle')}</h1>
-        <p className="text-start text-muted-foreground">{t(locale, 'admin.workspaceEmptyBody')}</p>
-      </section>
+      <EmptyState
+        icon={<Building2 />}
+        title={t(locale, 'admin.workspaceEmptyTitle')}
+        description={t(locale, 'admin.workspaceEmptyBody')}
+      />
     );
   }
   if (workspace.status === 'choose') {
-    return <p className="text-start">{t(locale, 'admin.choosePrompt')}</p>;
+    return <EmptyState icon={<Building2 />} title={t(locale, 'admin.choosePrompt')} />;
   }
   return children;
 }

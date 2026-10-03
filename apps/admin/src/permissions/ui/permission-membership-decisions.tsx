@@ -1,11 +1,11 @@
 import type { MembershipPermissions } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { usePermissions } from '../api/use-permissions';
 import { PermissionOverrides } from './permission-overrides';
 import { PermissionOverrideForm } from './permission-override-form';
 import { PermissionPageNavigation } from './permission-page-navigation';
+import { PermissionDecisionNotices } from './permission-decision-notices';
 
 type Props = {
   data: MembershipPermissions;
@@ -27,8 +27,8 @@ export function PermissionMembershipDecisions({
 }: Props) {
   const locale = useLocale();
   return (
-    <>
-      <h2>{t(locale, 'permissions.overrides')}</h2>
+    <section className="flex flex-col gap-4">
+      <h2 className="font-bold">{t(locale, 'permissions.overrides')}</h2>
       <PermissionOverrides
         items={data.overrides.items}
         branchTimeZones={branchTimeZones}
@@ -53,10 +53,7 @@ export function PermissionMembershipDecisions({
         pending={save.isPending || revoke.isPending}
         onSave={(terms) => save.mutate(terms)}
       />
-      {save.isError ? <p role="alert">{envelopeMessage(save.error, locale)}</p> : null}
-      {save.isSuccess ? <p role="status">{t(locale, 'permissions.saved')}</p> : null}
-      {revoke.isError ? <p role="alert">{envelopeMessage(revoke.error, locale)}</p> : null}
-      {revoke.isSuccess ? <p role="status">{t(locale, 'permissions.revoked')}</p> : null}
-    </>
+      <PermissionDecisionNotices save={save} revoke={revoke} />
+    </section>
   );
 }

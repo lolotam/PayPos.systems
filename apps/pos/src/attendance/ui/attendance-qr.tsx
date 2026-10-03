@@ -6,7 +6,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 export function AttendanceQr({ payload }: { payload: string }) {
   const locale = useLocale();
   return (
-    <div className="mx-auto w-full max-w-80 rounded-card bg-white p-4 text-black">
+    <div className="mx-auto w-full max-w-80 rounded-card border border-border bg-white p-6 text-black">
       <QRCodeSVG
         value={payload}
         size={288}

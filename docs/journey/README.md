@@ -22,6 +22,9 @@ element by its visible text in either language.
 
 ## Journeys
 
+Since #80 the admin has a dark sidebar (logo, company/business/branch, navigation, account and authenticator at the bottom) and a slim top row (notifications bell, language). On a phone the sidebar opens from the ☰ button.
+من بعد #80 لوحة الإدارة فيها قائمة جانبية كحلي (اللوجو، الشركة/النشاط/الفرع، القائمة، والحساب والمصادقة تحت) وشريط صغير فوق (الجرس واللغة). على الموبايل القائمة بتفتح من زرار ☰.
+
 | # | Journey | Shipped in | Runs on staging? |
 |---|---|---|---|
 | 00 | [Local setup](00-local-setup.md) — تشغيل النظام على جهازك | — | — |
@@ -35,5 +38,7 @@ element by its visible text in either language.
 | 08 | [Staff sign-in on the POS](08-staff-login-pos.md) — دخول الموظف على جهاز الكاشير | #61 | not yet (POS not deployed); WhatsApp codes need Meta templates + secrets |
 | 09 | [The branch attendance QR](09-attendance-qr.md) — باركود الحضور على جهاز الفرع | #72 | not yet (POS not deployed) |
 | 10 | [Find or create a customer by phone](10-customer-find-or-create.md) — البحث عن عميل أو إضافته برقم الموبايل | #71 | API only until PR 35 |
+| 11 | [The email channel (built, sending off)](11-email-channel-disabled.md) — قناة الإيميل (جاهزة، والإرسال مقفول) | #75 | nothing to test live until feedback intake ships |
+| 12 | [The permissions screen](12-permissions-screen.md) — شاشة الصلاحيات | #73 | not yet (admin not deployed, issue #54) |
 
 New journeys are added after every merge.

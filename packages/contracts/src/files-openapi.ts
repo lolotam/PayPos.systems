@@ -1,3 +1,21 @@
+import {
+  requestFileUpload,
+  fileUploadTicket,
+  fileStatus,
+  fileConfirmation,
+  fileDownload,
+  fileDownloadByKey,
+} from './files.js';
+
+export const fileSchemas = [
+  requestFileUpload,
+  fileUploadTicket,
+  fileStatus,
+  fileConfirmation,
+  fileDownload,
+  fileDownloadByKey,
+];
+
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
 });

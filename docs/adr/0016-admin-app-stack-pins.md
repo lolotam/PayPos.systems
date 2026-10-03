@@ -26,6 +26,7 @@ These are the exact versions installed for `@pospay/admin`. Pins are exact
 | `@types/react` / `@types/react-dom` | **19.3.0** | Matching JSX types |
 | `@types/node` | **24.13.6** | Node 24 types, same pin as the rest of the repo |
 | `@tanstack/react-query` | **5.104.0** | Server-state cache for the workspace query and the session probe |
+| `@tanstack/react-table` | **8.21.3** | CLAUDE.md §7 table renderer; the brand shell renders the existing cursor-paginated membership results without client sorting, filtering or pagination |
 | `react-hook-form` | **7.89.0** | Login, TOTP, and password-confirm forms |
 | `@hookform/resolvers` | **5.9.1** | Connects those forms to the Zod 4 schemas in `@pospay/contracts` |
 | `openapi-fetch` | **0.17.0** | Typed client over the generated OpenAPI paths, with cookie credentials |
@@ -69,6 +70,11 @@ source whose imports use `.js` specifiers for `.ts` and `.tsx` files. `next buil
 Next does not write a second `CLAUDE.md` beside the repo rules.
 
 ## Consequences
+
+- The design brand shell uses Table v8's core row model with `manualPagination: true`.
+  Existing permission query hooks, cursor controls and membership selection remain the owners
+  of data and actions. The headless library adds no component styling or business rules.
+  See [TanStack manual server pagination](https://tanstack.com/table/v8/docs/guide/pagination#manual-server-side-pagination).
 
 - `pnpm check` typechecks, lints, tests, and builds `@pospay/admin`, then
   `api:check` fails if the committed `schema.d.ts` drifts from the OpenAPI document.

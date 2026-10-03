@@ -55,6 +55,8 @@ export function Require(
  * A route that needs a verified session and nothing else — it touches no company's data (who am I, which
  * companies can I switch to). Personal tenant resources additionally use SelectedCompanyGuard and
  * filter every query/mutation by the session user (ADR-0018 §6); administrative access uses @Require.
+ * المورد الذي يستمد نطاقه من السجل يستخدم guard خاصاً بعد SelectedCompanyGuard؛ هذا الـ marker وحده
+ * لا يمنح وصولاً للمورد، ويظل فحص الإذن الفعلي والميزة واجباً داخل guard المورد.
  *
  * @returns the metadata decorator
  */

@@ -25,6 +25,9 @@ describe('LocaleSwitch', () => {
     const switchButton = screen.getByRole('button', {
       name: t('ar', 'pos.languageEnglish'),
     });
+    expect(switchButton.classList.contains('min-h-12')).toBe(true);
+    expect(switchButton.classList.contains('min-h-11')).toBe(false);
+    expect(switchButton.classList.contains('text-lg')).toBe(true);
     fireEvent.click(switchButton);
 
     expect(document.documentElement.dir).toBe('ltr');

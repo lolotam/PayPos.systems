@@ -2,6 +2,19 @@ import type { Catalog } from './catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  brand: {
+    title: 'PosPay — بوس باي',
+    latinName: 'PosPay',
+    arabicName: 'بوس باي',
+  },
+  shell: {
+    navigation: 'التنقل في مساحة العمل',
+    openNavigation: 'فتح قائمة التنقل',
+    closeNavigation: 'إغلاق قائمة التنقل',
+    account: 'الحساب المسجّل',
+    workspaceLead: 'نظرة على شركتك ونشاطك وفرعك.',
+    permissionsLead: 'راجع صلاحيات الدور وأدر قرارات الوصول لكل شخص.',
+  },
   roles: {
     owner: 'صاحب الشركة',
     general_manager: 'مدير عام',
@@ -18,6 +31,8 @@ export const ar: Catalog = {
     viewer: 'مشاهد',
   },
   permissions: {
+    view: 'عرض',
+    copyHolder: 'نسخ المعرّف',
     title: 'الصلاحيات',
     person: 'العضوية',
     choose: 'اختر الشخص',
@@ -101,6 +116,12 @@ export const ar: Catalog = {
     FILE_TYPE_INVALID: 'نوع المحتوى لا يطابق نوع الرفع المسموح',
     FILE_SIZE_INVALID: 'حجم الملف لا يطابق التصريح أو يتجاوز الحد المسموح',
     FILE_CONTENT_INVALID: 'تعذر التحقق من محتوى الملف',
+    EMPLOYEE_BUSINESS_NOT_FOUND: 'لم يتم العثور على نشاط الموظف.',
+    EMPLOYEE_BRANCH_NOT_FOUND: 'لم يتم العثور على الفرع الرئيسي.',
+    EMPLOYEE_BRANCH_BUSINESS_MISMATCH: 'الفرع الرئيسي يجب أن يتبع نشاط الموظف.',
+    EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
+    EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
+    EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
@@ -133,6 +154,19 @@ export const ar: Catalog = {
     IDEMPOTENCY_KEY_REUSED: 'تم استخدام مفتاح Idempotency-Key مع طلب مختلف',
     NOT_READY: 'الخدمة غير جاهزة حالياً',
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',
+  },
+  staff: {
+    title: 'إضافة موظف',
+    nameEn: 'الاسم بالإنجليزية',
+    nameAr: 'الاسم بالعربية (اختياري)',
+    primaryBranch: 'الفرع الأساسي',
+    role: 'الدور',
+    hireDate: 'تاريخ التعيين',
+    contractEnd: 'نهاية العقد (اختياري)',
+    userId: 'معرف مستخدم موجود (اختياري)',
+    create: 'إضافة موظف',
+    created: 'تمت إضافة الموظف:',
+    invalid: 'راجع بيانات الموظف والتواريخ ومعرف المستخدم.',
   },
   admin: {
     appName: 'PosPay',

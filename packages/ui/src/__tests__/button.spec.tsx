@@ -9,13 +9,15 @@ const label = 'fixture.action';
 it('renders children with the default variant and a non-submitting button type', () => {
   render(<Button>{label}</Button>);
   const button = screen.getByRole('button', { name: label });
-  expect(button.classList.contains('bg-primary')).toBe(true);
+  expect(button.classList.contains('bg-brand')).toBe(true);
+  expect(button.classList.contains('font-semibold')).toBe(true);
+  expect(button.classList.contains('text-[15px]')).toBe(true);
   expect(button.classList.contains('min-h-12')).toBe(true);
   expect(button.getAttribute('type')).toBe('button');
 });
 
 it.each([
-  ['default', 'bg-primary'],
+  ['default', 'bg-brand'],
   ['secondary', 'bg-secondary'],
   ['outline', 'border-input'],
   ['ghost', 'hover:bg-accent'],
@@ -29,10 +31,20 @@ it.each([
   ['sm', 'min-h-11'],
   ['md', 'min-h-12'],
   ['lg', 'min-h-14'],
+  ['touch', 'min-h-12'],
   ['icon', 'size-11'],
 ] as const)('renders the %s size', (size, expected) => {
   render(<Button size={size} aria-label={label} />);
   expect(screen.getByRole('button').classList.contains(expected)).toBe(true);
+});
+
+it('uses touch text sizing without retaining the smaller admin font utility', () => {
+  render(<Button size="touch">{label}</Button>);
+  const classes = screen.getByRole('button').classList;
+  expect(classes.contains('text-lg')).toBe(true);
+  expect(classes.contains('font-semibold')).toBe(true);
+  expect(classes.contains('text-[15px]')).toBe(false);
+  expect(classes.contains('min-h-11')).toBe(false);
 });
 
 it('preserves refs, overrides and disabled interaction', () => {
@@ -57,7 +69,7 @@ it('composes an anchor through the Radix slot without adding button semantics', 
   );
   const link = screen.getByRole('link');
   expect(link.getAttribute('type')).toBeNull();
-  expect(link.classList.contains('bg-primary')).toBe(true);
+  expect(link.classList.contains('bg-brand')).toBe(true);
 });
 
 it('disables a slotted link: announced, out of the tab order, and its activation cancelled', () => {
