@@ -45,5 +45,7 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 15 | [Per-person discount limit](15-discount-limit.md) — حد الخصم للشخص | #84 | not yet (admin not deployed, issue #54) |
 | 16 | [Update employee](16-update-employee.md) — تعديل الموظف | #83 | not yet (admin not deployed, issue #54) |
 | 17 | [Business discount default](17-business-discount-default.md) — حد الخصم الافتراضي للنشاط | #86 | not yet (admin not deployed, issue #54) |
+| 18 | [Set salary](18-set-salary.md) — تعيين الراتب | #88 | not yet (admin not deployed, issue #54) |
+| 19 | [Schedules](19-schedules.md) — جداول العمل | #89 | not yet (admin not deployed, issue #54); templates API only |
 
 New journeys are added after every merge.
