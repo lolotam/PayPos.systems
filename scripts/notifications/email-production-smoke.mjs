@@ -7,8 +7,18 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.loadEnvFile(new URL('../../.env', import.meta.url));
-for (const name of ['DATABASE_URL', 'AUTH_DATABASE_URL', 'MIGRATION_DATABASE_URL'])
-  assert.equal(new URL(process.env[name]).pathname, '/pospay_wt_l5b', 'WORKTREE_DATABASE_MISMATCH');
+// الثلاث روابط لازم تشاور على نفس السيرفر ونفس قاعدة البيانات (الاسم صريح)، والأدوار بس هي اللي بتختلف.
+const targets = ['DATABASE_URL', 'AUTH_DATABASE_URL', 'MIGRATION_DATABASE_URL'].map((name) => {
+  const url = new URL(process.env[name] ?? '');
+  // postgres.js بياخد الاسم من الـ path من غير فك ترميز، فبنقارنه زي ما هو ونرفض الأسماء المرمّزة.
+  const database = url.pathname.slice(1);
+  assert.ok(/^[^/%]+$/.test(database), `${name}: DATABASE_NAME_REQUIRED`);
+  return `${url.hostname}:${url.port || '5432'}/${database}`;
+});
+assert.ok(
+  targets.every((target) => target === targets[0]),
+  'DATABASE_URL_MISMATCH',
+);
 const env = { ...process.env, NODE_ENV: 'production', LOG_LEVEL: 'info' };
 delete env.FORCE_COLOR;
 for (const name of [
