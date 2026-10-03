@@ -23,14 +23,15 @@ export class UpdateEmployeeUseCase {
     return this.transactions.run(command, async (scope) => {
       const current = await scope.load(command.businessId, command.employeeId);
       if (current === null) throw new EmployeeCreationError('NOT_FOUND');
+      // الصلاحية قبل فحص السجل: لو اتفحص التداخل الأول، رسالة الخطأ بتكشف تاريخ فرع ممنوع عليك.
+      if (!(await scope.authorize(current.record.business_id, command.input.branch_ids)))
+        throw new EmployeeCreationError('FORBIDDEN');
       const plan = planEmployeeUpdate(
         current.record,
         command.input,
         current.history,
         await scope.contexts(current.record, command.input.branch_ids),
       );
-      if (!(await scope.authorize(current.record.business_id, command.input.branch_ids)))
-        throw new EmployeeCreationError('FORBIDDEN');
       if (plan.after.user_id !== null && !(await scope.canLinkUser(plan.after.user_id)))
         throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
       if (plan.changed)

@@ -5,6 +5,7 @@ import {
   createForUpdate,
   executeUpdate,
   patchEmployee,
+  employeeGrants,
   ids,
   updateEmployeeFixture,
   type UpdateFixture,
@@ -135,4 +136,27 @@ it('loads closed and open history with the unchanged active detail shape and an 
       lockedEmployee(tx, f.otherCompany, f.business, moved.id),
     ),
   ).toBeNull();
+});
+
+it('a denied target branch answers the same 403 whether or not the date overlaps its history', async () => {
+  const moved = await movedEmployee();
+  await employeeGrants(f, [
+    ['ALLOW', 'BUSINESS', f.business],
+    ['DENY', 'BRANCH', f.branch],
+  ]);
+  try {
+    const overlapping = await patchEmployee(f, moved, {
+      branch_ids: [f.branch, f.sibling],
+      branch_effective_date: '2026-10-10',
+    });
+    const adjacent = await patchEmployee(f, moved, {
+      branch_ids: [f.branch, f.sibling],
+      branch_effective_date: '2026-10-15',
+    });
+    expect(overlapping.status).toBe(403);
+    expect(adjacent.status).toBe(403);
+    expect(overlapping.body['code']).toBe(adjacent.body['code']);
+  } finally {
+    await employeeGrants(f, []);
+  }
 });
