@@ -36,7 +36,7 @@ async function assertScope(
     action,
     lock,
   );
-  if (decision === 'DENIED') throw new ScheduleError('FORBIDDEN');
+  if (decision === 'DENIED') throw new ScheduleError('NOT_FOUND');
   if (decision === 'FEATURE_DISABLED') throw new ScheduleError('FEATURE_DISABLED');
   // وقت الانتظار على القفل قد يتزامن مع تعديل إعدادات المنطقة؛ نعيد حل السياق بعده.
   const current = lock ? await schedulingContext(tx, companyId, businessId, branchId) : context;

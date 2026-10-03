@@ -37,7 +37,8 @@ export function branchScheduleStatement(
       AND (${query.cursor ?? null}::uuid IS NULL OR e.id > ${query.cursor ?? null}::uuid)
       AND e.hire_date <= ${query.week_start}::date + 6 AND (e.contract_end IS NULL OR e.contract_end >= ${query.week_start}::date)
       AND EXISTS (SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb.branch_id=${branchId}
-        AND eb."from" <= ${query.week_start}::date + 6 AND (eb."to" IS NULL OR eb."to" > ${query.week_start}::date))
+        AND eb."from" <= LEAST(${query.week_start}::date + 6,COALESCE(e.contract_end,${query.week_start}::date + 6))
+        AND (eb."to" IS NULL OR eb."to" > GREATEST(${query.week_start}::date,e.hire_date)))
     ORDER BY e.id LIMIT ${query.limit + 1}) SELECT
     (SELECT array_agg(to_char(${query.week_start}::date + n,'YYYY-MM-DD') ORDER BY n) FROM generate_series(0,6) AS n) AS days,
     COALESCE(jsonb_agg(rows.row ORDER BY rows.id),'[]'::jsonb) AS items FROM rows`;
@@ -77,8 +78,10 @@ export function employeeScheduleStatement(
   return sql`SELECT (SELECT ${scheduleProjection} FROM staff_schedules s
     WHERE s.company_id=e.company_id AND s.business_id=e.business_id AND s.branch_id=${branchId} AND s.employee_id=e.id AND s.week_start=${week}) AS record
     FROM employees e WHERE e.company_id=${companyId} AND e.business_id=${businessId} AND e.id=${employeeId} AND e.deleted_at IS NULL
+    AND e.hire_date <= ${week}::date+6 AND (e.contract_end IS NULL OR e.contract_end >= ${week}::date)
     AND EXISTS(SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb.branch_id=${branchId}
-      AND eb."from" <= ${week}::date+6 AND (eb."to" IS NULL OR eb."to" > ${week}::date))`;
+      AND eb."from" <= LEAST(${week}::date+6,COALESCE(e.contract_end,${week}::date+6))
+      AND (eb."to" IS NULL OR eb."to" > GREATEST(${week}::date,e.hire_date)))`;
 }
 export async function employeeScheduleWeek(
   tx: Tx,

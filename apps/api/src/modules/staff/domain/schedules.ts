@@ -65,6 +65,32 @@ export function materializeSchedule(
   });
 }
 /**
+ * حتى الأسبوع الفارغ يحتاج يوماً مؤهلاً في الفرع؛ الرفض لا يكشف موظفاً خارج مجال المدير.
+ *
+ * @param employee الموظف وتاريخ ارتباطاته
+ * @param branchId الفرع المطلوب
+ * @param weekStart السبت المدني
+ * @returns لا قيمة؛ يرفض أسبوعاً غير مؤهل بنفس خطأ الموظف غير الموجود
+ */
+export function validateScheduleEmployeeWeek(
+  employee: SchedulingEmployee,
+  branchId: string,
+  weekStart: string,
+): void {
+  validateScheduleWeek(weekStart);
+  const eligible =
+    employee.deleted_at === null &&
+    Array.from({ length: 7 }, (_, day) => addScheduleDays(weekStart, day)).some(
+      (date) =>
+        date >= employee.hire_date &&
+        (employee.contract_end === null || date <= employee.contract_end) &&
+        employee.attachments.some(
+          (a) => a.branch_id === branchId && a.from <= date && (a.to === null || date < a.to),
+        ),
+    );
+  if (!eligible) throw new ScheduleError('NOT_FOUND');
+}
+/**
  * ارتباط الموظف بتاريخ البداية وحدوده التعاقدية تحكم أهلية كل وردية، لا الفرع الأساسي الحالي.
  *
  * @param employee الموظف وتاريخ ارتباطاته
@@ -112,7 +138,8 @@ export function validateScheduleOverlap(
     }
 }
 /**
- * تعديل أيام ماضية يحتاج سبباً؛ إزالة وردية قديمة تغيير أيضاً، واليوم محسوب في منطقة الفرع.
+ * تعديل الماضي يحتاج سبباً؛ القيم تقارن دون ترتيب مفاتيح JSON أو الورديات لتجنب تغيير وهمي.
+ * إزالة وردية قديمة تغيير أيضاً، واليوم محسوب في منطقة الفرع.
  *
  * @param before الورديات قبل التعديل
  * @param after الورديات بعد التعديل
@@ -129,7 +156,14 @@ export function requirePastScheduleReason(
   const dates = new Set([...before, ...after].map((s) => s.working_date));
   for (const date of dates) {
     const onDay = (shifts: readonly ConcreteShift[]) =>
-      JSON.stringify(shifts.filter((s) => s.working_date === date));
+      JSON.stringify(
+        shifts
+          .filter((s) => s.working_date === date)
+          .map((s) =>
+            JSON.stringify([s.day, s.working_date, s.start, s.end, s.starts_at, s.ends_at]),
+          )
+          .sort(),
+      );
     if (date < today && onDay(before) !== onDay(after) && !reason?.trim())
       throw new ScheduleError('SCHEDULE_PAST_REASON_REQUIRED');
   }

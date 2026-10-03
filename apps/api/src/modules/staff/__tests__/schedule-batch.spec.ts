@@ -1,7 +1,12 @@
 import { performance } from 'node:perf_hooks';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { addScheduleDays } from '../domain/schedule-calendar.ts';
-import { scheduleActor, schedulesFixture, type SchedulesFixture } from './schedules.fixture.ts';
+import {
+  scheduleActor,
+  schedulesFixture,
+  scheduleIds,
+  type SchedulesFixture,
+} from './schedules.fixture.ts';
 let f: SchedulesFixture;
 let templateId: string;
 const employeeIds: string[] = [];
@@ -89,5 +94,48 @@ it('refuses the larger selection before any schedule/audit write', async () => {
   ).rejects.toMatchObject({ code: 'SCHEDULE_APPLY_BATCH_TOO_LARGE' });
   expect(
     await f.h.owner`SELECT id FROM staff_schedules WHERE week_start='2029-01-06'`,
+  ).toHaveLength(0);
+});
+it('returns the same named 422 over HTTP for employee-count and combined limits, preserving 12 weeks', async () => {
+  const extra = await f.useCase.execute({
+    ...scheduleActor(f),
+    input: {
+      primary_branch_id: f.branch,
+      name_en: 'Synthetic twenty-first employee',
+      role_code: 'staff',
+      hire_date: '2026-01-01',
+    },
+  });
+  const url = `/v1/businesses/${f.business}/shift-templates/${templateId}/apply`;
+  const send = (employee_ids: string[], weeks: string[]) =>
+    f.h.app.inject({
+      method: 'POST',
+      url,
+      headers: { cookie: f.cookie, 'x-company-id': f.company },
+      payload: { branch_id: f.branch, employee_ids, weeks },
+    });
+  const employeeLimit = await send([...employeeIds, extra.id], ['2030-01-05']);
+  const combinedLimit = await send(
+    employeeIds.slice(0, 2),
+    Array.from({ length: 11 }, (_, i) => addScheduleDays('2030-01-05', i * 7)),
+  );
+  expect(employeeLimit.statusCode).toBe(422);
+  expect(combinedLimit.statusCode).toBe(422);
+  expect(employeeLimit.json()).toMatchObject({ code: 'SCHEDULE_APPLY_BATCH_TOO_LARGE' });
+  expect(employeeLimit.json()).toEqual(combinedLimit.json());
+  expect(
+    (
+      await send(
+        [scheduleIds.newId()],
+        Array.from({ length: 13 }, (_, i) => addScheduleDays('2030-01-05', i * 7)),
+      )
+    ).statusCode,
+  ).toBe(400);
+  expect(
+    await f.h.owner`SELECT id FROM staff_schedules WHERE week_start >= '2030-01-05'`,
+  ).toHaveLength(0);
+  expect(
+    await f.h
+      .owner`SELECT id FROM audit_log WHERE entity='staff_schedule' AND "after"->>'week_start' >= '2030-01-05'`,
   ).toHaveLength(0);
 });

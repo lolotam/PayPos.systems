@@ -84,8 +84,8 @@ it('DENY wins for reads and management and disabled staff refuses authorised cal
     url: `${route(f.branch)}?week_start=${testWeek}`,
     headers: headers(),
   });
-  expect(denied.statusCode).toBe(403);
-  await expect(setWeek(f, [], { week: '2026-10-31' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  expect(denied.statusCode).toBe(404);
+  await expect(setWeek(f, [], { week: '2026-10-31' })).rejects.toMatchObject({ code: 'NOT_FOUND' });
   await f.h
     .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND permission_code LIKE '%:schedules:%'`;
   await f.h

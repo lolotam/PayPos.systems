@@ -1,6 +1,9 @@
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { staffSchedule } from '@pospay/contracts';
+import { scheduleRecord } from '../persistence/schedule-records.ts';
+import { SetScheduleUseCase } from '../use-cases/set-schedule/set-schedule.usecase.ts';
+import { materializeSchedule, requirePastScheduleReason } from '../domain/schedules.ts';
 import {
   schedulesFixture,
   scheduleActor,
@@ -16,6 +19,54 @@ beforeAll(async () => {
 afterAll(async () => {
   await f?.db.close();
   await f?.h.close();
+});
+
+it('on Monday changes only Friday without a reason, using the real Postgres before snapshot', async () => {
+  const employee = await f.useCase.execute({
+    ...scheduleActor(f),
+    input: {
+      primary_branch_id: f.branch,
+      name_en: 'Synthetic Monday correction',
+      role_code: 'staff',
+      hire_date: '2026-01-01',
+    },
+  });
+  const original = await setWeek(
+    f,
+    [
+      { day: 0, start: '09:00', end: '12:00' },
+      { day: 0, start: '14:00', end: '18:00' },
+      { day: 6, start: '09:00', end: '12:00' },
+    ],
+    { employee: employee.id },
+  );
+  const before = await f.db.withTenant(f.company, (tx) =>
+    scheduleRecord(tx, f.company, f.business, f.branch, employee.id, original.week_start),
+  );
+  if (!before) throw new Error('Synthetic schedule snapshot missing');
+  const afterPattern = [
+    { day: 0, start: '14:00', end: '18:00' },
+    { day: 6, start: '10:00', end: '13:00' },
+    { day: 0, start: '09:00', end: '12:00' },
+  ];
+  const after = materializeSchedule(original.week_start, afterPattern, original.timezone);
+  expect(Object.keys(before.shifts[0] ?? {})).not.toEqual(Object.keys(original.shifts[0] ?? {}));
+  expect(() =>
+    requirePastScheduleReason([...before.shifts].reverse(), after, '2026-10-05'),
+  ).not.toThrow();
+  const monday = new SetScheduleUseCase(f.transactions, scheduleIds, {
+    now: () => new Date('2026-10-05T10:00:00Z'),
+  });
+  const saved = await monday.execute({
+    ...scheduleActor(f),
+    branchId: f.branch,
+    employeeId: employee.id,
+    input: { week_start: original.week_start, expected_revision: 1, shifts: afterPattern },
+  });
+  expect(saved.revision).toBe(2);
+  const [audit] = await f.h
+    .owner`SELECT before,after FROM audit_log WHERE entity_id=${saved.id} AND action='updated'`;
+  expect(audit).toMatchObject({ before, after: { ...saved, reason: null } });
 });
 
 it('writes concrete Friday→Saturday shifts and attributable before/after audit', async () => {

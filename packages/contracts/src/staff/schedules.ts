@@ -105,7 +105,6 @@ export const applyTemplateInput = z
     employee_ids: z
       .array(employeeInputId)
       .min(1)
-      .max(20)
       .refine((v) => new Set(v).size === v.length),
     weeks: z
       .array(employeeDate)

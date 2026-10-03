@@ -12,6 +12,7 @@ import {
   nextScheduleRevision,
   requirePastScheduleReason,
   validateScheduleEmployee,
+  validateScheduleEmployeeWeek,
   validateScheduleOverlap,
 } from '../../domain/schedules.ts';
 import type {
@@ -37,10 +38,12 @@ export class ApplyShiftTemplateUseCase {
       await scope.business(command.businessId, 'read');
       const context = await scope.branch(command.businessId, command.input.branch_id);
       const template = await scope.template(command.businessId, command.templateId);
-      requireActiveTemplate(template);
       validateTemplateWeeks(command.input.weeks);
       validateTemplateBatch(command.input.employee_ids.length, command.input.weeks.length);
       const targets = await this.loadTargets(scope, command);
+      for (const target of targets)
+        validateScheduleEmployeeWeek(target.employee, command.input.branch_id, target.weekStart);
+      requireActiveTemplate(template);
       requireTemplateReplacement(
         targets.flatMap((t) => (t.before ? [t.before] : [])),
         command.input.replace,

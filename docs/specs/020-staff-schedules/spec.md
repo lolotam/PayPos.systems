@@ -23,6 +23,12 @@ Defaults explicitly applied: employees must be attached at the shift's start day
 EmployeeBranch.from <= day < to; no shift before hire, after contract end, or for a deleted
 employee. Shifts cannot overlap across branches or week boundaries, compared as UTC instants.
 Changing branch assignments later preserves schedule history; subsequent writes validate current history.
+Even an empty week requires at least one eligible day where employment and the target branch
+attachment overlap. Check every employee/week before revision or existing-copy conflicts.
+Unknown, inaccessible and week-ineligible employees share the same NOT_FOUND/404 response.
+Inaccessible branches/businesses likewise share the unknown-resource status, code and body,
+for reads and writes. Compare unchanged past shifts by their six canonical values, independent
+of JSON key order and shift array order; only actual past-day changes require a reason.
 
 Templates have required English and optional Arabic names and a weekly pattern. Applying to
 explicit employees and up to 12 distinct Saturday weeks creates independent concrete copies.
@@ -56,6 +62,8 @@ after waits. No salary/contact data or another branch's shifts appear in respons
   Returns concrete copies. Temporary synchronous cap: employee count × week count <= 20,
   while preserving the 12-week maximum. Exceeding it returns SCHEDULE_APPLY_BATCH_TOO_LARGE
   (422), before any schedule write. No automatic splitting or retry.
+  This named refusal also covers more than 20 distinct employees in one valid week;
+  contract parsing does not turn the employee-count limit into VALIDATION_FAILED/400.
   TODO(spec) SC-Q3: confirm this temporary technical cap of 20 employee-week copies.
   Recommendation: keep it until a BullMQ application path supports larger atomic selections.
   The initial 20 employees × 12 weeks × 14 shifts benchmark took 897 ms, above CLAUDE.md's

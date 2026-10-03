@@ -6,6 +6,15 @@ import {
   templateTerms,
 } from '../staff/schedules.js';
 const id = '01920000-0000-7000-8000-000000000101';
+it('lets oversized unique employee selections reach the named domain refusal', () => {
+  const employee_ids = Array.from(
+    { length: 21 },
+    (_, i) => `01920000-0000-7000-8000-${String(i + 1).padStart(12, '0')}`,
+  );
+  expect(
+    applyTemplateInput.parse({ branch_id: id, employee_ids, weeks: ['2026-10-03'] }).employee_ids,
+  ).toHaveLength(21);
+});
 it('validates strict schedule dates, local times, shift limits and revision tokens', () => {
   const valid = {
     week_start: '2026-10-03',
