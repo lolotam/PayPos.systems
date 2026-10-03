@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { settingsPaths } from './settings/settings-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
 import { employee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
@@ -148,6 +149,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...settingsPaths,
   ...filePaths,
   ...staffPaths,
   ...permissionPaths,

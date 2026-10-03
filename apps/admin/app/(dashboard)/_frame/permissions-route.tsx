@@ -17,6 +17,15 @@ export function PermissionsRoute() {
       key={`${workspace.company.id}:${userId}`}
       companyId={workspace.company.id}
       userId={userId}
+      business={
+        workspace.business
+          ? {
+              id: workspace.business.id,
+              name:
+                (locale === 'ar' ? workspace.business.name_ar : null) ?? workspace.business.name_en,
+            }
+          : undefined
+      }
       scopeNames={workspaceScopeNames(workspace.company, locale)}
       branchTimeZones={Object.fromEntries(
         workspace.company.businesses.flatMap((business) =>

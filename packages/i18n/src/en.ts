@@ -30,6 +30,10 @@ export const en = {
   },
   permissions: {
     discountLimit: 'Discount limit (%)',
+    businessDiscountTitle: 'Default discount limit',
+    businessDiscountLabel: 'Default discount limit (%)',
+    businessDiscountLead: 'Used when a person has no personal limit. Active owners have no limit.',
+    businessDiscountUnset: 'No business default configured.',
     discountUnset: 'No personal limit set.',
     discountCurrent: 'Current discount limit',
     discountSave: 'Save discount limit',

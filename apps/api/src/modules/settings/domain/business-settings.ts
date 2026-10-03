@@ -5,27 +5,31 @@ export type SettingsCalendar = 'gregorian' | 'hijri';
 
 /** الإعدادات اللي النشاط يقدر يغيّرها — null معناه "زي الـ template". */
 export interface SettingsOverrides {
+  readonly limitBps?: number | null;
   readonly defaultLanguage: SettingsLanguage | null;
   readonly calendar: SettingsCalendar | null;
 }
 
 /** قيم الـ template — اللي بيتاخد لما النشاط ما يغيّرش. */
 export interface SettingsTemplateValues {
+  readonly limitBps?: number | null;
   readonly defaultLanguage: SettingsLanguage;
   readonly calendar: SettingsCalendar;
 }
 
 /** الإعدادات الفعلية بعد ما الـ template والتعديلات يتدمجوا. */
 export interface EffectiveSettings {
+  readonly limitBps: number | null;
   readonly defaultLanguage: SettingsLanguage;
   readonly calendar: SettingsCalendar;
   /** المفاتيح اللي النشاط غيّرها بنفسه، بنفس ترتيب الـ contract. */
-  readonly overridden: readonly ('default_language' | 'calendar')[];
+  readonly overridden: readonly ('default_language' | 'calendar' | 'limit_bps')[];
 }
 
 // الـ template لكل الأنشطة لحد ما يبقى فيه اختلاف بين الـ verticals. العربي الأول (CLAUDE.md §0).
 // TODO(spec): التقويم الافتراضي — ميلادي لحد ما العميل يقول غير كده.
 export const SETTINGS_TEMPLATE: SettingsTemplateValues = {
+  limitBps: null,
   defaultLanguage: 'ar',
   calendar: 'gregorian',
 };
@@ -45,11 +49,13 @@ export function effectiveSettings(
   const language = overrides?.defaultLanguage ?? null;
   const calendar = overrides?.calendar ?? null;
   return {
+    limitBps: overrides?.limitBps ?? template.limitBps ?? null,
     defaultLanguage: language ?? template.defaultLanguage,
     calendar: calendar ?? template.calendar,
     overridden: [
       ...(language === null ? [] : (['default_language'] as const)),
       ...(calendar === null ? [] : (['calendar'] as const)),
+      ...(overrides?.limitBps == null ? [] : (['limit_bps'] as const)),
     ],
   };
 }

@@ -32,6 +32,10 @@ export const ar: Catalog = {
   },
   permissions: {
     discountLimit: 'حد الخصم (%)',
+    businessDiscountTitle: 'حد الخصم الافتراضي',
+    businessDiscountLabel: 'حد الخصم الافتراضي (%)',
+    businessDiscountLead: 'يُستخدم عند غياب الحد الشخصي. المالك النشط بلا حد خصم.',
+    businessDiscountUnset: 'لم يُضبط حد افتراضي للنشاط.',
     discountUnset: 'لم يتم تعيين حد شخصي.',
     discountCurrent: 'حد الخصم الحالي',
     discountSave: 'حفظ حد الخصم',

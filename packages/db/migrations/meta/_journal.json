@@ -344,6 +344,13 @@
       "when": 1791016836150,
       "tag": "0048_2026-10-03_identity-discount-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791019178792,
+      "tag": "0049_2026-10-03_business-discount-default",
+      "breakpoints": true
     }
   ]
 }

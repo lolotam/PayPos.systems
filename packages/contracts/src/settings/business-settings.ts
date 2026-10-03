@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
+import { discountLimitBps } from '../identity/discount-limit.js';
 
 // إعدادات النشاط (PRD P0-T10.1). القيمة اللي بترجع هي الفعلية: الـ template لو النشاط ما غيّرهاش، وإلا بتاعته.
 
@@ -23,10 +24,11 @@ export const businessSettings = z
     business_id: id,
     default_language: language,
     calendar,
+    limit_bps: discountLimitBps.nullable(),
     // null = مفيش ضريبة (الكويت النهارده).
     tax_rule: taxRule.nullable(),
     // اللي النشاط غيّره بنفسه — الباقي جاي من الـ template.
-    overridden: z.array(z.enum(['default_language', 'calendar'])),
+    overridden: z.array(z.enum(['default_language', 'calendar', 'limit_bps'])),
     // null لو النشاط لسه ما غيّرش أي حاجة.
     updated_at: timestamp.nullable(),
   })

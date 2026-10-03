@@ -2,6 +2,7 @@ import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
+import { createBusinessDiscountAccess } from './business-discount-access.adapter.ts';
 import type {
   SettingsChange,
   SettingsScope,
@@ -10,22 +11,25 @@ import type {
 } from '../ports/settings.port.ts';
 
 type Row = {
+  limit_bps: number | null;
   default_language: StoredSettings['defaultLanguage'];
   calendar: StoredSettings['calendar'];
   tax_rule: unknown;
   updated_at: string;
 };
 
-const COLUMNS = sql`default_language, calendar, tax_rule, to_json(updated_at) #>> '{}' AS updated_at`;
+const COLUMNS = sql`default_language, calendar, limit_bps, tax_rule, to_json(updated_at) #>> '{}' AS updated_at`;
 const toStored = (row: Row): StoredSettings => ({
+  limitBps: row.limit_bps,
   defaultLanguage: row.default_language,
   calendar: row.calendar,
   taxRule: row.tax_rule,
   updatedAt: row.updated_at,
 });
 
-function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): SettingsScope {
+function scopeFor(tx: Tx, companyId: string, userId: string, ids: IdGenerator): SettingsScope {
   return {
+    discountAccess: createBusinessDiscountAccess(tx, companyId, userId),
     audit: transactionWriters(tx, ids).audit,
     findForUpdate: async (businessId) => {
       // A row that does not exist cannot be locked: two first writes would both read "nothing yet" and audit a wrong
@@ -45,10 +49,11 @@ function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): SettingsScope {
       const updates: SQL[] = [
         ...('defaultLanguage' in change ? [sql`default_language = EXCLUDED.default_language`] : []),
         ...('calendar' in change ? [sql`calendar = EXCLUDED.calendar`] : []),
+        ...('limitBps' in change ? [sql`limit_bps = EXCLUDED.limit_bps`] : []),
       ];
       const [row] = await tx.execute<Row>(sql`
-        INSERT INTO business_settings (company_id, business_id, default_language, calendar, updated_by, updated_at)
-        VALUES (${companyId}, ${businessId}, ${change.defaultLanguage ?? null}, ${change.calendar ?? null},
+        INSERT INTO business_settings (company_id, business_id, default_language, calendar, limit_bps, updated_by, updated_at)
+        VALUES (${companyId}, ${businessId}, ${change.defaultLanguage ?? null}, ${change.calendar ?? null}, ${change.limitBps ?? null},
                 ${updatedBy}, now())
         ON CONFLICT (company_id, business_id) DO UPDATE
           SET ${sql.join([...updates, sql`updated_by = EXCLUDED.updated_by`, sql`updated_at = now()`], sql`, `)}
@@ -70,6 +75,6 @@ export function createSettingsTransactions(
 ): SettingsTransactions {
   return {
     run: (companyId, userId, work) =>
-      db.withTenant(companyId, (tx) => work(scopeFor(tx, companyId, ids)), { userId }),
+      db.withTenant(companyId, (tx) => work(scopeFor(tx, companyId, userId, ids)), { userId }),
   };
 }
