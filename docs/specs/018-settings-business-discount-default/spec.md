@@ -1,7 +1,7 @@
 # Feature Specification: Business default discount limit
 
 **Created**: 2026-10-03
-**Status**: Implemented; NOT_CONFIGURED enforcement remains an owner question for PR 35.
+**Status**: Implemented; review round 1 concurrency corrections and owner decisions recorded.
 **Input**: Phase 1 PR 7c, dependent on PR 7b.
 
 Sources: Phase 1 SPEC §§2–4, plan row 7c, PRD D-56/D-44,
@@ -43,11 +43,14 @@ its own business only. The read capability does not grant authority to discount.
 - FR-002: require existing manage:settings:business plus effective manage:discounts:company
   at the business and every descendant branch, following PR 7's possession/scope/DENY/expiry policy.
   No default role grants; PR 7a owns those. No role-name-based manager gate.
-- FR-003: reload authority after company/membership locks and retain locks through audit commit.
+- FR-003: acquire company -> memberships -> business -> settings row locks; recheck authority
+  at statement time after the settings row wait, retaining locks through audit commit.
 - FR-004: reason is trimmed, mandatory, 1..500 characters for set/change/clear.
 - FR-005: pure resolution: active owner -> UNLIMITED; explicit person -> SET/PERSON;
   business default -> SET/BUSINESS; neither -> NOT_CONFIGURED.
 - FR-006: expose resolution through settings/index.ts for PR 35, inside its tenant transaction.
+  Compatible SHARE locks in company -> membership -> settings order hold both limits stable
+  before reading scope/personal metadata, preventing mixed READ COMMITTED results.
 - FR-007: reuse PR 7b validation/reader and person-based active owner protection.
 - FR-008: admin field belongs in permissions screen header for selected business (no settings screen exists).
 
@@ -58,9 +61,9 @@ its own business only. The read capability does not grant authority to discount.
 The numerical limit is inclusive; PR 7b owns effectiveDiscountBps/isWithinLimit.
 Approval issuance and consumption stay in PRs 38–41. No new discount execution rule.
 
-TODO(spec): Neither D-56 nor the SPEC settles whether NOT_CONFIGURED permits a discount.
-The reader preserves that named state; recommendation: treat it as 0%, so every positive
-discount needs approval. PR 35 must obtain the decision before enforcing that state.
+Owner decision 2026-10-03: NOT_CONFIGURED remains visible in resolver output; PR 35
+enforces it as 0%, so every positive discount needs approval.
+Owner decision 2026-10-03: the business settings calendar template stays Gregorian.
 
 ### Schema changes
 
@@ -95,6 +98,8 @@ identity's membership query does not join tenancy business/branch tables.
 - Pure domain: all precedence states, 0/10000, invalid values and owner dominance.
 - Contracts: strict input, trimmed reason, null/zero, limits, OpenAPI route/status.
 - Real Postgres/HTTP: BD-01..09, rollback, concurrent edits, restricted-role RLS negatives.
+- Regression races: grant expiry during a generic PATCH settings-row wait; personal null -> 0
+  and default 0 -> 10000 interleaving must never yield BUSINESS/10000 from mixed reads.
 - Query result shapes and EXPLAIN index checks for new/modified reads.
 - UI: selected business, save/clear, exact percentage, invalid values/reason, ar/en feedback.
 - pnpm check with FORCE_COLOR unset; API, admin and regenerated POS client builds.

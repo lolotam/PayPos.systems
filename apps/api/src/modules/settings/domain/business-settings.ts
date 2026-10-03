@@ -27,7 +27,7 @@ export interface EffectiveSettings {
 }
 
 // الـ template لكل الأنشطة لحد ما يبقى فيه اختلاف بين الـ verticals. العربي الأول (CLAUDE.md §0).
-// TODO(spec): التقويم الافتراضي — ميلادي لحد ما العميل يقول غير كده.
+// owner decision 2026-10-03: التقويم الافتراضي يفضل ميلادي، وتعديل النشاط له يغطي الـ template.
 export const SETTINGS_TEMPLATE: SettingsTemplateValues = {
   limitBps: null,
   defaultLanguage: 'ar',

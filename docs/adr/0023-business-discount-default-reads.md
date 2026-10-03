@@ -16,14 +16,21 @@ capability, through settings-owned ports. Tenancy's public businessDiscountScope
 reader confirms the business and branches before identity filters its memberships;
 identity's query does not join business/branch tables. Declare reads in module-map.md.
 Identity imports no settings code. Authority checks reuse evaluateAccess and the
-PR 7 company -> ascending membership lock protocol, sampling time after locks.
+PR 7 company -> ascending membership -> business -> settings lock protocol. A final
+authority read takes no new locks and samples statement time after the settings-row wait.
 Existing manage:settings:business plus manage:discounts:company possession at the
 business and descendants applies; no default grant or new permission code.
 
 PR 35 may call settings' effective-limit reader through its own read port, passing
-the existing tenant Tx. Reads bypass cached settings for transaction consistency.
+the existing tenant Tx. Compatible SHARE locks on company, target membership and settings
+in that order precede metadata reads and remain held until the consumer commits. This
+keeps personal/default values consistent under READ COMMITTED without cross-context SQL
+joins or changing the consumer's isolation level. Company locks also serialize normal
+discount/owner configuration commands; membership/settings locks protect direct row writes.
+Reads bypass cached settings for transaction consistency.
 An active owner holder is unlimited; otherwise person -> business -> NOT_CONFIGURED.
-The last state is preserved pending an owner decision, never silently interpreted.
+Owner decision 2026-10-03: the last state stays visible; PR 35 enforces it as 0%, with
+approval for every positive discount. The calendar template stays Gregorian.
 
 ## Consequences
 

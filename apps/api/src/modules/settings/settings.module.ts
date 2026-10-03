@@ -52,6 +52,7 @@ export function settingsProviders(
 
 /**
  * بيعرض الحد الفعلي لمستهلك PR 35 داخل معاملة الشركة نفسها بدون cache.
+ * أقفال الشركة ثم العضوية ثم الإعدادات تمنع تجميع قيم الحدين من لحظتين مختلفتين في READ COMMITTED.
  *
  * @param tx معاملة المستهلك المؤكدة
  * @param companyId الشركة المؤكدة
@@ -65,7 +66,9 @@ export async function readEffectiveDiscountLimit(
   businessId: string,
   membershipId: string,
 ): Promise<EffectiveDiscountLimit> {
-  const subject = await createDiscountSubjectReader(tx, companyId).read(membershipId, businessId);
+  const reader = createDiscountSubjectReader(tx, companyId);
+  if (!(await reader.lock(membershipId))) return { status: 'MEMBERSHIP_NOT_FOUND' };
   const businessDefault = await readBusinessDiscountDefault(tx, companyId, businessId);
+  const subject = await reader.read(membershipId, businessId);
   return resolveEffectiveDiscountLimit(subject, businessDefault);
 }

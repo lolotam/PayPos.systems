@@ -218,6 +218,8 @@ sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
   - settings -> identity.lockBusinessDiscountAccess @ apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts
+  - settings -> identity.readBusinessDiscountAccess @ apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts
+  - settings -> identity.lockMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
   - settings -> identity.readMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
   - settings -> tenancy.businessDiscountScope @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts
   - staff -> tenancy.employeeWorkplace @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts

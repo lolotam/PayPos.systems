@@ -15,11 +15,24 @@ export async function lockBusinessDiscountAccess(
   await tx.execute(
     sql`SELECT id FROM memberships WHERE company_id=${companyId} ORDER BY id FOR UPDATE`,
   );
-  const [business] = await tx.execute(sql`SELECT id FROM businesses
+  await tx.execute(sql`SELECT id FROM businesses
     WHERE company_id=${companyId} AND id=${businessId} FOR SHARE`);
+  return readBusinessDiscountAccess(tx, companyId, userId, businessId);
+}
+
+// الفحص النهائي يفترض بقاء أقفال check في نفس المعاملة؛ لا يأخذ قفلًا بعد صف الإعدادات.
+export async function readBusinessDiscountAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+) {
+  const [business] = await tx.execute(sql`SELECT id FROM businesses
+    WHERE company_id=${companyId} AND id=${businessId}
+      AND EXISTS (SELECT 1 FROM companies WHERE id=${companyId} AND deleted_at IS NULL)`);
   const branches = await tx.execute<{ id: string }>(sql`SELECT id FROM branches
     WHERE company_id=${companyId} AND business_id=${businessId}`);
-  // وقت القرار يأتي بعد آخر قفل؛ انتظار تعديل النشاط لا يمد صلاحية إذن انتهى أثناء الانتظار.
+  // وقت الفحص النهائي يأتي بعد انتظار صف الإعدادات، لا من بداية المعاملة أو الفحص الأول.
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (time === undefined) throw new Error('Transaction time missing');
   const now = new Date(time.at);

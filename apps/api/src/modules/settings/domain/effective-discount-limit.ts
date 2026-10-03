@@ -25,7 +25,7 @@ export function resolveEffectiveDiscountLimit(
   if (subject.status === 'MEMBERSHIP_NOT_FOUND') return subject;
   if (subject.owner) return { status: 'UNLIMITED', source: 'OWNER' };
   const limit = subject.limit_bps ?? businessDefault;
-  // TODO(spec): معنى عدم إعداد الحدين يحتاج قرار المالك؛ التوصية 0% وكل خصم موجب يحتاج موافقة في PR 35.
+  // owner decision 2026-10-03: الحالة تفضل ظاهرة؛ PR 35 يطبقها كـ 0% وكل خصم موجب يحتاج موافقة.
   if (limit === null) return { status: 'NOT_CONFIGURED' };
   if (!Number.isInteger(limit) || limit < 0 || limit > 10000)
     throw new RangeError('Invalid discount bps');

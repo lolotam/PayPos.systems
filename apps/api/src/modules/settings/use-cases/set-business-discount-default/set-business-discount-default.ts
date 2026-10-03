@@ -17,9 +17,11 @@ export class SetBusinessDiscountDefault {
     const reason = input.reason.trim();
     if (!reason || reason.length > 500) throw new ApiError('VALIDATION_FAILED');
     const saved = await this.transactions.run(actor.companyId, actor.userId, async (scope) => {
-      const access = await scope.discountAccess.check(businessId);
-      if (access.failure !== null) throw new ApiError(access.failure);
+      const initial = await scope.discountAccess.check(businessId);
+      if (initial.failure !== null) throw new ApiError(initial.failure);
       const before = await scope.findForUpdate(businessId);
+      const access = await scope.discountAccess.recheck(businessId);
+      if (access.failure !== null) throw new ApiError(access.failure);
       const after = await scope.save(businessId, { limitBps: input.limit_bps }, actor.userId);
       await scope.audit.record({
         entity: 'business_discount_limit',
