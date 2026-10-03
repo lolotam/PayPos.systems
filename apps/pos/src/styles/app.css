@@ -1,3 +1,21 @@
 @import '@pospay/ui/styles.css';
 
 @source '../';
+
+@layer components {
+  .pos-shell :is(button, input, select) {
+    min-height: 3rem;
+    font-size: 1rem;
+  }
+
+  .pos-shell label {
+    font-size: 1rem;
+  }
+}
+
+@layer utilities {
+  .pos-shell button {
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+}

@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { confirmPasswordInput, type ConfirmPasswordInput } from '@pospay/contracts';
 import type { MessageKey } from '@pospay/i18n';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
+import { Button, EmptyState, CircleAlert } from '@pospay/ui';
 import { useForm } from 'react-hook-form';
 
 import { useLocale } from '@/shared/locale/locale-context';
@@ -37,9 +37,13 @@ export function PasswordConfirmForm({
         {...form.register('password')}
       />
       {error ? (
-        <p role="alert" className="text-start text-sm text-destructive">
-          {t(locale, error)}
-        </p>
+        <EmptyState
+          role="alert"
+          tone="danger"
+          icon={<CircleAlert />}
+          title={t(locale, error)}
+          className="p-4"
+        />
       ) : null}
       <Button type="submit" disabled={pending}>
         {t(locale, 'admin.enrolContinue')}

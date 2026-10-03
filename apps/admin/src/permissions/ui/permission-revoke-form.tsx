@@ -33,7 +33,7 @@ export function PermissionRevokeForm({
         disabled={disabled}
         onChange={(event) => setReason(event.target.value)}
       />
-      <Button type="submit" variant="outline" disabled={disabled}>
+      <Button type="submit" variant="destructive" className="self-start" disabled={disabled}>
         {t(locale, 'permissions.revoke')}
       </Button>
       {invalid ? <p role="alert">{t(locale, 'permissions.invalid')}</p> : null}

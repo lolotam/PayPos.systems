@@ -1,6 +1,6 @@
 import { t } from '@pospay/i18n';
 import { StaffHome } from './staff-home';
-import { Button } from '@pospay/ui';
+import { Button, BrandedPanel, EmptyState, WifiOff, LoaderCircle } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useStaffLogin } from '../api/use-staff-login';
 import { OtpForm } from './otp-form';
@@ -17,21 +17,30 @@ export function StaffLoginScreen() {
     setSwitching(false);
     login.changed();
   };
-  if (!login.online) return <p role="status">{t(locale, 'staffLogin.reconnect')}</p>;
-  if (login.loading) return <p role="status">{t(locale, 'pos.loading')}</p>;
+  if (!login.online)
+    return (
+      <EmptyState
+        role="status"
+        tone="warning"
+        icon={<WifiOff />}
+        title={t(locale, 'staffLogin.reconnect')}
+      />
+    );
+  if (login.loading)
+    return <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'pos.loading')} />;
   return (
-    <section className="flex flex-col gap-4 text-start">
-      <h1 className="text-lg font-bold">
-        {t(locale, formVisible ? 'staffLogin.title' : 'staffLogin.signedIn')}
-      </h1>
+    <BrandedPanel
+      brandTitle={t(locale, 'brand.title')}
+      title={t(locale, formVisible ? 'staffLogin.title' : 'staffLogin.signedIn')}
+    >
       {formVisible ? (
         <div className="flex flex-col gap-4" key={login.epoch}>
           {pin ? <PinForm onSignedIn={signedIn} /> : <OtpForm onSignedIn={signedIn} />}
-          <Button onClick={() => setPin(!pin)}>
+          <Button variant="outline" onClick={() => setPin(!pin)}>
             {t(locale, pin ? 'staffLogin.useWhatsApp' : 'staffLogin.usePin')}
           </Button>
           {switching ? (
-            <Button onClick={() => setSwitching(false)}>
+            <Button variant="ghost" onClick={() => setSwitching(false)}>
               {t(locale, 'staffLogin.cancelSwitch')}
             </Button>
           ) : null}
@@ -45,6 +54,6 @@ export function StaffLoginScreen() {
           }}
         />
       )}
-    </section>
+    </BrandedPanel>
   );
 }

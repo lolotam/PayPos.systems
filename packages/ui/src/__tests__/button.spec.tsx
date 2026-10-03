@@ -9,13 +9,15 @@ const label = 'fixture.action';
 it('renders children with the default variant and a non-submitting button type', () => {
   render(<Button>{label}</Button>);
   const button = screen.getByRole('button', { name: label });
-  expect(button.classList.contains('bg-primary')).toBe(true);
+  expect(button.classList.contains('bg-brand')).toBe(true);
+  expect(button.classList.contains('font-semibold')).toBe(true);
+  expect(button.classList.contains('text-[15px]')).toBe(true);
   expect(button.classList.contains('min-h-12')).toBe(true);
   expect(button.getAttribute('type')).toBe('button');
 });
 
 it.each([
-  ['default', 'bg-primary'],
+  ['default', 'bg-brand'],
   ['secondary', 'bg-secondary'],
   ['outline', 'border-input'],
   ['ghost', 'hover:bg-accent'],
@@ -57,7 +59,7 @@ it('composes an anchor through the Radix slot without adding button semantics', 
   );
   const link = screen.getByRole('link');
   expect(link.getAttribute('type')).toBeNull();
-  expect(link.classList.contains('bg-primary')).toBe(true);
+  expect(link.classList.contains('bg-brand')).toBe(true);
 });
 
 it('disables a slotted link: announced, out of the tab order, and its activation cancelled', () => {

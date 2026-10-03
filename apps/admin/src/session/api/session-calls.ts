@@ -10,6 +10,7 @@ import {
   redirectsToTotp,
 } from './auth-error';
 import { browserAuthClient } from './browser-client';
+import { readSessionAccount } from './session-account';
 
 export type SignInOutcome = 'totp' | 'done' | MessageKey;
 
@@ -57,12 +58,7 @@ export async function loadBrowserSession(): Promise<'in' | 'out'> {
 }
 
 export async function readSessionUserId(): Promise<string | null> {
-  const result = await browserAuthClient().getSession();
-  if (result.error) {
-    if (anonymousStatus(result.error)) return null;
-    throw result.error;
-  }
-  return hasUser(result.data) ? result.data.user.id : null;
+  return (await readSessionAccount())?.id ?? null;
 }
 
 export async function signOutSession(): Promise<boolean> {

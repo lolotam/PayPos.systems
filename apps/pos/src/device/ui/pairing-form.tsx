@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerDeviceInput, type RegisterDeviceInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
+import { Button, EmptyState, CircleAlert } from '@pospay/ui';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -51,9 +51,13 @@ export function PairingForm({
         {...form.register('label')}
       />
       {error ? (
-        <p role="alert" className="text-start text-sm text-destructive">
-          {error}
-        </p>
+        <EmptyState
+          role="alert"
+          tone="danger"
+          icon={<CircleAlert />}
+          title={error}
+          className="p-4"
+        />
       ) : null}
       <Button type="submit" disabled={pending}>
         {t(locale, pending ? 'pos.loading' : 'pos.pairSubmit')}

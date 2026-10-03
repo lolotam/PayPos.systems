@@ -14,10 +14,16 @@ export function StaffHome({
 }) {
   const locale = useLocale();
   return (
-    <>
-      <p>{formatRemainingMinutes(new Date(session.expires_at), new Date(), locale)}</p>
-      <Button onClick={onSwitch}>{t(locale, 'staffLogin.switchOperator')}</Button>
-      <Button onClick={onSignOut}>{t(locale, 'staffLogin.signOut')}</Button>
-    </>
+    <div className="flex flex-col gap-2">
+      <p className="mb-4 tabular-nums text-muted-foreground">
+        {formatRemainingMinutes(new Date(session.expires_at), new Date(), locale)}
+      </p>
+      <Button variant="secondary" onClick={onSwitch}>
+        {t(locale, 'staffLogin.switchOperator')}
+      </Button>
+      <Button variant="ghost" onClick={onSignOut}>
+        {t(locale, 'staffLogin.signOut')}
+      </Button>
+    </div>
   );
 }

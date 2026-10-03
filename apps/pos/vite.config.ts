@@ -26,8 +26,8 @@ export default defineConfig({
             display: 'standalone',
             start_url: '/',
             scope: '/',
-            theme_color: '#171717',
-            background_color: '#fafafa',
+            theme_color: '#FF6421',
+            background_color: '#FCFAF6',
             icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
           },
           workbox: {
