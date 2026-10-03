@@ -47,13 +47,13 @@ export interface ServiceCommissionOverride {
   readonly rule: ServiceCommissionRule;
 }
 
-/** حد حرفي بالفلس؛ ترتيب الحدود وصحتها يأتيان من التحقق المؤجل إلى PR 30. */
+/** حد صحيح على مقياس الخطة؛ validator يضمن ترتيب الحدود قبل حلها. */
 export interface AmountTierStep {
   readonly from: bigint;
   readonly calc: CommissionCalc;
 }
 
-/** الخطة مختارة بالفعل؛ اختيار الإصدارات وباقي أنماط الشرائح يضافان في PR 30. */
+/** واجهة engine I المتوافقة؛ تسعير الإصدار العام يقبل هذه الخطة الحرفية أيضاً. */
 export interface MarginalAmountPlan {
   readonly base:
     { readonly enabled: false } | { readonly enabled: true; readonly calc: CommissionCalc };
