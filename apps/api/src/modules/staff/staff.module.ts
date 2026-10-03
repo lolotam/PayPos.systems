@@ -6,6 +6,9 @@ import type { Redis } from 'ioredis';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { AttendanceQrController } from './http/attendance-qr.controller.ts';
 import { EmployeesController } from './http/employees.controller.ts';
+import { EmployeeDetailGuard } from './http/employee-detail.guard.ts';
+import { createEmployeeDetailAccess } from './persistence/employee-detail-access.adapter.ts';
+import { EMPLOYEE_DETAIL_ACCESS } from './queries/employee-detail.query.ts';
 import { createEmployeeTransactions } from './persistence/drizzle-employee-transactions.ts';
 import { CreateEmployeeUseCase } from './use-cases/create-employee/create-employee.usecase.ts';
 import { hmacAttendanceQr } from './persistence/hmac-attendance-qr.ts';
@@ -21,6 +24,11 @@ export function staffProviders(database?: TenantWrappers, redis?: Redis): Provid
   const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
+    EmployeeDetailGuard,
+    {
+      provide: EMPLOYEE_DETAIL_ACCESS,
+      useValue: database === undefined ? null : createEmployeeDetailAccess(),
+    },
     {
       provide: CreateEmployeeUseCase,
       useValue:

@@ -18,6 +18,13 @@ export interface EmployeeCreationScope {
    */
   context(record: EmployeeRecord): Promise<EmployeeCreationContext>;
   /**
+   * يثبت عضوية المستخدم النشطة في هذه الشركة بعد الأقفال؛ الرفض لا يميز الهوية الأجنبية من المجهولة.
+   *
+   * @param userId المستخدم المراد ربطه بالموظف
+   * @returns أهلية الربط داخل معاملة الإنشاء
+   */
+  canLinkUser(userId: string): Promise<boolean>;
+  /**
    * يحفظ الموظف وارتباط فرعه في نفس المعاملة، دون اعتماد أو منح جديد.
    *
    * @param record سجل الموظف

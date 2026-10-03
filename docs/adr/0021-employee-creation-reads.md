@@ -15,6 +15,15 @@ Expose tenancy.employeeWorkplace and identity.lockEmployeeCreationAccess as narr
 The staff-owned adapter consumes them on its existing tenant transaction. Identity retains the PR 7
 company NO KEY UPDATE → ordered membership UPDATE lock protocol and samples decision time afterwards.
 No membership is created or modified; the employee role is metadata, never an authorization grant.
+PR #79 review extends the same staff → identity read boundary with employeeUserLinkAvailable:
+the user must have an active membership in this company, checked after the existing ordered locks
+and inside the same transaction. Unknown and foreign-company users share one refusal; no global user lookup.
+readEmployeeDetailAccess evaluates effective permission at the persisted business/primary branch,
+then the staff feature. A selected-company guard precedes the resource guard and guarded detail query;
+GET declares @Authenticated once because a business-only @Require would reject branch-only ALLOW.
+All single-employee query callers supply the identity reader; inaccessible and absent rows both return null.
+The read-side interface lives beside its query, following WorkspaceNames/SettingsReadCache, so queries
+stay independent of ports/, domain/ and use-cases/. The adapter is bound only in staff.module.ts.
 Only the two new staff tables and the audit log are written. No event or dependency is added.
 
 Add tenant-qualified employee references to the legacy membership/PIN tables. These are NOT VALID

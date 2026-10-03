@@ -35,6 +35,8 @@ export class CreateEmployeeUseCase {
         created_at: at.toISOString(),
       };
       validateEmployeeCreation(record, await scope.context(record));
+      if (record.user_id !== null && !(await scope.canLinkUser(record.user_id)))
+        throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
       // قرار المالك 2026-10-03: الوصول خطوة صريحة في شاشة الصلاحيات؛ إنشاء سجل الوظيفة لا يمنح عضوية.
       await scope.insert(record, this.ids.newId());
       await scope.audit(record);

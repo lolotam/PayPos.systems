@@ -1,12 +1,13 @@
-﻿import { employee } from '@pospay/contracts';
+import { employee } from '@pospay/contracts';
 import { systemUuidV7 } from '@pospay/ids';
 const employeeIds = systemUuidV7();
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { employeeDetail } from '../queries/employee-detail.query.ts';
 import { CreateEmployeeUseCase } from '../use-cases/create-employee/create-employee.usecase.ts';
 import {
   employeesFixture,
   grantEmployeeCreation,
+  detailFor,
+  employeeUserMembership,
   termsFor,
   type EmployeeFixture,
 } from './employees.fixture.ts';
@@ -80,9 +81,7 @@ it('CE-01 creates UUIDv7 employee + dated primary attachment + allowlisted audit
       .owner`SELECT actor_user_id,action,after FROM audit_log WHERE company_id=${f.company} AND entity='employee' AND entity_id=${createdId}`,
   ).toEqual([{ actor_user_id: f.userId, action: 'created', after: record }]);
   expect(await f.h.owner`SELECT 1 FROM outbox WHERE aggregate_id=${createdId}`).toHaveLength(0);
-  expect(
-    await f.db.withTenant(f.company, (tx) => employeeDetail(tx, f.company, f.business, createdId)),
-  ).toEqual(record);
+  expect(await detailFor(f, f.company, f.business, createdId)).toEqual(record);
 });
 it.each([
   [
@@ -134,6 +133,7 @@ it('CE-07 serializes competing user links and keeps one creation audit', async (
   const userId = employeeIds.newId();
   await f.h
     .owner`INSERT INTO "user"(id,name,email) VALUES (${userId},'Synthetic link','employee-link@example.test')`;
+  await employeeUserMembership(f, userId);
   const results = await Promise.allSettled(
     ['Link A', 'Link B'].map((name) => execute({ ...termsFor(f, name), user_id: userId })),
   );
@@ -221,21 +221,11 @@ it('CE-05 rolls back employee and attachment when audit fails', async () => {
   expect(await f.h.owner`SELECT count(*) AS n FROM employee_branches`).toEqual(before);
 });
 it('CE-06 detail isolates tenant, business and soft-deleted records', async () => {
-  expect(
-    await f.db.withTenant(f.otherCompany, (tx) =>
-      employeeDetail(tx, f.otherCompany, f.business, createdId),
-    ),
-  ).toBeNull();
-  expect(
-    await f.db.withTenant(f.company, (tx) =>
-      employeeDetail(tx, f.company, f.secondBusiness, createdId),
-    ),
-  ).toBeNull();
+  expect(await detailFor(f, f.otherCompany, f.business, createdId)).toBeNull();
+  expect(await detailFor(f, f.company, f.secondBusiness, createdId)).toBeNull();
   const record = await execute(termsFor(f, 'Deleted employee'));
   await f.h.owner`UPDATE employees SET deleted_at=now() WHERE id=${record.id}`;
-  expect(
-    await f.db.withTenant(f.company, (tx) => employeeDetail(tx, f.company, f.business, record.id)),
-  ).toBeNull();
+  expect(await detailFor(f, f.company, f.business, record.id)).toBeNull();
 });
 it('malformed roles, names, dates and claims return validation envelope', async () => {
   for (const change of [

@@ -1,9 +1,11 @@
-﻿import { createDatabase } from '@pospay/db';
+import { createDatabase, OWNER_ROLE_ID } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 const employeeIds = systemUuidV7();
 import { startHarness } from '../../../../test/harness.ts';
 import { createEmployeeTransactions } from '../persistence/drizzle-employee-transactions.ts';
 import { CreateEmployeeUseCase } from '../use-cases/create-employee/create-employee.usecase.ts';
+import { createEmployeeDetailAccess } from '../persistence/employee-detail-access.adapter.ts';
+import { employeeDetail } from '../queries/employee-detail.query.ts';
 
 export async function employeesFixture() {
   const h = await startHarness();
@@ -66,4 +68,34 @@ export async function grantEmployeeCreation(f: EmployeeFixture, business = f.bus
   await f.h
     .owner`INSERT INTO permission_overrides (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
     VALUES (${f.company},${employeeIds.newId()},${f.memberId},'manage:employees:business','ALLOW','BUSINESS',${business},'Synthetic grant',${f.userId})`;
+}
+
+export function detailFor(
+  f: EmployeeFixture,
+  companyId: string,
+  businessId: string,
+  employeeId: string,
+) {
+  return f.db.withTenant(companyId, (tx) =>
+    employeeDetail(tx, companyId, businessId, employeeId, f.userId, createEmployeeDetailAccess()),
+  );
+}
+
+export async function employeeUserMembership(
+  f: EmployeeFixture,
+  userId: string,
+  options: {
+    companyId?: string;
+    businessId?: string;
+    startsAt?: string;
+    endsAt?: string | null;
+  } = {},
+) {
+  const membershipId = employeeIds.newId();
+  const company = options.companyId ?? f.company;
+  await f.h
+    .owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at,ends_at)
+    VALUES (${company},${membershipId},${userId},${OWNER_ROLE_ID},'global',${options.businessId === undefined ? 'COMPANY' : 'BUSINESS'},
+    ${options.businessId ?? company},${options.startsAt ?? '2000-01-01T00:00:00Z'},${options.endsAt ?? null})`;
+  return membershipId;
 }

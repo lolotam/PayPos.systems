@@ -16,7 +16,7 @@ export const staffPaths = {
     post: {
       operationId: 'createEmployee',
       description:
-        'Requires manage:employees:business and staff feature. Grants no access. Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409).',
+        'Requires manage:employees:business and staff feature. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409).',
       parameters,
       requestBody: { required: true, content: json('CreateEmployeeInput') },
       responses: {
@@ -30,7 +30,8 @@ export const staffPaths = {
   '/v1/businesses/{businessId}/employees/{employeeId}': {
     get: {
       operationId: 'getEmployee',
-      description: 'Requires manage:employees:business and staff feature.',
+      description:
+        'Requires manage:employees:business at the persisted employee business and primary branch, with DENY winning, and the staff feature. Branch-only ALLOW is accepted. Inaccessible and missing employees share NOT_FOUND (404).',
       parameters: [
         ...parameters,
         {
@@ -42,6 +43,7 @@ export const staffPaths = {
       ],
       responses: {
         '200': { description: 'Persisted employee', content: json('Employee') },
+        '404': errors,
         default: errors,
       },
     },

@@ -37,5 +37,7 @@ sync_writes:
 reads:
   - { from: staff, to: tenancy, symbol: employeeWorkplace, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
   - { from: staff, to: identity, symbol: lockEmployeeCreationAccess, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
+  - { from: staff, to: identity, symbol: employeeUserLinkAvailable, file: apps/api/src/modules/staff/persistence/employee-context.adapter.ts }
+  - { from: staff, to: identity, symbol: readEmployeeDetailAccess, file: apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts }
   - { from: identity, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/identity/persistence/workspace-names.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/tenancy-attendance-branch.adapter.ts }

@@ -3,7 +3,11 @@ import { sql } from 'drizzle-orm';
 
 import { EmployeeCreationError, type EmployeeRecord } from '../domain/create-employee.ts';
 import type { EmployeeTransactions } from '../ports/employee-transactions.port.ts';
-import { authorizeEmployeeCreation, employeeContext } from './employee-context.adapter.ts';
+import {
+  authorizeEmployeeCreation,
+  canLinkEmployeeUser,
+  employeeContext,
+} from './employee-context.adapter.ts';
 
 async function insertEmployee(tx: Tx, companyId: string, r: EmployeeRecord, attachmentId: string) {
   await tx.execute(sql`INSERT INTO employees (company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,role_code,hire_date,contract_end,created_at)
@@ -57,6 +61,7 @@ export function createEmployeeTransactions(
               authorize: (businessId, branchId) =>
                 authorizeEmployeeCreation(tx, companyId, userId, businessId, branchId),
               context: (record) => employeeContext(tx, companyId, record),
+              canLinkUser: (linkedUserId) => canLinkEmployeeUser(tx, companyId, linkedUserId),
               insert: (record, attachmentId) => insertEmployee(tx, companyId, record, attachmentId),
               audit: (record) =>
                 appendAuditLog(tx, ids.newId(), {

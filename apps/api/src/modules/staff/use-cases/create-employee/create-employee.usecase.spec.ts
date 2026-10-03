@@ -23,6 +23,7 @@ function fixture() {
       businessExists: true,
       branchBusinessId: 'business',
     })),
+    canLinkUser: vi.fn(async () => true),
     insert: vi.fn(async () => undefined),
     audit: vi.fn(async () => undefined),
   };
@@ -47,6 +48,7 @@ it('coordinates one transaction and injected ids/time with null optionals', asyn
   });
   expect(scope.insert).toHaveBeenCalledWith(result, 'injected-id');
   expect(scope.audit).toHaveBeenCalledWith(result);
+  expect(scope.canLinkUser).not.toHaveBeenCalled();
 });
 it('refuses changed authority before reading or writing employee data', async () => {
   const { scope, useCase } = fixture();
@@ -59,4 +61,14 @@ it('does not swallow audit failure, so the transaction can roll back', async () 
   const { scope, useCase } = fixture();
   vi.mocked(scope.audit).mockRejectedValue(new Error('synthetic audit failure'));
   await expect(useCase.execute(command)).rejects.toThrow('synthetic audit failure');
+});
+it('checks link eligibility before insert/audit and refuses an unavailable user', async () => {
+  const { scope, useCase } = fixture();
+  vi.mocked(scope.canLinkUser).mockResolvedValue(false);
+  await expect(
+    useCase.execute({ ...command, input: { ...command.input, user_id: 'linked-user' } }),
+  ).rejects.toThrow('EMPLOYEE_USER_LINK_UNAVAILABLE');
+  expect(scope.canLinkUser).toHaveBeenCalledWith('linked-user');
+  expect(scope.insert).not.toHaveBeenCalled();
+  expect(scope.audit).not.toHaveBeenCalled();
 });

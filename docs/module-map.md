@@ -89,6 +89,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `commissions`                       | `EmployeePlanPort` — retired in Phase 1: plan versions live in `commissions` (ADR-0010) | `staff`     | the employee's active commission plan                                                                                                                                |
 | `channels`                          | `ChannelFeePort`                                                                        | `expenses`  | how an aggregator commission is booked                                                                                                                               |
 | `realtime`                          | `ChannelScopePort`                                                                      | `identity`  | which channels this session may subscribe to                                                                                                                         |
+| `staff` | `EmployeeCreationScope` | `identity` | locked employee-management access and active company membership eligibility for user links (ADR-0021, PR #79) |
+| `staff` | `EmployeeDetailAccess` (read-side interface beside the query) | `identity` | effective grants at the persisted business/primary branch and staff feature; never global user existence (ADR-0021, PR #79) |
 | `orders`                            | `CustomerLookupPort`                                                                    | `customers` | `exists(customerId)` — reception finds or creates the customer first through `customers`' own endpoint (ADR-0010)                                                    |
 | `orders`                            | `PerformerCheckPort`                                                                    | `staff`     | employee active and attached to the branch on the date (ADR-0010)                                                                                                    |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
@@ -215,6 +217,8 @@ sync_writes:
 reads:
   - staff -> tenancy.employeeWorkplace @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
   - staff -> identity.lockEmployeeCreationAccess @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
+  - staff -> identity.employeeUserLinkAvailable @ apps/api/src/modules/staff/persistence/employee-context.adapter.ts
+  - staff -> identity.readEmployeeDetailAccess @ apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts
   - identity -> tenancy.describeWorkspaces @ apps/api/src/modules/identity/persistence/workspace-names.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/tenancy-attendance-branch.adapter.ts
 ```

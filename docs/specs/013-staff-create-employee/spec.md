@@ -20,9 +20,9 @@ This gives later staff slices an employee record without issuing credentials or 
 1. CE-01: a valid creation saves one employee, one attachment from hire date and one audit row with the real actor.
 2. CE-02: missing/foreign business or branch, or branch in another business, saves nothing.
 3. CE-03: no permission, inactive membership, DENY or disabled staff feature is refused.
-4. CE-04: optional existing-user link is saved; unknown user yields a generic named refusal without SQL diagnostics.
+4. CE-04: optional user link requires an active membership in this company; unknown, foreign-company and inactive users share EMPLOYEE_USER_LINK_UNAVAILABLE (400), without SQL diagnostics.
 5. CE-05: a failed attachment/audit rolls back the employee too.
-6. CE-06: employee detail cannot cross tenant or business; deletion markers are excluded.
+6. CE-06: employee detail cannot cross tenant or business; deletion markers are excluded. Permission is evaluated at the persisted business and primary branch; branch DENY wins and a branch ALLOW suffices. Inaccessible and missing records share NOT_FOUND (404).
 7. CE-07: concurrent links to the same user/business yield one creation and one EMPLOYEE_USER_ALREADY_LINKED refusal, with no partial writes.
 8. CE-08: duplicate names and future hire dates succeed; contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400).
 9. CE-09: the same user can be linked in different businesses; an unlinked or soft-deleted employee does not reserve an active user/business link.
@@ -42,6 +42,8 @@ phone binding, passkey or membership administration is implemented.
 - FR-004: save an allowlisted audit snapshot, with no contact/credential/salary data.
 - FR-005: preserve tenant and business boundaries through validation, FKs and FORCE RLS.
 - FR-006: create form uses bilingual labels, the existing workspace selector and generated client.
+- FR-007 (PR #79 review): resolve user-link eligibility through a company-scoped identity read inside the existing write transaction, after the company and ordered membership locks. Never probe global user existence.
+- FR-008 (PR #79 review): every single-employee read resolves the persisted scope before checking effective grants. No-access and missing records are indistinguishable; staff feature enforcement remains mandatory.
 
 ### Key Entities
 
@@ -53,6 +55,10 @@ EmployeeBranch records its dated branch attachment. A role_code is HR metadata; 
 ### Business rules
 
 EmployeeBranch.from = hire_date, to = null. A user reference never changes their phone or credentials.
+PR #79 review correction: the linked user must have a started, unexpired membership in this company,
+at any company/business/branch scope. Identity owns this boolean read; staff neither joins nor writes
+memberships. The existing PR 7 locks are retained through eligibility, insert, audit and commit;
+membership activity is evaluated after any lock wait. Unknown and foreign users receive the same 400 envelope.
 No event is named for create-employee in SPEC §3, so none is emitted. This is not a money/stock effect;
 Idempotency-Key is not required. Retrying an unlinked creation can create a second record; do not auto-retry.
 
@@ -83,6 +89,7 @@ a later owner-approved repair; NOT VALID enforcement protects new writes without
 - POST `/v1/businesses/{businessId}/employees`: strict CreateEmployeeInput, 201 Employee.
 - GET `/v1/businesses/{businessId}/employees/{employeeId}`: Employee or 404, persisted detail query.
 - Both require `manage:employees:business` and the `staff` feature; company comes from the verified principal.
+- GET uses one `@Authenticated` declaration plus selected-company and employee-detail guards: active company membership first, then the guarded detail query checks permission at the persisted primary branch. The query's identity read also enforces the staff feature after permission succeeds. This avoids a business-only precheck rejecting branch ALLOW, or exposing branch-DENY records. Inaccessible, foreign-tenant/business, deleted and missing employees return the same 404 envelope to an active company member; callers without company membership are uniformly refused before tenant lookup.
 - Input: primary_branch_id, name_en, optional nullable name_ar/user_id/contract_end, role_code, hire_date.
 - Errors: EMPLOYEE_BUSINESS_NOT_FOUND, EMPLOYEE_BRANCH_NOT_FOUND, EMPLOYEE_BRANCH_BUSINESS_MISMATCH,
   EMPLOYEE_USER_LINK_UNAVAILABLE (400), EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400), EMPLOYEE_USER_ALREADY_LINKED (409),
@@ -106,6 +113,10 @@ audit actor and rollback, cross-business links, concurrent same-business links a
 Direct DB negatives prove partial uniqueness and permit different businesses/tenants, null links and soft-deleted predecessors.
 RLS negatives for both tables: SELECT/INSERT/context/FKs, immutable runtime grants, other roles denied.
 Detail query result shape + EXPLAIN ANALYZE index assertion. HTTP access/validation/error coverage.
+PR #79 regressions: unknown versus foreign user links have identical 400 envelopes and no writes;
+inactive/future memberships fail, active memberships in another business of this company succeed,
+and an ended target membership after a lock wait is refused. Business ALLOW + branch DENY,
+branch-only ALLOW, other tenant/business, no grant, missing employee and disabled feature are covered.
 UI submission, bilingual labels, invalid input, failure and workspace replacement tests.
 Acceptance: pnpm check, API/admin/POS builds, regenerated OpenAPI and both clients.
 
