@@ -18,7 +18,7 @@ export function DeviceBody({ session }: { session: DeviceSession }) {
   if (screen.kind === 'offline') return <OfflineNotice onRetry={session.retry} />;
   if (screen.kind === 'unsupported') return <UnsupportedNotice />;
   return (
-    <div className="flex flex-col gap-8">
+    <div className="mx-auto grid w-full max-w-6xl items-start gap-12 lg:grid-cols-2">
       <StaffLoginScreen />
       <AttendanceHome branchId={screen.branchId} onRejected={session.retry} />
     </div>

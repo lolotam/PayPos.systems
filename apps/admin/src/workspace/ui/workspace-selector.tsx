@@ -44,7 +44,7 @@ export function WorkspaceSelector() {
   const businesses = company?.businesses ?? [];
   const branches = business?.branches ?? [];
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <div className="flex min-w-0 flex-col gap-2 [&_button]:min-h-10 [&_button]:border-white/20 [&_button]:bg-white/5 [&_button]:text-[15px] [&_button]:font-semibold [&_button]:text-sidebar-foreground [&_button_svg]:text-sidebar-foreground [&_label]:text-xs">
       <SelectField
         id="workspace-company"
         label={t(locale, 'admin.companyLabel')}

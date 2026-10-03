@@ -1,7 +1,7 @@
 'use client';
 
-import { roleName, t } from '@pospay/i18n';
-import { Label, Select } from '@pospay/ui';
+import { t } from '@pospay/i18n';
+import { PageHeader, EmptyState, CircleAlert, UserRound, LoaderCircle } from '@pospay/ui';
 import { useState } from 'react';
 
 import { envelopeMessage } from '@/shared/api/api-error';
@@ -9,39 +9,49 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { usePermissionMemberships } from '../api/use-permissions';
 import { MembershipPermissionsPanel } from '../ui/membership-permissions-panel';
 import { PermissionPageNavigation } from '../ui/permission-page-navigation';
+import { PermissionMembershipTable } from '../ui/permission-membership-table';
 
-export function PermissionsPage({
-  companyId,
-  userId,
-  branchTimeZones,
-}: {
+type Props = {
   companyId: string;
   userId: string;
   branchTimeZones: Readonly<Record<string, string>>;
-}) {
+  scopeNames: Readonly<Record<string, string>>;
+};
+
+export function PermissionsPage({ companyId, userId, branchTimeZones, scopeNames }: Props) {
   const locale = useLocale();
   const [cursor, setCursor] = useState<string>();
   const [membershipId, setMembershipId] = useState('');
   const list = usePermissionMemberships(companyId, userId, cursor);
   return (
-    <section className="flex flex-col gap-4 text-start">
-      <h1 className="text-xl font-semibold">{t(locale, 'permissions.title')}</h1>
-      {list.isPending ? <p>{t(locale, 'admin.loading')}</p> : null}
-      {list.isError ? <p role="alert">{envelopeMessage(list.error, locale)}</p> : null}
+    <section className="flex min-w-0 flex-col gap-12 text-start">
+      <PageHeader
+        title={t(locale, 'permissions.title')}
+        description={t(locale, 'shell.permissionsLead')}
+      />
+      {list.isPending ? (
+        <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />
+      ) : null}
+      {list.isError ? (
+        <EmptyState
+          role="alert"
+          tone="danger"
+          icon={<CircleAlert />}
+          title={envelopeMessage(list.error, locale)}
+        />
+      ) : null}
       {list.data ? (
         <>
-          {list.data.items.length === 0 ? <p>{t(locale, 'permissions.empty')}</p> : null}
-          <Label htmlFor="permission-membership">{t(locale, 'permissions.person')}</Label>
-          <Select
-            id="permission-membership"
-            value={membershipId}
-            placeholder={t(locale, 'permissions.choose')}
-            options={list.data.items.map((item) => ({
-              value: item.id,
-              label: `${roleName(locale, item.role_code, locale === 'ar' ? (item.role_name_ar ?? item.role_name_en) : item.role_name_en)} · ${item.user_id ?? item.employee_id} · ${item.scope_id}`,
-            }))}
-            onValueChange={setMembershipId}
-          />
+          {list.data.items.length === 0 ? (
+            <EmptyState icon={<UserRound />} title={t(locale, 'permissions.empty')} />
+          ) : (
+            <PermissionMembershipTable
+              items={list.data.items}
+              selectedId={membershipId}
+              scopeNames={scopeNames}
+              onSelect={setMembershipId}
+            />
+          )}
           <PermissionPageNavigation
             cursor={cursor}
             next={list.data.next_cursor}

@@ -37,11 +37,16 @@ export function PermissionOverrideForm({
   });
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSave)} className="flex flex-col gap-3 text-start">
-        <fieldset disabled={disabled || pending} className="flex flex-col gap-3">
+      <form
+        onSubmit={form.handleSubmit(onSave)}
+        className="flex flex-col gap-2 rounded-card border border-border bg-secondary/30 p-4 text-start"
+      >
+        <fieldset disabled={disabled || pending} className="flex flex-col gap-2">
           <PermissionDecisionFields catalog={catalog} />
           <PermissionScopeFields />
-          <Button type="submit">{t(locale, 'permissions.save')}</Button>
+          <Button type="submit" className="mt-4 sm:self-end">
+            {t(locale, 'permissions.save')}
+          </Button>
         </fieldset>
         {Object.keys(form.formState.errors).length > 0 ? (
           <p role="alert">{t(locale, 'permissions.invalid')}</p>

@@ -8,7 +8,7 @@ export function LocaleSwitch() {
   const next = locale === 'ar' ? 'en' : 'ar';
   const label = t(locale, next === 'ar' ? 'pos.languageArabic' : 'pos.languageEnglish');
   return (
-    <Button type="button" variant="outline" size="sm" onClick={() => setLocale(next)}>
+    <Button size="touch" type="button" variant="outline" onClick={() => setLocale(next)}>
       {label}
     </Button>
   );

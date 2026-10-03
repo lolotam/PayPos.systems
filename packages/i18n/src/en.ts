@@ -1,5 +1,18 @@
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  brand: {
+    title: 'PosPay — بوس باي',
+    latinName: 'PosPay',
+    arabicName: 'بوس باي',
+  },
+  shell: {
+    navigation: 'Workspace navigation',
+    openNavigation: 'Open navigation',
+    closeNavigation: 'Close navigation',
+    account: 'Signed-in account',
+    workspaceLead: 'Your company, business and branch at a glance.',
+    permissionsLead: 'Review role defaults and manage personal access decisions.',
+  },
   roles: {
     owner: 'Owner',
     general_manager: 'General Manager',
@@ -16,6 +29,8 @@ export const en = {
     viewer: 'Viewer',
   },
   permissions: {
+    view: 'View',
+    copyHolder: 'Copy identifier',
     title: 'Permissions',
     person: 'Membership',
     choose: 'Choose a person',

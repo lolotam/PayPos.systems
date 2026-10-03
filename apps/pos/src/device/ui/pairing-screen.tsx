@@ -1,6 +1,6 @@
 import type { RegisterDeviceInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Card, CardContent, CardHeader } from '@pospay/ui';
+import { BrandedPanel, EmptyState, CircleAlert } from '@pospay/ui';
 
 import { useLocale } from '@/shared/locale/locale-context';
 
@@ -16,23 +16,21 @@ export function PairingScreen({
 }) {
   const locale = useLocale();
   return (
-    <div className="mx-auto w-full max-w-md">
-      <Card>
-        <CardHeader>
-          <h1 className="text-start text-lg font-bold leading-tight">
-            {t(locale, 'pos.pairingTitle')}
-          </h1>
-          <p className="text-start text-sm text-muted-foreground">{t(locale, 'pos.pairingLead')}</p>
-        </CardHeader>
-        <CardContent>
-          {notice ? (
-            <p role="alert" className="mb-4 text-start text-sm text-destructive">
-              {t(locale, notice === 'refused' ? 'pos.refused' : 'pos.removed')}
-            </p>
-          ) : null}
-          <PairingForm onSubmit={onSubmit} />
-        </CardContent>
-      </Card>
-    </div>
+    <BrandedPanel
+      brandTitle={t(locale, 'brand.title')}
+      title={t(locale, 'pos.pairingTitle')}
+      description={t(locale, 'pos.pairingLead')}
+    >
+      {notice ? (
+        <EmptyState
+          role="alert"
+          className="mb-6"
+          tone="danger"
+          icon={<CircleAlert />}
+          title={t(locale, notice === 'refused' ? 'pos.refused' : 'pos.removed')}
+        />
+      ) : null}
+      <PairingForm onSubmit={onSubmit} />
+    </BrandedPanel>
   );
 }
