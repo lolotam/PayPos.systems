@@ -139,3 +139,24 @@ it('the uploader also retains its branch scope for metadata, confirmation and an
   ).toBe(201);
   await h.owner`DELETE FROM permission_overrides WHERE company_id = ${company} AND id = ${deny}`;
 });
+
+it('a company custom role named owner cannot suppress a business file-read DENY', async () => {
+  const ticket = await ready();
+  const [member] =
+    await h.owner`SELECT role_id FROM memberships WHERE company_id=${company} AND id=${readerMembership}`;
+  const roleId = member?.['role_id'] as string;
+  await h.owner`UPDATE roles SET code='owner' WHERE company_id=${company} AND id=${roleId}`;
+  await h.owner`INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
+    VALUES (${roleId},${company},${company},'read:files:business')`;
+  expect(
+    (await h.send('GET', `/v1/files/${ticket.id}`, { cookie: readerCookie, company })).status,
+  ).toBe(200);
+  await h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES (${company},${ids.newId()},${readerMembership},'read:files:business','DENY','BUSINESS',${business},'Synthetic custom owner deny',${readerId})`;
+  for (const method of ['GET', 'POST'] as const) {
+    const path = `/v1/files/${ticket.id}${method === 'POST' ? '/download' : ''}`;
+    const response = await h.send(method, path, { cookie: readerCookie, company });
+    expect(response.status).toBe(404);
+    expect(response.body['code']).toBe('FILE_NOT_FOUND');
+  }
+});

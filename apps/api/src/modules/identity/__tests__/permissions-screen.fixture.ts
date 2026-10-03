@@ -23,8 +23,11 @@ export async function permissionFixture() {
     await h.owner`SELECT id FROM memberships WHERE company_id = ${company} AND user_id = ${userId}`;
   const ownMember = own?.['id'] as string;
   const managerMember = ids.newId();
+  const editorRole = ids.newId();
+  await h.owner`INSERT INTO roles(id,company_id,code,name_en)
+    VALUES (${editorRole},${company},'synthetic_editor','Synthetic editor')`;
   await h.owner`INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
-    VALUES (${company}, ${managerMember}, ${managerId}, ${role('viewer')}, 'global', 'COMPANY', ${company})`;
+    VALUES (${company}, ${managerMember}, ${managerId}, ${editorRole}, ${company}, 'COMPANY', ${company})`;
   const business = await newBusiness(h, company);
   const branch = await newBranch(h, company, business);
   const siblingBranch = await newBranch(h, company, business);
@@ -53,6 +56,21 @@ export async function permissionFixture() {
 }
 export type PermissionFixture = Awaited<ReturnType<typeof permissionFixture>>;
 
+// حالات تفويض PR 7 العامة تستخدم دوراً مخصصاً؛ Viewer النظامي لا يكتسب خانات ❌ بعد PR 7a.
+async function fixtureRole(f: PermissionFixture, code: string, company: string) {
+  if (SYSTEM_ROLES.some((r) => r.code === code)) return { id: role(code), key: 'global' };
+  const [existing] = await f.h
+    .owner`SELECT id FROM roles WHERE company_id=${company} AND code=${code}`;
+  if (existing !== undefined) return { id: existing['id'] as string, key: company };
+  const id = f.ids.newId();
+  await f.h
+    .owner`INSERT INTO roles(id,company_id,code,name_en) VALUES (${id},${company},${code},'Synthetic custom viewer')`;
+  for (const permission of ['read:branches:branch', 'read:businesses:company'])
+    await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
+      VALUES (${id},${company},${company},${permission})`;
+  return { id, key: company };
+}
+
 async function newBusiness(h: Harness, company: string) {
   const id = ids.newId();
   await h.owner`INSERT INTO businesses (company_id, id, name_en, vertical_type)
@@ -65,13 +83,18 @@ async function newBranch(h: Harness, company: string, business: string) {
     VALUES (${company}, ${id}, ${business}, 'Synthetic branch')`;
   return id;
 }
-export async function newMember(f: PermissionFixture, code = 'viewer', company = f.company) {
+export async function newMember(
+  f: PermissionFixture,
+  code = 'synthetic_viewer',
+  company = f.company,
+) {
   const id = ids.newId();
   const employeeId = ids.newId();
   await seedEmployee(f.h.owner, company, employeeId);
+  const selected = await fixtureRole(f, code, company);
   await f.h
     .owner`INSERT INTO memberships (company_id, id, employee_id, role_id, role_owner_key, scope_type, scope_id)
-    VALUES (${company}, ${id}, ${employeeId}, ${role(code)}, 'global', 'COMPANY', ${company})`;
+    VALUES (${company}, ${id}, ${employeeId}, ${selected.id}, ${selected.key}, 'COMPANY', ${company})`;
   return id;
 }
 export function terms(
@@ -91,15 +114,16 @@ export function terms(
 export async function newHeldMember(
   f: PermissionFixture,
   holder: { userId: string } | { employeeId: string },
-  code = 'viewer',
+  code = 'synthetic_viewer',
   company = f.company,
 ) {
   const id = ids.newId();
   if ('employeeId' in holder) await seedEmployee(f.h.owner, company, holder.employeeId);
+  const selected = await fixtureRole(f, code, company);
   await f.h.owner`INSERT INTO memberships
     (company_id, id, user_id, employee_id, role_id, role_owner_key, scope_type, scope_id)
     VALUES (${company}, ${id}, ${'userId' in holder ? holder.userId : null},
-      ${'employeeId' in holder ? holder.employeeId : null}, ${role(code)}, 'global', 'COMPANY', ${company})`;
+      ${'employeeId' in holder ? holder.employeeId : null}, ${selected.id}, ${selected.key}, 'COMPANY', ${company})`;
   return id;
 }
 export async function seedOverride(

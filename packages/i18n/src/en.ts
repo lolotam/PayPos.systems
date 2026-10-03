@@ -162,6 +162,7 @@ export const en = {
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
     PERMISSION_SCOPE_OUTSIDE_REACH: 'The target scope is outside your permission’s reach',
+    PERMISSION_ROLE_FORBIDDEN: 'This system role cannot receive this permission',
     PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
     TRANSACTION_RETRY_REQUIRED:
       'The change conflicted with another transaction and was not saved. Please retry.',

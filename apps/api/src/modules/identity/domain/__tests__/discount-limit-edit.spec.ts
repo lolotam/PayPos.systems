@@ -7,6 +7,9 @@ const member = {
   userId: 'holder',
   employeeId: null,
   roleCode: 'viewer',
+  systemRoleCode: null,
+  allowedPermissions: null,
+  isCompanyOwner: false,
   scopeType: 'COMPANY' as const,
   scopeId: 'company',
   startsAt: new Date('2020-01-01'),
@@ -35,14 +38,20 @@ it('protects the person through another active owner membership', () => {
   expect(
     discountLimitEditFailure({
       ...context,
-      holderMemberships: [{ ...member, id: 'owner', roleCode: 'owner' }],
+      holderMemberships: [{ ...member, id: 'owner', roleCode: 'owner', isCompanyOwner: true }],
     }),
   ).toBe('PERMISSION_OWNER_PROTECTED');
   expect(
     discountLimitEditFailure({
       ...context,
       holderMemberships: [
-        { ...member, id: 'ended', roleCode: 'owner', endsAt: new Date('2025-01-01') },
+        {
+          ...member,
+          id: 'ended',
+          roleCode: 'owner',
+          isCompanyOwner: true,
+          endsAt: new Date('2025-01-01'),
+        },
       ],
     }),
   ).toBeNull();

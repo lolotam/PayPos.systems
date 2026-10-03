@@ -1,4 +1,4 @@
-import { createDatabase, OWNER_ROLE_ID, SYSTEM_ROLES } from '@pospay/db';
+import { createDatabase, OWNER_ROLE_ID } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 const employeeIds = systemUuidV7();
 import { startHarness } from '../../../../test/harness.ts';
@@ -16,9 +16,11 @@ export async function employeesFixture() {
   const [holder] = await h.owner`SELECT id FROM "user" WHERE email='employee-manager@example.test'`;
   const userId = holder?.['id'] as string;
   const memberId = employeeIds.newId();
-  const viewer = SYSTEM_ROLES.find((r) => r.code === 'viewer')?.id ?? '';
+  const viewer = employeeIds.newId();
+  await h.owner`INSERT INTO roles(id,company_id,code,name_en)
+    VALUES (${viewer},${company},'synthetic_employee_editor','Synthetic employee editor')`;
   await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
-    VALUES (${company},${memberId},${userId},${viewer},'global','COMPANY',${company})`;
+    VALUES (${company},${memberId},${userId},${viewer},${company},'COMPANY',${company})`;
   const business = employeeIds.newId();
   const secondBusiness = employeeIds.newId();
   const foreignBusiness = employeeIds.newId();

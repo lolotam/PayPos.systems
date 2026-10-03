@@ -1,4 +1,9 @@
-import type { Tx, TenantWrappers } from '@pospay/db';
+import {
+  canonicalOwnerSql,
+  systemRoleOverrideAllowedSql,
+  type Tx,
+  type TenantWrappers,
+} from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import type { ScopeType } from '../domain/access.ts';
@@ -61,9 +66,9 @@ export async function readAccessTransaction(
   const memberships = await tx.execute<{
     scope_type: ScopeType;
     scope_id: string;
-    role_code: string;
+    is_owner: boolean;
   }>(sql`
-        SELECT m.scope_type, m.scope_id, r.code AS role_code FROM memberships m
+        SELECT m.scope_type, m.scope_id, (${canonicalOwnerSql('m', companyId)}) AS is_owner FROM memberships m
         JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}`);
   const grants = await tx.execute<{
@@ -82,7 +87,8 @@ export async function readAccessTransaction(
         FROM permission_overrides o
         JOIN memberships m ON m.company_id = o.company_id AND m.id = o.membership_id
         WHERE o.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
-          AND (o.expires_at IS NULL OR o.expires_at > ${at})`);
+          AND (o.expires_at IS NULL OR o.expires_at > ${at})
+          AND ${systemRoleOverrideAllowedSql('m', 'o')}`);
   return {
     memberships: memberships.map((row): ActiveMembership => ({
       scopeType: row.scope_type,
@@ -96,7 +102,7 @@ export async function readAccessTransaction(
         scopeType: row.scope_type,
         scopeId: row.scope_id,
       })),
-      memberships.some((m) => m.role_code === 'owner'),
+      memberships.some((m) => m.is_owner),
     ),
   };
 }

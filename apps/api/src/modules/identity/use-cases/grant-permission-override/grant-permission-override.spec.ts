@@ -29,6 +29,9 @@ const context: PermissionEditContext = {
     userId: null,
     employeeId: 'employee',
     roleCode: 'viewer',
+    systemRoleCode: null,
+    allowedPermissions: null,
+    isCompanyOwner: false,
     scopeType: 'COMPANY',
     scopeId: actor.companyId,
     startsAt: new Date('2020-01-01'),
@@ -93,7 +96,9 @@ it.each(['DENY', 'REPLACE', 'REVOKE'] as const)(
     if (membership === null) throw new Error('Synthetic membership missing');
     const s = setup(operation !== 'DENY', false, {
       ...context,
-      holderMemberships: [{ ...membership, id: 'owner-sibling', roleCode: 'owner' }],
+      holderMemberships: [
+        { ...membership, id: 'owner-sibling', roleCode: 'owner', isCompanyOwner: true },
+      ],
     });
     const work =
       operation === 'REVOKE'

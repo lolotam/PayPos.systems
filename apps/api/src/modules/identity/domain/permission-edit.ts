@@ -1,4 +1,5 @@
 import { evaluateAccess, type AccessGrant, type AccessTarget, type ScopeType } from './access.ts';
+import { personalAllowFailure } from './permission-eligibility.ts';
 
 /** العضوية المستهدفة، بدون أي بيانات دخول حساسة. */
 export interface EditableMembership {
@@ -10,6 +11,9 @@ export interface EditableMembership {
   readonly userId: string | null;
   readonly employeeId: string | null;
   readonly roleCode: string;
+  readonly systemRoleCode: string | null;
+  readonly allowedPermissions: readonly string[] | null;
+  readonly isCompanyOwner: boolean;
 }
 /** بيانات طلب الاستثناء بعد التحقق من عقد الإدخال. */
 export interface OverrideTerms {
@@ -68,7 +72,9 @@ export function permissionHolderIsOwner(context: PermissionEditContext): boolean
     (candidate) =>
       ((holder.userId !== null && candidate.userId === holder.userId) ||
         (holder.employeeId !== null && candidate.employeeId === holder.employeeId)) &&
-      candidate.roleCode === 'owner' &&
+      candidate.isCompanyOwner &&
+      candidate.scopeType === 'COMPANY' &&
+      candidate.scopeId === context.companyId &&
       candidate.startsAt <= context.now &&
       (candidate.endsAt === null || candidate.endsAt > context.now),
   );
@@ -111,13 +117,13 @@ export function permissionPossessionFailure(
  *
  * @param terms بيانات الاستثناء المطلوبة
  * @param context العضوية والصلاحيات والهدف الموثوق والوقت المحقون
- * @param operation الحفظ أو السحب؛ سحب DENY من المالك لا يقلل صلاحياته
+ * @param operation حفظ الاستثناء أو سحبه، أو فحص معامل خصم لا يمنح أي إذن
  * @returns سبب الرفض، أو null عند السماح
  */
 export function permissionEditFailure(
   terms: OverrideTerms,
   context: PermissionEditContext,
-  operation: 'SAVE' | 'REVOKE' = 'SAVE',
+  operation: 'SAVE' | 'REVOKE' | 'CHECK' = 'SAVE',
 ):
   | 'FORBIDDEN'
   | 'VALIDATION_FAILED'
@@ -125,6 +131,7 @@ export function permissionEditFailure(
   | 'PERMISSION_SELF_EDIT'
   | 'PERMISSION_OWNER_PROTECTED'
   | 'PERMISSION_SCOPE_OUTSIDE_REACH'
+  | 'PERMISSION_ROLE_FORBIDDEN'
   | null {
   const { membership, target, companyId, now } = context;
   if (!membershipManagementAllowed(context)) return 'FORBIDDEN';
@@ -143,16 +150,8 @@ export function permissionEditFailure(
     return 'VALIDATION_FAILED';
   if (operation === 'SAVE' && permissionHolderIsOwner(context) && terms.effect === 'DENY')
     return 'PERMISSION_OWNER_PROTECTED';
-  if (
-    operation === 'SAVE' &&
-    terms.effect === 'ALLOW' &&
-    membership.roleCode === 'business_manager' &&
-    ['read:memberships:business', 'manage:memberships:business'].includes(terms.permission_code) &&
-    (context.membershipTarget?.businessId === undefined ||
-      target.businessId !== context.membershipTarget.businessId)
-  )
-    return 'PERMISSION_SCOPE_OUTSIDE_REACH';
-  // TODO(spec): نحتاج تأكيد هل ❌ يمنع ALLOW الشخصي أيضاً؛ نحافظ على سياسة استثناءات PR 7 لحين الحسم.
+  const eligibility = operation === 'SAVE' ? personalAllowFailure(terms, context) : null;
+  if (eligibility !== null) return eligibility;
   return permissionPossessionFailure(
     context.grants,
     terms.permission_code,

@@ -30,9 +30,17 @@ function scopeFor(
         AND permission_code = ${terms.permission_code} AND scope_type = ${terms.scope_type} AND scope_id = ${terms.scope_id}
         AND (expires_at IS NULL OR expires_at > ${now.toISOString()}::timestamptz) ORDER BY id FOR UPDATE`),
       ),
-    find: async (membershipId, overrideId) => {
-      const [row] = await tx.execute<OverrideRow>(sql`SELECT ${columns} FROM permission_overrides
-        WHERE company_id = ${companyId} AND membership_id = ${membershipId} AND id = ${overrideId}`);
+    find: async (membershipId, overrideId, businessId) => {
+      const [row] = await tx.execute<OverrideRow>(sql`SELECT ${columns} FROM permission_overrides o
+        WHERE company_id = ${companyId} AND membership_id = ${membershipId} AND id = ${overrideId}
+          AND ${
+            businessId === undefined
+              ? sql`true`
+              : sql`
+            EXISTS (SELECT 1 FROM memberships m WHERE m.company_id = ${companyId} AND m.id = o.membership_id
+              AND ${insideBusiness(companyId, businessId, 'm')})
+            AND ${insideBusiness(companyId, businessId, 'o')}`
+          }`);
       return row ?? null;
     },
     end: async (membershipId, overrideId, now) => {
@@ -46,6 +54,12 @@ function scopeFor(
     insert: (membershipId, terms, now) =>
       insertOverride(tx, companyId, userId, ids, membershipId, terms, now),
   };
+}
+
+function insideBusiness(companyId: string, businessId: string, alias: 'm' | 'o') {
+  const row = sql.identifier(alias);
+  return sql`(${row}.scope_business_id = ${businessId}::uuid OR ${row}.scope_branch_id IN (
+    SELECT id FROM branches WHERE company_id = ${companyId} AND business_id = ${businessId}))`;
 }
 
 async function insertOverride(

@@ -30,12 +30,17 @@ export interface PermissionOverrideScope {
     now: Date,
   ): Promise<SavedPermissionOverride[]>;
   /**
-   * بيقرأ صف السحب تحت الشركة والعضوية؛ لا يكشف صفوف شركة تانية.
+   * بيقرأ صف السحب بعد حصر العضوية والقرار داخل نطاق الإدارة؛ غير المرئي مثل غير الموجود.
    *
    * @param membershipId العضوية المستهدفة
    * @param overrideId القرار المطلوب
+   * @param businessId النشاط المؤكد إن كانت الإدارة محدودة بنشاط
    */
-  find(membershipId: string, overrideId: string): Promise<SavedPermissionOverride | null>;
+  find(
+    membershipId: string,
+    overrideId: string,
+    businessId?: string,
+  ): Promise<SavedPermissionOverride | null>;
   /**
    * بينهي القرار ويحافظ على السبب القديم؛ سبب السحب يتسجل في التدقيق.
    *

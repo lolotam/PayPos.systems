@@ -22,6 +22,7 @@ export function discountLimitEditFailure(context: PermissionEditContext) {
       expires_at: null,
     },
     context,
+    'CHECK',
   );
   if (failure !== null) return failure;
   // قرار المالك 2026-10-03: المالك النشط مالوش حد خصم، فمحدش يحط له حد أو يغيّره أو يمسحه.

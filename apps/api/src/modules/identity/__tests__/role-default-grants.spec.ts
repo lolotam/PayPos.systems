@@ -41,7 +41,8 @@ async function actorRole(code: string) {
       ? 'BUSINESS'
       : 'BRANCH';
   const scopeId = scope === 'COMPANY' ? f.company : scope === 'BUSINESS' ? f.business : f.branch;
-  await f.h.owner`UPDATE memberships SET role_id=${roleId}, scope_type=${scope}, scope_id=${scopeId}
+  await f.h
+    .owner`UPDATE memberships SET role_id=${roleId}, role_owner_key='global', scope_type=${scope}, scope_id=${scopeId}
     WHERE company_id=${f.company} AND id=${f.managerMember}`;
   return scope;
 }
@@ -196,7 +197,7 @@ it('scoped reads paginate only own memberships and hide company/other-business m
         reason: 'Synthetic forbidden company decision',
       })
     ).status,
-  ).toBe(403);
+  ).toBe(404);
 });
 it('scoped commands preserve audited lifecycle and cannot change company/other-business authority', async () => {
   const body = terms(f, { scope_type: 'BRANCH', scope_id: f.branch });

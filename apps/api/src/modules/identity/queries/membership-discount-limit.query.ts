@@ -1,4 +1,4 @@
-import type { Tx } from '@pospay/db';
+import { canonicalOwnerSql, type Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
 export type MembershipDiscountLimitResult =
@@ -22,8 +22,8 @@ async function discountRow(
   // PR 35 يحتاج العضوية وحدها وصفة صاحبها من نفس اللقطة داخل معاملة تسجيل الخدمة.
   const [row] = await tx.execute<{ limit_bps: number | null; owner: boolean }>(sql`
     SELECT m.limit_bps, EXISTS (
-      SELECT 1 FROM memberships holder JOIN roles r ON r.id=holder.role_id AND r.owner_key=holder.role_owner_key
-      WHERE holder.company_id=m.company_id AND r.code='owner'
+      SELECT 1 FROM memberships holder
+      WHERE holder.company_id=m.company_id AND ${canonicalOwnerSql('holder', companyId)}
         AND (holder.user_id=m.user_id OR holder.employee_id=m.employee_id)
         AND holder.starts_at<=${eligibilityTime} AND (holder.ends_at IS NULL OR holder.ends_at>${eligibilityTime})
     ) AS owner

@@ -35,6 +35,11 @@ export {
 export { appendOutboxEvent, type OutboxEvent } from './outbox.ts';
 export type { IdGenerator, TenantOptions, TenantWrappers, Tx } from './with-tenant.ts';
 export { FEATURE_FLAGS, PROVISIONAL_PLAN_ID, type FeatureFlag } from './seed.ts';
+export {
+  canonicalOwnerSql,
+  systemRolePolicy,
+  systemRoleOverrideAllowedSql,
+} from './system-role-policy.ts';
 export { verticalTemplate, type VerticalTemplate } from './vertical-templates.ts';
 export {
   grantPlatformPermission,

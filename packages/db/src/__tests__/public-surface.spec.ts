@@ -16,6 +16,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'SYSTEM_ROLES',
       'appendAuditLog',
       'appendOutboxEvent',
+      'canonicalOwnerSql',
       'createAuthDatabase',
       'createDatabase',
       'createOutboxDispatcherDatabase',
@@ -25,6 +26,8 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'markEventConsumed',
       'revokePlatformPermission',
       'runIdempotent',
+      'systemRoleOverrideAllowedSql',
+      'systemRolePolicy',
       'verticalTemplate',
     ]);
   });

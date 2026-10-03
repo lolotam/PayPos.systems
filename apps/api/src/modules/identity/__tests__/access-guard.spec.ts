@@ -135,10 +135,11 @@ const member = (
   role: string,
   scope: [string, string],
   endsAt: string | null = null,
+  ownerKey = 'global',
 ) =>
   owner`
     INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at, ends_at)
-    VALUES (${company}, ${ids.newId()}, ${userId}, ${role}, 'global', ${scope[0]}, ${scope[1]},
+    VALUES (${company}, ${ids.newId()}, ${userId}, ${role}, ${ownerKey}, ${scope[0]}, ${scope[1]},
             now() - interval '1 day', ${endsAt}::timestamptz)
     RETURNING id`.then((rows) => rows[0]?.['id'] as string);
 
@@ -292,7 +293,11 @@ describe('membership window and overrides', () => {
 
 describe('evaluation at the branch target (PRD D-31)', () => {
   beforeAll(async () => {
-    const membership = await member(VIEWER, A, VIEWER_ROLE, ['BUSINESS', BUSINESS]);
+    await member(VIEWER, A, VIEWER_ROLE, ['BUSINESS', BUSINESS]);
+    // الكود الاصطناعي خارج مصفوفة الأدوار النظامية؛ نختبر تفويض النطاق عبر عضوية مخصصة.
+    const role = ids.newId();
+    await owner`INSERT INTO roles(id,company_id,code,name_en) VALUES (${role},${A},'synthetic_probe','Synthetic probe')`;
+    const membership = await member(VIEWER, A, role, ['BUSINESS', BUSINESS], null, A);
     await override(A, membership, PROBE_BRANCH, 'ALLOW', ['BUSINESS', BUSINESS]);
     await override(A, membership, PROBE_BRANCH, 'DENY', ['BRANCH', BRANCH_3]);
   });

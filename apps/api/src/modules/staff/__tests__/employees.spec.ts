@@ -31,7 +31,7 @@ const execute = (
   input: ReturnType<typeof termsFor> & { user_id?: string; contract_end?: string },
 ) => f.useCase.execute({ companyId: f.company, userId: f.userId, businessId: f.business, input });
 
-it('CE-03 grants employee management to managers; Viewer still needs an explicit grant', async () => {
+it('CE-03 grants employee management to managers; custom editor needs an explicit grant', async () => {
   expect(
     await f.h
       .owner`SELECT 1 FROM role_permissions WHERE permission_code='manage:employees:business'`,

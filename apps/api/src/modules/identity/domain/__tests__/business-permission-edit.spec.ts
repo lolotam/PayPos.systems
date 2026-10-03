@@ -28,6 +28,9 @@ const member = {
   userId: 'other',
   employeeId: null,
   roleCode: 'viewer',
+  systemRoleCode: null,
+  allowedPermissions: null,
+  isCompanyOwner: false,
   scopeType: 'BUSINESS' as const,
   scopeId: businessId,
   startsAt: new Date('2020-01-01'),
@@ -87,7 +90,12 @@ it.each(['read:memberships:business', 'manage:memberships:business'])(
     const companyContext: PermissionEditContext = {
       ...context,
       managementBusinessId: undefined,
-      membership: { ...member, roleCode: 'business_manager' },
+      membership: {
+        ...member,
+        roleCode: 'business_manager',
+        systemRoleCode: 'business_manager',
+        allowedPermissions: [permission_code],
+      },
       catalog: [permission_code],
       grants: ['manage:memberships:company', permission_code].map((permission) => ({
         permission,

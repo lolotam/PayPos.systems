@@ -10,6 +10,14 @@ An additive reference-data migration applies the complete catalog matrix to ever
 existing system-role membership, without manufacturing per-person overrides.
 Seed repeats the same matrix. Custom company roles and override history are preserved.
 Active non-owner DENY wins over defaults and ALLOW; expired decisions do not apply.
+Personal ALLOW is eligible only for a canonical system role's default or optional
+matrix cells; forbidden cells return PERMISSION_ROLE_FORBIDDEN. Existing forbidden
+ALLOW rows remain in history but are ignored by all live readers. Custom roles,
+including a company role named owner, retain PR 7 effective-possession policy.
+Canonical Owner means the fixed global Owner role ID at this company's COMPANY
+scope, never a role name. Only that identity confers owner protection.
+Optional cells are business_manager read/manage memberships within its business,
+branch_manager read/manage settings, and cashier staff login (ADR-0019).
 Active owners retain every administrative tenant capability even with historical
 DENYs on sibling memberships. Owner protection and self-edit refusal remain under
 the company NO KEY UPDATE → memberships ordered by id → overrides lock protocol.
@@ -81,5 +89,3 @@ result shape and indexed scoped reads. Run pnpm check and API/admin builds.
 - TODO(spec): PR 7b manages discount parameters, whereas the matrix describes
   applying discounts. Recommend a business-scoped limit-management capability for
   General Manager and Business Manager, distinct from sale-time discount approval.
-- TODO(spec): confirm whether forbidden matrix cells prohibit explicit personal
-  ALLOW as well as defaults; preserve the recorded PR 7 override policy meanwhile.

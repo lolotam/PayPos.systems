@@ -36,6 +36,17 @@ All write-time readers reuse the same live grants reader to avoid divergent poli
 
 ## Consequences
 
+Review correction: identify Owner by its fixed global role ID and COMPANY scope.
+Custom role names confer no immunity. The exhaustive matrix also governs personal
+ALLOW eligibility, including the recorded optional cells. Resolve forbidden cells
+as never: refuse new grants, ignore existing forbidden ALLOWs without changing
+history, and count them in the seeded migration regression. Custom roles retain
+PR 7 policy. Reuse the same reference eligibility projection for live access and
+permission-screen editing availability. Scoped revoke filters membership and
+decision visibility before existence handling; inaccessible and unknown IDs are
+both NOT_FOUND. No new migration is needed: this is runtime enforcement of the
+already migrated policy, not a destructive rewrite of personal decisions.
+
 No new database table, RLS policy, runtime grant, package dependency or import arrow.
 Existing role permission indexes support reads. Rollback to old code still reads
 the migrated bundles; reverting the policy requires a new reviewed migration.

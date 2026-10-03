@@ -51,7 +51,7 @@ it.each([
       release = barrier();
     const auditId = f.ids.newId();
     const promotion = f.h.owner.begin(async (tx) => {
-      await tx`UPDATE memberships SET role_id = ${role}
+      await tx`UPDATE memberships SET role_id = ${role}, role_owner_key='global'
       WHERE company_id = ${f.company} AND id = ${f.managerMember}`;
       locked.release();
       await release.promise;
