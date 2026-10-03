@@ -54,6 +54,8 @@ const STRUCTURAL_KEYS = new Set([
   'i18nkey',
 ]);
 const PHONE_SUFFIXES = ['phone', 'phones', 'phonenumber', 'phonenumbers', 'mobile', 'mobiles'];
+// المبلغ قد يأتي داخل before/after أو سجل مستقل؛ حجب المبالغ يحمي الراتب دون تخمين سياقه.
+const SALARY_SUFFIXES = ['salary', 'salaries', 'amount', 'amounts', 'mills', 'reason'];
 // Notification/source payloads and provider bodies never belong in technical diagnostics (ADR-0018 §3).
 const PRIVATE_PAYLOAD_KEYS = new Set([
   'payload',
@@ -165,7 +167,10 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
       if (
         isSecretKey(key) ||
         (normalizeKey(key) === 'code' && typeof child === 'string' && /^\d{6}$/.test(child)) ||
-        (maskPhones && (isEmailKey(key) || PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
+        (maskPhones &&
+          (isEmailKey(key) ||
+            endsWithAny(key, SALARY_SUFFIXES) ||
+            PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
       )
         out[key] = REDACTED;
       else if (maskPhones && isPhoneKey(key))

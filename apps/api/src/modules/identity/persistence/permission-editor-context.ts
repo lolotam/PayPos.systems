@@ -1,5 +1,6 @@
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import { readAccessTransaction } from './access-reader.ts';
 import type { AccessGrant, AccessTarget, ScopeType } from '../domain/access.ts';
 import type {
   EditableMembership,
@@ -52,28 +53,8 @@ async function editorGrants(
   userId: string,
   now: string,
 ): Promise<AccessGrant[]> {
-  const rows = await tx.execute<{
-    permission: string;
-    effect: 'ALLOW' | 'DENY';
-    scope_type: ScopeType;
-    scope_id: string;
-  }>(sql`
-    SELECT rp.permission_code AS permission, 'ALLOW' AS effect, m.scope_type, m.scope_id
-    FROM memberships m JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
-    WHERE m.company_id = ${companyId} AND m.user_id = ${userId}
-      AND m.starts_at <= ${now}::timestamptz AND (m.ends_at IS NULL OR m.ends_at > ${now}::timestamptz)
-    UNION ALL
-    SELECT o.permission_code, o.effect, o.scope_type, o.scope_id
-    FROM permission_overrides o JOIN memberships m ON m.company_id = o.company_id AND m.id = o.membership_id
-    WHERE o.company_id = ${companyId} AND m.user_id = ${userId}
-      AND m.starts_at <= ${now}::timestamptz AND (m.ends_at IS NULL OR m.ends_at > ${now}::timestamptz)
-      AND (o.expires_at IS NULL OR o.expires_at > ${now}::timestamptz)`);
-  return rows.map((row) => ({
-    permission: row.permission,
-    effect: row.effect,
-    scopeType: row.scope_type,
-    scopeId: row.scope_id,
-  }));
+  const access = await readAccessTransaction(tx, companyId, userId, new Date(now));
+  return [...access.grants];
 }
 
 async function scopeTargets(tx: Tx, companyId: string, terms: OverrideTerms) {

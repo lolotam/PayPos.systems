@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  setSalaryInput,
+  employeeSalary,
+  salaryHistoryQuery,
+  salaryHistoryPage,
+} from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
@@ -71,6 +77,10 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  setSalaryInput,
+  employeeSalary,
+  salaryHistoryQuery,
+  salaryHistoryPage,
   updateEmployeeInput,
   employeeDetailRecord,
   employeeListItem,

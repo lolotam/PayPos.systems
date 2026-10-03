@@ -40,6 +40,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'devices:UPDATE',
     'employee_branches:INSERT',
     'employee_branches:SELECT',
+    'employee_salaries:INSERT',
+    'employee_salaries:SELECT',
     'employees:INSERT',
     'employees:SELECT',
     'file_access_audit:INSERT',
@@ -121,6 +123,10 @@ const OUTBOX_COLUMN_GRANTS = [
 // تعديل الموظف يفتح أعمدة الموارد البشرية فقط؛ هوية الشركة والنشاط وبداية الارتباط والحذف تبقى محمية.
 const EMPLOYEE_COLUMN_GRANTS = [
   'employee_branches.to:pospay_app:UPDATE',
+  'employee_salaries.amount:pospay_app:UPDATE',
+  'employee_salaries.reason:pospay_app:UPDATE',
+  'employee_salaries.revision:pospay_app:UPDATE',
+  'employee_salaries.set_by:pospay_app:UPDATE',
   'employees.contract_end:pospay_app:UPDATE',
   'employees.hire_date:pospay_app:UPDATE',
   'employees.name_ar:pospay_app:UPDATE',
@@ -136,6 +142,7 @@ const TENANT_TABLES = [
   'file_cleanup_objects',
   'employees',
   'employee_branches',
+  'employee_salaries',
   'in_app_notifications',
   'notification_attempts',
   'companies',

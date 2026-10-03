@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -16,6 +17,40 @@ import {
 
 import { user } from './identity-auth.ts';
 import { branches, businesses, companies } from './tenancy.ts';
+
+export const employeeSalaries = pgTable(
+  'employee_salaries',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    employeeId: uuid('employee_id').notNull(),
+    effectiveFrom: date('effective_from').notNull(),
+    // الراتب الأساسي الشهري فقط؛ البدلات والعمل الإضافي خارج المرحلة الأولى.
+    amount: numeric('amount', { precision: 14, scale: 3 }).notNull(),
+    setBy: uuid('set_by')
+      .notNull()
+      .references(() => user.id),
+    revision: integer('revision').notNull(),
+    reason: text('reason').notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'employee_salaries_pkey', columns: [t.companyId, t.id] }),
+    unique('employee_salaries_employee_date_key').on(t.companyId, t.employeeId, t.effectiveFrom),
+    foreignKey({
+      name: 'employee_salaries_employee_fk',
+      columns: [t.companyId, t.businessId, t.employeeId],
+      foreignColumns: [employees.companyId, employees.businessId, employees.id],
+    }),
+    index('employee_salaries_company_business_idx').on(t.companyId, t.businessId),
+    index('employee_salaries_set_by_idx').on(t.setBy),
+    check('employee_salaries_amount_nonnegative', sql`${t.amount} >= 0`),
+    check('employee_salaries_revision_positive', sql`${t.revision} > 0`),
+    check('employee_salaries_reason_length', sql`char_length(trim(${t.reason})) BETWEEN 1 AND 500`),
+  ],
+);
 
 export const employees = pgTable(
   'employees',

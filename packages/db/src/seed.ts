@@ -77,6 +77,7 @@ async function seedAccessCatalog(sql: postgres.Sql): Promise<void> {
         AND code <> 'manage:discounts:company'
         AND code <> 'manage:employees:business'
         AND code <> 'login:staff:branch'
+        AND code NOT IN ('read:salaries:business', 'manage:salaries:business')
         AND code NOT IN ('manage:files:business', 'read:files:business')
       ON CONFLICT DO NOTHING`;
     await tx`

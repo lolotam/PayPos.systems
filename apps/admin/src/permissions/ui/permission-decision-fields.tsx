@@ -20,7 +20,15 @@ export function PermissionDecisionFields({ catalog }: { catalog: readonly string
             value={field.value}
             onValueChange={field.onChange}
             placeholder={t(locale, 'permissions.choosePermission')}
-            options={catalog.map((code) => ({ value: code, label: code }))}
+            options={catalog.map((code) => ({
+              value: code,
+              label:
+                code === 'read:salaries:business'
+                  ? t(locale, 'salary.readPermission')
+                  : code === 'manage:salaries:business'
+                    ? t(locale, 'salary.managePermission')
+                    : code,
+            }))}
           />
         )}
       />

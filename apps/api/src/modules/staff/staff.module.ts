@@ -1,5 +1,10 @@
 ﻿import type { Provider } from '@nestjs/common';
 import type { TenantWrappers } from '@pospay/db';
+import { EmployeeSalariesController } from './http/employee-salaries.controller.ts';
+import { SetSalaryUseCase } from './use-cases/set-salary/set-salary.usecase.ts';
+import { createSalaryTransactions } from './persistence/drizzle-salary-transactions.ts';
+import { createSalaryAccess } from './persistence/employee-salary-access.adapter.ts';
+import { SALARY_ACCESS } from './queries/salary-history.query.ts';
 import { systemUuidV7 } from '@pospay/ids';
 import type { Redis } from 'ioredis';
 
@@ -19,13 +24,25 @@ import { createAttendanceBranchReader } from './persistence/tenancy-attendance-b
 import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attendance-qr.ts';
 import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
 
-export const staffControllers = [AttendanceQrController, EmployeesController];
+export const staffControllers = [
+  AttendanceQrController,
+  EmployeesController,
+  EmployeeSalariesController,
+];
 
 export function staffProviders(database?: TenantWrappers, redis?: Redis): Provider[] {
   const ids = systemUuidV7();
   const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
+    {
+      provide: SetSalaryUseCase,
+      useValue:
+        database === undefined
+          ? null
+          : new SetSalaryUseCase(createSalaryTransactions(database, ids), ids),
+    },
+    { provide: SALARY_ACCESS, useValue: database === undefined ? null : createSalaryAccess() },
     {
       provide: UpdateEmployeeUseCase,
       useValue:

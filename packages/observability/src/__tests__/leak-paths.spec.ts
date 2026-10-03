@@ -96,11 +96,11 @@ describe('executable data', () => {
     expect(JSON.parse(line)).toMatchObject({ record: { safe: 1 } });
   });
 
-  it('dates become ISO strings and bigints strings', () => {
+  it('dates become ISO strings and monetary bigints are redacted', () => {
     const line = capture((log) =>
       log.info({ at: new Date('2026-09-23T00:00:00Z'), mills: 12_500n }, 'probe'),
     );
-    expect(JSON.parse(line)).toMatchObject({ at: '2026-09-23T00:00:00.000Z', mills: '12500' });
+    expect(JSON.parse(line)).toMatchObject({ at: '2026-09-23T00:00:00.000Z', mills: '[REDACTED]' });
   });
 });
 

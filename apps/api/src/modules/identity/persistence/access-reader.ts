@@ -71,6 +71,14 @@ export async function readAccessTransaction(
         FROM memberships m
         JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
+          AND rp.permission_code NOT IN ('read:salaries:business', 'manage:salaries:business')
+        UNION ALL
+        SELECT p.code, 'ALLOW', 'role', m.scope_type, m.scope_id
+        FROM memberships m
+        JOIN roles r ON r.id=m.role_id AND r.owner_key=m.role_owner_key
+        CROSS JOIN permissions p
+        WHERE m.company_id=${companyId} AND m.user_id=${userId} AND ${active} AND r.code='owner'
+          AND p.code IN ('read:salaries:business','manage:salaries:business')
         UNION ALL
         SELECT o.permission_code, o.effect, 'override', o.scope_type, o.scope_id
         FROM permission_overrides o
