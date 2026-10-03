@@ -69,5 +69,20 @@ ALLOWs remain auditable but cannot grant access. Custom roles retain PR 7 person
 override policy, while stored salary role grants cannot confer salary access.
 Schedule defaults remain Owner/General Manager/Business Manager/Branch Manager
 for branch schedules and Owner/General Manager/Business Manager for business
-shift templates. Every off cell retains PR 16's personal delegation eligibility,
-including Device's existing technical policy. No new forbidden schedule cells.
+shift templates. Other human cells retain PR 16's personal delegation eligibility.
+Review correction 2026-10-04 makes every Device schedule/template cell forbidden:
+refuse new personal ALLOWs and ignore historical ALLOWs without rewriting history.
+The same projection enforces spec 009's already forbidden Device catalog cells
+and scoped membership equivalents. Migration 0058 has no Device schedule grants
+and remains byte-for-byte unchanged. Later Device cells without an explicit
+decision remain unchanged, with DEVICE-Q1 and recommendations recorded in spec 019.
+
+| Permission | Device matrix cell |
+|---|---|
+| read:schedules:branch | ❌ never |
+| manage:schedules:branch | ❌ never |
+| read:schedules:business (templates) | ❌ never |
+| manage:schedules:business (templates) | ❌ never |
+
+Default and optional human cells remain unchanged. The same Device eligibility
+matrix governs both new personal decisions and historical ALLOW evaluation.

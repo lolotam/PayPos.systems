@@ -44,7 +44,27 @@ for (const entry of SYSTEM_ROLES) {
       const allowed = systemRolePolicy(entry.id, 'global')?.permissions.some(
         (code) => code === permission,
       );
-      expect(allowed).toBe(entry.code !== 'device' || !permission.includes(':salaries:'));
+      expect(allowed).toBe(entry.code !== 'device');
     },
   );
 }
+
+it.each([
+  'read:memberships:company',
+  'manage:memberships:company',
+  'read:memberships:business',
+  'manage:memberships:business',
+  'read:settings:business',
+  'manage:settings:business',
+  'read:businesses:company',
+  'create:businesses:company',
+  'read:branches:branch',
+  'create:branches:business',
+  'manage:devices:branch',
+  'view:notifications:business',
+  'create:companies:platform',
+])('Device cannot acquire spec 009 forbidden %s', (permission) => {
+  expect(
+    systemRolePolicy(role('device'), 'global')?.permissions.some((code) => code === permission),
+  ).toBe(false);
+});

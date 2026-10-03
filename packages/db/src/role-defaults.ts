@@ -9,7 +9,7 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** PR 16 أبقى التفويض الشخصي متاحاً للخانات غير الافتراضية في الجدول والقوالب. */
+/** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
 export const SCHEDULE_PERMISSIONS = [
   'read:schedules:branch',
   'manage:schedules:branch',

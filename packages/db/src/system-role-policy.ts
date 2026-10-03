@@ -1,6 +1,26 @@
 import { sql, type SQL } from 'drizzle-orm';
-import { OWNER_ROLE_ID, PERMISSIONS, SYSTEM_ROLES } from './access-catalog.ts';
+import { OWNER_ROLE_ID, PERMISSIONS, SYSTEM_ROLES, type Permission } from './access-catalog.ts';
 import { ROLE_DEFAULTS, OWNER_DERIVED_PERMISSIONS, SCHEDULE_PERMISSIONS } from './role-defaults.ts';
+
+// spec 009 يجعل الأدوار المحذوفة من الصف ❌؛ الجهاز لا يرث سلطة موظف من ALLOW قديم.
+const deviceForbidden = [
+  ...OWNER_DERIVED_PERMISSIONS,
+  ...SCHEDULE_PERMISSIONS,
+  'read:memberships:company',
+  'manage:memberships:company',
+  'read:memberships:business',
+  'manage:memberships:business',
+  'read:businesses:company',
+  'create:businesses:company',
+  'create:branches:business',
+  'read:branches:branch',
+  'manage:devices:branch',
+  'read:settings:business',
+  'manage:settings:business',
+  'view:notifications:business',
+  'create:companies:platform',
+] as const satisfies readonly Permission[];
+// TODO(spec) DEVICE-Q1: أكواد الملفات والموظفين والعملاء والخصم ودخول الموظف تنتظر قرار منع الجهاز؛ توصيتنا حظر الستة في spec 019.
 
 const optional: Readonly<Record<string, readonly string[]>> = {
   business_manager: ['read:memberships:business', 'manage:memberships:business'],
@@ -8,7 +28,7 @@ const optional: Readonly<Record<string, readonly string[]>> = {
   cashier: ['login:staff:branch'],
 };
 
-/** المرجع يميز هوية الدور النظامي؛ اسم الدور المخصص لا يمنحه حزمة أو حماية نظامية. */
+/** المرجع يميز الدور العالمي الثابت ويمنع تفويض خانات الجهاز المحظورة؛ اسم الدور المخصص لا يرث حمايته. */
 export function systemRolePolicy(roleId: string, ownerKey: string) {
   const role = SYSTEM_ROLES.find((r) => r.id === roleId);
   if (ownerKey !== 'global' || role === undefined) return null;
@@ -16,7 +36,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
     code: role.code,
     permissions: PERMISSIONS.filter((code) =>
       role.code === 'device'
-        ? !(OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(code)
+        ? !(deviceForbidden as readonly string[]).includes(code)
         : (ROLE_DEFAULTS[code] as readonly string[]).includes(role.code) ||
           (OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(code) ||
           (SCHEDULE_PERMISSIONS as readonly string[]).includes(code) ||
@@ -25,7 +45,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
   };
 }
 
-/** إسقاط أهلية المرجع في القراءات؛ DENY والتاريخ لا يتغيران، والنطاق الاختياري لمدير النشاط لا يتسع. */
+/** يستبعد ALLOW المحظور للدور العالمي بما فيه الجهاز؛ يحفظ DENY والتاريخ ويقيد تفويض مدير النشاط بنطاقه. */
 export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias: string): SQL {
   const m = sql.identifier(memberAlias),
     o = sql.identifier(overrideAlias);
@@ -45,7 +65,7 @@ export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias:
   const manager = human.find((r) => r.code === 'business_manager');
   return sql`(NOT (${m}.role_owner_key = 'global' AND ${m}.role_id = ${device?.id}::uuid
     AND ${o}.effect = 'ALLOW' AND ${o}.permission_code IN (${sql.join(
-      OWNER_DERIVED_PERMISSIONS.map((code) => sql`${code}`),
+      deviceForbidden.map((code) => sql`${code}`),
       sql`,`,
     )})) AND (${o}.effect = 'DENY' OR ${m}.role_owner_key <> 'global'
     OR ${m}.role_id NOT IN (${sql.join(

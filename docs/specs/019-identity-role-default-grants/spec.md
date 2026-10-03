@@ -33,8 +33,12 @@ salary cells are forbidden (❌). Salary management also requires read. Nonowner
 role grants cannot grant salaries, including custom roles; personal overrides only.
 Schedule branch defaults remain owner/general_manager/business_manager/branch_manager;
 business template defaults remain owner/general_manager/business_manager. Other
-schedule cells retain PR 16 personal-ALLOW eligibility (⚙️), including the existing
-technical Device policy; no schedule cell becomes forbidden during integration.
+human schedule cells retain PR 16 personal-ALLOW eligibility (⚙️). Review correction
+2026-10-04: Device is ❌ for all four schedule/template codes. New Device ALLOWs
+return PERMISSION_ROLE_FORBIDDEN; historical ALLOWs remain visible but grant nothing.
+Spec 009's omitted-role rule also forbids Device's explicitly listed catalog cells
+and their scoped membership-management equivalents; the runtime applies those cells
+to new and historical personal ALLOWs without changing human or custom-role policy.
 
 | Code | Default roles (all others off) |
 |---|---|
@@ -52,8 +56,8 @@ technical Device policy; no schedule cell becomes forbidden during integration.
 | create:customers:company | owner; TODO(spec): business/branch codes decided for PR 7d |
 | manage:discounts:company | owner; TODO(spec): separate personal-limit administration code decided for PR 7d |
 | read/manage:salaries:business | no stored defaults; canonical Owner ✅; all other humans ⚙️; Device ❌ |
-| read/manage:schedules:branch | owner, general_manager, business_manager, branch_manager ✅; all others ⚙️ |
-| read/manage:schedules:business | owner, general_manager, business_manager ✅; all others ⚙️ |
+| read/manage:schedules:branch | owner, general_manager, business_manager, branch_manager ✅; other humans ⚙️; Device ❌ |
+| read/manage:schedules:business | owner, general_manager, business_manager ✅; other humans ⚙️; Device ❌ |
 | login:staff:branch | staff (ADR-0019) |
 | create:companies:platform | no tenant role |
 
@@ -111,3 +115,25 @@ Test all 14 roles against salary/schedule stored defaults and personal eligibili
 prove explicit salary ALLOW for GM/accountant/BM and refusal for Device, read-plus-manage,
 canonical Owner identity, role-grant exclusion, scoped DENY and preserved schedule grants.
 Migrate a fresh worktree database through 0000–0058; run pnpm check and API/admin/worker builds.
+
+
+## Device permission audit — review correction 2026-10-04
+
+Device has no stored salary, schedule or template default grants in migration 0058.
+No SQL edit or migration is needed for this correction.
+The spec 009 catalog rows omit Device and define omitted roles as never. Enforce
+that rule for company/business membership read/manage, business read/create,
+branch read/create, device management, settings read/manage, notifications and
+platform creation (platform override writes already refuse every tenant role).
+
+TODO(spec) DEVICE-Q1: later codes do not settle Device personal-ALLOW eligibility
+for read/manage files, manage employees, create customers, manage discounts and
+staff login. Preserve their current policy in this correction. Recommendation:
+forbid all six for the technical Device identity; give human operators their own
+scoped memberships, and keep paired-device capabilities on the dedicated device
+routes. Confirm the matrix before changing these additional cells.
+
+Acceptance: all four schedule/template Device ALLOWs return the named bilingual
+403, including user-bound Device memberships. Seed historical forbidden ALLOWs,
+prove guards refuse them and confirm unchanged current/history rows on the
+permissions screen. Keep positive delegation cases for human roles.

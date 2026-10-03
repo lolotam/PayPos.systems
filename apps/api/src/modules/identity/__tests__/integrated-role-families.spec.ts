@@ -4,6 +4,7 @@ import { OWNER_DERIVED_PERMISSIONS, SYSTEM_ROLES } from '@pospay/db';
 import { AuthorizeRequest } from '../use-cases/authorize-request/authorize-request.ts';
 import { createAccessReader } from '../persistence/access-reader.ts';
 import { readEmployeeSalaryAccess } from '../persistence/employee-salary-access.ts';
+import { scheduleAccess } from '../persistence/schedule-access.ts';
 import {
   permissionFixture,
   save,
@@ -44,11 +45,69 @@ function authorize(permission: string, elsewhere = false) {
     userId: f.managerId,
     requestedCompany: f.company,
     permission,
-    ...(permission.endsWith(':branch')
-      ? { branchParam: elsewhere ? f.foreignBranch : f.branch }
-      : { businessParam: elsewhere ? f.otherBusiness : f.business }),
+    ...(permission.endsWith(':company')
+      ? {}
+      : permission.endsWith(':branch')
+        ? { branchParam: elsewhere ? f.foreignBranch : f.branch }
+        : { businessParam: elsewhere ? f.otherBusiness : f.business }),
   });
 }
+async function forbiddenDeviceDecision(
+  permission: string,
+  decision: Awaited<ReturnType<typeof save>>,
+) {
+  expect(decision.status).toBe(403);
+  expect(decision.body).toMatchObject({
+    code: 'PERMISSION_ROLE_FORBIDDEN',
+    message_ar: expect.any(String),
+    message_en: expect.any(String),
+  });
+  const ids: string[] = [];
+  for (const [scope_type, scope_id] of [
+    ['COMPANY', f.company],
+    ['BUSINESS', f.business],
+    ['BRANCH', f.branch],
+  ] as const) {
+    ids.push(
+      await seedOverride(f, f.managerMember, { permission_code: permission, scope_type, scope_id }),
+    );
+  }
+  const before = await f.h
+    .owner`SELECT * FROM permission_overrides WHERE company_id=${f.company} AND id=ANY(${ids}::uuid[]) ORDER BY id`;
+  expect(await authorize(permission)).toBeNull();
+  if (permission.includes(':schedules:'))
+    expect(
+      await f.db.withTenant(f.company, (tx) =>
+        scheduleAccess(
+          tx,
+          f.company,
+          f.managerId,
+          {
+            businessId: f.business,
+            branchId: permission.endsWith(':branch') ? f.branch : null,
+            action: permission.startsWith('manage:') ? 'manage' : 'read',
+          },
+          true,
+        ),
+      ),
+    ).toBe('DENIED');
+  const response = await f.h.send('GET', '/v1/permissions/memberships/' + f.managerMember, {
+    cookie: f.cookie,
+    company: f.company,
+  });
+  expect(response.status).toBe(200);
+  const data = membershipPermissions.parse(response.body);
+  for (const id of ids)
+    expect(data.overrides.items.find((row) => row.id === id)).toMatchObject({
+      permission_code: permission,
+      effect: 'ALLOW',
+      expires_at: null,
+    });
+  const after = await f.h
+    .owner`SELECT * FROM permission_overrides WHERE company_id=${f.company} AND id=ANY(${ids}::uuid[]) ORDER BY id`;
+  expect(Array.from(after)).toEqual(Array.from(before));
+}
+
 async function scheduleDelegation(code: string, defaults: readonly string[]) {
   for (const permission_code of schedules) {
     const defaultAllowed =
@@ -57,22 +116,23 @@ async function scheduleDelegation(code: string, defaults: readonly string[]) {
     expect((await authorize(permission_code)) !== null).toBe(defaultAllowed);
     expect(defaults.includes(permission_code)).toBe(defaultAllowed);
     const branch = permission_code.endsWith(':branch');
-    expect(
-      (
-        await save(f, f.managerMember, {
-          permission_code,
-          scope_type: branch ? 'BRANCH' : 'BUSINESS',
-          scope_id: branch ? f.branch : f.business,
-        })
-      ).status,
-    ).toBe(201);
-    expect(await authorize(permission_code)).not.toBeNull();
+    const decision = await save(f, f.managerMember, {
+      permission_code,
+      scope_type: branch ? 'BRANCH' : 'BUSINESS',
+      scope_id: branch ? f.branch : f.business,
+    });
+    if (code === 'device') {
+      await forbiddenDeviceDecision(permission_code, decision);
+    } else {
+      expect(decision.status).toBe(201);
+      expect(await authorize(permission_code)).not.toBeNull();
+    }
     expect(await authorize(permission_code, true)).toBeNull();
   }
 }
 
 it.each(SYSTEM_ROLES.filter((r) => r.code !== 'owner'))(
-  '$code salary delegation stays optional; schedule defaults and personal grants preserve PR 16',
+  '$code human delegation stays optional; Device schedule/template grants are forbidden',
   async ({ code }) => {
     await actorRole(code);
     expect(await salaryAccess()).toMatchObject({ read: false, manage: false });
@@ -178,3 +238,29 @@ it('a company role coded owner neither derives salary access nor ignores a perso
   });
   expect(await salaryAccess()).toMatchObject({ read: false, manage: false });
 });
+
+it.each([
+  'read:memberships:company',
+  'manage:memberships:company',
+  'read:memberships:business',
+  'manage:memberships:business',
+  'read:settings:business',
+  'manage:settings:business',
+  'read:businesses:company',
+  'create:businesses:company',
+  'read:branches:branch',
+  'create:branches:business',
+  'manage:devices:branch',
+  'view:notifications:business',
+])(
+  'Device also refuses spec 009 forbidden %s and ignores existing ALLOWs',
+  async (permission_code) => {
+    await actorRole('device');
+    const decision = await save(f, f.managerMember, {
+      permission_code,
+      scope_type: 'COMPANY',
+      scope_id: f.company,
+    });
+    await forbiddenDeviceDecision(permission_code, decision);
+  },
+);
