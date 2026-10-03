@@ -10,6 +10,11 @@ import { CreateShiftTemplateUseCase } from './use-cases/create-shift-template/cr
 import { UpdateShiftTemplateUseCase } from './use-cases/update-shift-template/update-shift-template.usecase.ts';
 import { ArchiveShiftTemplateUseCase } from './use-cases/archive-shift-template/archive-shift-template.usecase.ts';
 import { ApplyShiftTemplateUseCase } from './use-cases/apply-shift-template/apply-shift-template.usecase.ts';
+import { EmployeeSalariesController } from './http/employee-salaries.controller.ts';
+import { SetSalaryUseCase } from './use-cases/set-salary/set-salary.usecase.ts';
+import { createSalaryTransactions } from './persistence/drizzle-salary-transactions.ts';
+import { createSalaryAccess } from './persistence/employee-salary-access.adapter.ts';
+import { SALARY_ACCESS } from './queries/salary-history.query.ts';
 import { systemUuidV7 } from '@pospay/ids';
 import type { Redis } from 'ioredis';
 
@@ -34,6 +39,7 @@ export const staffControllers = [
   EmployeesController,
   SchedulesController,
   ShiftTemplatesController,
+  EmployeeSalariesController,
 ];
 
 function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
@@ -68,12 +74,26 @@ function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerato
   ];
 }
 
+function salaryProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
+  return [
+    {
+      provide: SetSalaryUseCase,
+      useValue:
+        database === undefined
+          ? null
+          : new SetSalaryUseCase(createSalaryTransactions(database, ids), ids),
+    },
+    { provide: SALARY_ACCESS, useValue: database === undefined ? null : createSalaryAccess() },
+  ];
+}
+
 export function staffProviders(database?: TenantWrappers, redis?: Redis): Provider[] {
   const ids = systemUuidV7();
   const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
     ...scheduleProviders(database, ids),
+    ...salaryProviders(database, ids),
     {
       provide: UpdateEmployeeUseCase,
       useValue:

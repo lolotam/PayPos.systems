@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { scheduleSchemas } from './staff/schedules.js';
+import {
+  setSalaryInput,
+  employeeSalary,
+  salaryHistoryQuery,
+  salaryHistoryPage,
+} from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
@@ -73,6 +79,10 @@ import {
 
 const SCHEMAS = [
   ...scheduleSchemas,
+  setSalaryInput,
+  employeeSalary,
+  salaryHistoryQuery,
+  salaryHistoryPage,
   updateEmployeeInput,
   employeeDetailRecord,
   employeeListItem,

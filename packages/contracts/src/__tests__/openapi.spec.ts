@@ -111,7 +111,15 @@ describe('openapi/openapi.json', () => {
   it('publishes every schema with no $id inside a component', () => {
     const schemas = (buildOpenApiDocument()['components'] as { schemas: Record<string, object> })
       .schemas;
-    expect(Object.keys(schemas).sort()).toEqual(expectedSchemas);
+    expect(Object.keys(schemas).sort()).toEqual(
+      [
+        ...expectedSchemas,
+        'EmployeeSalary',
+        'SalaryHistoryPage',
+        'SalaryHistoryQuery',
+        'SetSalaryInput',
+      ].sort(),
+    );
     for (const schema of Object.values(schemas)) {
       expect(schema).not.toHaveProperty('$id');
     }

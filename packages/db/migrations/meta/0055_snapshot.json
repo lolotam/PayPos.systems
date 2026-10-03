@@ -1,6 +1,6 @@
 {
-  "id": "8fa5a534-026a-4ed2-b3ad-5ea9d7964844",
-  "prevId": "92335b2e-31af-4b71-afaf-87ea32b35891",
+  "id": "b3af4cf1-6a8c-4a39-9bbc-21b3c2b05a70",
+  "prevId": "97b4c2ba-02a1-4d28-9ad7-b8dc206b1efb",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -860,6 +860,185 @@
         "employee_branches_nonempty_interval": {
           "name": "employee_branches_nonempty_interval",
           "value": "\"employee_branches\".\"to\" IS NULL OR \"employee_branches\".\"to\" > \"employee_branches\".\"from\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.employee_salaries": {
+      "name": "employee_salaries",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "set_by": {
+          "name": "set_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "employee_salaries_company_business_idx": {
+          "name": "employee_salaries_company_business_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "employee_salaries_set_by_idx": {
+          "name": "employee_salaries_set_by_idx",
+          "columns": [
+            {
+              "expression": "set_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "employee_salaries_company_id_companies_id_fk": {
+          "name": "employee_salaries_company_id_companies_id_fk",
+          "tableFrom": "employee_salaries",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "tableTo": "companies",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "employee_salaries_set_by_user_id_fk": {
+          "name": "employee_salaries_set_by_user_id_fk",
+          "tableFrom": "employee_salaries",
+          "columnsFrom": [
+            "set_by"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "employee_salaries_employee_fk": {
+          "name": "employee_salaries_employee_fk",
+          "tableFrom": "employee_salaries",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "employee_id"
+          ],
+          "tableTo": "employees",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "employee_salaries_pkey": {
+          "name": "employee_salaries_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "employee_salaries_employee_date_key": {
+          "name": "employee_salaries_employee_date_key",
+          "columns": [
+            "company_id",
+            "employee_id",
+            "effective_from"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "employee_salaries_amount_nonnegative": {
+          "name": "employee_salaries_amount_nonnegative",
+          "value": "\"employee_salaries\".\"amount\" >= 0"
+        },
+        "employee_salaries_revision_positive": {
+          "name": "employee_salaries_revision_positive",
+          "value": "\"employee_salaries\".\"revision\" > 0"
+        },
+        "employee_salaries_reason_length": {
+          "name": "employee_salaries_reason_length",
+          "value": "char_length(trim(\"employee_salaries\".\"reason\")) BETWEEN 1 AND 500"
         }
       },
       "isRLSEnabled": false
@@ -6274,499 +6453,6 @@
         "file_cleanup_objects_state": {
           "name": "file_cleanup_objects_state",
           "value": "\"file_cleanup_objects\".\"state\" IN ('OWNED','PUBLISHED','DELETING') AND (\"file_cleanup_objects\".\"state\" <> 'PUBLISHED' OR (\"file_cleanup_objects\".\"kind\" = 'CANDIDATE' AND \"file_cleanup_objects\".\"cleaned_at\" IS NULL))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.staff_schedule_shifts": {
-      "name": "staff_schedule_shifts",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "schedule_id": {
-          "name": "schedule_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "employee_id": {
-          "name": "employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "working_date": {
-          "name": "working_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "day": {
-          "name": "day",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "start": {
-          "name": "start",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "end": {
-          "name": "end",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "starts_at": {
-          "name": "starts_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ends_at": {
-          "name": "ends_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "staff_schedule_shifts_schedule_idx": {
-          "name": "staff_schedule_shifts_schedule_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "schedule_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "starts_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "staff_schedule_shifts_employee_idx": {
-          "name": "staff_schedule_shifts_employee_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "starts_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "staff_schedule_shifts_company_id_companies_id_fk": {
-          "name": "staff_schedule_shifts_company_id_companies_id_fk",
-          "tableFrom": "staff_schedule_shifts",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "staff_schedule_shifts_company_id_schedule_id_employee_id_staff_schedules_company_id_id_employee_id_fk": {
-          "name": "staff_schedule_shifts_company_id_schedule_id_employee_id_staff_schedules_company_id_id_employee_id_fk",
-          "tableFrom": "staff_schedule_shifts",
-          "columnsFrom": [
-            "company_id",
-            "schedule_id",
-            "employee_id"
-          ],
-          "tableTo": "staff_schedules",
-          "columnsTo": [
-            "company_id",
-            "id",
-            "employee_id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "staff_schedule_shifts_company_id_id_pk": {
-          "name": "staff_schedule_shifts_company_id_id_pk",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "staff_schedule_shifts_duration": {
-          "name": "staff_schedule_shifts_duration",
-          "value": "\"staff_schedule_shifts\".\"ends_at\" > \"staff_schedule_shifts\".\"starts_at\" AND \"staff_schedule_shifts\".\"ends_at\" <= \"staff_schedule_shifts\".\"starts_at\" + interval '16 hours'"
-        },
-        "staff_schedule_shifts_day": {
-          "name": "staff_schedule_shifts_day",
-          "value": "\"staff_schedule_shifts\".\"day\" BETWEEN 0 AND 6"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.staff_schedules": {
-      "name": "staff_schedules",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "branch_id": {
-          "name": "branch_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "employee_id": {
-          "name": "employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "week_start": {
-          "name": "week_start",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "timezone": {
-          "name": "timezone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "staff_schedules_branch_week_idx": {
-          "name": "staff_schedules_branch_week_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "branch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "week_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "staff_schedules_company_id_companies_id_fk": {
-          "name": "staff_schedules_company_id_companies_id_fk",
-          "tableFrom": "staff_schedules",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "staff_schedules_company_id_business_id_employee_id_employees_company_id_business_id_id_fk": {
-          "name": "staff_schedules_company_id_business_id_employee_id_employees_company_id_business_id_id_fk",
-          "tableFrom": "staff_schedules",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "employee_id"
-          ],
-          "tableTo": "employees",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "staff_schedules_company_id_business_id_branch_id_branches_company_id_business_id_id_fk": {
-          "name": "staff_schedules_company_id_business_id_branch_id_branches_company_id_business_id_id_fk",
-          "tableFrom": "staff_schedules",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "branch_id"
-          ],
-          "tableTo": "branches",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "staff_schedules_company_id_id_pk": {
-          "name": "staff_schedules_company_id_id_pk",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "staff_schedules_week_key": {
-          "name": "staff_schedules_week_key",
-          "columns": [
-            "company_id",
-            "employee_id",
-            "branch_id",
-            "week_start"
-          ],
-          "nullsNotDistinct": false
-        },
-        "staff_schedules_employee_key": {
-          "name": "staff_schedules_employee_key",
-          "columns": [
-            "company_id",
-            "id",
-            "employee_id"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "staff_schedules_saturday": {
-          "name": "staff_schedules_saturday",
-          "value": "extract(dow from \"staff_schedules\".\"week_start\") = 6"
-        },
-        "staff_schedules_revision": {
-          "name": "staff_schedules_revision",
-          "value": "\"staff_schedules\".\"revision\" > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.staff_shift_templates": {
-      "name": "staff_shift_templates",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_en": {
-          "name": "name_en",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_ar": {
-          "name": "name_ar",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "shifts": {
-          "name": "shifts",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "staff_shift_templates_business_idx": {
-          "name": "staff_shift_templates_business_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "staff_shift_templates_company_id_companies_id_fk": {
-          "name": "staff_shift_templates_company_id_companies_id_fk",
-          "tableFrom": "staff_shift_templates",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "staff_shift_templates_company_id_business_id_businesses_company_id_id_fk": {
-          "name": "staff_shift_templates_company_id_business_id_businesses_company_id_id_fk",
-          "tableFrom": "staff_shift_templates",
-          "columnsFrom": [
-            "company_id",
-            "business_id"
-          ],
-          "tableTo": "businesses",
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "staff_shift_templates_company_id_id_pk": {
-          "name": "staff_shift_templates_company_id_id_pk",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "staff_shift_templates_revision": {
-          "name": "staff_shift_templates_revision",
-          "value": "\"staff_shift_templates\".\"revision\" > 0"
         }
       },
       "isRLSEnabled": false

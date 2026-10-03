@@ -1,3 +1,4 @@
+import { EMPLOYEE_COLUMN_GRANTS } from '../../test/employee-grants.ts';
 import { FUNCTION_INVENTORY } from '../../test/function-inventory.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
 import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
@@ -41,6 +42,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'devices:UPDATE',
     'employee_branches:INSERT',
     'employee_branches:SELECT',
+    'employee_salaries:INSERT',
+    'employee_salaries:SELECT',
     'employees:INSERT',
     'employees:SELECT',
     'file_access_audit:INSERT',
@@ -126,18 +129,6 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.parked_at:pospay_dispatcher:UPDATE',
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
-// تعديل الموظف يفتح أعمدة الموارد البشرية فقط؛ هوية الشركة والنشاط وبداية الارتباط والحذف تبقى محمية.
-const EMPLOYEE_COLUMN_GRANTS = [
-  'employee_branches.to:pospay_app:UPDATE',
-  'employees.contract_end:pospay_app:UPDATE',
-  'employees.hire_date:pospay_app:UPDATE',
-  'employees.name_ar:pospay_app:UPDATE',
-  'employees.name_en:pospay_app:UPDATE',
-  'employees.primary_branch_id:pospay_app:UPDATE',
-  'employees.revision:pospay_app:UPDATE',
-  'employees.role_code:pospay_app:UPDATE',
-  'employees.user_id:pospay_app:UPDATE',
-];
 const TENANT_TABLES = [
   'file_objects',
   'file_access_audit',
@@ -147,6 +138,7 @@ const TENANT_TABLES = [
   'staff_schedules',
   'staff_schedule_shifts',
   'staff_shift_templates',
+  'employee_salaries',
   'in_app_notifications',
   'notification_attempts',
   'companies',

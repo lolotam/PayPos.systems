@@ -34,6 +34,13 @@ membership/PIN references require a real employee; deployment must account for t
 
 ## Consequences
 
+PR 10 extends the same staff → identity read boundary with lockEmployeeSalaryAccess and
+readEmployeeSalaryAccess. Salary writes retain company → ordered memberships → employee lock order.
+Owner salary access is derived from active owner membership, with DENY winning; it is never a role bundle.
+Salary role grants are excluded from effective access; nonowners need personal ALLOW. The catalog and
+permissions screen expose both read:salaries:business and manage:salaries:business with bilingual labels.
+SS-Q1 remains explicit: write currently requires both permissions to preserve unreadable-record privacy.
+
 PR #83 branch privacy correction reuses the existing tenancy readers. Identity's bulk scope read
 resolves actual business branches through its workspace-names adapter before evaluating grants;
 an ALLOW on one business cannot confer access on another business's branch by pairing their IDs.

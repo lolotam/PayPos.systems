@@ -9,6 +9,8 @@ export const PERMISSIONS = [
   'manage:schedules:branch',
   'read:schedules:business',
   'manage:schedules:business',
+  'read:salaries:business',
+  'manage:salaries:business',
   // owner decision 2026-10-03: منح Owner وGM وBM لنشاطه في PR 7a؛ لا تعديل role_permissions هنا.
   'manage:files:business',
   'read:files:business',
