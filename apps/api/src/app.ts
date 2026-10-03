@@ -35,6 +35,7 @@ import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notificati
 import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { customersControllers, customersProviders } from './modules/customers/index.ts';
 import { staffControllers, staffProviders } from './modules/staff/index.ts';
+import { filesControllers, filesProviders, type FilesRuntime } from './modules/files/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
 import { RATE_LIMITER } from './shared/device-authenticator.ts';
@@ -48,6 +49,7 @@ import { READINESS_CHECKS, singleFlight, type ReadinessCheck } from './shared/re
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
 
 export interface AppDependencies {
+  readonly files?: FilesRuntime | null;
   readonly staff?: {
     api: StaffOtpApi | null;
     sessions: StaffSessions | null;
@@ -126,6 +128,7 @@ class AppModule {
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp),
         ...staffProviders(deps.database, deps.redis),
+        ...filesProviders(deps.database, deps.ids ?? systemUuidV7(), deps.files),
       ],
     };
   }
@@ -251,6 +254,7 @@ export async function createApp(
     ...settingsControllers,
     ...notificationsControllers,
     ...staffControllers,
+    ...filesControllers,
     ...(options.controllers ?? []),
   ];
   assertEveryRouteGuarded(controllers);

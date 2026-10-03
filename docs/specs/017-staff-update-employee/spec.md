@@ -79,14 +79,15 @@ it returns EMPLOYEE_BRANCH_HISTORY_OVERLAP (409), without changing revision, his
 Adjacent intervals are allowed: an interval ending October 15 and another starting October 15 do not overlap.
 Concurrent API saves still use the company → memberships → employee lock order and optimistic revision.
 
-New migrations after 0042 add the PostgreSQL contrib dependency `btree_gist` and a tenant-qualified GiST
+Migrations 0051 and 0052 after the schema/RLS migrations 0049 and 0050 add the PostgreSQL contrib dependency `btree_gist` and a tenant-qualified GiST
 exclusion constraint over `(company_id, employee_id, branch_id, daterange(from, to, '[)'))`. This also
 refuses overlaps from concurrent direct database writers; the partial open-attachment index alone cannot.
 Both its exclusion violation and an overlapping duplicate open attachment map to the named 409 above.
 An independent CHECK requires `to IS NULL OR to > from`; a BEFORE UPDATE trigger permits only closing
 an open interval. A closed interval cannot be updated or reopened, including by `pospay_app` under
 the existing same-company UPDATE grant. Guard violations map defensively to
-EMPLOYEE_BRANCH_HISTORY_IMMUTABLE (409). Existing migrations 0041 and 0042 remain unchanged.
+EMPLOYEE_BRANCH_HISTORY_IMMUTABLE (409). Main migrations 0041–0048 remain authoritative and unchanged. The PR 9 migrations are regenerated
+as 0049–0052 after them, preserving their SQL content, order and migration kind.
 
 The new constraints validate existing data without rewriting it. Migration refuses pre-existing empty,
 reversed or overlapping histories; any repair requires a separate reviewed data correction. Adding the

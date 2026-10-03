@@ -74,8 +74,10 @@ async function seedAccessCatalog(sql: postgres.Sql): Promise<void> {
       -- a platform permission is a platform grant (ADR-0003 §3), never part of a tenant role
       WHERE code NOT LIKE '%:platform'
         AND code <> 'create:customers:company'
+        AND code <> 'manage:discounts:company'
         AND code <> 'manage:employees:business'
         AND code <> 'login:staff:branch'
+        AND code NOT IN ('manage:files:business', 'read:files:business')
       ON CONFLICT DO NOTHING`;
     await tx`
       INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code)

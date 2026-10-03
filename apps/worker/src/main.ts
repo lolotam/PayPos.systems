@@ -33,6 +33,7 @@ import { createDispatchLoop } from './outbox/dispatch-loop.ts';
 import { readConfig } from './shared/config.ts';
 import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
 import { createWorker } from './worker.ts';
+import { startFilesWorker } from './modules/files/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 
 const config = readConfig(process.env);
@@ -48,6 +49,7 @@ redis.on('error', (error: unknown) => {
 
 // ADR-0019: استقبال STOP وin-app مستقلان؛ تفعيل OTP لا يفتح إرسال الشركات.
 const production = process.env['NODE_ENV'] === 'production';
+const files = startFilesWorker(app, systemUuidV7(), config.REDIS_URL, process.env);
 const email = await startEmailCapability({
   env: process.env,
   production,
@@ -99,6 +101,7 @@ const otpConfiguration = () =>
 const KNOWN_EVENT_TYPES = [
   ...(notifications?.eventTypes ?? []),
   ...(inApp?.eventTypes ?? []),
+  'FileUploadRequested',
   'CompanyCreated',
   'BusinessCreated',
   'BranchCreated',
@@ -111,12 +114,18 @@ const businessDeliver = createDeliverer(
   { knownEventTypes: KNOWN_EVENT_TYPES },
 );
 let queue: ReturnType<typeof startNotificationQueue> | undefined;
-const deliver: typeof businessDeliver = (event) => (queue?.deliver ?? businessDeliver)(event);
+const deliver: typeof businessDeliver = (event) =>
+  event.eventType === 'FileUploadRequested'
+    ? (files?.deliver(event) ??
+      Promise.resolve({ delivered: false, error: 'STORAGE_NOT_CONFIGURED', retryInMs: 60_000 }))
+    : (queue?.deliver ?? businessDeliver)(event);
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
 const release = async (): Promise<void> => {
   stopping = true;
   clearInterval(capabilityTimer);
+  // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
+  await files?.close();
   await optionalWithin(
     () =>
       Promise.allSettled([

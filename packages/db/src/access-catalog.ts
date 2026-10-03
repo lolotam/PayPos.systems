@@ -5,6 +5,9 @@
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
  */
 export const PERMISSIONS = [
+  // owner decision 2026-10-03: منح Owner وGM وBM لنشاطه في PR 7a؛ لا تعديل role_permissions هنا.
+  'manage:files:business',
+  'read:files:business',
   'login:staff:branch',
   // TODO(spec): حزم manage:employees:business مؤجلة إلى PR 7a، بدون منح تلقائي لأي دور.
   'manage:employees:business',
@@ -12,6 +15,8 @@ export const PERMISSIONS = [
   // TODO(spec): منح صلاحية الاستقبال للأدوار مؤجل إلى PR 7a؛ إضافتها للـ catalog لا تمنحها للـ Owner تلقائياً.
   'create:customers:company',
   'manage:memberships:company',
+  // TODO(spec): حزم إدارة الخصم مؤجلة إلى PR 7a؛ الكود هنا لا يمنحها لأي دور.
+  'manage:discounts:company',
   'read:businesses:company',
   'create:businesses:company',
   'create:branches:business',

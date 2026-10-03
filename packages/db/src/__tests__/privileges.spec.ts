@@ -1,5 +1,6 @@
 import { FUNCTION_INVENTORY } from '../../test/function-inventory.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
+import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -41,6 +42,12 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'employee_branches:SELECT',
     'employees:INSERT',
     'employees:SELECT',
+    'file_access_audit:INSERT',
+    'file_access_audit:SELECT',
+    'file_cleanup_objects:INSERT',
+    'file_cleanup_objects:SELECT',
+    'file_objects:INSERT',
+    'file_objects:SELECT',
     'idempotency_keys:INSERT',
     'idempotency_keys:SELECT',
     'idempotency_keys:UPDATE',
@@ -124,6 +131,9 @@ const EMPLOYEE_COLUMN_GRANTS = [
   'employees.user_id:pospay_app:UPDATE',
 ];
 const TENANT_TABLES = [
+  'file_objects',
+  'file_access_audit',
+  'file_cleanup_objects',
   'employees',
   'employee_branches',
   'in_app_notifications',
@@ -194,7 +204,7 @@ describe('direct privileges match the reviewed allowlist', () => {
     expect(await aclGrants('PUBLIC')).toEqual([]);
   });
 
-  it('column grants match the reviewed employee, OTP and delivery metadata allowlists', async () => {
+  it('column grants match the reviewed employee, OTP, file verification and outbox allowlists', async () => {
     const rows = await owner<{ grant: string }[]>`
       SELECT c.relname || '.' || a.attname || ':' || coalesce(r.rolname, 'PUBLIC') || ':' || x.privilege_type AS grant
       FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
@@ -203,7 +213,14 @@ describe('direct privileges match the reviewed allowlist', () => {
       ORDER BY 1`;
     expect(
       rows.filter((r) => !r.grant.startsWith('platform_whatsapp_')).map((r) => r.grant),
-    ).toEqual([...OTP_COLUMN_GRANTS, ...OUTBOX_COLUMN_GRANTS, ...EMPLOYEE_COLUMN_GRANTS].sort());
+    ).toEqual(
+      [
+        ...OTP_COLUMN_GRANTS,
+        ...FILE_COLUMN_GRANTS,
+        ...OUTBOX_COLUMN_GRANTS,
+        ...EMPLOYEE_COLUMN_GRANTS,
+      ].sort(),
+    );
   });
 
   it.each(APP_ROLES)(

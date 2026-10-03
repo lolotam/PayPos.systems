@@ -1,0 +1,20 @@
+'use client';
+
+import { t } from '@pospay/i18n';
+import { CircleAlert, EmptyState, LoaderCircle } from '@pospay/ui';
+import { envelopeMessage } from '@/shared/api/api-error';
+import { useLocale } from '@/shared/locale/locale-context';
+
+export function PermissionDetailState({ pending, error }: { pending: boolean; error: unknown }) {
+  const locale = useLocale();
+  return pending ? (
+    <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />
+  ) : (
+    <EmptyState
+      role="alert"
+      tone="danger"
+      icon={<CircleAlert />}
+      title={envelopeMessage(error, locale)}
+    />
+  );
+}

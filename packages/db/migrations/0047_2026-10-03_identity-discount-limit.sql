@@ -1,0 +1,2 @@
+ALTER TABLE "memberships" ADD COLUMN "limit_bps" integer;--> statement-breakpoint
+ALTER TABLE "memberships" ADD CONSTRAINT "memberships_limit_bps" CHECK ("memberships"."limit_bps" IS NULL OR "memberships"."limit_bps" BETWEEN 0 AND 10000);

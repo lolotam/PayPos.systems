@@ -4,6 +4,86 @@
  */
 
 export interface paths {
+    "/v1/files/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueFileDownloadByKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/files/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFileStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueFileDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees": {
         parameters: {
             query?: never;
@@ -38,6 +118,22 @@ export interface paths {
         head?: never;
         /** @description Full editable employee replacement against expected_revision. All persisted and requested branches require manage:employees:business and staff feature. After persisted-source access, missing, other-business and other-company requested branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature, revision or employee diagnostics. Never grants access. Preserves branch history using the supplied branch_effective_date, with start-inclusive/end-exclusive intervals. Closing requires a date strictly after the start. Overlap with open or closed history returns EMPLOYEE_BRANCH_HISTORY_OVERLAP (409); closed history is immutable (EMPLOYEE_BRANCH_HISTORY_IMMUTABLE, 409). Adjacent intervals are allowed. Stale revision returns EMPLOYEE_REVISION_CONFLICT (409). */
         patch: operations["updateEmployee"];
+        trace?: never;
+    };
+    "/v1/permissions/memberships/{membershipId}/discount-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setMembershipDiscountLimit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/permissions/memberships": {
@@ -483,38 +579,19 @@ export interface components {
             /** @default 20 */
             limit: number;
         };
-        Employee: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            business_id: string;
-            /** Format: uuid */
-            primary_branch_id: string;
-            name_en: string;
-            name_ar: string | null;
-            role_code: components["schemas"]["EmployeeRoleCode"];
-            hire_date: components["schemas"]["EmployeeDate"];
-            contract_end: components["schemas"]["EmployeeDate"] | null;
-            /** Format: uuid */
-            user_id: string | null;
-            /** Format: date-time */
-            created_at: string;
+        DiscountLimit: {
+            limit_bps: number | null;
         };
-        CreateEmployeeInput: {
-            /** Format: uuid */
-            primary_branch_id: string;
-            name_en: string;
-            name_ar?: string | null;
-            role_code: components["schemas"]["EmployeeRoleCode"];
-            hire_date: components["schemas"]["EmployeeDate"];
-            contract_end?: components["schemas"]["EmployeeDate"] | null;
-            /** Format: uuid */
-            user_id?: string | null;
+        DiscountLimitInput: {
+            limit_bps: number | null;
+            reason: string;
         };
-        /** @enum {string} */
-        EmployeeRoleCode: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
-        /** Format: date */
-        EmployeeDate: string;
+        MembershipPageQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
         MembershipPermissionsQuery: {
             /** Format: uuid */
             cursor?: string;
@@ -525,12 +602,6 @@ export interface components {
         };
         RevokePermissionOverrideInput: {
             reason: string;
-        };
-        MembershipPageQuery: {
-            /** Format: uuid */
-            cursor?: string;
-            /** @default 20 */
-            limit: number;
         };
         PermissionOverrideInput: {
             permission_code: string;
@@ -596,7 +667,89 @@ export interface components {
             overrides: components["schemas"]["PermissionOverridePage"];
             ended_overrides: components["schemas"]["PermissionOverridePage"];
             editing_enabled: boolean;
+            discount_limit: components["schemas"]["DiscountLimit"];
         };
+        RequestFileUpload: {
+            owner_module: string;
+            /** Format: uuid */
+            owner_entity_id: string;
+            /** Format: uuid */
+            branch_id?: string;
+            /** @enum {string} */
+            content_type: "application/pdf" | "image/jpeg" | "image/png";
+            size_bytes: number;
+            required_permission: string;
+        };
+        FileUploadTicket: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uri */
+            upload_url: string;
+            /** @enum {number} */
+            expires_in: 120;
+            headers: {
+                "content-type": string;
+                "content-length": string;
+            };
+        };
+        FileStatus: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "PENDING" | "VERIFYING" | "READY" | "REJECTED";
+            content_type: string;
+            size_bytes: number;
+            storage_key?: string;
+            /** @enum {string} */
+            rejection_code?: "FILE_TYPE_INVALID" | "FILE_SIZE_INVALID" | "FILE_CONTENT_INVALID";
+        };
+        FileConfirmation: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "QUEUED";
+        };
+        FileDownload: {
+            /** Format: uri */
+            download_url: string;
+            /** @enum {number} */
+            expires_in: 60;
+        };
+        FileDownloadByKey: {
+            storage_key: string;
+        };
+        Employee: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CreateEmployeeInput: {
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar?: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end?: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id?: string | null;
+        };
+        /** @enum {string} */
+        EmployeeRoleCode: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
+        /** Format: date */
+        EmployeeDate: string;
         Customer: {
             /** Format: uuid */
             id: string;
@@ -1004,6 +1157,177 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    issueFileDownloadByKey: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDownloadByKey"];
+            };
+        };
+        responses: {
+            /** @description FileDownload */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownload"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestFileUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestFileUpload"];
+            };
+        };
+        responses: {
+            /** @description FileUploadTicket */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUploadTicket"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirmFileUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FileConfirmation */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileConfirmation"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFileStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FileStatus */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileStatus"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    issueFileDownload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FileDownload */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownload"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listEmployees: {
         parameters: {
             query?: {
@@ -1211,6 +1535,43 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setMembershipDiscountLimit: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountLimitInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountLimit"];
+                };
+            };
+            /** @description The API error envelope */
             default: {
                 headers: {
                     [name: string]: unknown;

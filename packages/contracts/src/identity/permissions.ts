@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { discountLimit } from './discount-limit.js';
 
 import { page, pageQuery } from '../pagination/cursor.js';
 import { id } from '../scalars/id.js';
@@ -59,6 +60,7 @@ export const membershipPermissions = z
     overrides: permissionOverridePage,
     ended_overrides: permissionOverridePage,
     editing_enabled: z.boolean(),
+    discount_limit: discountLimit,
   })
   .meta({ id: 'MembershipPermissions' });
 

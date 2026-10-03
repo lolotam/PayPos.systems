@@ -1,6 +1,6 @@
 {
-  "id": "0d2e8dc6-b495-4d06-81d4-e819d44572c7",
-  "prevId": "15012114-1a7c-41fe-a226-0257b473ff27",
+  "id": "e61a79ff-df51-4565-8b3b-5744b7c7d1c3",
+  "prevId": "c6938e02-a727-493a-b8cb-a12433dc519b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -692,34 +692,6 @@
         }
       },
       "indexes": {
-        "employee_branches_active_key": {
-          "name": "employee_branches_active_key",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "branch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"employee_branches\".\"to\" IS NULL",
-          "concurrently": false
-        },
         "employee_branches_company_employee_from_idx": {
           "name": "employee_branches_company_employee_from_idx",
           "columns": [
@@ -856,12 +828,7 @@
       },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "employee_branches_nonempty_interval": {
-          "name": "employee_branches_nonempty_interval",
-          "value": "\"employee_branches\".\"to\" IS NULL OR \"employee_branches\".\"to\" > \"employee_branches\".\"from\""
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.employees": {
@@ -940,13 +907,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
         }
       },
       "indexes": {
@@ -1157,10 +1117,6 @@
       },
       "policies": {},
       "checkConstraints": {
-        "employees_revision_positive": {
-          "name": "employees_revision_positive",
-          "value": "\"employees\".\"revision\" > 0"
-        },
         "employees_name_en_length": {
           "name": "employees_name_en_length",
           "value": "char_length(trim(\"employees\".\"name_en\")) BETWEEN 1 AND 255"
@@ -5556,6 +5512,532 @@
         "auth_otp_challenges_context": {
           "name": "auth_otp_challenges_context",
           "value": "jsonb_typeof(\"auth_otp_challenges\".\"device_context\") = 'object' AND \"auth_otp_challenges\".\"device_context\" ?& ARRAY['companyId','businessId','branchId','deviceId'] AND \"auth_otp_challenges\".\"device_context\" - ARRAY['companyId','businessId','branchId','deviceId'] = '{}'::jsonb AND (\"auth_otp_challenges\".\"device_context\"->>'companyId') ~ '^[a-f0-9-]{36}$' AND (\"auth_otp_challenges\".\"device_context\"->>'businessId') ~ '^[a-f0-9-]{36}$' AND (\"auth_otp_challenges\".\"device_context\"->>'branchId') ~ '^[a-f0-9-]{36}$' AND (\"auth_otp_challenges\".\"device_context\"->>'deviceId') ~ '^[a-f0-9-]{36}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.file_access_audit": {
+      "name": "file_access_audit",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accessed_at": {
+          "name": "accessed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "file_access_audit_company_file_idx": {
+          "name": "file_access_audit_company_file_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "file_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "accessed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "file_access_audit_company_actor_idx": {
+          "name": "file_access_audit_company_actor_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "actor_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "file_access_audit_file_fk": {
+          "name": "file_access_audit_file_fk",
+          "tableFrom": "file_access_audit",
+          "columnsFrom": [
+            "company_id",
+            "file_id"
+          ],
+          "tableTo": "file_objects",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "file_access_audit_pkey": {
+          "name": "file_access_audit_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "file_access_audit_outcome": {
+          "name": "file_access_audit_outcome",
+          "value": "\"file_access_audit\".\"outcome\" IN ('ALLOW','DENY')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.file_objects": {
+      "name": "file_objects",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_module": {
+          "name": "owner_module",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_entity_id": {
+          "name": "owner_entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "staging_key": {
+          "name": "staging_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_key": {
+          "name": "storage_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "required_permission": {
+          "name": "required_permission",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "lease_id": {
+          "name": "lease_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_until": {
+          "name": "lease_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rejection_code": {
+          "name": "rejection_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rejected_at": {
+          "name": "rejected_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "purge_started_at": {
+          "name": "purge_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "purged_at": {
+          "name": "purged_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "file_objects_company_business_idx": {
+          "name": "file_objects_company_business_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "file_objects_company_branch_idx": {
+          "name": "file_objects_company_branch_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "file_objects_company_creator_idx": {
+          "name": "file_objects_company_creator_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "file_objects_company_owner_idx": {
+          "name": "file_objects_company_owner_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "owner_module",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "owner_entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "file_objects_retention_pending_idx": {
+          "name": "file_objects_retention_pending_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "where": "\"file_objects\".\"status\" = 'PENDING' AND \"file_objects\".\"confirmed_at\" IS NULL AND \"file_objects\".\"purged_at\" IS NULL",
+          "concurrently": false
+        },
+        "file_objects_retention_rejected_idx": {
+          "name": "file_objects_retention_rejected_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "rejected_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "where": "\"file_objects\".\"status\" = 'REJECTED' AND \"file_objects\".\"purged_at\" IS NULL",
+          "concurrently": false
+        },
+        "file_objects_permission_idx": {
+          "name": "file_objects_permission_idx",
+          "columns": [
+            {
+              "expression": "required_permission",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "file_objects_company_id_companies_id_fk": {
+          "name": "file_objects_company_id_companies_id_fk",
+          "tableFrom": "file_objects",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "tableTo": "companies",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "file_objects_required_permission_permissions_code_fk": {
+          "name": "file_objects_required_permission_permissions_code_fk",
+          "tableFrom": "file_objects",
+          "columnsFrom": [
+            "required_permission"
+          ],
+          "tableTo": "permissions",
+          "columnsTo": [
+            "code"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "file_objects_business_fk": {
+          "name": "file_objects_business_fk",
+          "tableFrom": "file_objects",
+          "columnsFrom": [
+            "company_id",
+            "business_id"
+          ],
+          "tableTo": "businesses",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "file_objects_branch_fk": {
+          "name": "file_objects_branch_fk",
+          "tableFrom": "file_objects",
+          "columnsFrom": [
+            "company_id",
+            "branch_id"
+          ],
+          "tableTo": "branches",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "file_objects_pkey": {
+          "name": "file_objects_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "file_objects_staging_key_unique": {
+          "name": "file_objects_staging_key_unique",
+          "columns": [
+            "company_id",
+            "staging_key"
+          ],
+          "nullsNotDistinct": false
+        },
+        "file_objects_storage_key_unique": {
+          "name": "file_objects_storage_key_unique",
+          "columns": [
+            "company_id",
+            "storage_key"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "file_objects_size": {
+          "name": "file_objects_size",
+          "value": "\"file_objects\".\"size_bytes\" BETWEEN 1 AND 10485760"
+        },
+        "file_objects_type": {
+          "name": "file_objects_type",
+          "value": "\"file_objects\".\"content_type\" IN ('application/pdf','image/jpeg','image/png')"
+        },
+        "file_objects_state": {
+          "name": "file_objects_state",
+          "value": "\"file_objects\".\"status\" IN ('PENDING','VERIFYING','READY','REJECTED')"
+        },
+        "file_objects_ready_key": {
+          "name": "file_objects_ready_key",
+          "value": "(\"file_objects\".\"status\" = 'READY') = (\"file_objects\".\"storage_key\" IS NOT NULL)"
+        },
+        "file_objects_permission_scope": {
+          "name": "file_objects_permission_scope",
+          "value": "\"file_objects\".\"required_permission\" ~ '^[a-z]+:[a-z-]+:(company|business|branch)$' AND (\"file_objects\".\"required_permission\" NOT LIKE '%:branch' OR \"file_objects\".\"branch_id\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
