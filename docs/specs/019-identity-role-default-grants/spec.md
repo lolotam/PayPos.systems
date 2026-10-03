@@ -5,7 +5,8 @@ Sources: PR 7 spec's `Default bundles` owner decision (2026-10-03), the live
 
 ## Requirements and rules
 
-Use the existing global `role_permissions` rows as the single default authority.
+Use the existing global `role_permissions` rows as the single stored-default authority;
+the canonical-owner salary derivation preserves the explicit PR 10 exception.
 An additive reference-data migration applies the complete catalog matrix to every
 existing system-role membership, without manufacturing per-person overrides.
 Seed repeats the same matrix. Custom company roles and override history are preserved.
@@ -25,8 +26,15 @@ the company NO KEY UPDATE → memberships ordered by id → overrides lock proto
 ADR-0019's login exception remains: Staff has `login:staff:branch`; cashier/reception
 requires explicit ALLOW. Owner/admin status alone never enables staff login.
 Platform permission and Device bundles remain outside human administrative defaults.
-Salary permissions belong to PR 10: Owner only by default, all others explicit ALLOW.
-No salary code is introduced here.
+Integration owner decision 2026-10-04: salary read/manage remain owner-only by
+canonical-owner derivation, with no stored role_permissions defaults. Every other
+human system role has both salary cells optional (⚙️), never forbidden; Device
+salary cells are forbidden (❌). Salary management also requires read. Nonowner
+role grants cannot grant salaries, including custom roles; personal overrides only.
+Schedule branch defaults remain owner/general_manager/business_manager/branch_manager;
+business template defaults remain owner/general_manager/business_manager. Other
+schedule cells retain PR 16 personal-ALLOW eligibility (⚙️), including the existing
+technical Device policy; no schedule cell becomes forbidden during integration.
 
 | Code | Default roles (all others off) |
 |---|---|
@@ -41,8 +49,11 @@ No salary code is introduced here.
 | view:notifications:business | owner, general_manager, business_manager |
 | read/manage:files:business | owner, general_manager, business_manager |
 | manage:employees:business | owner, general_manager, business_manager |
-| create:customers:company | owner; TODO(spec): reception role and narrower customer authority unresolved |
-| manage:discounts:company | owner; TODO(spec): applying a discount does not settle administration of personal limits |
+| create:customers:company | owner; TODO(spec): business/branch codes decided for PR 7d |
+| manage:discounts:company | owner; TODO(spec): separate personal-limit administration code decided for PR 7d |
+| read/manage:salaries:business | no stored defaults; canonical Owner ✅; all other humans ⚙️; Device ❌ |
+| read/manage:schedules:branch | owner, general_manager, business_manager, branch_manager ✅; all others ⚙️ |
+| read/manage:schedules:business | owner, general_manager, business_manager ✅; all others ⚙️ |
 | login:staff:branch | staff (ADR-0019) |
 | create:companies:platform | no tenant role |
 
@@ -74,18 +85,29 @@ context; company management remains available through the scope selector.
 
 ## Migration, dependencies and verification
 
-New custom migration: catalog codes and deterministic global role bundles; no new
+Custom migration 0058 replaces the unmerged 0054 reference migration after main's
+0054–0057 salary/schedule migrations: catalog codes and deterministic global role bundles; no new
 table, column, privilege, dependency, RLS exception or cross-module arrow.
 Test every role × catalog code, own/other business and branch guards, DENY/default
 and ALLOW/optional precedence, expired overrides, owner immunity, cross-tenant
 refusal, seeded-existing-company migration preservation, UI labels/defaults/decisions,
 result shape and indexed scoped reads. Run pnpm check and API/admin builds.
 
-## Open questions for the owner
+## Recorded owner decisions and follow-up PR 7d
 
-- TODO(spec): PR 34 customer creation has COMPANY scope and no reception role.
-  Recommend business/branch customer entry permission for managers and cashiers;
-  keep company-wide customer creation Owner-only until settled.
-- TODO(spec): PR 7b manages discount parameters, whereas the matrix describes
-  applying discounts. Recommend a business-scoped limit-management capability for
-  General Manager and Business Manager, distinct from sale-time discount approval.
+Both remaining scope questions were settled on 2026-10-04. Their implementation
+is deferred to PR 7d; this integration keeps the existing company codes unchanged.
+
+- TODO(spec): PR 7d introduces business/branch customer-creation codes for
+  business_manager, branch_manager and cashier. Customer data remains company-scoped;
+  the new permission reach must not become company-wide creation authority.
+- TODO(spec): PR 7d introduces a separate personal discount-limit administration
+  code for owner, general_manager and business_manager. Managers act within their own
+  business and nobody edits their own limit. Keep it separate from discount application.
+
+## Integration verification
+
+Test all 14 roles against salary/schedule stored defaults and personal eligibility;
+prove explicit salary ALLOW for GM/accountant/BM and refusal for Device, read-plus-manage,
+canonical Owner identity, role-grant exclusion, scoped DENY and preserved schedule grants.
+Migrate a fresh worktree database through 0000–0058; run pnpm check and API/admin/worker builds.

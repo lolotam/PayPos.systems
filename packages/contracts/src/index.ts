@@ -211,3 +211,17 @@ export {
   type RequestFileUpload,
   type FileStatus,
 } from './files.js';
+export * from './staff/schedules.js';
+export {
+  salaryAmount,
+  setSalaryInput,
+  employeeSalary,
+  salaryHistoryQuery,
+  salaryHistoryPage,
+} from './staff/salary.js';
+export type {
+  SetSalaryInput,
+  EmployeeSalary,
+  SalaryHistoryQuery,
+  SalaryHistoryPage,
+} from './staff/salary.js';

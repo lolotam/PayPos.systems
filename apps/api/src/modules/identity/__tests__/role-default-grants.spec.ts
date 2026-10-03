@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { membershipPermissions, permissionMembershipPage } from '@pospay/contracts';
-import { PERMISSIONS, SYSTEM_ROLES, type TenantWrappers } from '@pospay/db';
+import {
+  OWNER_DERIVED_PERMISSIONS,
+  PERMISSIONS,
+  SYSTEM_ROLES,
+  type TenantWrappers,
+} from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 import { ROLE_DEFAULTS } from '../../../../../../packages/db/src/role-defaults.ts';
 import { AuthorizeRequest } from '../use-cases/authorize-request/authorize-request.ts';
@@ -88,8 +93,11 @@ it.each(SYSTEM_ROLES.filter((r) => r.code !== 'device'))(
         permission,
         ...ownTarget,
       });
+      const defaultAllowed =
+        defaults.includes(code) ||
+        (code === 'owner' && (OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(permission));
       const expected =
-        defaults.includes(code) &&
+        defaultAllowed &&
         (suffix !== 'company' || scope === 'COMPANY') &&
         (suffix !== 'business' || scope !== 'BRANCH');
       expect(own !== null, `${code} ${permission}`).toBe(expected);
@@ -103,7 +111,7 @@ it.each(SYSTEM_ROLES.filter((r) => r.code !== 'device'))(
             : { branchParam: otherBranch }),
         });
         expect(elsewhere !== null, `${code} ${permission} other scope`).toBe(
-          defaults.includes(code) && scope === 'COMPANY',
+          defaultAllowed && scope === 'COMPANY',
         );
       }
     }
@@ -276,7 +284,7 @@ it('the reference migration upgrades a seeded existing company without changing 
     .owner`DELETE FROM role_permissions WHERE role_owner_key='global' AND permission_code IN ('manage:employees:business','manage:files:business','read:files:business')`;
   const migration = readFileSync(
     new URL(
-      '../../../../../../packages/db/migrations/0054_2026-10-03_system-role-default-bundles.sql',
+      '../../../../../../packages/db/migrations/0058_2026-10-03_system-role-default-bundles.sql',
       import.meta.url,
     ),
     'utf8',

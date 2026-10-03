@@ -1,6 +1,6 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { OWNER_ROLE_ID, PERMISSIONS, SYSTEM_ROLES } from './access-catalog.ts';
-import { ROLE_DEFAULTS } from './role-defaults.ts';
+import { ROLE_DEFAULTS, OWNER_DERIVED_PERMISSIONS, SCHEDULE_PERMISSIONS } from './role-defaults.ts';
 
 const optional: Readonly<Record<string, readonly string[]>> = {
   business_manager: ['read:memberships:business', 'manage:memberships:business'],
@@ -10,14 +10,17 @@ const optional: Readonly<Record<string, readonly string[]>> = {
 
 /** المرجع يميز هوية الدور النظامي؛ اسم الدور المخصص لا يمنحه حزمة أو حماية نظامية. */
 export function systemRolePolicy(roleId: string, ownerKey: string) {
-  const role = SYSTEM_ROLES.find((r) => r.id === roleId && r.code !== 'device');
+  const role = SYSTEM_ROLES.find((r) => r.id === roleId);
   if (ownerKey !== 'global' || role === undefined) return null;
   return {
     code: role.code,
-    permissions: PERMISSIONS.filter(
-      (code) =>
-        (ROLE_DEFAULTS[code] as readonly string[]).includes(role.code) ||
-        optional[role.code]?.includes(code),
+    permissions: PERMISSIONS.filter((code) =>
+      role.code === 'device'
+        ? !(OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(code)
+        : (ROLE_DEFAULTS[code] as readonly string[]).includes(role.code) ||
+          (OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(code) ||
+          (SCHEDULE_PERMISSIONS as readonly string[]).includes(code) ||
+          optional[role.code]?.includes(code),
     ),
   };
 }
@@ -27,6 +30,7 @@ export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias:
   const m = sql.identifier(memberAlias),
     o = sql.identifier(overrideAlias);
   const human = SYSTEM_ROLES.filter((r) => r.code !== 'device');
+  const device = SYSTEM_ROLES.find((r) => r.code === 'device');
   const cells = human.map((role) => {
     const codes = systemRolePolicy(role.id, 'global')?.permissions ?? [];
     return sql`(${m}.role_id = ${role.id}::uuid AND ${
@@ -39,7 +43,11 @@ export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias:
     })`;
   });
   const manager = human.find((r) => r.code === 'business_manager');
-  return sql`(${o}.effect = 'DENY' OR ${m}.role_owner_key <> 'global'
+  return sql`(NOT (${m}.role_owner_key = 'global' AND ${m}.role_id = ${device?.id}::uuid
+    AND ${o}.effect = 'ALLOW' AND ${o}.permission_code IN (${sql.join(
+      OWNER_DERIVED_PERMISSIONS.map((code) => sql`${code}`),
+      sql`,`,
+    )})) AND (${o}.effect = 'DENY' OR ${m}.role_owner_key <> 'global'
     OR ${m}.role_id NOT IN (${sql.join(
       human.map((r) => sql`${r.id}::uuid`),
       sql`,`,
@@ -51,7 +59,7 @@ export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias:
         (${o}.scope_type = 'BUSINESS' AND ${o}.scope_id = ${m}.scope_id)
         OR (${o}.scope_type = 'BRANCH' AND EXISTS (SELECT 1 FROM branches policy_branch
           WHERE policy_branch.company_id = ${m}.company_id AND policy_branch.id = ${o}.scope_id
-            AND policy_branch.business_id = ${m}.scope_id)))))))`;
+            AND policy_branch.business_id = ${m}.scope_id))))))))`;
 }
 
 /** إسقاط هوية المالك الحقيقي في SQL؛ النطاق والمالك العالمي جزء من الهوية لا اسم الدور. */

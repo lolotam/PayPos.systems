@@ -1,3 +1,4 @@
+import { schedulesPaths } from './schedules-openapi.js';
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
 });
@@ -12,6 +13,63 @@ const parameters = [
 ];
 const errors = { description: 'Bilingual refusal', content: json('ErrorEnvelope') };
 export const staffPaths = {
+  ...schedulesPaths,
+  '/v1/businesses/{businessId}/employees/{employeeId}/salaries': {
+    get: {
+      operationId: 'salaryHistory',
+      description:
+        'Restricted salary history. Missing and inaccessible share 404. Owner or explicit personal read grant; DENY wins. Requires staff feature.',
+      parameters: [
+        ...parameters,
+        {
+          in: 'path',
+          name: 'employeeId',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        },
+        { in: 'query', name: 'cursor', schema: { type: 'string', format: 'date' } },
+        {
+          in: 'query',
+          name: 'limit',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      ],
+      responses: {
+        '200': { description: 'Salary history page', content: json('SalaryHistoryPage') },
+        '404': errors,
+        default: errors,
+      },
+    },
+    post: {
+      operationId: 'setSalary',
+      description:
+        'Set monthly basic salary on any date. Same date replaces entry and increments revision. Requires read and manage salary access; row, audit and SalaryChanged commit together.',
+      parameters: [
+        ...parameters,
+        {
+          in: 'path',
+          name: 'employeeId',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        },
+        {
+          in: 'header',
+          name: 'Idempotency-Key',
+          required: true,
+          schema: { type: 'string', minLength: 1, maxLength: 255 },
+        },
+      ],
+      requestBody: { required: true, content: json('SetSalaryInput') },
+      responses: {
+        '200': { description: 'Set salary', content: json('EmployeeSalary') },
+        '400': errors,
+        '404': errors,
+        '409': errors,
+        '422': errors,
+        default: errors,
+      },
+    },
+  },
   '/v1/businesses/{businessId}/employees': {
     get: {
       operationId: 'listEmployees',

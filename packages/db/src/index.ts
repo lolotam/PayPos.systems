@@ -14,7 +14,7 @@ export {
   type IdentitySchema,
   type PlatformAuditEntry,
 } from './auth-database.ts';
-export { appendAuditLog, type AuditEntry } from './audit-log.ts';
+export { appendAuditLog, appendAuditLogs, type AuditEntry } from './audit-log.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { markEventConsumed } from './consumed-events.ts';
 export {
@@ -34,6 +34,7 @@ export {
 } from './idempotency.ts';
 export { appendOutboxEvent, type OutboxEvent } from './outbox.ts';
 export type { IdGenerator, TenantOptions, TenantWrappers, Tx } from './with-tenant.ts';
+export { OWNER_DERIVED_PERMISSIONS } from './role-defaults.ts';
 export { FEATURE_FLAGS, PROVISIONAL_PLAN_ID, type FeatureFlag } from './seed.ts';
 export {
   canonicalOwnerSql,

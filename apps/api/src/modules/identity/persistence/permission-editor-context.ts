@@ -1,7 +1,7 @@
 import { canonicalOwnerSql, systemRolePolicy, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { AccessTarget, ScopeType } from '../domain/access.ts';
 import { readAccessTransaction } from './access-reader.ts';
+import type { AccessGrant, AccessTarget, ScopeType } from '../domain/access.ts';
 import type {
   EditableMembership,
   OverrideTerms,
@@ -52,6 +52,16 @@ async function lockedHolderMemberships(
     startsAt: new Date(row.starts_at),
     endsAt: row.ends_at === null ? null : new Date(row.ends_at),
   }));
+}
+
+async function editorGrants(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  now: string,
+): Promise<AccessGrant[]> {
+  const access = await readAccessTransaction(tx, companyId, userId, new Date(now));
+  return [...access.grants];
 }
 
 async function scopeTargets(tx: Tx, companyId: string, terms: OverrideTerms) {
@@ -111,7 +121,7 @@ export async function permissionEditorContext(
     holderMemberships,
     ...(await scopeTargets(tx, companyId, terms)),
     catalog: catalog.map((p) => p.code),
-    grants: (await readAccessTransaction(tx, companyId, userId, now)).grants,
+    grants: await editorGrants(tx, companyId, userId, now.toISOString()),
     companyId,
     editorUserId: userId,
     now,

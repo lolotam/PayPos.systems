@@ -4,7 +4,9 @@ import { ROLE_DEFAULTS } from '../role-defaults.ts';
 
 // توقع مستقل لكل دور؛ اختبار catalog كامل يمنع ضياع أكواد slices اللاحقة أو تسرب إذن المنصة.
 const expectations: Record<string, readonly string[]> = {
-  owner: PERMISSIONS.filter((p) => !p.endsWith(':platform') && p !== 'login:staff:branch'),
+  owner: PERMISSIONS.filter(
+    (p) => !p.endsWith(':platform') && p !== 'login:staff:branch' && !p.includes(':salaries:'),
+  ),
   general_manager: [
     'read:businesses:company',
     'create:businesses:company',
@@ -17,6 +19,10 @@ const expectations: Record<string, readonly string[]> = {
     'manage:employees:business',
     'manage:files:business',
     'read:files:business',
+    'read:schedules:branch',
+    'manage:schedules:branch',
+    'read:schedules:business',
+    'manage:schedules:business',
   ],
   business_manager: [
     'create:branches:business',
@@ -28,9 +34,18 @@ const expectations: Record<string, readonly string[]> = {
     'manage:employees:business',
     'manage:files:business',
     'read:files:business',
+    'read:schedules:branch',
+    'manage:schedules:branch',
+    'read:schedules:business',
+    'manage:schedules:business',
   ],
   accountant: ['read:businesses:company', 'read:branches:branch'],
-  branch_manager: ['read:branches:branch', 'manage:devices:branch'],
+  branch_manager: [
+    'read:branches:branch',
+    'manage:devices:branch',
+    'read:schedules:branch',
+    'manage:schedules:branch',
+  ],
   shift_supervisor: ['read:branches:branch'],
   cashier: ['read:branches:branch'],
   waiter: ['read:branches:branch'],

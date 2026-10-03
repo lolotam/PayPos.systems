@@ -1,5 +1,11 @@
 -- الحزم النظامية بقرار المالك 2026-10-03؛ بيانات المرجع تتجهز أيضاً عند migration لقاعدة جديدة قبل seed.
 INSERT INTO permissions (code) VALUES
+  ('read:schedules:branch'),
+  ('manage:schedules:branch'),
+  ('read:schedules:business'),
+  ('manage:schedules:business'),
+  ('read:salaries:business'),
+  ('manage:salaries:business'),
   ('manage:files:business'),
   ('read:files:business'),
   ('login:staff:branch'),
@@ -53,6 +59,12 @@ DELETE FROM role_permissions WHERE role_owner_key = 'global' AND role_id IN (
   '01920000-0000-7000-8000-00000000010c',
   '01920000-0000-7000-8000-00000000010d'
 ) AND permission_code IN (
+  'read:schedules:branch',
+  'manage:schedules:branch',
+  'read:schedules:business',
+  'manage:schedules:business',
+  'read:salaries:business',
+  'manage:salaries:business',
   'manage:files:business',
   'read:files:business',
   'login:staff:branch',
@@ -75,6 +87,20 @@ DELETE FROM role_permissions WHERE role_owner_key = 'global' AND role_id IN (
 );
 --> statement-breakpoint
 INSERT INTO role_permissions (role_id, role_owner_key, company_id, permission_code) VALUES
+  ('01920000-0000-7000-8000-000000000101'::uuid, 'global', NULL, 'read:schedules:branch'),
+  ('01920000-0000-7000-8000-000000000102'::uuid, 'global', NULL, 'read:schedules:branch'),
+  ('01920000-0000-7000-8000-000000000104'::uuid, 'global', NULL, 'read:schedules:branch'),
+  ('01920000-0000-7000-8000-000000000105'::uuid, 'global', NULL, 'read:schedules:branch'),
+  ('01920000-0000-7000-8000-000000000101'::uuid, 'global', NULL, 'manage:schedules:branch'),
+  ('01920000-0000-7000-8000-000000000102'::uuid, 'global', NULL, 'manage:schedules:branch'),
+  ('01920000-0000-7000-8000-000000000104'::uuid, 'global', NULL, 'manage:schedules:branch'),
+  ('01920000-0000-7000-8000-000000000105'::uuid, 'global', NULL, 'manage:schedules:branch'),
+  ('01920000-0000-7000-8000-000000000101'::uuid, 'global', NULL, 'read:schedules:business'),
+  ('01920000-0000-7000-8000-000000000102'::uuid, 'global', NULL, 'read:schedules:business'),
+  ('01920000-0000-7000-8000-000000000104'::uuid, 'global', NULL, 'read:schedules:business'),
+  ('01920000-0000-7000-8000-000000000101'::uuid, 'global', NULL, 'manage:schedules:business'),
+  ('01920000-0000-7000-8000-000000000102'::uuid, 'global', NULL, 'manage:schedules:business'),
+  ('01920000-0000-7000-8000-000000000104'::uuid, 'global', NULL, 'manage:schedules:business'),
   ('01920000-0000-7000-8000-000000000101'::uuid, 'global', NULL, 'manage:files:business'),
   ('01920000-0000-7000-8000-000000000102'::uuid, 'global', NULL, 'manage:files:business'),
   ('01920000-0000-7000-8000-000000000104'::uuid, 'global', NULL, 'manage:files:business'),

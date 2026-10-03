@@ -2,12 +2,13 @@
 import type { PermissionOverrideInput } from '@pospay/contracts';
 import { permissionName, t } from '@pospay/i18n';
 import { Label, Select } from '@pospay/ui';
-import { Controller, useFormContext } from 'react-hook-form';
+import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 
 export function PermissionDecisionFields({ catalog }: { catalog: readonly string[] }) {
   const locale = useLocale();
   const { control } = useFormContext<PermissionOverrideInput>();
+  const code = useWatch({ control, name: 'permission_code' });
   return (
     <>
       <Label htmlFor="override-permission">{t(locale, 'permissions.permission')}</Label>
@@ -27,6 +28,9 @@ export function PermissionDecisionFields({ catalog }: { catalog: readonly string
           />
         )}
       />
+      {code === 'read:salaries:business' || code === 'manage:salaries:business' ? (
+        <p className="text-sm text-muted-foreground">{t(locale, 'salary.employeeAccessHint')}</p>
+      ) : null}
       <Label htmlFor="override-effect">{t(locale, 'permissions.effect')}</Label>
       <Controller
         name="effect"

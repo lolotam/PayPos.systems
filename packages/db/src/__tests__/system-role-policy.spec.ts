@@ -27,5 +27,24 @@ it('recognizes fixed global identities only; company aliases and technical Devic
   expect(systemRolePolicy(OWNER_ROLE_ID, 'global')?.code).toBe('owner');
   expect(systemRolePolicy(OWNER_ROLE_ID, 'synthetic-company')).toBeNull();
   expect(systemRolePolicy('synthetic-custom-owner', 'global')).toBeNull();
-  expect(systemRolePolicy(role('device'), 'global')).toBeNull();
+  expect(systemRolePolicy(role('device'), 'global')?.code).toBe('device');
 });
+
+for (const entry of SYSTEM_ROLES) {
+  it.each([
+    'read:salaries:business',
+    'manage:salaries:business',
+    'read:schedules:branch',
+    'manage:schedules:branch',
+    'read:schedules:business',
+    'manage:schedules:business',
+  ])(
+    entry.code + ' delegation eligibility for %s preserves the integrated policy',
+    (permission) => {
+      const allowed = systemRolePolicy(entry.id, 'global')?.permissions.some(
+        (code) => code === permission,
+      );
+      expect(allowed).toBe(entry.code !== 'device' || !permission.includes(':salaries:'));
+    },
+  );
+}

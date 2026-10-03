@@ -230,7 +230,7 @@ it('the migrated existing company retains 3 forbidden ALLOW rows, all ignored wi
     .owner`SELECT * FROM permission_overrides WHERE company_id=${f.company} ORDER BY id`;
   const migration = readFileSync(
     new URL(
-      '../../../../../../packages/db/migrations/0054_2026-10-03_system-role-default-bundles.sql',
+      '../../../../../../packages/db/migrations/0058_2026-10-03_system-role-default-bundles.sql',
       import.meta.url,
     ),
     'utf8',

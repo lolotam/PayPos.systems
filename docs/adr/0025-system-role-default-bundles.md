@@ -51,5 +51,23 @@ No new database table, RLS policy, runtime grant, package dependency or import a
 Existing role permission indexes support reads. Rollback to old code still reads
 the migrated bundles; reverting the policy requires a new reviewed migration.
 Salaries stay in PR 10 with Owner-only defaults and explicit ALLOW for others.
-Unmapped customer-entry/discount-administration cells are TODO(spec), with
-recommendations in slice 019, rather than inferred from sale-time privileges.
+The 2026-10-04 owner decisions settle customer-entry and personal discount-limit
+scopes; their TODO(spec) markers now point to implementation in follow-up PR 7d.
+
+
+## Integration with PR 10 and PR 16 (2026-10-04)
+
+Main migrations 0054–0057 and their snapshots remain authoritative. Regenerate
+this custom reference-data migration as 0058_2026-10-03_system-role-default-bundles.sql.
+Relative to the original custom 0054 SQL, add six catalog/delete-set codes and
+fourteen schedule default grants; all other SQL bytes are unchanged. Salaries
+have zero stored role grants. Only the canonical company Owner derives salary
+defaults at read time; the permissions screen projects those same defaults.
+Every other human system role has optional salary read/manage eligibility;
+Device has neither. Management additionally requires read. Legacy Device salary
+ALLOWs remain auditable but cannot grant access. Custom roles retain PR 7 personal
+override policy, while stored salary role grants cannot confer salary access.
+Schedule defaults remain Owner/General Manager/Business Manager/Branch Manager
+for branch schedules and Owner/General Manager/Business Manager for business
+shift templates. Every off cell retains PR 16's personal delegation eligibility,
+including Device's existing technical policy. No new forbidden schedule cells.

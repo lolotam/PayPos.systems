@@ -1,5 +1,6 @@
 import {
   canonicalOwnerSql,
+  OWNER_DERIVED_PERMISSIONS,
   systemRoleOverrideAllowedSql,
   type Tx,
   type TenantWrappers,
@@ -10,6 +11,11 @@ import type { ScopeType } from '../domain/access.ts';
 import { protectOwnerAccess } from '../domain/owner-access.ts';
 import type { AccessReader, ActiveMembership, SourcedGrant } from '../ports/access-reader.port.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
+
+const SALARY_CODES = sql.join(
+  OWNER_DERIVED_PERMISSIONS.map((p) => sql`${p}`),
+  sql`,`,
+);
 
 const ACTIVE = sql`m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > now())`;
 
@@ -82,6 +88,13 @@ export async function readAccessTransaction(
         FROM memberships m
         JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
+          AND rp.permission_code NOT IN (${SALARY_CODES})
+        UNION ALL
+        SELECT p.code, 'ALLOW', 'role', m.scope_type, m.scope_id
+        FROM memberships m
+        CROSS JOIN permissions p
+        WHERE m.company_id=${companyId} AND m.user_id=${userId} AND ${active} AND ${canonicalOwnerSql('m', companyId)}
+          AND p.code IN (${SALARY_CODES})
         UNION ALL
         SELECT o.permission_code, o.effect, 'override', o.scope_type, o.scope_id
         FROM permission_overrides o

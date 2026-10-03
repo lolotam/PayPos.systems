@@ -19,6 +19,23 @@ afterAll(async () => {
   await owner.end();
   await testDb.drop();
 });
+// توقع مستقل لحزم PR 16؛ بقية المرجع يغطيه اختبار المصفوفة الكاملة.
+function expectedScheduleGrants() {
+  return SYSTEM_ROLES.flatMap((r) => {
+    const codes = [
+      ...(['owner', 'general_manager', 'business_manager', 'branch_manager'].includes(r.code)
+        ? ['read:schedules:branch', 'manage:schedules:branch']
+        : []),
+      ...(['owner', 'general_manager', 'business_manager'].includes(r.code)
+        ? ['read:schedules:business', 'manage:schedules:business']
+        : []),
+    ];
+    return codes.map((permission_code) => ({ role_id: r.id, permission_code }));
+  }).sort(
+    (a, b) =>
+      a.permission_code.localeCompare(b.permission_code) || a.role_id.localeCompare(b.role_id),
+  );
+}
 
 describe('seedReferenceData', () => {
   it('writes one provisional plan with every module flag enabled, and is idempotent', async () => {
@@ -56,6 +73,18 @@ describe('seedReferenceData', () => {
         a.permission_code.localeCompare(b.permission_code) || a.role_id.localeCompare(b.role_id),
     );
     expect(Array.from(actual)).toEqual(expected);
+  });
+
+  it('preserves PR 16 schedule bundles and PR 10 no salary role defaults', async () => {
+    const rows = await owner<
+      { role_id: string; permission_code: string }[]
+    >`SELECT role_id,permission_code FROM role_permissions WHERE role_owner_key='global'
+        AND permission_code LIKE '%:schedules:%' ORDER BY permission_code,role_id`;
+    expect(Array.from(rows)).toEqual(expectedScheduleGrants());
+    expect(
+      await owner`SELECT 1 FROM role_permissions WHERE permission_code IN
+      ('read:salaries:business','manage:salaries:business')`,
+    ).toHaveLength(0);
   });
 
   it('seeds the five provisional platform roles into platform_roles, never into the tenant roles table', async () => {

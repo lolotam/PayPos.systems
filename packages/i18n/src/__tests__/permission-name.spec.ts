@@ -5,6 +5,12 @@ it.each(['ar', 'en'] as const)(
   'labels every scoped permission and the later catalog additions in %s',
   (locale) => {
     for (const code of [
+      'read:salaries:business',
+      'manage:salaries:business',
+      'read:schedules:branch',
+      'manage:schedules:branch',
+      'read:schedules:business',
+      'manage:schedules:business',
       'read:memberships:business',
       'manage:memberships:business',
       'manage:employees:business',

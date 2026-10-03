@@ -140,3 +140,35 @@ it.each(['ar', 'en'] as const)(
     );
   },
 );
+
+it.each(['ar', 'en'] as const)(
+  'shows schedule defaults and delegated salaries separately in %s',
+  (locale) => {
+    state.locale = locale;
+    const codes = [
+      'read:schedules:branch',
+      'manage:schedules:branch',
+      'read:schedules:business',
+      'manage:schedules:business',
+    ];
+    const data = detail(codes);
+    const decision = data.overrides.items[0];
+    if (decision === undefined) throw new Error('Synthetic decision missing');
+    decision.permission_code = 'read:salaries:business';
+    render(
+      <>
+        <PermissionMembershipSummary data={data} timeZone="UTC" />
+        <PermissionOverrides items={data.overrides.items} branchTimeZones={{}} />
+      </>,
+    );
+    const defaults = within(
+      screen.getByText(t(locale, 'permissions.defaults')).closest('section') as HTMLElement,
+    );
+    for (const permission of codes)
+      expect(defaults.getByText(permissionName(locale, permission), { exact: false })).toBeTruthy();
+    expect(defaults.queryByText('read:salaries:business')).toBeNull();
+    expect(
+      screen.getByText(permissionName(locale, 'read:salaries:business'), { exact: false }),
+    ).toBeTruthy();
+  },
+);

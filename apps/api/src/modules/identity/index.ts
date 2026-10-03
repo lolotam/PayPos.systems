@@ -23,3 +23,8 @@ export {
   isWithinLimit,
   validateDiscountLimitBps,
 } from './domain/discount-limit.ts';
+export { scheduleAccess } from './persistence/schedule-access.ts';
+export {
+  lockEmployeeSalaryAccess,
+  readEmployeeSalaryAccess,
+} from './persistence/employee-salary-access.ts';

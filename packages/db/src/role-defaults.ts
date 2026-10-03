@@ -3,8 +3,28 @@ import type { Permission } from './access-catalog.ts';
 const managers = ['owner', 'general_manager', 'business_manager'] as const;
 const settings = managers;
 
+/** الراتب استثناء PR 10: افتراضي المالك مشتق من هويته، ولا يدخل role_permissions أبداً. */
+export const OWNER_DERIVED_PERMISSIONS = [
+  'read:salaries:business',
+  'manage:salaries:business',
+] as const satisfies readonly Permission[];
+
+/** PR 16 أبقى التفويض الشخصي متاحاً للخانات غير الافتراضية في الجدول والقوالب. */
+export const SCHEDULE_PERMISSIONS = [
+  'read:schedules:branch',
+  'manage:schedules:branch',
+  'read:schedules:business',
+  'manage:schedules:business',
+] as const satisfies readonly Permission[];
+
 /** الحزم المرجعية النهائية لكل كود؛ إضافة كود بدون قرار صريح تمنع typecheck بدلاً من منحه تلقائياً. */
 export const ROLE_DEFAULTS = {
+  'read:salaries:business': [],
+  'manage:salaries:business': [],
+  'read:schedules:branch': [...managers, 'branch_manager'],
+  'manage:schedules:branch': [...managers, 'branch_manager'],
+  'read:schedules:business': managers,
+  'manage:schedules:business': managers,
   'read:memberships:company': ['owner'],
   'manage:memberships:company': ['owner'],
   'read:memberships:business': ['owner'],
@@ -30,9 +50,9 @@ export const ROLE_DEFAULTS = {
   'manage:employees:business': managers,
   'manage:files:business': managers,
   'read:files:business': managers,
-  // TODO(spec): مصفوفة البيع لا تحسم إدارة حدود الخصم؛ نوصي بإذن إدارة مستقل داخل النشاط للمدير العام ومدير النشاط.
+  // TODO(spec): PR 7d ينفذ قرار 2026-10-04 بإذن مستقل للحد الشخصي للمالك والمدير العام ومدير النشاط، داخل النشاط ومنع تعديل الذات.
   'manage:discounts:company': ['owner'],
-  // TODO(spec): الاستقبال ليس دوراً مستقلاً والكود على الشركة؛ نوصي بإذن إنشاء داخل النشاط/الفرع للمدير والكاشير.
+  // TODO(spec): PR 7d ينفذ قرار 2026-10-04 بأكواد إنشاء داخل النشاط/الفرع لمدير النشاط ومدير الفرع والكاشير.
   'create:customers:company': ['owner'],
   // ADR-0019 يمنع دخول الموظفين الضمني للمالك والمدير؛ الكاشير يحتاج ALLOW شخصي.
   'login:staff:branch': ['staff'],
