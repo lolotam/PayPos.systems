@@ -21,8 +21,8 @@ export function EmployeeSalarySection({
   const locale = useLocale();
   const [cursor, setCursor] = useState<string>();
   const { history, save } = useSalaries(companyId, businessId, userId, employeeId, cursor);
-  // إعادة التحقق الخادم تحجب القسم فور رفض القراءة حتى لو بقيت نسخة قديمة في cache.
-  if (!history.data || history.isError) return null;
+  // بيانات cache لا تثبت الصلاحية لهذا الفتح؛ ننتظر قراءة ناجحة بعد تركيب القسم.
+  if (!history.isFetchedAfterMount || !history.data || history.isError) return null;
   return (
     <section aria-label={t(locale, 'salary.title')} className="flex flex-col gap-4">
       <h3 className="font-bold">{t(locale, 'salary.title')}</h3>

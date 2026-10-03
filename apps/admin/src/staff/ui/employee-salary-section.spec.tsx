@@ -19,6 +19,7 @@ vi.mock('../api/use-salaries', () => ({
           ? { items: [], next_cursor: '2026-01-01', can_manage: state.manage }
           : undefined,
         isError: state.denied,
+        isFetchedAfterMount: true,
       },
       save: { isPending: false, isError: false, isSuccess: false, mutate: vi.fn() },
     };

@@ -18,6 +18,8 @@ export const en = {
       'Enter a valid date, a nonnegative KWD amount with 3 decimals and a reason (1–500 characters).',
     readPermission: 'Read salary history',
     managePermission: 'Set salary',
+    employeeAccessHint:
+      'Salaries are managed from the employee screen and also require employee-management access.',
   },
   shell: {
     navigation: 'Workspace navigation',

@@ -49,6 +49,7 @@ export function EmployeeEditPanel({
       ) : null}
       {save.isError ? <p role="alert">{envelopeMessage(save.error, locale)}</p> : null}
       {save.isSuccess ? <p role="status">{t(locale, 'staff.saved')}</p> : null}
+      {/* TODO(spec) SS-Q2: الوصول هنا يتطلب manage:employees:business؛ مدخل مستقل لمفوّض الرواتب ينتظر قرار المالك. */}
       {record.data && !record.isError ? (
         <EmployeeSalarySection {...{ companyId, businessId: business.id, userId, employeeId }} />
       ) : null}

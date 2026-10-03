@@ -12,8 +12,8 @@
 - SS-05: concurrent writers serialize under company → ordered memberships → employee locks. Both revisions/events commit in order; duplicate request keys replay without another revision; changed request/key returns 422.
 - SS-06: read: salaries are owner-only by default or explicit personal ALLOW. read:salaries:business and manage:salaries:business have no role bundles. DENY wins; role grants to nonowners cannot grant salaries.
 - SS-07: persisted primary and all open branch attachments are authorised. Missing/deleted/foreign/inaccessible employee and unreadable salary history return identical NOT_FOUND. Feature checks occur after access.
-- SS-08: bounded history uses descending effective_from cursor and returns current per-date revisions. Admin edit panel renders salary section only after a permitted read, with bilingual history, date, KWD 3-decimal amount and reason form.
-- SS-09: technical logs redact salary containers and all amount fields, including nested audit/event objects; database audit retains amounts.
+- SS-08: bounded history uses descending effective_from cursor and returns current per-date revisions. Every admin editor opening refetches salary history with staleTime 0; cached history cannot display amounts or the form until a fresh successful read for that opening. Closing the editor or a 403/404 removes its salary history cache. The permitted section offers bilingual history, date, KWD 3-decimal amount and reason form.
+- SS-09: technical logs redact salary containers and all amount fields, including nested audit/event objects. Reasons are redacted only in salary-shaped objects (amount/mills or effective_from), preserving unrelated capability diagnostics. Database audit retains amounts and reasons through unchanged redactSecrets behavior.
 
 ## Slice design
 
@@ -43,11 +43,22 @@ handles closed-period corrections and converges by revision in later PRs; staff 
 Domain amount/reason/date/revision bounds; strict contract tests. Integration replacements, concurrent revisions/event
 sequence, rollback, replay/mismatch, grant/deny/expiry/feature/privacy HTTP envelopes. RLS cross-tenant read/write/update,
 foreign employee references and no DELETE/rehome grants. History result shape, cursor and EXPLAIN ANALYZE index.
-Admin bilingual form/history/access/refresh tests; logger nested amounts versus preserved audit snapshots.
+Admin bilingual form/history/access/refresh tests, including cached reopen pending fresh authorization,
+revoked 403/404 cache eviction and close cleanup; bilingual salary-permission access hints.
+Logger salary/event/audit amounts and reasons versus preserved capability diagnostics and audit snapshots.
 pnpm check with FORCE_COLOR unset; touched app builds; production API/worker optional-empty smoke.
 
 ## Open questions for the owner
 
 SS-Q1: a manage-only personal grant without read must not reveal salary existence. Pending explicit policy,
 require both read and manage for writes (TODO(spec) in salary access). Recommendation: grant both for salary editors.
+
+SS-Q2: the current salary section is inside the employee edit panel. A salary-only delegate without
+manage:employees:business cannot reach it: employee list/detail authorization remains unchanged.
+The permissions screen explains that salary editing currently also requires employee-management access.
+Should salary-only delegates receive a separate entry point with limited employee visibility?
+Recommendation: decide the minimum employee identity visible to salary delegates, then implement a
+dedicated salary entry point in a later slice; do not implicitly widen employee visibility or grant employee
+management in this PR. TODO(spec) at the employee-panel salary gate records this limitation.
+
 No npm dependency added.

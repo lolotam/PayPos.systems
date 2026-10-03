@@ -27,3 +27,37 @@ it('redacts standalone/nested salary amounts and reasons but retains financial a
   expect(written).not.toContain('765.432');
   expect(written).not.toContain('765432');
 });
+
+it('preserves capability failure reasons outside salary-shaped objects', () => {
+  const diagnostic = {
+    capability: { name: 'TENANT_WHATSAPP', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' },
+    emailStartup: { state: 'UNAVAILABLE', reason: 'NOT_CONFIGURED' },
+    otpStartup: { state: 'UNAVAILABLE', reason: 'SETUP_FAILED' },
+  };
+  expect(sanitize(diagnostic)).toMatchObject({
+    capability: diagnostic.capability,
+    emailStartup: diagnostic.emailStartup,
+    otpStartup: diagnostic.otpStartup,
+  });
+});
+
+it('redacts SalaryChanged-like records and nested audit reasons without changing stored audit', () => {
+  const entry = { effective_from: '2026-10-03', amount: '765.432', reason: 'Synthetic correction' };
+  const event = { type: 'SalaryChanged', ...entry, revision: 2 };
+  const audit = { before: entry, after: [{ ...entry, amount: 765432n }] };
+  const hidden = { effective_from: entry.effective_from, amount: REDACTED, reason: REDACTED };
+  expect(sanitize({ event, audit, salaries: [entry], salary: { reason: entry.reason } })).toEqual({
+    event: { type: 'SalaryChanged', ...hidden, revision: 2 },
+    audit: { before: hidden, after: [hidden] },
+    salaries: REDACTED,
+    salary: REDACTED,
+  });
+  expect(sanitize({ effective_from: entry.effective_from, reason: entry.reason })).toEqual({
+    effective_from: entry.effective_from,
+    reason: REDACTED,
+  });
+  expect(redactSecrets({ event, audit })).toEqual({
+    event,
+    audit: { before: entry, after: [{ ...entry, amount: '765432' }] },
+  });
+});

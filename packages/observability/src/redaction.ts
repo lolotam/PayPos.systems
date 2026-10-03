@@ -55,7 +55,7 @@ const STRUCTURAL_KEYS = new Set([
 ]);
 const PHONE_SUFFIXES = ['phone', 'phones', 'phonenumber', 'phonenumbers', 'mobile', 'mobiles'];
 // المبلغ قد يأتي داخل before/after أو سجل مستقل؛ حجب المبالغ يحمي الراتب دون تخمين سياقه.
-const SALARY_SUFFIXES = ['salary', 'salaries', 'amount', 'amounts', 'mills', 'reason'];
+const SALARY_SUFFIXES = ['salary', 'salaries', 'amount', 'amounts', 'mills'];
 // Notification/source payloads and provider bodies never belong in technical diagnostics (ADR-0018 §3).
 const PRIVATE_PAYLOAD_KEYS = new Set([
   'payload',
@@ -161,6 +161,10 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
     if (depth >= MAX_DEPTH) return '[Truncated]';
     seen.add(node);
     if (Array.isArray(node)) return node.map((item) => walk(item, depth + 1));
+    // سبب تعطل خدمة مطلوب للتشخيص؛ سبب الراتب يُحجب فقط مع حقول سياقه المالي.
+    const salaryShaped = Object.keys(node).some(
+      (key) => endsWithAny(key, SALARY_SUFFIXES) || normalizeKey(key) === 'effectivefrom',
+    );
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(node)) {
       if (typeof child === 'function') continue;
@@ -170,6 +174,7 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
         (maskPhones &&
           (isEmailKey(key) ||
             endsWithAny(key, SALARY_SUFFIXES) ||
+            (salaryShaped && endsWithAny(key, ['reason'])) ||
             PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
       )
         out[key] = REDACTED;
