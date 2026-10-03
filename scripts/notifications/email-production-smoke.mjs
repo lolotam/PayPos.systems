@@ -7,12 +7,15 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 process.loadEnvFile(new URL('../../.env', import.meta.url));
-// الثلاث روابط لازم تشاور على نفس قاعدة البيانات، أياً كان اسمها على الجهاز ده.
-const databases = ['DATABASE_URL', 'AUTH_DATABASE_URL', 'MIGRATION_DATABASE_URL'].map(
-  (name) => new URL(process.env[name] ?? '').pathname,
-);
+// الثلاث روابط لازم تشاور على نفس السيرفر ونفس قاعدة البيانات (الاسم صريح)، والأدوار بس هي اللي بتختلف.
+const targets = ['DATABASE_URL', 'AUTH_DATABASE_URL', 'MIGRATION_DATABASE_URL'].map((name) => {
+  const url = new URL(process.env[name] ?? '');
+  const database = decodeURIComponent(url.pathname.slice(1));
+  assert.ok(database.length > 0 && !database.includes('/'), `${name}: DATABASE_NAME_REQUIRED`);
+  return `${url.hostname}:${url.port || '5432'}/${database}`;
+});
 assert.ok(
-  databases.every((path) => path === databases[0]),
+  targets.every((target) => target === targets[0]),
   'DATABASE_URL_MISMATCH',
 );
 const env = { ...process.env, NODE_ENV: 'production', LOG_LEVEL: 'info' };
