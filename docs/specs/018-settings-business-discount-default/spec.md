@@ -1,7 +1,7 @@
 # Feature Specification: Business default discount limit
 
 **Created**: 2026-10-03
-**Status**: Implemented; review round 1 concurrency corrections and owner decisions recorded.
+**Status**: Implemented; review and confirm round concurrency corrections and owner decisions recorded.
 **Input**: Phase 1 PR 7c, dependent on PR 7b.
 
 Sources: Phase 1 SPEC §§2–4, plan row 7c, PRD D-56/D-44,
@@ -51,6 +51,8 @@ its own business only. The read capability does not grant authority to discount.
 - FR-006: expose resolution through settings/index.ts for PR 35, inside its tenant transaction.
   Compatible SHARE locks in company -> membership -> settings order hold both limits stable
   before reading scope/personal metadata, preventing mixed READ COMMITTED results.
+  Sample one fresh clock_timestamp() after all read-lock waits and use that same time for
+  target-membership and owner-holder eligibility; transaction-start now() cannot extend membership validity.
 - FR-007: reuse PR 7b validation/reader and person-based active owner protection.
 - FR-008: admin field belongs in permissions screen header for selected business (no settings screen exists).
 
@@ -100,6 +102,8 @@ identity's membership query does not join tenancy business/branch tables.
 - Real Postgres/HTTP: BD-01..09, rollback, concurrent edits, restricted-role RLS negatives.
 - Regression races: grant expiry during a generic PATCH settings-row wait; personal null -> 0
   and default 0 -> 10000 interleaving must never yield BUSINESS/10000 from mixed reads.
+- Read-lock expiry races: an owner membership ending during the company-lock wait cannot
+  yield UNLIMITED; an expired target cannot receive a personal or business limit.
 - Query result shapes and EXPLAIN index checks for new/modified reads.
 - UI: selected business, save/clear, exact percentage, invalid values/reason, ar/en feedback.
 - pnpm check with FORCE_COLOR unset; API, admin and regenerated POS client builds.

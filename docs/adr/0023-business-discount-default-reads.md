@@ -27,6 +27,11 @@ in that order precede metadata reads and remain held until the consumer commits.
 keeps personal/default values consistent under READ COMMITTED without cross-context SQL
 joins or changing the consumer's isolation level. Company locks also serialize normal
 discount/owner configuration commands; membership/settings locks protect direct row writes.
+After all read-lock waits, the subject adapter samples one fresh clock_timestamp() and
+passes it to identity for both target and owner-holder eligibility. The SQL timestamp
+is passed as text to preserve Postgres precision; transaction-start now() cannot keep
+an expired membership active while the reader waits. The standalone PR 7b personal
+reader retains its existing transaction-time semantics.
 Reads bypass cached settings for transaction consistency.
 An active owner holder is unlimited; otherwise person -> business -> NOT_CONFIGURED.
 Owner decision 2026-10-03: the last state stays visible; PR 35 enforces it as 0%, with

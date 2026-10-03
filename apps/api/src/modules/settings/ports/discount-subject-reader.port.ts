@@ -9,7 +9,7 @@ export interface DiscountSubjectReader {
    */
   lock(membershipId: string): Promise<boolean>;
   /**
-   * بيعيد حد العضوية المتاحة في النشاط وصفة المالك لحل الحد بدون اختراع صلاحية.
+   * بيعيد حد العضوية وصفة المالك بوقت حالي واحد بعد أقفال الشركة والعضوية والإعدادات؛ الانتظار لا يمد الأهلية.
    *
    * @param membershipId العضوية المطلوبة
    * @param businessId النشاط المطلوب
