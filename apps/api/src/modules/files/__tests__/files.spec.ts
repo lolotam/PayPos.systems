@@ -87,7 +87,17 @@ it('rejects a lying MIME and does not permit confirmation by another user', asyn
   expect(
     (await h.send('POST', `/v1/files/${ticket.id}/confirm`, { cookie: readerCookie, company }))
       .status,
-  ).toBe(403);
+  ).toBe(404);
+  const inaccessible = await h.send('POST', `/v1/files/${ticket.id}/confirm`, {
+    cookie: readerCookie,
+    company,
+  });
+  const unknown = await h.send('POST', `/v1/files/${ids.newId()}/confirm`, {
+    cookie: readerCookie,
+    company,
+  });
+  expect(inaccessible.status).toBe(unknown.status);
+  expect(inaccessible.body).toEqual(unknown.body);
   await verifier.execute(company, ticket.id);
   const response = await h.send('GET', `/v1/files/${ticket.id}`, { cookie, company });
   expect(response.body).toMatchObject({

@@ -27,7 +27,8 @@ export class ConfirmUpload {
         file.branchId,
       ))
     )
-      throw new FileError('FORBIDDEN');
+      // ملف موجود مش مسموح لك بيه لازم يبان زي ملف مش موجود، عشان محدش يعرف وجود ملفات غيره.
+      throw new FileError('FILE_NOT_FOUND');
     if (file.status === 'REJECTED') throw new FileError('FILE_NOT_READY');
     if (!(await this.repository.confirm(actor, id, this.clock.now())))
       throw new FileError('FILE_NOT_FOUND');

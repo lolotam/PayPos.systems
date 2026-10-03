@@ -107,7 +107,7 @@ it('the uploader also retains its branch scope for metadata, confirmation and an
     VALUES (${company},${deny},${member?.['id']},'manage:files:business','DENY','BRANCH',${branch},'Synthetic management deny',${member?.['user_id']})`;
   expect((await h.send('GET', `/v1/files/${ticket.id}`, { cookie, company })).status).toBe(404);
   expect((await h.send('POST', `/v1/files/${ticket.id}/confirm`, { cookie, company })).status).toBe(
-    403,
+    404,
   );
   expect(
     (
