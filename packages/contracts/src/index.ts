@@ -232,3 +232,21 @@ export * from './staff/passkeys.js';
 export * from './staff/clock-attendance.js';
 export * from './staff/unbind-passkey.js';
 export * from './staff/employee-documents.js';
+export {
+  employeeImportColumn,
+  employeeImportErrorCode,
+  employeeImportRowError,
+  employeeImportTemplate,
+  previewEmployeeImportInput,
+  employeeImportPreview,
+  commitEmployeeImportInput,
+  employeeImportCommit,
+  type EmployeeImportColumn,
+  type EmployeeImportErrorCode,
+  type EmployeeImportRowError,
+  type PreviewEmployeeImportInput,
+  type EmployeeImportPreview,
+  type EmployeeImportTemplate,
+  type CommitEmployeeImportInput,
+  type EmployeeImportCommit,
+} from './staff/employee-import.js';

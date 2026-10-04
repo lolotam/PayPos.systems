@@ -1,10 +1,11 @@
 /** سياسة أنواع وحدود حجم مقيدة بقرار المالك. */
 export type UploadPolicy = Readonly<Record<string, number>>;
-/** owner decision 2026-10-03: الأنواع الثلاثة فقط، 10 MiB لكل منها. */
+// الأنواع الأصلية (PDF/JPEG/PNG) من قرار 2026-10-03، وأضاف ADR-0032 نوع XLSX لاستيراد الموظفين بحد 10 MiB.
 export const FILE_UPLOAD_POLICY: UploadPolicy = Object.freeze({
   'application/pdf': 10 * 1024 * 1024,
   'image/jpeg': 10 * 1024 * 1024,
   'image/png': 10 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 10 * 1024 * 1024,
 });
 /** أسباب رفض محتوى آمنة وقابلة للترجمة. */
 export type FileFailure = 'FILE_TYPE_INVALID' | 'FILE_SIZE_INVALID' | 'FILE_CONTENT_INVALID';

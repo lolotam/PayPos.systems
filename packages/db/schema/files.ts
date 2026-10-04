@@ -77,7 +77,7 @@ export const fileObjects = pgTable(
     check('file_objects_size', sql`${t.sizeBytes} BETWEEN 1 AND 10485760`),
     check(
       'file_objects_type',
-      sql`${t.contentType} IN ('application/pdf','image/jpeg','image/png')`,
+      sql`${t.contentType} IN ('application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')`,
     ),
     check('file_objects_state', sql`${t.status} IN ('PENDING','VERIFYING','READY','REJECTED')`),
     check('file_objects_ready_key', sql`(${t.status} = 'READY') = (${t.storageKey} IS NOT NULL)`),

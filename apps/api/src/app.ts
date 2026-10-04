@@ -133,7 +133,12 @@ class AppModule {
         ...customersProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp),
-        ...staffProviders(deps.database, deps.redis, deps.auth?.service.passkeys ?? null),
+        ...staffProviders(
+          deps.database,
+          deps.redis,
+          deps.auth?.service.passkeys ?? null,
+          deps.files?.storage ?? null,
+        ),
         ...filesProviders(deps.database, deps.ids ?? systemUuidV7(), deps.files),
       ],
     };

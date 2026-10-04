@@ -1,4 +1,5 @@
 import { attendanceAr } from './attendance-ar.js';
+import { employeeImportAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
 import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
@@ -220,6 +221,16 @@ export const ar: Catalog = {
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
+    IMPORT_FILE_NOT_FOUND: 'ملف الاستيراد غير موجود.',
+    IMPORT_FILE_NOT_READY: 'ملف الاستيراد لم يجتز التحقق بعد.',
+    IMPORT_FILE_TYPE_INVALID: 'نوع ملف الاستيراد يجب أن يكون Excel بصيغة xlsx.',
+    IMPORT_FILE_SIZE_INVALID: 'حجم ملف الاستيراد يتجاوز 2 ميجابايت.',
+    IMPORT_HEADER_INVALID: 'عناوين أعمدة الملف غير مطابقة للقالب.',
+    IMPORT_ROW_LIMIT_EXCEEDED: 'عدد صفوف الاستيراد يتجاوز 500 صف.',
+    IMPORT_PREVIEW_NOT_FOUND: 'معاينة الاستيراد غير موجودة.',
+    IMPORT_PREVIEW_EXPIRED: 'انتهت صلاحية معاينة الاستيراد (24 ساعة).',
+    IMPORT_PREVIEW_USED: 'تم استخدام معاينة الاستيراد بالفعل.',
+    IMPORT_PREVIEW_HAS_ERRORS: 'لا يمكن الحفظ لوجود أخطاء في المعاينة.',
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
@@ -375,4 +386,5 @@ export const ar: Catalog = {
     unexpected: 'حدث خطأ. حاول مرة أخرى.',
     networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
   },
+  employeeImport: employeeImportAr,
 };

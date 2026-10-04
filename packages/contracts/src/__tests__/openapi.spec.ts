@@ -141,6 +141,14 @@ const expectedSchemas = [
   'WorkspaceBranch',
   'WorkspaceBusiness',
   'WorkspaceCompany',
+  'CommitEmployeeImportInput',
+  'EmployeeImportColumn',
+  'EmployeeImportCommit',
+  'EmployeeImportErrorCode',
+  'EmployeeImportPreview',
+  'EmployeeImportRowError',
+  'EmployeeImportTemplate',
+  'PreviewEmployeeImportInput',
 ].sort();
 
 describe('openapi/openapi.json', () => {

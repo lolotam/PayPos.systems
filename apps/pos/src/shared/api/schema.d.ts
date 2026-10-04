@@ -91,6 +91,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bilingual employee import template for one business. Requires manage:employees:business and the staff feature; unknown and inaccessible businesses share the same refusal. */
+        get: operations["employeeImportTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/import/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Parses a READY uploaded workbook (first sheet, English headers), validates every row with the create-employee rules and writes no employee. Unknown, cross-tenant or cross-business files all answer IMPORT_FILE_NOT_FOUND (404). */
+        post: operations["previewEmployeeImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/import/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Commits a zero-error, unexpired, unused preview: all employees, attachments, audits and events in one transaction; re-validates branches under lock. Requires Idempotency-Key. */
+        post: operations["commitEmployeeImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff/personal-otp/request": {
         parameters: {
             query?: never;
@@ -1957,7 +2008,7 @@ export interface components {
             /** Format: uuid */
             branch_id?: string;
             /** @enum {string} */
-            content_type: "application/pdf" | "image/jpeg" | "image/png";
+            content_type: "application/pdf" | "image/jpeg" | "image/png" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
             size_bytes: number;
             required_permission: string;
         };
@@ -2031,6 +2082,42 @@ export interface components {
         EmployeeRoleCode: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
         /** Format: date */
         EmployeeDate: string;
+        /** @enum {string} */
+        EmployeeImportColumn: "name_en" | "name_ar" | "role_code" | "hire_date" | "contract_end" | "primary_branch";
+        /** @enum {string} */
+        EmployeeImportErrorCode: "IMPORT_REQUIRED_CELL" | "IMPORT_NAME_INVALID" | "IMPORT_ROLE_INVALID" | "IMPORT_DATE_INVALID" | "IMPORT_CELL_INVALID" | "IMPORT_BRANCH_NOT_FOUND" | "IMPORT_CONTRACT_END_BEFORE_HIRE";
+        EmployeeImportRowError: {
+            row: number;
+            column: components["schemas"]["EmployeeImportColumn"];
+            code: components["schemas"]["EmployeeImportErrorCode"];
+        };
+        EmployeeImportTemplate: {
+            file_name: string;
+            /** @enum {string} */
+            content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            content_base64: string;
+        };
+        PreviewEmployeeImportInput: {
+            /** Format: uuid */
+            file_id: string;
+        };
+        EmployeeImportPreview: {
+            /** Format: uuid */
+            preview_id: string;
+            row_count: number;
+            error_count: number;
+            errors: components["schemas"]["EmployeeImportRowError"][];
+        };
+        CommitEmployeeImportInput: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        EmployeeImportCommit: {
+            /** Format: uuid */
+            preview_id: string;
+            created_count: number;
+            employee_ids: string[];
+        };
         Customer: {
             /** Format: uuid */
             id: string;
@@ -2683,6 +2770,240 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeImportTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template workbook */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeImportTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    previewEmployeeImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewEmployeeImportInput"];
+            };
+        };
+        responses: {
+            /** @description Preview with per-row errors */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeImportPreview"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    commitEmployeeImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommitEmployeeImportInput"];
+            };
+        };
+        responses: {
+            /** @description Commit summary */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeImportCommit"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
             default: {
                 headers: {
                     [name: string]: unknown;

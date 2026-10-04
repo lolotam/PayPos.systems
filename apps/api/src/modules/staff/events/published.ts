@@ -79,3 +79,26 @@ export interface EmployeeDocumentRecorded {
   readonly replaced_document_id: string | null;
   readonly recorded_at: string;
 }
+
+/** يصدر لكل موظف أنشأه استيراد ناجح داخل نفس معاملة الالتزام، بلا أي حقل مالي أو اعتماد. */
+export interface EmployeeImported {
+  readonly employee_id: string;
+  readonly business_id: string;
+  readonly primary_branch_id: string;
+  readonly name_en: string;
+  readonly name_ar: string | null;
+  readonly role_code: string;
+  readonly hire_date: string;
+  readonly contract_end: string | null;
+  readonly created_at: string;
+}
+
+/** يصدر مرة واحدة بعد نجاح استيراد، ويلخّص المعاينة والموظفين المنشأين دون صفوفها. */
+export interface ImportCommitted {
+  readonly preview_id: string;
+  readonly business_id: string;
+  readonly entity: string;
+  readonly created_count: number;
+  readonly employee_ids: readonly string[];
+  readonly committed_at: string;
+}

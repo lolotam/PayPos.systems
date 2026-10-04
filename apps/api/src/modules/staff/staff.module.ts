@@ -65,6 +65,7 @@ import type { Redis } from 'ioredis';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { AttendanceQrController } from './http/attendance-qr.controller.ts';
 import { EmployeesController } from './http/employees.controller.ts';
+import { EmployeeImportController } from './http/employee-import.controller.ts';
 import { EmployeeDetailGuard } from './http/employee-detail.guard.ts';
 import { createEmployeeDetailAccess } from './persistence/employee-detail-access.adapter.ts';
 import { EMPLOYEE_DETAIL_ACCESS } from './queries/employee-detail.query.ts';
@@ -72,6 +73,15 @@ import { createEmployeeTransactions } from './persistence/drizzle-employee-trans
 import { CreateEmployeeUseCase } from './use-cases/create-employee/create-employee.usecase.ts';
 import { UpdateEmployeeUseCase } from './use-cases/update-employee/update-employee.usecase.ts';
 import { createEmployeeUpdateTransactions } from './persistence/drizzle-employee-update.ts';
+import { createEmployeeImportTransactions } from './persistence/drizzle-employee-import.ts';
+import {
+  createImportSheetReader,
+  createImportTemplateBuilder,
+  createObjectBytesReader,
+} from './persistence/import-adapters.ts';
+import { PreviewEmployeeImportUseCase } from './use-cases/preview-employee-import/preview-employee-import.usecase.ts';
+import { CommitEmployeeImportUseCase } from './use-cases/commit-employee-import/commit-employee-import.usecase.ts';
+import { GetEmployeeImportTemplateUseCase } from './use-cases/get-employee-import-template/get-employee-import-template.usecase.ts';
 import { hmacAttendanceQr } from './persistence/hmac-attendance-qr.ts';
 import { createRedisAttendanceQrSecrets } from './persistence/redis-attendance-qr-secrets.ts';
 import { createAttendanceBranchReader } from './persistence/tenancy-attendance-branch.adapter.ts';
@@ -94,6 +104,7 @@ export const staffControllers = [
   EmployeeSalariesController,
   DocumentTypesController,
   EmployeeDocumentsController,
+  EmployeeImportController,
 ];
 
 function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
@@ -217,6 +228,7 @@ export function staffProviders(
   database?: TenantWrappers,
   redis?: Redis,
   passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null = null,
+  importStorage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null = null,
 ): Provider[] {
   const ids = systemUuidV7();
   const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
@@ -268,6 +280,44 @@ export function staffProviders(
         branches === null || secrets === null
           ? null
           : new VerifyAttendanceQr(branches, secrets, hmacAttendanceQr, systemClock),
+    },
+    ...employeeImportProviders(database, ids, importStorage),
+  ];
+}
+
+function employeeImportProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  importStorage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null,
+): Provider[] {
+  const transactions = database === undefined ? null : createEmployeeImportTransactions(database, ids);
+  return [
+    {
+      provide: GetEmployeeImportTemplateUseCase,
+      useValue:
+        transactions === null
+          ? null
+          : new GetEmployeeImportTemplateUseCase(transactions, createImportTemplateBuilder()),
+    },
+    {
+      provide: PreviewEmployeeImportUseCase,
+      useValue:
+        transactions === null || importStorage === null
+          ? null
+          : new PreviewEmployeeImportUseCase(
+              transactions,
+              createObjectBytesReader(importStorage),
+              createImportSheetReader(),
+              ids,
+              systemClock,
+            ),
+    },
+    {
+      provide: CommitEmployeeImportUseCase,
+      useValue:
+        transactions === null
+          ? null
+          : new CommitEmployeeImportUseCase(transactions, ids, systemClock),
     },
   ];
 }

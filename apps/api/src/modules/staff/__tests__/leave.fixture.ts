@@ -20,6 +20,10 @@ export async function leaveFixture() {
   const role = SYSTEM_ROLES.find((r) => r.code === 'business_manager');
   await f.h
     .owner`UPDATE memberships SET role_id=${role?.id as string},role_owner_key='global',scope_type='BUSINESS',scope_id=${f.business},starts_at='2026-01-01T00:00:00Z' WHERE company_id=${f.company} AND id=${f.memberId}`;
+  // عضوية المالك تُنشأ بـ defaultNow، والساعة المثبتة في الاختبار 2026-10-04T10:00Z؛ نرجّع بدايتها للخلف
+  // حتى لا يعتمد نجاح الاختبار على ساعة الحائط (فشل خارج النطاق، لا علاقة له بالاستيراد).
+  await f.h
+    .owner`UPDATE memberships SET starts_at='2026-01-01T00:00:00Z' WHERE company_id=${f.company} AND user_id<>${f.userId}`;
   const secondBranch = leaveIds.newId();
   await f.h
     .owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.company},${secondBranch},${f.business},'Synthetic leave branch')`;

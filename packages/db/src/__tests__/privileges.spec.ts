@@ -7,6 +7,7 @@ import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
 import { SCHEDULE_COLUMN_GRANTS } from '../../test/schedule-grants.ts';
 import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
 import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
+import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -70,6 +71,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'idempotency_keys:INSERT',
     'idempotency_keys:SELECT',
     'idempotency_keys:UPDATE',
+    'import_previews:INSERT',
+    'import_previews:SELECT',
     'in_app_notifications:INSERT',
     'in_app_notifications:SELECT',
     'in_app_notifications:UPDATE',
@@ -161,6 +164,7 @@ const TENANT_TABLES = [
   'file_objects',
   'file_access_audit',
   'file_cleanup_objects',
+  'import_previews',
   'employees',
   'employee_branches',
   'employee_passkeys',
@@ -256,6 +260,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...SCHEDULE_COLUMN_GRANTS,
         ...PASSKEY_COLUMN_GRANTS,
         ...DOCUMENT_COLUMN_GRANTS,
+        ...IMPORT_COLUMN_GRANTS,
       ].sort(),
     );
   });

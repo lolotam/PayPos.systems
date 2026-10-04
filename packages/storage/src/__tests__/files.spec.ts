@@ -72,7 +72,7 @@ describe('generated keys and explicit upload policy', () => {
   });
 });
 
-it('owner decision 2026-10-03 enables exactly PDF/JPEG/PNG at 10 MiB without a policy setting', () => {
+it('owner decision 2026-10-03 + ADR-0032 enable exactly PDF/JPEG/PNG/XLSX at 10 MiB without a policy setting', () => {
   const config = readStorageConfiguration({
     STORAGE_ENDPOINT: 'https://storage.synthetic.invalid',
     STORAGE_BUCKET: 'private',
@@ -80,7 +80,12 @@ it('owner decision 2026-10-03 enables exactly PDF/JPEG/PNG at 10 MiB without a p
     STORAGE_SECRET_ACCESS_KEY: 'synthetic-secret',
   });
   expect(config?.policy).toEqual(FILE_UPLOAD_POLICY);
-  for (const type of ['application/pdf', 'image/jpeg', 'image/png']) {
+  for (const type of [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ]) {
     expect(validateUpload(FILE_UPLOAD_POLICY, type, 10 * 1024 * 1024)).toBe(10 * 1024 * 1024);
     expect(() => validateUpload(FILE_UPLOAD_POLICY, type, 10 * 1024 * 1024 + 1)).toThrow(
       'FILE_SIZE_INVALID',

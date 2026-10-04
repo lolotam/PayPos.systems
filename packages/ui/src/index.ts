@@ -16,6 +16,7 @@ export {
   LogOut,
   KeyRound,
   Languages,
+  Upload,
 } from 'lucide-react';
 export { BrandMark, type BrandMarkProps } from './brand-mark.js';
 export { BrandWordmark, type BrandWordmarkProps } from './brand-wordmark.js';

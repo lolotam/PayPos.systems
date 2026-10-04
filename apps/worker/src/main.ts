@@ -104,6 +104,9 @@ const KNOWN_EVENT_TYPES = [
   'EmployeePasskeyUnbound',
   // PR 13: لا مستهلك بعد؛ job الانتهاء في PR 15 يقرأ التاريخ من الجدول مباشرة.
   'EmployeeDocumentRecorded',
+  // PR 11: لا مستهلك بعد؛ سجل الاستيراد التدقيق والأحداث في نفس المعاملة ولا يحتاج إعادة محاولة (ADR-0032).
+  'EmployeeImported',
+  'ImportCommitted',
   ...(notifications?.eventTypes ?? []),
   ...(inApp?.eventTypes ?? []),
   'FileUploadRequested',
