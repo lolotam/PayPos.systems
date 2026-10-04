@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { clockChallenge, clockAttendanceResult } from '@pospay/contracts';
-import { attendanceFixture, type AttendanceFixture } from './clock-attendance.fixture.ts';
+import {
+  attendanceFixture,
+  SYNTHETIC_INSTALLATION,
+  type AttendanceFixture,
+} from './clock-attendance.fixture.ts';
 import { personalOrigin } from '../../../../test/personal-staff.fixture.ts';
 let f: AttendanceFixture;
 beforeAll(async () => {
@@ -23,6 +27,7 @@ it('personal camera scan challenge + real UV assertion returns 200 and replays t
   expect(challenge.options.userVerification).toBe('required');
   const payload = {
     ...scan,
+    installation_id: SYNTHETIC_INSTALLATION,
     challenge_id: challenge.challenge_id,
     response: f.device.assertion(challenge.options.challenge, personalOrigin, 'localhost'),
   };
@@ -75,6 +80,7 @@ it('rejects extra employee selectors, missing Idempotency-Key and inaccessible b
   });
   const payload = {
     ...f.scan(),
+    installation_id: SYNTHETIC_INSTALLATION,
     challenge_id: generated.json().challenge_id,
     response: f.device.assertion(generated.json().options.challenge, personalOrigin, 'localhost'),
   };
@@ -146,6 +152,7 @@ it('an unavailable QR secret store is NOT_READY (503) on both routes, like the P
       headers: { ...f.headers, 'idempotency-key': f.ids.newId() },
       payload: {
         ...scan,
+        installation_id: SYNTHETIC_INSTALLATION,
         challenge_id: challenge.challenge_id,
         response: f.device.assertion(challenge.options.challenge, personalOrigin, 'localhost'),
       },

@@ -3,6 +3,7 @@ import { assertStaffAttendance } from '@pospay/auth/client';
 import type { ClockChallengeInput } from '@pospay/contracts';
 import { apiOrigin } from '@/shared/api/origin';
 import type { paths } from '@/shared/api/schema';
+import { attendanceInstallationId } from '../model/installation-id';
 
 const client = () =>
   createClient<paths>({ baseUrl: apiOrigin(), credentials: 'include', cache: 'no-store' });
@@ -22,6 +23,7 @@ export const attendanceCalls = {
     if (signal?.aborted || !navigator.onLine) throw new Error('ATTENDANCE_CANCELLED');
     const body = {
       ...bodyScan,
+      installation_id: attendanceInstallationId(),
       challenge_id: generated.data.challenge_id,
       response: {
         id: raw.id,

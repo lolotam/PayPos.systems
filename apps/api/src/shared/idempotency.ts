@@ -16,6 +16,17 @@ export interface IdempotencyInput {
 
 const KEY = /^[!-~]{1,255}$/;
 
+interface IdempotencyOptions {
+  readonly omitBodyFields?: readonly string[];
+}
+
+function fingerprintBody(body: unknown, fields: readonly string[]): unknown {
+  if (fields.length === 0 || body === null || typeof body !== 'object' || Array.isArray(body))
+    return body;
+  // الاستبعاد صريح لكل مسار ولحقول سطحية فقط؛ لا نغير جسم الطلب المستخدم في التحقق والتنفيذ.
+  return Object.fromEntries(Object.entries(body).filter(([field]) => !fields.includes(field)));
+}
+
 // Object keys sorted at every level: {"a":1,"b":2} and {"b":2,"a":1} are one request. Arrays keep their
 // order, because order is part of what a client sends.
 function canonicalJson(value: unknown): string {
@@ -64,9 +75,10 @@ export function requestFingerprint(request: {
 /**
  * Reads and validates the `Idempotency-Key` header of a money- or stock-affecting endpoint
  * (CLAUDE.md §6). A missing or malformed key is a 400 before any work starts.
+ * Route options may omit explicit top-level advisory fields; the default fingerprints the entire body.
  */
 export const Idempotency = createParamDecorator(
-  (_data: unknown, context: ExecutionContext): IdempotencyInput => {
+  (options: IdempotencyOptions | undefined, context: ExecutionContext): IdempotencyInput => {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
     const key = request.headers['idempotency-key'];
     if (typeof key !== 'string' || !KEY.test(key)) {
@@ -79,7 +91,7 @@ export const Idempotency = createParamDecorator(
         route: request.routeOptions.url ?? request.url,
         params: request.params,
         query: request.query,
-        body: request.body,
+        body: fingerprintBody(request.body, options?.omitBodyFields ?? []),
       }),
     };
   },
