@@ -18,6 +18,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'appendAuditLog',
       'appendAuditLogs',
       'appendOutboxEvent',
+      'canonicalJson',
       'canonicalOwnerSql',
       'createAuthDatabase',
       'createDatabase',

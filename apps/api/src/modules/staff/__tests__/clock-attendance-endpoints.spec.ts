@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { clockChallenge, clockAttendanceResult } from '@pospay/contracts';
 import { attendanceFixture, type AttendanceFixture } from './clock-attendance.fixture.ts';
 import { personalOrigin } from '../../../../test/personal-staff.fixture.ts';
@@ -121,4 +121,40 @@ it('an admin, kiosk or device session cannot use personal clock routes', async (
       })
     ).statusCode,
   ).toBe(401);
+});
+it('an unavailable QR secret store is NOT_READY (503) on both routes, like the PR 19 QR route', async () => {
+  f.setNow(new Date());
+  const scan = f.scan();
+  const generated = await f.app.inject({
+    method: 'POST',
+    url: `${url}/challenge`,
+    headers: f.headers,
+    payload: scan,
+  });
+  const challenge = clockChallenge.parse(generated.json());
+  const down = vi.spyOn(f.redis, 'get').mockRejectedValue(new Error('SYNTHETIC_REDIS_DOWN'));
+  try {
+    const refused = await f.app.inject({
+      method: 'POST',
+      url: `${url}/challenge`,
+      headers: f.headers,
+      payload: scan,
+    });
+    const clock = await f.app.inject({
+      method: 'POST',
+      url: `${url}/clock`,
+      headers: { ...f.headers, 'idempotency-key': f.ids.newId() },
+      payload: {
+        ...scan,
+        challenge_id: challenge.challenge_id,
+        response: f.device.assertion(challenge.options.challenge, personalOrigin, 'localhost'),
+      },
+    });
+    for (const response of [refused, clock]) {
+      expect(response.statusCode).toBe(503);
+      expect(response.json().code).toBe('NOT_READY');
+    }
+  } finally {
+    down.mockRestore();
+  }
 });

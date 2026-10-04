@@ -16,6 +16,7 @@ import {
   ClockAttendance,
   AttendanceError,
 } from '../use-cases/clock-attendance/clock-attendance.ts';
+import { AttendanceQrUnavailableError } from '../use-cases/issue-attendance-qr/issue-attendance-qr.ts';
 import { RequestClockChallenge } from '../use-cases/request-clock-challenge/request-clock-challenge.ts';
 
 @Controller('staff/attendance')
@@ -37,8 +38,7 @@ export class ClockAttendanceController {
     try {
       return await this.challenges.execute(scopeOf(request), input);
     } catch (error) {
-      if (error instanceof AttendanceError) throw new ApiError(error.code);
-      throw error;
+      throw attendanceFailure(error);
     }
   }
   @Post('clock')
@@ -56,10 +56,14 @@ export class ClockAttendanceController {
     try {
       return await this.clock.execute(scopeOf(request), input, idem);
     } catch (error) {
-      if (error instanceof AttendanceError) throw new ApiError(error.code);
-      throw error;
+      throw attendanceFailure(error);
     }
   }
+}
+function attendanceFailure(error: unknown): unknown {
+  if (error instanceof AttendanceError) return new ApiError(error.code);
+  if (error instanceof AttendanceQrUnavailableError) return new ApiError('NOT_READY');
+  return error;
 }
 function scopeOf(request: FastifyRequest) {
   const session = request.personalSession;

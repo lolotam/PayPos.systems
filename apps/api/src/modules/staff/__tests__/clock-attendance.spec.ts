@@ -4,6 +4,7 @@ import { attendanceFixture, type AttendanceFixture } from './clock-attendance.fi
 import { ClockAttendance } from '../use-cases/clock-attendance/clock-attendance.ts';
 import { IdempotencyKeyReusedError } from '@pospay/db';
 import { attendanceWorkingDate } from '../domain/clock-attendance.ts';
+import { ATTENDANCE_TRANSACTION_TIMEOUT_MS } from '../persistence/attendance-transactions.ts';
 
 let f: AttendanceFixture;
 beforeAll(async () => {
@@ -166,7 +167,7 @@ it('uses one sampled clock instant, including membership and QR verification', a
   });
 });
 
-it('the real QR verifier uses the locked branch without another tenant transaction', async () => {
+it('the real QR verifier uses the locked branch without another tenant transaction, bounded by the write timeout', async () => {
   const tenant = vi.spyOn(f.database, 'withTenant');
   try {
     const command = await f.prepare();
@@ -174,6 +175,10 @@ it('the real QR verifier uses the locked branch without another tenant transacti
     tenant.mockClear();
     await command.execute();
     expect(tenant).toHaveBeenCalledTimes(1);
+    expect(tenant).toHaveBeenCalledWith(f.companyId, expect.any(Function), {
+      userId: f.userId,
+      timeoutMs: ATTENDANCE_TRANSACTION_TIMEOUT_MS,
+    });
   } finally {
     tenant.mockRestore();
   }

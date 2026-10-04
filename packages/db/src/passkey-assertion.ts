@@ -1,5 +1,7 @@
 import type { Sql } from 'postgres';
 
+import { canonicalJson } from './canonical-json.ts';
+
 /** مادة الاعتماد تبقى داخل واجهة الهوية وتحت قفل عدادها. */
 export interface AssertionCredential {
   readonly credentialId: string;
@@ -25,7 +27,7 @@ export function assertionConsumer(client: Sql) {
       await tx`DELETE FROM verification WHERE id=${row.id}`;
       if (!row.valid) return false;
       const stored = assertionValue(row.value);
-      if (stored === null || stored.scope !== input.scope) return false;
+      if (stored === null || !sameScope(stored.scope, input.scope)) return false;
       const [credential] = await tx<
         { credential_id: string; public_key: string; counter: string; transports: string | null }[]
       >`
@@ -75,5 +77,14 @@ function assertionValue(value: string): { scope: string; challenge: string } | n
     return { scope: parsed.scope, challenge: parsed.challenge };
   } catch {
     return null;
+  }
+}
+
+// النطاق يتقارن بمحتواه مش بترتيب مفاتيحه؛ نص مش JSON صالح بيرفض والتحدي بيفضل مصروف.
+function sameScope(stored: string, presented: string): boolean {
+  try {
+    return canonicalJson(JSON.parse(stored)) === canonicalJson(JSON.parse(presented));
+  } catch {
+    return false;
   }
 }

@@ -97,3 +97,27 @@ it('board and monthly report access paths have usable tenant-leading indexes', a
     expect(JSON.stringify(exceptions)).toContain('attendance_exceptions_board_idx');
   });
 });
+
+it('an employee created by the application role gets its attendance State from the trigger', async () => {
+  const employee = f.ids.newId();
+  await f.database.withTenant(
+    f.companyId,
+    (tx) =>
+      tx.execute(sql`
+    INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
+    VALUES(${f.companyId},${employee},${f.businessId},${f.branchId},'Synthetic hire','staff','2026-10-04')`),
+    { userId: f.userId },
+  );
+  expect(
+    await f.owner`SELECT company_id,id,business_id,employee_id,last_accepted_scan_at FROM attendance_states
+      WHERE employee_id=${employee}`,
+  ).toEqual([
+    {
+      company_id: f.companyId,
+      id: employee,
+      business_id: f.businessId,
+      employee_id: employee,
+      last_accepted_scan_at: null,
+    },
+  ]);
+});

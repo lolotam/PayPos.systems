@@ -9,6 +9,9 @@ import type { ClockResult } from '../domain/clock-attendance.ts';
 import { lockAttendanceState, lockedAttendanceContext } from './attendance-context.adapter.ts';
 import { persistAttendance } from './attendance-writes.ts';
 
+// أقفال State والهوية والربط تبقى مفتوحة عبر تحقق WebAuthn على pool منفصل؛ نفس حد كتابات الـ worker.
+export const ATTENDANCE_TRANSACTION_TIMEOUT_MS = 10_000;
+
 export function createAttendanceTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
@@ -64,7 +67,7 @@ export function createAttendanceTransactions(
             at,
           );
         },
-        { userId: scope.userId },
+        { userId: scope.userId, timeoutMs: ATTENDANCE_TRANSACTION_TIMEOUT_MS },
       ),
   };
 }

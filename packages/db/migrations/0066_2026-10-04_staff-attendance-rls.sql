@@ -36,6 +36,18 @@ CREATE POLICY attendance_clock_challenges_insert ON attendance_clock_challenges 
 --> statement-breakpoint
 GRANT SELECT, INSERT ON attendance_clock_challenges TO pospay_app;
 --> statement-breakpoint
+-- الـ backfill بيقرا employees وهي تحت FORCE RLS؛ role من غير superuser أو BYPASSRLS هيشوف صفر صفوف
+-- وكل موظف موجود هيفضل من غير State فيرجع NOT_FOUND للأبد، فنوقف الـ migration بدل ما تنجح ناقصة.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = current_user AND (rolsuper OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'attendance_states backfill needs a superuser or BYPASSRLS migration role; % would read no employees under FORCE RLS', current_user
+      USING ERRCODE = '42501';
+  END IF;
+END $$;
+--> statement-breakpoint
 INSERT INTO attendance_states(company_id,id,business_id,employee_id) SELECT company_id,id,business_id,id FROM employees;
 --> statement-breakpoint
 CREATE FUNCTION initialize_attendance_state() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,public AS $$

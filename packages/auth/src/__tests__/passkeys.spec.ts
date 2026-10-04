@@ -221,6 +221,42 @@ it('excludes active bindings only; inert, unbound and foreign-user credentials s
   expect((await auth.passkeys.enrollmentOptions(scope)).options.excludeCredentials).toEqual([]);
 });
 
+it('the frozen attendance scope compares by content, not by object key order', async () => {
+  const device = testAuthenticator(true);
+  const generated = await auth.passkeys.enrollmentOptions(scope);
+  const passkeyId = present(
+    await auth.passkeys.enroll(
+      scope,
+      generated.challengeId,
+      device.registration(generated.options.challenge, origin, 'pospay.systems'),
+    ),
+  );
+  const clockScope: AttendanceScope = {
+    ...scope,
+    passkeyId,
+    bindingId: ids.newId(),
+    bindingRevision: 1,
+    branchId: ids.newId(),
+    operation: 'CLOCK_IN',
+    qrContext: ids.newId(),
+  };
+  const reversed = (value: AttendanceScope) =>
+    Object.fromEntries(Object.entries(value).reverse()) as AttendanceScope;
+  const prove = async (verifyScope: AttendanceScope) => {
+    const clock = await auth.passkeys.attendanceOptions(clockScope);
+    return auth.passkeys.verifyAttendance(
+      verifyScope,
+      clock.challengeId,
+      device.assertion(clock.options.challenge, origin, 'pospay.systems', true, 0),
+    );
+  };
+  const proof = present(await prove(reversed(clockScope)));
+  expect(proof.consume(reversed(clockScope))).toBe(true);
+  expect(await prove(reversed({ ...clockScope, operation: 'CLOCK_OUT' }))).toBeNull();
+  const changed = present(await prove(reversed(clockScope)));
+  expect(changed.consume(reversed({ ...clockScope, bindingRevision: 2 }))).toBe(false);
+});
+
 async function rejectedAssertions(
   clockScope: AttendanceScope,
   device: ReturnType<typeof testAuthenticator>,

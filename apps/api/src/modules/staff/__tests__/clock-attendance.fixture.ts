@@ -42,6 +42,7 @@ export async function attendanceFixture(): Promise<
   const ceremony = attendanceCeremony(f, scope, device, secret);
   return {
     ...f,
+    redis,
     scope,
     bindingId,
     device,
@@ -120,6 +121,7 @@ async function prepareAttendance(
 }
 export type AttendanceFixture = Awaited<ReturnType<typeof attendanceFixture>>;
 interface AttendanceFixtureExtensions {
+  redis: Redis;
   scope: {
     userId: string;
     sessionId: string;

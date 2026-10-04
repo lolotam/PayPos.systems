@@ -4,7 +4,7 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
-import type { AuthDatabase } from '@pospay/db';
+import { canonicalJson, type AuthDatabase } from '@pospay/db';
 import type { buildBetterAuth } from './config.ts';
 import type { passkeyPolicy } from './passkey-policy.ts';
 
@@ -172,7 +172,7 @@ async function attendanceOptions(options: Options, scope: AttendanceScope) {
   const challengeId = await store(
     options,
     'staff-clock',
-    { scope: JSON.stringify(scope), challenge: generated.challenge },
+    { scope: canonicalJson(scope), challenge: generated.challenge },
     120,
   );
   return { challengeId, options: generated };
@@ -184,7 +184,7 @@ async function verifyAttendance(
   challengeId: string,
   response: AttendanceResponse,
 ): Promise<AttendanceProof | null> {
-  const frozenScope = JSON.stringify(scope);
+  const frozenScope = canonicalJson(scope);
   const accepted = await options.database.consumeAssertion({
     identifier: `staff-clock:${challengeId}`,
     userId: scope.userId,
@@ -214,7 +214,16 @@ async function verifyAttendance(
     consume: (current) => {
       if (used || options.now() >= accepted) return false;
       used = true;
-      return JSON.stringify(current) === frozenScope;
+      return sameScope(current, frozenScope);
     },
   };
+}
+
+// ترتيب مفاتيح الـ object مش جزء من النطاق؛ أي قيمة مش JSON بترفض بدل ما ترمي بعد صرف الدليل.
+function sameScope(current: AttendanceScope, frozenScope: string): boolean {
+  try {
+    return canonicalJson(current) === frozenScope;
+  } catch {
+    return false;
+  }
 }
