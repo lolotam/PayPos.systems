@@ -1,5 +1,4 @@
 import type { UnbindPasskeyInput, UnboundPasskey } from '@pospay/contracts';
-import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import { planPasskeyUnbind } from '../../domain/unbind-passkey.ts';
 import type {
   ManagerPasskeyScope,
@@ -8,15 +7,12 @@ import type {
 
 /** يفك المدير ربط الموظف تحت الأقفال؛ لا يحذف الاعتماد العالمي. */
 export class UnbindPasskeyUseCase {
-  constructor(
-    private readonly transactions: UnbindPasskeyTransactions,
-    private readonly clock: Clock,
-  ) {}
+  constructor(private readonly transactions: UnbindPasskeyTransactions) {}
   async execute(scope: ManagerPasskeyScope, input: UnbindPasskeyInput): Promise<UnboundPasskey> {
     return this.transactions.run(scope, async (transaction) => {
       const change = {
         ...planPasskeyUnbind(transaction.binding, input, transaction.ownBinding),
-        at: this.clock.now(),
+        at: transaction.now,
       };
       await transaction.save(change);
       return {

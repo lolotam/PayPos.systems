@@ -127,7 +127,7 @@ it('rollback preserves the binding and publishes neither audit nor outbox', asyn
     f.ids,
     { now: () => new Date() },
   );
-  const useCase = new UnbindPasskeyUseCase(transactions, { now: () => new Date() });
+  const useCase = new UnbindPasskeyUseCase(transactions);
   const input = {
     binding_id: String(binding?.['id']),
     revision: Number(binding?.['revision']),

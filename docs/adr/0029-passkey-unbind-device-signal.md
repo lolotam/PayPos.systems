@@ -11,6 +11,7 @@ pools. Web apps cannot prove physical-device identity. PR 22 owns accepted clock
 ## Decision
 
 Lock company, ordered memberships, employee, then active binding, matching enrollment.
+Passkey reads/guards share one injected Clock decision instant per check; unbind samples it after all locks and reuses it for branch attachments, membership/permission expiry, feature-override expiry and the unbind timestamp.
 Recheck live scope after lock waits; only then enforce self prohibition and binding
 id/revision. Current attachments end at their exclusive end date in each branch's
 timezone from the injected clock; future-dated detaches and future-starting attachments
