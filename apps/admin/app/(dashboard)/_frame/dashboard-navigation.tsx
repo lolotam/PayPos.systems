@@ -1,6 +1,14 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { AppSidebarGroup, AppSidebarItem, House, ShieldCheck, UserRound, Clock3 } from '@pospay/ui';
+import {
+  AppSidebarGroup,
+  AppSidebarItem,
+  House,
+  Inbox,
+  ShieldCheck,
+  UserRound,
+  Clock3,
+} from '@pospay/ui';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -10,6 +18,14 @@ export function DashboardNavigation() {
   const pathname = usePathname();
   return (
     <AppSidebarGroup>
+      <AppSidebarItem
+        asChild
+        icon={<Inbox />}
+        label={t(locale, 'leave.inbox')}
+        active={pathname === '/leave'}
+      >
+        <Link href="/leave" />
+      </AppSidebarItem>
       <AppSidebarItem
         asChild
         icon={<Clock3 />}

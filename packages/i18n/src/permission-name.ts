@@ -9,6 +9,8 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'create:leave:branch': 'leave.createBranch',
   'read:leave:branch': 'leave.readBranch',
   'cancel:leave:branch': 'leave.cancelBranch',
+  'decide:leave:branch': 'leave.decideBranch',
+  'revoke:leave:branch': 'leave.revokeBranch',
   'read:salaries:business': 'salary.readPermission',
   'manage:salaries:business': 'salary.managePermission',
   'read:schedules:branch': 'permissionCodes.readSchedulesBranch',

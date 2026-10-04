@@ -58,6 +58,8 @@ export async function readLeaveAccess(
     read: branches('read'),
     create: branches('create'),
     cancel: branches('cancel'),
+    decide: suffix === 'branch' ? branches('decide') : [],
+    revoke: suffix === 'branch' ? branches('revoke') : [],
     featureEnabled: await readFeatureEnabled(tx, companyId, 'staff', now),
   };
 }

@@ -70,8 +70,16 @@ export function cancelPendingLeave(
  * @returns لقطة آمنة للتدقيق والأحداث
  */
 export function leaveSnapshot(record: LeaveRecord) {
-  const { note: _note, rejection_reason: _reason, ...snapshot } = record;
+  const {
+    note: _note,
+    rejection_reason: _reason,
+    decision_reason: _decision,
+    revocation_reason: _revocation,
+    ...snapshot
+  } = record;
   void _note;
   void _reason;
+  void _decision;
+  void _revocation;
   return snapshot;
 }

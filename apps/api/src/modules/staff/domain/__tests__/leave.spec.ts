@@ -26,6 +26,10 @@ const record: LeaveRecord = {
   decided_by: null,
   decided_at: null,
   rejection_reason: null,
+  decision_reason: null,
+  revoked_by: null,
+  revoked_at: null,
+  revocation_reason: null,
   revision: 1,
 };
 describe('leave periods', () => {

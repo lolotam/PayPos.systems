@@ -73,6 +73,9 @@ export function createLeaveReadAccess(clock: LeaveClock) {
             business.branches.some((b) => b.id === id && b.is_active) &&
             (employee?.attachments.some((a) => a.branch_id === id) ?? true),
         ),
+        decideBranches: c.own ? [] : [...access.decide],
+        revokeBranches: c.own ? [] : [...access.revoke],
+        now,
         featureEnabled: access.featureEnabled,
       };
     },

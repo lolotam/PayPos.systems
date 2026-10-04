@@ -1,5 +1,5 @@
 import { Controller, Get, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
-import { id, leaveListQuery, type LeaveListQuery } from '@pospay/contracts';
+import { id, leaveInboxQuery, type LeaveInboxQuery } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -24,7 +24,7 @@ export class LeaveInboxController {
   @UseGuards(SelectedCompanyGuard)
   async list(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
-    @Query(new ZodValidationPipe(leaveListQuery)) query: LeaveListQuery,
+    @Query(new ZodValidationPipe(leaveInboxQuery)) query: LeaveInboxQuery,
     @Req() req: FastifyRequest,
   ) {
     if (!this.database) throw new ApiError('NOT_READY');
