@@ -1739,6 +1739,561 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests": {
+      "get": {
+        "operationId": "employeeLeaveHistory",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LeavePage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavePage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "requestEmployeeLeave",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestEmployeeLeaveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "LeaveRequest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/cancel": {
+      "post": {
+        "operationId": "cancelEmployeeLeave",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "leaveId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelLeaveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "LeaveRequest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/leave-requests": {
+      "get": {
+        "operationId": "pendingLeaveInbox",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LeavePage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavePage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staff/me/leave-requests": {
+      "get": {
+        "operationId": "ownLeaveHistory",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required with kiosk staff cookie; forbidden with a personal staff cookie."
+          },
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured POS origin."
+          },
+          {
+            "in": "query",
+            "name": "branch_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Required for personal sessions; kiosk sessions use their paired branch."
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LeavePage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeavePage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalStaffSession": []
+          },
+          {
+            "KioskStaffSession": [],
+            "DeviceToken": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "requestOwnLeave",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required with kiosk staff cookie; forbidden with a personal staff cookie."
+          },
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured POS origin."
+          },
+          {
+            "in": "query",
+            "name": "branch_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Required for personal sessions; kiosk sessions use their paired branch."
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestLeaveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "LeaveRequest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalStaffSession": []
+          },
+          {
+            "KioskStaffSession": [],
+            "DeviceToken": []
+          }
+        ]
+      }
+    },
+    "/v1/staff/me/leave-requests/{leaveId}/cancel": {
+      "post": {
+        "operationId": "cancelOwnLeave",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required with kiosk staff cookie; forbidden with a personal staff cookie."
+          },
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Exact configured POS origin."
+          },
+          {
+            "in": "query",
+            "name": "branch_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Required for personal sessions; kiosk sessions use their paired branch."
+          },
+          {
+            "in": "path",
+            "name": "leaveId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelLeaveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "LeaveRequest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "PersonalStaffSession": []
+          },
+          {
+            "KioskStaffSession": [],
+            "DeviceToken": []
+          }
+        ]
+      }
+    },
     "/v1/permissions/memberships/{membershipId}/discount-limit": {
       "post": {
         "operationId": "setMembershipDiscountLimit",
@@ -3350,6 +3905,606 @@
   },
   "components": {
     "schemas": {
+      "RequestLeaveInput": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ANNUAL",
+                  "SICK",
+                  "UNPAID",
+                  "OTHER"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "FULL_DAY"
+                ]
+              },
+              "from": {
+                "$ref": "#/components/schemas/EmployeeDate"
+              },
+              "to": {
+                "description": "Inclusive end date; full-day requests span at most 90 civil days.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmployeeDate"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "kind",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ANNUAL",
+                  "SICK",
+                  "UNPAID",
+                  "OTHER"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "PARTIAL"
+                ]
+              },
+              "date": {
+                "$ref": "#/components/schemas/EmployeeDate"
+              },
+              "start": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": ":(?:00|15|30|45)$"
+                  }
+                ]
+              },
+              "end": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": ":(?:00|15|30|45)$"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "kind",
+              "date",
+              "start",
+              "end"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "RequestEmployeeLeaveInput": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ANNUAL",
+                  "SICK",
+                  "UNPAID",
+                  "OTHER"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "FULL_DAY"
+                ]
+              },
+              "from": {
+                "$ref": "#/components/schemas/EmployeeDate"
+              },
+              "to": {
+                "description": "Inclusive end date; full-day requests span at most 90 civil days.",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmployeeDate"
+                  }
+                ]
+              },
+              "branch_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            "required": [
+              "type",
+              "kind",
+              "from",
+              "to",
+              "branch_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ANNUAL",
+                  "SICK",
+                  "UNPAID",
+                  "OTHER"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "PARTIAL"
+                ]
+              },
+              "date": {
+                "$ref": "#/components/schemas/EmployeeDate"
+              },
+              "start": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": ":(?:00|15|30|45)$"
+                  }
+                ]
+              },
+              "end": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": ":(?:00|15|30|45)$"
+                  }
+                ]
+              },
+              "branch_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            "required": [
+              "type",
+              "kind",
+              "date",
+              "start",
+              "end",
+              "branch_id"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "CancelLeaveInput": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "LeaveRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "FULL_DAY",
+              "PARTIAL"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/EmployeeDate"
+          },
+          "to": {
+            "$ref": "#/components/schemas/EmployeeDate"
+          },
+          "start": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "end": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "timezone": {
+            "$ref": "#/components/schemas/TimeZone"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "ANNUAL",
+              "SICK",
+              "UNPAID",
+              "OTHER"
+            ]
+          },
+          "note": {
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED",
+              "CANCELLED"
+            ]
+          },
+          "requested_by": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "cancelled_by": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "cancelled_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "decided_by": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "decided_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "rejection_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "business_id",
+          "branch_id",
+          "employee_id",
+          "kind",
+          "from",
+          "to",
+          "start",
+          "end",
+          "timezone",
+          "starts_at",
+          "ends_at",
+          "type",
+          "note",
+          "status",
+          "requested_by",
+          "requested_at",
+          "cancelled_by",
+          "cancelled_at",
+          "decided_by",
+          "decided_at",
+          "rejection_reason",
+          "revision"
+        ]
+      },
+      "LeaveListQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "LeaveListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "FULL_DAY",
+              "PARTIAL"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/EmployeeDate"
+          },
+          "to": {
+            "$ref": "#/components/schemas/EmployeeDate"
+          },
+          "start": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "end": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "timezone": {
+            "$ref": "#/components/schemas/TimeZone"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "ANNUAL",
+              "SICK",
+              "UNPAID",
+              "OTHER"
+            ]
+          },
+          "note": {
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED",
+              "CANCELLED"
+            ]
+          },
+          "requested_by": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "cancelled_by": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "cancelled_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "decided_by": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "decided_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "rejection_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "can_cancel": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "business_id",
+          "branch_id",
+          "employee_id",
+          "kind",
+          "from",
+          "to",
+          "start",
+          "end",
+          "timezone",
+          "starts_at",
+          "ends_at",
+          "type",
+          "note",
+          "status",
+          "requested_by",
+          "requested_at",
+          "cancelled_by",
+          "cancelled_at",
+          "decided_by",
+          "decided_at",
+          "rejection_reason",
+          "revision",
+          "can_cancel"
+        ]
+      },
+      "LeavePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeaveListItem"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "request_branch_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "request_branch_ids"
+        ]
+      },
       "PersonalOtpRequestInput": {
         "type": "object",
         "properties": {
@@ -4791,7 +5946,7 @@
         "properties": {
           "permission_code": {
             "type": "string",
-            "pattern": "^[a-z][a-z-]*:[a-z][a-z-]*:(company|business|branch)$"
+            "pattern": "^[a-z][a-z-]*:[a-z][a-z-]*:(company|business|branch|own)$"
           },
           "effect": {
             "type": "string",
@@ -4840,7 +5995,7 @@
         "properties": {
           "permission_code": {
             "type": "string",
-            "pattern": "^[a-z][a-z-]*:[a-z][a-z-]*:(company|business|branch)$"
+            "pattern": "^[a-z][a-z-]*:[a-z][a-z-]*:(company|business|branch|own)$"
           },
           "effect": {
             "type": "string",
@@ -7786,6 +8941,18 @@
       }
     },
     "securitySchemes": {
+      "PersonalStaffSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "pospay-personal.session_token",
+        "description": "LIMITED STAFF_PERSONAL purpose; own routes only."
+      },
+      "KioskStaffSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "pospay-staff.session_token",
+        "description": "STAFF_POS purpose; requires the paired Device credential."
+      },
       "DeviceToken": {
         "type": "apiKey",
         "in": "header",

@@ -9,6 +9,15 @@ import { EnrolPasskey } from './use-cases/enrol-passkey/enrol-passkey.ts';
 import { createPasskeyTransactions } from './persistence/passkey-transactions.ts';
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import { EmployeeLeaveController } from './http/employee-leave.controller.ts';
+import { OwnLeaveController } from './http/own-leave.controller.ts';
+import { LeaveInboxController } from './http/leave-inbox.controller.ts';
+import { createLeaveTransactions } from './persistence/drizzle-leave-transactions.ts';
+import { createLeaveReadAccess } from './persistence/leave-read-access.adapter.ts';
+import { LEAVE_READ_ACCESS } from './queries/leave-requests.query.ts';
+import { RequestLeaveUseCase } from './use-cases/request-leave/request-leave.usecase.ts';
+import { CancelLeaveUseCase } from './use-cases/cancel-leave/cancel-leave.usecase.ts';
+import { StaffLeaveGuard } from './http/staff-leave.guard.ts';
 import { SchedulesController } from './http/schedules.controller.ts';
 import { ShiftTemplatesController } from './http/shift-templates.controller.ts';
 import { createScheduleTransactions } from './persistence/drizzle-schedules.ts';
@@ -44,6 +53,9 @@ import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attenda
 import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
 
 export const staffControllers = [
+  EmployeeLeaveController,
+  OwnLeaveController,
+  LeaveInboxController,
   AttendanceQrController,
   PasskeysController,
   MyScheduleController,
@@ -84,6 +96,21 @@ function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerato
     },
   ];
 }
+function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
+  const tx = database === undefined ? null : createLeaveTransactions(database, ids);
+  return [
+    StaffLeaveGuard,
+    { provide: LEAVE_READ_ACCESS, useValue: createLeaveReadAccess(systemClock) },
+    {
+      provide: RequestLeaveUseCase,
+      useValue: tx === null ? null : new RequestLeaveUseCase(tx, ids, systemClock),
+    },
+    {
+      provide: CancelLeaveUseCase,
+      useValue: tx === null ? null : new CancelLeaveUseCase(tx, systemClock),
+    },
+  ];
+}
 
 function salaryProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   return [
@@ -116,6 +143,7 @@ export function staffProviders(
           : new EnrolPasskey(passkeys, createPasskeyTransactions(database, ids), ids, systemClock),
     },
     ...scheduleProviders(database, ids),
+    ...leaveProviders(database, ids),
     ...salaryProviders(database, ids),
     {
       provide: UpdateEmployeeUseCase,

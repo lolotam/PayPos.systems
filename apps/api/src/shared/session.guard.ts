@@ -62,7 +62,14 @@ export class SessionGuard implements CanActivate {
     if (isPublic === true) return true;
     const http = context.switchToHttp();
     const request = http.getRequest<FastifyRequest>();
-    if (this.#reflector.get<boolean>(PERSONAL_ROUTE, context.getHandler()) === true)
+    const personalPolicy = this.#reflector.get<boolean | 'staff'>(
+      PERSONAL_ROUTE,
+      context.getHandler(),
+    );
+    if (
+      personalPolicy === true ||
+      (personalPolicy === 'staff' && request.headers.authorization === undefined)
+    )
       return personalSessionRequest(request, this.personal);
     // The scheme is case-insensitive (RFC 9110 §11.1): `device <token>` must never fall back to a cookie session.
     const authorization = request.headers.authorization ?? '';

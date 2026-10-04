@@ -74,10 +74,11 @@ function expectedDefaults() {
 }
 
 async function applyReferenceMigrations() {
-  // التوقع الحالي يجمع قراري 0058 و0059؛ إعادة القديم وحده تلغي افتراضي المدير العام الأحدث.
+  // التوقع الحالي يجمع كل حزم الأدوار؛ إعادة القديم وحده تفقد منح الإجازة والمتابعة.
   const migrations = [
     '0058_2026-10-03_system-role-default-bundles.sql',
     '0059_2026-10-03_identity-role-followups.sql',
+    '0064_2026-10-04_leave-default-bundles.sql',
   ].map((name) =>
     readFileSync(
       new URL(`../../../../../../packages/db/migrations/${name}`, import.meta.url),
@@ -116,6 +117,8 @@ it.each(SYSTEM_ROLES.filter((r) => r.code !== 'device'))(
         (code === 'owner' && (OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(permission));
       const expected =
         defaultAllowed &&
+        // الـ guard العام لا يثبت ملكية الموظف؛ الذات تمر من مسار الجلسة المتخصص فقط.
+        suffix !== 'own' &&
         (suffix !== 'company' || scope === 'COMPANY') &&
         (suffix !== 'business' || scope !== 'BRANCH');
       expect(own !== null, `${code} ${permission}`).toBe(expected);
@@ -129,7 +132,7 @@ it.each(SYSTEM_ROLES.filter((r) => r.code !== 'device'))(
             : { branchParam: otherBranch }),
         });
         expect(elsewhere !== null, `${code} ${permission} other scope`).toBe(
-          defaultAllowed && scope === 'COMPANY',
+          defaultAllowed && suffix !== 'own' && scope === 'COMPANY',
         );
       }
     }

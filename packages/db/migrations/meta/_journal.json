@@ -435,6 +435,27 @@
       "when": 1791080462586,
       "tag": "0061_2026-10-04_staff-passkey-grants",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1791082590889,
+      "tag": "0062_2026-10-04_staff-leave-requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1791082604185,
+      "tag": "0063_2026-10-04_staff-leave-requests-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791082605722,
+      "tag": "0064_2026-10-04_leave-default-bundles",
+      "breakpoints": true
     }
   ]
 }

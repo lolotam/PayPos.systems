@@ -394,6 +394,86 @@ export interface paths {
         patch: operations["updateEmployee"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["employeeLeaveHistory"];
+        put?: never;
+        post: operations["requestEmployeeLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelEmployeeLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/leave-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pendingLeaveInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/me/leave-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ownLeaveHistory"];
+        put?: never;
+        post: operations["requestOwnLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/me/leave-requests/{leaveId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelOwnLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/permissions/memberships/{membershipId}/discount-limit": {
         parameters: {
             query?: never;
@@ -899,6 +979,144 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        RequestLeaveInput: {
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note?: string;
+            /** @enum {string} */
+            kind: "FULL_DAY";
+            from: components["schemas"]["EmployeeDate"];
+            /** @description Inclusive end date; full-day requests span at most 90 civil days. */
+            to: components["schemas"]["EmployeeDate"];
+        } | {
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note?: string;
+            /** @enum {string} */
+            kind: "PARTIAL";
+            date: components["schemas"]["EmployeeDate"];
+            start: string & (string);
+            end: string & (string);
+        };
+        RequestEmployeeLeaveInput: {
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note?: string;
+            /** @enum {string} */
+            kind: "FULL_DAY";
+            from: components["schemas"]["EmployeeDate"];
+            /** @description Inclusive end date; full-day requests span at most 90 civil days. */
+            to: components["schemas"]["EmployeeDate"];
+            /** Format: uuid */
+            branch_id: string;
+        } | {
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note?: string;
+            /** @enum {string} */
+            kind: "PARTIAL";
+            date: components["schemas"]["EmployeeDate"];
+            start: string & (string);
+            end: string & (string);
+            /** Format: uuid */
+            branch_id: string;
+        };
+        CancelLeaveInput: {
+            expected_revision: number;
+        };
+        LeaveRequest: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** @enum {string} */
+            kind: "FULL_DAY" | "PARTIAL";
+            from: components["schemas"]["EmployeeDate"];
+            to: components["schemas"]["EmployeeDate"];
+            start: string | null;
+            end: string | null;
+            timezone: components["schemas"]["TimeZone"];
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            /** Format: uuid */
+            decided_by: string | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            rejection_reason: string | null;
+            revision: number;
+        };
+        LeaveListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        LeaveListItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** @enum {string} */
+            kind: "FULL_DAY" | "PARTIAL";
+            from: components["schemas"]["EmployeeDate"];
+            to: components["schemas"]["EmployeeDate"];
+            start: string | null;
+            end: string | null;
+            timezone: components["schemas"]["TimeZone"];
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            /** Format: uuid */
+            decided_by: string | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            rejection_reason: string | null;
+            revision: number;
+            can_cancel: boolean;
+        };
+        LeavePage: {
+            items: components["schemas"]["LeaveListItem"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+            request_branch_ids: string[];
+        };
         PersonalOtpRequestInput: {
             phone: string;
             /** @enum {string} */
@@ -2933,6 +3151,283 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeLeaveHistory: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LeavePage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeavePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestEmployeeLeave: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestEmployeeLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelEmployeeLeave: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+                leaveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    pendingLeaveInbox: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LeavePage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeavePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    ownLeaveHistory: {
+        parameters: {
+            query?: {
+                /** @description Required for personal sessions; kiosk sessions use their paired branch. */
+                branch_id?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                /** @description Required with kiosk staff cookie; forbidden with a personal staff cookie. */
+                Authorization?: string;
+                /** @description Exact configured POS origin. */
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LeavePage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeavePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestOwnLeave: {
+        parameters: {
+            query?: {
+                /** @description Required for personal sessions; kiosk sessions use their paired branch. */
+                branch_id?: string;
+            };
+            header: {
+                /** @description Required with kiosk staff cookie; forbidden with a personal staff cookie. */
+                Authorization?: string;
+                /** @description Exact configured POS origin. */
+                Origin: string;
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelOwnLeave: {
+        parameters: {
+            query?: {
+                /** @description Required for personal sessions; kiosk sessions use their paired branch. */
+                branch_id?: string;
+            };
+            header: {
+                /** @description Required with kiosk staff cookie; forbidden with a personal staff cookie. */
+                Authorization?: string;
+                /** @description Exact configured POS origin. */
+                Origin: string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                leaveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
                 };
             };
             /** @description Bilingual refusal */
