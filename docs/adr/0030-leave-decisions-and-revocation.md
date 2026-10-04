@@ -41,6 +41,9 @@ Default decide/revoke branch codes cover the four approver roles. Other human ro
 explicit personal delegation, with separate read authority for manager lists; Device never
 receives those cells. Covering DENY still wins for non-owners. Scope filtering precedes cursor
 pagination; date filters intersect stored local dates with a company/business/branch/date index.
-Recommended pre-start revocation and approved-overlap refusal live in pure domain functions
-and have explicit TODO(spec) markers, tests and owner questions. No balance, attendance
-correction, transport activation or change to staff session issuance ships here.
+The branch filter belongs to the manager inbox only: own history stays business-wide, and a
+personal session's branch_id selects the session, never narrows the list.
+Pre-start revocation (DL-Q2) and approved-overlap refusal (DL-Q1) live in pure domain functions;
+they are owner decisions 2026-10-04 (recommended options) recorded in spec 025, the domain code
+comments and tests. No balance, attendance correction, transport activation or change to staff
+session issuance ships here.

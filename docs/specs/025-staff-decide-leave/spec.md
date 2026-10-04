@@ -20,7 +20,7 @@ One injected Clock instant, sampled after lock waits, drives authority, feature 
 recorded timestamps and revocation deadlines. Personal/kiosk sessions remain own-read only
 for decisions: they cannot use manager decision/revocation routes or inherit business grants.
 
-## Recommended defaults implemented pending owner confirmation
+## Owner decisions on the recommended defaults — 2026-10-04 (DL-Q1–Q4)
 
 - DL-Q1 — owner decision 2026-10-04 (recommended option): refuse approval overlapping another APPROVED request of the same
   employee across branches with LEAVE_APPROVED_OVERLAP. Ignore the request itself; adjacent
@@ -51,6 +51,8 @@ Idempotency fingerprints include action, leave id, input and actor; authorizatio
 Existing pending inbox GET /v1/businesses/{businessId}/leave-requests gains branch_id/from/to
 filters, applied before cursor pagination. Dates filter intersection with the saved local
 inclusive dates; no browser timezone reinterpretation. A reversed range is invalid.
+These filters are inbox-only: own history stays business-wide (spec 023), and the personal
+session's required branch_id selects the session, never filters the list.
 Employee history and own lists expose decision_reason, existing rejection_reason and revocation
 actor/time/reason. Manager items expose can_decide/can_revoke; own items are always false.
 

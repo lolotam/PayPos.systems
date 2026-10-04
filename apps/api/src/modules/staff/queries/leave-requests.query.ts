@@ -98,7 +98,15 @@ export const employeeLeaveHistory = (
   context: LeaveReadContext,
   query: LeaveListQuery,
   access: LeaveReadAccess,
-) => page(tx, context, query, access, false);
+) =>
+  // السجل مربوط بالموظف في كل فروع النشاط؛ branch_id في الجلسة الشخصية يختار الجلسة ولا يصفي القائمة.
+  page(
+    tx,
+    context,
+    { limit: query.limit, ...(query.cursor === undefined ? {} : { cursor: query.cursor }) },
+    access,
+    false,
+  );
 export const pendingLeaveInbox = (
   tx: Tx,
   context: LeaveReadContext,
