@@ -33,3 +33,4 @@ export {
 export { personalMemberships } from './persistence/personal-membership.ts';
 export { membershipCompanies } from './queries/membership-companies.query.ts';
 export { lockPasskeyAccess, readPasskeyAccess } from './persistence/passkey-access.ts';
+export { lockDocumentAccess, readDocumentAccess } from './persistence/document-access.ts';

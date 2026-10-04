@@ -34,6 +34,7 @@ import { readConfig } from './shared/config.ts';
 import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
 import { createWorker } from './worker.ts';
 import { startFilesWorker } from './modules/files/index.ts';
+import { createStaffDocumentDefaults } from './modules/staff/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 
 const config = readConfig(process.env);
@@ -101,6 +102,8 @@ const otpConfiguration = () =>
 const KNOWN_EVENT_TYPES = [
   // PR21 بلا مستهلك أعمال في هذه المرحلة؛ الشاشة تقرأ التاريخ ولا يحتاج الحدث إعادة محاولة.
   'EmployeePasskeyUnbound',
+  // PR 13: لا مستهلك بعد؛ job الانتهاء في PR 15 يقرأ التاريخ من الجدول مباشرة.
+  'EmployeeDocumentRecorded',
   ...(notifications?.eventTypes ?? []),
   ...(inApp?.eventTypes ?? []),
   'FileUploadRequested',
@@ -111,7 +114,14 @@ const KNOWN_EVENT_TYPES = [
 ];
 const businessDeliver = createDeliverer(
   app,
-  notifications === null ? (inApp === null ? [] : [inApp.consumer]) : [notifications.consumer],
+  [
+    ...(notifications === null
+      ? inApp === null
+        ? []
+        : [inApp.consumer]
+      : [notifications.consumer]),
+    createStaffDocumentDefaults(systemUuidV7()),
+  ],
   logger,
   { knownEventTypes: KNOWN_EVENT_TYPES },
 );

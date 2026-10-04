@@ -79,6 +79,7 @@ it.each([
   'create:customers:branch',
   'manage:discounts:company',
   'manage:discount-limits:business',
+  'manage:document-types:company',
 ])('Device cannot acquire spec 009 forbidden %s', (permission) => {
   expect(
     systemRolePolicy(role('device'), 'global')?.permissions.some((code) => code === permission),
@@ -105,6 +106,7 @@ for (const entry of SYSTEM_ROLES) {
     ['create:customers:business', ['owner', 'business_manager']],
     ['create:customers:branch', ['owner', 'branch_manager', 'cashier']],
     ['manage:discount-limits:business', ['owner', 'general_manager', 'business_manager']],
+    ['manage:document-types:company', ['owner', 'general_manager', 'business_manager']],
   ] as const)(entry.code + ' follow-up eligibility for %s', (code, roles) => {
     expect(systemRolePolicy(entry.id, 'global')?.permissions.includes(code)).toBe(
       (roles as readonly string[]).includes(entry.code),

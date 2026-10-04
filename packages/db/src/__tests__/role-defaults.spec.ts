@@ -23,6 +23,7 @@ const expectations: Record<string, readonly string[]> = {
     'manage:employees:business',
     'manage:files:business',
     'read:files:business',
+    'manage:document-types:company',
     'read:schedules:branch',
     'manage:schedules:branch',
     'read:schedules:business',

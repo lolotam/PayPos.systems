@@ -19,7 +19,7 @@ imports:
   realtime: [identity]
   reporting: []
   settings: [tenancy, identity]
-  staff: [tenancy, identity]
+  staff: [tenancy, identity, files]
   tenancy: []
 packages_restricted:
   auth: [identity]
@@ -63,3 +63,7 @@ reads:
   - { from: staff, to: identity, symbol: readEmployeeDetailAccess, file: apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts }
   - { from: identity, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/identity/persistence/workspace-names.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/tenancy-attendance-branch.adapter.ts }
+  - { from: staff, to: identity, symbol: lockDocumentAccess, file: apps/api/src/modules/staff/persistence/document-access.adapter.ts }
+  - { from: staff, to: identity, symbol: readDocumentAccess, file: apps/api/src/modules/staff/persistence/document-access.adapter.ts }
+  - { from: staff, to: tenancy, symbol: businessTimeZone, file: apps/api/src/modules/staff/persistence/document-access.adapter.ts }
+  - { from: staff, to: files, symbol: documentFileFacts, file: apps/api/src/modules/staff/persistence/document-files.adapter.ts }

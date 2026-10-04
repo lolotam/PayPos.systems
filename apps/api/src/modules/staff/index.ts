@@ -1,5 +1,5 @@
 export { staffControllers, staffProviders } from './staff.module.ts';
-export type { SalaryChanged } from './events/published.ts';
+export type { SalaryChanged, EmployeeDocumentRecorded } from './events/published.ts';
 export type {
   LeaveRequested,
   LeaveCancelled,
