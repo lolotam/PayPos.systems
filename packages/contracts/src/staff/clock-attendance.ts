@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { attendanceQrToken } from './attendance-qr.js';
+import { attendanceInstallationSignal } from './unbind-passkey.js';
 
 const encoded = z
   .string()
@@ -19,8 +20,10 @@ export const clockChallengeInput = z
     location: attendanceLocation.optional(),
   })
   .meta({ id: 'ClockChallengeInput' });
+// installation_id إلزامي لأن كل نسخة POS منشورة ترسله؛ إشارة مراجعة فقط، خارج التحدي وسياق QR.
 export const clockAttendanceInput = clockChallengeInput
   .extend({
+    ...attendanceInstallationSignal.shape,
     challenge_id: id,
     response: z.strictObject({
       id: encoded,

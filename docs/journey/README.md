@@ -50,5 +50,9 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 20 | [Role default permissions](20-role-default-permissions.md) — صلاحيات الدور الافتراضية | #91 | not yet (admin not deployed, issue #54) |
 | 21 | [Role follow-ups](21-role-followups.md) — تكملة صلاحيات الأدوار | #93 | not yet (admin not deployed, issue #54); customer creation API only until PR 35 |
 | 22 | [Personal phone passkey](22-personal-phone-passkey.md) — مفتاح المرور على الموبايل الشخصي | #94 | not yet (POS not deployed); OTP sending OFF pending Meta templates + secrets; tests/local seams only |
+| 23 | [Request leave](23-request-leave.md) — طلب إجازة | #95 | not yet (admin not deployed, issue #54); the employee's own request is API only until PR 57b; personal session needs OTP (OFF pending Meta templates + secrets), tests/local seams only |
+| 24 | [Decide leave](24-decide-leave.md) — اعتماد الإجازات | #98 | not yet (admin not deployed, issue #54); the employee's view is API only until PR 57b; no notification yet |
+| 25 | [Unbind a passkey](25-unbind-passkey.md) — فك ربط مفتاح المرور | #97, #100 | not yet (admin not deployed, issue #54); re-enrolment needs the personal session (OTP sending OFF); shared-device flag recorded from PR 22b, shown in PR 27 |
+| 26 | [Clock in and out from the personal phone](26-clock-attendance.md) — تسجيل الحضور والانصراف من الهاتف الشخصي | #99 | not yet (POS not deployed); OTP sending OFF pending Meta templates + secrets; tests/local seams only; card clock (PR 23), missed-out job (PR 24) and attendance board (PR 27) not shipped |
 
 New journeys are added after every merge.

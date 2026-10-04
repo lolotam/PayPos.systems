@@ -49,6 +49,17 @@ import { createSalaryTransactions } from './persistence/drizzle-salary-transacti
 import { createSalaryAccess } from './persistence/employee-salary-access.adapter.ts';
 import { SALARY_ACCESS } from './queries/salary-history.query.ts';
 import { systemUuidV7 } from '@pospay/ids';
+import { DocumentTypesController } from './http/document-types.controller.ts';
+import { EmployeeDocumentsController } from './http/employee-documents.controller.ts';
+import { createDocumentTypeTransactions } from './persistence/drizzle-document-types.ts';
+import { createEmployeeDocumentTransactions } from './persistence/drizzle-employee-documents.ts';
+import { createEmployeeDocumentReadAccess } from './persistence/document-access.adapter.ts';
+import { EMPLOYEE_DOCUMENT_ACCESS } from './queries/employee-documents.query.ts';
+import { CreateDocumentTypeUseCase } from './use-cases/create-document-type/create-document-type.usecase.ts';
+import { UpdateDocumentTypeUseCase } from './use-cases/update-document-type/update-document-type.usecase.ts';
+import { DeactivateDocumentTypeUseCase } from './use-cases/deactivate-document-type/deactivate-document-type.usecase.ts';
+import { ReactivateDocumentTypeUseCase } from './use-cases/reactivate-document-type/reactivate-document-type.usecase.ts';
+import { RecordEmployeeDocumentUseCase } from './use-cases/record-employee-document/record-employee-document.usecase.ts';
 import type { Redis } from 'ioredis';
 
 import { systemClock } from '../../shared/adapters/system-clock.ts';
@@ -81,6 +92,8 @@ export const staffControllers = [
   SchedulesController,
   ShiftTemplatesController,
   EmployeeSalariesController,
+  DocumentTypesController,
+  EmployeeDocumentsController,
 ];
 
 function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
@@ -151,6 +164,38 @@ function salaryProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
+function documentProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
+  const types = database === undefined ? null : createDocumentTypeTransactions(database, ids);
+  const records = database === undefined ? null : createEmployeeDocumentTransactions(database, ids);
+  return [
+    {
+      provide: EMPLOYEE_DOCUMENT_ACCESS,
+      useValue: database === undefined ? null : createEmployeeDocumentReadAccess(systemClock),
+    },
+    {
+      provide: CreateDocumentTypeUseCase,
+      useValue: types === null ? null : new CreateDocumentTypeUseCase(types, ids),
+    },
+    {
+      provide: UpdateDocumentTypeUseCase,
+      useValue: types === null ? null : new UpdateDocumentTypeUseCase(types),
+    },
+    {
+      provide: DeactivateDocumentTypeUseCase,
+      useValue: types === null ? null : new DeactivateDocumentTypeUseCase(types),
+    },
+    {
+      provide: ReactivateDocumentTypeUseCase,
+      useValue: types === null ? null : new ReactivateDocumentTypeUseCase(types),
+    },
+    {
+      provide: RecordEmployeeDocumentUseCase,
+      useValue:
+        records === null ? null : new RecordEmployeeDocumentUseCase(records, ids, systemClock),
+    },
+  ];
+}
+
 function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   return [
     EmployeePasskeyUnbindGuard,
@@ -190,6 +235,7 @@ export function staffProviders(
     ...scheduleProviders(database, ids),
     ...leaveProviders(database, ids),
     ...salaryProviders(database, ids),
+    ...documentProviders(database, ids),
     {
       provide: UpdateEmployeeUseCase,
       useValue:

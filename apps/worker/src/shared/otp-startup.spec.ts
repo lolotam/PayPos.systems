@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { HealthController } from './health.controller.ts';
 import type * as Notifications from '@pospay/notifications';
+import type * as StaffModule from '../modules/staff/index.ts';
 import type * as NotificationModule from '../modules/notifications/index.ts';
 // تحميل تركيب القنوات خارج مهلة اختبار بدء التشغيل حتى لا يستهلك التحويل البارد مهلة العزل.
 import '../modules/notifications/index.ts';
@@ -68,7 +69,8 @@ vi.mock('../modules/notifications/index.ts', async (original) => ({
   },
 }));
 // جدول الخروج المفقود يحتاج Redis حقيقياً؛ هنا يُعزل كي يبقى الاختبار عن جاهزية OTP فقط.
-vi.mock('../modules/staff/index.ts', () => ({
+vi.mock('../modules/staff/index.ts', async (original) => ({
+  ...(await original<typeof StaffModule>()),
   startStaffWorker: () => ({
     eventTypes: [],
     deliver: vi.fn(),

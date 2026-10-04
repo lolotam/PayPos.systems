@@ -29,6 +29,7 @@ const deviceForbidden = [
   'create:companies:platform',
   'read:files:business',
   'manage:files:business',
+  'manage:document-types:company',
   'manage:employees:business',
   'create:customers:company',
   'create:customers:business',
@@ -38,7 +39,11 @@ const deviceForbidden = [
 ] as const satisfies readonly Permission[];
 
 const optional: Readonly<Record<string, readonly string[]>> = {
-  business_manager: ['read:memberships:business', 'manage:memberships:business'],
+  business_manager: [
+    'read:memberships:business',
+    'manage:memberships:business',
+    'manage:document-types:company',
+  ],
   branch_manager: ['read:settings:business', 'manage:settings:business'],
   cashier: ['login:staff:branch'],
   // قرار المالك 2026-10-04: هذه الأدوار تقبل إنشاء العميل للشركة بتفويض شخصي فقط.

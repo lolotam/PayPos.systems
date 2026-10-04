@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { assertStaffAttendance } from '@pospay/auth/client';
 import { attendanceCalls, attendancePosition } from './attendance-calls';
+import { INSTALLATION_KEY } from '../model/installation-id';
+const installation = '12345678-1234-4234-8234-123456789abc';
 vi.mock('@pospay/auth/client', () => ({ assertStaffAttendance: vi.fn() }));
 const fetcher = vi.fn();
 const scan = { token: { branch_id: 'synthetic', window: 1, sig: 'ab'.repeat(32) } };
@@ -43,6 +45,7 @@ it('the personal generated client submits the same scan plus UV with cookies, no
       signature: 'synthetic',
     },
   });
+  localStorage.setItem(INSTALLATION_KEY, installation);
   await attendanceCalls.clock(scan);
   const request = fetcher.mock.calls[1]?.[0] as Request;
   expect(request.url).toContain('/v1/staff/attendance/clock');
@@ -52,8 +55,11 @@ it('the personal generated client submits the same scan plus UV with cookies, no
   expect(request.headers.get('Idempotency-Key')).toBe('synthetic');
   expect(await request.clone().json()).toMatchObject({
     token: scan.token,
+    installation_id: installation,
     challenge_id: 'synthetic',
   });
+  const challenge = fetcher.mock.calls[0]?.[0] as Request;
+  expect(await challenge.clone().json()).not.toHaveProperty('installation_id');
 });
 it.each(['offline', 'logout'] as const)(
   '%s after the passkey prompt refuses submission and never queues the command',

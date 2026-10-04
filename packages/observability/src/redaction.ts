@@ -45,6 +45,8 @@ const SECRET_SUFFIXES = [
   // presigned-URL and webhook signatures (X-Amz-Signature, sig)
   'signature',
   'connectionstring',
+  // a raw attendance installation id is advisory, not a secret, but ADR-0029 keeps it out of every log
+  'installationid',
 ];
 const STRUCTURAL_KEYS = new Set([
   'sortkey',

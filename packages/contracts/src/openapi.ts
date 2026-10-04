@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { unbindPasskeySchemas } from './staff/unbind-passkey.js';
 import { unbindPasskeyPaths } from './staff/unbind-passkey-openapi.js';
 import { leaveSchemas } from './staff/leave.js';
+import { employeeDocumentSchemas } from './staff/employee-documents.js';
+import { employeeDocumentPaths } from './staff/employee-documents-openapi.js';
 import { leaveDecisionSchemas } from './staff/leave-decision.js';
 import { leavePaths } from './staff/leave-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
@@ -87,6 +89,7 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...employeeDocumentSchemas,
   ...clockAttendanceSchemas,
   ...leaveSchemas,
   ...leaveDecisionSchemas,
@@ -187,6 +190,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...employeeDocumentPaths,
   ...passkeyPaths,
   ...clockAttendancePaths,
   ...unbindPasskeyPaths,

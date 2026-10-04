@@ -1,10 +1,12 @@
 import { attendanceEn } from './attendance-en.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
+import { employeeDocumentsEn } from './employee-documents-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  employeeDocuments: employeeDocumentsEn,
   passkeyAdmin: enPasskeyAdmin,
   leave: leaveEn,
   permissionCodes: {
@@ -173,6 +175,11 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    DOCUMENT_TYPE_UNAVAILABLE: 'This document type does not exist or is inactive.',
+    DOCUMENT_EXPIRY_REQUIRED: 'This document type needs an expiry date.',
+    DOCUMENT_FILE_ALREADY_RECORDED: 'This file is already recorded as a document.',
+    DOCUMENT_TYPE_REVISION_CONFLICT: 'The document type changed. Reload it before saving again.',
+    DOCUMENT_TYPE_LIMIT_REACHED: 'The company has reached the maximum of 100 document types.',
     LEAVE_PERIOD_INVALID: 'Leave dates or times are invalid.',
     LEAVE_TIME_STEP_INVALID:
       'Leave start and end times must use 15-minute steps in branch local time.',

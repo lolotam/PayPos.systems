@@ -20,7 +20,7 @@ export async function leaveFixture() {
   const role = SYSTEM_ROLES.find((r) => r.code === 'business_manager');
   await f.h
     .owner`UPDATE memberships SET role_id=${role?.id as string},role_owner_key='global',scope_type='BUSINESS',scope_id=${f.business},starts_at='2026-01-01T00:00:00Z' WHERE company_id=${f.company} AND id=${f.memberId}`;
-  // الساعة المحقونة ثابتة صباح 2026-10-04؛ عضويات أُنشئت بوقت الحائط بعدها كانت تفشل الاختبار حسب ساعة التشغيل.
+  // الساعة ثابتة أدناه؛ عضوية بتبدأ بالوقت الحقيقي هتبان "لسه ما بدأتش" بعد اللحظة الثابتة.
   await f.h
     .owner`UPDATE memberships SET starts_at='2026-01-01T00:00:00Z' WHERE company_id=${f.company} AND starts_at>'2026-01-01T00:00:00Z'`;
   const secondBranch = leaveIds.newId();

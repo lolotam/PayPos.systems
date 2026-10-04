@@ -7,4 +7,5 @@ export { describeWorkspaces, type WorkspaceScope } from './queries/describe-work
 export { tenancyControllers, tenancyProviders } from './tenancy.module.ts';
 export { employeeWorkplace } from './queries/employee-workplace.query.ts';
 export { businessDiscountScope } from './queries/business-discount-scope.query.ts';
+export { businessTimeZone } from './queries/business-time-zone.query.ts';
 export { attendanceBranch } from './queries/attendance-branch.query.ts';

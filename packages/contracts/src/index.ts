@@ -232,3 +232,4 @@ export * from './staff/passkeys.js';
 export * from './staff/clock-attendance.js';
 export * from './staff/unbind-passkey.js';
 export * from './staff/missed-out.js';
+export * from './staff/employee-documents.js';

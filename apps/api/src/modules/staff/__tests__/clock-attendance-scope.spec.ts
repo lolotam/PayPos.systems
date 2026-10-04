@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { clockChallenge } from '@pospay/contracts';
-import { attendanceFixture, type AttendanceFixture } from './clock-attendance.fixture.ts';
+import {
+  attendanceFixture,
+  SYNTHETIC_INSTALLATION,
+  type AttendanceFixture,
+} from './clock-attendance.fixture.ts';
 import { AttendanceError } from '../use-cases/clock-attendance/clock-attendance.ts';
 import { personalOrigin } from '../../../../test/personal-staff.fixture.ts';
 
@@ -98,6 +102,7 @@ async function submit(
     headers: { ...headers, 'idempotency-key': f.ids.newId() },
     payload: {
       ...issued.scan,
+      installation_id: SYNTHETIC_INSTALLATION,
       challenge_id: challengeId,
       response: f.device.assertion(issued.challenge.options.challenge, personalOrigin, 'localhost'),
     },

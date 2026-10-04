@@ -21,7 +21,7 @@ export const attendanceDeviceSignals = pgTable(
     businessId: uuid('business_id').notNull(),
     branchId: uuid('branch_id').notNull(),
     employeeId: uuid('employee_id').notNull(),
-    // معرف أثر الحضور المقبول يمنع تكرار الإشارة عند إعادة الطلب؛ FK يضاف مع جدول PR22.
+    // معرف صف audit لحركة المسح المقبولة (clocked_in/clocked_out) ويسمي الجلسة؛ فريد ضد تكرار الإشارة.
     clockEventId: uuid('clock_event_id').notNull(),
     // hash خاص بالشركة لمعرف تثبيت عشوائي؛ لا بصمة متصفح ولا PII.
     installationHash: text('installation_hash').notNull(),

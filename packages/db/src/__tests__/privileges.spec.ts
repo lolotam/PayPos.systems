@@ -6,6 +6,7 @@ import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
 import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
 import { SCHEDULE_COLUMN_GRANTS } from '../../test/schedule-grants.ts';
 import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
+import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -48,8 +49,12 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'devices:INSERT',
     'devices:SELECT',
     'devices:UPDATE',
+    'document_types:INSERT',
+    'document_types:SELECT',
     'employee_branches:INSERT',
     'employee_branches:SELECT',
+    'employee_documents:INSERT',
+    'employee_documents:SELECT',
     'employee_passkeys:INSERT',
     'employee_passkeys:SELECT',
     'employee_salaries:INSERT',
@@ -146,6 +151,8 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
 const TENANT_TABLES = [
+  'document_types',
+  'employee_documents',
   'attendance_states',
   'attendance_sessions',
   'attendance_exceptions',
@@ -248,6 +255,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...EMPLOYEE_COLUMN_GRANTS,
         ...SCHEDULE_COLUMN_GRANTS,
         ...PASSKEY_COLUMN_GRANTS,
+        ...DOCUMENT_COLUMN_GRANTS,
       ].sort(),
     );
   });

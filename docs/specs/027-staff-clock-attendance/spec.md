@@ -20,7 +20,7 @@ synthetic authenticator and migrated PostgreSQL, plus camera/client/result UI te
   employee link and dated attachment are enforced; inaccessible resources stay unknown.
 - AT-05: missing/out-of-range location records an exception and still clocks; late minutes
   are report facts, and overnight closure retains the original working date.
-- AT-06: idempotency replay is identical; changed bodies are rejected; rollback leaves no
+- AT-06: idempotency replay is identical; changed command bodies are rejected; rollback leaves no
   attendance/audit/event/idempotency effect and requires a fresh assertion.
 - AT-07: online-only ar/en camera → passkey → result works; cancellation/unmount stops
   capture and prevents a pending assertion from submitting after logout/offline.
@@ -113,4 +113,18 @@ All AT-01–AT-09 checks pass, there is never more than one OPEN session per emp
 cross-company reads return no rows and writes cannot cross tenant-qualified FKs.
 Attendance creates no salary/commission deduction. PRs 23–28 remain separate slices.
 
-Amendment 2026-10-04: PR 21 and PR 22 were built in parallel, so PR 22 ships without the `installation_id` field, the POS identifier and the transactional signal write. They move to follow-up PR 22b; until it merges `attendance_device_signals` stays empty and the shared-device flag cannot fire.
+### Shared-installation signal (PR 22b)
+
+The clock body also requires `installation_id` (ADR-0029 `attendanceInstallationSignal`);
+the challenge does not take it and its scan digest ignores it. The clock route alone
+also excludes this advisory field from its idempotency fingerprint: changing the id
+or its UUID casing replays the stored result without a second observation, retaining
+the first accepted id's hash. All other command fields and routes remain fingerprinted.
+HTTP regressions verify both retries and the single original observation. The POS personal app
+generates it once in `localStorage`, keeps it across logout/operator replacement and
+never syncs it. Each accepted scan — CLOCK_IN, CLOCK_OUT, or MISSED_OUT plus CLOCK_IN —
+writes exactly one `attendance_device_signals` row in the same transaction: QR branch,
+the sampled instant, the company-scoped hash and `clock_event_id` = the scan movement's
+audit row id. Dedupe, idempotent replay, refusal and rollback leave no row. Tests cover
+these cases, the raw id absent from every attendance/audit/outbox/idempotency row,
+tenant separation, and two employees on one installation flagged by the PR 21 query.
