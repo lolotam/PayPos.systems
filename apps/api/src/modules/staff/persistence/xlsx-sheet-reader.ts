@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import { INVALID_CELL, type ImportCell, type ImportMatrix } from '../../../shared/import/import-sheet.ts';
 
 // الصيغ تُقرأ من نتيجتها المخزنة، والنص المنسّق يُدمج، والخلايا المعطوبة تُعلَّم INVALID_CELL ولا تُفسَّر كنص
-// (ADR-0032: القراءة على السيرفر فقط، و validator يرفض العلامة برمز IMPORT_CELL_INVALID).
+// (ADR-0034: القراءة على السيرفر فقط، و validator يرفض العلامة برمز IMPORT_CELL_INVALID).
 function cellValue(value: ExcelJS.CellValue): ImportCell {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value.toISOString().slice(0, 10);

@@ -110,6 +110,8 @@ export interface AttendanceWrite {
   geo: 'OK' | 'NONE' | 'OUT_OF_RANGE';
   at: Date;
   schedule: { startsAt: Date; endsAt: Date } | null;
+  // المعرف الخام يعيش في الذاكرة فقط؛ التخزين يحوله hash مفصولاً بالشركة (ADR-0029).
+  installationId: string;
 }
 /** كل طريقة تستخدم نفس المعاملة والقفل السابق. */
 export interface AttendanceTransaction {

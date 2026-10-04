@@ -72,7 +72,7 @@ describe('generated keys and explicit upload policy', () => {
   });
 });
 
-it('owner decision 2026-10-03 + ADR-0032 enable exactly PDF/JPEG/PNG/XLSX at 10 MiB without a policy setting', () => {
+it('owner decision 2026-10-03 + ADR-0034 enable exactly PDF/JPEG/PNG/XLSX at 10 MiB without a policy setting', () => {
   const config = readStorageConfiguration({
     STORAGE_ENDPOINT: 'https://storage.synthetic.invalid',
     STORAGE_BUCKET: 'private',

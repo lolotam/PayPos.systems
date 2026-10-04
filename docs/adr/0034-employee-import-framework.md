@@ -1,4 +1,4 @@
-# ADR-0032 — Employee import framework: XLSX, preview, all-or-nothing commit
+# ADR-0034 — Employee import framework: XLSX, preview, all-or-nothing commit
 
 Date: 2026-10-04. Status: Accepted for Phase 1 PR 11. `IM-Q1`/`IM-Q2` recorded in spec 030.
 

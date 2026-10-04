@@ -34,7 +34,7 @@ event, plus one import summary event.
 
 - FR-001: one `.xlsx` workbook, first sheet only. English header row is authoritative; the Arabic labels
   ride as cell comments on the header cells and are never parsed, so the first data row is the sheet's
-  second row. `exceljs` is pinned to exactly `4.4.0` (ADR-0032).
+  second row. `exceljs` is pinned to exactly `4.4.0` (ADR-0034).
 - FR-002: upload through the existing files presigned flow; no multipart route, no file on disk.
 - FR-003: the import reads the READY file object by id, verifies company, business, caller, status,
   content type and size (≤ 2 MiB), and needs ≤ 500 data rows.
@@ -45,7 +45,7 @@ event, plus one import summary event.
 - FR-006: commit accepts only a preview with zero errors; all rows in one tenant transaction; re-validates
   branch ownership under lock; branches are never invented.
 - FR-007: each created employee writes an audit row, one `EmployeeImported` outbox event, and the commit
-  writes one `ImportCommitted` summary event — all inside the same transaction (ADR-0032).
+  writes one `ImportCommitted` summary event — all inside the same transaction (ADR-0034).
 - FR-008: duplicate names and future hire dates are allowed (owner decision PR 8); create-only, no updates.
 - FR-009 (TODO(spec) IM-Q1): using a real `user_id` in the sheet is out of scope; `user_id` is not a column.
 
@@ -70,7 +70,7 @@ UI shell are shared, so PRs 32b/34b/D-51 add a plug-in, not a second engine.
 
 `files` accepts one more upload type, the xlsx MIME
 `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (owner decision is required to widen
-the PR 12 allowlist; recorded in ADR-0032). The worker's `file-type` detection already names this MIME, so
+the PR 12 allowlist; recorded in ADR-0034). The worker's `file-type` detection already names this MIME, so
 the existing verification pipeline proves it. The import re-checks ≤ 2 MiB and parses server-side only.
 
 ### Schema changes
@@ -106,12 +106,12 @@ codes only. `file_id` is stored for provenance. No DELETE grant: a future retent
 
 - `EmployeeImported` — one per created employee, `aggregate_type employee`, inside the commit transaction.
 - `ImportCommitted` — one summary, `aggregate_type import_preview`.
-No Phase 1 consumer; registered with the dispatcher (module-map §4) and recorded in ADR-0032.
+No Phase 1 consumer; registered with the dispatcher (module-map §4) and recorded in ADR-0034.
 
 ### The 200 ms rule
 
 Preview and commit run synchronously in `api`. They are bounded (≤ 500 rows, ≤ 2 MiB) and the commit must
-be one transaction the caller sees the result of immediately; the preview parse is milliseconds. ADR-0032
+be one transaction the caller sees the result of immediately; the preview parse is milliseconds. ADR-0034
 records this and the trigger to move the commit to a worker with polling if the 500-row cap is ever
 measured above 200 ms. See `TODO(spec)` IM-Q2.
 

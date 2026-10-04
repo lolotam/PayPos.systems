@@ -16,7 +16,7 @@ import { user } from './identity-auth.ts';
 import { businesses, companies } from './tenancy.ts';
 
 // معاينة استيراد محفوظة: صفوف مُطبَّعة وأخطاء مسمّاة فقط، وتنتهي بعد 24 ساعة وتُستهلك مرة واحدة.
-// إعادة استخدامها لاحقاً لاستيراد الخدمات والعملاء والباقات بنفس المحرك (ADR-0032).
+// إعادة استخدامها لاحقاً لاستيراد الخدمات والعملاء والباقات بنفس المحرك (ADR-0034).
 export const importPreviews = pgTable(
   'import_previews',
   {

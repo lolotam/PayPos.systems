@@ -1,6 +1,6 @@
 /** سياسة أنواع وحدود حجم مقيدة بقرار المالك. */
 export type UploadPolicy = Readonly<Record<string, number>>;
-// الأنواع الأصلية (PDF/JPEG/PNG) من قرار 2026-10-03، وأضاف ADR-0032 نوع XLSX لاستيراد الموظفين بحد 10 MiB.
+// الأنواع الأصلية (PDF/JPEG/PNG) من قرار 2026-10-03، وأضاف ADR-0034 نوع XLSX لاستيراد الموظفين بحد 10 MiB.
 export const FILE_UPLOAD_POLICY: UploadPolicy = Object.freeze({
   'application/pdf': 10 * 1024 * 1024,
   'image/jpeg': 10 * 1024 * 1024,

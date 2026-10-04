@@ -50,7 +50,7 @@ export class ClockAttendanceController {
   async submit(
     @Body(new ZodValidationPipe(clockAttendanceInput)) input: ClockAttendanceInput,
     @Req() request: FastifyRequest,
-    @Idempotency() idem: IdempotencyInput,
+    @Idempotency({ omitBodyFields: ['installation_id'] }) idem: IdempotencyInput,
   ) {
     if (this.clock === null) throw new ApiError('NOT_READY');
     try {

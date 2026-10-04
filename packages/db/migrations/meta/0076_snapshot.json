@@ -1,5 +1,5 @@
 {
-  "id": "b7da495a-e45a-45cd-9053-519d122de74c",
+  "id": "e3ef72df-eded-4de8-850b-29469674dee7",
   "prevId": "5c7533a7-6d04-4422-a218-8911660a4b8a",
   "version": "7",
   "dialect": "postgresql",
@@ -6274,7 +6274,7 @@
         },
         "file_objects_type": {
           "name": "file_objects_type",
-          "value": "\"file_objects\".\"content_type\" IN ('application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')"
+          "value": "\"file_objects\".\"content_type\" IN ('application/pdf','image/jpeg','image/png')"
         },
         "file_objects_state": {
           "name": "file_objects_state",
@@ -8458,6 +8458,28 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "attendance_exceptions_one_suspected": {
+          "name": "attendance_exceptions_one_suspected",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"attendance_exceptions\".\"kind\" = 'SUSPECTED_MISSED_OUT'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -10017,228 +10039,6 @@
         "employee_documents_replaced_after_record": {
           "name": "employee_documents_replaced_after_record",
           "value": "\"employee_documents\".\"replaced_at\" IS NULL OR \"employee_documents\".\"replaced_at\" >= \"employee_documents\".\"recorded_at\""
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.import_previews": {
-      "name": "import_previews",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity": {
-          "name": "entity",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "file_id": {
-          "name": "file_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "committed_at": {
-          "name": "committed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "row_count": {
-          "name": "row_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "error_count": {
-          "name": "error_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "rows": {
-          "name": "rows",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "errors": {
-          "name": "errors",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "import_previews_company_business_created_idx": {
-          "name": "import_previews_company_business_created_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "import_previews_company_file_idx": {
-          "name": "import_previews_company_file_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "file_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "import_previews_company_id_companies_id_fk": {
-          "name": "import_previews_company_id_companies_id_fk",
-          "tableFrom": "import_previews",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "import_previews_created_by_user_id_fk": {
-          "name": "import_previews_created_by_user_id_fk",
-          "tableFrom": "import_previews",
-          "tableTo": "user",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "import_previews_business_fk": {
-          "name": "import_previews_business_fk",
-          "tableFrom": "import_previews",
-          "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "import_previews_file_fk": {
-          "name": "import_previews_file_fk",
-          "tableFrom": "import_previews",
-          "tableTo": "file_objects",
-          "columnsFrom": [
-            "company_id",
-            "file_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "import_previews_pkey": {
-          "name": "import_previews_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "import_previews_entity_format": {
-          "name": "import_previews_entity_format",
-          "value": "\"import_previews\".\"entity\" ~ '^[a-z][a-z0-9_]{1,31}$'"
-        },
-        "import_previews_row_count": {
-          "name": "import_previews_row_count",
-          "value": "\"import_previews\".\"row_count\" BETWEEN 0 AND 500"
-        },
-        "import_previews_error_count": {
-          "name": "import_previews_error_count",
-          "value": "\"import_previews\".\"error_count\" >= 0"
-        },
-        "import_previews_expiry": {
-          "name": "import_previews_expiry",
-          "value": "\"import_previews\".\"expires_at\" > \"import_previews\".\"created_at\""
         }
       },
       "isRLSEnabled": false

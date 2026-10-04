@@ -142,7 +142,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `PaymentRefunded`                                                           | `payments`      | `orders`, `cash`, `commissions`                                                                   |
 | `PaymentFailed`                                                             | `payments`      | `orders`, `realtime`, `notifications`                                                             |
 | `CashShiftClosed`                                                           | `cash`          | `reporting`, `notifications` (manager summary)                                                    |
-| `AttendanceClockedIn` / `AttendanceClockedOut` / `AttendanceMissedOut` (ADR-0028) | `staff` | No Phase 1 consumer; attendance never changes commission |
+| `AttendanceClockedIn` / `AttendanceClockedOut` / `AttendanceMissedOut` (ADR-0028) | `staff` (API scan; worker missed-out job also emits `AttendanceMissedOut`, ADR-0032) | No business consumer; attendance never changes commission. Worker `staff` registers the company's missed-out schedule on `AttendanceClockedIn` delivery (ADR-0032) |
 | `AppointmentBooked`                                                         | `appointments`  | `notifications` (reminder schedule), `realtime`                                                   |
 | `AppointmentCompleted`                                                      | `appointments`  | `orders`, `commissions`                                                                           |
 | `StockPosted`                                                               | `inventory`     | `reporting`, `notifications` (low-stock alert), `realtime`                                        |
@@ -155,15 +155,15 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `LeaveRequested` / `LeaveCancelled` / `LeaveApproved` / `LeaveRejected` / `LeaveRevoked` | `staff` | no consumer yet; Phase 1 leave screens poll, attendance PR 26 will read approved intervals; staff in-app delivery is DL-Q3 in spec 025 |
 | `EmployeePasskeyUnbound`                                                    | `staff`         | None in Phase 1; known to the dispatcher, admin polls binding history (ADR-0029)                     |
 | `EmployeeDocumentRecorded` | `staff` | None in Phase 1; known to the dispatcher. PR 15 reads `expires_on` and `alert_days` directly (ADR-0031) |
-| `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0032) |
-| `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0032) |
+| `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
+| `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031) |
 | `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`                                                                        |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `RatingRequestReady`                                                        | `customers`     | `notifications`                                                                                   |
 | `LowRatingReceived`                                                         | `customers`     | `notifications`                                                                                   |
-| `AttendanceExceptionRaised`                                                 | `staff`         | `notifications`                                                                                   |
+| `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (no recipients until alert rules ship)                                            |
 | `ShiftNotClockedIn`                                                         | `staff`         | `notifications`                                                                                   |
 | `DocumentExpiring`                                                          | `staff`         | `notifications`                                                                                   |
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |

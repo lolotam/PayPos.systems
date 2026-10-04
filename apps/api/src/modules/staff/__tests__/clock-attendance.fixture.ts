@@ -10,23 +10,43 @@ import { createLockedAttendanceQrVerifier } from '../persistence/locked-attendan
 import type { AttendanceScan } from '../ports/clock-attendance.port.ts';
 import { requestFingerprint } from '../../../shared/idempotency.ts';
 
+// معرف تثبيت v4 اصطناعي يرسله كل أمر حضور ما لم يحدد الاختبار تثبيتاً آخر.
+export const SYNTHETIC_INSTALLATION = '12345678-1234-4234-8234-123456789abc';
 export async function attendanceFixture(): Promise<
   Awaited<ReturnType<typeof personalFixture>> & AttendanceFixtureExtensions
 > {
   const secret = 'ab'.repeat(32);
   const redis = { get: async () => secret } as unknown as Redis;
   const f = await personalFixture(redis);
+  const { issued, scope, device, bindingId } = await enrolPersonal(f, f.userId, f.employeeId);
+  const ceremony = attendanceCeremony(f, scope, device, secret);
+  return {
+    ...f,
+    redis,
+    scope,
+    bindingId,
+    device,
+    ...ceremony,
+    headers: { cookie: issued.cookie.split(';')[0] ?? '', origin: personalOrigin },
+  };
+}
+// جلسة شخصية وpasskey حقيقي وربط نشط لموظف مرتبط بمستخدم في شركة الـ fixture.
+export async function enrolPersonal(
+  f: Awaited<ReturnType<typeof personalFixture>>,
+  userId: string,
+  employeeId: string,
+) {
   const issued = await f.auth.personal.issue(
-    f.userId,
+    userId,
     { purpose: 'STAFF_PERSONAL', companyId: f.companyId, businessId: f.businessId },
     async () => true,
   );
   const scope = {
-    userId: f.userId,
+    userId,
     sessionId: issued.id,
     companyId: f.companyId,
     businessId: f.businessId,
-    employeeId: f.employeeId,
+    employeeId,
   };
   const device = testAuthenticator(true);
   const registration = await f.auth.passkeys.enrollmentOptions(scope);
@@ -38,17 +58,8 @@ export async function attendanceFixture(): Promise<
   if (passkeyId === null) throw new Error('SYNTHETIC_ENROLLMENT_FAILED');
   const bindingId = f.ids.newId();
   await f.owner`INSERT INTO employee_passkeys(company_id,id,business_id,employee_id,passkey_id,revision,bound_at,bound_by)
-    VALUES(${f.companyId},${bindingId},${f.businessId},${f.employeeId},${passkeyId},1,clock_timestamp(),${f.userId})`;
-  const ceremony = attendanceCeremony(f, scope, device, secret);
-  return {
-    ...f,
-    redis,
-    scope,
-    bindingId,
-    device,
-    ...ceremony,
-    headers: { cookie: issued.cookie.split(';')[0] ?? '', origin: personalOrigin },
-  };
+    VALUES(${f.companyId},${bindingId},${f.businessId},${employeeId},${passkeyId},1,clock_timestamp(),${userId})`;
+  return { issued, scope, device, bindingId };
 }
 function attendanceCeremony(
   f: Awaited<ReturnType<typeof personalFixture>>,
@@ -80,15 +91,15 @@ function attendanceCeremony(
     attendance,
     transactions,
     scan,
-    prepare: (value = scan(), uv = true) =>
-      prepareAttendance(f, scope, device, challenge, attendance, value, uv),
+    prepare: (value = scan(), uv = true, installationId = SYNTHETIC_INSTALLATION) =>
+      prepareAttendance(f, scope, device, challenge, attendance, value, uv, installationId),
     clock,
     setNow: (at: Date) => {
       instant = at;
     },
   };
 }
-async function prepareAttendance(
+export async function prepareAttendance(
   f: Awaited<ReturnType<typeof personalFixture>>,
   scope: AttendanceFixtureExtensions['scope'],
   device: ReturnType<typeof testAuthenticator>,
@@ -96,11 +107,13 @@ async function prepareAttendance(
   attendance: ClockAttendance,
   value: AttendanceScan,
   uv: boolean,
+  installationId: string,
 ) {
   const generated = await challenge.execute(scope, value);
   const options = generated.options as { challenge: string };
   const input = {
     ...value,
+    installation_id: installationId,
     challenge_id: generated.challenge_id,
     response: {
       ...device.assertion(options.challenge, personalOrigin, 'localhost', uv),
@@ -138,9 +151,11 @@ interface AttendanceFixtureExtensions {
   prepare(
     value?: AttendanceScan,
     uv?: boolean,
+    installationId?: string,
   ): Promise<{
     input: AttendanceScan & {
       challenge_id: string;
+      installation_id: string;
       response: Parameters<ClockAttendance['execute']>[1]['response'];
     };
     idem: { key: string; fingerprint: string };
