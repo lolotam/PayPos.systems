@@ -20,7 +20,7 @@ synthetic authenticator and migrated PostgreSQL, plus camera/client/result UI te
   employee link and dated attachment are enforced; inaccessible resources stay unknown.
 - AT-05: missing/out-of-range location records an exception and still clocks; late minutes
   are report facts, and overnight closure retains the original working date.
-- AT-06: idempotency replay is identical; changed bodies are rejected; rollback leaves no
+- AT-06: idempotency replay is identical; changed command bodies are rejected; rollback leaves no
   attendance/audit/event/idempotency effect and requires a fresh assertion.
 - AT-07: online-only ar/en camera → passkey → result works; cancellation/unmount stops
   capture and prevents a pending assertion from submitting after logout/offline.
@@ -116,7 +116,11 @@ Attendance creates no salary/commission deduction. PRs 23–28 remain separate s
 ### Shared-installation signal (PR 22b)
 
 The clock body also requires `installation_id` (ADR-0029 `attendanceInstallationSignal`);
-the challenge does not take it and its scan digest ignores it. The POS personal app
+the challenge does not take it and its scan digest ignores it. The clock route alone
+also excludes this advisory field from its idempotency fingerprint: changing the id
+or its UUID casing replays the stored result without a second observation, retaining
+the first accepted id's hash. All other command fields and routes remain fingerprinted.
+HTTP regressions verify both retries and the single original observation. The POS personal app
 generates it once in `localStorage`, keeps it across logout/operator replacement and
 never syncs it. Each accepted scan — CLOCK_IN, CLOCK_OUT, or MISSED_OUT plus CLOCK_IN —
 writes exactly one `attendance_device_signals` row in the same transaction: QR branch,

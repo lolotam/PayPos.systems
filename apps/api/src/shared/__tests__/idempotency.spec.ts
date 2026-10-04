@@ -1,4 +1,4 @@
-import { Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { errorEnvelope } from '@pospay/contracts';
 import { IdempotencyKeyBusyError, IdempotencyKeyReusedError } from '@pospay/db';
@@ -25,6 +25,14 @@ class IdempotentProbe {
   @Post('echo')
   echo(@Idempotency() idempotency: IdempotencyInput): IdempotencyInput {
     return idempotency;
+  }
+
+  @Post('advisory')
+  advisory(
+    @Body() body: unknown,
+    @Idempotency({ omitBodyFields: ['installation_id'] }) idempotency: IdempotencyInput,
+  ) {
+    return { ...idempotency, body };
   }
 
   @Post('reused')
@@ -79,6 +87,25 @@ describe('the Idempotency-Key header', () => {
       fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
     });
     expect(b.body['fingerprint']).toBe(a.body['fingerprint']);
+  });
+
+  it('body exclusions are route opt-ins, shallow and do not mutate the command body', async () => {
+    const headers = { 'idempotency-key': 'synthetic-advisory' };
+    const body = { installation_id: 'first', command: { installation_id: 'nested' } };
+    const changed = { ...body, installation_id: 'second' };
+    const first = await post('/v1/probe/advisory', headers, body);
+    const retry = await post('/v1/probe/advisory', headers, changed);
+    expect(first.status).toBe(201);
+    expect(retry.body['fingerprint']).toBe(first.body['fingerprint']);
+    expect(retry.body['body']).toEqual(changed);
+    const nested = await post('/v1/probe/advisory', headers, {
+      ...changed,
+      command: { installation_id: 'changed' },
+    });
+    expect(nested.body['fingerprint']).not.toBe(first.body['fingerprint']);
+    const ordinary = await post('/v1/probe/echo', headers, body);
+    const ordinaryRetry = await post('/v1/probe/echo', headers, changed);
+    expect(ordinaryRetry.body['fingerprint']).not.toBe(ordinary.body['fingerprint']);
   });
 });
 

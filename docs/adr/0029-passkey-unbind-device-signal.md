@@ -71,7 +71,12 @@ current binding state; this phase promises no consumer or replay-derived project
 ## Delivered clock wiring
 
 - `installation_id` is a required field of `ClockAttendanceInput` only. It is not part
-  of the challenge or of the QR/location digest the challenge freezes.
+  of the challenge, the QR/location digest the challenge freezes, or the clock route's
+  idempotency fingerprint. It is advisory and does not select or shape the clock command:
+  blocked storage can produce a new page-lifetime id after reload, and UUID casing can
+  differ. A retry with either variation must replay the accepted response, retaining
+  the first accepted observation and its hash. The exclusion is explicit on this route
+  alone; all other command fields and routes keep their existing fingerprints.
 - The POS personal app creates it once with `crypto.randomUUID()` in `localStorage`
   (`pospay.attendance.installation`), never in IndexedDB or the sync queue. Personal
   logout, operator replacement and private-cache clearing keep it; a malformed stored
