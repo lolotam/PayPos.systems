@@ -148,7 +148,11 @@ it('matches create-employee by accepting inactive branches and stable ids after 
     .owner`UPDATE branches SET is_active=false,name_en='Renamed synthetic main' WHERE id=${f.branch}`;
   try {
     const result = await f.commit.execute(commitCommand(f, preview.preview_id, 'inactive-branch'));
-    expect(result.created_count).toBe(1);
+    expect(result.preview_id).toBe(preview.preview_id);
+    await f.worker.execute(f.company, preview.preview_id);
+    const [status] = await f.h
+      .owner`SELECT status,created_count FROM import_previews WHERE id=${preview.preview_id}`;
+    expect(status).toMatchObject({ status: 'committed', created_count: 1 });
     const inactivePreview = await f.preview.execute(
       previewCommand(
         f,

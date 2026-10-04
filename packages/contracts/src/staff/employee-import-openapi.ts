@@ -13,6 +13,28 @@ const parameters = [
 ];
 
 export const employeeImportPaths = {
+  '/v1/businesses/{businessId}/employees/import/previews/{previewId}': {
+    get: {
+      operationId: 'employeeImportStatus',
+      description:
+        'Creator-only employee import status; unknown and inaccessible previews share a 404.',
+      parameters: [
+        ...parameters,
+        {
+          in: 'path',
+          name: 'previewId',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        },
+      ],
+      responses: {
+        '200': { description: 'Import status', content: json('EmployeeImportStatus') },
+        '403': errors,
+        '404': errors,
+        default: errors,
+      },
+    },
+  },
   '/v1/businesses/{businessId}/employees/import/template': {
     get: {
       operationId: 'employeeImportTemplate',
@@ -35,7 +57,10 @@ export const employeeImportPaths = {
       parameters,
       requestBody: { required: true, content: json('PreviewEmployeeImportInput') },
       responses: {
-        '201': { description: 'Preview with per-row errors', content: json('EmployeeImportPreview') },
+        '201': {
+          description: 'Preview with per-row errors',
+          content: json('EmployeeImportPreview'),
+        },
         '400': errors,
         '403': errors,
         '404': errors,
@@ -51,7 +76,7 @@ export const employeeImportPaths = {
     post: {
       operationId: 'commitEmployeeImport',
       description:
-        'Commits a zero-error, unexpired, unused preview: all employees, attachments, audits and events in one transaction; re-validates branches under lock. Requires Idempotency-Key.',
+        'Requests a worker commit for a creator-owned clean, unused, unexpired preview. Repeated requests return the same preview id. Requires Idempotency-Key; poll the preview status for the atomic result.',
       parameters: [
         ...parameters,
         {
@@ -63,7 +88,7 @@ export const employeeImportPaths = {
       ],
       requestBody: { required: true, content: json('CommitEmployeeImportInput') },
       responses: {
-        '201': { description: 'Commit summary', content: json('EmployeeImportCommit') },
+        '202': { description: 'Commit accepted', content: json('EmployeeImportCommitAccepted') },
         '400': errors,
         '403': errors,
         '404': errors,

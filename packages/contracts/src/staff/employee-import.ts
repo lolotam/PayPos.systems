@@ -68,6 +68,30 @@ export const employeeImportCommit = z
   })
   .meta({ id: 'EmployeeImportCommit' });
 
+// الطلب يقبل مرة واحدة؛ النتيجة النهائية تقرأ من حالة المعاينة بعد تنفيذ الوظيفة.
+export const employeeImportCommitAccepted = z
+  .strictObject({ preview_id: id })
+  .meta({ id: 'EmployeeImportCommitAccepted' });
+export const employeeImportStatus = z
+  .strictObject({
+    preview_id: id,
+    status: z.enum(['ready', 'commit_requested', 'committed', 'failed']),
+    created_count: z.number().int().min(0).max(500),
+    error_code: z
+      .enum([
+        'EMPLOYEE_BRANCH_NOT_FOUND',
+        'IMPORT_PREVIEW_HAS_ERRORS',
+        'IMPORT_PREVIEW_EXPIRED',
+        'EMPLOYEE_CONTRACT_END_BEFORE_HIRE',
+        'IMPORT_COMMIT_FAILED',
+      ])
+      .nullable(),
+  })
+  .meta({ id: 'EmployeeImportStatus' });
+export const employeeImportCommitJob = z
+  .strictObject({ companyId: id, previewId: id })
+  .meta({ id: 'EmployeeImportCommitJob' });
+
 export type EmployeeImportColumn = z.infer<typeof employeeImportColumn>;
 export type EmployeeImportErrorCode = z.infer<typeof employeeImportErrorCode>;
 export type EmployeeImportRowError = z.infer<typeof employeeImportRowError>;
@@ -76,3 +100,5 @@ export type EmployeeImportPreview = z.infer<typeof employeeImportPreview>;
 export type EmployeeImportTemplate = z.infer<typeof employeeImportTemplate>;
 export type CommitEmployeeImportInput = z.infer<typeof commitEmployeeImportInput>;
 export type EmployeeImportCommit = z.infer<typeof employeeImportCommit>;
+export type EmployeeImportCommitAccepted = z.infer<typeof employeeImportCommitAccepted>;
+export type EmployeeImportStatus = z.infer<typeof employeeImportStatus>;

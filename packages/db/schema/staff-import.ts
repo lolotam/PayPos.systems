@@ -34,6 +34,10 @@ export const importPreviews = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     committedAt: timestamp('committed_at', { withTimezone: true }),
+    status: text('status').notNull().default('ready'),
+    requestedAt: timestamp('requested_at', { withTimezone: true }),
+    createdCount: integer('created_count').notNull().default(0),
+    errorCode: text('error_code'),
     rowCount: integer('row_count').notNull(),
     errorCount: integer('error_count').notNull(),
     rows: jsonb('rows').notNull(),
@@ -61,5 +65,10 @@ export const importPreviews = pgTable(
     check('import_previews_row_count', sql`${t.rowCount} BETWEEN 0 AND 500`),
     check('import_previews_error_count', sql`${t.errorCount} >= 0`),
     check('import_previews_expiry', sql`${t.expiresAt} > ${t.createdAt}`),
+    check(
+      'import_previews_status',
+      sql`${t.status} IN ('ready','commit_requested','committed','failed')`,
+    ),
+    check('import_previews_created_count', sql`${t.createdCount} BETWEEN 0 AND 500`),
   ],
 );

@@ -14,6 +14,8 @@ import { PreviewEmployeeImportUseCase } from '../use-cases/preview-employee-impo
 import { CommitEmployeeImportUseCase } from '../use-cases/commit-employee-import/commit-employee-import.usecase.ts';
 import { GetEmployeeImportTemplateUseCase } from '../use-cases/get-employee-import-template/get-employee-import-template.usecase.ts';
 import { buildEmployeeImportTemplate } from '../persistence/employee-import-template.ts';
+import { CommitEmployeeImport } from '../../../../../worker/src/modules/staff/use-cases/commit-employee-import/commit-employee-import.ts';
+import { employeeImportTransactions } from '../../../../../worker/src/modules/staff/persistence/employee-import.transactions.ts';
 
 export type ImportRow = readonly (string | number | null)[];
 
@@ -37,7 +39,7 @@ export async function seedImportWorkspace(
   ids: ReturnType<typeof systemUuidV7>,
 ) {
   const ownerCookie = await h.signedInOperator('import-owner@example.test');
-  await h.signedInOperator('import-manager@example.test');
+  const managerCookie = await h.signedInOperator('import-manager@example.test');
   const company = await h.onboard(ownerCookie, 'Synthetic import employer');
   const [holder] = await h.owner`SELECT id FROM "user" WHERE email='import-manager@example.test'`;
   const userId = holder?.['id'] as string;
@@ -60,16 +62,14 @@ export async function seedImportWorkspace(
   await h.owner`INSERT INTO permission_overrides
     (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
     VALUES (${company},${ids.newId()},${memberId},'manage:employees:business','ALLOW','BUSINESS',${business},'Synthetic import grant',${userId})`;
-  return { company, business, secondBusiness, branch, userId, memberId };
+  return { company, business, secondBusiness, branch, userId, memberId, managerCookie };
 }
 
 export async function employeeImportFixture() {
   const h = await startHarness();
   const ids = systemUuidV7();
-  const { company, business, secondBusiness, branch, userId, memberId } = await seedImportWorkspace(
-    h,
-    ids,
-  );
+  const { company, business, secondBusiness, branch, userId, memberId, managerCookie } =
+    await seedImportWorkspace(h, ids);
 
   const db: TenantWrappers = createDatabase({ url: h.urls.app, ids });
   const storage = new Map<string, Uint8Array>();
@@ -92,6 +92,7 @@ export async function employeeImportFixture() {
     branch,
     userId,
     memberId,
+    managerCookie,
     clock,
     storage,
     template: new GetEmployeeImportTemplateUseCase(transactions, {
@@ -106,6 +107,7 @@ export async function employeeImportFixture() {
       clockPort,
     ),
     commit: new CommitEmployeeImportUseCase(transactions, ids, clockPort),
+    worker: new CommitEmployeeImport(employeeImportTransactions(db, ids), ids, clockPort),
     async upload(
       content: Uint8Array,
       options: { businessId?: string; createdBy?: string } = {},
@@ -141,3 +143,14 @@ export const commitCommand = (f: EmployeeImportFixture, previewId: string, key: 
   // runIdempotent يتطلب بصمة sha256 سداسية عشرية؛ في الإنتاج يحسبها requestFingerprint.
   fingerprint: createHash('sha256').update(previewId).digest('hex'),
 });
+
+export async function seedImportPlanRows(f: EmployeeImportFixture): Promise<void> {
+  const ids = systemUuidV7();
+  const keys = Array.from({ length: 500 }, () => ids.newId());
+  await f.h
+    .owner`INSERT INTO import_previews(company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors)
+    SELECT p.company_id,k.id,p.business_id,p.entity,p.file_id,p.created_by,p.created_at,p.expires_at,p.row_count,p.error_count,p.rows,p.errors
+    FROM (SELECT company_id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors
+      FROM import_previews WHERE company_id=${f.company} LIMIT 1) p CROSS JOIN unnest(${keys}::uuid[]) k(id)`;
+  await f.h.owner`ANALYZE import_previews`;
+}

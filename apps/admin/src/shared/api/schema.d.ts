@@ -91,6 +91,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/import/previews/{previewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Creator-only employee import status; unknown and inaccessible previews share a 404. */
+        get: operations["employeeImportStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/import/template": {
         parameters: {
             query?: never;
@@ -134,7 +151,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Commits a zero-error, unexpired, unused preview: all employees, attachments, audits and events in one transaction; re-validates branches under lock. Requires Idempotency-Key. */
+        /** @description Requests a worker commit for a creator-owned clean, unused, unexpired preview. Repeated requests return the same preview id. Requires Idempotency-Key; poll the preview status for the atomic result. */
         post: operations["commitEmployeeImport"];
         delete?: never;
         options?: never;
@@ -2120,6 +2137,19 @@ export interface components {
             created_count: number;
             employee_ids: string[];
         };
+        EmployeeImportCommitAccepted: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        EmployeeImportStatus: {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
+            status: "ready" | "commit_requested" | "committed" | "failed";
+            created_count: number;
+            /** @enum {string|null} */
+            error_code: "EMPLOYEE_BRANCH_NOT_FOUND" | "IMPORT_PREVIEW_HAS_ERRORS" | "IMPORT_PREVIEW_EXPIRED" | "EMPLOYEE_CONTRACT_END_BEFORE_HIRE" | "IMPORT_COMMIT_FAILED" | null;
+        };
         Customer: {
             /** Format: uuid */
             id: string;
@@ -2782,6 +2812,58 @@ export interface operations {
             };
         };
     };
+    employeeImportStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                previewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Import status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeImportStatus"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     employeeImportTemplate: {
         parameters: {
             query?: never;
@@ -2951,13 +3033,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Commit summary */
-            201: {
+            /** @description Commit accepted */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EmployeeImportCommit"];
+                    "application/json": components["schemas"]["EmployeeImportCommitAccepted"];
                 };
             };
             /** @description Bilingual refusal */

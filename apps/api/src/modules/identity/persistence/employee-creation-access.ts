@@ -32,7 +32,7 @@ export async function lockEmployeeManagementAccess(
   userId: string,
   businessId: string,
 ): Promise<{ manage: boolean; featureEnabled: boolean }> {
-  if (!(await lockEmployeeManagementLocks(tx, companyId)))
+  if (!(await lockEmployeeManagementLocks(tx, companyId, userId)))
     return { manage: false, featureEnabled: false };
   return readEmployeeManagementAccess(tx, companyId, userId, businessId);
 }
@@ -59,13 +59,18 @@ export async function readEmployeeManagementAccess(
   };
 }
 
-async function lockEmployeeManagementLocks(tx: Tx, companyId: string): Promise<boolean> {
+async function lockEmployeeManagementLocks(
+  tx: Tx,
+  companyId: string,
+  userId?: string,
+): Promise<boolean> {
   const [company] = await tx.execute(
     sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL FOR NO KEY UPDATE`,
   );
   if (company === undefined) return false;
   await tx.execute(
-    sql`SELECT id FROM memberships WHERE company_id=${companyId} ORDER BY id FOR UPDATE`,
+    // محررو الإذن والعضوية يقفلون جذر الشركة أولاً؛ نثبت عضويات هذا المستخدم فقط مع الإبقاء على قفل الجذر.
+    sql`SELECT id FROM memberships WHERE company_id=${companyId} ${userId === undefined ? sql`` : sql`AND user_id=${userId}`} ORDER BY id FOR UPDATE`,
   );
   return true;
 }

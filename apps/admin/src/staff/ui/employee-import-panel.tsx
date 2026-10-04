@@ -6,6 +6,7 @@ import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeImport } from '../api/use-employee-import';
 import { EmployeeImportErrors } from './employee-import-errors';
+import { EmployeeImportResult } from './employee-import-result';
 
 function downloadBase64(fileName: string, base64: string) {
   const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0));
@@ -21,20 +22,24 @@ function downloadBase64(fileName: string, base64: string) {
   URL.revokeObjectURL(url);
 }
 
-/** لوحة استيراد الموظفين: تنزيل القالب، الرفع والمعاينة، ثم الحفظ عند خلو الأخطاء. */
-export function EmployeeImportPanel({
-  companyId,
-  businessId,
-  userId,
-}: {
+type EmployeeImportPanelProps = {
   companyId: string;
   businessId: string;
   userId: string;
-}) {
+};
+
+/** لوحة استيراد الموظفين: تنزيل القالب، الرفع والمعاينة، ثم الحفظ عند خلو الأخطاء. */
+export function EmployeeImportPanel({ companyId, businessId, userId }: EmployeeImportPanelProps) {
   const locale = useLocale();
-  const { template, preview, commit } = useEmployeeImport(companyId, businessId, userId);
+  const { template, preview, commit, status } = useEmployeeImport(companyId, businessId, userId);
   const [file, setFile] = useState<File>();
-  const error = preview.isError ? preview.error : commit.isError ? commit.error : null;
+  const error = preview.isError
+    ? preview.error
+    : commit.isError
+      ? commit.error
+      : status.isError
+        ? status.error
+        : null;
   const clean = preview.isSuccess && preview.data.error_count === 0;
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -65,18 +70,18 @@ export function EmployeeImportPanel({
         <Button
           type="button"
           variant="outline"
-          disabled={!clean || commit.isPending}
+          disabled={
+            !clean || commit.isPending || commit.data?.preview_id === preview.data?.preview_id
+          }
           onClick={() => preview.data && commit.mutate(preview.data.preview_id)}
         >
           {t(locale, 'employeeImport.commit')}
         </Button>
       </div>
-      {preview.isSuccess ? <EmployeeImportErrors preview={preview.data} /> : null}
-      {commit.isSuccess ? (
-        <p role="status">
-          {t(locale, 'employeeImport.committed')} {commit.data.created_count}
-        </p>
+      {preview.isSuccess && commit.data?.preview_id !== preview.data.preview_id ? (
+        <EmployeeImportErrors preview={preview.data} />
       ) : null}
+      <EmployeeImportResult accepted={commit.isSuccess} status={status.data} />
       {error ? <p role="alert">{envelopeMessage(error, locale)}</p> : null}
     </Card>
   );

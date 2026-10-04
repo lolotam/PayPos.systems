@@ -45,16 +45,20 @@ export async function appendAuditLogs(
   entries: readonly { id: string; entry: AuditEntry }[],
 ): Promise<void> {
   if (entries.length === 0) return;
-  const json = (value: unknown, name: string) =>
-    value === undefined ? sql`NULL` : sql`${toJsonb(redactSecrets(value), name)}::jsonb`;
-  const values = entries.map(
-    ({
-      id,
-      entry,
-    }) => sql`(app_company_id(), ${assertUuid(id, 'id')}, app_user_id(), ${entry.entity},
-    ${assertUuid(entry.entityId, 'entityId')}, ${entry.action}, ${json(entry.before, 'before')}, ${json(entry.after, 'after')})`,
-  );
+  const json = (value: unknown, name: string): string | null =>
+    value === undefined ? null : toJsonb(redactSecrets(value), name);
+  const values = entries.map(({ id, entry }) => ({
+    id: assertUuid(id, 'id'),
+    entity: entry.entity,
+    entity_id: assertUuid(entry.entityId, 'entityId'),
+    action: entry.action,
+    before: json(entry.before, 'before'),
+    after: json(entry.after, 'after'),
+  }));
+  // صفوف JSONB تقلل معاملات البروتوكول دون تغيير التنقية أو هوية سياق المعاملة.
   await tx.execute(sql`
     INSERT INTO audit_log (company_id, id, actor_user_id, entity, entity_id, action, before, after)
-    VALUES ${sql.join(values, sql`,`)}`);
+    SELECT app_company_id(),id,app_user_id(),entity,entity_id,action,before::jsonb,after::jsonb
+    FROM jsonb_to_recordset(${JSON.stringify(values)}::jsonb)
+      AS r(id uuid,entity text,entity_id uuid,action text,before text,after text)`);
 }

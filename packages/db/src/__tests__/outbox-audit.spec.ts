@@ -128,6 +128,26 @@ const entry = {
   after: { a: 1 },
 };
 
+it('recordset batches preserve JSON null distinctly from an absent audit snapshot', async () => {
+  const absent = nextId(),
+    explicit = nextId(),
+    outboxId = nextId();
+  await database.withTenant(TENANT.A.company, async (tx) => {
+    await appendAuditLogs(tx, [
+      { id: absent, entry },
+      { id: explicit, entry: { ...entry, before: null } },
+    ]);
+    await appendOutboxEvents(tx, [{ id: outboxId, event: { ...event(), payload: null } }]);
+  });
+  const rows = await owner`SELECT id,before IS NULL AS sql_null,jsonb_typeof(before) AS kind
+    FROM audit_log WHERE id IN (${absent},${explicit}) ORDER BY id`;
+  expect(Array.from(rows)).toEqual([
+    { id: absent, sql_null: true, kind: null },
+    { id: explicit, sql_null: false, kind: 'null' },
+  ]);
+  expect(await outboxRows(outboxId)).toHaveLength(1);
+});
+
 describe('audit_log', () => {
   it('records the context company and acting user, and NULL for a system action', async () => {
     const [withUser, system] = [nextId(), nextId()];

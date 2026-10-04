@@ -26,14 +26,17 @@ const state = vi.hoisted(() => ({
     data: undefined as Record<string, unknown> | undefined,
     mutate: vi.fn(),
   },
+  status: {
+    isError: false,
+    error: null as unknown,
+    data: undefined as Record<string, unknown> | undefined,
+  },
 }));
 
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 vi.mock('../api/use-employee-import', () => ({ useEmployeeImport: () => state }));
 
-const panel = () => (
-  <EmployeeImportPanel companyId="company" businessId="business" userId="user" />
-);
+const panel = () => <EmployeeImportPanel companyId="company" businessId="business" userId="user" />;
 const commitButton = () =>
   screen.getByRole('button', { name: t('en', 'employeeImport.commit') }) as HTMLButtonElement;
 
@@ -42,6 +45,7 @@ beforeEach(() => {
   state.preview.data = undefined;
   state.commit.isSuccess = false;
   state.commit.data = undefined;
+  state.status.data = undefined;
   state.preview.mutate.mockClear();
   state.commit.mutate.mockClear();
 });
@@ -58,9 +62,25 @@ it('enables commit only once the preview is clean', () => {
 
 it('shows the created count after a successful commit', () => {
   state.commit.isSuccess = true;
-  state.commit.data = { created_count: 3 };
+  state.commit.data = { preview_id: 'p' };
+  state.status.data = { status: 'committed', created_count: 3 };
   render(panel());
   expect(screen.getByRole('status').textContent).toContain('3');
+});
+
+it('shows pending until the worker reports a terminal result and disables duplicate submission', () => {
+  state.preview.isSuccess = true;
+  state.preview.data = { preview_id: 'p', error_count: 0, errors: [] };
+  state.commit.isSuccess = true;
+  state.commit.data = { preview_id: 'p' };
+  state.status.data = { status: 'commit_requested' };
+  const { rerender } = render(panel());
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'employeeImport.pending'));
+  expect(commitButton().disabled).toBe(true);
+  state.status.data = { status: 'failed', error_code: 'IMPORT_COMMIT_FAILED' };
+  rerender(panel());
+  expect(screen.getByRole('alert').textContent).toContain(t('en', 'employeeImport.failed'));
+  expect(screen.queryByRole('status')).toBeNull();
 });
 
 it('previews the chosen file through the hook', () => {

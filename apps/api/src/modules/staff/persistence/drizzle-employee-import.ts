@@ -1,6 +1,4 @@
-import {
-  appendAuditLogs,
-  appendOutboxEvents,
+﻿import {
   appendOutboxEvent,
   runIdempotent,
   IdempotencyKeyBusyError,
@@ -17,7 +15,7 @@ import {
   readEmployeeManagementAccess,
 } from '../../identity/index.ts';
 import { describeWorkspaces } from '../../tenancy/index.ts';
-import type { EmployeeRecord } from '../domain/create-employee.ts';
+
 import {
   EmployeeImportError,
   type EmployeeImportCandidate,
@@ -82,32 +80,18 @@ function commitScope(
   return {
     authorize: (businessId) => authorize(tx, companyId, userId, businessId, true),
     load: (previewId) => loadPreview(tx, companyId, previewId),
-    branches: (businessId) => branches(tx, businessId),
-    insert: (records) => insertEmployees(tx, companyId, ids, records),
-    summary: (previewId, businessId, employeeIds, committedAt) =>
-      appendOutboxEvent(tx, ids.newId(), {
+    request: async (previewId, requestedAt) => {
+      await tx.execute(sql`UPDATE import_previews SET status='commit_requested',requested_at=${requestedAt}
+        WHERE company_id=${companyId} AND id=${previewId} AND status='ready'`);
+      await appendOutboxEvent(tx, ids.newId(), {
         aggregateType: 'import_preview',
         aggregateId: previewId,
-        eventType: 'ImportCommitted',
-        payload: {
-          preview_id: previewId,
-          business_id: businessId,
-          entity: 'employees',
-          created_count: employeeIds.length,
-          employee_ids: [...employeeIds],
-          committed_at: committedAt,
-        },
-      }),
-    markCommitted: (previewId, committedAt) =>
-      tx
-        .execute(
-          sql`UPDATE import_previews SET committed_at=${committedAt}
-        WHERE company_id=${companyId} AND id=${previewId}`,
-        )
-        .then(() => undefined),
+        eventType: 'EmployeeImportCommitRequested',
+        payload: { preview_id: previewId },
+      });
+    },
   };
 }
-
 async function savePreview(
   tx: Tx,
   companyId: string,
@@ -125,6 +109,7 @@ type PreviewRow = {
   id: string;
   business_id: string;
   created_by: string;
+  status: 'ready' | 'commit_requested' | 'committed' | 'failed';
   committed_at: Date | string | null;
   expires_at: Date | string;
   rows: readonly EmployeeImportCandidate[];
@@ -142,73 +127,19 @@ async function loadPreview(
   previewId: string,
 ): Promise<StoredImportPreview | null> {
   const [row] =
-    await tx.execute<PreviewRow>(sql`SELECT id,business_id,created_by,committed_at,expires_at,rows,errors
-    FROM import_previews WHERE company_id=${companyId} AND id=${previewId} FOR UPDATE`);
+    await tx.execute<PreviewRow>(sql`SELECT id,business_id,created_by,status,committed_at,expires_at,rows,errors
+    FROM import_previews WHERE company_id=${companyId} AND id=${previewId} AND entity='employees' FOR UPDATE`);
   if (row === undefined) return null;
   return {
     id: row.id,
     business_id: row.business_id,
     created_by: row.created_by,
+    status: row.status,
     committed_at: row.committed_at === null ? null : asIso(row.committed_at),
     expires_at: asIso(row.expires_at),
     rows: row.rows,
     errors: row.errors,
   };
-}
-
-async function insertEmployees(
-  tx: Tx,
-  companyId: string,
-  ids: IdGenerator,
-  records: readonly EmployeeRecord[],
-): Promise<void> {
-  if (records.length === 0) return;
-  const employees = records.map(
-    (r) =>
-      sql`(${companyId},${r.id},${r.business_id},${r.primary_branch_id},${r.user_id},${r.name_ar},${r.name_en},${r.role_code},${r.hire_date},${r.contract_end},${r.created_at})`,
-  );
-  await tx.execute(sql`INSERT INTO employees (company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,role_code,hire_date,contract_end,created_at)
-    VALUES ${sql.join(employees, sql`,`)}`);
-  const attachments = records.map(
-    (r) =>
-      sql`(${companyId},${ids.newId()},${r.business_id},${r.id},${r.primary_branch_id},${r.hire_date})`,
-  );
-  await tx.execute(sql`INSERT INTO employee_branches (company_id,id,business_id,employee_id,branch_id,"from")
-    VALUES ${sql.join(attachments, sql`,`)}`);
-  await appendAuditLogs(
-    tx,
-    records.map((record) => ({
-      id: ids.newId(),
-      entry: {
-        entity: 'employee',
-        entityId: record.id,
-        action: 'imported',
-        after: record,
-      },
-    })),
-  );
-  await appendOutboxEvents(
-    tx,
-    records.map((record) => ({
-      id: ids.newId(),
-      event: {
-        aggregateType: 'employee',
-        aggregateId: record.id,
-        eventType: 'EmployeeImported',
-        payload: {
-          employee_id: record.id,
-          business_id: record.business_id,
-          primary_branch_id: record.primary_branch_id,
-          name_en: record.name_en,
-          name_ar: record.name_ar,
-          role_code: record.role_code,
-          hire_date: record.hire_date,
-          contract_end: record.contract_end,
-          created_at: record.created_at,
-        },
-      },
-    })),
-  );
 }
 
 function cleanImportError(error: unknown): never {
@@ -258,7 +189,7 @@ export function createEmployeeImportTransactions(
               preview.created_by !== userId
             )
               throw new EmployeeImportError('IMPORT_PREVIEW_NOT_FOUND');
-            const result = await runIdempotent(
+            await runIdempotent(
               tx,
               { scope: 'COMPANY', operation: 'import-employees', key, fingerprint },
               async () => {
@@ -266,10 +197,11 @@ export function createEmployeeImportTransactions(
                   ...scope,
                   load: async (id) => (id === previewId ? preview : scope.load(id)),
                 });
-                return { status: 201, body };
+                return { status: 202, body };
               },
             );
-            return result.body as Awaited<ReturnType<typeof work>>;
+            // ردود النسخة المتزامنة القديمة قد تحمل ids/counts؛ عقد القبول الجديد يعيد المعرف فقط.
+            return { preview_id: preview.id };
           },
           { userId },
         );

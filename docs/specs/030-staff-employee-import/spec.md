@@ -1,7 +1,7 @@
 # Feature Specification: Employee import — template, preview, all-or-nothing commit
 
 **Created**: 2026-10-04
-**Status**: Implementation slice; rules fixed by the PR 11 brief (owner decisions), anything else is a `TODO(spec)`
+**Status**: Implementation slice; recorded PR 11 acceptance contract, amended by the 2026-10-05 delta.
 **Input**: Phase 1 plan row 11, SPEC §2 "Import", §11 acceptance "An import with any invalid row saves nothing",
 the later rows that reuse this framework (32b services, 34b customers, D-51 open packages), spec 013 create-employee,
 spec 017 update-employee, spec 014 + ADR-0022 (files), CLAUDE.md §6/§8, ADR-0018.
@@ -23,8 +23,8 @@ event, plus one import summary event.
   and writes no employees. Unknown business/file returns the same 404 as a missing one.
 - IM-03: a preview with zero errors can commit; every row lands in ONE transaction; any failure saves nothing.
 - IM-04: commit re-validates under lock; a branch deleted between preview and commit fails the whole commit.
-- IM-05: a preview expires after 24 h and is single-use; a concurrent double commit yields one success and
-  one `IMPORT_PREVIEW_USED`.
+- IM-05: a preview expires after 24 h and is single-use; concurrent commit requests yield the same 202
+  acceptance, one request event, and one worker effect. Terminal worker retries cannot create duplicates.
 - IM-06: the business/file/preview of another tenant or another business answer exactly like unknown.
 - IM-07: commit requires an `Idempotency-Key`; a repeat returns the stored result without a second import.
 - IM-08: permission is `manage:employees:business` for the business; Device is never accepted.
@@ -42,8 +42,8 @@ Storage read size violations and invalid workbook content return `IMPORT_FILE_CO
 Template and preview authorization reads do not lock companies or memberships. Unknown/foreign
 businesses follow create-employee's refusal. Commit authorizes before idempotency and requires
 the preview creator. Employee and attachment inserts, audit and outbox writes are batched.
-The injected clock supplies employee and commit timestamps. A 500-row integration measurement
-guards synchronous commit; ADR-0034 records the measured local figure and CI threshold.
+The injected clock supplies employee and commit timestamps. Stage A measured the synchronous work;
+Stage B moves creation to the worker and tests the warm API acceptance against the 200 ms rule.
 
 ### Touched outside the slice
 
@@ -52,7 +52,19 @@ guards synchronous commit; ADR-0034 records the measured local figure and CI thr
 - `files/queries/document-file.query.ts`: include verified file facts needed to check import
   business, uploader, status, type and size without exposing storage details in the HTTP response.
 - `packages/db/src/outbox.ts`: batch events while retaining aggregate locks and ordering.
+- Delta: `packages/db/src/audit-log.ts` and outbox batch writers use JSONB recordsets with one bound
+    payload, preserving SQL NULL/JSON null, redaction and explicit event order.
+- Delta: `packages/domain/src/employee-creation.ts` is the one pure rule implementation reused by
+    API and worker staff; the API domain file reexports it. Worker adds the existing workspace dependency.
+- Delta: worker tenancy exposes `employeeImportBranches` to staff through its declared adapter;
+    branch KEY SHARE locks preserve ownership during the job without cross-module SQL in staff.
+- Delta: import i18n errors move into the existing employee-import catalog file to keep ar/en
+    catalogs below 400 lines; both generated admin/POS API schemas follow the changed OpenAPI.
 - The leave fixture is main's version, unchanged by this hardening.
+- Delta: bounded production smoke fixtures use an OS-assigned available port; fixed random ranges
+  can hit Windows-reserved ports and reject an otherwise healthy built worker.
+- Delta: the OTP startup unit fixture preloads the expanded staff graph before timed tests,
+  matching its notification preload; startup deadlines and assertions remain unchanged.
 - `apps/worker/src/main.ts`: compact the existing Redis logging callback with identical behavior
   to resolve the pre-existing 401-line lint failure discovered by the required full gate.
 
@@ -107,7 +119,7 @@ the existing verification pipeline proves it. The import re-checks ≤ 2 MiB and
 
 | Table | Columns | RLS / grants | Indexes | FKs |
 | --- | --- | --- | --- | --- |
-| import_previews | company_id, id, business_id, entity, file_id?, created_by, created_at, expires_at, committed_at?, row_count, error_count, rows, errors | SELECT/INSERT/UPDATE, FORCE | company/business/created_at; company/file | company root; company/business; company/file_objects |
+| import_previews | company_id, id, business_id, entity, file_id, created_by, created_at, expires_at, committed_at?, status, requested_at?, created_count, error_code?, row_count, error_count, rows, errors | SELECT/INSERT/column UPDATE, FORCE | company/business/created_at; company/file | company root; company/business; company/file_objects |
 
 `rows` and `errors` are JSONB and carry no secret: names, role codes, dates, branch names and named error
 codes only. `file_id` is stored for provenance. No DELETE grant: TODO(spec) IM-Q3 tracks the retention decision and future cleanup job/grant.
@@ -118,9 +130,14 @@ codes only. `file_id` is stored for provenance. No DELETE grant: TODO(spec) IM-Q
   `{ file_name, content_type, content_base64 }`; `manage:employees:business` + staff feature + selected company.
 - POST `/v1/businesses/{businessId}/employees/import/previews`: 201
   `{ preview_id, row_count, error_count, errors:[{row,column,code}] }`; body `{ file_id }`.
-- POST `/v1/businesses/{businessId}/employees/import/commits`: 201
-  `{ preview_id, created_count, employee_ids:[…] }`; body `{ preview_id }`; requires `Idempotency-Key`.
-- All three use `@Authenticated()` + `SelectedCompanyGuard`; permission is resolved inside the tenant
+- POST `/v1/businesses/{businessId}/employees/import/commits`: 202
+  `{ preview_id }`; body `{ preview_id }`; requires `Idempotency-Key`. Atomically authorizes, locks the
+  creator-owned clean/unused/unexpired preview, sets `commit_requested` and appends one id-only
+  `EmployeeImportCommitRequested`. Repeated requests for the same preview return the same acceptance.
+- GET `/v1/businesses/{businessId}/employees/import/previews/{previewId}`: 200
+  `{ preview_id, status: ready|commit_requested|committed|failed, created_count, error_code }`.
+  Another user's/tenant's/business's preview returns exactly the unknown-preview refusal.
+- All four use `@Authenticated()` + `SelectedCompanyGuard`; request permission is resolved inside the tenant
   transaction at the business primary scope. Template/preview use non-locking authorization reads;
   commit follows create-employee's write-lock protocol.
 - Errors: `IMPORT_FILE_NOT_FOUND` (404, unknown/cross-tenant/cross-business/not-uploaded-by-caller alike),
@@ -137,16 +154,32 @@ codes only. `file_id` is stored for provenance. No DELETE grant: TODO(spec) IM-Q
 
 - `EmployeeImported` — one per created employee, `aggregate_type employee`, inside the commit transaction.
 - `ImportCommitted` — one summary, `aggregate_type import_preview`.
-No Phase 1 consumer; registered with the dispatcher (module-map §4) and recorded in ADR-0034.
+- `EmployeeImportCommitRequested` — id-only `{preview_id}`; company id comes from the outbox envelope.
+  Staff worker transports it to BullMQ outside the outbox claim transaction (ADR-0018).
+EmployeeImported/ImportCommitted have no Phase 1 business consumer; module-map §4 records all events.
 
 ### The 200 ms rule
 
-Preview and commit remain synchronous as required for this hardening. The 500-row use-case call
-measured 478.40 ms on shared test Postgres, 556.74 ms alone, 634.35 ms during the first full gate,
-and 472.37 ms on the final rerun (ADR-0034). The integration gate
-uses the owner's permitted < 1,000 ms shared-database fallback. The 200 ms target is exceeded;
-TODO(spec) IM-Q2 tracks moving the whole transaction to a worker with preview-status polling
-in a later owner-approved slice. Preview and commit retain their 500-row / 2 MiB bounds.
+The earlier synchronous constraint and < 1,000 ms fallback came from the orchestrator's brief,
+not an owner decision; the fallback was withdrawn on 2026-10-05. The 200 ms rule is mandatory.
+Stage A ran one warm-up plus five 500-row commits: median 470.01 ms before, 594.43 ms after retained
+audit/outbox parameter optimisations. JSONB employee/attachment trials also remained above 200 ms.
+ADR-0034 records the full breakdown and FK/attendance trigger evidence. Stage B is implemented:
+API accepts in a short transaction (warm integration assertion < 200 ms); worker owns the heavy commit.
+Preview and commit retain their 500-row / 2 MiB bounds.
+
+### Worker and polling
+
+The staff worker uses one tenant transaction and preview FOR UPDATE. It rechecks expiry/errors,
+locks branch keys to prevent deletion, reuses the shared pure create-employee rules, creates every row
+and audit/event, writes ImportCommitted and marks committed with counts using one Clock instant.
+Validation failure rolls back all rows and records a stable failed code in a separate transaction;
+unexpected errors retry three times before IMPORT_COMMIT_FAILED. Terminal status makes crash retries
+and redelivery harmless. Authorization is checked at API acceptance; the worker executes that durable
+command and stamps audit with its locked creator. Inactive and renamed branches match create-employee.
+Admin uses TanStack Query refetchInterval (1 second), stopping on committed/failed. No component fetch.
+Migration 0079 adds status/requested_at/created_count/error_code and UPDATE grants; older consumed rows
+backfill to committed. Existing migrations are untouched. No additional external dependency.
 
 ### Test plan
 
@@ -169,7 +202,8 @@ in a later owner-approved slice. Preview and commit retain their 500-row / 2 MiB
 ## Assumptions
 
 Admin is online. Storage is configured; without it the import answers `STORAGE_NOT_CONFIGURED` on preview.
-No new dependency beyond `exceljs@4.4.0` (apps/api). No new module arrow: staff already reads `files`.
+No new external dependency beyond `exceljs@4.4.0` (apps/api). Worker adds the existing workspace
+`@pospay/domain`. Staff's existing tenancy arrow gains the declared worker `employeeImportBranches` reader.
 
 ## Open questions for the owner
 
@@ -177,6 +211,3 @@ No new dependency beyond `exceljs@4.4.0` (apps/api). No new module arrow: staff 
   Recommendation: no in Phase 1; linking stays an explicit edit (spec 017).
 - **IM-Q3** — define retention for names/dates in expired previews and authorize a cleanup job.
   Recommendation: 30 days after expiry, in a separate retention slice.
-- **IM-Q2** — confirm the synchronous commit at the 500-row cap, or require an async commit with polling.
-  Recommendation: this PR stays synchronous per the hardening ruling; schedule a worker/polling follow-up
-  because the measured shared-database call exceeds 200 ms.

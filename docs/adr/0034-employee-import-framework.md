@@ -1,6 +1,6 @@
 # ADR-0034 — Employee import framework: XLSX, preview, all-or-nothing commit
 
-Date: 2026-10-04. Status: Accepted for Phase 1 PR 11. `IM-Q1`/`IM-Q2`/`IM-Q3` recorded in spec 030.
+Date: 2026-10-04; amended 2026-10-05. Status: Accepted for Phase 1 PR 11. `IM-Q1`/`IM-Q3` recorded in spec 030.
 
 ## Context
 
@@ -14,8 +14,8 @@ Two tensions have to be resolved here.
 
 1. `files` (owner decision 2026-10-03, ADR-0022) accepts only PDF, JPEG and PNG. An import needs a
    spreadsheet MIME, so the allowlist must widen.
-2. Anything expected to exceed 200 ms is a BullMQ job (`CLAUDE.md` §6), but the commit must be one
-   transaction whose result the manager sees immediately.
+2. Anything expected to exceed 200 ms is a BullMQ job (`CLAUDE.md` §6). Atomicity requires one
+   transaction; it does not require synchronous HTTP completion.
 
 ## Decision
 
@@ -38,28 +38,81 @@ memory and validates every row by reusing the create-employee rules (`validateEm
 response carries a stable preview id, the row count and per-row/per-column named errors (i18n keys). A
 preview expires after 24 h and is single-use.
 
-**Commit.** `POST …/employees/import/commits` accepts only a zero-error preview. In one `withTenant`
-transaction it locks the preview row `FOR UPDATE`, re-checks unused/unexpired, re-resolves every branch of
-the preview's business under the current state (a branch deleted since preview fails the whole commit),
-inserts every employee and its dated primary attachment, writes one audit row and one `EmployeeImported`
-outbox event per employee, writes one `ImportCommitted` summary event, marks the preview committed, and
-commits. Any failure rolls back everything. It requires an `Idempotency-Key`.
+**Commit request.** `POST …/employees/import/commits` requires `Idempotency-Key` and returns **202**
+`{preview_id}`. One API tenant transaction authorizes, locks the creator-owned preview `FOR UPDATE`,
+checks zero errors/unused/unexpired, sets `commit_requested`, and appends an id-only
+`EmployeeImportCommitRequested`. Same-preview repeats return the same acceptance without another event.
+Authorization precedes key claim/replay. The request is the authorization point for the durable command.
+Older synchronous idempotency bodies are normalized to the current id-only acceptance without another request event.
 
-**Sync vs worker.** This hardening preserves synchronous preview and all-or-nothing commit,
-as requested by the owner. The 500-row integration benchmark measures only the complete use-case
-call (authorization, tenant transaction and commit), excluding upload/preview/harness setup.
-On the shared test Postgres, batched commit measured **478.40 ms** in the targeted suite,
-**556.74 ms** when run alone, **634.35 ms** during the first full gate and **472.37 ms**
-during the final rerun. The integration assertion is **< 1,000 ms**, using the explicitly
-permitted shared-Postgres fallback. These figures exceed the 200 ms architectural target; they
-are not evidence of a sub-200 ms commit. `TODO(spec) IM-Q2` now tracks a measured follow-up:
-move the whole atomic transaction to BullMQ with preview-status polling if the owner approves
-that subsequent slice. Synchronous execution in this PR is the owner's hardening constraint,
-not a claim that asynchronous processing would lose atomicity. Template download remains synchronous.
+**Worker commit.** The staff BullMQ `employee-import-commit` job uses `withTenant(company_id)` and
+locks the preview. Only `commit_requested` can execute. It revalidates expiry/errors and branch ownership,
+locks current branch keys `FOR KEY SHARE`, then writes employees, primary attachments, audits,
+`EmployeeImported` events, the `ImportCommitted` summary and final status/count in one transaction.
+Injected Clock supplies one instant. The audit actor comes from the locked preview's creator.
+Any failure rolls back inserts; validation failures are marked `failed` in a subsequent transaction.
+Unexpected failures retry three times, then become stable `IMPORT_COMMIT_FAILED`. A crash before commit
+rolls back; a crash after commit replays a terminal preview without another insert. Redis publishing runs
+after outbox claim commit (ADR-0018), following the missed-out transport pattern and staff module wiring.
+GET `…/previews/:id` returns creator-only status/count/error; admin polls every second and stops on
+`committed` or `failed`. Failed previews require a new preview rather than a second commit request.
 
-**Events.** `EmployeeImported` (one per created employee) and `ImportCommitted` (one summary) are emitted
-in the commit transaction. No Phase 1 consumer; they are registered in `docs/module-map.md` §4 as known to
-the dispatcher, like `EmployeeDocumentRecorded`.
+**Sync vs worker.** The earlier synchronous constraint and < 1,000 ms fallback came from the
+orchestrator's brief, not an owner decision. That fallback was withdrawn on 2026-10-05.
+`CLAUDE.md` §6 requires work expected to exceed 200 ms to run in BullMQ in the worker.
+Earlier full-use-case measurements were 478.40, 556.74, 634.35 and 472.37 ms.
+The delta first profiles one warm-up and five 500-row commits, including authorization and COMMIT,
+then optimises without weakening atomicity or authorization. A median ≤ 200 ms permits synchronous
+commit; otherwise the whole transaction moves to the worker with preview-status polling in this PR.
+Template download remains synchronous. The final measurements and execution decision follow below.
+
+### Stage A evidence and final execution decision
+
+Temporary test-only transaction/statement instrumentation ran one separate 500-row warm-up and five
+500-row commits on the repository test harness. The table gives per-step medians in milliseconds;
+independent step medians do not sum to the total median. Total covers the entire use-case call,
+including tenant setup, idempotency, record/SQL preparation and instrumentation. COMMIT is measured
+from return of the transaction callback to return of `withTenant` (including driver completion).
+
+| Step | Before | After retained optimisations |
+| --- | ---: | ---: |
+| Authorization/locks | 17.76 | 24.18 |
+| Preview FOR UPDATE | 2.87 | 4.08 |
+| Branch re-resolution | 7.38 | 9.57 |
+| Employees INSERT | 133.79 | 230.93 |
+| employee_branches INSERT | 82.41 | 181.18 |
+| appendAuditLogs | 79.19 | 42.18 |
+| appendOutboxEvents (aggregate locks + INSERT) | 76.41 | 57.72 |
+| ImportCommitted | 5.32 | 4.85 |
+| Preview update | 1.58 | 2.21 |
+| COMMIT | 1.58 | 1.89 |
+| Idempotency | 4.85 | 7.60 |
+| Tenant setup | 2.40 | 3.00 |
+| Preparation/instrumentation | 52.33 | 45.68 |
+| **Full call median** | **470.01** | **594.43** |
+
+JSONB recordsets retained for audit/outbox reduce parameters and preserve SQL NULL versus JSON null,
+redaction, actor/tenant stamping and aggregate lock order. Employees/attachments INSERT SELECT trials
+did not improve the full median (469.87–571.06 ms), so their existing multi-row VALUES are retained.
+No total improvement is claimed: shared database scheduling and per-row trigger costs remain dominant.
+EXPLAIN ANALYZE found employee foreign-key checks ~46 ms and attendance-state initialization ~79 ms
+per 500-row statement; employee INSERT alone was ~134–141 ms. Attachments have three FK triggers;
+audit/outbox have company FK triggers. No integrity trigger was disabled or weakened.
+
+Import authorization now locks only the caller's memberships, while retaining the company
+`FOR NO KEY UPDATE` lock. PR 7 permission/membership editors acquire that same company lock first,
+so they cannot change grants during acceptance; create-employee's original broader protocol is unchanged.
+Outbox uses one batch INSERT after one ordered aggregate-lock statement, preserving commit order.
+The warm median remains above 200 ms: **Stage B is implemented in this PR**, with no deferred IM-Q2.
+The warm API acceptance integration assertion is **< 200 ms**; the full workspace check measured
+**32.48 ms** for acceptance of a 500-row preview after a separate warm-up request. This is one
+acceptance measurement, not a median or worker creation time. Heavy creation runs only in worker.
+The temporary profiler is removed. No new external dependency; worker adds the existing workspace
+`@pospay/domain` to reuse one pure employee-creation rule implementation across the two staff runtimes.
+
+**Events.** `EmployeeImported` and `ImportCommitted` are emitted in the worker commit transaction.
+They have no Phase 1 business consumer. `EmployeeImportCommitRequested` is transported to the staff
+worker job; all three names are registered in module-map §4.
 
 **Reuse.** `apps/api/src/shared/import/import-sheet.ts` is entity-agnostic (headers, caller-supplied row cap and source row positions);
 `domain/employee-import-row.ts` and `domain/employee-import-cells.ts` hold pure employee row/date rules;
@@ -68,15 +121,19 @@ the preview table, storage reader, API shape and UI shell. No second engine.
 
 ## Consequences
 
-- `staff → files` is already declared; the import adds no module arrow. It adds the `EmployeeImported` and
-  `ImportCommitted` event names only.
+- API `staff → files` is already declared. Worker `staff → tenancy.employeeImportBranches` is added
+  for locked branch revalidation. The module map declares all three import events and the request consumer.
 - Widening the `files` allowlist means a one-line changeset in the policy, the `requestFileUpload` enum and
-  the `file_objects_type` check constraint (new migration); the worker and RLS are unchanged.
+  the `file_objects_type` check constraint (migration 0078); file-verification logic and its RLS are unchanged.
 - The preview row holds names, roles, dates and branch names in JSONB under RLS. TODO(spec) IM-Q3 tracks the retention policy and future privileged cleanup job/grant
   (select/insert/update only today); recommend deletion 30 days after expiry, pending owner decision.
 - Extracting `staff` later needs the object-storage port and a files read API.
 - `exceljs@4.4.0` becomes a production dependency of `apps/api`; it is not imported by `packages/domain`,
   so the shared kernel stays dependency-free.
+- Migration 0079 adds status/request/count/error fields and column UPDATE grants, backfilling older
+  consumed previews as committed. Migrations 0077/0078 and main's 0076 are unchanged.
+- Pure employee-creation rules move to `packages/domain/employee-creation.ts`; API reexports them and
+  worker uses them directly. Commit persistence exists only in worker.
 
 ## Review hardening
 

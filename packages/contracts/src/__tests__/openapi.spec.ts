@@ -144,6 +144,8 @@ const expectedSchemas = [
   'CommitEmployeeImportInput',
   'EmployeeImportColumn',
   'EmployeeImportCommit',
+  'EmployeeImportCommitAccepted',
+  'EmployeeImportStatus',
   'EmployeeImportErrorCode',
   'EmployeeImportPreview',
   'EmployeeImportRowError',

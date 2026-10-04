@@ -1,4 +1,4 @@
-import { t } from '@pospay/i18n';
+﻿import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -35,8 +35,14 @@ function setup() {
 }
 
 function readyGet(path: string) {
+  if (path.endsWith('/previews/{previewId}'))
+    return Promise.resolve({
+      data: { preview_id: previewId, status: 'committed', created_count: 1, error_code: null },
+    });
   if (path === '/v1/files/{id}')
-    return Promise.resolve({ data: { id: fileId, status: 'READY', content_type: XLSX, size_bytes: 4 } });
+    return Promise.resolve({
+      data: { id: fileId, status: 'READY', content_type: XLSX, size_bytes: 4 },
+    });
   return Promise.resolve({
     data: { file_name: 'employees.xlsx', content_type: XLSX, content_base64: 'UEsDBA==' },
   });
@@ -59,13 +65,15 @@ it('uploads through the staff files policy, previews without errors, then commit
       return {
         data: { preview_id: previewId, row_count: 1, error_count: 0, errors: [] },
       };
-    return { data: { preview_id: previewId, created_count: 1, employee_ids: [previewId] } };
+    return { data: { preview_id: previewId } };
   });
   put.mockResolvedValue({ ok: true });
 
   setup();
   const input = await screen.findByLabelText(t('en', 'employeeImport.choose'));
-  fireEvent.change(input, { target: { files: [new File(['PK\x03\x04'], 'employees.xlsx', { type: XLSX })] } });
+  fireEvent.change(input, {
+    target: { files: [new File(['PK\x03\x04'], 'employees.xlsx', { type: XLSX })] },
+  });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeImport.preview') }));
 
   await waitFor(() => expect(screen.getByText(t('en', 'employeeImport.clean'))).toBeTruthy());
@@ -116,11 +124,15 @@ it('disables commit and shows every named row error until the preview is clean',
 
   setup();
   const input = await screen.findByLabelText(t('en', 'employeeImport.choose'));
-  fireEvent.change(input, { target: { files: [new File(['PK\x03\x04'], 'employees.xlsx', { type: XLSX })] } });
+  fireEvent.change(input, {
+    target: { files: [new File(['PK\x03\x04'], 'employees.xlsx', { type: XLSX })] },
+  });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeImport.preview') }));
 
   await waitFor(() => expect(screen.getByRole('table')).toBeTruthy());
   expect(screen.getByText(t('en', 'employeeImport.code_IMPORT_BRANCH_NOT_FOUND'))).toBeTruthy();
-  const commit = screen.getByRole('button', { name: t('en', 'employeeImport.commit') }) as HTMLButtonElement;
+  const commit = screen.getByRole('button', {
+    name: t('en', 'employeeImport.commit'),
+  }) as HTMLButtonElement;
   expect(commit.disabled).toBe(true);
 });

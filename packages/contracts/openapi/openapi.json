@@ -437,6 +437,83 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/employees/import/previews/{previewId}": {
+      "get": {
+        "operationId": "employeeImportStatus",
+        "description": "Creator-only employee import status; unknown and inaccessible previews share a 404.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Import status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeImportStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/employees/import/template": {
       "get": {
         "operationId": "employeeImportTemplate",
@@ -636,7 +713,7 @@
     "/v1/businesses/{businessId}/employees/import/commits": {
       "post": {
         "operationId": "commitEmployeeImport",
-        "description": "Commits a zero-error, unexpired, unused preview: all employees, attachments, audits and events in one transaction; re-validates branches under lock. Requires Idempotency-Key.",
+        "description": "Requests a worker commit for a creator-owned clean, unused, unexpired preview. Repeated requests return the same preview id. Requires Idempotency-Key; poll the preview status for the atomic result.",
         "parameters": [
           {
             "in": "header",
@@ -678,12 +755,12 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "Commit summary",
+          "202": {
+            "description": "Commit accepted",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EmployeeImportCommit"
+                  "$ref": "#/components/schemas/EmployeeImportCommitAccepted"
                 }
               }
             }
@@ -8977,6 +9054,62 @@
           "preview_id",
           "created_count",
           "employee_ids"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeImportCommitAccepted": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeImportStatus": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "commit_requested",
+              "committed",
+              "failed"
+            ]
+          },
+          "created_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "error_code": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "EMPLOYEE_BRANCH_NOT_FOUND",
+              "IMPORT_PREVIEW_HAS_ERRORS",
+              "IMPORT_PREVIEW_EXPIRED",
+              "EMPLOYEE_CONTRACT_END_BEFORE_HIRE",
+              "IMPORT_COMMIT_FAILED"
+            ]
+          }
+        },
+        "required": [
+          "preview_id",
+          "status",
+          "created_count",
+          "error_code"
         ],
         "additionalProperties": false
       },

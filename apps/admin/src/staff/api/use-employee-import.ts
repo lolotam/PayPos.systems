@@ -1,19 +1,25 @@
 'use client';
 import {
-  employeeImportCommit,
+  employeeImportCommitAccepted,
   employeeImportPreview,
   employeeImportTemplate,
 } from '@pospay/contracts';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import { uploadImportFile } from './upload-import-file';
+import { useState } from 'react';
+import { useEmployeeImportStatus } from './use-employee-import-status';
 
 // نرفع رمز الحالة مع رفض الـ API كما تفعل بقية خطافات الموظفين.
-const refusal = (error: unknown, response: Response) => ({ ...(error as object), status: response.status });
+const refusal = (error: unknown, response: Response) => ({
+  ...(error as object),
+  status: response.status,
+});
 
 /** خطافات استيراد الموظفين: القالب، المعاينة (مع الرفع)، والحفظ. */
 export function useEmployeeImport(companyId: string, businessId: string, userId: string) {
   const header = { 'x-company-id': companyId };
+  const [requestedPreview, setRequestedPreview] = useState<string>();
 
   const template = useQuery({
     queryKey: ['employee-import-template', companyId, businessId, userId],
@@ -58,9 +64,12 @@ export function useEmployeeImport(companyId: string, businessId: string, userId:
         },
       );
       if (result.error) throw refusal(result.error, result.response);
-      return employeeImportCommit.parse(result.data);
+      return employeeImportCommitAccepted.parse(result.data);
     },
+    onSuccess: (accepted) => setRequestedPreview(accepted.preview_id),
   });
 
-  return { template, preview, commit };
+  const status = useEmployeeImportStatus(companyId, businessId, userId, requestedPreview);
+
+  return { template, preview, commit, status };
 }

@@ -1,8 +1,8 @@
-import { randomInt } from 'node:crypto';
 import { afterAll, beforeAll, expect, inject, it } from 'vitest';
 import { pgUrl } from '../../../../../../packages/db/test/pg-env.ts';
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 import { builtSmoke } from '../../../../test/built-smoke.ts';
+import { availableSmokePort } from '../../../../test/smoke-port.ts';
 
 let h: Harness, cookie: string, company: string, business: string;
 beforeAll(async () => {
@@ -67,8 +67,8 @@ function redisUrl(): string {
 }
 
 it('built production API and worker are ready with empty optional settings; all files routes give a named unavailable error', async () => {
-  const apiPort = randomInt(40000, 45000),
-    workerPort = randomInt(45000, 50000);
+  const apiPort = await availableSmokePort(),
+    workerPort = await availableSmokePort();
   await builtSmoke('api', environment(apiPort), apiPort, async (base) => {
     const headers = { cookie, 'x-company-id': company, 'content-type': 'application/json' };
     const id = '01920000-0000-7000-8000-000000000abc';

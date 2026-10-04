@@ -4,6 +4,7 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
+  IMPORT_COMMIT_FAILED: 422,
   DOCUMENT_TYPE_UNAVAILABLE: 422,
   DOCUMENT_EXPIRY_REQUIRED: 400,
   DOCUMENT_FILE_ALREADY_RECORDED: 409,
@@ -106,6 +107,7 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'IMPORT_COMMIT_FAILED',
   'DOCUMENT_TYPE_UNAVAILABLE',
   'DOCUMENT_EXPIRY_REQUIRED',
   'DOCUMENT_FILE_ALREADY_RECORDED',

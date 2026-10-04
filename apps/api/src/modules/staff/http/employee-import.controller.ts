@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   commitEmployeeImportInput,
   id,
@@ -7,6 +17,9 @@ import {
   type PreviewEmployeeImportInput,
 } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
+import type { TenantWrappers } from '@pospay/db';
+import { DATABASE } from '../../../shared/database.token.ts';
+import { employeeImportStatusQuery } from '../queries/employee-import-status.query.ts';
 
 import { Authenticated } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
@@ -22,6 +35,7 @@ import { PreviewEmployeeImportUseCase } from '../use-cases/preview-employee-impo
 @Controller('businesses/:businessId/employees/import')
 export class EmployeeImportController {
   constructor(
+    @Inject(DATABASE) private readonly database: TenantWrappers | null,
     @Inject(GetEmployeeImportTemplateUseCase)
     private readonly template: GetEmployeeImportTemplateUseCase | null,
     @Inject(PreviewEmployeeImportUseCase)
@@ -29,6 +43,25 @@ export class EmployeeImportController {
     @Inject(CommitEmployeeImportUseCase)
     private readonly commit: CommitEmployeeImportUseCase | null,
   ) {}
+
+  @Get('previews/:previewId')
+  @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
+  async status(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('previewId', new ZodValidationPipe(id)) previewId: string,
+    @Req() request: FastifyRequest,
+  ) {
+    if (this.database === null) throw new ApiError('NOT_READY');
+    const actor = actorOf(request);
+    return employeeImportStatusQuery(
+      this.database,
+      actor.companyId,
+      actor.userId,
+      businessId,
+      previewId,
+    );
+  }
 
   @Get('template')
   @Authenticated()
@@ -65,7 +98,7 @@ export class EmployeeImportController {
   }
 
   @Post('commits')
-  @HttpCode(201)
+  @HttpCode(202)
   @Authenticated()
   @UseGuards(SelectedCompanyGuard)
   async createCommit(

@@ -1,9 +1,8 @@
-import type {
+﻿import type {
   EmployeeImportCandidate,
   EmployeeImportFileFacts,
   EmployeeImportRowError,
 } from '../domain/employee-import.ts';
-import type { EmployeeRecord } from '../domain/create-employee.ts';
 
 /** فرع نشاط يقرأه الاستيراد لبناء خريطة الأسماء. */
 export interface ImportBranch {
@@ -17,6 +16,8 @@ export interface StoredImportPreview {
   readonly id: string;
   readonly business_id: string;
   readonly created_by: string;
+  /** حالة الالتزام التي تمنع طلبين من إنشاء وظيفتين. */
+  readonly status: 'ready' | 'commit_requested' | 'committed' | 'failed';
   readonly committed_at: string | null;
   readonly expires_at: string;
   readonly rows: readonly EmployeeImportCandidate[];
@@ -68,7 +69,7 @@ export interface ImportPreviewScope {
   save(input: SaveImportPreviewInput): Promise<void>;
 }
 
-/** نطاق الالتزام: قراءة المعاينة بالقفل، إنشاء الموظفين، والأحداث، والاستهلاك. */
+/** نطاق الطلب: قراءة المعاينة بالقفل وتسجيل طلب الوظيفة وحدثه. */
 export interface ImportCommitScope {
   /**
    * يثبت إدارة الموظفين في النشاط تحت أقفال PR 7.
@@ -85,42 +86,12 @@ export interface ImportCommitScope {
    */
   load(previewId: string): Promise<StoredImportPreview | null>;
   /**
-   * يقرأ فروع النشاط لإعادة التحقق من أسماء الفروع عند الالتزام.
+   * يسجل طلب الوظيفة وحدثه داخل المعاملة؛ لا ينشئ موظفين في API.
    *
-   * @param businessId النشاط المستهدف
-   * @returns فروع النشاط
+   * @param previewId معرف المعاينة المقفلة
+   * @param requestedAt لحظة قبول الطلب من الساعة المحقونة
    */
-  branches(businessId: string): Promise<readonly ImportBranch[]>;
-  /**
-   * ينشئ كل موظف وارتباط فرعه وتدقيقه وحدثه داخل نفس المعاملة.
-   *
-   * @param records سجلات الموظفين كاملة الحقول
-   * @returns اكتمال الإدخال
-   */
-  insert(records: readonly EmployeeRecord[]): Promise<void>;
-  /**
-   * يكتب حدث الاستيراد الملخّص داخل نفس المعاملة.
-   *
-   * @param previewId معرف المعاينة
-   * @param businessId النشاط
-   * @param employeeIds الموظفون المنشؤون
-   * @param committedAt نفس لحظة إنشاء الصفوف من الساعة المحقونة
-   * @returns اكتمال كتابة الحدث
-   */
-  summary(
-    previewId: string,
-    businessId: string,
-    employeeIds: readonly string[],
-    committedAt: string,
-  ): Promise<void>;
-  /**
-   * يستهلك المعاينة مرة واحدة بتعيين committed_at.
-   *
-   * @param previewId معرف المعاينة
-   * @param committedAt لحظة الالتزام من الساعة المحقونة
-   * @returns اكتمال التعيين
-   */
-  markCommitted(previewId: string, committedAt: string): Promise<void>;
+  request(previewId: string, requestedAt: string): Promise<void>;
 }
 
 /** حد المعاملات يسمح باختبار التنسيق دون قاعدة بيانات. */
@@ -149,9 +120,9 @@ export interface EmployeeImportTransactions {
    * @param actor.key مفتاح idempotency
    * @param actor.fingerprint بصمة الطلب (معرف المعاينة)
    * @param work عملية الالتزام
-   * @returns ناتج العملية المخزّن أو الملعب
+   * @returns قبول الطلب بمعرف المعاينة وفق المخطط الحالي، حتى عند إعادة الرد القديم
    */
-  runCommit<T>(
+  runCommit(
     actor: {
       companyId: string;
       userId: string;
@@ -160,8 +131,8 @@ export interface EmployeeImportTransactions {
       key: string;
       fingerprint: string;
     },
-    work: (scope: ImportCommitScope) => Promise<T>,
-  ): Promise<T>;
+    work: (scope: ImportCommitScope) => Promise<{ preview_id: string }>,
+  ): Promise<{ preview_id: string }>;
 }
 
 /** قارئ بايتات الأجسام الموثقة عبر منفذ التخزين المحقون. */

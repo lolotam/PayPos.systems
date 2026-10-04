@@ -102,3 +102,7 @@ export interface ImportCommitted {
   readonly employee_ids: readonly string[];
   readonly committed_at: string;
 }
+/** طلب إنشاء موظفي معاينة واحدة؛ الشركة في غلاف outbox، بلا أسماء أو بيانات موظفين. */
+export interface EmployeeImportCommitRequested {
+  readonly preview_id: string;
+}

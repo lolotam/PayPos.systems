@@ -4,8 +4,9 @@ import { HealthController } from './health.controller.ts';
 import type * as Notifications from '@pospay/notifications';
 import type * as StaffModule from '../modules/staff/index.ts';
 import type * as NotificationModule from '../modules/notifications/index.ts';
-// تحميل تركيب القنوات خارج مهلة اختبار بدء التشغيل حتى لا يستهلك التحويل البارد مهلة العزل.
+// تحميل تركيب القنوات ووظائف staff خارج مهلة بدء التشغيل حتى لا يستهلك التحويل البارد مهلة العزل.
 import '../modules/notifications/index.ts';
+import '../modules/staff/index.ts';
 
 const resources = vi.hoisted(() => ({
   database: { close: vi.fn(async () => undefined), ping: vi.fn() },

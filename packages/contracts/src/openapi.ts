@@ -30,6 +30,8 @@ import {
   employeeImportPreview,
   commitEmployeeImportInput,
   employeeImportCommit,
+  employeeImportCommitAccepted,
+  employeeImportStatus,
 } from './staff/employee-import.js';
 import { employeeImportPaths } from './staff/employee-import-openapi.js';
 import { staffPaths } from './staff/staff-openapi.js';
@@ -130,6 +132,8 @@ const SCHEMAS = [
   employeeImportPreview,
   commitEmployeeImportInput,
   employeeImportCommit,
+  employeeImportCommitAccepted,
+  employeeImportStatus,
   customer,
   findOrCreateCustomerInput,
   attendanceQrToken,

@@ -1,5 +1,5 @@
-import { attendanceEn } from './attendance-en.js';
-import { employeeImportEn } from './employee-import.js';
+﻿import { attendanceEn } from './attendance-en.js';
+import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { employeeDocumentsEn } from './employee-documents-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
@@ -225,17 +225,7 @@ export const en = {
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:
       'This user already has an active employee record in this business.',
-    IMPORT_FILE_CONTENT_INVALID: 'The import file content is invalid or unreadable.',
-    IMPORT_FILE_NOT_FOUND: 'The import file was not found.',
-    IMPORT_FILE_NOT_READY: 'The import file has not passed verification yet.',
-    IMPORT_FILE_TYPE_INVALID: 'The import file must be an Excel .xlsx workbook.',
-    IMPORT_FILE_SIZE_INVALID: 'The import file exceeds 2 MiB.',
-    IMPORT_HEADER_INVALID: 'The file column headers do not match the template.',
-    IMPORT_ROW_LIMIT_EXCEEDED: 'The import has more than 500 data rows.',
-    IMPORT_PREVIEW_NOT_FOUND: 'The import preview was not found.',
-    IMPORT_PREVIEW_EXPIRED: 'The import preview expired after 24 hours.',
-    IMPORT_PREVIEW_USED: 'This import preview was already used.',
-    IMPORT_PREVIEW_HAS_ERRORS: 'Fix the preview errors before committing.',
+    ...employeeImportErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',

@@ -39,7 +39,8 @@ it('FORCE RLS hides the preview from another tenant and refuses cross-tenant ins
   expect(await asOther(sql`SELECT id FROM import_previews WHERE id=${previewId}`)).toHaveLength(0);
   expect(
     await asOther(
-      sql`UPDATE import_previews SET committed_at=now() WHERE id=${previewId} RETURNING id`,
+      sql`UPDATE import_previews SET committed_at=now(),status='committed',created_count=1,requested_at=now(),error_code=NULL
+        WHERE id=${previewId} RETURNING id`,
     ),
   ).toHaveLength(0);
   await expect(

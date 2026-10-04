@@ -69,18 +69,24 @@ export async function appendOutboxEvents(
   const aggregates = [...locks.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, aggregate]) => aggregate);
-  const lockValues = aggregates.map(
-    ({ type, id }, index) => sql`(${index}::int, ${type}::text, ${id}::uuid)`,
+  const lockValues = JSON.stringify(
+    aggregates.map(({ type, id }, position) => ({ position, kind: type, id })),
   );
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(
     app_company_id()::text || ':' || ordered.kind || ':' || ordered.id::text, 0))
-    FROM (SELECT kind,id FROM (VALUES ${sql.join(lockValues, sql`,`)}) AS locks(position,kind,id)
+    FROM (SELECT kind,id FROM jsonb_to_recordset(${lockValues}::jsonb) AS locks(position int,kind text,id uuid)
       ORDER BY position) AS ordered`);
-  const values = entries.map(
-    ({ id, event }) => sql`(app_company_id(), ${assertUuid(id, 'id')},
-    ${event.aggregateType}, ${assertUuid(event.aggregateId, 'aggregateId')}, ${event.eventType},
-    ${toJsonb(event.payload, 'payload')}::jsonb)`,
-  );
+  const values = entries.map(({ id, event }, position) => ({
+    position,
+    id: assertUuid(id, 'id'),
+    aggregate_type: event.aggregateType,
+    aggregate_id: assertUuid(event.aggregateId, 'aggregateId'),
+    event_type: event.eventType,
+    payload: toJsonb(event.payload, 'payload'),
+  }));
   await tx.execute(sql`INSERT INTO outbox (company_id,id,aggregate_type,aggregate_id,event_type,payload)
-    VALUES ${sql.join(values, sql`,`)}`);
+    SELECT app_company_id(),id,aggregate_type,aggregate_id,event_type,payload::jsonb
+    FROM jsonb_to_recordset(${JSON.stringify(values)}::jsonb)
+      AS r(position int,id uuid,aggregate_type text,aggregate_id uuid,event_type text,payload text)
+    ORDER BY position`);
 }
