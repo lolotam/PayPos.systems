@@ -48,7 +48,7 @@ export const permissions = pgTable(
   (t) => [
     check(
       'permissions_code_format',
-      sql`${t.code} ~ '^[a-z][a-z-]*:[a-z][a-z-]*:(platform|company|business|branch)$'`,
+      sql`${t.code} ~ '^[a-z][a-z-]*:[a-z][a-z-]*:(platform|company|business|branch|own)$'`,
     ),
   ],
 );

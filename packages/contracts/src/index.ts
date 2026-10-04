@@ -225,6 +225,7 @@ export type {
   SalaryHistoryQuery,
   SalaryHistoryPage,
 } from './staff/salary.js';
+export * from './staff/leave.js';
 
 export * from './staff/passkeys.js';
 export * from './staff/clock-attendance.js';

@@ -5,6 +5,12 @@
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
  */
 export const PERMISSIONS = [
+  'create:leave:own',
+  'read:leave:own',
+  'cancel:leave:own',
+  'create:leave:branch',
+  'read:leave:branch',
+  'cancel:leave:branch',
   'read:schedules:branch',
   'manage:schedules:branch',
   'read:schedules:business',

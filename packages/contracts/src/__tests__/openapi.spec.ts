@@ -4,6 +4,13 @@ import committed from '../../openapi/openapi.json' with { type: 'json' };
 import { buildOpenApiDocument } from '../openapi.js';
 
 const expectedSchemas = [
+  'CancelLeaveInput',
+  'LeaveListItem',
+  'LeaveListQuery',
+  'LeavePage',
+  'LeaveRequest',
+  'RequestEmployeeLeaveInput',
+  'RequestLeaveInput',
   'ApplyTemplateInput',
   'ApplyTemplateResult',
   'ArchiveTemplateInput',
