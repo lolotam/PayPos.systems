@@ -47,3 +47,11 @@ export interface EmployeePasskeyBound {
   readonly revision: number;
   readonly bound_at: string;
 }
+
+/** يصدر عند فك المدير للربط وإبطال النسخة مع التدقيق في نفس commit، دون الاعتماد أو السبب الحر. */
+export interface EmployeePasskeyUnbound {
+  readonly employee_id: string;
+  readonly binding_id: string;
+  readonly revision: number;
+  readonly unbound_at: string;
+}

@@ -9,6 +9,8 @@ import {
 
 // spec 009 يجعل الأدوار المحذوفة من الصف ❌؛ الجهاز لا يرث سلطة موظف من ALLOW قديم.
 const deviceForbidden = [
+  'read:passkeys:branch',
+  'unbind:passkeys:branch',
   ...LEAVE_PERMISSIONS,
   ...OWNER_DERIVED_PERMISSIONS,
   ...SCHEDULE_PERMISSIONS,
@@ -74,6 +76,7 @@ export function systemRoleGrantAllowedSql(memberAlias: string, grantAlias: strin
     g = sql.identifier(grantAlias);
   const role = (code: string) => SYSTEM_ROLES.find((r) => r.code === code)?.id;
   return sql`(${m}.role_owner_key <> 'global' OR (
+    ${passkeyMembershipScopeSql(memberAlias, grantAlias)} AND
     (${m}.role_id <> ${role('device')}::uuid OR ${g}.permission_code NOT IN (${sql.join(
       deviceForbidden.map((code) => sql`${code}`),
       sql`,`,
@@ -112,7 +115,7 @@ export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias:
       human.map((r) => sql`${r.id}::uuid`),
       sql`,`,
     )})
-    OR ((${sql.join(cells, sql` OR `)}) AND (
+    OR ((${sql.join(cells, sql` OR `)}) AND ${passkeyMembershipScopeSql(memberAlias, overrideAlias, true)} AND (
       ${m}.role_id <> ${manager?.id}::uuid
       OR ${o}.permission_code NOT IN ('read:memberships:business','manage:memberships:business',
         'create:customers:business','manage:discount-limits:business')
@@ -127,6 +130,21 @@ export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias:
       )})
         OR ${o}.effect = 'DENY' OR ${o}.permission_code <> 'create:customers:branch'
         OR (${m}.scope_type = 'BRANCH' AND ${o}.scope_type = 'BRANCH' AND ${o}.scope_id = ${m}.scope_id)))`;
+}
+
+function passkeyMembershipScopeSql(
+  memberAlias: string,
+  permissionAlias: string,
+  override = false,
+): SQL {
+  const m = sql.identifier(memberAlias);
+  const role = (code: string) => SYSTEM_ROLES.find((r) => r.code === code)?.id;
+  const code = sql`${sql.identifier(permissionAlias)}.permission_code`;
+  const o = override ? sql.identifier(permissionAlias) : null;
+  return sql`(${code} NOT IN ('read:passkeys:branch','unbind:passkeys:branch') OR (
+    (${m}.role_id <> ${role('business_manager')}::uuid OR (${m}.scope_type='BUSINESS' ${o === null ? sql`` : sql`AND ((${o}.scope_type='BUSINESS' AND ${o}.scope_id=${m}.scope_id) OR (${o}.scope_type='BRANCH' AND EXISTS(SELECT 1 FROM branches pb WHERE pb.company_id=${m}.company_id AND pb.business_id=${m}.scope_id AND pb.id=${o}.scope_id)))`}))
+    AND (${m}.role_id <> ${role('branch_manager')}::uuid OR (${m}.scope_type='BRANCH' ${o === null ? sql`` : sql`AND ${o}.scope_type='BRANCH' AND ${o}.scope_id=${m}.scope_id`}))
+  ))`;
 }
 
 /** إسقاط هوية المالك الحقيقي في SQL؛ النطاق والمالك العالمي جزء من الهوية لا اسم الدور. */

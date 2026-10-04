@@ -99,6 +99,8 @@ let maintenance: ReturnType<typeof createStaffOtpMaintenance> | undefined;
 const otpConfiguration = () =>
   readStaffOtpConfiguration(process.env, 'worker', readOtpTemplateApproval(process.env));
 const KNOWN_EVENT_TYPES = [
+  // PR21 بلا مستهلك أعمال في هذه المرحلة؛ الشاشة تقرأ التاريخ ولا يحتاج الحدث إعادة محاولة.
+  'EmployeePasskeyUnbound',
   ...(notifications?.eventTypes ?? []),
   ...(inApp?.eventTypes ?? []),
   'FileUploadRequested',

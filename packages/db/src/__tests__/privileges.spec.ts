@@ -15,6 +15,8 @@ import { createTestDatabase, type TestDatabase } from '../../test/test-database.
 // is not written here fails the suite, so a broad grant cannot authorise itself.
 const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_app: [
+    'attendance_device_signals:INSERT',
+    'attendance_device_signals:SELECT',
     'audit_log:INSERT',
     'audit_log:SELECT',
     'branches:DELETE',
@@ -140,6 +142,7 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
 const TENANT_TABLES = [
+  'attendance_device_signals',
   'file_objects',
   'file_access_audit',
   'file_cleanup_objects',

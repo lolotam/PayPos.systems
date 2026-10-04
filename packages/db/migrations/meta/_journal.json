@@ -460,15 +460,43 @@
     {
       "idx": 65,
       "version": "7",
-      "when": 1791086024039,
-      "tag": "0065_2026-10-04_staff-leave-decisions",
+      "when": 1791087324673,
+      "tag": "0065_2026-10-04_attendance-device-signals",
       "breakpoints": true
     },
     {
       "idx": 66,
       "version": "7",
-      "when": 1791086031396,
-      "tag": "0066_2026-10-04_leave-decision-access",
+      "when": 1791087340424,
+      "tag": "0066_2026-10-04_attendance-device-signals-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1791087342306,
+      "tag": "0067_2026-10-04_passkey-unbind-permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1791087344225,
+      "tag": "0068_2026-10-04_passkey-history-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1791092710881,
+      "tag": "0069_2026-10-04_staff-leave-decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1791092721853,
+      "tag": "0070_2026-10-04_leave-decision-access",
       "breakpoints": true
     }
   ]
