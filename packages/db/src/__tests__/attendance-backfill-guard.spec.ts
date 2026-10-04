@@ -4,7 +4,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 
 const MIGRATION = new URL(
-  '../../migrations/0070_2026-10-04_staff-attendance-rls.sql',
+  '../../migrations/0072_2026-10-04_staff-attendance-rls.sql',
   import.meta.url,
 );
 let testDb: TestDatabase, owner: postgres.Sql, guard: string;

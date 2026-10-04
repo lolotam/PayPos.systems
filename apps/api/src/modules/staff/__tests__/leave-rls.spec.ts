@@ -93,3 +93,29 @@ it('database guards overlap and lifecycle invariants even without the domain', a
     f.db.withTenant(f.company, (tx) => tx.execute(insert(f.company, f.secondBranch))),
   ).rejects.toThrow();
 });
+it('decision and revocation column grants preserve RLS and reject incomplete lifecycle shapes', async () => {
+  const approve = sql`UPDATE leave_requests SET status='APPROVED',decided_by=${f.userId},decided_at='2026-10-04T10:00Z',decision_reason='Synthetic' WHERE company_id=${f.company} AND id=${rowId} RETURNING id`;
+  expect(await f.db.withTenant(f.otherCompany, (tx) => tx.execute(approve))).toHaveLength(0);
+  await expect(
+    f.db.withTenant(f.company, (tx) =>
+      tx.execute(sql`UPDATE leave_requests SET decision_reason=' ' WHERE id=${rowId}`),
+    ),
+  ).rejects.toThrow();
+  expect(await f.db.withTenant(f.company, (tx) => tx.execute(approve))).toHaveLength(1);
+  for (const statement of [
+    sql`UPDATE leave_requests SET status='CANCELLED' WHERE id=${rowId}`,
+    sql`UPDATE leave_requests SET status='CANCELLED',revoked_by=${f.userId},revoked_at=starts_at,revocation_reason='Synthetic' WHERE id=${rowId}`,
+    sql`UPDATE leave_requests SET status='CANCELLED',revoked_by=${f.userId},revoked_at='2026-10-04T10:00Z',revocation_reason=' ' WHERE id=${rowId}`,
+  ])
+    await expect(f.db.withTenant(f.company, (tx) => tx.execute(statement))).rejects.toThrow();
+  const revoke = sql`UPDATE leave_requests SET status='CANCELLED',revoked_by=${f.userId},revoked_at='2026-10-04T10:00Z',revocation_reason='Synthetic correction' WHERE company_id=${f.company} AND id=${rowId} RETURNING id`;
+  expect(await f.db.withTenant(f.otherCompany, (tx) => tx.execute(revoke))).toHaveLength(0);
+  expect(await f.db.withTenant(f.company, (tx) => tx.execute(revoke))).toHaveLength(1);
+  expect(
+    await f.db.withTenant(f.otherCompany, (tx) =>
+      tx.execute(
+        sql`SELECT decided_by,decision_reason,revoked_by,revocation_reason FROM leave_requests WHERE id=${rowId}`,
+      ),
+    ),
+  ).toHaveLength(0);
+});

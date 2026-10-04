@@ -488,15 +488,29 @@
     {
       "idx": 69,
       "version": "7",
-      "when": 1791093804627,
-      "tag": "0069_2026-10-04_staff-attendance",
+      "when": 1791092710881,
+      "tag": "0069_2026-10-04_staff-leave-decisions",
       "breakpoints": true
     },
     {
       "idx": 70,
       "version": "7",
-      "when": 1791093806376,
-      "tag": "0070_2026-10-04_staff-attendance-rls",
+      "when": 1791092721853,
+      "tag": "0070_2026-10-04_leave-decision-access",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1791095494934,
+      "tag": "0071_2026-10-04_staff-attendance",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1791095505467,
+      "tag": "0072_2026-10-04_staff-attendance-rls",
       "breakpoints": true
     }
   ]

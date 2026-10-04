@@ -64,6 +64,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
         : (ROLE_DEFAULTS[code] as readonly string[]).includes(role.code) ||
           (OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(code) ||
           (SCHEDULE_PERMISSIONS as readonly string[]).includes(code) ||
+          ['decide:leave:branch', 'revoke:leave:branch', 'read:leave:branch'].includes(code) ||
           optional[role.code]?.includes(code),
     ),
   };

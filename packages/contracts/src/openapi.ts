@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { unbindPasskeySchemas } from './staff/unbind-passkey.js';
 import { unbindPasskeyPaths } from './staff/unbind-passkey-openapi.js';
 import { leaveSchemas } from './staff/leave.js';
+import { leaveDecisionSchemas } from './staff/leave-decision.js';
 import { leavePaths } from './staff/leave-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
 import { clockAttendanceSchemas } from './staff/clock-attendance.js';
@@ -88,6 +89,7 @@ import {
 const SCHEMAS = [
   ...clockAttendanceSchemas,
   ...leaveSchemas,
+  ...leaveDecisionSchemas,
   ...passkeySchemas,
   ...unbindPasskeySchemas,
   ...scheduleSchemas,

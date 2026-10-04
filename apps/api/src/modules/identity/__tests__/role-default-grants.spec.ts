@@ -79,6 +79,7 @@ async function applyReferenceMigrations() {
     '0058_2026-10-03_system-role-default-bundles.sql',
     '0059_2026-10-03_identity-role-followups.sql',
     '0064_2026-10-04_leave-default-bundles.sql',
+    '0070_2026-10-04_leave-decision-access.sql',
   ].map((name) =>
     readFileSync(
       new URL(`../../../../../../packages/db/migrations/${name}`, import.meta.url),
@@ -88,7 +89,8 @@ async function applyReferenceMigrations() {
   await f.h.owner.begin(async (tx) => {
     for (const migration of migrations)
       for (const statement of migration.split('--> statement-breakpoint'))
-        await tx.unsafe(statement);
+        if (statement.trim() && !statement.trim().startsWith('CREATE INDEX CONCURRENTLY'))
+          await tx.unsafe(statement);
   });
 }
 
