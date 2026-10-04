@@ -36,7 +36,7 @@ export class SetDiscountLimit {
           membership_id: membershipId,
           limit_bps: limit,
           reason,
-          permission_code: 'manage:discounts:company',
+          permission_code: 'manage:discount-limits:business',
           decided_at: context.now.toISOString(),
         },
       });

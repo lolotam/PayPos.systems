@@ -40,6 +40,7 @@ export {
   canonicalOwnerSql,
   systemRolePolicy,
   systemRoleOverrideAllowedSql,
+  systemRoleGrantAllowedSql,
 } from './system-role-policy.ts';
 export { verticalTemplate, type VerticalTemplate } from './vertical-templates.ts';
 export {

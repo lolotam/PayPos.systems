@@ -403,6 +403,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Requires manage:discount-limits:business at the resolved membership scope; self and canonical Owner holders are protected. */
         post: operations["setMembershipDiscountLimit"];
         delete?: never;
         options?: never;
@@ -549,6 +550,40 @@ export interface paths {
         put?: never;
         /** @description Requires create:customers:company and the customers feature. Existing name and locale are preserved. */
         post: operations["findOrCreateCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/customers/find-or-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped. */
+        post: operations["findOrCreateBusinessCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/branches/{branchId}/customers/find-or-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped. */
+        post: operations["findOrCreateBranchCustomer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1256,6 +1291,8 @@ export interface components {
             overrides: components["schemas"]["PermissionOverridePage"];
             ended_overrides: components["schemas"]["PermissionOverridePage"];
             editing_enabled: boolean;
+            /** @default false */
+            discount_limit_editing_enabled: boolean;
             discount_limit: components["schemas"]["DiscountLimit"];
         };
         RequestFileUpload: {
@@ -3250,6 +3287,80 @@ export interface operations {
                 "x-company-id": string;
             };
             path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+            };
+        };
+        responses: {
+            /** @description Customer with masked phone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    findOrCreateBusinessCustomer: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+            };
+        };
+        responses: {
+            /** @description Customer with masked phone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    findOrCreateBranchCustomer: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+            };
             cookie?: never;
         };
         requestBody: {

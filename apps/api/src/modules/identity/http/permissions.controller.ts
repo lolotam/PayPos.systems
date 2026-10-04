@@ -90,7 +90,7 @@ export class PermissionsController {
 
   @Post(':membershipId/discount-limit')
   @HttpCode(200)
-  @Require('manage:memberships:company')
+  @Require('manage:discount-limits:business', { membership: 'membershipId' })
   async setLimit(
     @Param('membershipId', new ZodValidationPipe(id)) membershipId: string,
     @Body(new ZodValidationPipe(discountLimitInput)) input: DiscountLimitInput,

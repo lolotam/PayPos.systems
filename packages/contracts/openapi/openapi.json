@@ -1764,6 +1764,7 @@
             }
           }
         },
+        "description": "Requires manage:discount-limits:business at the resolved membership scope; self and canonical Owner holders are protected.",
         "parameters": [
           {
             "in": "header",
@@ -2393,6 +2394,122 @@
           }
         ],
         "description": "Requires create:customers:company and the customers feature. Existing name and locale are preserved."
+      }
+    },
+    "/v1/businesses/{businessId}/customers/find-or-create": {
+      "post": {
+        "operationId": "findOrCreateBusinessCustomer",
+        "description": "Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindOrCreateCustomerInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer with masked phone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/branches/{branchId}/customers/find-or-create": {
+      "post": {
+        "operationId": "findOrCreateBranchCustomer",
+        "description": "Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindOrCreateCustomerInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer with masked phone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
       }
     },
     "/v1/devices/me/attendance-qr": {
@@ -4916,6 +5033,10 @@
             "$ref": "#/components/schemas/PermissionOverridePage"
           },
           "editing_enabled": {
+            "type": "boolean"
+          },
+          "discount_limit_editing_enabled": {
+            "default": false,
             "type": "boolean"
           },
           "discount_limit": {

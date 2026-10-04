@@ -20,11 +20,11 @@ const context: PermissionEditContext = {
   editorUserId: 'editor',
   membership: member,
   holderMemberships: [member],
-  catalog: ['manage:discounts:company'],
+  catalog: ['manage:discount-limits:business'],
   now: new Date('2026-10-03'),
   target: { companyId: 'company' },
   descendantTargets: [],
-  grants: ['manage:memberships:company', 'manage:discounts:company'].map((permission) => ({
+  grants: ['manage:discount-limits:business'].map((permission) => ({
     permission,
     effect: 'ALLOW',
     scopeType: 'COMPANY',
@@ -56,8 +56,16 @@ it('protects the person through another active owner membership', () => {
     }),
   ).toBeNull();
 });
-it('propagates PR 7 denials, including missing membership, management, catalog, self and inactive window', () => {
-  expect(discountLimitEditFailure({ ...context, grants: [] })).toBe('FORBIDDEN');
+it('hides unavailable targets and protects self, catalog and active windows', () => {
+  expect(
+    discountLimitEditFailure({
+      ...context,
+      grants: context.grants.map((grant) => ({
+        ...grant,
+        permission: 'manage:discounts:company',
+      })),
+    }),
+  ).toBe('FORBIDDEN');
   expect(discountLimitEditFailure({ ...context, membership: null })).toBe('FORBIDDEN');
   expect(discountLimitEditFailure({ ...context, catalog: [] })).toBe('FORBIDDEN');
   expect(discountLimitEditFailure({ ...context, editorUserId: 'holder' })).toBe(
@@ -69,7 +77,5 @@ it('propagates PR 7 denials, including missing membership, management, catalog, 
       membership: { ...member, endsAt: new Date('2025-01-01') },
     }),
   ).toBe('FORBIDDEN');
-  expect(discountLimitEditFailure({ ...context, grants: context.grants.slice(0, 1) })).toBe(
-    'PERMISSION_NOT_HELD',
-  );
+  expect(discountLimitEditFailure({ ...context, grants: [] })).toBe('FORBIDDEN');
 });

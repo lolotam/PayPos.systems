@@ -8,6 +8,8 @@ const expectations: Record<string, readonly string[]> = {
     (p) => !p.endsWith(':platform') && p !== 'login:staff:branch' && !p.includes(':salaries:'),
   ),
   general_manager: [
+    'create:customers:company',
+    'manage:discount-limits:business',
     'read:businesses:company',
     'create:businesses:company',
     'create:branches:business',
@@ -25,6 +27,8 @@ const expectations: Record<string, readonly string[]> = {
     'manage:schedules:business',
   ],
   business_manager: [
+    'create:customers:business',
+    'manage:discount-limits:business',
     'create:branches:business',
     'read:branches:branch',
     'manage:devices:branch',
@@ -41,13 +45,14 @@ const expectations: Record<string, readonly string[]> = {
   ],
   accountant: ['read:businesses:company', 'read:branches:branch'],
   branch_manager: [
+    'create:customers:branch',
     'read:branches:branch',
     'manage:devices:branch',
     'read:schedules:branch',
     'manage:schedules:branch',
   ],
   shift_supervisor: ['read:branches:branch'],
-  cashier: ['read:branches:branch'],
+  cashier: ['read:branches:branch', 'create:customers:branch'],
   waiter: ['read:branches:branch'],
   kitchen: [],
   storekeeper: ['read:branches:branch'],

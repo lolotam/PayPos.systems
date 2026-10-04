@@ -1,4 +1,4 @@
-import type { AccessGrant, ScopeType } from '../domain/access.ts';
+import type { AccessGrant, AccessTarget, ScopeType } from '../domain/access.ts';
 
 /**
  * نطاق عضوية واحدة سارية للمستخدم في الشركة.
@@ -15,10 +15,23 @@ export interface SourcedGrant extends AccessGrant {
   readonly source: 'role' | 'override';
 }
 
+/** النطاق المؤكد وكل النطاقات التابعة المتأثرة؛ يحتاجها الـ guard لمنع كشف هدف ممنوع عن طريق فحص الجسم. */
+export interface ResolvedAccessTargets {
+  readonly target: AccessTarget;
+  readonly descendantTargets: readonly AccessTarget[];
+}
+
 /**
  * اللي الـ guard محتاج يقراه عشان يقرر — كل method بتقرا في الطلب نفسه، مفيش cache.
  */
 export interface AccessReader {
+  /**
+   * يعيد نطاق العضوية السارية وتوابعه من الشركة المؤكدة لفحص الإذن كاملاً قبل الجسم؛ المجهول لا يكشف الهوية.
+   *
+   * @param companyId الشركة المؤكدة من عضوية المستخدم
+   * @param membershipId العضوية التي يطلب المدير تعديل حدها
+   */
+  membershipTarget(companyId: string, membershipId: string): Promise<ResolvedAccessTargets | null>;
   /**
    * الشركات اللي المستخدم ليه فيها عضوية سارية دلوقتي — بتتقري تحت withUser قبل ما أي tenant يتفتح.
    *

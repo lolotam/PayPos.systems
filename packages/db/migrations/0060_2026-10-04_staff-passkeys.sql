@@ -28,6 +28,7 @@ CREATE TABLE "employee_passkeys" (
 	CONSTRAINT "employee_passkeys_unbound_pair" CHECK (("employee_passkeys"."unbound_at" IS NULL) = ("employee_passkeys"."unbound_by" IS NULL))
 );
 --> statement-breakpoint
+ALTER TABLE "auth_otp_challenges" DROP CONSTRAINT "auth_otp_challenges_context";--> statement-breakpoint
 ALTER TABLE "session" ADD COLUMN "staff_personal_context" jsonb;--> statement-breakpoint
 ALTER TABLE "passkey" ADD CONSTRAINT "passkey_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employee_passkeys" ADD CONSTRAINT "employee_passkeys_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -42,4 +43,14 @@ CREATE INDEX "employee_passkeys_employee_history_idx" ON "employee_passkeys" USI
 CREATE INDEX "employee_passkeys_business_idx" ON "employee_passkeys" USING btree ("company_id","business_id");--> statement-breakpoint
 CREATE INDEX "employee_passkeys_credential_idx" ON "employee_passkeys" USING btree ("company_id","passkey_id");--> statement-breakpoint
 CREATE INDEX "employee_passkeys_bound_by_idx" ON "employee_passkeys" USING btree ("bound_by");--> statement-breakpoint
-CREATE INDEX "employee_passkeys_unbound_by_idx" ON "employee_passkeys" USING btree ("unbound_by");
+CREATE INDEX "employee_passkeys_unbound_by_idx" ON "employee_passkeys" USING btree ("unbound_by");--> statement-breakpoint
+ALTER TABLE "auth_otp_challenges" ADD CONSTRAINT "auth_otp_challenges_context" CHECK (jsonb_typeof("auth_otp_challenges"."device_context") = 'object'
+        AND ("auth_otp_challenges"."device_context"->>'companyId') ~ '^[a-f0-9-]{36}$'
+        AND ("auth_otp_challenges"."device_context"->>'businessId') ~ '^[a-f0-9-]{36}$'
+        AND (("auth_otp_challenges"."device_context" ?& ARRAY['companyId','businessId','branchId','deviceId']
+          AND "auth_otp_challenges"."device_context" - ARRAY['companyId','businessId','branchId','deviceId'] = '{}'::jsonb
+          AND ("auth_otp_challenges"."device_context"->>'branchId') ~ '^[a-f0-9-]{36}$'
+          AND ("auth_otp_challenges"."device_context"->>'deviceId') ~ '^[a-f0-9-]{36}$')
+        OR ("auth_otp_challenges"."device_context" ?& ARRAY['purpose','companyId','businessId']
+          AND "auth_otp_challenges"."device_context" - ARRAY['purpose','companyId','businessId'] = '{}'::jsonb
+          AND "auth_otp_challenges"."device_context"->>'purpose' = 'STAFF_PERSONAL')));
