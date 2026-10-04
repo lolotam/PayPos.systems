@@ -3,7 +3,7 @@ import { attendanceInstallationSignal } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-/** PR22 يستدعي الكاتب داخل معاملة أثر الحضور المقبول فقط؛ المعرف الخام لا يخرج من الذاكرة. */
+/** PR 22b يستدعي الكاتب داخل معاملة أثر الحضور المقبول فقط؛ المعرف الخام لا يخرج من الذاكرة. */
 export async function recordAttendanceDeviceSignal(
   tx: Tx,
   record: {

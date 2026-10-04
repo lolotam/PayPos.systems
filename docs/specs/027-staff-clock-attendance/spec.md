@@ -112,3 +112,5 @@ production startup smoke with all optional settings empty if startup wiring chan
 All AT-01–AT-09 checks pass, there is never more than one OPEN session per employee,
 cross-company reads return no rows and writes cannot cross tenant-qualified FKs.
 Attendance creates no salary/commission deduction. PRs 23–28 remain separate slices.
+
+Amendment 2026-10-04: PR 21 and PR 22 were built in parallel, so PR 22 ships without the `installation_id` field, the POS identifier and the transactional signal write. They move to follow-up PR 22b; until it merges `attendance_device_signals` stays empty and the shared-device flag cannot fire.
