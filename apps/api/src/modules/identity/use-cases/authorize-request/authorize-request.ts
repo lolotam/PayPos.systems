@@ -16,6 +16,7 @@ export interface AuthorizeRequestInput {
   /** The raw route parameter values naming the target, when the permission's scope needs one. */
   readonly businessParam?: unknown;
   readonly branchParam?: unknown;
+  readonly membershipParam?: unknown;
 }
 
 export interface Authorized {
@@ -55,6 +56,10 @@ export class AuthorizeRequest {
   }
 
   async #target(companyId: string, input: AuthorizeRequestInput): Promise<AccessTarget | null> {
+    if (input.membershipParam !== undefined) {
+      const membershipId = asUuid(input.membershipParam);
+      return membershipId === null ? null : this.#reader.membershipTarget(companyId, membershipId);
+    }
     if (input.branchParam !== undefined) {
       const branchId = asUuid(input.branchParam);
       if (branchId === null) return null;

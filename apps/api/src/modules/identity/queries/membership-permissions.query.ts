@@ -1,10 +1,16 @@
 import { membershipPermissions, type MembershipPermissionsQuery } from '@pospay/contracts';
-import { canonicalOwnerSql, OWNER_DERIVED_PERMISSIONS, type TenantWrappers } from '@pospay/db';
+import {
+  canonicalOwnerSql,
+  OWNER_DERIVED_PERMISSIONS,
+  systemRoleGrantAllowedSql,
+  type TenantWrappers,
+} from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 import {
   membershipInBusiness,
   permissionEditingAllowed,
 } from './permission-business-scope.query.ts';
+import { discountLimitEditingAllowed } from './discount-limit-editing.query.ts';
 
 function overrideRows(
   companyId: string,
@@ -31,7 +37,8 @@ function roleDefaults(companyId: string): SQL {
   // افتراضي الراتب مشتق من هوية المالك؛ أي حزمة راتب مخزنة لدور آخر لا تمنح ولا تظهر كافتراضي.
   return sql`COALESCE((SELECT jsonb_agg(p.code ORDER BY p.code) FROM permissions p WHERE
     (p.code NOT IN (${salaryCodes}) AND EXISTS (SELECT 1 FROM role_permissions rp
-      WHERE rp.role_id=m.role_id AND rp.role_owner_key=m.role_owner_key AND rp.permission_code=p.code))
+      WHERE rp.role_id=m.role_id AND rp.role_owner_key=m.role_owner_key AND rp.permission_code=p.code
+        AND ${systemRoleGrantAllowedSql('m', 'rp')}))
     OR (${canonicalOwnerSql('m', companyId)} AND p.code IN (${salaryCodes}))), '[]'::jsonb)`;
 }
 
@@ -52,6 +59,7 @@ function detailStatement(
     ${overrideRows(companyId, page, false, businessId)} AS overrides,
     ${overrideRows(companyId, page, true, businessId)} AS ended_overrides,
     jsonb_build_object('limit_bps', m.limit_bps) AS discount_limit,
+    ${discountLimitEditingAllowed(companyId, userId)} AS discount_limit_editing_enabled,
     ${permissionEditingAllowed(companyId, userId, businessId)} AS editing_enabled
     FROM memberships m JOIN roles r ON r.id = m.role_id AND r.owner_key = m.role_owner_key
     WHERE m.company_id = ${companyId} AND m.id = ${membershipId}

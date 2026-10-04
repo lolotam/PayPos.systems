@@ -18,6 +18,9 @@ it.each(['ar', 'en'] as const)(
       'read:files:business',
       'manage:discounts:company',
       'create:customers:company',
+      'create:customers:business',
+      'create:customers:branch',
+      'manage:discount-limits:business',
       'read:settings:business',
       'manage:settings:business',
     ])

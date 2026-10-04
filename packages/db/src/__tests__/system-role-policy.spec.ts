@@ -63,8 +63,46 @@ it.each([
   'manage:devices:branch',
   'view:notifications:business',
   'create:companies:platform',
+  'read:files:business',
+  'manage:files:business',
+  'manage:employees:business',
+  'create:customers:company',
+  'create:customers:business',
+  'create:customers:branch',
+  'manage:discounts:company',
+  'manage:discount-limits:business',
 ])('Device cannot acquire spec 009 forbidden %s', (permission) => {
   expect(
     systemRolePolicy(role('device'), 'global')?.permissions.some((code) => code === permission),
   ).toBe(false);
+});
+
+for (const entry of SYSTEM_ROLES) {
+  it.each([
+    [
+      'create:customers:company',
+      [
+        'owner',
+        'general_manager',
+        'shift_supervisor',
+        'accountant',
+        'waiter',
+        'kitchen',
+        'storekeeper',
+        'staff',
+        'marketing',
+        'viewer',
+      ],
+    ],
+    ['create:customers:business', ['owner', 'business_manager']],
+    ['create:customers:branch', ['owner', 'branch_manager', 'cashier']],
+    ['manage:discount-limits:business', ['owner', 'general_manager', 'business_manager']],
+  ] as const)(entry.code + ' follow-up eligibility for %s', (code, roles) => {
+    expect(systemRolePolicy(entry.id, 'global')?.permissions.includes(code)).toBe(
+      (roles as readonly string[]).includes(entry.code),
+    );
+  });
+}
+it('Device retains explicit staff login eligibility', () => {
+  expect(systemRolePolicy(role('device'), 'global')?.permissions).toContain('login:staff:branch');
 });

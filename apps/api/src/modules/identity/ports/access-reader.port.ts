@@ -1,4 +1,4 @@
-import type { AccessGrant, ScopeType } from '../domain/access.ts';
+import type { AccessGrant, AccessTarget, ScopeType } from '../domain/access.ts';
 
 /**
  * نطاق عضوية واحدة سارية للمستخدم في الشركة.
@@ -19,6 +19,13 @@ export interface SourcedGrant extends AccessGrant {
  * اللي الـ guard محتاج يقراه عشان يقرر — كل method بتقرا في الطلب نفسه، مفيش cache.
  */
 export interface AccessReader {
+  /**
+   * يعيد نطاق العضوية السارية من الشركة المؤكدة لتفويض إدارة حدها؛ المجهول وغير المتاح لا يكشفان الهوية.
+   *
+   * @param companyId الشركة المؤكدة من عضوية المستخدم
+   * @param membershipId العضوية التي يطلب المدير تعديل حدها
+   */
+  membershipTarget(companyId: string, membershipId: string): Promise<AccessTarget | null>;
   /**
    * الشركات اللي المستخدم ليه فيها عضوية سارية دلوقتي — بتتقري تحت withUser قبل ما أي tenant يتفتح.
    *

@@ -62,7 +62,7 @@ export function MembershipPermissionsPanel({
           userId={userId}
           membershipId={membershipId}
           limitBps={data.discount_limit.limit_bps}
-          disabled={businessId !== undefined || !data.editing_enabled}
+          disabled={!data.discount_limit_editing_enabled}
         />
         <PermissionMembershipHistory
           data={data}

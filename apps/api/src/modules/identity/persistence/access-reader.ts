@@ -2,6 +2,7 @@ import {
   canonicalOwnerSql,
   OWNER_DERIVED_PERMISSIONS,
   systemRoleOverrideAllowedSql,
+  systemRoleGrantAllowedSql,
   type Tx,
   type TenantWrappers,
 } from '@pospay/db';
@@ -25,6 +26,26 @@ const ACTIVE = sql`m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > no
  */
 export function createAccessReader(db: TenantWrappers): AccessReader {
   return {
+    membershipTarget: (companyId, membershipId) =>
+      db.withTenant(companyId, async (tx) => {
+        const [row] = await tx.execute<{
+          scope_type: ScopeType;
+          scope_id: string;
+          business_id: string | null;
+        }>(sql`
+        SELECT m.scope_type, m.scope_id, b.business_id FROM memberships m
+        LEFT JOIN branches b ON b.company_id=m.company_id AND b.id=m.scope_branch_id
+        WHERE m.company_id=${companyId} AND m.id=${membershipId} AND ${ACTIVE}`);
+        if (row === undefined || (row.scope_type === 'BRANCH' && row.business_id === null))
+          return null;
+        return {
+          companyId,
+          ...(row.scope_type === 'BUSINESS' ? { businessId: row.scope_id } : {}),
+          ...(row.scope_type === 'BRANCH' && row.business_id !== null
+            ? { businessId: row.business_id, branchId: row.scope_id }
+            : {}),
+        };
+      }),
     companiesOf: (userId) =>
       db.withUser(userId, async (tx) => {
         const rows = await tx.execute<{ company_id: string }>(sql`
@@ -89,6 +110,7 @@ export async function readAccessTransaction(
         JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
           AND rp.permission_code NOT IN (${SALARY_CODES})
+          AND ${systemRoleGrantAllowedSql('m', 'rp')}
         UNION ALL
         SELECT p.code, 'ALLOW', 'role', m.scope_type, m.scope_id
         FROM memberships m

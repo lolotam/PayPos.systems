@@ -56,6 +56,9 @@ it.each(['ar', 'en'] as const)(
       'manage:employees:business',
       'manage:files:business',
       'read:files:business',
+      'create:customers:business',
+      'create:customers:branch',
+      'manage:discount-limits:business',
     ]);
     render(
       <>

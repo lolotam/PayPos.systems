@@ -86,3 +86,31 @@ decision remain unchanged, with DEVICE-Q1 and recommendations recorded in spec 0
 
 Default and optional human cells remain unchanged. The same Device eligibility
 matrix governs both new personal decisions and historical ALLOW evaluation.
+
+## PR 7d amendment — 2026-10-04
+
+Spec 022 implements the recorded follow-ups with custom migration 0059, leaving
+0058 unchanged. Customer business/branch codes authorize entry context only,
+while company/phone uniqueness and the original company endpoint remain unchanged.
+Business Manager receives business creation; Branch Manager/Cashier receive branch
+creation.
+
+CUSTOMER-Q1 resolved by owner decision 2026-10-04, recommended option: General
+Manager receives create:customers:company by default in migration 0059 and the
+seed matrix. Shift Supervisor, Accountant, Waiter, Kitchen, Storekeeper, Staff,
+Marketing and Viewer remain off by default but eligible for an explicit personal
+ALLOW of that company code. Device remains forbidden; the business/branch creator
+roles retain their existing scoped reach. No personal decision or history is rewritten.
+
+manage:discount-limits:business is a separate default for Owner/General Manager/
+Business Manager. The existing parameter route authorizes the membership's resolved
+scope under locks, without general permission-management authority. Company
+grants cover company targets; business grants cover only that business's memberships.
+Self and active canonical owner holders stay protected. Inaccessible/unknown
+targets share FORBIDDEN. No new table, RLS exception, dependency or module arrow.
+
+The Device never cells now include files, employees, company customer creation,
+company discount management, and the three new codes. Shared eligibility rejects
+new ALLOWs and ignores historical ALLOWs while retaining history. Staff login stays
+eligible for Device under ADR-0019, with no new stored Device default. Scope checks
+also prevent historical or new BM/branch customer grants from broadening reach.
