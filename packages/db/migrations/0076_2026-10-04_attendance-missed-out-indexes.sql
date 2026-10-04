@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX CONCURRENTLY "attendance_exceptions_one_suspected" ON "attendance_exceptions" USING btree ("company_id","session_id") WHERE "attendance_exceptions"."kind" = 'SUSPECTED_MISSED_OUT';

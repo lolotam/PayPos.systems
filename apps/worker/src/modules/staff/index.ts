@@ -1,1 +1,2 @@
-export { createStaffDocumentDefaults } from './staff.module.ts';
+export { createStaffDocumentDefaults, startStaffWorker } from './staff.module.ts';
+export type { AttendanceExceptionRaised, AttendanceMissedOut } from './events/published.ts';

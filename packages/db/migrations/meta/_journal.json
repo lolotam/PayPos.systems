@@ -533,6 +533,13 @@
       "when": 1791101195972,
       "tag": "0075_2026-10-04_document-type-permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1791126532203,
+      "tag": "0076_2026-10-04_attendance-missed-out-indexes",
+      "breakpoints": true
     }
   ]
 }
