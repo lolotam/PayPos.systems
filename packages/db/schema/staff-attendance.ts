@@ -181,6 +181,10 @@ export const attendanceExceptions = pgTable(
     ),
     index('attendance_exceptions_employee_idx').on(t.companyId, t.employeeId, t.raisedAt),
     index('attendance_exceptions_actor_idx').on(t.companyId, t.resolvedBy),
+    // ضمان قاعدة البيانات أن الاشتباه يُرفع مرة واحدة لكل جلسة مهما تكررت الوظيفة.
+    uniqueIndex('attendance_exceptions_one_suspected')
+      .on(t.companyId, t.sessionId)
+      .where(sql`${t.kind} = 'SUSPECTED_MISSED_OUT'`),
     check(
       'attendance_exceptions_kind',
       sql`${t.kind} IN ('NONE','OUT_OF_RANGE','SUSPECTED_MISSED_OUT')`,

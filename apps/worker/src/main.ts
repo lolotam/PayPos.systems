@@ -34,6 +34,7 @@ import { readConfig } from './shared/config.ts';
 import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
 import { createWorker } from './worker.ts';
 import { startFilesWorker } from './modules/files/index.ts';
+import { startStaffWorker } from './modules/staff/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 
 const config = readConfig(process.env);
@@ -50,6 +51,7 @@ redis.on('error', (error: unknown) => {
 // ADR-0019: استقبال STOP وin-app مستقلان؛ تفعيل OTP لا يفتح إرسال الشركات.
 const production = process.env['NODE_ENV'] === 'production';
 const files = startFilesWorker(app, systemUuidV7(), config.REDIS_URL, process.env);
+const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
 const email = await startEmailCapability({
   env: process.env,
   production,
@@ -101,6 +103,7 @@ const otpConfiguration = () =>
 const KNOWN_EVENT_TYPES = [
   // PR21 بلا مستهلك أعمال في هذه المرحلة؛ الشاشة تقرأ التاريخ ولا يحتاج الحدث إعادة محاولة.
   'EmployeePasskeyUnbound',
+  ...staff.eventTypes,
   ...(notifications?.eventTypes ?? []),
   ...(inApp?.eventTypes ?? []),
   'FileUploadRequested',
@@ -120,7 +123,7 @@ const deliver: typeof businessDeliver = (event) =>
   event.eventType === 'FileUploadRequested'
     ? (files?.deliver(event) ??
       Promise.resolve({ delivered: false, error: 'STORAGE_NOT_CONFIGURED', retryInMs: 60_000 }))
-    : (queue?.deliver ?? businessDeliver)(event);
+    : staff.deliver(event, queue?.deliver ?? businessDeliver);
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
 const release = async (): Promise<void> => {
@@ -128,6 +131,7 @@ const release = async (): Promise<void> => {
   clearInterval(capabilityTimer);
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await files?.close();
+  await staff.close();
   await optionalWithin(
     () =>
       Promise.allSettled([

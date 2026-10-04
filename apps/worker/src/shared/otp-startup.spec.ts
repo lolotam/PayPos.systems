@@ -67,6 +67,15 @@ vi.mock('../modules/notifications/index.ts', async (original) => ({
     return resources.otp;
   },
 }));
+// جدول الخروج المفقود يحتاج Redis حقيقياً؛ هنا يُعزل كي يبقى الاختبار عن جاهزية OTP فقط.
+vi.mock('../modules/staff/index.ts', () => ({
+  startStaffWorker: () => ({
+    eventTypes: [],
+    deliver: vi.fn(),
+    ready: vi.fn(),
+    close: vi.fn(async () => undefined),
+  }),
+}));
 vi.mock('@pospay/notifications', async (original) => ({
   ...(await original<typeof Notifications>()),
   readWhatsappWebhookConfiguration: vi.fn(),

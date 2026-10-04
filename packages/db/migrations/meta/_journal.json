@@ -512,6 +512,13 @@
       "when": 1791095505467,
       "tag": "0072_2026-10-04_staff-attendance-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1791101781852,
+      "tag": "0073_2026-10-04_attendance-missed-out-indexes",
+      "breakpoints": true
     }
   ]
 }

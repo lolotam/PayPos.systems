@@ -140,7 +140,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `PaymentRefunded`                                                           | `payments`      | `orders`, `cash`, `commissions`                                                                   |
 | `PaymentFailed`                                                             | `payments`      | `orders`, `realtime`, `notifications`                                                             |
 | `CashShiftClosed`                                                           | `cash`          | `reporting`, `notifications` (manager summary)                                                    |
-| `AttendanceClockedIn` / `AttendanceClockedOut` / `AttendanceMissedOut` (ADR-0028) | `staff` | No Phase 1 consumer; attendance never changes commission |
+| `AttendanceClockedIn` / `AttendanceClockedOut` / `AttendanceMissedOut` (ADR-0028) | `staff` (API scan; worker missed-out job also emits `AttendanceMissedOut`, ADR-0032) | No business consumer; attendance never changes commission. Worker `staff` registers the company's missed-out schedule on `AttendanceClockedIn` delivery (ADR-0032) |
 | `AppointmentBooked`                                                         | `appointments`  | `notifications` (reminder schedule), `realtime`                                                   |
 | `AppointmentCompleted`                                                      | `appointments`  | `orders`, `commissions`                                                                           |
 | `StockPosted`                                                               | `inventory`     | `reporting`, `notifications` (low-stock alert), `realtime`                                        |
@@ -157,7 +157,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `RatingRequestReady`                                                        | `customers`     | `notifications`                                                                                   |
 | `LowRatingReceived`                                                         | `customers`     | `notifications`                                                                                   |
-| `AttendanceExceptionRaised`                                                 | `staff`         | `notifications`                                                                                   |
+| `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (no recipients until alert rules ship)                                            |
 | `ShiftNotClockedIn`                                                         | `staff`         | `notifications`                                                                                   |
 | `DocumentExpiring`                                                          | `staff`         | `notifications`                                                                                   |
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |
