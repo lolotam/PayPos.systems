@@ -1,5 +1,10 @@
 import type { BindingRevision } from '../domain/unbind-passkey.ts';
 
+/** ساعة الطلب المحقونة؛ اليوم المحلي للفرع يحدد هل ما زال الارتباط بنهاية مستقبلية قائماً. */
+export interface PasskeyAccessClock {
+  /** يعيد لحظة الطلب التي يُشتق منها يوم كل فرع بمنطقته الزمنية. */
+  now(): Date;
+}
 /** النطاق المحقق يأتي من جلسة المدير لا من بيانات الطلب. */
 export interface ManagerPasskeyScope {
   companyId: string;

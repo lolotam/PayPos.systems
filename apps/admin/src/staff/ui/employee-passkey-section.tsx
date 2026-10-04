@@ -29,7 +29,19 @@ export function EmployeePasskeySection({
     employeeId,
     cursor,
   );
-  if (!history.isFetchedAfterMount || history.isError || !history.data) return null;
+  if (!history.isFetchedAfterMount) return null;
+  if (history.isError) {
+    const code = (history.error as { code?: unknown } | null)?.code;
+    return (
+      <p role="status">
+        {t(
+          locale,
+          code === 'FEATURE_DISABLED' ? 'passkeyAdmin.disabled' : 'passkeyAdmin.unavailable',
+        )}
+      </p>
+    );
+  }
+  if (!history.data) return null;
   const status = history.data.status;
   return (
     <section aria-label={t(locale, 'passkeyAdmin.title')} className="flex flex-col gap-4">
@@ -40,11 +52,7 @@ export function EmployeePasskeySection({
         next={history.data.next_cursor}
         onChange={setCursor}
       />
-      {history.data.can_unbind &&
-      status.bound &&
-      status.binding_id &&
-      status.revision &&
-      !history.isFetching ? (
+      {history.data.can_unbind && status.bound && status.binding_id && status.revision ? (
         <UnbindPasskeyForm
           key={`${status.binding_id}:${status.revision}`}
           bindingId={status.binding_id}

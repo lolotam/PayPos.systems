@@ -9,21 +9,36 @@ import { sql } from 'drizzle-orm';
 import { UnbindPasskeyError } from '../domain/unbind-passkey.ts';
 import type {
   ManagerPasskeyScope,
+  PasskeyAccessClock,
   UnbindPasskeyTransactions,
 } from '../ports/unbind-passkey.port.ts';
 import { createManagerPasskeyAccess } from './manager-passkey-access.adapter.ts';
 
-async function authorize(tx: Tx, scope: ManagerPasskeyScope) {
+// نفس قاعدة شاشة القراءة: النهاية مستبعدة، المستقبلي محسوب، والفرع بلا يوم معروف محسوب.
+function currentAttachment(days: readonly { branchId: string; today: string }[]) {
+  const ids = sql`ARRAY[${sql.join(
+    days.map((day) => sql`${day.branchId}::uuid`),
+    sql`,`,
+  )}]::uuid[]`;
+  const dates = sql`ARRAY[${sql.join(
+    days.map((day) => sql`${day.today}::date`),
+    sql`,`,
+  )}]::date[]`;
+  return sql`(eb."to" IS NULL OR eb."to" > COALESCE((SELECT d.today FROM unnest(${ids},${dates}) AS d(branch_id,today) WHERE d.branch_id=eb.branch_id),'-infinity'::date))`;
+}
+
+async function authorize(tx: Tx, scope: ManagerPasskeyScope, clock: PasskeyAccessClock) {
   const { companyId, businessId, employeeId, userId } = scope;
-  const access = createManagerPasskeyAccess();
+  const access = createManagerPasskeyAccess(clock);
   if (!(await access.lock(tx, companyId))) throw new UnbindPasskeyError('NOT_FOUND');
+  const days = await access.branchDays(tx, companyId, businessId);
   const [employee] = await tx.execute<{
     user_id: string | null;
     primary_branch_id: string;
     branch_ids: string[];
   }>(sql`
     SELECT user_id,primary_branch_id,
-      ARRAY(SELECT branch_id FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb."to" IS NULL ORDER BY branch_id) AS branch_ids
+      ARRAY(SELECT branch_id FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment(days)} ORDER BY branch_id) AS branch_ids
     FROM employees e WHERE company_id=${companyId} AND business_id=${businessId} AND id=${employeeId} AND deleted_at IS NULL FOR UPDATE`);
   if (employee === undefined) throw new UnbindPasskeyError('NOT_FOUND');
   const branches = [...new Set([employee.primary_branch_id, ...employee.branch_ids])];
@@ -31,7 +46,7 @@ async function authorize(tx: Tx, scope: ManagerPasskeyScope) {
   if (!branches.every((id) => decision.unbindBranchIds.includes(id)))
     throw new UnbindPasskeyError('NOT_FOUND');
   if (!decision.featureEnabled) throw new UnbindPasskeyError('FEATURE_DISABLED');
-  return { ownBinding: employee.user_id === userId };
+  return { linkedToActor: employee.user_id === userId };
 }
 
 async function save(
@@ -71,6 +86,7 @@ async function save(
 export function createUnbindPasskeyTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
+  clock: PasskeyAccessClock,
 ): UnbindPasskeyTransactions {
   return {
     run: async (scope, work) => {
@@ -78,16 +94,20 @@ export function createUnbindPasskeyTransactions(
         return await database.withTenant(
           scope.companyId,
           async (tx) => {
-            const employee = await authorize(tx, scope);
+            const employee = await authorize(tx, scope, clock);
             const [binding] = await tx.execute<{
               id: string;
               revision: number;
-            }>(sql`SELECT id,revision FROM employee_passkeys
+              bound_by: string;
+            }>(sql`SELECT id,revision,bound_by FROM employee_passkeys
           WHERE company_id=${scope.companyId} AND employee_id=${scope.employeeId} AND unbound_at IS NULL FOR UPDATE`);
+            const active =
+              binding === undefined ? null : { id: binding.id, revision: binding.revision };
             return work({
-              ...employee,
-              binding: binding === undefined ? null : { ...binding, unboundAt: null },
-              save: (change) => save(tx, scope, ids, binding ?? null, change),
+              // من سجّل الربط النشط يظل صاحبه حتى لو أعيد ربط الموظف بمستخدم آخر.
+              ownBinding: employee.linkedToActor || binding?.bound_by === scope.userId,
+              binding: active === null ? null : { ...active, unboundAt: null },
+              save: (change) => save(tx, scope, ids, active, change),
             });
           },
           { userId: scope.userId },

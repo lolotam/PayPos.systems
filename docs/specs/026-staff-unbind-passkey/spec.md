@@ -91,6 +91,10 @@ same employee, different installations, other tenants and out-of-window pairs do
   employee's branches; require authority at primary and every current open attachment,
   matching existing employee privacy.
   A branch manager cannot unbind a binding shared with an inaccessible branch.
+  An attachment is current until its exclusive end date in that branch's timezone,
+  taken from the request's injected clock; a future-dated detach still counts and
+  a future-starting attachment counts too (fail closed). The actor who registered
+  the active binding (`bound_by`) is refused as self, even after the employee is relinked.
 - **UNB-Q4 — owner decision 2026-10-04 (recommended option)**: device signals are
   retained with attendance history; no cleanup job now.
 

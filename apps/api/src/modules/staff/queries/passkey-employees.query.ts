@@ -1,7 +1,7 @@
 import { passkeyEmployeePage, type PasskeyHistoryQuery } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { ManagerPasskeyAccess } from './passkey-access.ts';
+import { currentAttachment, type BranchDay, type ManagerPasskeyAccess } from './passkey-access.ts';
 
 // قائمة صفحة الموظفين مستقلة عن سلطة التعديل؛ كل الفروع المحفوظة مصفّاة قبل المؤشر.
 export function passkeyEmployeesStatement(
@@ -9,6 +9,7 @@ export function passkeyEmployeesStatement(
   businessId: string,
   branchIds: readonly string[],
   query: PasskeyHistoryQuery,
+  days: readonly BranchDay[],
 ) {
   const branches = sql`ARRAY[${sql.join(
     branchIds.map((id) => sql`${id}::uuid`),
@@ -18,7 +19,7 @@ export function passkeyEmployeesStatement(
     WHERE company_id=${companyId} AND business_id=${businessId} AND deleted_at IS NULL
       AND primary_branch_id=ANY(${branches})
       AND NOT EXISTS(SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id
-        AND eb."to" IS NULL AND NOT (eb.branch_id=ANY(${branches})))
+        AND ${currentAttachment(days)} AND NOT (eb.branch_id=ANY(${branches})))
       ${query.cursor === undefined ? sql`` : sql`AND id>${query.cursor}`}
     ORDER BY id LIMIT ${query.limit + 1}`;
 }
@@ -32,8 +33,15 @@ export async function passkeyEmployees(
   if (decision.readBranchIds.length === 0)
     return passkeyEmployeePage.parse({ items: [], next_cursor: null });
   if (!decision.featureEnabled) return 'FEATURE_DISABLED' as const;
+  const days = await access.branchDays(tx, scope.companyId, scope.businessId);
   const rows = await tx.execute<{ id: string }>(
-    passkeyEmployeesStatement(scope.companyId, scope.businessId, decision.readBranchIds, query),
+    passkeyEmployeesStatement(
+      scope.companyId,
+      scope.businessId,
+      decision.readBranchIds,
+      query,
+      days,
+    ),
   );
   const items = rows.slice(0, query.limit);
   return passkeyEmployeePage.parse({

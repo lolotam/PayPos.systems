@@ -15,10 +15,11 @@ afterAll(async () => {
   await f?.close();
 });
 it('history, selector and employee scope expose only safe columns and have tenant-index plans', async () => {
+  const days = [{ branchId: f.branchId, today: '2026-10-04' }];
   const statements = [
     passkeyHistoryStatement(f.companyId, f.employeeId, { limit: 20 }),
-    passkeyEmployeesStatement(f.companyId, f.businessId, [f.branchId], { limit: 20 }),
-    passkeyEmployeeScopeStatement(f.companyId, f.businessId, f.employeeId),
+    passkeyEmployeesStatement(f.companyId, f.businessId, [f.branchId], { limit: 20 }, days),
+    passkeyEmployeeScopeStatement(f.scope, days),
   ];
   for (const statement of statements) {
     const plan = await f.database.withTenant(f.companyId, async (tx) => {

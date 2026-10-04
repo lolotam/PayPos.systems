@@ -125,6 +125,7 @@ it('rollback preserves the binding and publishes neither audit nor outbox', asyn
         ),
     },
     f.ids,
+    { now: () => new Date() },
   );
   const useCase = new UnbindPasskeyUseCase(transactions, { now: () => new Date() });
   const input = {
@@ -170,11 +171,10 @@ it('concurrent enrolment and repeated unbind serialize without deleting global c
   expect(results.filter((result) => result.status === 'fulfilled').length).toBeGreaterThanOrEqual(
     1,
   );
-  expect(
-    results
-      .filter((result) => result.status === 'rejected')
-      .every((result) => result.reason?.message !== 'PASSKEY_UNBIND_PERSISTENCE_FAILED'),
-  ).toBe(true);
+  const failures = results.flatMap((result) =>
+    result.status === 'rejected' ? [String(result.reason?.message)] : [],
+  );
+  expect(failures.filter((message) => message.endsWith('_PERSISTENCE_FAILED'))).toEqual([]);
   expect(
     await f.database.withTenant(f.companyId, (tx) =>
       tx.execute(

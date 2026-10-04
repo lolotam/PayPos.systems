@@ -2,10 +2,10 @@ import { sharedInstallationFlagPage, type SharedInstallationFlagPage } from '@po
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-/** PR27 يمرر نطاقات الفروع المتحقق منها ونافذة السياسة؛ الإشارة لا تمنح سلطة قراءة بذاتها. */
+/** PR27 يمرر الفروع المتحقق منها مع نشاط كل فرع ونافذة السياسة؛ الإشارة لا تمنح سلطة قراءة بذاتها. */
 export interface SharedInstallationQuery {
   companyId: string;
-  branchIds: readonly string[];
+  branches: readonly { businessId: string; branchId: string }[];
   from: Date;
   to: Date;
   windowMs: number;
@@ -13,11 +13,15 @@ export interface SharedInstallationQuery {
   cursor?: { first: string; second: string };
 }
 // مجلس الحضور PR27 يعرض أزواجاً داخل نطاقه؛ كلا الموظفين مرئي، ولا يخرج hash.
+// النشاط يسبق الفرع في الفهرس، فشرطه يجعل مسح الفرع والوقت مسحاً بالمدى.
 export function sharedInstallationsStatement(query: SharedInstallationQuery) {
-  const branches = sql`ARRAY[${sql.join(
-    query.branchIds.map((id) => sql`${id}::uuid`),
-    sql`,`,
-  )}]::uuid[]`;
+  const uuids = (ids: readonly string[]) =>
+    sql`ARRAY[${sql.join(
+      [...new Set(ids)].map((id) => sql`${id}::uuid`),
+      sql`,`,
+    )}]::uuid[]`;
+  const businesses = uuids(query.branches.map((scope) => scope.businessId));
+  const branches = uuids(query.branches.map((scope) => scope.branchId));
   return sql`SELECT a.id AS first_signal_id,b.id AS second_signal_id,
     a.employee_id AS first_employee_id,b.employee_id AS second_employee_id,
     a.branch_id AS first_branch_id,b.branch_id AS second_branch_id,
@@ -28,8 +32,10 @@ export function sharedInstallationsStatement(query: SharedInstallationQuery) {
       AND b.employee_id<>a.employee_id AND (b.clocked_at,b.id)>(a.clocked_at,a.id)
       AND b.clocked_at<=a.clocked_at+(${query.windowMs} * interval '1 millisecond')
     WHERE a.company_id=${query.companyId}
-      AND a.branch_id=ANY(${branches}) AND b.branch_id=ANY(${branches})
-      AND a.clocked_at>=${query.from.toISOString()} AND b.clocked_at<${query.to.toISOString()}
+      AND a.business_id=ANY(${businesses}) AND a.branch_id=ANY(${branches})
+      AND b.business_id=ANY(${businesses}) AND b.branch_id=ANY(${branches})
+      AND a.clocked_at>=${query.from.toISOString()} AND a.clocked_at<${query.to.toISOString()}
+      AND b.clocked_at<${query.to.toISOString()}
       ${query.cursor === undefined ? sql`` : sql`AND (a.id,b.id)>(${query.cursor.first}::uuid,${query.cursor.second}::uuid)`}
     ORDER BY a.id,b.id LIMIT ${query.limit + 1}`;
 }

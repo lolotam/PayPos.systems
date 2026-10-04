@@ -12,7 +12,9 @@ pools. Web apps cannot prove physical-device identity. PR 22 owns accepted clock
 
 Lock company, ordered memberships, employee, then active binding, matching enrollment.
 Recheck live scope after lock waits; only then enforce self prohibition and binding
-id/revision. Increment revision and stamp unbound fields with audit `passkey.unbind`
+id/revision. Current attachments end at their exclusive end date in each branch's
+timezone from the injected clock; future-dated detaches and future-starting attachments
+both count. Self covers the linked user and the active binding's `bound_by`. Increment revision and stamp unbound fields with audit `passkey.unbind`
 and `EmployeePasskeyUnbound` in the same tenant transaction. Retain the global credential
 inert: cross-pool deletion can race another company's binding; auth generic plugin
 routes remain closed and active-binding exclusions already omit inert credentials.

@@ -60,7 +60,37 @@ it('hides cached authority until a fresh read; revocation and close evict histor
   });
   await waitFor(() => expect(client.getQueryCache().findAll({ queryKey: prefix })).toEqual([]));
   expect(screen.queryByRole('region')).toBeNull();
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'passkeyAdmin.unavailable'));
   mounted.unmount();
+});
+
+it('a disabled staff feature shows its own state instead of an empty space', async () => {
+  api.GET.mockResolvedValueOnce({
+    error: { code: 'FEATURE_DISABLED' },
+    response: { status: 403 },
+  });
+  render(view(new QueryClient({ defaultOptions: { queries: { retry: false } } })));
+  expect((await screen.findByRole('status')).textContent).toBe(t('en', 'passkeyAdmin.disabled'));
+  expect(screen.queryByRole('region')).toBeNull();
+});
+
+it('a background refetch keeps the unbind form and the typed reason', async () => {
+  api.GET.mockResolvedValueOnce({ data: page });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(view(client));
+  const reason = await screen.findByLabelText(t('en', 'passkeyAdmin.reason'));
+  fireEvent.change(reason, { target: { value: 'Synthetic lost phone' } });
+  const pending = deferred();
+  api.GET.mockReturnValueOnce(pending.promise);
+  void client.refetchQueries({ queryKey: prefix });
+  await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(2));
+  expect(screen.getByLabelText<HTMLInputElement>(t('en', 'passkeyAdmin.reason')).value).toBe(
+    'Synthetic lost phone',
+  );
+  await act(async () => pending.resolve({ data: page }));
+  expect(screen.getByLabelText<HTMLInputElement>(t('en', 'passkeyAdmin.reason')).value).toBe(
+    'Synthetic lost phone',
+  );
 });
 
 it('requires a trimmed reason, sends the displayed binding revision and refreshes after unbind', async () => {

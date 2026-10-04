@@ -20,21 +20,40 @@ export interface ManagerPasskeyAccess {
     businessId: string,
     branchIds: readonly string[],
   ): Promise<PasskeyAccessDecision>;
+  /** يعيد اليوم المحلي لكل فرع في النشاط من الساعة المحقونة، لأن نهاية الارتباط تاريخ محلي للفرع. */
+  branchDays(tx: Tx, companyId: string, businessId: string): Promise<BranchDay[]>;
 }
 export interface PasskeyAccessDecision {
   readBranchIds: string[];
   unbindBranchIds: string[];
   featureEnabled: boolean;
 }
-// شاشة الموظف تحتاج فروع الربط كلها؛ الفحص يسبق أي كشف للتاريخ أو حالة الميزة.
+export interface BranchDay {
+  branchId: string;
+  today: string;
+}
+// النهاية مستبعدة والارتباط المستقبلي محسوب؛ فرع بلا يوم معروف محسوب أيضاً فيُرفض الشك ولا يُسمح به.
+export function currentAttachment(days: readonly BranchDay[]) {
+  const ids = sql`ARRAY[${sql.join(
+    days.map((day) => sql`${day.branchId}::uuid`),
+    sql`,`,
+  )}]::uuid[]`;
+  const dates = sql`ARRAY[${sql.join(
+    days.map((day) => sql`${day.today}::date`),
+    sql`,`,
+  )}]::date[]`;
+  return sql`(eb."to" IS NULL OR eb."to" > COALESCE((SELECT d.today FROM unnest(${ids},${dates}) AS d(branch_id,today) WHERE d.branch_id=eb.branch_id),'-infinity'::date))`;
+}
+// شاشة الموظف تحتاج فروع الربط الحالية كلها؛ الفحص يسبق أي كشف للتاريخ أو حالة الميزة.
 export function passkeyEmployeeScopeStatement(
-  companyId: string,
-  businessId: string,
-  employeeId: string,
+  scope: { companyId: string; businessId: string; employeeId: string; userId: string },
+  days: readonly BranchDay[],
   lock = false,
 ) {
+  const { companyId, businessId, employeeId, userId } = scope;
   return sql`SELECT user_id,primary_branch_id,
-    ARRAY(SELECT branch_id FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb."to" IS NULL ORDER BY branch_id) AS branch_ids
+    ARRAY(SELECT branch_id FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment(days)} ORDER BY branch_id) AS branch_ids,
+    EXISTS(SELECT 1 FROM employee_passkeys p WHERE p.company_id=e.company_id AND p.employee_id=e.id AND p.unbound_at IS NULL AND p.bound_by=${userId}) AS bound_by_actor
     FROM employees e WHERE company_id=${companyId} AND business_id=${businessId} AND id=${employeeId} AND deleted_at IS NULL ${lock ? sql`FOR UPDATE` : sql``}`;
 }
 export async function managerPasskeyEmployee(
@@ -43,12 +62,14 @@ export async function managerPasskeyEmployee(
   access: ManagerPasskeyAccess,
   lock = false,
 ) {
-  const { companyId, businessId, employeeId, userId } = scope;
+  const { companyId, businessId, userId } = scope;
+  const days = await access.branchDays(tx, companyId, businessId);
   const [employee] = await tx.execute<{
     user_id: string | null;
     primary_branch_id: string;
     branch_ids: string[];
-  }>(passkeyEmployeeScopeStatement(companyId, businessId, employeeId, lock));
+    bound_by_actor: boolean;
+  }>(passkeyEmployeeScopeStatement(scope, days, lock));
   if (employee === undefined) return null;
   // قرار المالك 2026-10-04 (UNB-Q3): سلطة على كل الفروع لأن الفك يؤثر على ربط الموظف المشترك.
   const branches = [...new Set([employee.primary_branch_id, ...employee.branch_ids])];
@@ -56,7 +77,8 @@ export async function managerPasskeyEmployee(
   if (!branches.every((id) => decision.readBranchIds.includes(id))) return null;
   return {
     featureEnabled: decision.featureEnabled,
-    ownBinding: employee.user_id === userId,
+    // من سجّل الربط النشط يظل صاحبه حتى لو أعيد ربط الموظف بمستخدم آخر.
+    ownBinding: employee.user_id === userId || employee.bound_by_actor,
     unbindAllowed: branches.every((id) => decision.unbindBranchIds.includes(id)),
   };
 }

@@ -40,8 +40,7 @@ function record(employeeId: string, at: string, install = installationId) {
 }
 const query = () => ({
   companyId: f.companyId,
-  businessId: f.businessId,
-  branchIds: [f.branchId],
+  branches: [{ businessId: f.businessId, branchId: f.branchId }],
   from: new Date('2026-10-04T10:00:00Z'),
   to: new Date('2026-10-04T11:00:00Z'),
   windowMs: SHARED_INSTALLATION_WINDOW_MS,
@@ -139,7 +138,7 @@ it('the board query flags inclusive ten minutes, excludes repeated employee and 
   expect(
     (
       await f.database.withTenant(f.companyId, (tx) =>
-        sharedInstallations(tx, { ...query(), branchIds: [] }),
+        sharedInstallations(tx, { ...query(), branches: [] }),
       )
     ).items,
   ).toEqual([]);
@@ -148,11 +147,29 @@ it('the board query flags inclusive ten minutes, excludes repeated employee and 
   ).toEqual([]);
 });
 
-it('the self join uses the signal index; invalid query windows fail before SQL', async () => {
-  const plan = await f.database.withTenant(f.companyId, async (tx) => {
-    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
-    return tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sharedInstallationsStatement(query())}`);
-  });
+function planNodes(node: unknown): Record<string, unknown>[] {
+  if (Array.isArray(node)) return node.flatMap(planNodes);
+  if (typeof node !== 'object' || node === null) return [];
+  const record = node as Record<string, unknown>;
+  return [record, ...Object.values(record).flatMap(planNodes)];
+}
+
+it('the scoped pair query range-scans the business branch index; invalid windows fail before SQL', async () => {
+  await f.owner`INSERT INTO attendance_device_signals(company_id,id,business_id,branch_id,employee_id,clock_event_id,installation_hash,clocked_at)
+    SELECT ${f.companyId},gen_random_uuid(),${f.businessId},${f.branchId},
+      CASE WHEN i%2=0 THEN ${f.employeeId}::uuid ELSE ${secondEmployee}::uuid END,
+      gen_random_uuid(),md5(i::text)||md5((i+100000)::text),'2026-01-01T00:00:00Z'::timestamptz+i*interval '1 minute'
+    FROM generate_series(1,5000) AS i`;
+  await f.owner`ANALYZE attendance_device_signals`;
+  const plan = await f.database.withTenant(f.companyId, (tx) =>
+    tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sharedInstallationsStatement(query())}`),
+  );
+  const nodes = planNodes(plan);
+  const scoped = nodes.find(
+    (node) => node['Index Name'] === 'attendance_device_signals_branch_time_idx',
+  );
+  expect(String(scoped?.['Index Cond'])).toMatch(/business_id[\s\S]*branch_id[\s\S]*clocked_at/);
+  expect(nodes.some((node) => node['Node Type'] === 'Seq Scan')).toBe(false);
   expect(JSON.stringify(plan)).toContain('attendance_device_signals_hash_time_idx');
   const statement = new PgDialect().sqlToQuery(sharedInstallationsStatement(query())).sql;
   expect(statement.split('FROM')[0]).not.toContain('installation_hash');
@@ -188,7 +205,10 @@ it('company managers can query across businesses only when both branches are aut
   expect(
     (
       await f.database.withTenant(f.companyId, (tx) =>
-        sharedInstallations(tx, { ...scope, branchIds: [f.branchId, branchId] }),
+        sharedInstallations(tx, {
+          ...scope,
+          branches: [...scope.branches, { businessId, branchId }],
+        }),
       )
     ).items,
   ).toHaveLength(1);

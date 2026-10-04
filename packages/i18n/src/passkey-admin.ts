@@ -12,7 +12,8 @@ export const enPasskeyAdmin = {
   warning: 'The employee will need to enroll again before clocking with a passkey.',
   saved: 'Passkey unbound. The employee can enroll again.',
   invalid: 'Enter a reason of 1–500 characters.',
-  empty: 'No employees available for passkey management.',
+  unavailable: 'This employee’s passkey is not available to you.',
+  disabled: 'Staff features are not enabled for your company.',
   permissionRead: 'Read employee passkey bindings',
   permissionUnbind: 'Unbind employee passkeys',
 };
@@ -30,7 +31,8 @@ export const arPasskeyAdmin: Record<keyof typeof enPasskeyAdmin, string> = {
   warning: 'سيحتاج الموظف إلى تسجيل مفتاح مرور جديد قبل تسجيل الحضور به.',
   saved: 'تم فك الربط. يمكن للموظف التسجيل من جديد.',
   invalid: 'اكتب سبباً من حرف واحد إلى ٥٠٠ حرف.',
-  empty: 'لا يوجد موظفون متاحون لإدارة مفاتيح المرور.',
+  unavailable: 'مفتاح مرور هذا الموظف غير متاح لك.',
+  disabled: 'خصائص الموظفين غير مفعّلة لشركتك.',
   permissionRead: 'قراءة ربط مفاتيح مرور الموظفين',
   permissionUnbind: 'فك ربط مفاتيح مرور الموظفين',
 };

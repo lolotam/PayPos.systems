@@ -137,14 +137,17 @@ function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator)
     EmployeePasskeyUnbindGuard,
     {
       provide: MANAGER_PASSKEY_ACCESS,
-      useValue: database === undefined ? null : createManagerPasskeyAccess(),
+      useValue: database === undefined ? null : createManagerPasskeyAccess(systemClock),
     },
     {
       provide: UnbindPasskeyUseCase,
       useValue:
         database === undefined
           ? null
-          : new UnbindPasskeyUseCase(createUnbindPasskeyTransactions(database, ids), systemClock),
+          : new UnbindPasskeyUseCase(
+              createUnbindPasskeyTransactions(database, ids, systemClock),
+              systemClock,
+            ),
     },
   ];
 }
