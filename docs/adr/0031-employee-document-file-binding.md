@@ -35,3 +35,5 @@ still runs during a deploy can miss the seed; the manager adds types by hand (DO
 the type's current `alert_days`, computed by `documentStatus` and, on the read path, by the same rule in SQL
 (parity test). PR 15 reads `expires_on` and `alert_days` from the current-document index. No dependency,
 no new runtime role, no RLS exception.
+
+Known limit: the binding has no purpose discriminator. Today the staff module has exactly one upload kind (employee documents), so any staff file owned by the employee is a document upload. When a second staff upload kind for employees appears (for example a photo), add a `purpose` (or a distinct owner module) to the file and check it here, so a file uploaded for another purpose cannot be recorded as a document.

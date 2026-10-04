@@ -25,7 +25,7 @@ badge (valid, expiring, expired, no expiry), opens it through files, and replace
    foreign or inaccessible employee, returns the same `NOT_FOUND`. A matching file that is not READY returns
    `FILE_NOT_READY`; an already recorded file returns `DOCUMENT_FILE_ALREADY_RECORDED`.
 3. **DOC-03**: One current document per employee per type. Recording a new one marks the previous current
-   one replaced (`replaced_at`, `replaced_by_id`) in the same transaction; history rows stay forever and
+   one replaced (`replaced_at`; the forward link lives in the `EmployeeDocumentRecorded` payload `replaced_document_id` and the audit snapshot) in the same transaction; history rows stay forever and
    their files follow the files lifecycle (verified files are kept until deleted/replaced — owner decision
    2026-10-03; this slice deletes no file).
 4. **DOC-04**: `expires_on` is a real Gregorian date; past dates are accepted and recorded as already
@@ -94,11 +94,11 @@ evaluated at the business exactly as `files` evaluates the stored permission.
   `requires_expiry`, `active`, `revision > 0`, `created_at`. Index `(company_id, active, name_en)`.
 - `employee_documents`: PK `(company_id,id)`, FK `(company_id,business_id,employee_id)` → employees,
   FK `(company_id,type_code)` → document_types code, `object_key` unique per company, `expires_on` date,
-  `uploaded_by` → user, `recorded_at`, `replaced_at`, `replaced_by_id`. Partial unique current
+  `uploaded_by` → user, `recorded_at`, `replaced_at`. Partial unique current
   `(company_id,employee_id,type_code) WHERE replaced_at IS NULL`; `(company_id, expires_on) WHERE current`
   for PR 15; business and uploader indexes.
 - FORCE RLS on both; `pospay_app` SELECT/INSERT, column UPDATE only (types: names, alert days,
-  requires_expiry, active, revision; documents: replaced_at, replaced_by_id). No DELETE.
+  requires_expiry, active, revision; documents: replaced_at). No DELETE.
 
 ### Events
 

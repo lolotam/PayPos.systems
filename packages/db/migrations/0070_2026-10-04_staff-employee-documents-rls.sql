@@ -29,7 +29,18 @@ GRANT SELECT, INSERT ON employee_documents TO pospay_app;
 -- الاستبدال وحده يعدل الوثيقة؛ المفتاح والانتهاء والموظف تبقى كما سجلت.
 GRANT UPDATE(replaced_at) ON employee_documents TO pospay_app;
 --> statement-breakpoint
--- DOC-Q1 (افتراض موصى به): الأنواع الخمسة الموصى بها لكل شركة قائمة؛ الشركات الجديدة يزرعها worker عند CompanyCreated.
+-- البذرة تقرأ الشركات تحت FORCE RLS؛ دور هجرة بلا تجاوز سيزرع صفر صفوف بصمت، فنفشل بصوت عال.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = current_user AND (rolsuper OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'document_types seed needs a superuser or BYPASSRLS migration role; % would read no companies under FORCE RLS', current_user
+      USING ERRCODE = '42501';
+  END IF;
+END $$;
+--> statement-breakpoint
+-- DOC-Q1 (قرار المالك 2026-10-04، الخيار الموصى به): الأنواع الخمسة الموصى بها لكل شركة قائمة؛ الشركات الجديدة يزرعها worker عند CompanyCreated.
 -- المعرف UUID v7 من وقت الهجرة وبايتات عشوائية؛ التكرار لا يضيف شيئاً بفضل الكود الفريد.
 INSERT INTO document_types(company_id,id,code,name_en,name_ar,alert_days,requires_expiry)
 SELECT c.id,
