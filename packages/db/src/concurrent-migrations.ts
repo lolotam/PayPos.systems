@@ -1,6 +1,8 @@
 import { readMigrationFiles } from 'drizzle-orm/migrator';
 import type postgres from 'postgres';
 
+import { runConcurrentIndex } from './recover-concurrent-index.ts';
+
 const CONCURRENT = /^\s*(?:--[^\n]*\n\s*)*(?:CREATE|DROP)\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i;
 
 // The connection is held (max:1) until the session advisory lock is released. Only a concurrent-index prefix
@@ -31,7 +33,13 @@ export async function applyMigrations(client: postgres.Sql, folder: string): Pro
       if (statements.slice(prefixLength).some((statement) => CONCURRENT.test(statement))) {
         throw new Error('Concurrent indexes must precede transactional migration statements');
       }
-      for (const statement of statements.slice(0, prefixLength)) await client.unsafe(statement);
+      for (const statement of statements.slice(0, prefixLength)) {
+        if (/^\s*(?:--[^\n]*\n\s*)*CREATE\b/i.test(statement)) {
+          await runConcurrentIndex(client, statement);
+        } else {
+          await client.unsafe(statement);
+        }
+      }
       await client.begin(async (tx) => {
         for (const statement of statements.slice(prefixLength)) await tx.unsafe(statement);
         await tx`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${migration.hash}, ${migration.folderMillis})`;
