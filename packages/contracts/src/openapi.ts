@@ -5,6 +5,8 @@ import { leaveSchemas } from './staff/leave.js';
 import { leaveDecisionSchemas } from './staff/leave-decision.js';
 import { leavePaths } from './staff/leave-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
+import { clockAttendanceSchemas } from './staff/clock-attendance.js';
+import { clockAttendancePaths } from './staff/clock-attendance-openapi.js';
 import { passkeyPaths } from './staff/passkeys-openapi.js';
 import { scheduleSchemas } from './staff/schedules.js';
 import {
@@ -85,6 +87,7 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...clockAttendanceSchemas,
   ...leaveSchemas,
   ...leaveDecisionSchemas,
   ...passkeySchemas,
@@ -185,6 +188,7 @@ function operation(
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
   ...passkeyPaths,
+  ...clockAttendancePaths,
   ...unbindPasskeyPaths,
   ...settingsPaths,
   ...filePaths,

@@ -1,3 +1,4 @@
+import { attendanceAr } from './attendance-ar.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
 import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
@@ -55,6 +56,7 @@ export const ar: Catalog = {
     managePermission: 'تعيين الراتب',
     employeeAccessHint: 'تُدار الرواتب من شاشة الموظفين، وتحتاج أيضًا إلى صلاحية إدارة الموظفين.',
   },
+  personalAttendance: attendanceAr,
   personalStaff: personalStaffAr,
   shell: {
     schedule_title: 'جداول العمل الأسبوعية',

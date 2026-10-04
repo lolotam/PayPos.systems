@@ -157,3 +157,5 @@ revoked read visibility and submission of the exact displayed binding/revision.
 
 PR 20 and PR 7a/7d are present. Clocking is PR 22, manager board is PR 27.
 Technical decisions and the owner decisions dated 2026-10-04 are recorded in ADR-0029.
+
+Amendment 2026-10-04: PR 21 and PR 22 were built in parallel, so PR 22 ships without the `installation_id` field, the POS identifier and the transactional signal write. They move to follow-up PR 22b; until it merges `attendance_device_signals` stays empty and the shared-device flag cannot fire.

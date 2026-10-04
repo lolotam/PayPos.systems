@@ -4,7 +4,7 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
-import type { AuthDatabase } from '@pospay/db';
+import { canonicalJson, type AuthDatabase } from '@pospay/db';
 import type { buildBetterAuth } from './config.ts';
 import type { passkeyPolicy } from './passkey-policy.ts';
 
@@ -50,6 +50,15 @@ type EnrollmentResponse = Omit<
 };
 
 type Auth = ReturnType<typeof buildBetterAuth>;
+type AttendanceResponse = Omit<
+  AuthenticationResponseJSON,
+  'response' | 'authenticatorAttachment'
+> & {
+  authenticatorAttachment?: AuthenticationResponseJSON['authenticatorAttachment'] | undefined;
+  response: Omit<AuthenticationResponseJSON['response'], 'userHandle'> & {
+    userHandle?: string | undefined;
+  };
+};
 /** القارئ المحقون يملك ربط الموظفين؛ auth لا يقرأ أي جدول شركة. */
 export interface ActivePasskeyBindings {
   /** يرجع المعرفات العالمية للروابط النشطة فقط، بعد إثبات المستخدم. */
@@ -71,11 +80,8 @@ export function createPasskeyFacade(options: Options) {
     enroll: (scope: EnrollmentScope, challengeId: string, response: EnrollmentResponse) =>
       enroll(options, scope, challengeId, response),
     attendanceOptions: (scope: AttendanceScope) => attendanceOptions(options, scope),
-    verifyAttendance: (
-      scope: AttendanceScope,
-      challengeId: string,
-      response: AuthenticationResponseJSON,
-    ) => verifyAttendance(options, scope, challengeId, response),
+    verifyAttendance: (scope: AttendanceScope, challengeId: string, response: AttendanceResponse) =>
+      verifyAttendance(options, scope, challengeId, response),
   };
 }
 export type PasskeyFacade = ReturnType<typeof createPasskeyFacade>;
@@ -166,7 +172,7 @@ async function attendanceOptions(options: Options, scope: AttendanceScope) {
   const challengeId = await store(
     options,
     'staff-clock',
-    { scope: JSON.stringify(scope), challenge: generated.challenge },
+    { scope: canonicalJson(scope), challenge: generated.challenge },
     120,
   );
   return { challengeId, options: generated };
@@ -176,9 +182,9 @@ async function verifyAttendance(
   options: Options,
   scope: AttendanceScope,
   challengeId: string,
-  response: AuthenticationResponseJSON,
+  response: AttendanceResponse,
 ): Promise<AttendanceProof | null> {
-  const frozenScope = JSON.stringify(scope);
+  const frozenScope = canonicalJson(scope);
   const accepted = await options.database.consumeAssertion({
     identifier: `staff-clock:${challengeId}`,
     userId: scope.userId,
@@ -187,7 +193,7 @@ async function verifyAttendance(
     verify: async (challenge, credential) => {
       if (response.id !== credential.credentialId) return null;
       const result = await verifyAuthenticationResponse({
-        response,
+        response: response as AuthenticationResponseJSON,
         expectedChallenge: challenge,
         expectedRPID: options.policy.rpID,
         expectedOrigin: options.policy.origins,
@@ -208,7 +214,16 @@ async function verifyAttendance(
     consume: (current) => {
       if (used || options.now() >= accepted) return false;
       used = true;
-      return JSON.stringify(current) === frozenScope;
+      return sameScope(current, frozenScope);
     },
   };
+}
+
+// ترتيب مفاتيح الـ object مش جزء من النطاق؛ أي قيمة مش JSON بترفض بدل ما ترمي بعد صرف الدليل.
+function sameScope(current: AttendanceScope, frozenScope: string): boolean {
+  try {
+    return canonicalJson(current) === frozenScope;
+  } catch {
+    return false;
+  }
 }

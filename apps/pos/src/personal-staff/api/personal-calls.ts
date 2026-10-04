@@ -8,7 +8,12 @@ import type { paths } from '@/shared/api/schema';
 const client = () =>
   createClient<paths>({ baseUrl: apiOrigin(), credentials: 'include', cache: 'no-store' });
 export const personalCalls = {
-  session: async () => (await client().GET('/v1/staff/personal-session')).data ?? null,
+  session: async () => {
+    const result = await client().GET('/v1/staff/personal-session');
+    if (result.response.status === 401) return null;
+    if (result.data === undefined) throw new Error('PERSONAL_SESSION_UNAVAILABLE');
+    return result.data;
+  },
   binding: async () => {
     const result = await client().GET('/v1/staff/passkey');
     if (result.data === undefined) throw new Error('PASSKEY_STATUS_REFUSED');

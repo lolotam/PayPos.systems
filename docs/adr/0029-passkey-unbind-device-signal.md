@@ -66,3 +66,5 @@ current binding state; this phase promises no consumer or replay-derived project
   privacy; one-branch employees are manageable by their branch manager.
 - **UNB-Q4 — owner decision 2026-10-04 (recommended option)**: device signals are
   retained with attendance history; no cleanup job now.
+
+Amendment 2026-10-04: PR 21 and PR 22 were built in parallel, so PR 22 ships without the `installation_id` field, the POS identifier and the transactional signal write. They move to follow-up PR 22b; until it merges `attendance_device_signals` stays empty and the shared-device flag cannot fire.

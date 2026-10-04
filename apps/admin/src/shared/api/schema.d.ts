@@ -132,6 +132,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/staff/attendance/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestAttendanceClockChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/attendance/clock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["clockPersonalAttendance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/passkeys": {
         parameters: {
             query?: never;
@@ -1060,6 +1092,68 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ClockChallengeInput: {
+            token: components["schemas"]["AttendanceQrToken"];
+            location?: {
+                lat: number;
+                lng: number;
+                accuracy: number;
+            };
+        };
+        ClockAttendanceInput: {
+            token: components["schemas"]["AttendanceQrToken"];
+            location?: {
+                lat: number;
+                lng: number;
+                accuracy: number;
+            };
+            /** Format: uuid */
+            challenge_id: string;
+            response: {
+                id: string;
+                rawId: string;
+                /** @enum {string} */
+                type: "public-key";
+                /** @enum {string} */
+                authenticatorAttachment?: "platform" | "cross-platform";
+                clientExtensionResults: Record<string, never>;
+                response: {
+                    clientDataJSON: string;
+                    authenticatorData: string;
+                    signature: string;
+                    userHandle?: string;
+                };
+            };
+        };
+        ClockChallenge: {
+            /** Format: uuid */
+            challenge_id: string;
+            options: {
+                challenge: string;
+                rpId: string;
+                timeout?: number;
+                /** @enum {string} */
+                userVerification: "required";
+                allowCredentials?: {
+                    id: string;
+                    /** @enum {string} */
+                    type: "public-key";
+                }[];
+            };
+        };
+        ClockAttendanceResult: {
+            /** Format: uuid */
+            session_id: string;
+            /** @enum {string} */
+            operation: "CLOCK_IN" | "CLOCK_OUT";
+            working_date: string;
+            /** Format: date-time */
+            accepted_at: string;
+            exceptions: ("NONE" | "OUT_OF_RANGE")[];
+            late_minutes: number;
+            /** Format: uuid */
+            missed_session_id: string | null;
+        };
         RequestLeaveInput: {
             /** @enum {string} */
             type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
@@ -2430,6 +2524,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PasskeyBindingStatus"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestAttendanceClockChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockChallengeInput"];
+            };
+        };
+        responses: {
+            /** @description requestAttendanceClockChallenge */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockChallenge"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    clockPersonalAttendance: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockAttendanceInput"];
+            };
+        };
+        responses: {
+            /** @description clockPersonalAttendance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockAttendanceResult"];
                 };
             };
             /** @description Error envelope */

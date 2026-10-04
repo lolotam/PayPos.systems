@@ -25,6 +25,12 @@ active covering membership. Never use withUser before proof, return employee/acc
 information or add tenant grants to auth. After verification the same reader supplies
 the employee id server-side and rechecks eligibility on every request. Deleted company or employee, relinking, expired membership or changed approved phone refuse access.
 
+Dated employee attachments use each branch's effective timezone and the injected Clock,
+with inclusive `from` and exclusive `to`; an unknown local date grants no attachment.
+The shared reader applies this rule before/after OTP proof, on personal-session and
+own-scope guards, and in the locked enrollment recheck. Staff reads effective timezones
+through tenancy's existing `describeWorkspaces` surface in the same tenant transaction.
+
 Personal purpose allows only enrollment/status/session/logout and explicitly enabled
 own-scope capabilities (schedule/leave; later attendance challenge/assertion). It has
 no POS/device, role/business/admin/platform grants. Generic Better Auth routes refuse it,

@@ -5,6 +5,12 @@ import {
   type RegistrationOptionsPort,
 } from './http/passkeys.controller.ts';
 import type { PasskeyRegistration } from './ports/passkeys.port.ts';
+import { ClockAttendanceController } from './http/clock-attendance.controller.ts';
+import { createAttendanceTransactions } from './persistence/attendance-transactions.ts';
+import { createLockedAttendanceQrVerifier } from './persistence/locked-attendance-qr.ts';
+import { ClockAttendance } from './use-cases/clock-attendance/clock-attendance.ts';
+import { RequestClockChallenge } from './use-cases/request-clock-challenge/request-clock-challenge.ts';
+import type { AttendancePasskeys } from './ports/clock-attendance.port.ts';
 import { EmployeePasskeysController } from './http/employee-passkeys.controller.ts';
 import { EmployeePasskeyUnbindGuard } from './http/employee-passkey-unbind.guard.ts';
 import { MANAGER_PASSKEY_ACCESS } from './queries/passkey-access.ts';
@@ -62,6 +68,7 @@ import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attenda
 import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
 
 export const staffControllers = [
+  ClockAttendanceController,
   EmployeePasskeysController,
   EmployeeLeaveController,
   OwnLeaveController,
@@ -164,12 +171,13 @@ function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator)
 export function staffProviders(
   database?: TenantWrappers,
   redis?: Redis,
-  passkeys: (PasskeyRegistration & RegistrationOptionsPort) | null = null,
+  passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null = null,
 ): Provider[] {
   const ids = systemUuidV7();
   const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
+    ...attendanceProviders(database, secrets, passkeys, ids),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
     ...unbindProviders(database, ids),
     {
@@ -214,6 +222,31 @@ export function staffProviders(
         branches === null || secrets === null
           ? null
           : new VerifyAttendanceQr(branches, secrets, hmacAttendanceQr, systemClock),
+    },
+  ];
+}
+
+function attendanceProviders(
+  database: TenantWrappers | undefined,
+  secrets: ReturnType<typeof createRedisAttendanceQrSecrets> | null,
+  passkeys: AttendancePasskeys | null,
+  ids: IdGenerator,
+): Provider[] {
+  if (database === undefined || secrets === null || passkeys === null)
+    return [
+      { provide: ClockAttendance, useValue: null },
+      { provide: RequestClockChallenge, useValue: null },
+    ];
+  const qr = createLockedAttendanceQrVerifier(secrets, hmacAttendanceQr);
+  const transactions = createAttendanceTransactions(database, ids);
+  return [
+    {
+      provide: ClockAttendance,
+      useValue: new ClockAttendance(transactions, passkeys, qr, systemClock, ids),
+    },
+    {
+      provide: RequestClockChallenge,
+      useValue: new RequestClockChallenge(transactions, passkeys, qr, systemClock),
     },
   ];
 }

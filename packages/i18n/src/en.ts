@@ -1,3 +1,4 @@
+import { attendanceEn } from './attendance-en.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
@@ -55,6 +56,7 @@ export const en = {
     employeeAccessHint:
       'Salaries are managed from the employee screen and also require employee-management access.',
   },
+  personalAttendance: attendanceEn,
   personalStaff: personalStaffEn,
   shell: {
     schedule_title: 'Weekly schedules',

@@ -15,6 +15,7 @@ export {
   type PlatformAuditEntry,
 } from './auth-database.ts';
 export { appendAuditLog, appendAuditLogs, type AuditEntry } from './audit-log.ts';
+export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { markEventConsumed } from './consumed-events.ts';
 export {

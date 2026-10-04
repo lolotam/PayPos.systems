@@ -1,4 +1,5 @@
 import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
+import { ATTENDANCE_TABLE_GRANTS } from '../../test/attendance-grants.ts';
 import { EMPLOYEE_COLUMN_GRANTS } from '../../test/employee-grants.ts';
 import { FUNCTION_INVENTORY } from '../../test/function-inventory.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
@@ -15,8 +16,11 @@ import { createTestDatabase, type TestDatabase } from '../../test/test-database.
 // is not written here fails the suite, so a broad grant cannot authorise itself.
 const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_app: [
-    'attendance_device_signals:INSERT',
-    'attendance_device_signals:SELECT',
+    ...[
+      ...ATTENDANCE_TABLE_GRANTS,
+      'attendance_device_signals:INSERT',
+      'attendance_device_signals:SELECT',
+    ].sort(),
     'audit_log:INSERT',
     'audit_log:SELECT',
     'branches:DELETE',
@@ -142,6 +146,10 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
 const TENANT_TABLES = [
+  'attendance_states',
+  'attendance_sessions',
+  'attendance_exceptions',
+  'attendance_clock_challenges',
   'attendance_device_signals',
   'file_objects',
   'file_access_audit',

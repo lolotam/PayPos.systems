@@ -8,6 +8,7 @@ import { createDatabase, PROVISIONAL_PLAN_ID } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { phoneLockKey } from '@pospay/notifications';
 import postgres from 'postgres';
+import type { Redis } from 'ioredis';
 import { createStaffOtpDatabase } from '../../../packages/db/src/staff-otp-database.ts';
 import { createTestDatabase } from '../../../packages/db/test/test-database.ts';
 import { seedReferenceData } from '../../../packages/db/src/seed.ts';
@@ -23,7 +24,7 @@ import { membershipCompanies } from '../src/modules/identity/index.ts';
 import { keys, identity, phone } from './staff-otp-harness.ts';
 
 export const personalOrigin = 'http://localhost:5173';
-export async function personalFixture() {
+export async function personalFixture(redis?: Redis) {
   const test = await createTestDatabase();
   await seedReferenceData(test.ownerUrl);
   const owner = postgres(test.ownerUrl, { max: 4, onnotice: () => undefined });
@@ -54,6 +55,7 @@ export async function personalFixture() {
     readiness: [],
     auth: { service: auth, baseURL: 'http://localhost:3000' },
     database,
+    ...(redis === undefined ? {} : { redis }),
     personal: { origin: personalOrigin, sessions: auth.personal, eligibility, otp },
   });
   await app.init();
