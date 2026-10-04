@@ -142,7 +142,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `PaymentRefunded`                                                           | `payments`      | `orders`, `cash`, `commissions`                                                                   |
 | `PaymentFailed`                                                             | `payments`      | `orders`, `realtime`, `notifications`                                                             |
 | `CashShiftClosed`                                                           | `cash`          | `reporting`, `notifications` (manager summary)                                                    |
-| `AttendanceClocked`                                                         | `staff`         | `commissions` (lateness deduction), `realtime`                                                    |
+| `AttendanceClockedIn` / `AttendanceClockedOut` / `AttendanceMissedOut` (ADR-0028) | `staff` | No Phase 1 consumer; attendance never changes commission |
 | `AppointmentBooked`                                                         | `appointments`  | `notifications` (reminder schedule), `realtime`                                                   |
 | `AppointmentCompleted`                                                      | `appointments`  | `orders`, `commissions`                                                                           |
 | `StockPosted`                                                               | `inventory`     | `reporting`, `notifications` (low-stock alert), `realtime`                                        |
@@ -152,6 +152,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `NotificationSendAuthorized` (internal, ADR-0018)                           | `notifications` | worker transport publisher → `notifications-send` BullMQ queue, outside database-effect consumers |
 | `DocumentReady`                                                             | `reporting`     | `notifications`, `realtime`                                                                       |
 | `SalaryChanged`                                                             | `staff`         | `commissions`                                                                                     |
+| `LeaveRequested` / `LeaveCancelled` / `LeaveApproved` / `LeaveRejected` / `LeaveRevoked` | `staff` | no consumer yet; Phase 1 leave screens poll, attendance PR 26 will read approved intervals; staff in-app delivery is DL-Q3 in spec 025 |
 | `EmployeePasskeyUnbound`                                                    | `staff`         | None in Phase 1; known to the dispatcher, admin polls binding history (ADR-0029)                     |
 | `EmployeeDocumentRecorded` | `staff` | None in Phase 1; known to the dispatcher. PR 15 reads `expires_on` and `alert_days` directly (ADR-0031) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031) |
@@ -235,6 +236,8 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
+  - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
   - staff -> identity.lockPasskeyAccess @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
   - staff -> identity.readPasskeyAccess @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
@@ -242,6 +245,7 @@ reads:
   - staff -> identity.readLeaveAccess @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-employee.ts
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/personal-employee.ts
   - staff -> identity.scheduleAccess @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts
   - staff -> identity.lockEmployeeSalaryAccess @ apps/api/src/modules/staff/persistence/employee-salary-access.adapter.ts

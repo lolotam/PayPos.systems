@@ -19,6 +19,16 @@ it('personal calls include cookies without device credentials', async () => {
   expect(request.cache).toBe('no-store');
   expect(request.headers.has('Authorization')).toBe(false);
 });
+it('only a confirmed 401 invalidates a session; unavailable validation throws', async () => {
+  fetcher.mockResolvedValueOnce(
+    new Response('{}', { status: 401, headers: { 'content-type': 'application/json' } }),
+  );
+  await expect(personalCalls.session()).resolves.toBeNull();
+  fetcher.mockResolvedValueOnce(
+    new Response('{}', { status: 503, headers: { 'content-type': 'application/json' } }),
+  );
+  await expect(personalCalls.session()).rejects.toThrow('PERSONAL_SESSION_UNAVAILABLE');
+});
 it('cancelled registration sends no verification and never calls generic auth', async () => {
   fetcher.mockResolvedValue(
     new Response(

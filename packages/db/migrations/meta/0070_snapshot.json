@@ -1,6 +1,6 @@
 {
-  "id": "63cbec40-f67b-4de8-b2b7-91ee63959204",
-  "prevId": "7a5460c0-b710-4bda-b6f3-fc4a8bda7266",
+  "id": "d5f0f0ea-b615-43d4-8d7a-5811dc80f46c",
+  "prevId": "1f866a15-3e80-41ed-a538-eada460423ec",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7099,6 +7099,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "decision_reason": {
+          "name": "decision_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_by": {
+          "name": "revoked_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revocation_reason": {
+          "name": "revocation_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "revision": {
           "name": "revision",
           "type": "integer",
@@ -7299,6 +7323,72 @@
           "with": {},
           "method": "btree",
           "concurrently": false
+        },
+        "leave_requests_company_revoked_by_idx": {
+          "name": "leave_requests_company_revoked_by_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "revoked_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "leave_requests_company_business_branch_dates_idx": {
+          "name": "leave_requests_company_business_branch_dates_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "to",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {
@@ -7354,6 +7444,19 @@
           "onUpdate": "no action",
           "onDelete": "no action"
         },
+        "leave_requests_revoked_by_user_id_fk": {
+          "name": "leave_requests_revoked_by_user_id_fk",
+          "tableFrom": "leave_requests",
+          "columnsFrom": [
+            "revoked_by"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
         "leave_requests_employee_fk": {
           "name": "leave_requests_employee_fk",
           "tableFrom": "leave_requests",
@@ -7401,6 +7504,14 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "leave_requests_decision_reason": {
+          "name": "leave_requests_decision_reason",
+          "value": "\"leave_requests\".\"decision_reason\" IS NULL OR (char_length(\"leave_requests\".\"decision_reason\") BETWEEN 1 AND 500 AND \"leave_requests\".\"decision_reason\"=btrim(\"leave_requests\".\"decision_reason\"))"
+        },
+        "leave_requests_revocation": {
+          "name": "leave_requests_revocation",
+          "value": "(\"leave_requests\".\"revoked_by\" IS NULL AND \"leave_requests\".\"revoked_at\" IS NULL AND \"leave_requests\".\"revocation_reason\" IS NULL) OR (\"leave_requests\".\"status\"='CANCELLED' AND \"leave_requests\".\"revoked_by\" IS NOT NULL AND \"leave_requests\".\"revoked_at\" IS NOT NULL AND \"leave_requests\".\"revoked_at\"<\"leave_requests\".\"starts_at\" AND \"leave_requests\".\"revocation_reason\" IS NOT NULL AND char_length(\"leave_requests\".\"revocation_reason\") BETWEEN 1 AND 500 AND \"leave_requests\".\"revocation_reason\"=btrim(\"leave_requests\".\"revocation_reason\") AND \"leave_requests\".\"decided_by\" IS NOT NULL AND \"leave_requests\".\"decided_at\" IS NOT NULL AND \"leave_requests\".\"cancelled_by\" IS NULL AND \"leave_requests\".\"cancelled_at\" IS NULL AND \"leave_requests\".\"rejection_reason\" IS NULL)"
+        },
         "leave_requests_type": {
           "name": "leave_requests_type",
           "value": "\"leave_requests\".\"type\" IN ('ANNUAL','SICK','UNPAID','OTHER')"
@@ -7423,7 +7534,7 @@
         },
         "leave_requests_status": {
           "name": "leave_requests_status",
-          "value": "(\"leave_requests\".\"status\"='PENDING' AND \"leave_requests\".\"cancelled_by\" IS NULL AND \"leave_requests\".\"cancelled_at\" IS NULL AND \"leave_requests\".\"decided_by\" IS NULL AND \"leave_requests\".\"decided_at\" IS NULL AND \"leave_requests\".\"rejection_reason\" IS NULL) OR (\"leave_requests\".\"status\"='CANCELLED' AND \"leave_requests\".\"cancelled_by\" IS NOT NULL AND \"leave_requests\".\"cancelled_at\" IS NOT NULL AND \"leave_requests\".\"decided_by\" IS NULL AND \"leave_requests\".\"decided_at\" IS NULL AND \"leave_requests\".\"rejection_reason\" IS NULL) OR (\"leave_requests\".\"status\" IN ('APPROVED','REJECTED') AND \"leave_requests\".\"decided_by\" IS NOT NULL AND \"leave_requests\".\"decided_at\" IS NOT NULL AND \"leave_requests\".\"cancelled_by\" IS NULL AND \"leave_requests\".\"cancelled_at\" IS NULL AND ((\"leave_requests\".\"status\"='APPROVED' AND \"leave_requests\".\"rejection_reason\" IS NULL) OR (\"leave_requests\".\"status\"='REJECTED' AND \"leave_requests\".\"rejection_reason\" IS NOT NULL AND char_length(btrim(\"leave_requests\".\"rejection_reason\")) BETWEEN 1 AND 500)))"
+          "value": "(\"leave_requests\".\"status\"='PENDING' AND \"leave_requests\".\"cancelled_by\" IS NULL AND \"leave_requests\".\"cancelled_at\" IS NULL AND \"leave_requests\".\"decided_by\" IS NULL AND \"leave_requests\".\"decided_at\" IS NULL AND \"leave_requests\".\"rejection_reason\" IS NULL AND \"leave_requests\".\"decision_reason\" IS NULL AND \"leave_requests\".\"revoked_by\" IS NULL) OR (\"leave_requests\".\"status\"='CANCELLED' AND \"leave_requests\".\"rejection_reason\" IS NULL AND ((\"leave_requests\".\"cancelled_by\" IS NOT NULL AND \"leave_requests\".\"cancelled_at\" IS NOT NULL AND \"leave_requests\".\"decided_by\" IS NULL AND \"leave_requests\".\"decided_at\" IS NULL AND \"leave_requests\".\"decision_reason\" IS NULL AND \"leave_requests\".\"revoked_by\" IS NULL) OR (\"leave_requests\".\"cancelled_by\" IS NULL AND \"leave_requests\".\"cancelled_at\" IS NULL AND \"leave_requests\".\"decided_by\" IS NOT NULL AND \"leave_requests\".\"decided_at\" IS NOT NULL AND \"leave_requests\".\"revoked_by\" IS NOT NULL))) OR (\"leave_requests\".\"status\" IN ('APPROVED','REJECTED') AND \"leave_requests\".\"decided_by\" IS NOT NULL AND \"leave_requests\".\"decided_at\" IS NOT NULL AND \"leave_requests\".\"cancelled_by\" IS NULL AND \"leave_requests\".\"cancelled_at\" IS NULL AND \"leave_requests\".\"revoked_by\" IS NULL AND ((\"leave_requests\".\"status\"='APPROVED' AND \"leave_requests\".\"rejection_reason\" IS NULL) OR (\"leave_requests\".\"status\"='REJECTED' AND \"leave_requests\".\"rejection_reason\" IS NOT NULL AND char_length(btrim(\"leave_requests\".\"rejection_reason\")) BETWEEN 1 AND 500 AND (\"leave_requests\".\"decision_reason\" IS NULL OR \"leave_requests\".\"decision_reason\"=\"leave_requests\".\"rejection_reason\"))))"
         }
       },
       "isRLSEnabled": false
@@ -8087,459 +8198,6 @@
         "attendance_device_signals_hash_format": {
           "name": "attendance_device_signals_hash_format",
           "value": "\"attendance_device_signals\".\"installation_hash\" ~ '^[a-f0-9]{64}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.document_types": {
-      "name": "document_types",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "code": {
-          "name": "code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_en": {
-          "name": "name_en",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_ar": {
-          "name": "name_ar",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "alert_days": {
-          "name": "alert_days",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "requires_expiry": {
-          "name": "requires_expiry",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "active": {
-          "name": "active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "document_types_company_active_name_idx": {
-          "name": "document_types_company_active_name_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "active",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name_en",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "document_types_company_id_companies_id_fk": {
-          "name": "document_types_company_id_companies_id_fk",
-          "tableFrom": "document_types",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "document_types_pkey": {
-          "name": "document_types_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "document_types_company_code_key": {
-          "name": "document_types_company_code_key",
-          "columns": [
-            "company_id",
-            "code"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "document_types_code_format": {
-          "name": "document_types_code_format",
-          "value": "\"document_types\".\"code\" ~ '^[a-z][a-z0-9_]{1,63}$'"
-        },
-        "document_types_alert_days": {
-          "name": "document_types_alert_days",
-          "value": "\"document_types\".\"alert_days\" BETWEEN 0 AND 365"
-        },
-        "document_types_revision_positive": {
-          "name": "document_types_revision_positive",
-          "value": "\"document_types\".\"revision\" > 0"
-        },
-        "document_types_names": {
-          "name": "document_types_names",
-          "value": "char_length(\"document_types\".\"name_en\") BETWEEN 1 AND 255 AND \"document_types\".\"name_en\"=btrim(\"document_types\".\"name_en\") AND (\"document_types\".\"name_ar\" IS NULL OR (char_length(\"document_types\".\"name_ar\") BETWEEN 1 AND 255 AND \"document_types\".\"name_ar\"=btrim(\"document_types\".\"name_ar\")))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.employee_documents": {
-      "name": "employee_documents",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "employee_id": {
-          "name": "employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "type_code": {
-          "name": "type_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "object_key": {
-          "name": "object_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_on": {
-          "name": "expires_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "uploaded_by": {
-          "name": "uploaded_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "replaced_at": {
-          "name": "replaced_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "employee_documents_current_key": {
-          "name": "employee_documents_current_key",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type_code",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"employee_documents\".\"replaced_at\" IS NULL",
-          "concurrently": false
-        },
-        "employee_documents_company_expires_idx": {
-          "name": "employee_documents_company_expires_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "expires_on",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "where": "\"employee_documents\".\"replaced_at\" IS NULL AND \"employee_documents\".\"expires_on\" IS NOT NULL",
-          "concurrently": false
-        },
-        "employee_documents_company_employee_idx": {
-          "name": "employee_documents_company_employee_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type_code",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "recorded_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "employee_documents_company_business_idx": {
-          "name": "employee_documents_company_business_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "employee_documents_company_type_idx": {
-          "name": "employee_documents_company_type_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type_code",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "employee_documents_uploaded_by_idx": {
-          "name": "employee_documents_uploaded_by_idx",
-          "columns": [
-            {
-              "expression": "uploaded_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "employee_documents_company_id_companies_id_fk": {
-          "name": "employee_documents_company_id_companies_id_fk",
-          "tableFrom": "employee_documents",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "employee_documents_uploaded_by_user_id_fk": {
-          "name": "employee_documents_uploaded_by_user_id_fk",
-          "tableFrom": "employee_documents",
-          "columnsFrom": [
-            "uploaded_by"
-          ],
-          "tableTo": "user",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "employee_documents_employee_fk": {
-          "name": "employee_documents_employee_fk",
-          "tableFrom": "employee_documents",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "employee_id"
-          ],
-          "tableTo": "employees",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "employee_documents_type_fk": {
-          "name": "employee_documents_type_fk",
-          "tableFrom": "employee_documents",
-          "columnsFrom": [
-            "company_id",
-            "type_code"
-          ],
-          "tableTo": "document_types",
-          "columnsTo": [
-            "company_id",
-            "code"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "employee_documents_pkey": {
-          "name": "employee_documents_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "employee_documents_company_object_key_key": {
-          "name": "employee_documents_company_object_key_key",
-          "columns": [
-            "company_id",
-            "object_key"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "employee_documents_replaced_after_record": {
-          "name": "employee_documents_replaced_after_record",
-          "value": "\"employee_documents\".\"replaced_at\" IS NULL OR \"employee_documents\".\"replaced_at\" >= \"employee_documents\".\"recorded_at\""
         }
       },
       "isRLSEnabled": false

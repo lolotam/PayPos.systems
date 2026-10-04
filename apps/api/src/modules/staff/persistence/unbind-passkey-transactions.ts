@@ -31,22 +31,33 @@ async function authorize(tx: Tx, scope: ManagerPasskeyScope, clock: PasskeyAcces
   const { companyId, businessId, employeeId, userId } = scope;
   const access = createManagerPasskeyAccess(clock);
   if (!(await access.lock(tx, companyId))) throw new UnbindPasskeyError('NOT_FOUND');
-  const days = await access.branchDays(tx, companyId, businessId);
   const [employee] = await tx.execute<{
     user_id: string | null;
     primary_branch_id: string;
-    branch_ids: string[];
   }>(sql`
-    SELECT user_id,primary_branch_id,
-      ARRAY(SELECT branch_id FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment(days)} ORDER BY branch_id) AS branch_ids
+    SELECT user_id,primary_branch_id
     FROM employees e WHERE company_id=${companyId} AND business_id=${businessId} AND id=${employeeId} AND deleted_at IS NULL FOR UPDATE`);
   if (employee === undefined) throw new UnbindPasskeyError('NOT_FOUND');
-  const branches = [...new Set([employee.primary_branch_id, ...employee.branch_ids])];
-  const decision = await access.check(tx, companyId, userId, businessId, branches);
+  const [binding] = await tx.execute<{
+    id: string;
+    revision: number;
+    bound_by: string;
+  }>(sql`SELECT id,revision,bound_by FROM employee_passkeys
+    WHERE company_id=${companyId} AND employee_id=${employeeId} AND unbound_at IS NULL FOR UPDATE`);
+  // لا نحتفظ بلحظة قبل انتظار الأقفال؛ كل شروط السلطة والفك تشترك في قرار واحد بعدها.
+  const now = clock.now();
+  const days = await access.branchDays(tx, companyId, businessId, now);
+  const attachments = await tx.execute<{ branch_id: string }>(sql`
+    SELECT branch_id FROM employee_branches eb WHERE company_id=${companyId}
+      AND employee_id=${employeeId} AND ${currentAttachment(days)} ORDER BY branch_id`);
+  const branches = [
+    ...new Set([employee.primary_branch_id, ...attachments.map((a) => a.branch_id)]),
+  ];
+  const decision = await access.check(tx, companyId, userId, businessId, branches, now);
   if (!branches.every((id) => decision.unbindBranchIds.includes(id)))
     throw new UnbindPasskeyError('NOT_FOUND');
   if (!decision.featureEnabled) throw new UnbindPasskeyError('FEATURE_DISABLED');
-  return { linkedToActor: employee.user_id === userId };
+  return { linkedToActor: employee.user_id === userId, binding, now };
 }
 
 async function save(
@@ -95,15 +106,11 @@ export function createUnbindPasskeyTransactions(
           scope.companyId,
           async (tx) => {
             const employee = await authorize(tx, scope, clock);
-            const [binding] = await tx.execute<{
-              id: string;
-              revision: number;
-              bound_by: string;
-            }>(sql`SELECT id,revision,bound_by FROM employee_passkeys
-          WHERE company_id=${scope.companyId} AND employee_id=${scope.employeeId} AND unbound_at IS NULL FOR UPDATE`);
+            const { binding, now } = employee;
             const active =
               binding === undefined ? null : { id: binding.id, revision: binding.revision };
             return work({
+              now,
               // من سجّل الربط النشط يظل صاحبه حتى لو أعيد ربط الموظف بمستخدم آخر.
               ownBinding: employee.linkedToActor || binding?.bound_by === scope.userId,
               binding: active === null ? null : { ...active, unboundAt: null },

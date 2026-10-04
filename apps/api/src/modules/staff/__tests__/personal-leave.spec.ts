@@ -5,6 +5,7 @@ import { personalFixture, personalOrigin } from '../../../../test/personal-staff
 import { createLeaveTransactions } from '../persistence/drizzle-leave-transactions.ts';
 import { createPersonalEligibility } from '../persistence/personal-employee.ts';
 import { RequestLeaveUseCase } from '../use-cases/request-leave/request-leave.usecase.ts';
+import { DecideLeaveUseCase } from '../use-cases/decide-leave/decide-leave.usecase.ts';
 import { leaveTerms } from './leave.fixture.ts';
 
 let f: Awaited<ReturnType<typeof personalFixture>>;
@@ -199,6 +200,73 @@ it('preserves non-owner covering DENY and canonical owner immunity for personal 
   await f.owner`DELETE FROM permission_overrides WHERE company_id=${f.companyId} AND id=${deny}`;
 });
 
+it('personal own history shows decision/reason but grants no manager decision or notification inbox access', async () => {
+  const created = await f.app.inject({
+    method: 'POST',
+    url: path(),
+    headers: headers(),
+    payload: leaveTerms('2027-06-01'),
+  });
+  expect(created.statusCode).toBe(201);
+  const row = leaveRequest.parse(created.json());
+  const approver = f.ids.newId();
+  const manager = SYSTEM_ROLES.find((r) => r.code === 'business_manager');
+  await f.owner`INSERT INTO "user"(id,name,email) VALUES(${approver},'Synthetic approver','personal-leave-approver@example.test')`;
+  await f.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at) VALUES(${f.companyId},${f.ids.newId()},${approver},${manager?.id as string},'global','BUSINESS',${f.businessId},'2026-01-01')`;
+  const key = f.ids.newId();
+  await new DecideLeaveUseCase(createLeaveTransactions(f.database, f.ids), {
+    now: () => new Date(),
+  }).execute(
+    {
+      companyId: f.companyId,
+      userId: approver,
+      businessId: f.businessId,
+      employeeId: f.employeeId,
+      leaveId: row.id,
+      own: false,
+      key,
+      fingerprint: key,
+    },
+    { decision: 'REJECTED', expected_revision: 1, reason: 'Synthetic refusal' },
+  );
+  const list = await f.app.inject({ method: 'GET', url: path(), headers: headers() });
+  expect(leavePage.parse(list.json()).items).toContainEqual(
+    expect.objectContaining({
+      id: row.id,
+      status: 'REJECTED',
+      decision_reason: 'Synthetic refusal',
+      rejection_reason: 'Synthetic refusal',
+      can_decide: false,
+      can_revoke: false,
+    }),
+  );
+});
+it('personal credentials cannot reach decisions, revocations or the normal-session inbox', async () => {
+  const base = `/v1/businesses/${f.businessId}/employees/${f.employeeId}/leave-requests/${ownLeave}`;
+  for (const action of ['decide', 'revoke'])
+    expect(
+      (
+        await f.app.inject({
+          method: 'POST',
+          url: `${base}/${action}`,
+          headers: { ...headers(), 'x-company-id': f.companyId },
+          payload:
+            action === 'decide'
+              ? { decision: 'APPROVED', expected_revision: 1 }
+              : { expected_revision: 2, reason: 'Synthetic' },
+        })
+      ).statusCode,
+    ).toBe(401);
+  expect(
+    (
+      await f.app.inject({
+        method: 'GET',
+        url: '/v1/me/notifications',
+        headers: { ...headers(), 'x-company-id': f.companyId },
+      })
+    ).statusCode,
+  ).toBe(401);
+});
 it('rechecks live employee eligibility and refuses a wrong origin, Device substitution and relinking', async () => {
   for (const extra of [
     { origin: 'http://localhost:9999' },

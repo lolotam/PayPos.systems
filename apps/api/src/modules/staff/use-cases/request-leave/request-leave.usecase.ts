@@ -35,6 +35,10 @@ export class RequestLeaveUseCase {
         decided_by: null,
         decided_at: null,
         rejection_reason: null,
+        decision_reason: null,
+        revoked_by: null,
+        revoked_at: null,
+        revocation_reason: null,
         revision: 1,
       };
       await scope.save(record);

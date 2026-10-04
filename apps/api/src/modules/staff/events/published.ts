@@ -27,10 +27,18 @@ export interface LeaveRequested {
   cancelled_at: string | null;
   decided_by: string | null;
   decided_at: string | null;
+  revoked_by: string | null;
+  revoked_at: string | null;
   revision: number;
 }
 /** يصدر بعد إلغاء طلب معلق مع الفاعل والنسخة الجديدة داخل نفس معاملة الإلغاء. */
 export type LeaveCancelled = LeaveRequested;
+/** يصدر عند انتقال PENDING إلى APPROVED مع الفاعل والنسخة دون سبب حر في الحدث. */
+export type LeaveApproved = LeaveRequested;
+/** يصدر عند رفض PENDING؛ السبب محفوظ في الطلب ومتاح للموظف وليس حمولة الحدث. */
+export type LeaveRejected = LeaveRequested;
+/** يصدر عند سحب موافقة قبل البداية؛ يحتفظ بهوية وتوقيت الموافقة الأصلية والسحب. */
+export type LeaveRevoked = LeaveRequested;
 
 /** الحدث يثبت النسخة المعتمدة بعد commit دون مادة الاعتماد أو تحدياته. */
 export interface EmployeePasskeyBound {
@@ -40,6 +48,19 @@ export interface EmployeePasskeyBound {
   readonly bound_at: string;
 }
 
+/** يصدر بعد فتح جلسة الحضور داخل نفس معاملة State دون أي تأثير على العمولة. */
+export interface AttendanceClockedIn {
+  readonly session_id: string;
+  readonly employee_id: string;
+  readonly business_id: string;
+  readonly branch_id: string;
+  readonly occurred_at: string;
+  readonly recorded_at: string;
+}
+/** يصدر عند القفل الطبيعي مع إبقاء تاريخ بداية الحضور الليلي. */
+export type AttendanceClockedOut = AttendanceClockedIn;
+/** يصدر عند اكتشاف حد ١٦ ساعة، منفصلاً عن حركة الفتح الجديدة. */
+export type AttendanceMissedOut = AttendanceClockedIn;
 /** يصدر عند فك المدير للربط وإبطال النسخة مع التدقيق في نفس commit، دون الاعتماد أو السبب الحر. */
 export interface EmployeePasskeyUnbound {
   readonly employee_id: string;

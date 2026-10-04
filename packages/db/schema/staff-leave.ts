@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   check,
   date,
   foreignKey,
@@ -14,6 +15,34 @@ import {
 import { employees } from './staff.ts';
 import { branches, companies } from './tenancy.ts';
 import { user } from './identity-auth.ts';
+
+type LeaveDecisionColumns = Record<
+  | 'status'
+  | 'startsAt'
+  | 'decidedBy'
+  | 'decidedAt'
+  | 'cancelledBy'
+  | 'cancelledAt'
+  | 'rejectionReason'
+  | 'decisionReason'
+  | 'revokedBy'
+  | 'revokedAt'
+  | 'revocationReason',
+  AnyPgColumn
+>;
+// قيود القرار والسحب في دالة مستقلة؛ سحب الموافقة يحفظ القرار الأصلي ولا يقبل بعد البداية.
+function leaveDecisionChecks(t: LeaveDecisionColumns) {
+  return [
+    check(
+      'leave_requests_decision_reason',
+      sql`${t.decisionReason} IS NULL OR (char_length(${t.decisionReason}) BETWEEN 1 AND 500 AND ${t.decisionReason}=btrim(${t.decisionReason}))`,
+    ),
+    check(
+      'leave_requests_revocation',
+      sql`(${t.revokedBy} IS NULL AND ${t.revokedAt} IS NULL AND ${t.revocationReason} IS NULL) OR (${t.status}='CANCELLED' AND ${t.revokedBy} IS NOT NULL AND ${t.revokedAt} IS NOT NULL AND ${t.revokedAt}<${t.startsAt} AND ${t.revocationReason} IS NOT NULL AND char_length(${t.revocationReason}) BETWEEN 1 AND 500 AND ${t.revocationReason}=btrim(${t.revocationReason}) AND ${t.decidedBy} IS NOT NULL AND ${t.decidedAt} IS NOT NULL AND ${t.cancelledBy} IS NULL AND ${t.cancelledAt} IS NULL AND ${t.rejectionReason} IS NULL)`,
+    ),
+  ];
+}
 
 export const leaveRequests = pgTable(
   'leave_requests',
@@ -47,6 +76,11 @@ export const leaveRequests = pgTable(
     decidedBy: uuid('decided_by').references(() => user.id),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     rejectionReason: text('rejection_reason'),
+    // سبب القرار العام؛ rejection_reason يظل نسخة متوافقة للرفض القديم.
+    decisionReason: text('decision_reason'),
+    revokedBy: uuid('revoked_by').references(() => user.id),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revocationReason: text('revocation_reason'),
     revision: integer('revision').notNull().default(1),
   },
   (t) => [
@@ -80,6 +114,16 @@ export const leaveRequests = pgTable(
     index('leave_requests_requested_by_idx').on(t.requestedBy),
     index('leave_requests_cancelled_by_idx').on(t.cancelledBy),
     index('leave_requests_decided_by_idx').on(t.decidedBy),
+    index('leave_requests_company_revoked_by_idx').on(t.companyId, t.revokedBy),
+    index('leave_requests_company_business_branch_dates_idx').on(
+      t.companyId,
+      t.businessId,
+      t.branchId,
+      t.from,
+      t.to,
+      t.id,
+    ),
+    ...leaveDecisionChecks(t),
     check('leave_requests_type', sql`${t.type} IN ('ANNUAL','SICK','UNPAID','OTHER')`),
     check(
       'leave_requests_note',
@@ -93,7 +137,7 @@ export const leaveRequests = pgTable(
     check('leave_requests_revision', sql`${t.revision}>0`),
     check(
       'leave_requests_status',
-      sql`(${t.status}='PENDING' AND ${t.cancelledBy} IS NULL AND ${t.cancelledAt} IS NULL AND ${t.decidedBy} IS NULL AND ${t.decidedAt} IS NULL AND ${t.rejectionReason} IS NULL) OR (${t.status}='CANCELLED' AND ${t.cancelledBy} IS NOT NULL AND ${t.cancelledAt} IS NOT NULL AND ${t.decidedBy} IS NULL AND ${t.decidedAt} IS NULL AND ${t.rejectionReason} IS NULL) OR (${t.status} IN ('APPROVED','REJECTED') AND ${t.decidedBy} IS NOT NULL AND ${t.decidedAt} IS NOT NULL AND ${t.cancelledBy} IS NULL AND ${t.cancelledAt} IS NULL AND ((${t.status}='APPROVED' AND ${t.rejectionReason} IS NULL) OR (${t.status}='REJECTED' AND ${t.rejectionReason} IS NOT NULL AND char_length(btrim(${t.rejectionReason})) BETWEEN 1 AND 500)))`,
+      sql`(${t.status}='PENDING' AND ${t.cancelledBy} IS NULL AND ${t.cancelledAt} IS NULL AND ${t.decidedBy} IS NULL AND ${t.decidedAt} IS NULL AND ${t.rejectionReason} IS NULL AND ${t.decisionReason} IS NULL AND ${t.revokedBy} IS NULL) OR (${t.status}='CANCELLED' AND ${t.rejectionReason} IS NULL AND ((${t.cancelledBy} IS NOT NULL AND ${t.cancelledAt} IS NOT NULL AND ${t.decidedBy} IS NULL AND ${t.decidedAt} IS NULL AND ${t.decisionReason} IS NULL AND ${t.revokedBy} IS NULL) OR (${t.cancelledBy} IS NULL AND ${t.cancelledAt} IS NULL AND ${t.decidedBy} IS NOT NULL AND ${t.decidedAt} IS NOT NULL AND ${t.revokedBy} IS NOT NULL))) OR (${t.status} IN ('APPROVED','REJECTED') AND ${t.decidedBy} IS NOT NULL AND ${t.decidedAt} IS NOT NULL AND ${t.cancelledBy} IS NULL AND ${t.cancelledAt} IS NULL AND ${t.revokedBy} IS NULL AND ((${t.status}='APPROVED' AND ${t.rejectionReason} IS NULL) OR (${t.status}='REJECTED' AND ${t.rejectionReason} IS NOT NULL AND char_length(btrim(${t.rejectionReason})) BETWEEN 1 AND 500 AND (${t.decisionReason} IS NULL OR ${t.decisionReason}=${t.rejectionReason}))))`,
     ),
   ],
 );

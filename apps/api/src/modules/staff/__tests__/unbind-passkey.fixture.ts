@@ -27,7 +27,6 @@ export async function unbindFixture(): Promise<UnbindFixture> {
   const clock = { now: () => new Date() };
   const unbind = new UnbindPasskeyUseCase(
     createUnbindPasskeyTransactions(f.database, f.ids, clock),
-    clock,
   );
   const personal = {
     companyId: f.companyId,

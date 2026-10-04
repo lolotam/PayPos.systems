@@ -11,9 +11,9 @@ export interface LeaveActor {
   key: string;
   fingerprint: string;
 }
-/** مصادر الساعة والمعرفات المحقونة للإنشاء والإلغاء. */
+/** الساعة المشتركة لكل انتقال، بما فيه نهاية صلاحية المنح والميزة وحد السحب. */
 export interface LeaveClock {
-  /** يثبت لحظة واحدة للسلطة وأهلية الموظف والماضي وتوقيت الإنشاء أو الإلغاء. */ now(): Date;
+  /** يثبت لحظة واحدة للسلطة والأهلية وحد السحب والتوقيت المسجل. */ now(): Date;
 }
 /** توليد UUID v7 لا يعرفه قلب قواعد الإجازة. */
 export interface LeaveIds {
@@ -37,9 +37,9 @@ export interface LeaveScope {
   overlaps(period: {
     starts_at: string;
     ends_at: string;
-  }): Promise<Pick<LeaveRecord, 'starts_at' | 'ends_at' | 'status'>[]>;
+  }): Promise<Pick<LeaveRecord, 'id' | 'starts_at' | 'ends_at' | 'status'>[]>;
   /**
-   * يحفظ الطلب أو إلغاءه مع التدقيق والحدث داخل المعاملة ذاتها.
+   * يحفظ الإنشاء أو انتقال الحالة مع التدقيق والحدث داخل المعاملة ذاتها.
    *
    * @param record نسخة الطلب
    */
@@ -58,7 +58,7 @@ export interface LeaveTransactions {
    */
   run(
     actor: LeaveActor,
-    action: 'create' | 'cancel',
+    action: 'create' | 'cancel' | 'decide' | 'revoke',
     clock: LeaveClock,
     work: (scope: LeaveScope) => Promise<LeaveRecord>,
   ): Promise<LeaveRecord>;

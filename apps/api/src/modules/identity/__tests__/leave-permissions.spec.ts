@@ -46,7 +46,7 @@ it.each(PERMISSIONS.filter((code) => code.includes(':leave:')))(
         permission_code.endsWith(':own') ? f.managerId : undefined,
       ),
     );
-    expect(access).toMatchObject({ read: [], create: [], cancel: [] });
+    expect(access).toMatchObject({ read: [], create: [], cancel: [], decide: [], revoke: [] });
     expect(
       Array.from(
         await f.h

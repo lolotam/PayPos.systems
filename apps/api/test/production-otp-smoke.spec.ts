@@ -41,7 +41,8 @@ function environment(
 ): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const name of Object.keys(env)) {
-    if (/^(STAFF_OTP_|WHATSAPP_)|NOTIFICATION/.test(name)) env[name] = '';
+    // كل القدرات الاختيارية تظل فارغة، بما فيها الملفات والبريد عند إضافة وحدة حضور جديدة.
+    if (/^(STAFF_OTP_|WHATSAPP_|STORAGE_|EMAIL_|RESEND_)|NOTIFICATION/.test(name)) env[name] = '';
   }
   delete env['FORCE_COLOR'];
   const pg = inject('pg');

@@ -4,8 +4,11 @@ import { unbindPasskeyPaths } from './staff/unbind-passkey-openapi.js';
 import { leaveSchemas } from './staff/leave.js';
 import { employeeDocumentSchemas } from './staff/employee-documents.js';
 import { employeeDocumentPaths } from './staff/employee-documents-openapi.js';
+import { leaveDecisionSchemas } from './staff/leave-decision.js';
 import { leavePaths } from './staff/leave-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
+import { clockAttendanceSchemas } from './staff/clock-attendance.js';
+import { clockAttendancePaths } from './staff/clock-attendance-openapi.js';
 import { passkeyPaths } from './staff/passkeys-openapi.js';
 import { scheduleSchemas } from './staff/schedules.js';
 import {
@@ -87,7 +90,9 @@ import {
 
 const SCHEMAS = [
   ...employeeDocumentSchemas,
+  ...clockAttendanceSchemas,
   ...leaveSchemas,
+  ...leaveDecisionSchemas,
   ...passkeySchemas,
   ...unbindPasskeySchemas,
   ...scheduleSchemas,
@@ -187,6 +192,7 @@ function operation(
 const PATHS = {
   ...employeeDocumentPaths,
   ...passkeyPaths,
+  ...clockAttendancePaths,
   ...unbindPasskeyPaths,
   ...settingsPaths,
   ...filePaths,

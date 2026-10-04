@@ -11,6 +11,7 @@ pools. Web apps cannot prove physical-device identity. PR 22 owns accepted clock
 ## Decision
 
 Lock company, ordered memberships, employee, then active binding, matching enrollment.
+Passkey reads/guards share one injected Clock decision instant per check; unbind samples it after all locks and reuses it for branch attachments, membership/permission expiry, feature-override expiry and the unbind timestamp.
 Recheck live scope after lock waits; only then enforce self prohibition and binding
 id/revision. Current attachments end at their exclusive end date in each branch's
 timezone from the injected clock; future-dated detaches and future-starting attachments
@@ -65,3 +66,5 @@ current binding state; this phase promises no consumer or replay-derived project
   privacy; one-branch employees are manageable by their branch manager.
 - **UNB-Q4 — owner decision 2026-10-04 (recommended option)**: device signals are
   retained with attendance history; no cleanup job now.
+
+Amendment 2026-10-04: PR 21 and PR 22 were built in parallel, so PR 22 ships without the `installation_id` field, the POS identifier and the transactional signal write. They move to follow-up PR 22b; until it merges `attendance_device_signals` stays empty and the shared-device flag cannot fire.

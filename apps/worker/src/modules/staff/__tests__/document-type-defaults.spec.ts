@@ -55,7 +55,7 @@ it('the CompanyCreated consumer seeds the five types once, inside the tenant, an
 it('the migration seeds existing companies with exactly the consumer list, idempotently', async () => {
   const migration = readFileSync(
     new URL(
-      '../../../../../../packages/db/migrations/0070_2026-10-04_staff-employee-documents-rls.sql',
+      '../../../../../../packages/db/migrations/0074_2026-10-04_staff-employee-documents-rls.sql',
       import.meta.url,
     ),
     'utf8',

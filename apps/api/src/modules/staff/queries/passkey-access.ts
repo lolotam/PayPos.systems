@@ -3,6 +3,8 @@ import { sql } from 'drizzle-orm';
 export const MANAGER_PASSKEY_ACCESS = Symbol('MANAGER_PASSKEY_ACCESS');
 /** منفذ قراءة الشاشة يظل بجوار الاستعلامات دون اعتماد على طبقة الكتابة. */
 export interface ManagerPasskeyAccess {
+  /** يعيد لحظة واحدة للفحص كي تتفق الارتباطات والأذونات وانتهاء تجاوز الميزة. */
+  now(): Date;
   /** يثبت الشركة والعضويات بالترتيب المستخدم في التسجيل قبل قفل الموظف. */
   lock(tx: Tx, companyId: string): Promise<boolean>;
   /** يعيد فروع النشاط المسموح بها للشاشة قبل تقسيم الصفحات. */
@@ -11,6 +13,7 @@ export interface ManagerPasskeyAccess {
     companyId: string,
     userId: string,
     businessId: string,
+    now: Date,
   ): Promise<PasskeyAccessDecision>;
   /** يحسب الإذن الحي على كل فروع الموظف المحفوظة دون كشف الهوية العالمية. */
   check(
@@ -19,9 +22,10 @@ export interface ManagerPasskeyAccess {
     userId: string,
     businessId: string,
     branchIds: readonly string[],
+    now: Date,
   ): Promise<PasskeyAccessDecision>;
   /** يعيد اليوم المحلي لكل فرع في النشاط من الساعة المحقونة، لأن نهاية الارتباط تاريخ محلي للفرع. */
-  branchDays(tx: Tx, companyId: string, businessId: string): Promise<BranchDay[]>;
+  branchDays(tx: Tx, companyId: string, businessId: string, now: Date): Promise<BranchDay[]>;
 }
 export interface PasskeyAccessDecision {
   readBranchIds: string[];
@@ -63,7 +67,8 @@ export async function managerPasskeyEmployee(
   lock = false,
 ) {
   const { companyId, businessId, userId } = scope;
-  const days = await access.branchDays(tx, companyId, businessId);
+  const now = access.now();
+  const days = await access.branchDays(tx, companyId, businessId, now);
   const [employee] = await tx.execute<{
     user_id: string | null;
     primary_branch_id: string;
@@ -73,7 +78,7 @@ export async function managerPasskeyEmployee(
   if (employee === undefined) return null;
   // قرار المالك 2026-10-04 (UNB-Q3): سلطة على كل الفروع لأن الفك يؤثر على ربط الموظف المشترك.
   const branches = [...new Set([employee.primary_branch_id, ...employee.branch_ids])];
-  const decision = await access.check(tx, companyId, userId, businessId, branches);
+  const decision = await access.check(tx, companyId, userId, businessId, branches, now);
   if (!branches.every((id) => decision.readBranchIds.includes(id))) return null;
   return {
     featureEnabled: decision.featureEnabled,

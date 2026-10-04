@@ -5,11 +5,13 @@ import { Button, DataTableFrame } from '@pospay/ui';
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
+import { leaveDecisionColumns, type LeaveDecisionActions } from './leave-decision-columns';
 type Row = LeavePage['items'][number];
 function leaveColumns(
   locale: Locale,
   pending: boolean,
-  onCancel: (row: Row) => void,
+  onCancel: ((row: Row) => void) | undefined,
+  actions: LeaveDecisionActions,
 ): ColumnDef<Row>[] {
   const date = (civil: string) =>
     formatDate(new Date(`${civil}T12:00Z`), { locale, calendar: 'gregorian', timeZone: 'UTC' });
@@ -38,34 +40,45 @@ function leaveColumns(
     {
       id: 'status',
       header: t(locale, 'leave.status'),
-      cell: ({ row }) => t(locale, `leave.${row.original.status}`),
+      // سحب الموافقة يحفظ CANCELLED، لكن الموظف والمدير يحتاجان تمييزه عن إلغاء طلب معلق.
+      cell: ({ row: { original: r } }) =>
+        t(locale, r.revoked_by === null ? `leave.${r.status}` : 'leave.revokedStatus'),
     },
     {
       id: 'cancel',
       header: t(locale, 'leave.cancel'),
       cell: ({ row }) =>
-        row.original.can_cancel ? (
+        row.original.can_cancel && onCancel ? (
           <Button variant="outline" disabled={pending} onClick={() => onCancel(row.original)}>
             {t(locale, 'leave.cancel')}
           </Button>
         ) : null,
     },
+    ...leaveDecisionColumns(locale, pending, actions),
   ];
 }
 export function LeaveHistoryTable({
   items,
   pending,
   onCancel,
+  onDecide,
+  onRevoke,
+  includeEmployee,
 }: {
   items: Row[];
   pending: boolean;
-  onCancel: (row: Row) => void;
-}) {
+  onCancel?: (row: Row) => void;
+} & LeaveDecisionActions) {
   'use no memo';
   const locale = useLocale();
   const columns = useMemo<ColumnDef<Row>[]>(
-    () => leaveColumns(locale, pending, onCancel),
-    [locale, pending, onCancel],
+    () =>
+      leaveColumns(locale, pending, onCancel, {
+        ...(onDecide ? { onDecide } : {}),
+        ...(onRevoke ? { onRevoke } : {}),
+        ...(includeEmployee ? { includeEmployee } : {}),
+      }),
+    [locale, pending, onCancel, onDecide, onRevoke, includeEmployee],
   );
   const table = useReactTable({
     data: items,

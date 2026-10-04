@@ -10,7 +10,10 @@ it('Device cannot receive any leave ALLOW, while human own grants and manager br
         ? role.code !== 'device'
         : ['owner', 'general_manager', 'business_manager', 'branch_manager'].includes(role.code);
       expect((ROLE_DEFAULTS[code] as readonly string[]).includes(role.code)).toBe(eligible);
-      expect(policy?.permissions.includes(code)).toBe(eligible);
+      const delegated =
+        ['decide:leave:branch', 'revoke:leave:branch', 'read:leave:branch'].includes(code) &&
+        role.code !== 'device';
+      expect(policy?.permissions.includes(code)).toBe(eligible || delegated);
     }
   }
 });

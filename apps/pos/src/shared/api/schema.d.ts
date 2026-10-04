@@ -219,6 +219,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/staff/attendance/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestAttendanceClockChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/attendance/clock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["clockPersonalAttendance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/passkeys": {
         parameters: {
             query?: never;
@@ -572,6 +604,38 @@ export interface paths {
         get: operations["pendingLeaveInbox"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["decideEmployeeLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeEmployeeLeave"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1175,6 +1239,68 @@ export interface components {
             types: components["schemas"]["DocumentType"][];
             can_manage: boolean;
         };
+        ClockChallengeInput: {
+            token: components["schemas"]["AttendanceQrToken"];
+            location?: {
+                lat: number;
+                lng: number;
+                accuracy: number;
+            };
+        };
+        ClockAttendanceInput: {
+            token: components["schemas"]["AttendanceQrToken"];
+            location?: {
+                lat: number;
+                lng: number;
+                accuracy: number;
+            };
+            /** Format: uuid */
+            challenge_id: string;
+            response: {
+                id: string;
+                rawId: string;
+                /** @enum {string} */
+                type: "public-key";
+                /** @enum {string} */
+                authenticatorAttachment?: "platform" | "cross-platform";
+                clientExtensionResults: Record<string, never>;
+                response: {
+                    clientDataJSON: string;
+                    authenticatorData: string;
+                    signature: string;
+                    userHandle?: string;
+                };
+            };
+        };
+        ClockChallenge: {
+            /** Format: uuid */
+            challenge_id: string;
+            options: {
+                challenge: string;
+                rpId: string;
+                timeout?: number;
+                /** @enum {string} */
+                userVerification: "required";
+                allowCredentials?: {
+                    id: string;
+                    /** @enum {string} */
+                    type: "public-key";
+                }[];
+            };
+        };
+        ClockAttendanceResult: {
+            /** Format: uuid */
+            session_id: string;
+            /** @enum {string} */
+            operation: "CLOCK_IN" | "CLOCK_OUT";
+            working_date: string;
+            /** Format: date-time */
+            accepted_at: string;
+            exceptions: ("NONE" | "OUT_OF_RANGE")[];
+            late_minutes: number;
+            /** Format: uuid */
+            missed_session_id: string | null;
+        };
         RequestLeaveInput: {
             /** @enum {string} */
             type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
@@ -1258,6 +1384,12 @@ export interface components {
             /** Format: date-time */
             decided_at: string | null;
             rejection_reason: string | null;
+            decision_reason: string | null;
+            /** Format: uuid */
+            revoked_by: string | null;
+            /** Format: date-time */
+            revoked_at: string | null;
+            revocation_reason: string | null;
             revision: number;
         };
         LeaveListQuery: {
@@ -1304,14 +1436,49 @@ export interface components {
             /** Format: date-time */
             decided_at: string | null;
             rejection_reason: string | null;
+            decision_reason: string | null;
+            /** Format: uuid */
+            revoked_by: string | null;
+            /** Format: date-time */
+            revoked_at: string | null;
+            revocation_reason: string | null;
             revision: number;
+            employee_name_en: string;
+            employee_name_ar: string | null;
             can_cancel: boolean;
+            can_decide: boolean;
+            can_revoke: boolean;
         };
         LeavePage: {
             items: components["schemas"]["LeaveListItem"][];
             /** Format: uuid */
             next_cursor: string | null;
             request_branch_ids: string[];
+        };
+        DecideLeaveInput: {
+            expected_revision: number;
+            /** @enum {string} */
+            decision: "APPROVED";
+            reason?: string;
+        } | {
+            expected_revision: number;
+            /** @enum {string} */
+            decision: "REJECTED";
+            reason: string;
+        };
+        RevokeLeaveInput: {
+            expected_revision: number;
+            reason: string;
+        };
+        LeaveInboxQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            /** Format: uuid */
+            branch_id?: string;
+            from?: components["schemas"]["EmployeeDate"];
+            to?: components["schemas"]["EmployeeDate"];
         };
         PersonalOtpRequestInput: {
             phone: string;
@@ -2771,6 +2938,74 @@ export interface operations {
             };
         };
     };
+    requestAttendanceClockChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockChallengeInput"];
+            };
+        };
+        responses: {
+            /** @description requestAttendanceClockChallenge */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockChallenge"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    clockPersonalAttendance: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockAttendanceInput"];
+            };
+        };
+        responses: {
+            /** @description clockPersonalAttendance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockAttendanceResult"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     employeePasskeyHistory: {
         parameters: {
             query?: {
@@ -3918,6 +4153,9 @@ export interface operations {
     pendingLeaveInbox: {
         parameters: {
             query?: {
+                branch_id?: string;
+                from?: string;
+                to?: string;
                 cursor?: string;
                 limit?: number;
             };
@@ -3938,6 +4176,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeavePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideEmployeeLeave: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+                leaveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokeEmployeeLeave: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+                leaveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
                 };
             };
             /** @description Bilingual refusal */
