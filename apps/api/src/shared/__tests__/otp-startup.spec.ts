@@ -71,9 +71,13 @@ vi.mock('../../modules/notifications/index.ts', () => ({
   createWhatsappIntake: () => resources.intake,
 }));
 vi.mock('../../modules/identity/index.ts', () => ({
+  membershipCompanies: vi.fn(async () => []),
   staffOtpDependencies: () => ({ transport: resources.transport, rates: {}, eligibility: {} }),
 }));
-vi.mock('../../modules/staff/index.ts', () => ({ createPersonalEligibility: () => ({}) }));
+vi.mock('../../modules/staff/index.ts', () => ({
+  createPersonalEligibility: () => ({}),
+  createActivePasskeyBindings: () => ({}),
+}));
 // الاختبار يعزل تركيب OTP؛ لا نحمل SDK الملفات أو إعداداتها من .env داخل نافذة مهلة بدء OTP.
 // تشغيل API وworker المبنيين مع الملفات والإعدادات الاختيارية الفارغة مغطى في files/production.spec.ts.
 vi.mock('../../modules/files/index.ts', () => ({ filesRuntime: () => null }));

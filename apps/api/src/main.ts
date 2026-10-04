@@ -20,8 +20,8 @@ import { createApp } from './app.ts';
 import { filesRuntime } from './modules/files/index.ts';
 import { createWhatsappIntake } from './modules/notifications/index.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
-import { createPersonalEligibility } from './modules/staff/index.ts';
-import { staffOtpDependencies } from './modules/identity/index.ts';
+import { createActivePasskeyBindings, createPersonalEligibility } from './modules/staff/index.ts';
+import { membershipCompanies, staffOtpDependencies } from './modules/identity/index.ts';
 import { readConfig } from './shared/config.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 
@@ -131,6 +131,9 @@ try {
     );
   }
   auth = await createAuth({
+    passkeyBindings: createActivePasskeyBindings(database, {
+      forUser: (userId) => membershipCompanies(database, userId),
+    }),
     databaseUrl: config.AUTH_DATABASE_URL,
     secret: config.BETTER_AUTH_SECRET,
     baseURL: config.BETTER_AUTH_URL,

@@ -42,10 +42,14 @@ An existing binding requires manager unbind before replacement.
 3. **KEY-03**: Missing UV, wrong user/origin/RP, replay/expiry and unknown credentials
    are refused. A staging origin is refused in production.
 4. **KEY-04**: Paired-device operator sessions cannot enroll a shared kiosk.
+5. **KEY-05**: After a tenant binding rolls back, fresh registration options omit the
+   inert orphan from `excludeCredentials`. The same authenticator can create a fresh
+   credential; only that new credential becomes bound. Active bindings remain excluded.
 
 ### Edge Cases
 
-- A global registration commits but tenant binding fails: keep an inert credential.
+- A global registration commits but tenant binding fails: keep an inert credential,
+  omit it from retry exclusions, and require fresh registration and explicit binding.
 - Employee deletion, user relinking or membership expiry between options and verify.
 - Synced passkeys and zero signature counters remain supported.
 - Challenge consumed before crash: require a new challenge; never replay an assertion.
@@ -89,6 +93,10 @@ An existing binding requires manager unbind before replacement.
 First enrollment only; active employee and active covering membership required.
 Enrollment and authentication do not clock attendance or open a cash shift. No money changes.
 Global credential failures cannot activate tenant bindings. Synced credentials are permitted.
+The staff-owned reader supplies active binding ids across the verified user's membership
+companies through the application root; auth maps those ids to its own credential descriptors.
+Binding reads remain under tenant RLS. No orphan cleanup is attempted: avoiding cross-pool
+deletion races preserves credentials used by another company, and inert records do not block retry.
 
 ### Schema changes
 

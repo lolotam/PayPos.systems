@@ -27,7 +27,7 @@ export function testAuthenticator(synced = false) {
   const keys = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   const jwk = keys.publicKey.export({ format: 'jwk' });
   if (jwk.x === undefined || jwk.y === undefined) throw new Error('SYNTHETIC_KEY_INVALID');
-  const credential = randomBytes(32);
+  let credential = randomBytes(32);
   const publicKey = cbor(
     new Map<number, unknown>([
       [1, 2],
@@ -38,6 +38,16 @@ export function testAuthenticator(synced = false) {
     ]),
   );
   return {
+    registerNewCredential(
+      options: { challenge: string; excludeCredentials?: { id: string }[] },
+      origin: string,
+      rp: string,
+    ) {
+      if (options.excludeCredentials?.some((c) => c.id === credential.toString('base64url')))
+        throw new Error('SYNTHETIC_INVALID_STATE');
+      credential = randomBytes(32);
+      return registration(credential, publicKey, options.challenge, origin, rp, true, synced);
+    },
     registration(
       challenge: string,
       origin: string,

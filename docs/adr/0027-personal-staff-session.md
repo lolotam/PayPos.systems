@@ -55,6 +55,14 @@ in its hook; plugin generic HTTP routes stay inaccessible. Credentials use the g
 auth-only `passkey` table; staff owns tenant binding history, revision, audit and outbox.
 Serialize first binding against the employee row and its partial unique active index.
 Unbound credentials remain inert after race/failure. Existing binding refuses replacement.
+Registration exclusions contain only credentials backing active employee bindings. The root
+injects a staff-owned binding reader into auth; identity enumerates only the verified user's
+membership companies with `withUser`, then staff reads each company's bindings with `withTenant`.
+Auth maps opaque binding ids to credential descriptors on its auth-only adapter. Missing or
+failed binding reads refuse options rather than use the plugin's full credential list.
+Orphans are retained and omitted from exclusions: retry uses a fresh ceremony and credential,
+never implicitly activates an orphan. No best-effort deletion is added because global registration
+and tenant binding have separate commits; deletion could race another company's active binding.
 
 Attendance facade stores a fresh 120-second challenge in global verification storage,
 with immutable user/company/employee/binding id/revision/branch/operation/QR context.

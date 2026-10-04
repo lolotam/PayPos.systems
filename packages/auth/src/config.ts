@@ -6,7 +6,7 @@ import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins';
 import { createPersonalSessions, type PersonalSessions } from './personal-sessions.ts';
 import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-policy.ts';
-import { createPasskeyFacade, type PasskeyFacade } from './passkeys.ts';
+import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
 import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
 
 /**
@@ -15,6 +15,8 @@ import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
 export interface AuthOptions {
   readonly staffPhoneLockKey: (hash: Uint8Array) => bigint;
   readonly clock?: { now(): Date };
+  /** القارئ من staff عبر composition root؛ غيابه يقفل خيارات التسجيل فقط. */
+  readonly passkeyBindings?: ActivePasskeyBindings | undefined;
   /** AUTH_DATABASE_URL — pospay_auth; the pool is opened here and never leaves this package. */
   readonly databaseUrl: string;
   /** BETTER_AUTH_SECRET — بيوقّع الـ cookies ويشفّر سر الـ TOTP؛ 32 حرف على الأقل. */
@@ -376,5 +378,6 @@ function configuredPasskeys(
     ids: options.ids,
     policy: passkeyPolicy(options.baseURL, options.trustedOrigins),
     now: () => options.clock?.now() ?? new Date(),
+    bindings: options.passkeyBindings,
   });
 }

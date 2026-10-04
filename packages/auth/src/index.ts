@@ -56,5 +56,6 @@ export type {
   EnrollmentScope,
   AttendanceScope,
   AttendanceProof,
+  ActivePasskeyBindings,
 } from './passkeys.ts';
 export type { StaffOtpApiOptions } from './staff-otp/api.ts';

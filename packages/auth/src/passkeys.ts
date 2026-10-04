@@ -50,12 +50,18 @@ type EnrollmentResponse = Omit<
 };
 
 type Auth = ReturnType<typeof buildBetterAuth>;
+/** القارئ المحقون يملك ربط الموظفين؛ auth لا يقرأ أي جدول شركة. */
+export interface ActivePasskeyBindings {
+  /** يرجع المعرفات العالمية للروابط النشطة فقط، بعد إثبات المستخدم. */
+  forUser(scope: EnrollmentScope): Promise<readonly string[]>;
+}
 interface Options {
   auth: Auth;
   database: AuthDatabase;
   policy: ReturnType<typeof passkeyPolicy>;
   ids: { newId(): string };
   now(): Date;
+  bindings?: ActivePasskeyBindings | undefined;
 }
 
 /** التسجيل عبر adapter الـ plugin؛ لا ننشئ جلسة دخول أو نعطي المتصفح مادة الاعتماد. */
@@ -87,11 +93,22 @@ async function store(options: Options, prefix: string, value: unknown, seconds: 
 }
 
 async function enrollmentOptions(options: Options, scope: EnrollmentScope) {
-  if (options.policy.origins.length === 0) throw new Error('PASSKEY_UNAVAILABLE');
+  if (options.policy.origins.length === 0 || options.bindings === undefined)
+    throw new Error('PASSKEY_UNAVAILABLE');
+  const activeIds = new Set(await options.bindings.forUser(scope));
   const generated = await options.auth.api.generatePasskeyRegistrationOptions({
     query: { context: scope.userId },
     returnHeaders: true,
   });
+  const credentials = await (
+    await options.auth.$context
+  ).adapter.findMany<{
+    id: string;
+    credentialID: string;
+  }>({ model: 'passkey', where: [{ field: 'userId', value: scope.userId }] });
+  const activeCredentials = new Set(
+    credentials.filter((credential) => activeIds.has(credential.id)).map((c) => c.credentialID),
+  );
   // cookie الـ plugin داخلي فقط؛ لا يصل إلى المتصفح أو domain مشترك.
   const cookie = generated.headers
     .getSetCookie()
@@ -103,7 +120,16 @@ async function enrollmentOptions(options: Options, scope: EnrollmentScope) {
     { scope: JSON.stringify(scope), cookie },
     120,
   );
-  return { challengeId, options: generated.response };
+  // الاعتماد الذي فشل ربطه لا يمنع نفس الجهاز من إنشاء اعتماد جديد؛ لا نفعّل اليتيم ضمنياً.
+  return {
+    challengeId,
+    options: {
+      ...generated.response,
+      excludeCredentials: (generated.response.excludeCredentials ?? []).filter((credential) =>
+        activeCredentials.has(credential.id),
+      ),
+    },
+  };
 }
 
 async function enroll(

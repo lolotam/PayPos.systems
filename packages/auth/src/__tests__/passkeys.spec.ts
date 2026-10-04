@@ -19,6 +19,7 @@ let database: TestDatabase;
 let owner: postgres.Sql;
 let auth: AuthService;
 let now = new Date();
+const activeBindings = new Set<string>();
 const logs: AuthLogEntry[] = [];
 const scope: EnrollmentScope = {
   userId: ids.newId(),
@@ -32,6 +33,7 @@ beforeAll(async () => {
   owner = postgres(database.ownerUrl, { max: 1, onnotice: () => undefined });
   await owner`INSERT INTO "user"(id,name,email) VALUES(${scope.userId},'Synthetic staff','passkey@example.test')`;
   auth = await createAuth({
+    passkeyBindings: { forUser: async () => [...activeBindings] },
     databaseUrl: database.authUrl,
     staffPhoneLockKey: () => 1n,
     secret: 'synthetic-passkey-secret-more-than-32-characters',
@@ -197,6 +199,26 @@ it('credential grants belong only to auth; tenant and messaging roles cannot rea
   } finally {
     await authRole.end();
   }
+});
+
+it('excludes active bindings only; inert, unbound and foreign-user credentials stay out', async () => {
+  const credentials =
+    await owner`SELECT id,credential_id FROM passkey WHERE user_id=${scope.userId} ORDER BY id`;
+  const active = present(credentials[0]);
+  activeBindings.add(String(active['id']));
+  const foreignUser = ids.newId(),
+    foreignKey = ids.newId();
+  await owner`INSERT INTO "user"(id,name,email) VALUES(${foreignUser},'Synthetic foreign staff','foreign-passkey@example.test')`;
+  await owner`INSERT INTO passkey(id,user_id,credential_id,public_key,counter,device_type,backed_up)
+    SELECT ${foreignKey},${foreignUser},'synthetic-foreign-credential',public_key,0,'singleDevice',false
+    FROM passkey WHERE id=${active['id']}`;
+  activeBindings.add(foreignKey);
+  const generated = await auth.passkeys.enrollmentOptions(scope);
+  expect(generated.options.excludeCredentials).toEqual([
+    { id: active['credential_id'], type: 'public-key', transports: ['internal'] },
+  ]);
+  activeBindings.clear();
+  expect((await auth.passkeys.enrollmentOptions(scope)).options.excludeCredentials).toEqual([]);
 });
 
 async function rejectedAssertions(

@@ -15,7 +15,11 @@ import { warmOtpTables } from '../../../packages/db/test/otp-fixtures.ts';
 import { createOtpCrypto } from '../../../packages/auth/src/staff-otp/crypto.ts';
 import { present } from '../../../packages/db/test/present.ts';
 import { createApp } from '../src/app.ts';
-import { createPersonalEligibility } from '../src/modules/staff/index.ts';
+import {
+  createActivePasskeyBindings,
+  createPersonalEligibility,
+} from '../src/modules/staff/index.ts';
+import { membershipCompanies } from '../src/modules/identity/index.ts';
 import { keys, identity, phone } from './staff-otp-harness.ts';
 
 export const personalOrigin = 'http://localhost:5173';
@@ -28,6 +32,9 @@ export async function personalFixture() {
     await seedPersonalRecords(owner, ids);
   const database = createDatabase({ url: test.appUrl, ids, boundedTenantTransactions: true });
   const auth = await createAuth({
+    passkeyBindings: createActivePasskeyBindings(database, {
+      forUser: (userId) => membershipCompanies(database, userId),
+    }),
     databaseUrl: test.authUrl,
     staffPhoneLockKey: phoneLockKey,
     secret: 'synthetic'.repeat(8),

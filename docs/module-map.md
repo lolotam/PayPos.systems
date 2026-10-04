@@ -120,6 +120,10 @@ PR 20 (ADR-0013 §9, ADR-0027) injects the auth-owned restricted passkey facade 
 identity challenge/credential counters; staff owns the binding, audit and outbox. Staff never
 imports auth. Personal-session eligibility comes from staff's exported reader, using the identity
 membership read port, and runs again on every request. No business permission is attached.
+The main root also injects staff's active-binding reader into auth for registration exclusions.
+Identity lists the verified user's membership company ids with `withUser`; staff reads bindings
+inside each `withTenant` and supplies only opaque passkey ids. Auth reads no tenant table and
+retains inert orphan credentials without excluding them or implicitly activating them.
 
 ## 4. Event arrows (the default for state changes)
 
