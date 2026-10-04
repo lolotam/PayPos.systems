@@ -32,12 +32,17 @@ PRD P1-T3/P1-T7.4, ADR-0019/0024/0025 and the owner decisions of 2026-10-04.
   branch scope before feature, employment, period or revision diagnostics. HTTP regressions
   compare complete NOT_FOUND envelopes against unknown employees, including own routes.
 - LR-14: each leave write/read samples its injected Clock once. That same instant drives
-  authority expiry, current employee eligibility, branch-local today and recorded timestamps;
+  authority and feature-override expiry, current employee eligibility, branch-local today
+  and recorded timestamps;
   a frozen Clock on the contract-end day remains valid when PostgreSQL is on the next day.
   Writes sample after authority/employee/request lock waits, so expired permission cannot
   survive a queued request; the resumed operation still uses one shared instant.
+  An override expiring between transaction start and that instant is already expired,
+  including at the exact deadline; other feature-reader callers retain transaction time.
 - LR-15: owner immunity also covers own leave codes: a historical own-leave DENY does not
   reduce an owner, while the same DENY still refuses a non-owner's own request.
+- LR-16: schema-invalid create/cancel bodies return identical complete 400 envelopes for
+  unknown and inaccessible identities. Schema validation remains before resource lookup.
 
 ## Functional requirements and business rules
 

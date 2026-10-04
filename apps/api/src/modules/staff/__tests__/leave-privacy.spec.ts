@@ -108,6 +108,25 @@ it('hides inaccessible employee history and cancellation exactly like missing em
   expect(inbox.statusCode).toBe(200);
   expect(inbox.json().items).toEqual([]);
 });
+it('schema-invalid create and cancel bodies have identical envelopes for unknown and inaccessible identities', async () => {
+  for (const action of ['create', 'cancel'] as const) {
+    const request = (employee: string, id: string) =>
+      f.h.app.inject({
+        method: 'POST',
+        url: action === 'create' ? route(employee) : `${route(employee)}/${id}/cancel`,
+        headers: admin(),
+        payload:
+          action === 'create'
+            ? { ...leaveTerms(), branch_id: f.branch, type: 'INVALID' }
+            : { expected_revision: 0 },
+      });
+    const hidden = await request(f.employee.id, leaveId);
+    const missing = await request(leaveIds.newId(), leaveIds.newId());
+    expect(hidden.statusCode).toBe(400);
+    expect(missing.statusCode).toBe(400);
+    expect(hidden.json()).toEqual(missing.json());
+  }
+});
 it('own create, cancel and history hide a caller outside the paired branch exactly like an unlinked caller', async () => {
   const requests = [
     {

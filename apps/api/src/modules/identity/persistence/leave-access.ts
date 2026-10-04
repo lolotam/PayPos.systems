@@ -28,7 +28,7 @@ export async function lockLeaveAccess(tx: Tx, companyId: string): Promise<boolea
  * @param userId الفاعل المثبت
  * @param businessId النشاط المحلول من tenancy
  * @param branchIds الفروع الحقيقية في النشاط
- * @param now لحظة الساعة المحقونة المشتركة مع أهلية الموظف والفترة
+ * @param now لحظة الساعة المحقونة المشتركة مع أهلية الموظف والفترة وانتهاء تجاوز الميزة
  * @param subjectUserId رابط الموظف للذات، أو undefined للمدير
  * @returns فروع كل فعل مع حالة الميزة؛ DENY يغلب لغير المالك والذات تحتاج تطابق المستخدمين
  */
@@ -58,6 +58,6 @@ export async function readLeaveAccess(
     read: branches('read'),
     create: branches('create'),
     cancel: branches('cancel'),
-    featureEnabled: await readFeatureEnabled(tx, companyId, 'staff'),
+    featureEnabled: await readFeatureEnabled(tx, companyId, 'staff', now),
   };
 }
