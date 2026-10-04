@@ -28,6 +28,7 @@ export async function lockPasskeyAccess(tx: Tx, companyId: string): Promise<bool
  * @param userId هوية المدير من الجلسة
  * @param businessId نشاط الموظف
  * @param branchIds الفروع المطلوب فحصها
+ * @param now لحظة القرار المحقونة المشتركة مع الارتباطات وانتهاء تجاوز الميزة
  * @returns الفروع المقروءة والمسموح بفكها وحالة الميزة
  */
 export async function readPasskeyAccess(
@@ -36,10 +37,9 @@ export async function readPasskeyAccess(
   userId: string,
   businessId: string,
   branchIds: readonly string[],
+  now: Date,
 ) {
-  const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
-  if (time === undefined) return { readBranchIds: [], unbindBranchIds: [], featureEnabled: false };
-  const access = await readAccessTransaction(tx, companyId, userId, new Date(time.at));
+  const access = await readAccessTransaction(tx, companyId, userId, now);
   const allowed = (permission: string, branchId: string) =>
     evaluateAccess(access.grants, permission, { companyId, businessId, branchId });
   const readBranchIds = [...new Set(branchIds)].filter((branch) =>
@@ -48,6 +48,7 @@ export async function readPasskeyAccess(
   return {
     readBranchIds,
     unbindBranchIds: readBranchIds.filter((branch) => allowed('unbind:passkeys:branch', branch)),
-    featureEnabled: readBranchIds.length > 0 && (await readFeatureEnabled(tx, companyId, 'staff')),
+    featureEnabled:
+      readBranchIds.length > 0 && (await readFeatureEnabled(tx, companyId, 'staff', now)),
   };
 }

@@ -156,10 +156,7 @@ function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator)
       useValue:
         database === undefined
           ? null
-          : new UnbindPasskeyUseCase(
-              createUnbindPasskeyTransactions(database, ids, systemClock),
-              systemClock,
-            ),
+          : new UnbindPasskeyUseCase(createUnbindPasskeyTransactions(database, ids, systemClock)),
     },
   ];
 }

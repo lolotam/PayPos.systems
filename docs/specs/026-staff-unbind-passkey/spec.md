@@ -63,6 +63,7 @@ same employee, different installations, other tenants and out-of-window pairs do
 ## Requirements
 
 - **FR-001**: Require scoped live permission, active employee and staff feature; prohibit self-unbind.
+  Passkey reads/guards share one injected Clock decision instant per check, and unbind samples it only after all locks, using it for branch attachments, membership/permission expiry, feature-override expiry and the unbind timestamp.
 - **FR-002**: Keep history and invalidate binding revision in one transaction with safe audit/event.
 - **FR-003**: Keep global credentials inert; no plugin delete/update/login is enabled.
 - **FR-004**: Status, bound-since, paginated history, mandatory-reason action and errors use ar/en.

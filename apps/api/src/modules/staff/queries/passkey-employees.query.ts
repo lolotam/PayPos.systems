@@ -29,11 +29,12 @@ export async function passkeyEmployees(
   query: PasskeyHistoryQuery,
   access: ManagerPasskeyAccess,
 ) {
-  const decision = await access.list(tx, scope.companyId, scope.userId, scope.businessId);
+  const now = access.now();
+  const decision = await access.list(tx, scope.companyId, scope.userId, scope.businessId, now);
   if (decision.readBranchIds.length === 0)
     return passkeyEmployeePage.parse({ items: [], next_cursor: null });
   if (!decision.featureEnabled) return 'FEATURE_DISABLED' as const;
-  const days = await access.branchDays(tx, scope.companyId, scope.businessId);
+  const days = await access.branchDays(tx, scope.companyId, scope.businessId, now);
   const rows = await tx.execute<{ id: string }>(
     passkeyEmployeesStatement(
       scope.companyId,
