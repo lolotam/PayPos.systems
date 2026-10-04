@@ -47,3 +47,14 @@ export interface EmployeePasskeyUnbound {
   readonly revision: number;
   readonly unbound_at: string;
 }
+
+/** يصدر عند تسجيل وثيقة موظف واستبدال الحالية من نوعها في نفس commit، دون مفتاح الملف أو محتواه. */
+export interface EmployeeDocumentRecorded {
+  readonly document_id: string;
+  readonly employee_id: string;
+  readonly business_id: string;
+  readonly type_code: string;
+  readonly expires_on: string | null;
+  readonly replaced_document_id: string | null;
+  readonly recorded_at: string;
+}

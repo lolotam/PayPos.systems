@@ -6,7 +6,7 @@
 >
 > Adding an arrow means editing this file, which means writing an ADR. That friction is the point.
 >
-> **Version:** M1.2 — 2026-10-02 (ADR-0010). Derived from `06_Tech_Stack_Architecture_EN.md` §3.
+> **Version:** M1.3 — 2026-10-04 (ADR-0031: staff reads files for employee documents). M1.2 — 2026-10-02 (ADR-0010). Derived from `06_Tech_Stack_Architecture_EN.md` §3.
 
 ---
 
@@ -37,7 +37,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `customers`     | `tenancy`             |                                                                                |
 | `expenses`      | `tenancy`             |                                                                                |
 | `inventory`     | `tenancy`             |                                                                                |
-| `staff`         | `tenancy`, `identity` | An employee may be linked to a user.                                           |
+| `staff`         | `tenancy`, `identity`, `files` | An employee may be linked to a user; a document binds a verified file (ADR-0031). |
 | `realtime`      | `identity`            | Channel scope is resolved from the session.                                    |
 | `notifications` | —                     | Deliberately root-level: it is a service, it knows nothing about the business. |
 | `orders`        | `tenancy`             | Catalog and customer data arrive by **port**, not import (§3).                 |
@@ -101,6 +101,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
+| `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
+| `staff` | `EmployeeDocumentReadAccess`, document-type authority | `identity`, `tenancy` | locked read/manage files and manage:document-types:company; business timezone for the expiry badge (ADR-0031) |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
@@ -151,6 +153,8 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `DocumentReady`                                                             | `reporting`     | `notifications`, `realtime`                                                                       |
 | `SalaryChanged`                                                             | `staff`         | `commissions`                                                                                     |
 | `EmployeePasskeyUnbound`                                                    | `staff`         | None in Phase 1; known to the dispatcher, admin polls binding history (ADR-0029)                     |
+| `EmployeeDocumentRecorded` | `staff` | None in Phase 1; known to the dispatcher. PR 15 reads `expires_on` and `alert_days` directly (ADR-0031) |
+| `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031) |
 | `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`                                                                        |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
@@ -205,7 +209,7 @@ imports:
   payments: [tenancy]
   appointments: [tenancy]
   channels: [tenancy]
-  staff: [tenancy, identity]
+  staff: [tenancy, identity, files]
   realtime: [identity]
   cash: [identity]
   commissions: [staff]
@@ -256,6 +260,10 @@ reads:
   - staff -> identity.readEmployeeDetailAccess @ apps/api/src/modules/staff/persistence/employee-detail-access.adapter.ts
   - identity -> tenancy.describeWorkspaces @ apps/api/src/modules/identity/persistence/workspace-names.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/tenancy-attendance-branch.adapter.ts
+  - staff -> identity.lockDocumentAccess @ apps/api/src/modules/staff/persistence/document-access.adapter.ts
+  - staff -> identity.readDocumentAccess @ apps/api/src/modules/staff/persistence/document-access.adapter.ts
+  - staff -> tenancy.businessTimeZone @ apps/api/src/modules/staff/persistence/document-access.adapter.ts
+  - staff -> files.documentFileFacts @ apps/api/src/modules/staff/persistence/document-files.adapter.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be

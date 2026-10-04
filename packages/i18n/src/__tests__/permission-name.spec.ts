@@ -16,6 +16,7 @@ it.each(['ar', 'en'] as const)(
       'manage:employees:business',
       'manage:files:business',
       'read:files:business',
+      'manage:document-types:company',
       'manage:discounts:company',
       'create:customers:company',
       'create:customers:business',

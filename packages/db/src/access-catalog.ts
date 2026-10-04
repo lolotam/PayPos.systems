@@ -21,6 +21,7 @@ export const PERMISSIONS = [
   'manage:salaries:business',
   'manage:files:business',
   'read:files:business',
+  'manage:document-types:company',
   'login:staff:branch',
   'manage:employees:business',
   'read:memberships:company',

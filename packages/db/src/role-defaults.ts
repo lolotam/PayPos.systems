@@ -83,6 +83,8 @@ export const ROLE_DEFAULTS = {
   'manage:employees:business': managers,
   'manage:files:business': managers,
   'read:files:business': managers,
+  // قرار المالك 2026-10-04 (DOC-Q2، الخيار الموصى به): أنواع الوثائق للشركة كلها؛ مدير النشاط يحتاج ALLOW شخصياً على مستوى الشركة.
+  'manage:document-types:company': ['owner', 'general_manager'],
   'manage:discounts:company': ['owner'],
   'manage:discount-limits:business': managers,
   'create:customers:company': ['owner', 'general_manager'],

@@ -5,6 +5,438 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/document-types": {
+      "get": {
+        "operationId": "listDocumentTypes",
+        "description": "Every company document type, active first. Requires manage:document-types:company.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DocumentTypeList",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTypeList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; unknown and inaccessible share NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createDocumentType",
+        "description": "Adds a company document type with a generated immutable code; audited.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentTypeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "DocumentType",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentType"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; unknown and inaccessible share NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/document-types/{typeId}": {
+      "patch": {
+        "operationId": "updateDocumentType",
+        "description": "Edits names, alert days and the expiry rule at the expected revision; audited.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "in": "path",
+            "name": "typeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentTypeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "DocumentType",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentType"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; unknown and inaccessible share NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/document-types/{typeId}/deactivate": {
+      "post": {
+        "operationId": "deactivateDocumentType",
+        "description": "Hides the type from new documents; existing documents keep it. Never deletes.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "in": "path",
+            "name": "typeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentTypeRevisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "DocumentType",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentType"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; unknown and inaccessible share NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/document-types/{typeId}/reactivate": {
+      "post": {
+        "operationId": "reactivateDocumentType",
+        "description": "Makes an inactive type selectable again.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "in": "path",
+            "name": "typeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentTypeRevisionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "DocumentType",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentType"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; unknown and inaccessible share NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employees/{employeeId}/documents": {
+      "get": {
+        "operationId": "listEmployeeDocuments",
+        "description": "Current document per type with its expiry status in the business timezone. Requires read:files:business and the staff feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "EmployeeDocumentsView",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeDocumentsView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; unknown and inaccessible share NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "recordEmployeeDocument",
+        "description": "Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordEmployeeDocumentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "EmployeeDocument",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; unknown and inaccessible share NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/staff/personal-otp/request": {
       "post": {
         "operationId": "requestPersonalOtp",
@@ -4111,6 +4543,304 @@
   },
   "components": {
     "schemas": {
+      "EmployeeDocumentStatus": {
+        "type": "string",
+        "enum": [
+          "NO_EXPIRY",
+          "VALID",
+          "EXPIRING",
+          "EXPIRED"
+        ]
+      },
+      "CreateDocumentTypeInput": {
+        "type": "object",
+        "properties": {
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "alert_days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          },
+          "requires_expiry": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name_en",
+          "alert_days",
+          "requires_expiry"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateDocumentTypeInput": {
+        "type": "object",
+        "properties": {
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "alert_days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          },
+          "requires_expiry": {
+            "type": "boolean"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "name_en",
+          "alert_days",
+          "requires_expiry",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentTypeRevisionInput": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentType": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+          },
+          "name_en": {
+            "type": "string"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "alert_days": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          },
+          "requires_expiry": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name_en",
+          "name_ar",
+          "alert_days",
+          "requires_expiry",
+          "active",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentTypeList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentType"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "RecordEmployeeDocumentInput": {
+        "type": "object",
+        "properties": {
+          "type_code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+          },
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "expires_on": {
+            "nullable": true,
+            "type": "string",
+            "allOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!0000)"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type_code",
+          "file_id",
+          "expires_on"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "type_code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+          },
+          "type_name_en": {
+            "type": "string"
+          },
+          "type_name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "object_key": {
+            "type": "string"
+          },
+          "expires_on": {
+            "nullable": true,
+            "type": "string",
+            "allOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!0000)"
+              }
+            ]
+          },
+          "uploaded_by": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EmployeeDocumentStatus"
+          }
+        },
+        "required": [
+          "id",
+          "employee_id",
+          "type_code",
+          "type_name_en",
+          "type_name_ar",
+          "object_key",
+          "expires_on",
+          "uploaded_by",
+          "recorded_at",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeDocumentsView": {
+        "type": "object",
+        "properties": {
+          "today": {
+            "type": "string",
+            "allOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!0000)"
+              }
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmployeeDocument"
+            }
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentType"
+            }
+          },
+          "can_manage": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "today",
+          "items",
+          "types",
+          "can_manage"
+        ],
+        "additionalProperties": false
+      },
       "RequestLeaveInput": {
         "oneOf": [
           {

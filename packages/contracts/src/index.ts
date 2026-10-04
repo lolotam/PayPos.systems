@@ -229,3 +229,4 @@ export * from './staff/leave.js';
 
 export * from './staff/passkeys.js';
 export * from './staff/unbind-passkey.js';
+export * from './staff/employee-documents.js';
