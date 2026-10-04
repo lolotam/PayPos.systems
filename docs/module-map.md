@@ -150,6 +150,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `NotificationSendAuthorized` (internal, ADR-0018)                           | `notifications` | worker transport publisher → `notifications-send` BullMQ queue, outside database-effect consumers |
 | `DocumentReady`                                                             | `reporting`     | `notifications`, `realtime`                                                                       |
 | `SalaryChanged`                                                             | `staff`         | `commissions`                                                                                     |
+| `EmployeePasskeyUnbound`                                                    | `staff`         | None in Phase 1; known to the dispatcher, admin polls binding history (ADR-0029)                     |
 | `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`                                                                        |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
@@ -230,6 +231,9 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> identity.lockPasskeyAccess @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
+  - staff -> identity.readPasskeyAccess @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-employee.ts
   - staff -> identity.scheduleAccess @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts

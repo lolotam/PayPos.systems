@@ -435,6 +435,34 @@
       "when": 1791080462586,
       "tag": "0061_2026-10-04_staff-passkey-grants",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1791082562116,
+      "tag": "0062_2026-10-04_attendance-device-signals",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1791082569710,
+      "tag": "0063_2026-10-04_attendance-device-signals-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791082571642,
+      "tag": "0064_2026-10-04_passkey-unbind-permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1791082885799,
+      "tag": "0065_2026-10-04_passkey-history-index",
+      "breakpoints": true
     }
   ]
 }

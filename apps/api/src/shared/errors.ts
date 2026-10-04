@@ -55,6 +55,8 @@ const STATUS = {
   OTP_INVALID: 401,
   PASSKEY_ALREADY_BOUND: 409,
   PASSKEY_INVALID: 400,
+  PASSKEY_SELF_UNBIND: 403,
+  PASSKEY_REVISION_CONFLICT: 409,
   NOT_FOUND: 404,
   METHOD_NOT_ALLOWED: 405,
   PAYLOAD_TOO_LARGE: 413,
@@ -73,6 +75,8 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'PASSKEY_SELF_UNBIND',
+  'PASSKEY_REVISION_CONFLICT',
   'SCHEDULE_WEEK_INVALID',
   'SCHEDULE_SHIFT_INVALID',
   'SCHEDULE_SHIFT_OVERLAP',

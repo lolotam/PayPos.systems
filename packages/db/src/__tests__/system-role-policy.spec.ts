@@ -4,6 +4,14 @@ import { systemRolePolicy } from '../system-role-policy.ts';
 
 const role = (code: string) => SYSTEM_ROLES.find((r) => r.code === code)?.id ?? '';
 it.each([
+  ['branch_manager', 'read:passkeys:branch', true],
+  ['branch_manager', 'unbind:passkeys:branch', true],
+  ['business_manager', 'unbind:passkeys:branch', true],
+  ['general_manager', 'unbind:passkeys:branch', true],
+  ['owner', 'unbind:passkeys:branch', true],
+  ['staff', 'unbind:passkeys:branch', false],
+  ['device', 'read:passkeys:branch', false],
+  ['device', 'unbind:passkeys:branch', false],
   ['business_manager', 'manage:memberships:business', true],
   ['business_manager', 'read:memberships:business', true],
   ['business_manager', 'manage:memberships:company', false],

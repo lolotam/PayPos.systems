@@ -1,6 +1,10 @@
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
+import { enPasskeyAdmin } from './passkey-admin.js';
 export const en = {
+  passkeyAdmin: enPasskeyAdmin,
   permissionCodes: {
+    readPasskeysBranch: 'Read employee passkey bindings',
+    unbindPasskeysBranch: 'Unbind employee passkeys',
     readSchedulesBranch: 'Read branch schedules',
     manageSchedulesBranch: 'Manage branch schedules',
     readSchedulesBusiness: 'Read business shift templates',
@@ -247,6 +251,9 @@ export const en = {
       'WhatsApp sign-in is unavailable. Ask your manager for help using your own cashier PIN.',
     PASSKEY_ALREADY_BOUND: 'A passkey is already bound. Ask your manager to unbind it first.',
     PASSKEY_INVALID: 'The passkey could not be verified.',
+    PASSKEY_SELF_UNBIND: 'You cannot unbind your own passkey. Ask another permitted manager.',
+    PASSKEY_REVISION_CONFLICT:
+      'The passkey binding changed. Refresh its status before trying again.',
     OTP_INVALID: 'The sign-in code is not valid.',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',

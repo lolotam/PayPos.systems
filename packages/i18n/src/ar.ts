@@ -1,8 +1,12 @@
 import type { Catalog } from './catalog.js';
+import { arPasskeyAdmin } from './passkey-admin.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  passkeyAdmin: arPasskeyAdmin,
   permissionCodes: {
+    readPasskeysBranch: 'قراءة ربط مفاتيح مرور الموظفين',
+    unbindPasskeysBranch: 'فك ربط مفاتيح مرور الموظفين',
     readSchedulesBranch: 'قراءة جداول الفرع',
     manageSchedulesBranch: 'إدارة جداول الفرع',
     readSchedulesBusiness: 'قراءة قوالب دوام النشاط',
@@ -241,6 +245,8 @@ export const ar: Catalog = {
     OTP_UNAVAILABLE: 'الدخول بواتساب غير متاح. اطلب مساعدة المدير للدخول بالرقم السري الخاص بك.',
     PASSKEY_ALREADY_BOUND: 'تم ربط مفتاح مرور بالفعل. اطلب من المدير فك الربط أولاً.',
     PASSKEY_INVALID: 'تعذر التحقق من مفتاح المرور.',
+    PASSKEY_SELF_UNBIND: 'لا يمكنك فك ربط مفتاح مرورك بنفسك. اطلب من مدير آخر لديه الصلاحية.',
+    PASSKEY_REVISION_CONFLICT: 'تغير ربط مفتاح المرور. حدّث الحالة قبل المحاولة من جديد.',
     OTP_INVALID: 'رمز الدخول غير صحيح.',
     VALIDATION_FAILED: 'البيانات المرسلة غير صحيحة',
     INVALID_CUSTOMER_PHONE:

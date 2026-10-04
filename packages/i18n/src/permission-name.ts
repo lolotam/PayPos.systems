@@ -1,6 +1,8 @@
 import { t, type Locale, type MessageKey } from './catalog.js';
 
 const keys: Readonly<Record<string, MessageKey>> = {
+  'read:passkeys:branch': 'permissionCodes.readPasskeysBranch',
+  'unbind:passkeys:branch': 'permissionCodes.unbindPasskeysBranch',
   'read:salaries:business': 'salary.readPermission',
   'manage:salaries:business': 'salary.managePermission',
   'read:schedules:branch': 'permissionCodes.readSchedulesBranch',
