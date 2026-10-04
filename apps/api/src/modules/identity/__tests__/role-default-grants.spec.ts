@@ -73,6 +73,24 @@ function expectedDefaults() {
   );
 }
 
+async function applyReferenceMigrations() {
+  // التوقع الحالي يجمع قراري 0058 و0059؛ إعادة القديم وحده تلغي افتراضي المدير العام الأحدث.
+  const migrations = [
+    '0058_2026-10-03_system-role-default-bundles.sql',
+    '0059_2026-10-03_identity-role-followups.sql',
+  ].map((name) =>
+    readFileSync(
+      new URL(`../../../../../../packages/db/migrations/${name}`, import.meta.url),
+      'utf8',
+    ),
+  );
+  await f.h.owner.begin(async (tx) => {
+    for (const migration of migrations)
+      for (const statement of migration.split('--> statement-breakpoint'))
+        await tx.unsafe(statement);
+  });
+}
+
 it.each(SYSTEM_ROLES.filter((r) => r.code !== 'device'))(
   '$code guards every catalog permission at its own scope and other business/branch',
   async ({ code }) => {
@@ -270,7 +288,7 @@ it('historical DENY on an owner sibling cannot reduce authority; history stays v
     .owner`SELECT effect,expires_at FROM permission_overrides WHERE company_id=${f.company} AND id=${deny}`;
   expect(row).toMatchObject({ effect: 'DENY', expires_at: null });
 });
-it('the reference migration upgrades a seeded existing company without changing personal decisions', async () => {
+it('the reference migrations upgrade a seeded existing company without changing personal decisions', async () => {
   const customRole = f.ids.newId();
   await f.h.owner`INSERT INTO roles (id,company_id,code,name_en)
     VALUES (${customRole},${f.company},'synthetic_custom','Synthetic custom')`;
@@ -284,16 +302,7 @@ it('the reference migration upgrades a seeded existing company without changing 
   const members = await f.h.owner`SELECT * FROM memberships ORDER BY company_id,id`;
   await f.h
     .owner`DELETE FROM role_permissions WHERE role_owner_key='global' AND permission_code IN ('manage:employees:business','manage:files:business','read:files:business')`;
-  const migration = readFileSync(
-    new URL(
-      '../../../../../../packages/db/migrations/0058_2026-10-03_system-role-default-bundles.sql',
-      import.meta.url,
-    ),
-    'utf8',
-  );
-  await f.h.owner.begin(async (tx) => {
-    for (const statement of migration.split('--> statement-breakpoint')) await tx.unsafe(statement);
-  });
+  await applyReferenceMigrations();
   expect(
     Array.from(await f.h.owner`SELECT * FROM permission_overrides ORDER BY company_id,id`),
   ).toEqual(Array.from(before));

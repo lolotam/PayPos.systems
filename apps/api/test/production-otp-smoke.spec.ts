@@ -7,6 +7,7 @@ import { origin, paired, phone } from './staff-otp-harness.ts';
 import { builtSmoke } from './built-smoke.ts';
 
 let h: Harness, device: Awaited<ReturnType<typeof paired>>;
+let workspace: { company_id: string; business_id: string };
 beforeAll(async () => {
   h = await startHarness();
   const cookie = await h.signedInOperator('synthetic-smoke@otp.invalid');
@@ -19,6 +20,7 @@ beforeAll(async () => {
       body: { vertical_type: 'salon', name_en: 'Synthetic' },
     })
   ).body['id'] as string;
+  workspace = { company_id: company, business_id: business };
   const branch = (
     await h.send('POST', `/v1/businesses/${business}/branches`, {
       cookie,
@@ -76,6 +78,24 @@ function environment(
   };
 }
 
+async function personalOtpUnavailable(base: string) {
+  for (const operation of ['request', 'verify'] as const) {
+    const payload =
+      operation === 'request'
+        ? { ...workspace, phone, locale: 'ar' }
+        : { ...workspace, challenge_id: '01920000-0000-7000-8000-000000000abc', code: '000000' };
+    const personal = await fetch(`${base}/v1/staff/personal-otp/${operation}`, {
+      method: 'POST',
+      headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(3000),
+    });
+    expect(personal.status).toBe(503);
+    expect(await personal.json()).toMatchObject({ code: 'OTP_UNAVAILABLE' });
+    process.stdout.write(`SMOKE personal OTP ${operation}: 503 OTP_UNAVAILABLE\n`);
+  }
+}
+
 it.each(['empty', 'intake-url-only', 'malformed-worker-auth'] as const)(
   'built production API and worker stay ready with %s optional settings',
   async (variant) => {
@@ -103,6 +123,7 @@ it.each(['empty', 'intake-url-only', 'malformed-worker-auth'] as const)(
         expect(response.status).toBe(503);
         expect(body).toMatchObject({ code: 'OTP_UNAVAILABLE' });
         process.stdout.write(`SMOKE API OTP request: ${response.status} ${JSON.stringify(body)}\n`);
+        await personalOtpUnavailable(base);
       });
       await builtSmoke(
         'worker',

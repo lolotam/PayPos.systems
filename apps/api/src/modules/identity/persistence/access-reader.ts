@@ -2,6 +2,7 @@ import {
   canonicalOwnerSql,
   OWNER_DERIVED_PERMISSIONS,
   systemRoleOverrideAllowedSql,
+  systemRoleGrantAllowedSql,
   type Tx,
   type TenantWrappers,
 } from '@pospay/db';
@@ -11,6 +12,7 @@ import type { ScopeType } from '../domain/access.ts';
 import { protectOwnerAccess } from '../domain/owner-access.ts';
 import type { AccessReader, ActiveMembership, SourcedGrant } from '../ports/access-reader.port.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
+import { readScopeTargets } from './permission-scope-targets.ts';
 
 const SALARY_CODES = sql.join(
   OWNER_DERIVED_PERMISSIONS.map((p) => sql`${p}`),
@@ -25,6 +27,21 @@ const ACTIVE = sql`m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > no
  */
 export function createAccessReader(db: TenantWrappers): AccessReader {
   return {
+    membershipTarget: (companyId, membershipId) =>
+      db.withTenant(companyId, async (tx) => {
+        const [row] = await tx.execute<{
+          scope_type: ScopeType;
+          scope_id: string;
+        }>(sql`
+        SELECT m.scope_type, m.scope_id FROM memberships m
+        JOIN companies c ON c.id=m.company_id AND c.deleted_at IS NULL
+        WHERE m.company_id=${companyId} AND m.id=${membershipId} AND ${ACTIVE}`);
+        if (row === undefined) return null;
+        const scopes = await readScopeTargets(tx, companyId, row);
+        return scopes.target === null
+          ? null
+          : { target: scopes.target, descendantTargets: scopes.descendantTargets };
+      }),
     companiesOf: (userId) =>
       db.withUser(userId, async (tx) => {
         const rows = await tx.execute<{ company_id: string }>(sql`
@@ -89,6 +106,7 @@ export async function readAccessTransaction(
         JOIN role_permissions rp ON rp.role_id = m.role_id AND rp.role_owner_key = m.role_owner_key
         WHERE m.company_id = ${companyId} AND m.user_id = ${userId} AND ${active}
           AND rp.permission_code NOT IN (${SALARY_CODES})
+          AND ${systemRoleGrantAllowedSql('m', 'rp')}
         UNION ALL
         SELECT p.code, 'ALLOW', 'role', m.scope_type, m.scope_id
         FROM memberships m

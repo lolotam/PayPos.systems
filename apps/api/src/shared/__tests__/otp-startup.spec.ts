@@ -13,6 +13,7 @@ const resources = vi.hoisted(() => ({
   listen: vi.fn(),
   appOptions: vi.fn(),
   otpOptions: vi.fn(),
+  personalSessions: {},
   configuration: { state: 'DISABLED' as 'READY' | 'DISABLED', fingerprint: 'synthetic-api' },
   transport: {
     ready: vi.fn(),
@@ -31,7 +32,13 @@ vi.mock('@pospay/db', () => ({
   }),
 }));
 vi.mock('@pospay/auth', () => ({
-  createAuth: async () => ({ close: vi.fn(), ping: vi.fn(), staff: {} }),
+  createAuth: async () => ({
+    close: vi.fn(),
+    ping: vi.fn(),
+    staff: {},
+    personal: resources.personalSessions,
+  }),
+  passkeyPolicy: () => ({ personalOrigin: null }),
   createStaffOtpApi: (options: { capability: { ready(): Promise<boolean> } }) => {
     resources.otpOptions(options);
     return {
@@ -64,7 +71,12 @@ vi.mock('../../modules/notifications/index.ts', () => ({
   createWhatsappIntake: () => resources.intake,
 }));
 vi.mock('../../modules/identity/index.ts', () => ({
+  membershipCompanies: vi.fn(async () => []),
   staffOtpDependencies: () => ({ transport: resources.transport, rates: {}, eligibility: {} }),
+}));
+vi.mock('../../modules/staff/index.ts', () => ({
+  createPersonalEligibility: () => ({}),
+  createActivePasskeyBindings: () => ({}),
 }));
 // الاختبار يعزل تركيب OTP؛ لا نحمل SDK الملفات أو إعداداتها من .env داخل نافذة مهلة بدء OTP.
 // تشغيل API وworker المبنيين مع الملفات والإعدادات الاختيارية الفارغة مغطى في files/production.spec.ts.
@@ -143,7 +155,12 @@ it('sender/STOP fingerprint disagreement refuses OTP while ordinary API startup 
   await import('../../main.ts');
   expect(resources.listen).toHaveBeenCalledOnce();
   expect(exit).not.toHaveBeenCalled();
-  expect(resources.otpOptions).toHaveBeenCalledOnce();
+  expect(resources.otpOptions).toHaveBeenCalledTimes(2);
+  const [kiosk, personal] = resources.otpOptions.mock.calls.map(([options]) => options);
+  expect(personal.sessions).toBe(resources.personalSessions);
+  expect(personal.concurrency).toBe(kiosk.concurrency);
+  expect(personal.rates).toBe(kiosk.rates);
+  expect(personal.capability).toBe(kiosk.capability);
   expect(await resources.otpOptions.mock.calls[0]?.[0].capability.ready()).toBe(false);
   expect(resources.logger.info).toHaveBeenCalledWith(
     { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE' } },

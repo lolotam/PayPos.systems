@@ -1,4 +1,4 @@
-import { membershipPermissions } from '@pospay/contracts';
+﻿import { membershipPermissions } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
@@ -45,6 +45,7 @@ const state = vi.hoisted(() => ({
   locale: 'en' as 'ar' | 'en',
   error: false,
   editing: false,
+  discountEditing: false,
   revoke: vi.fn(),
   mutationError: false,
 }));
@@ -58,7 +59,11 @@ vi.mock('../api/use-permissions', () => ({
       isPending: false,
       isError: state.error,
       error: {},
-      data: { ...fixture, editing_enabled: state.editing },
+      data: {
+        ...fixture,
+        editing_enabled: state.editing,
+        discount_limit_editing_enabled: state.discountEditing,
+      },
     },
     save: { isPending: false, isSuccess: false, isError: false, mutate: vi.fn() },
     revoke: {
@@ -146,3 +151,31 @@ it('shows a localized error and removes stale editable controls after a refused 
   expect(screen.getByRole('alert').textContent).toBe(t('en', 'admin.unexpected'));
   expect(screen.queryByRole('button', { name: t('en', 'permissions.save') })).toBeNull();
 });
+
+it.each(['ar', 'en'] as const)(
+  'enables discount administration independently of overrides in %s',
+  (locale) => {
+    state.locale = locale;
+    state.error = false;
+    state.editing = false;
+    state.discountEditing = true;
+    render(
+      <MembershipPermissionsPanel
+        companyId={company}
+        userId={company}
+        membershipId={company}
+        businessId={company}
+      />,
+    );
+    expect(
+      screen
+        .getByRole('button', { name: t(locale, 'permissions.discountSave') })
+        .closest('fieldset')?.disabled,
+    ).toBe(false);
+    expect(
+      screen.getByRole('button', { name: t(locale, 'permissions.save') }).closest('fieldset')
+        ?.disabled,
+    ).toBe(true);
+    state.discountEditing = false;
+  },
+);

@@ -12,7 +12,7 @@ import {
 let f: PermissionFixture;
 beforeAll(async () => {
   f = await permissionFixture();
-  await seedOverride(f, f.ownMember, { permission_code: 'manage:discounts:company' });
+  await seedOverride(f, f.ownMember, { permission_code: 'manage:discount-limits:business' });
   await seedOverride(f, f.managerMember, { permission_code: 'manage:memberships:company' });
 });
 afterAll(async () => {
@@ -39,31 +39,31 @@ async function endOverride(id: string) {
 it('DL-06 missing and expired grants are refused; business authority covers its branches only', async () => {
   const branch = await scopedMember('BRANCH', f.branch);
   const outside = await scopedMember('BUSINESS', f.otherBusiness);
-  expect((await set(branch, f.managerCookie)).body['code']).toBe('PERMISSION_NOT_HELD');
+  expect((await set(branch, f.managerCookie)).body['code']).toBe('FORBIDDEN');
   const allow = await seedOverride(f, f.managerMember, {
-    permission_code: 'manage:discounts:company',
+    permission_code: 'manage:discount-limits:business',
     scope_type: 'BUSINESS',
     scope_id: f.business,
   });
   expect((await set(branch, f.managerCookie)).status).toBe(200);
-  expect((await set(outside, f.managerCookie)).body['code']).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
+  expect((await set(outside, f.managerCookie)).body['code']).toBe('FORBIDDEN');
   await endOverride(allow);
-  expect((await set(branch, f.managerCookie)).body['code']).toBe('PERMISSION_NOT_HELD');
+  expect((await set(branch, f.managerCookie)).body['code']).toBe('FORBIDDEN');
 });
 
 it('DL-06 a descendant DENY prevents company delegation; unrelated branch limits remain editable', async () => {
   const companyMember = await newMember(f);
   const sibling = await scopedMember('BRANCH', f.siblingBranch);
   const allow = await seedOverride(f, f.managerMember, {
-    permission_code: 'manage:discounts:company',
+    permission_code: 'manage:discount-limits:business',
   });
   const deny = await seedOverride(f, f.managerMember, {
-    permission_code: 'manage:discounts:company',
+    permission_code: 'manage:discount-limits:business',
     effect: 'DENY',
     scope_type: 'BRANCH',
     scope_id: f.branch,
   });
-  expect((await set(companyMember, f.managerCookie)).body['code']).toBe('PERMISSION_NOT_HELD');
+  expect((await set(companyMember, f.managerCookie)).body['code']).toBe('FORBIDDEN');
   expect((await set(sibling, f.managerCookie)).status).toBe(200);
   await endOverride(deny);
   await endOverride(allow);

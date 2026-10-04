@@ -1,8 +1,3 @@
--- Custom SQL migration file, put your code below! --
-ALTER TABLE permissions DROP CONSTRAINT permissions_code_format;
---> statement-breakpoint
-ALTER TABLE permissions ADD CONSTRAINT permissions_code_format CHECK (code ~ '^[a-z][a-z-]*:[a-z][a-z-]*:(platform|company|business|branch|own)$');
---> statement-breakpoint
 INSERT INTO permissions(code) VALUES ('create:leave:own'),('read:leave:own'),('cancel:leave:own'),
 ('create:leave:branch'),('read:leave:branch'),('cancel:leave:branch') ON CONFLICT DO NOTHING;
 --> statement-breakpoint

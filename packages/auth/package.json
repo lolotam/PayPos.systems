@@ -23,8 +23,11 @@
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.5",
+    "@better-auth/passkey": "1.7.5",
     "@pospay/db": "workspace:*",
     "@pospay/ids": "workspace:*",
+    "@simplewebauthn/browser": "13.3.0",
+    "@simplewebauthn/server": "13.3.1",
     "better-auth": "1.7.5"
   },
   "devDependencies": {

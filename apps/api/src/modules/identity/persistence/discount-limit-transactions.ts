@@ -10,7 +10,7 @@ import { permissionEditorContext } from './permission-editor-context.ts';
 
 async function context(tx: Tx, companyId: string, userId: string, membershipId: string) {
   const terms: OverrideTerms = {
-    permission_code: 'manage:discounts:company',
+    permission_code: 'manage:discount-limits:business',
     effect: 'ALLOW',
     scope_type: 'COMPANY',
     scope_id: companyId,

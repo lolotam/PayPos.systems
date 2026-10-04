@@ -18,7 +18,7 @@ let f: PermissionFixture;
 beforeAll(async () => {
   f = await permissionFixture();
   for (const member of [f.ownMember, f.managerMember]) {
-    await seedOverride(f, member, { permission_code: 'manage:discounts:company' });
+    await seedOverride(f, member, { permission_code: 'manage:discount-limits:business' });
   }
   for (const permission_code of ['manage:memberships:company', 'read:memberships:company']) {
     await seedOverride(f, f.managerMember, { permission_code });
@@ -69,7 +69,7 @@ it('DL-01..03 saves, changes, clears and audits exact before/after, actor and re
   expect(rows.every((r) => r['actor_user_id'] === f.userId)).toBe(true);
   expect(rows[2]?.['after']).toMatchObject({
     reason: 'Synthetic decision',
-    permission_code: 'manage:discounts:company',
+    permission_code: 'manage:discount-limits:business',
   });
   expect(await read(member)).toEqual({ status: 'NOT_SET' });
   expect((await set(member, 0)).status).toBe(200);
@@ -100,16 +100,16 @@ it('DL-04..05 refuses self, sibling self and all active owner holders, including
   }
 });
 
-it('DL-06 requires current management and effective discount authority', async () => {
+it('DL-06 requires current independent discount-limit authority', async () => {
   const member = await newMember(f);
   const deny = await seedOverride(f, f.managerMember, {
-    permission_code: 'manage:discounts:company',
+    permission_code: 'manage:discount-limits:business',
     effect: 'DENY',
   });
-  expect((await set(member, 500, f.managerCookie)).body['code']).toBe('PERMISSION_NOT_HELD');
+  expect((await set(member, 500, f.managerCookie)).body['code']).toBe('FORBIDDEN');
   await endOverride(deny);
   const ownDeny = await seedOverride(f, f.managerMember, {
-    permission_code: 'manage:memberships:company',
+    permission_code: 'manage:discount-limits:business',
     effect: 'DENY',
   });
   expect((await set(member, 500, f.managerCookie)).status).toBe(403);

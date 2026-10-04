@@ -1,4 +1,13 @@
-﻿import type { Provider } from '@nestjs/common';
+﻿import { MyScheduleController } from './http/my-schedule.controller.ts';
+import {
+  PasskeysController,
+  PASSKEY_OPTIONS,
+  type RegistrationOptionsPort,
+} from './http/passkeys.controller.ts';
+import type { PasskeyRegistration } from './ports/passkeys.port.ts';
+import { EnrolPasskey } from './use-cases/enrol-passkey/enrol-passkey.ts';
+import { createPasskeyTransactions } from './persistence/passkey-transactions.ts';
+import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { EmployeeLeaveController } from './http/employee-leave.controller.ts';
 import { OwnLeaveController } from './http/own-leave.controller.ts';
@@ -48,6 +57,8 @@ export const staffControllers = [
   OwnLeaveController,
   LeaveInboxController,
   AttendanceQrController,
+  PasskeysController,
+  MyScheduleController,
   EmployeesController,
   SchedulesController,
   ShiftTemplatesController,
@@ -114,11 +125,23 @@ function salaryProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
-export function staffProviders(database?: TenantWrappers, redis?: Redis): Provider[] {
+export function staffProviders(
+  database?: TenantWrappers,
+  redis?: Redis,
+  passkeys: (PasskeyRegistration & RegistrationOptionsPort) | null = null,
+): Provider[] {
   const ids = systemUuidV7();
   const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
+    { provide: PASSKEY_OPTIONS, useValue: passkeys },
+    {
+      provide: EnrolPasskey,
+      useValue:
+        database === undefined || passkeys === null
+          ? null
+          : new EnrolPasskey(passkeys, createPasskeyTransactions(database, ids), ids, systemClock),
+    },
     ...scheduleProviders(database, ids),
     ...leaveProviders(database, ids),
     ...salaryProviders(database, ids),

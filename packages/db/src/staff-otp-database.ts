@@ -25,6 +25,26 @@ export function createStaffOtpDatabase(options: {
     close: () => runtime.close(),
     rotate: <T extends { id: string }>(device: OtpDeviceContext, create: () => Promise<T>) =>
       otpRotate(runtime, device, create),
+    rotatePersonal: <T extends { id: string }>(userId: string, create: () => Promise<T>) =>
+      runtime.run(
+        async (tx) => {
+          await tx.execute(
+            sql`SELECT pg_advisory_xact_lock(hashtextextended(${`pospay:personal-session:v1:${userId}`},0))`,
+          );
+          const made = await create();
+          await tx
+            .delete(session)
+            .where(
+              and(
+                eq(session.purpose, 'STAFF_PERSONAL'),
+                eq(session.userId, userId),
+                sql`${session.id} <> ${made.id}`,
+              ),
+            );
+          return made;
+        },
+        new Date(Date.now() + 5000),
+      ),
     bindingValid: (userId: string, authenticatedAt: Date) =>
       runtime.run(async (tx) => {
         const [bound] = await tx
@@ -106,7 +126,12 @@ const otpApprovePhone = async (
       .where(and(eq(challenges.userId, input.userId), eq(challenges.status, 'ACTIVE')));
     await tx
       .delete(session)
-      .where(and(eq(session.userId, input.userId), eq(session.purpose, 'STAFF_POS')));
+      .where(
+        and(
+          eq(session.userId, input.userId),
+          sql`${session.purpose} IN ('STAFF_POS','STAFF_PERSONAL')`,
+        ),
+      );
     await tx
       .update(user)
       .set({ phoneNumber: input.phone, phoneNumberVerified: false })

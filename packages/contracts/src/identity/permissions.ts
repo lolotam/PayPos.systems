@@ -60,6 +60,7 @@ export const membershipPermissions = z
     overrides: permissionOverridePage,
     ended_overrides: permissionOverridePage,
     editing_enabled: z.boolean(),
+    discount_limit_editing_enabled: z.boolean().default(false),
     discount_limit: discountLimit,
   })
   .meta({ id: 'MembershipPermissions' });

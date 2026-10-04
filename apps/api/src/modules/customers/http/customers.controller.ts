@@ -11,14 +11,14 @@ import {
 } from '../use-cases/find-or-create-customer/find-or-create-customer.usecase.ts';
 import { CustomerInputPipe } from './customer-input.pipe.ts';
 
-@Controller('customers')
+@Controller()
 export class CustomersController {
   constructor(
     @Inject(FindOrCreateCustomerUseCase)
     private readonly findOrCreate: FindOrCreateCustomerUseCase | null,
   ) {}
 
-  @Post('find-or-create')
+  @Post('customers/find-or-create')
   @HttpCode(200)
   @Require('create:customers:company')
   @RequiresFeature('customers')
@@ -33,5 +33,27 @@ export class CustomersController {
       if (error instanceof InvalidCustomerPhoneError) throw new ApiError('INVALID_CUSTOMER_PHONE');
       throw error;
     }
+  }
+
+  @Post('businesses/:businessId/customers/find-or-create')
+  @HttpCode(200)
+  @Require('create:customers:business', { business: 'businessId' })
+  @RequiresFeature('customers')
+  async findInBusiness(
+    @Body(new CustomerInputPipe()) input: FindOrCreateCustomerInput,
+    @Req() request: FastifyRequest,
+  ): Promise<Customer> {
+    return this.find(input, request);
+  }
+
+  @Post('branches/:branchId/customers/find-or-create')
+  @HttpCode(200)
+  @Require('create:customers:branch', { branch: 'branchId' })
+  @RequiresFeature('customers')
+  async findInBranch(
+    @Body(new CustomerInputPipe()) input: FindOrCreateCustomerInput,
+    @Req() request: FastifyRequest,
+  ): Promise<Customer> {
+    return this.find(input, request);
   }
 }

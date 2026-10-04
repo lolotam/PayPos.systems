@@ -28,6 +28,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'markEventConsumed',
       'revokePlatformPermission',
       'runIdempotent',
+      'systemRoleGrantAllowedSql',
       'systemRoleOverrideAllowedSql',
       'systemRolePolicy',
       'verticalTemplate',

@@ -80,10 +80,11 @@ export const ROLE_DEFAULTS = {
   'manage:employees:business': managers,
   'manage:files:business': managers,
   'read:files:business': managers,
-  // TODO(spec): PR 7d ينفذ قرار 2026-10-04 بإذن مستقل للحد الشخصي للمالك والمدير العام ومدير النشاط، داخل النشاط ومنع تعديل الذات.
   'manage:discounts:company': ['owner'],
-  // TODO(spec): PR 7d ينفذ قرار 2026-10-04 بأكواد إنشاء داخل النشاط/الفرع لمدير النشاط ومدير الفرع والكاشير.
-  'create:customers:company': ['owner'],
+  'manage:discount-limits:business': managers,
+  'create:customers:company': ['owner', 'general_manager'],
+  'create:customers:business': ['owner', 'business_manager'],
+  'create:customers:branch': ['owner', 'branch_manager', 'cashier'],
   // ADR-0019 يمنع دخول الموظفين الضمني للمالك والمدير؛ الكاشير يحتاج ALLOW شخصي.
   'login:staff:branch': ['staff'],
   'create:companies:platform': [],

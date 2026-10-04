@@ -4,6 +4,134 @@
  */
 
 export interface paths {
+    "/v1/staff/personal-otp/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestPersonalOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/personal-otp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["verifyPersonalOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/personal-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPersonalSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/personal-session/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["signOutPersonalStaff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/my-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPersonalSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/passkey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPersonalPasskeyBinding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["generatePersonalPasskeyOptions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/passkey/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enrolPersonalPasskey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/settings": {
         parameters: {
             query?: never;
@@ -355,6 +483,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Requires manage:discount-limits:business at the resolved membership scope; self and canonical Owner holders are protected. */
         post: operations["setMembershipDiscountLimit"];
         delete?: never;
         options?: never;
@@ -501,6 +630,40 @@ export interface paths {
         put?: never;
         /** @description Requires create:customers:company and the customers feature. Existing name and locale are preserved. */
         post: operations["findOrCreateCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/customers/find-or-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped. */
+        post: operations["findOrCreateBusinessCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/branches/{branchId}/customers/find-or-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped. */
+        post: operations["findOrCreateBranchCustomer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -954,6 +1117,116 @@ export interface components {
             next_cursor: string | null;
             request_branch_ids: string[];
         };
+        PersonalOtpRequestInput: {
+            phone: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string;
+        };
+        PersonalOtpVerifyInput: {
+            /** Format: uuid */
+            challenge_id: string;
+            code: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string;
+        };
+        PersonalSessionContext: {
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            user_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        PersonalSchedule: {
+            schedule: components["schemas"]["StaffSchedule"] | null;
+        };
+        PasskeyVerifyInput: {
+            /** Format: uuid */
+            challenge_id: string;
+            response: {
+                id: string;
+                rawId: string;
+                /** @enum {string} */
+                type: "public-key";
+                /** @enum {string} */
+                authenticatorAttachment?: "platform" | "cross-platform";
+                clientExtensionResults: {
+                    credProps?: {
+                        rk: boolean;
+                    };
+                };
+                response: {
+                    clientDataJSON: string;
+                    attestationObject: string;
+                    transports?: ("ble" | "cable" | "hybrid" | "internal" | "nfc" | "smart-card" | "usb")[];
+                    authenticatorData?: string;
+                    publicKey?: string;
+                    publicKeyAlgorithm?: number;
+                };
+            };
+        };
+        PasskeyBindingStatus: {
+            bound: boolean;
+            /** Format: uuid */
+            binding_id: string | null;
+            revision: number | null;
+            /** Format: date-time */
+            bound_at: string | null;
+        };
+        PasskeyRegistrationOptions: {
+            /** Format: uuid */
+            challenge_id: string;
+            options: {
+                challenge: string;
+                rp: {
+                    id: string;
+                    /** @enum {string} */
+                    name: "PosPay";
+                };
+                user: {
+                    id: string;
+                    name: string;
+                    displayName: string;
+                };
+                pubKeyCredParams: {
+                    /** @enum {string} */
+                    type: "public-key";
+                    alg: number;
+                }[];
+                hints?: ("security-key" | "client-device" | "hybrid")[];
+                timeout?: number;
+                /** @enum {string} */
+                attestation: "none";
+                excludeCredentials?: {
+                    id: string;
+                    /** @enum {string} */
+                    type: "public-key";
+                    transports?: ("ble" | "cable" | "hybrid" | "internal" | "nfc" | "smart-card" | "usb")[];
+                }[];
+                authenticatorSelection: {
+                    /** @enum {string} */
+                    authenticatorAttachment: "platform";
+                    /** @enum {string} */
+                    residentKey: "required";
+                    requireResidentKey?: boolean;
+                    /** @enum {string} */
+                    userVerification: "required";
+                };
+                extensions?: {
+                    credProps?: boolean;
+                };
+            };
+        };
         TemplateListQuery: {
             /** Format: uuid */
             cursor?: string;
@@ -1236,6 +1509,8 @@ export interface components {
             overrides: components["schemas"]["PermissionOverridePage"];
             ended_overrides: components["schemas"]["PermissionOverridePage"];
             editing_enabled: boolean;
+            /** @default false */
+            discount_limit_editing_enabled: boolean;
             discount_limit: components["schemas"]["DiscountLimit"];
         };
         RequestFileUpload: {
@@ -1727,6 +2002,251 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    requestPersonalOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalOtpRequestInput"];
+            };
+        };
+        responses: {
+            /** @description requestPersonalOtp */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOtpAcknowledgement"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    verifyPersonalOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalOtpVerifyInput"];
+            };
+        };
+        responses: {
+            /** @description verifyPersonalOtp */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSessionContext"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPersonalSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description getPersonalSession */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSessionContext"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    signOutPersonalStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description signOutPersonalStaff */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPersonalSchedule: {
+        parameters: {
+            query: {
+                branch_id: string;
+                week_start: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description getPersonalSchedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSchedule"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPersonalPasskeyBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description getPersonalPasskeyBinding */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyBindingStatus"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    generatePersonalPasskeyOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description generatePersonalPasskeyOptions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyRegistrationOptions"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    enrolPersonalPasskey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyVerifyInput"];
+            };
+        };
+        responses: {
+            /** @description enrolPersonalPasskey */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyBindingStatus"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getBusinessSettings: {
         parameters: {
             query?: never;
@@ -3248,6 +3768,80 @@ export interface operations {
                 "x-company-id": string;
             };
             path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+            };
+        };
+        responses: {
+            /** @description Customer with masked phone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    findOrCreateBusinessCustomer: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+            };
+        };
+        responses: {
+            /** @description Customer with masked phone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    findOrCreateBranchCustomer: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+            };
             cookie?: never;
         };
         requestBody: {

@@ -29,3 +29,6 @@ export {
   lockEmployeeSalaryAccess,
   readEmployeeSalaryAccess,
 } from './persistence/employee-salary-access.ts';
+
+export { personalMemberships } from './persistence/personal-membership.ts';
+export { membershipCompanies } from './queries/membership-companies.query.ts';

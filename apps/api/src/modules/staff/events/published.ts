@@ -31,3 +31,11 @@ export interface LeaveRequested {
 }
 /** يصدر بعد إلغاء طلب معلق مع الفاعل والنسخة الجديدة داخل نفس معاملة الإلغاء. */
 export type LeaveCancelled = LeaveRequested;
+
+/** الحدث يثبت النسخة المعتمدة بعد commit دون مادة الاعتماد أو تحدياته. */
+export interface EmployeePasskeyBound {
+  readonly employee_id: string;
+  readonly binding_id: string;
+  readonly revision: number;
+  readonly bound_at: string;
+}

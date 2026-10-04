@@ -19,3 +19,6 @@ export * from './files.ts';
 export * from './files-cleanup.ts';
 export * from './staff-schedules.ts';
 export * from './staff-leave.ts';
+
+export * from './identity-passkey.ts';
+export * from './staff-passkeys.ts';

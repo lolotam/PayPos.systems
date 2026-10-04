@@ -1,7 +1,8 @@
 import { canonicalOwnerSql, systemRolePolicy, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { readAccessTransaction } from './access-reader.ts';
-import type { AccessGrant, AccessTarget, ScopeType } from '../domain/access.ts';
+import type { AccessGrant, ScopeType } from '../domain/access.ts';
+import { readScopeTargets } from './permission-scope-targets.ts';
 import type {
   EditableMembership,
   OverrideTerms,
@@ -64,33 +65,6 @@ async function editorGrants(
   return [...access.grants];
 }
 
-async function scopeTargets(tx: Tx, companyId: string, terms: OverrideTerms) {
-  const rows = await tx.execute<{ business_id: string; branch_id: string | null }>(sql`
-    SELECT b.id AS business_id, NULL::uuid AS branch_id FROM businesses b
-    WHERE b.company_id = ${companyId}
-      AND (${terms.scope_type} = 'COMPANY' OR (${terms.scope_type} = 'BUSINESS' AND b.id = ${terms.scope_id}))
-    UNION ALL
-    SELECT br.business_id, br.id FROM branches br WHERE br.company_id = ${companyId}
-      AND (${terms.scope_type} = 'COMPANY' OR (${terms.scope_type} = 'BUSINESS' AND br.business_id = ${terms.scope_id})
-        OR (${terms.scope_type} = 'BRANCH' AND br.id = ${terms.scope_id}))`);
-  const targets: AccessTarget[] = rows.map((row) => ({
-    companyId,
-    businessId: row.business_id,
-    ...(row.branch_id === null ? {} : { branchId: row.branch_id }),
-  }));
-  const target =
-    terms.scope_type === 'COMPANY'
-      ? terms.scope_id === companyId
-        ? { companyId }
-        : null
-      : (targets.find((t) =>
-          terms.scope_type === 'BRANCH'
-            ? t.branchId === terms.scope_id
-            : t.businessId === terms.scope_id && t.branchId === undefined,
-        ) ?? null);
-  return { target, descendantTargets: targets };
-}
-
 export async function permissionEditorContext(
   tx: Tx,
   companyId: string,
@@ -112,14 +86,13 @@ export async function permissionEditorContext(
       membership === null
         ? null
         : (
-            await scopeTargets(tx, companyId, {
-              ...terms,
+            await readScopeTargets(tx, companyId, {
               scope_type: membership.scopeType,
               scope_id: membership.scopeId,
             })
           ).target,
     holderMemberships,
-    ...(await scopeTargets(tx, companyId, terms)),
+    ...(await readScopeTargets(tx, companyId, terms)),
     catalog: catalog.map((p) => p.code),
     grants: await editorGrants(tx, companyId, userId, now.toISOString()),
     companyId,

@@ -30,6 +30,9 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'manage:employees:business': 'permissionCodes.manageEmployeesBusiness',
   'manage:discounts:company': 'permissionCodes.manageDiscountsCompany',
   'create:customers:company': 'permissionCodes.createCustomersCompany',
+  'create:customers:business': 'permissionCodes.createCustomersBusiness',
+  'create:customers:branch': 'permissionCodes.createCustomersBranch',
+  'manage:discount-limits:business': 'permissionCodes.manageDiscountLimitsBusiness',
   'login:staff:branch': 'permissionCodes.loginStaffBranch',
   'create:companies:platform': 'permissionCodes.createCompaniesPlatform',
 };

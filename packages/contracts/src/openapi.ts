@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { leaveSchemas } from './staff/leave.js';
 import { leavePaths } from './staff/leave-openapi.js';
+import { passkeySchemas } from './staff/passkeys.js';
+import { passkeyPaths } from './staff/passkeys-openapi.js';
 import { scheduleSchemas } from './staff/schedules.js';
 import {
   setSalaryInput,
@@ -81,6 +83,7 @@ import {
 
 const SCHEMAS = [
   ...leaveSchemas,
+  ...passkeySchemas,
   ...scheduleSchemas,
   setSalaryInput,
   employeeSalary,
@@ -176,6 +179,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...passkeyPaths,
   ...settingsPaths,
   ...filePaths,
   ...staffPaths,

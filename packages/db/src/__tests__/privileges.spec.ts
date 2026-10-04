@@ -1,3 +1,4 @@
+import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
 import { EMPLOYEE_COLUMN_GRANTS } from '../../test/employee-grants.ts';
 import { FUNCTION_INVENTORY } from '../../test/function-inventory.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
@@ -43,6 +44,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'devices:UPDATE',
     'employee_branches:INSERT',
     'employee_branches:SELECT',
+    'employee_passkeys:INSERT',
+    'employee_passkeys:SELECT',
     'employee_salaries:INSERT',
     'employee_salaries:SELECT',
     'employees:INSERT',
@@ -101,6 +104,10 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'auth_notification_attempts:SELECT',
     'auth_otp_challenges:DELETE',
     'auth_otp_challenges:SELECT',
+    'passkey:DELETE',
+    'passkey:INSERT',
+    'passkey:SELECT',
+    'passkey:UPDATE',
     'platform_audit_log:INSERT',
     'platform_grants:SELECT',
     'platform_roles:SELECT',
@@ -138,6 +145,7 @@ const TENANT_TABLES = [
   'file_cleanup_objects',
   'employees',
   'employee_branches',
+  'employee_passkeys',
   'staff_schedules',
   'staff_schedule_shifts',
   'staff_shift_templates',
@@ -162,6 +170,7 @@ const TENANT_TABLES = [
 ];
 const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
 const IDENTITY_TABLES = [
+  'passkey',
   'auth_otp_challenges',
   'auth_notification_attempts',
   'user',
@@ -227,6 +236,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...OUTBOX_COLUMN_GRANTS,
         ...EMPLOYEE_COLUMN_GRANTS,
         ...SCHEDULE_COLUMN_GRANTS,
+        ...PASSKEY_COLUMN_GRANTS,
       ].sort(),
     );
   });

@@ -4,16 +4,16 @@ import type { OtpConfiguration } from './configuration.ts';
 import { createOtpCrypto } from './crypto.ts';
 import { phaseRunner } from './diagnostics.ts';
 import { preparationDeadline } from './policy.ts';
-import type { StaffDeviceContext } from './types.ts';
+import type { OtpContext } from './types.ts';
 
-interface Verification {
-  options: StaffOtpApiOptions;
+interface Verification<C extends OtpContext, S> {
+  options: StaffOtpApiOptions<C, S>;
   database: StaffOtpDatabase;
   availability(): Promise<Extract<OtpConfiguration, { state: 'READY' }> | null>;
-  input: { challengeId: string; code: string; ip: string; device: StaffDeviceContext };
+  input: { challengeId: string; code: string; ip: string; device: C };
 }
 
-export async function otpVerify(request: Verification) {
+export async function otpVerify<C extends OtpContext, S>(request: Verification<C, S>) {
   const { options, database, availability, input } = request;
   const config = await availability();
   if (config === null) return { kind: 'unavailable' as const };
@@ -68,7 +68,10 @@ export async function otpVerify(request: Verification) {
   }
 }
 
-async function verifyRate(options: StaffOtpApiOptions, input: Verification['input']) {
+async function verifyRate<C extends OtpContext, S>(
+  options: StaffOtpApiOptions<C, S>,
+  input: Verification<C, S>['input'],
+) {
   try {
     return await phaseRunner(options.onFailure)('VERIFY_RATE', () =>
       options.rates.verify(input.challengeId, input.ip),
@@ -78,10 +81,10 @@ async function verifyRate(options: StaffOtpApiOptions, input: Verification['inpu
   }
 }
 
-async function eligible(
-  options: StaffOtpApiOptions,
+async function eligible<C extends OtpContext, S>(
+  options: StaffOtpApiOptions<C, S>,
   userId: string,
-  device: StaffDeviceContext,
+  device: C,
   deadline?: Date,
 ) {
   return (
@@ -90,12 +93,12 @@ async function eligible(
   );
 }
 
-async function issueVerified(request: {
-  options: StaffOtpApiOptions;
+async function issueVerified<C extends OtpContext, S>(request: {
+  options: StaffOtpApiOptions<C, S>;
   database: StaffOtpDatabase;
   hash: Uint8Array;
   userId: string;
-  input: { device: StaffDeviceContext; challengeId: string };
+  input: { device: C; challengeId: string };
 }) {
   const { options, database, hash, userId, input } = request;
   const mapping = () =>

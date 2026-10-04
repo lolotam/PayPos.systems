@@ -5,6 +5,265 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/staff/personal-otp/request": {
+      "post": {
+        "operationId": "requestPersonalOtp",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalOtpRequestInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "requestPersonalOtp",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOtpAcknowledgement"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staff/personal-otp/verify": {
+      "post": {
+        "operationId": "verifyPersonalOtp",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalOtpVerifyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "verifyPersonalOtp",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSessionContext"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staff/personal-session": {
+      "get": {
+        "operationId": "getPersonalSession",
+        "responses": {
+          "200": {
+            "description": "getPersonalSession",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSessionContext"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staff/personal-session/sign-out": {
+      "post": {
+        "operationId": "signOutPersonalStaff",
+        "responses": {
+          "200": {
+            "description": "signOutPersonalStaff"
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staff/my-schedule": {
+      "get": {
+        "operationId": "getPersonalSchedule",
+        "responses": {
+          "200": {
+            "description": "getPersonalSchedule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSchedule"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "week_start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/staff/passkey": {
+      "get": {
+        "operationId": "getPersonalPasskeyBinding",
+        "responses": {
+          "200": {
+            "description": "getPersonalPasskeyBinding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyBindingStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staff/passkey/options": {
+      "post": {
+        "operationId": "generatePersonalPasskeyOptions",
+        "responses": {
+          "200": {
+            "description": "generatePersonalPasskeyOptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyRegistrationOptions"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staff/passkey/verify": {
+      "post": {
+        "operationId": "enrolPersonalPasskey",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyVerifyInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "enrolPersonalPasskey",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyBindingStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/settings": {
       "get": {
         "operationId": "getBusinessSettings",
@@ -1979,6 +2238,7 @@
             }
           }
         },
+        "description": "Requires manage:discount-limits:business at the resolved membership scope; self and canonical Owner holders are protected.",
         "parameters": [
           {
             "in": "header",
@@ -2608,6 +2868,122 @@
           }
         ],
         "description": "Requires create:customers:company and the customers feature. Existing name and locale are preserved."
+      }
+    },
+    "/v1/businesses/{businessId}/customers/find-or-create": {
+      "post": {
+        "operationId": "findOrCreateBusinessCustomer",
+        "description": "Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindOrCreateCustomerInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer with masked phone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/branches/{branchId}/customers/find-or-create": {
+      "post": {
+        "operationId": "findOrCreateBranchCustomer",
+        "description": "Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindOrCreateCustomerInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer with masked phone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
       }
     },
     "/v1/devices/me/attendance-qr": {
@@ -4048,6 +4424,488 @@
           "request_branch_ids"
         ]
       },
+      "PersonalOtpRequestInput": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{7,14}$"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "ar",
+              "en"
+            ]
+          },
+          "company_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "phone",
+          "locale",
+          "company_id",
+          "business_id"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalOtpVerifyInput": {
+        "type": "object",
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$"
+          },
+          "company_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "code",
+          "company_id",
+          "business_id"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalSessionContext": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "company_id",
+          "business_id",
+          "user_id",
+          "employee_id",
+          "expires_at"
+        ],
+        "additionalProperties": false
+      },
+      "PersonalSchedule": {
+        "type": "object",
+        "properties": {
+          "schedule": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StaffSchedule"
+              }
+            ]
+          }
+        },
+        "required": [
+          "schedule"
+        ],
+        "additionalProperties": false
+      },
+      "PasskeyVerifyInput": {
+        "type": "object",
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "response": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "rawId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "public-key"
+                ]
+              },
+              "authenticatorAttachment": {
+                "type": "string",
+                "enum": [
+                  "platform",
+                  "cross-platform"
+                ]
+              },
+              "clientExtensionResults": {
+                "type": "object",
+                "properties": {
+                  "credProps": {
+                    "type": "object",
+                    "properties": {
+                      "rk": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "rk"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "response": {
+                "type": "object",
+                "properties": {
+                  "clientDataJSON": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "attestationObject": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "transports": {
+                    "maxItems": 7,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "ble",
+                        "cable",
+                        "hybrid",
+                        "internal",
+                        "nfc",
+                        "smart-card",
+                        "usb"
+                      ]
+                    }
+                  },
+                  "authenticatorData": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "publicKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "publicKeyAlgorithm": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "clientDataJSON",
+                  "attestationObject"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "rawId",
+              "type",
+              "clientExtensionResults",
+              "response"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "challenge_id",
+          "response"
+        ],
+        "additionalProperties": false
+      },
+      "PasskeyBindingStatus": {
+        "type": "object",
+        "properties": {
+          "bound": {
+            "type": "boolean"
+          },
+          "binding_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "revision": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "bound_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "bound",
+          "binding_id",
+          "revision",
+          "bound_at"
+        ],
+        "additionalProperties": false
+      },
+      "PasskeyRegistrationOptions": {
+        "type": "object",
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "options": {
+            "type": "object",
+            "properties": {
+              "challenge": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              "rp": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "enum": [
+                      "PosPay"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "additionalProperties": false
+              },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536,
+                    "pattern": "^[A-Za-z0-9_-]+$"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "displayName"
+                ],
+                "additionalProperties": false
+              },
+              "pubKeyCredParams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "public-key"
+                      ]
+                    },
+                    "alg": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "alg"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "hints": {
+                "maxItems": 3,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "security-key",
+                    "client-device",
+                    "hybrid"
+                  ]
+                }
+              },
+              "timeout": {
+                "type": "number"
+              },
+              "attestation": {
+                "type": "string",
+                "enum": [
+                  "none"
+                ]
+              },
+              "excludeCredentials": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 65536,
+                      "pattern": "^[A-Za-z0-9_-]+$"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "public-key"
+                      ]
+                    },
+                    "transports": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "ble",
+                          "cable",
+                          "hybrid",
+                          "internal",
+                          "nfc",
+                          "smart-card",
+                          "usb"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "authenticatorSelection": {
+                "type": "object",
+                "properties": {
+                  "authenticatorAttachment": {
+                    "type": "string",
+                    "enum": [
+                      "platform"
+                    ]
+                  },
+                  "residentKey": {
+                    "type": "string",
+                    "enum": [
+                      "required"
+                    ]
+                  },
+                  "requireResidentKey": {
+                    "type": "boolean"
+                  },
+                  "userVerification": {
+                    "type": "string",
+                    "enum": [
+                      "required"
+                    ]
+                  }
+                },
+                "required": [
+                  "authenticatorAttachment",
+                  "residentKey",
+                  "userVerification"
+                ],
+                "additionalProperties": false
+              },
+              "extensions": {
+                "type": "object",
+                "properties": {
+                  "credProps": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "challenge",
+              "rp",
+              "user",
+              "pubKeyCredParams",
+              "attestation",
+              "authenticatorSelection"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "challenge_id",
+          "options"
+        ],
+        "additionalProperties": false
+      },
       "TemplateListQuery": {
         "type": "object",
         "properties": {
@@ -5249,6 +6107,10 @@
             "$ref": "#/components/schemas/PermissionOverridePage"
           },
           "editing_enabled": {
+            "type": "boolean"
+          },
+          "discount_limit_editing_enabled": {
+            "default": false,
             "type": "boolean"
           },
           "discount_limit": {

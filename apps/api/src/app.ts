@@ -46,9 +46,14 @@ import { HealthController } from './shared/health.controller.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
 import { PinoNestLogger } from './shared/nest-logger.ts';
 import { READINESS_CHECKS, singleFlight, type ReadinessCheck } from './shared/readiness.ts';
+import {
+  PERSONAL_AUTHENTICATION,
+  type PersonalAuthentication,
+} from './shared/personal-authentication.ts';
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
 
 export interface AppDependencies {
+  readonly personal?: PersonalAuthentication | null;
   readonly files?: FilesRuntime | null;
   readonly staff?: {
     api: StaffOtpApi | null;
@@ -114,6 +119,7 @@ class AppModule {
         { provide: SHUTDOWN, useValue: deps.onShutdown ?? (async () => undefined) },
         ShutdownHook,
         { provide: AUTH_SERVICE, useValue: deps.auth?.service ?? null },
+        { provide: PERSONAL_AUTHENTICATION, useValue: deps.personal ?? null },
         // Global guards run in this order (ADR-0003 §4): a verified session unless @Public(); then the company
         // membership and the permission at the target unless @Authenticated(); then the feature flag.
         { provide: APP_GUARD, useClass: SessionGuard },
@@ -127,7 +133,7 @@ class AppModule {
         ...customersProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp),
-        ...staffProviders(deps.database, deps.redis),
+        ...staffProviders(deps.database, deps.redis, deps.auth?.service.passkeys ?? null),
         ...filesProviders(deps.database, deps.ids ?? systemUuidV7(), deps.files),
       ],
     };
@@ -194,7 +200,7 @@ function buildAdapter(
       // Provider request headers can carry phone-bearing message ids too; generate our own diagnostic id.
       try {
         if (
-          /^\/v1\/(webhooks\/|devices\/me\/staff-)/.test(
+          /^\/v1\/(webhooks\/|devices\/me\/staff-|staff\/)/.test(
             decodeURIComponent((request.url ?? '').split('?')[0] ?? ''),
           )
         )

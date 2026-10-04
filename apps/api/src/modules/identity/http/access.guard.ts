@@ -73,6 +73,9 @@ export class AccessGuard implements CanActivate {
       userId,
       requestedCompany: header === undefined ? request.companyHint : header,
       permission: required.permission,
+      ...(required.target.membership === undefined
+        ? {}
+        : { membershipParam: params[required.target.membership] ?? null }),
       ...(required.target.business === undefined
         ? {}
         : { businessParam: params[required.target.business] ?? null }),

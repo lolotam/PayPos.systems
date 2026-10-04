@@ -418,22 +418,43 @@
     {
       "idx": 59,
       "version": "7",
-      "when": 1791071996243,
-      "tag": "0059_2026-10-03_staff-leave-requests",
+      "when": 1791071611895,
+      "tag": "0059_2026-10-03_identity-role-followups",
       "breakpoints": true
     },
     {
       "idx": 60,
       "version": "7",
-      "when": 1791072001517,
-      "tag": "0060_2026-10-04_staff-leave-requests-rls",
+      "when": 1791080446440,
+      "tag": "0060_2026-10-04_staff-passkeys",
       "breakpoints": true
     },
     {
       "idx": 61,
       "version": "7",
-      "when": 1791072003492,
-      "tag": "0061_2026-10-04_leave-default-bundles",
+      "when": 1791080462586,
+      "tag": "0061_2026-10-04_staff-passkey-grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1791082590889,
+      "tag": "0062_2026-10-04_staff-leave-requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1791082604185,
+      "tag": "0063_2026-10-04_staff-leave-requests-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791082605722,
+      "tag": "0064_2026-10-04_leave-default-bundles",
       "breakpoints": true
     }
   ]

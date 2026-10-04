@@ -53,8 +53,8 @@ to new and historical personal ALLOWs without changing human or custom-role poli
 | view:notifications:business | owner, general_manager, business_manager |
 | read/manage:files:business | owner, general_manager, business_manager |
 | manage:employees:business | owner, general_manager, business_manager |
-| create:customers:company | owner; TODO(spec): business/branch codes decided for PR 7d |
-| manage:discounts:company | owner; TODO(spec): separate personal-limit administration code decided for PR 7d |
+| create:customers:company | owner, general_manager; spec 022 records optional personal cells and business/branch context codes |
+| manage:discounts:company | owner; spec 022 implements separate personal-limit administration |
 | read/manage:salaries:business | no stored defaults; canonical Owner ✅; all other humans ⚙️; Device ❌ |
 | read/manage:schedules:branch | owner, general_manager, business_manager, branch_manager ✅; other humans ⚙️; Device ❌ |
 | read/manage:schedules:business | owner, general_manager, business_manager ✅; other humans ⚙️; Device ❌ |
@@ -84,8 +84,9 @@ bilingual labels and permission codes, including new scoped codes. A selected
 business starts with scoped routes; a scope selector retains company management
 even when the workspace selects its only business. Refresh and
 cache keys include scope. No fetch inside components or invented effective defaults.
-Company decision revoke and personal discount-limit edits are disabled in business
-context; company management remains available through the scope selector.
+Company decision revoke remains disabled in business context; company management
+remains available through the scope selector. Personal discount-limit editing now
+follows [spec 022](../022-identity-role-followups/spec.md)'s independent scoped code.
 
 ## Migration, dependencies and verification
 
@@ -100,12 +101,12 @@ result shape and indexed scoped reads. Run pnpm check and API/admin builds.
 ## Recorded owner decisions and follow-up PR 7d
 
 Both remaining scope questions were settled on 2026-10-04. Their implementation
-is deferred to PR 7d; this integration keeps the existing company codes unchanged.
+is specified in spec 022 for PR 7d; the existing company codes remain unchanged.
 
-- TODO(spec): PR 7d introduces business/branch customer-creation codes for
+- [Spec 022](../022-identity-role-followups/spec.md) introduces business/branch customer-creation codes for
   business_manager, branch_manager and cashier. Customer data remains company-scoped;
   the new permission reach must not become company-wide creation authority.
-- TODO(spec): PR 7d introduces a separate personal discount-limit administration
+- [Spec 022](../022-identity-role-followups/spec.md) introduces a separate personal discount-limit administration
   code for owner, general_manager and business_manager. Managers act within their own
   business and nobody edits their own limit. Keep it separate from discount application.
 
@@ -126,12 +127,12 @@ that rule for company/business membership read/manage, business read/create,
 branch read/create, device management, settings read/manage, notifications and
 platform creation (platform override writes already refuse every tenant role).
 
-TODO(spec) DEVICE-Q1: later codes do not settle Device personal-ALLOW eligibility
-for read/manage files, manage employees, create customers, manage discounts and
-staff login. Preserve their current policy in this correction. Recommendation:
-forbid all six for the technical Device identity; give human operators their own
-scoped memberships, and keep paired-device capabilities on the dedicated device
-routes. Confirm the matrix before changing these additional cells.
+DEVICE-Q1 resolved by the recorded owner decision 2026-10-04 in
+[spec 022](../022-identity-role-followups/spec.md): Device can never hold file
+read/manage, employee management, company customer creation, company discount
+management, or the new customer-context/limit-administration codes. Historical
+ALLOWs remain inert and visible. login:staff:branch remains eligible for Device
+under ADR-0019; dedicated attendance and QR capabilities remain unchanged.
 
 Acceptance: all four schedule/template Device ALLOWs return the named bilingual
 403, including user-bound Device memberships. Seed historical forbidden ALLOWs,

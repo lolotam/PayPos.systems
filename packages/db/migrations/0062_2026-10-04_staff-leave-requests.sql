@@ -32,6 +32,7 @@ CREATE TABLE "leave_requests" (
 	CONSTRAINT "leave_requests_status" CHECK (("leave_requests"."status"='PENDING' AND "leave_requests"."cancelled_by" IS NULL AND "leave_requests"."cancelled_at" IS NULL AND "leave_requests"."decided_by" IS NULL AND "leave_requests"."decided_at" IS NULL AND "leave_requests"."rejection_reason" IS NULL) OR ("leave_requests"."status"='CANCELLED' AND "leave_requests"."cancelled_by" IS NOT NULL AND "leave_requests"."cancelled_at" IS NOT NULL AND "leave_requests"."decided_by" IS NULL AND "leave_requests"."decided_at" IS NULL AND "leave_requests"."rejection_reason" IS NULL) OR ("leave_requests"."status" IN ('APPROVED','REJECTED') AND "leave_requests"."decided_by" IS NOT NULL AND "leave_requests"."decided_at" IS NOT NULL AND "leave_requests"."cancelled_by" IS NULL AND "leave_requests"."cancelled_at" IS NULL AND (("leave_requests"."status"='APPROVED' AND "leave_requests"."rejection_reason" IS NULL) OR ("leave_requests"."status"='REJECTED' AND "leave_requests"."rejection_reason" IS NOT NULL AND char_length(btrim("leave_requests"."rejection_reason")) BETWEEN 1 AND 500))))
 );
 --> statement-breakpoint
+ALTER TABLE "permissions" DROP CONSTRAINT "permissions_code_format";--> statement-breakpoint
 ALTER TABLE "leave_requests" ADD CONSTRAINT "leave_requests_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "leave_requests" ADD CONSTRAINT "leave_requests_requested_by_user_id_fk" FOREIGN KEY ("requested_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "leave_requests" ADD CONSTRAINT "leave_requests_cancelled_by_user_id_fk" FOREIGN KEY ("cancelled_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -45,4 +46,5 @@ CREATE INDEX "leave_requests_company_business_id_idx" ON "leave_requests" USING 
 CREATE INDEX "leave_requests_company_branch_idx" ON "leave_requests" USING btree ("company_id","branch_id");--> statement-breakpoint
 CREATE INDEX "leave_requests_requested_by_idx" ON "leave_requests" USING btree ("requested_by");--> statement-breakpoint
 CREATE INDEX "leave_requests_cancelled_by_idx" ON "leave_requests" USING btree ("cancelled_by");--> statement-breakpoint
-CREATE INDEX "leave_requests_decided_by_idx" ON "leave_requests" USING btree ("decided_by");
+CREATE INDEX "leave_requests_decided_by_idx" ON "leave_requests" USING btree ("decided_by");--> statement-breakpoint
+ALTER TABLE "permissions" ADD CONSTRAINT "permissions_code_format" CHECK ("permissions"."code" ~ '^[a-z][a-z-]*:[a-z][a-z-]*:(platform|company|business|branch|own)$');
