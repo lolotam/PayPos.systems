@@ -227,3 +227,4 @@ export type {
 } from './staff/salary.js';
 
 export * from './staff/passkeys.js';
+export * from './staff/clock-attendance.js';

@@ -1,3 +1,4 @@
+import { attendanceAr } from './attendance-ar.js';
 import type { Catalog } from './catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
@@ -49,6 +50,7 @@ export const ar: Catalog = {
     managePermission: 'تعيين الراتب',
     employeeAccessHint: 'تُدار الرواتب من شاشة الموظفين، وتحتاج أيضًا إلى صلاحية إدارة الموظفين.',
   },
+  personalAttendance: attendanceAr,
   personalStaff: {
     title: 'دخول الموظف من هاتفه الشخصي',
     lead: 'استخدم هاتفك الشخصي لتسجيل البصمة أو الوجه أو رمز قفل الشاشة.',

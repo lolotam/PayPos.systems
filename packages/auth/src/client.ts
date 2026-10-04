@@ -1,5 +1,7 @@
 import {
   startRegistration,
+  startAuthentication,
+  type PublicKeyCredentialRequestOptionsJSON,
   type PublicKeyCredentialCreationOptionsJSON,
 } from '@simplewebauthn/browser';
 import { createAuthClient } from 'better-auth/client';
@@ -50,4 +52,9 @@ export function createPospayAuthClient(baseURL: string): PospayAuthClient {
 /** التسجيل يفتح authenticator فقط؛ لا يستدعي مسار plugin ولا ينشئ جلسة عامة. */
 export function registerStaffPasskey(options: PublicKeyCredentialCreationOptionsJSON) {
   return startRegistration({ optionsJSON: options });
+}
+
+/** الحضور يفتح إثبات UV جديداً ولا يقبل جلسة تسجيل الدخول كإثبات حركة. */
+export function assertStaffAttendance(options: PublicKeyCredentialRequestOptionsJSON) {
+  return startAuthentication({ optionsJSON: options });
 }

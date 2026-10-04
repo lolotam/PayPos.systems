@@ -1,3 +1,4 @@
+import { attendanceEn } from './attendance-en.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   permissionCodes: {
@@ -49,6 +50,7 @@ export const en = {
     employeeAccessHint:
       'Salaries are managed from the employee screen and also require employee-management access.',
   },
+  personalAttendance: attendanceEn,
   personalStaff: {
     title: 'Personal staff sign-in',
     lead: 'Use your own phone to register your fingerprint, face or screen lock.',

@@ -2,6 +2,7 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEnrolPasskey } from '../api/use-enrol-passkey';
+import { ClockAttendanceScreen } from './clock-attendance-screen';
 
 export function EnrolPasskeyScreen({
   employeeId,
@@ -22,6 +23,7 @@ export function EnrolPasskeyScreen({
           {t(locale, 'personalStaff.enrol')}
         </Button>
       ) : null}
+      {state.binding?.bound === true ? <ClockAttendanceScreen /> : null}
       {state.loading ? <p role="status">{t(locale, 'personalStaff.loading')}</p> : null}
       {state.error ? <p role="alert">{t(locale, 'errors.PASSKEY_INVALID')}</p> : null}
       <Button

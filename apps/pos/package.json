@@ -15,17 +15,18 @@
   },
   "dependencies": {
     "@hookform/resolvers": "5.9.1",
+    "@pospay/auth": "workspace:*",
     "@pospay/contracts": "workspace:*",
     "@pospay/i18n": "workspace:*",
     "@pospay/ui": "workspace:*",
     "@tanstack/react-query": "5.104.0",
     "dexie": "4.4.6",
+    "jsqr": "1.4.0",
     "openapi-fetch": "0.17.0",
     "qrcode.react": "4.2.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "react-hook-form": "7.89.0",
-    "@pospay/auth": "workspace:*"
+    "react-hook-form": "7.89.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

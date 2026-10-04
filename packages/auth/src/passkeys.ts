@@ -50,6 +50,15 @@ type EnrollmentResponse = Omit<
 };
 
 type Auth = ReturnType<typeof buildBetterAuth>;
+type AttendanceResponse = Omit<
+  AuthenticationResponseJSON,
+  'response' | 'authenticatorAttachment'
+> & {
+  authenticatorAttachment?: AuthenticationResponseJSON['authenticatorAttachment'] | undefined;
+  response: Omit<AuthenticationResponseJSON['response'], 'userHandle'> & {
+    userHandle?: string | undefined;
+  };
+};
 /** القارئ المحقون يملك ربط الموظفين؛ auth لا يقرأ أي جدول شركة. */
 export interface ActivePasskeyBindings {
   /** يرجع المعرفات العالمية للروابط النشطة فقط، بعد إثبات المستخدم. */
@@ -71,11 +80,8 @@ export function createPasskeyFacade(options: Options) {
     enroll: (scope: EnrollmentScope, challengeId: string, response: EnrollmentResponse) =>
       enroll(options, scope, challengeId, response),
     attendanceOptions: (scope: AttendanceScope) => attendanceOptions(options, scope),
-    verifyAttendance: (
-      scope: AttendanceScope,
-      challengeId: string,
-      response: AuthenticationResponseJSON,
-    ) => verifyAttendance(options, scope, challengeId, response),
+    verifyAttendance: (scope: AttendanceScope, challengeId: string, response: AttendanceResponse) =>
+      verifyAttendance(options, scope, challengeId, response),
   };
 }
 export type PasskeyFacade = ReturnType<typeof createPasskeyFacade>;
@@ -176,7 +182,7 @@ async function verifyAttendance(
   options: Options,
   scope: AttendanceScope,
   challengeId: string,
-  response: AuthenticationResponseJSON,
+  response: AttendanceResponse,
 ): Promise<AttendanceProof | null> {
   const frozenScope = JSON.stringify(scope);
   const accepted = await options.database.consumeAssertion({
@@ -187,7 +193,7 @@ async function verifyAttendance(
     verify: async (challenge, credential) => {
       if (response.id !== credential.credentialId) return null;
       const result = await verifyAuthenticationResponse({
-        response,
+        response: response as AuthenticationResponseJSON,
         expectedChallenge: challenge,
         expectedRPID: options.policy.rpID,
         expectedOrigin: options.policy.origins,

@@ -21,3 +21,4 @@ export * from './staff-schedules.ts';
 
 export * from './identity-passkey.ts';
 export * from './staff-passkeys.ts';
+export * from './staff-attendance.ts';

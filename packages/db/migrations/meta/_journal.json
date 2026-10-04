@@ -435,6 +435,20 @@
       "when": 1791080462586,
       "tag": "0061_2026-10-04_staff-passkey-grants",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1791082503810,
+      "tag": "0062_2026-10-04_staff-attendance",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1791082540180,
+      "tag": "0063_2026-10-04_staff-attendance-rls",
+      "breakpoints": true
     }
   ]
 }
