@@ -61,7 +61,16 @@ export const authOtpChallenges = pgTable(
     ),
     check(
       'auth_otp_challenges_context',
-      sql`jsonb_typeof(${t.deviceContext}) = 'object' AND ${t.deviceContext} ?& ARRAY['companyId','businessId','branchId','deviceId'] AND ${t.deviceContext} - ARRAY['companyId','businessId','branchId','deviceId'] = '{}'::jsonb AND (${t.deviceContext}->>'companyId') ~ '^[a-f0-9-]{36}$' AND (${t.deviceContext}->>'businessId') ~ '^[a-f0-9-]{36}$' AND (${t.deviceContext}->>'branchId') ~ '^[a-f0-9-]{36}$' AND (${t.deviceContext}->>'deviceId') ~ '^[a-f0-9-]{36}$'`,
+      sql`jsonb_typeof(${t.deviceContext}) = 'object'
+        AND (${t.deviceContext}->>'companyId') ~ '^[a-f0-9-]{36}$'
+        AND (${t.deviceContext}->>'businessId') ~ '^[a-f0-9-]{36}$'
+        AND ((${t.deviceContext} ?& ARRAY['companyId','businessId','branchId','deviceId']
+          AND ${t.deviceContext} - ARRAY['companyId','businessId','branchId','deviceId'] = '{}'::jsonb
+          AND (${t.deviceContext}->>'branchId') ~ '^[a-f0-9-]{36}$'
+          AND (${t.deviceContext}->>'deviceId') ~ '^[a-f0-9-]{36}$')
+        OR (${t.deviceContext} ?& ARRAY['purpose','companyId','businessId']
+          AND ${t.deviceContext} - ARRAY['purpose','companyId','businessId'] = '{}'::jsonb
+          AND ${t.deviceContext}->>'purpose' = 'STAFF_PERSONAL'))`,
     ),
     index('auth_otp_challenges_phone_idx').on(t.recipientHash, t.status, t.createdAt, t.id),
     index('auth_otp_challenges_user_idx').on(t.userId),

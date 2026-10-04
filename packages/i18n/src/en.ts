@@ -46,6 +46,19 @@ export const en = {
     employeeAccessHint:
       'Salaries are managed from the employee screen and also require employee-management access.',
   },
+  personalStaff: {
+    title: 'Personal staff sign-in',
+    lead: 'Use your own phone to register your fingerprint, face or screen lock.',
+    linkRequired: 'Ask your manager for your personal sign-in link.',
+    enrol: 'Register a passkey',
+    bound: 'Your passkey is registered. Replacement requires your manager to unbind it first.',
+    unbound: 'Register your passkey on this phone.',
+    signOut: 'Sign out',
+    retry: 'Start again',
+    personalLink: 'Personal staff sign-in',
+    loading: 'Checking your session…',
+    offline: 'Reconnect to sign in or register a passkey.',
+  },
   shell: {
     schedule_title: 'Weekly schedules',
     schedule_lead: 'Saturday to Friday in the selected branch timezone.',
@@ -229,6 +242,8 @@ export const en = {
       'Choose a valid country calling code and enter national digits; Kuwait requires eight digits',
     OTP_UNAVAILABLE:
       'WhatsApp sign-in is unavailable. Ask your manager for help using your own cashier PIN.',
+    PASSKEY_ALREADY_BOUND: 'A passkey is already bound. Ask your manager to unbind it first.',
+    PASSKEY_INVALID: 'The passkey could not be verified.',
     OTP_INVALID: 'The sign-in code is not valid.',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',

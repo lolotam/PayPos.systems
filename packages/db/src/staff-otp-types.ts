@@ -5,12 +5,16 @@ export interface OtpDeviceContext {
   readonly deviceId: string;
 }
 
+export type OtpContext =
+  | OtpDeviceContext
+  | { readonly purpose: 'STAFF_PERSONAL'; readonly companyId: string; readonly businessId: string };
+
 export interface OtpChallengeRecord {
   readonly id: string;
   readonly recipientHash: Buffer;
   readonly hashKeyId: string;
   readonly userId: string | null;
-  readonly deviceContext: OtpDeviceContext;
+  readonly deviceContext: OtpContext;
   readonly codeMac: Buffer | null;
   readonly derivationKeyId: string | null;
   readonly verificationKeyId: string | null;

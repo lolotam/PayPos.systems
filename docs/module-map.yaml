@@ -31,10 +31,11 @@ composition_roots:
   auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/main.ts]
-  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/approve-phone-binding.ts]
+  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts]
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
 reads:
+  - { from: staff, to: identity, symbol: personalMemberships, file: apps/api/src/modules/staff/persistence/personal-employee.ts }
   - { from: staff, to: identity, symbol: scheduleAccess, file: apps/api/src/modules/staff/persistence/schedule-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/schedule-context.adapter.ts }
   - { from: staff, to: identity, symbol: lockEmployeeSalaryAccess, file: apps/api/src/modules/staff/persistence/employee-salary-access.adapter.ts }

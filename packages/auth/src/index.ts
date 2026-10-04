@@ -47,3 +47,14 @@ export type { StaffSessions } from './staff-sessions.ts';
 export { StaffProofChanged } from './staff-sessions.ts';
 export { OTP_LIFETIME_MS, OTP_RETRY_MS, STAFF_LOGIN_CONCURRENCY } from './staff-otp/policy.ts';
 export { approvePhoneBinding } from './approve-phone-binding.ts';
+
+export type { PersonalWorkspace, PersonalSession } from './staff-otp/types.ts';
+export type { PersonalSessions } from './personal-sessions.ts';
+export { passkeyPolicy } from './passkey-policy.ts';
+export type {
+  PasskeyFacade,
+  EnrollmentScope,
+  AttendanceScope,
+  AttendanceProof,
+} from './passkeys.ts';
+export type { StaffOtpApiOptions } from './staff-otp/api.ts';

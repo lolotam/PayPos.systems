@@ -6,6 +6,12 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { DEVICE_AUTHENTICATOR, type DeviceAuthenticator } from './device-authenticator.ts';
 import { ApiError } from './errors.ts';
+import {
+  PERSONAL_AUTHENTICATION,
+  PERSONAL_ROUTE,
+  type PersonalAuthentication,
+} from './personal-authentication.ts';
+import { personalSessionRequest } from './personal-session.guard.ts';
 import { PUBLIC_ROUTE } from './public.decorator.ts';
 import { toWebHeaders } from './web-headers.ts';
 import {
@@ -41,6 +47,7 @@ export class SessionGuard implements CanActivate {
     @Inject(AUTH_SERVICE) auth: AuthService | null,
     @Inject(DEVICE_AUTHENTICATOR) devices: DeviceAuthenticator | null,
     @Inject(STAFF_AUTHENTICATION) private readonly staff: StaffAuthentication | null,
+    @Inject(PERSONAL_AUTHENTICATION) private readonly personal: PersonalAuthentication | null,
   ) {
     this.#reflector = reflector;
     this.#auth = auth;
@@ -55,6 +62,8 @@ export class SessionGuard implements CanActivate {
     if (isPublic === true) return true;
     const http = context.switchToHttp();
     const request = http.getRequest<FastifyRequest>();
+    if (this.#reflector.get<boolean>(PERSONAL_ROUTE, context.getHandler()) === true)
+      return personalSessionRequest(request, this.personal);
     // The scheme is case-insensitive (RFC 9110 §11.1): `device <token>` must never fall back to a cookie session.
     const authorization = request.headers.authorization ?? '';
     const policy = this.#reflector.get<'device' | 'staff' | undefined>(

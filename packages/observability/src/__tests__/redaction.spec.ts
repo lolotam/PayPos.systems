@@ -161,3 +161,23 @@ describe('code-named secrets (T11)', () => {
     });
   });
 });
+
+it('WebAuthn ceremony material is removed through the real logger', () => {
+  const value = 'synthetic-webauthn-private-material';
+  const line = logLine({
+    credentialId: value,
+    publicKey: value,
+    challenge: value,
+    assertion: value,
+    nested: [
+      {
+        challenge_id: value,
+        attestationObject: value,
+        clientDataJSON: value,
+        authenticatorData: value,
+      },
+    ],
+  });
+  expect(line).not.toContain(value);
+  expect(line).toContain(REDACTED);
+});

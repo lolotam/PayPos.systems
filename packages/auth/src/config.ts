@@ -2,8 +2,11 @@ import { randomBytes } from 'node:crypto';
 
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { createAuthDatabase, createStaffOtpDatabase } from '@pospay/db';
-import { betterAuth } from 'better-auth';
+import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins';
+import { createPersonalSessions, type PersonalSessions } from './personal-sessions.ts';
+import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-policy.ts';
+import { createPasskeyFacade, type PasskeyFacade } from './passkeys.ts';
 import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
 
 /**
@@ -63,6 +66,8 @@ export interface VerifiedSession {
  */
 export interface AuthService {
   readonly staff: StaffSessions;
+  readonly personal: PersonalSessions;
+  readonly passkeys: PasskeyFacade;
   /** بيرد على /v1/auth/* (sign-in، sign-out، الـ TOTP…). */
   handler(request: Request): Promise<Response>;
   /** بيرجّع الـ session لو الـ cookie صالح (ومعاها cookies التجديد)، وإلا null. */
@@ -89,7 +94,7 @@ export interface AuthService {
 }
 
 /**
- * بيبني Better Auth بالشكل اللي ADR-0003 قرّره: email + password والـ TOTP بس، والتسجيل مقفول (§6) —
+ * بيبني Better Auth: email + password وTOTP، وتسجيل passkey مقيد داخلياً؛ التسجيل العام مقفول (ADR-0003 §6) —
  * المستخدمين بيتعملوا من السكريبت بتاع الـ operator. مفيش organization plugin: الصلاحيات في memberships بتاعتنا.
  *
  * الـ role بيتأكد قبل ما الـ service ترجع: URL بصلاحيات تانية (الـ owner مثلاً) عمره ما بيخدم login.
@@ -109,10 +114,17 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   }
   const auth = buildBetterAuth(options, database);
   const staff = staffSessions(options, auth);
+  const personal = personalSessions(options, auth);
+  const passkeys = configuredPasskeys(options, auth, database);
   return {
     staff,
+    personal,
+    passkeys,
     handler: async (request) => {
-      if (!(await normalPurpose(staff, request.headers, options.onLog)))
+      if (
+        isPasskeyRoute(request.url) ||
+        !(await normalPurpose(staff, request.headers, options.onLog))
+      )
         return new Response(null, { status: 403 });
       return auth.handler(request);
     },
@@ -127,7 +139,10 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
         platformPermissions: await database.activePlatformPermissions(response.user.id),
         userId: response.user.id,
         sessionId: response.session.id,
-        activeCompanyId: response.session.activeCompanyId ?? null,
+        activeCompanyId:
+          typeof response.session.activeCompanyId === 'string'
+            ? response.session.activeCompanyId
+            : null,
         setCookies: out.getSetCookie(),
       };
     },
@@ -141,7 +156,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
       database.recordPlatformAction({ id: options.ids.newId(), ...entry }),
     ping: () => database.ping(),
     close: async () => {
-      await Promise.all([database.close(), staff.close()]);
+      await Promise.all([database.close(), staff.close(), personal.close()]);
     },
   };
 }
@@ -192,8 +207,25 @@ async function issueSetPasswordLink(
   return `${context.baseURL}/reset-password/${token}?callbackURL=${encodeURIComponent(redirectTo)}`;
 }
 
-function buildBetterAuth(options: AuthOptions, database: ReturnType<typeof createAuthDatabase>) {
-  return betterAuth({
+const STAFF_SESSION_FIELDS = {
+  purpose: { type: 'string', required: false, input: false },
+  staffDeviceContext: { type: 'json', required: false, input: false },
+  staffPersonalContext: { type: 'json', required: false, input: false },
+  staffAuthenticatedAt: { type: 'date', required: false, input: false },
+  staffAbsoluteDeadline: { type: 'date', required: false, input: false },
+  // A hint only, re-verified against memberships on every request (ADR-0003 §4.1); never client input.
+  activeCompanyId: { type: 'string', required: false, input: false },
+} as const;
+type StaffAuthConfiguration = BetterAuthOptions & {
+  plugins: [ReturnType<typeof twoFactor>, ReturnType<typeof registrationPlugin>];
+  session: { additionalFields: typeof STAFF_SESSION_FIELDS };
+};
+
+export function buildBetterAuth(
+  options: AuthOptions,
+  database: ReturnType<typeof createAuthDatabase>,
+): ReturnType<typeof betterAuth<StaffAuthConfiguration>> {
+  return betterAuth<StaffAuthConfiguration>({
     appName: 'PosPay',
     baseURL: options.baseURL,
     basePath: AUTH_BASE_PATH,
@@ -202,17 +234,11 @@ function buildBetterAuth(options: AuthOptions, database: ReturnType<typeof creat
     database: drizzleAdapter(database.db, { provider: 'pg', schema: database.schema }),
     // Sign-up is closed (ADR-0003 §6): users are provisioned server-side by the operator script.
     emailAndPassword: { enabled: true, disableSignUp: true },
-    session: {
-      additionalFields: {
-        purpose: { type: 'string', required: false, input: false },
-        staffDeviceContext: { type: 'json', required: false, input: false },
-        staffAuthenticatedAt: { type: 'date', required: false, input: false },
-        staffAbsoluteDeadline: { type: 'date', required: false, input: false },
-        // A hint only, re-verified against memberships on every request (ADR-0003 §4.1); never client input.
-        activeCompanyId: { type: 'string', required: false, input: false },
-      },
-    },
-    plugins: [twoFactor({ issuer: 'PosPay' })],
+    session: { additionalFields: STAFF_SESSION_FIELDS },
+    plugins: [
+      twoFactor({ issuer: 'PosPay' }),
+      registrationPlugin(passkeyPolicy(options.baseURL, options.trustedOrigins)),
+    ],
     advanced: {
       cookiePrefix: 'pospay',
       useSecureCookies: options.secureCookies,
@@ -301,4 +327,54 @@ async function normalPurpose(
     log(toLogEntry('error', 'INTERNAL_SERVER_ERROR', [error]));
     throw error;
   }
+}
+
+function personalSessions(
+  options: AuthOptions,
+  auth: ReturnType<typeof buildBetterAuth>,
+): PersonalSessions {
+  return createPersonalSessions({
+    database: createStaffOtpDatabase({
+      url: options.databaseUrl,
+      phoneLockKey: options.staffPhoneLockKey,
+    }),
+    secret: options.secret,
+    now: () => options.clock?.now() ?? new Date(),
+    primitive: {
+      create: async (userId, workspace, now, deadline) =>
+        (await auth.$context).internalAdapter.createSession(
+          userId,
+          false,
+          {
+            purpose: 'STAFF_PERSONAL',
+            staffPersonalContext: workspace,
+            staffAuthenticatedAt: now,
+            staffAbsoluteDeadline: deadline,
+            expiresAt: deadline,
+            ipAddress: null,
+            userAgent: null,
+          },
+          true,
+        ),
+      find: async (token) =>
+        (await (await auth.$context).internalAdapter.findSession(token))?.session ?? null,
+      remove: async (token) => {
+        await (await auth.$context).internalAdapter.deleteSession(token);
+      },
+    },
+  });
+}
+
+function configuredPasskeys(
+  options: AuthOptions,
+  auth: ReturnType<typeof buildBetterAuth>,
+  database: ReturnType<typeof createAuthDatabase>,
+) {
+  return createPasskeyFacade({
+    auth,
+    database,
+    ids: options.ids,
+    policy: passkeyPolicy(options.baseURL, options.trustedOrigins),
+    now: () => options.clock?.now() ?? new Date(),
+  });
 }

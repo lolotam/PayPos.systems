@@ -5,6 +5,22 @@ export interface StaffDeviceContext {
   readonly deviceId: string;
 }
 
+/** سياق الهاتف الشخصي لا يحمل جهازاً أو تصريح كاشير. */
+export interface PersonalWorkspace {
+  readonly purpose: 'STAFF_PERSONAL';
+  readonly companyId: string;
+  readonly businessId: string;
+}
+export type OtpContext = StaffDeviceContext | PersonalWorkspace;
+/** جلسة شخصية مطلقة لا تمنح صلاحيات أعمال. */
+export interface PersonalSession {
+  readonly userId: string;
+  readonly sessionId: string;
+  readonly context: PersonalWorkspace;
+  readonly authenticatedAt: Date;
+  readonly deadline: Date;
+}
+
 export interface OtpIdentity {
   readonly hash: Uint8Array;
   readonly hashKeyId: string;
@@ -15,7 +31,7 @@ export interface OtpChallenge {
   readonly recipientHash: Uint8Array;
   readonly hashKeyId: string;
   readonly userId: string | null;
-  readonly deviceContext: StaffDeviceContext;
+  readonly deviceContext: OtpContext;
   readonly codeMac: Uint8Array | null;
   readonly derivationKeyId: string | null;
   readonly verificationKeyId: string | null;
@@ -60,11 +76,11 @@ export interface OtpStrategies {
   phoneLockKey(hash: Uint8Array): bigint;
 }
 
-export interface StaffEligibility {
+export interface StaffEligibility<C extends OtpContext = StaffDeviceContext> {
   /** لا يفتح الشركة إلا بعد إثبات الجهاز، ولا يستعمل العضوية لتخمين سياق آخر. */
-  eligible(userId: string, device: StaffDeviceContext, deadline?: Date): Promise<boolean>;
+  eligible(userId: string, device: C, deadline?: Date): Promise<boolean>;
   /** يثبت الجهاز ثانية قبل الإصدار وعلى كل طلب. */
-  deviceValid(device: StaffDeviceContext, deadline?: Date): Promise<boolean>;
+  deviceValid(device: C, deadline?: Date): Promise<boolean>;
 }
 
 export interface OtpCapability {

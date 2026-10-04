@@ -68,6 +68,7 @@ export const session = pgTable(
     // بيانات خادم فقط؛ لا تمنح عضوية ولا تسمح لجلسة الجهاز بفتح الإدارة.
     purpose: text('purpose'),
     staffDeviceContext: jsonb('staff_device_context'),
+    staffPersonalContext: jsonb('staff_personal_context'),
     staffAuthenticatedAt: timestamp('staff_authenticated_at', { withTimezone: true }),
     staffAbsoluteDeadline: timestamp('staff_absolute_deadline', { withTimezone: true }),
     ...timestamps,

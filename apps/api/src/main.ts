@@ -4,6 +4,10 @@ import {
   readStaffOtpConfiguration,
   type AuthService,
   type StaffOtpApi,
+  type StaffOtpApiOptions,
+  type PersonalSession,
+  type PersonalWorkspace,
+  passkeyPolicy,
 } from '@pospay/auth';
 import { createPhoneIdentity, phoneLockKey, readOtpTemplateApproval } from '@pospay/notifications';
 import { createDatabase, createPlatformWhatsappDatabase } from '@pospay/db';
@@ -16,6 +20,7 @@ import { createApp } from './app.ts';
 import { filesRuntime } from './modules/files/index.ts';
 import { createWhatsappIntake } from './modules/notifications/index.ts';
 import { API_LOG_EVENTS } from './shared/log-events.ts';
+import { createPersonalEligibility } from './modules/staff/index.ts';
 import { staffOtpDependencies } from './modules/identity/index.ts';
 import { readConfig } from './shared/config.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
@@ -38,6 +43,8 @@ const database = createDatabase({
 // Built inside the try below: createAuth refuses a pool that is not pospay_auth before anything listens.
 let auth: AuthService | undefined;
 let otp: StaffOtpApi | undefined;
+let personalOtp:
+  ReturnType<typeof createStaffOtpApi<PersonalWorkspace, PersonalSession>> | undefined;
 let otpDependencies: ReturnType<typeof staffOtpDependencies> | undefined;
 let otpInitializing = true;
 let otpSetupFailed = false;
@@ -77,6 +84,7 @@ const release = async (): Promise<void> => {
       files?.close(),
       auth?.close(),
       otp?.close(),
+      personalOtp?.close(),
       otpDependencies?.transport.close(true),
       redis.quit(),
     ]),
@@ -152,7 +160,8 @@ try {
         process.env['NOTIFICATION_PHONE_HASH_KEY'] ?? '',
         process.env['NOTIFICATION_PHONE_HASH_KEY_ID'] ?? '',
       );
-      otp = createStaffOtpApi({
+      const otpOptions: StaffOtpApiOptions = {
+        concurrency: { active: 0 },
         onCapabilityState: (state) =>
           logger.info({ capability: { name: 'STAFF_LOGIN', state } }, 'staff OTP capability'),
         databaseUrl: config.AUTH_DATABASE_URL,
@@ -219,14 +228,32 @@ try {
             { capability: { name: 'STAFF_LOGIN', phase, failure } },
             'staff OTP preparation outcome',
           ),
+      };
+      otp = createStaffOtpApi(otpOptions);
+      personalOtp = createStaffOtpApi<PersonalWorkspace, PersonalSession>({
+        ...otpOptions,
+        sessions: service.personal,
+        eligibility: createPersonalEligibility(database),
+        audit: (action, userId) =>
+          service.recordPlatformAction({
+            actor: userId ?? 'staff',
+            action: action.replace('staff.', 'staff.personal_'),
+            targetUserId: userId,
+            details: {},
+          }),
       });
     } catch {
       logger.warn(
         { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
         'staff OTP capability',
       );
-      await closeOptional([() => otpDependencies?.transport.close(true), () => otp?.close()]);
+      await closeOptional([
+        () => otpDependencies?.transport.close(true),
+        () => otp?.close(),
+        () => personalOtp?.close(),
+      ]);
       otp = undefined;
+      personalOtp = undefined;
     }
   }
   const otpState =
@@ -242,8 +269,13 @@ try {
       { capability: { name: 'STAFF_LOGIN', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
       'staff OTP capability',
     );
-    await closeOptional([() => otpDependencies?.transport.close(true), () => otp?.close()]);
+    await closeOptional([
+      () => otpDependencies?.transport.close(true),
+      () => otp?.close(),
+      () => personalOtp?.close(),
+    ]);
     otp = undefined;
+    personalOtp = undefined;
   }
   logger.info(
     {
@@ -268,6 +300,16 @@ try {
       ],
       onShutdown: release,
       auth: { service, baseURL: config.BETTER_AUTH_URL },
+      personal: {
+        sessions: service.personal,
+        otp: personalOtp ?? null,
+        origin: passkeyPolicy(
+          config.BETTER_AUTH_URL,
+          config.AUTH_TRUSTED_ORIGINS,
+          process.env['STAFF_OTP_POS_ORIGIN'],
+        ).personalOrigin,
+        eligibility: createPersonalEligibility(database),
+      },
       staff: {
         api: otp ?? null,
         sessions: service.staff,
