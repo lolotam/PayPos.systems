@@ -2,11 +2,13 @@ import { attendanceAr } from './attendance-ar.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
 import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
+import { employeeDocumentsAr } from './employee-documents-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  employeeDocuments: employeeDocumentsAr,
   passkeyAdmin: arPasskeyAdmin,
   leave: leaveAr,
   permissionCodes: {
@@ -173,6 +175,11 @@ export const ar: Catalog = {
     generic_notice: 'تحديث بخصوص {{subject}}',
   },
   errors: {
+    DOCUMENT_TYPE_UNAVAILABLE: 'نوع الوثيقة غير موجود أو موقوف.',
+    DOCUMENT_EXPIRY_REQUIRED: 'هذا النوع من الوثائق يحتاج تاريخ انتهاء.',
+    DOCUMENT_FILE_ALREADY_RECORDED: 'هذا الملف مسجل بالفعل كوثيقة.',
+    DOCUMENT_TYPE_REVISION_CONFLICT: 'تغير نوع الوثيقة. حدّثه قبل الحفظ من جديد.',
+    DOCUMENT_TYPE_LIMIT_REACHED: 'وصلت الشركة إلى الحد الأقصى وهو ١٠٠ نوع وثيقة.',
     LEAVE_PERIOD_INVALID: 'تواريخ الإجازة أو أوقاتها غير صحيحة.',
     LEAVE_TIME_STEP_INVALID:
       'يجب أن تكون بداية الإجازة ونهايتها على خطوات ١٥ دقيقة بتوقيت الفرع المحلي.',

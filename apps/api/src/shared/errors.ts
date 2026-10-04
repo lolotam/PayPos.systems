@@ -4,6 +4,11 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
+  DOCUMENT_TYPE_UNAVAILABLE: 422,
+  DOCUMENT_EXPIRY_REQUIRED: 400,
+  DOCUMENT_FILE_ALREADY_RECORDED: 409,
+  DOCUMENT_TYPE_REVISION_CONFLICT: 409,
+  DOCUMENT_TYPE_LIMIT_REACHED: 409,
   LEAVE_PERIOD_INVALID: 400,
   LEAVE_TIME_STEP_INVALID: 400,
   LEAVE_SPAN_TOO_LONG: 400,
@@ -90,6 +95,11 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'DOCUMENT_TYPE_UNAVAILABLE',
+  'DOCUMENT_EXPIRY_REQUIRED',
+  'DOCUMENT_FILE_ALREADY_RECORDED',
+  'DOCUMENT_TYPE_REVISION_CONFLICT',
+  'DOCUMENT_TYPE_LIMIT_REACHED',
   'PASSKEY_SELF_UNBIND',
   'PASSKEY_REVISION_CONFLICT',
   'LEAVE_PERIOD_INVALID',

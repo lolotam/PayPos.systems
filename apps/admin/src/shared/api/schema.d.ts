@@ -4,6 +4,93 @@
  */
 
 export interface paths {
+    "/v1/document-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Every company document type, active first. Requires manage:document-types:company. */
+        get: operations["listDocumentTypes"];
+        put?: never;
+        /** @description Adds a company document type with a generated immutable code; audited. */
+        post: operations["createDocumentType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/document-types/{typeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Edits names, alert days and the expiry rule at the expected revision; audited. */
+        patch: operations["updateDocumentType"];
+        trace?: never;
+    };
+    "/v1/document-types/{typeId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Hides the type from new documents; existing documents keep it. Never deletes. */
+        post: operations["deactivateDocumentType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/document-types/{typeId}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Makes an inactive type selectable again. */
+        post: operations["reactivateDocumentType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current document per type with its expiry status in the business timezone. Requires read:files:business and the staff feature. */
+        get: operations["listEmployeeDocuments"];
+        put?: never;
+        /** @description Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together. */
+        post: operations["recordEmployeeDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff/personal-otp/request": {
         parameters: {
             query?: never;
@@ -1092,6 +1179,66 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
+        CreateDocumentTypeInput: {
+            name_en: string;
+            name_ar?: string | null;
+            alert_days: number;
+            requires_expiry: boolean;
+        };
+        UpdateDocumentTypeInput: {
+            name_en: string;
+            name_ar?: string | null;
+            alert_days: number;
+            requires_expiry: boolean;
+            expected_revision: number;
+        };
+        DocumentTypeRevisionInput: {
+            expected_revision: number;
+        };
+        DocumentType: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            name_en: string;
+            name_ar: string | null;
+            alert_days: number;
+            requires_expiry: boolean;
+            active: boolean;
+            revision: number;
+        };
+        DocumentTypeList: {
+            items: components["schemas"]["DocumentType"][];
+        };
+        RecordEmployeeDocumentInput: {
+            type_code: string;
+            /** Format: uuid */
+            file_id: string;
+            expires_on: (string & (string)) | null;
+        };
+        EmployeeDocument: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            type_code: string;
+            type_name_en: string;
+            type_name_ar: string | null;
+            object_key: string;
+            expires_on: (string & (string)) | null;
+            /** Format: uuid */
+            uploaded_by: string;
+            /** Format: date-time */
+            recorded_at: string;
+            status: components["schemas"]["EmployeeDocumentStatus"];
+        };
+        EmployeeDocumentsView: {
+            today: string & (string);
+            items: components["schemas"]["EmployeeDocument"][];
+            types: components["schemas"]["DocumentType"][];
+            can_manage: boolean;
+        };
         ClockChallengeInput: {
             token: components["schemas"]["AttendanceQrToken"];
             location?: {
@@ -2292,6 +2439,260 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listDocumentTypes: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description DocumentTypeList */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTypeList"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createDocumentType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDocumentTypeInput"];
+            };
+        };
+        responses: {
+            /** @description DocumentType */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentType"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateDocumentType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                typeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDocumentTypeInput"];
+            };
+        };
+        responses: {
+            /** @description DocumentType */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentType"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deactivateDocumentType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                typeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentTypeRevisionInput"];
+            };
+        };
+        responses: {
+            /** @description DocumentType */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentType"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reactivateDocumentType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                typeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentTypeRevisionInput"];
+            };
+        };
+        responses: {
+            /** @description DocumentType */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentType"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listEmployeeDocuments: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description EmployeeDocumentsView */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDocumentsView"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    recordEmployeeDocument: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordEmployeeDocumentInput"];
+            };
+        };
+        responses: {
+            /** @description EmployeeDocument */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDocument"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     requestPersonalOtp: {
         parameters: {
             query?: never;

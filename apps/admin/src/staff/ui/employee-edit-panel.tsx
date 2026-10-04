@@ -6,7 +6,7 @@ import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeEdit } from '../api/use-employees';
 import { EditEmployeeForm } from './edit-employee-form';
-import { EmployeeSalarySection } from './employee-salary-section';
+import { EmployeeRecordSections } from './employee-record-sections';
 import { EmployeeEditActions } from './employee-edit-actions';
 import { EmployeeLeaveSection } from './employee-leave-section';
 
@@ -52,7 +52,7 @@ export function EmployeeEditPanel({
       {save.isSuccess ? <p role="status">{t(locale, 'staff.saved')}</p> : null}
       {/* TODO(spec) SS-Q2: الوصول هنا يتطلب manage:employees:business؛ مدخل مستقل لمفوّض الرواتب ينتظر قرار المالك. */}
       {record.data && !record.isError ? (
-        <EmployeeSalarySection {...{ companyId, businessId: business.id, userId, employeeId }} />
+        <EmployeeRecordSections {...{ companyId, businessId: business.id, userId, employeeId }} />
       ) : null}
       <EmployeeEditActions
         pending={save.isPending}

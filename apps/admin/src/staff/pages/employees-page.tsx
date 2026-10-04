@@ -33,9 +33,14 @@ export function EmployeesPage({
         title={t(locale, 'staff.listTitle')}
         description={t(locale, 'staff.listLead')}
         action={
-          <Button asChild>
-            <Link href="/staff/create">{t(locale, 'staff.create')}</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline">
+              <Link href="/staff/document-types">{t(locale, 'employeeDocuments.typesLink')}</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/staff/create">{t(locale, 'staff.create')}</Link>
+            </Button>
+          </div>
         }
       />
       <EmployeeListPanel

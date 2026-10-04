@@ -512,6 +512,27 @@
       "when": 1791095505467,
       "tag": "0072_2026-10-04_staff-attendance-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1791101191665,
+      "tag": "0073_2026-10-04_staff-employee-documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1791101194116,
+      "tag": "0074_2026-10-04_staff-employee-documents-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1791101195972,
+      "tag": "0075_2026-10-04_document-type-permissions",
+      "breakpoints": true
     }
   ]
 }
