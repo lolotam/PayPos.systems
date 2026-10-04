@@ -76,6 +76,8 @@ const SESSIONS: Record<string, { userId: string; hint: string | null; platform?:
   operator: { userId: STRANGER, hint: null, platform: ['create:companies:platform'] },
 };
 const fakeAuth: AuthService = {
+  personal: {} as AuthService['personal'],
+  passkeys: {} as AuthService['passkeys'],
   staff: refusingStaffSessions,
   handler: async () => new Response(null, { status: 404 }),
   getSession: async (headers) => {

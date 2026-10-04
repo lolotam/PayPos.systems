@@ -114,7 +114,7 @@ EmployeeSalary    employee_id · effective_from · amount · set_by · revision 
                   setting a salary on an existing date replaces it (revision +1), never adds a second; any date,
                   audited; a change reaching a closed period becomes a correction (§6)
 EmployeeBranch    employee_id · branch_id · from · to?
-EmployeePasskey   employee_id · credential_id · public_key · sign_count · bound_at · bound_by · unbound_at? · unbound_by?
+EmployeePasskey   (company_id,id) · employee_id · passkey_id · revision · bound_at/by · unbound_at/by? — tenant binding only
                   one active row per employee (§7)
 EmployeeCard      employee_id · card_code · issued_at · revoked_at?
 Schedule          employee_id · branch_id · week_start · shifts [{day, start, end}]      ShiftTemplate
@@ -512,3 +512,9 @@ each open audited.
 PR 6 remains dependent on PRs 3/4/5 and implements existing global users on a paired POS, with active device-scoped membership plus explicit login:staff:branch. Staff/cashier bundles are explicit; Owner/admin authority alone is insufficient. OTP defaults disabled and incomplete activation closes only its capability; production API/worker stay ready with empty notification settings. Auth-owned deterministic derivation uses independent verification MACs, a hash-only global ledger, acknowledged PREPARED→PENDING release, bounded worker wait outside DB connections, at-most-once execution and shared Redis admission. All admitted outcomes share the 200 ms 202 window. Sessions use Better Auth with isolated staff cookie and original eight-hour deadline, without idle timeout or renewal, and are revalidated online on every request. Recovery uses the employee's own PIN with manager assistance; no impersonation or STOP bypass. Login does not open a shift or record attendance.
 
 The slice includes contracts/schema and exact grants, auth facade/guards, both composition roots, POS generated client/i18n/cache clearing, secret-free observability, environment/deploy injection and independent readiness smoke. ADR-0019 §7 is the complete test obligation. Before PR 20, resolve personal-phone/passkey enrollment and use the scoped staff verification contract; never auto-enroll the shared kiosk. PR 22 still requires per-clock UV, QR and presence proof. Final bilingual Meta copy/names/components and recovery copy remain TODO(spec), blocking live activation until approved.
+
+PR 20 amendment — ADR-0013 §§7–9 and ADR-0027 (owner 2026-10-04): global `passkey`
+credential/public-key/counter material is auth-only. EmployeePasskey holds the tenant binding
+and history. Enrollment requires the employee's limited personal-phone OTP session, never a
+paired kiosk session. That purpose grants no POS/admin/business permissions; explicit own-scope
+routes recheck the live employee and membership. Owner decision 2026-10-04 (recommended option): personal sessions have a fixed eight-hour absolute lifetime, without sliding renewal or idle timeout, matching ADR-0019 kiosk sessions.

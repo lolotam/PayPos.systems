@@ -8,7 +8,7 @@ import type { OtpRuntime } from './staff-otp-runtime.ts';
 import type {
   OtpAttemptRecord,
   OtpChallengeRecord,
-  OtpDeviceContext,
+  OtpContext,
   OtpExecutionResult,
 } from './staff-otp-types.ts';
 import type { Tx } from './with-tenant.ts';
@@ -190,7 +190,7 @@ const materialize = (
     return {
       challenge: {
         ...found.challenge,
-        deviceContext: found.challenge.deviceContext as OtpDeviceContext,
+        deviceContext: found.challenge.deviceContext as OtpContext,
       },
       phone: bound.phone,
     };

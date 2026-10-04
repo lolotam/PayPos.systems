@@ -225,3 +225,5 @@ export type {
   SalaryHistoryQuery,
   SalaryHistoryPage,
 } from './staff/salary.js';
+
+export * from './staff/passkeys.js';

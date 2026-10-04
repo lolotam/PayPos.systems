@@ -10,13 +10,14 @@ export const STAFF_COOKIE = 'pospay-staff.session_token';
 /** تغير الإثبات رفض متوقع، منفصل عن فشل البنية التحتية. */
 export class StaffProofChanged extends Error {}
 
-interface SessionRow {
+export interface SessionRow {
   readonly id: string;
   readonly token: string;
   readonly userId: string;
   readonly expiresAt: Date;
   readonly purpose?: string | null;
   readonly staffDeviceContext?: unknown;
+  readonly staffPersonalContext?: unknown;
   readonly staffAuthenticatedAt?: Date | null;
   readonly staffAbsoluteDeadline?: Date | null;
 }
@@ -167,7 +168,8 @@ async function normalPurpose(options: SessionOptions, headers: Headers): Promise
   const cookies = parseCookies(headers.get('cookie') ?? '');
   const raw =
     cookies.get(options.normalCookie) ?? cookies.get(options.normalCookie.replace('__Secure-', ''));
-  if (raw === undefined) return !cookies.has(STAFF_COOKIE);
+  if (raw === undefined)
+    return !cookies.has(STAFF_COOKIE) && !cookies.has('pospay-personal.session_token');
   const token = await verifiedToken(
     headers,
     cookies.has(options.normalCookie)
@@ -176,7 +178,8 @@ async function normalPurpose(options: SessionOptions, headers: Headers): Promise
     options.secret,
   );
   if (token === null) return true;
-  return (await options.primitive.find(token))?.purpose !== 'STAFF_POS';
+  const purpose = (await options.primitive.find(token))?.purpose;
+  return purpose !== 'STAFF_POS' && purpose !== 'STAFF_PERSONAL';
 }
 
 function staffRow(row: SessionRow, device: StaffDeviceContext, now: Date): StaffSession | null {
@@ -202,7 +205,7 @@ function staffRow(row: SessionRow, device: StaffDeviceContext, now: Date): Staff
   };
 }
 
-async function verifiedToken(
+export async function verifiedToken(
   headers: Headers,
   name: string,
   secret: string,

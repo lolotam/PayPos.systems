@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { passkeySchemas } from './staff/passkeys.js';
+import { passkeyPaths } from './staff/passkeys-openapi.js';
 import { scheduleSchemas } from './staff/schedules.js';
 import {
   setSalaryInput,
@@ -78,6 +80,7 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...passkeySchemas,
   ...scheduleSchemas,
   setSalaryInput,
   employeeSalary,
@@ -173,6 +176,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...passkeyPaths,
   ...settingsPaths,
   ...filePaths,
   ...staffPaths,

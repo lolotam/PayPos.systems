@@ -421,6 +421,20 @@
       "when": 1791071611895,
       "tag": "0059_2026-10-03_identity-role-followups",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1791080446440,
+      "tag": "0060_2026-10-04_staff-passkeys",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1791080462586,
+      "tag": "0061_2026-10-04_staff-passkey-grants",
+      "breakpoints": true
     }
   ]
 }

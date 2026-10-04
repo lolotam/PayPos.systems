@@ -24,7 +24,8 @@
     "qrcode.react": "4.2.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "react-hook-form": "7.89.0"
+    "react-hook-form": "7.89.0",
+    "@pospay/auth": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

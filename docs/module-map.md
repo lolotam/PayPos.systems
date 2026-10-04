@@ -89,6 +89,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `commissions`                       | `EmployeePlanPort` — retired in Phase 1: plan versions live in `commissions` (ADR-0010) | `staff`     | the employee's active commission plan                                                                                                                                |
 | `channels`                          | `ChannelFeePort`                                                                        | `expenses`  | how an aggregator commission is booked                                                                                                                               |
 | `realtime`                          | `ChannelScopePort`                                                                      | `identity`  | which channels this session may subscribe to                                                                                                                         |
+| `staff` | `PersonalMemberships` | `identity` | active membership read and locked recheck; no grants in a personal session (ADR-0027) |
 | `staff` | `EmployeeCreationScope` | `identity` | locked employee-management access and active company membership eligibility for user links (ADR-0021, PR #79) |
 | `settings` | `BusinessDiscountAccess`, `DiscountSubjectReader` | `identity` | locked discount-management authority and scoped personal limit/active owner metadata (ADR-0023) |
 | `settings` | `DiscountSubjectReader` | `tenancy` | business and branch scope confirmed before identity membership read (ADR-0023) |
@@ -113,6 +114,16 @@ No other port may write. A second synchronous write needs its own ADR and a row 
 > `payments → orders` and `orders → catalog` exist as ports in **both directions of the list** without creating a cycle, because neither module imports the other — the adapters do. If a new port would create a cycle **between adapters**, use an event instead.
 
 ---
+
+PR 20 (ADR-0013 §9, ADR-0027) injects the auth-owned restricted passkey facade at
+`apps/api/src/app.ts` into staff's registration/attendance verification port. It changes only
+identity challenge/credential counters; staff owns the binding, audit and outbox. Staff never
+imports auth. Personal-session eligibility comes from staff's exported reader, using the identity
+membership read port, and runs again on every request. No business permission is attached.
+The main root also injects staff's active-binding reader into auth for registration exclusions.
+Identity lists the verified user's membership company ids with `withUser`; staff reads bindings
+inside each `withTenant` and supplies only opaque passkey ids. Auth reads no tenant table and
+retains inert orphan credentials without excluding them or implicitly activating them.
 
 ## 4. Event arrows (the default for state changes)
 
@@ -209,7 +220,7 @@ packages_restricted:
 # Application composition roots may wire restricted packages (ADR-0018); never a business-module permission.
 composition_roots:
   auth: [apps/api/src/app.ts, apps/api/src/main.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
-  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/approve-phone-binding.ts]
+  staff-otp-db: [packages/auth/src/staff-otp/api.ts, packages/auth/src/staff-otp/execution.ts, packages/auth/src/config.ts, packages/auth/src/personal-sessions.ts, packages/auth/src/approve-phone-binding.ts]
   platform-whatsapp-db: [apps/api/src/main.ts, apps/worker/src/main.ts]
   notifications: [apps/api/src/app.ts, apps/api/src/main.ts, apps/api/scripts/bind-phone.ts, apps/worker/src/main.ts, apps/worker/src/worker.ts]
 
@@ -219,6 +230,7 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-employee.ts
   - staff -> identity.scheduleAccess @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts
   - staff -> identity.lockEmployeeSalaryAccess @ apps/api/src/modules/staff/persistence/employee-salary-access.adapter.ts

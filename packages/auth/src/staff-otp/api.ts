@@ -3,8 +3,9 @@ import { createOtpCrypto } from './crypto.ts';
 import { phaseRunner, type PreparationPhase, type PreparationFailure } from './diagnostics.ts';
 import { challengeExpiry, preparationDeadline, STAFF_LOGIN_CONCURRENCY } from './policy.ts';
 import { otpVerify } from './verify.ts';
-import type { OtpConfiguration } from './configuration.ts';
 import type { StaffSessions } from '../staff-sessions.ts';
+import type { OtpConfiguration } from './configuration.ts';
+
 import type {
   OtpCapability,
   OtpRates,
@@ -12,9 +13,12 @@ import type {
   OtpStrategies,
   StaffDeviceContext,
   StaffEligibility,
+  StaffSession,
+  OtpContext,
 } from './types.ts';
 
-export interface StaffOtpApiOptions {
+export interface StaffOtpApiOptions<C extends OtpContext = StaffDeviceContext, S = StaffSession> {
+  readonly concurrency?: { active: number };
   readonly onCapabilityState?: (state: 'DISABLED' | 'UNAVAILABLE' | 'READY') => void;
   readonly onFailure?: (phase: PreparationPhase, failure: PreparationFailure) => void;
   readonly onOutcome?: (
@@ -26,20 +30,28 @@ export interface StaffOtpApiOptions {
   readonly rates: OtpRates;
   readonly sender: OtpSender;
   readonly strategies: OtpStrategies;
-  readonly eligibility: StaffEligibility;
-  readonly sessions: StaffSessions;
+  readonly eligibility: StaffEligibility<C>;
+  readonly sessions: Partial<Record<Exclude<keyof StaffSessions, 'issue'>, unknown>> & {
+    issue(
+      userId: string,
+      device: C,
+      validate: () => Promise<boolean>,
+    ): Promise<{ session: S; cookie: string }>;
+  };
   readonly ids: { newId(): string };
   readonly clock: { now(): Date; waitUntil(deadline: Date): Promise<void> };
   readonly audit: (
     action: string,
     userId: string | null,
-    device: StaffDeviceContext,
+    device: C,
     challengeId?: string,
   ) => Promise<void>;
 }
 
-export function createStaffOtpApi(options: StaffOtpApiOptions) {
-  let active = 0;
+export function createStaffOtpApi<C extends OtpContext = StaffDeviceContext, S = StaffSession>(
+  options: StaffOtpApiOptions<C, S>,
+) {
+  const concurrency = options.concurrency ?? { active: 0 };
   const database = createStaffOtpDatabase({
     url: options.databaseUrl,
     phoneLockKey: options.strategies.phoneLockKey,
@@ -72,35 +84,26 @@ export function createStaffOtpApi(options: StaffOtpApiOptions) {
       await availability();
       return previousState ?? 'UNAVAILABLE';
     },
-    request: (input: {
-      phone: string;
-      locale: 'ar' | 'en';
-      ip: string;
-      device: StaffDeviceContext;
-    }) => {
-      if (active >= STAFF_LOGIN_CONCURRENCY)
+    request: (input: { phone: string; locale: 'ar' | 'en'; ip: string; device: C }) => {
+      if (concurrency.active >= STAFF_LOGIN_CONCURRENCY)
         return Promise.resolve({ kind: 'unavailable' as const });
-      active++;
+      concurrency.active++;
       return otpRequest(options, database, availability, input).finally(() => {
-        active--;
+        concurrency.active--;
       });
     },
-    verify: (input: {
-      challengeId: string;
-      code: string;
-      ip: string;
-      device: StaffDeviceContext;
-    }) => otpVerify({ options, database, availability, input }),
+    verify: (input: { challengeId: string; code: string; ip: string; device: C }) =>
+      otpVerify({ options, database, availability, input }),
     readiness: () => database.ping(),
     close: () => database.close(),
   };
 }
 
-async function prepareRequest(request: {
-  options: StaffOtpApiOptions;
+async function prepareRequest<C extends OtpContext, S>(request: {
+  options: StaffOtpApiOptions<C, S>;
   database: ReturnType<typeof createStaffOtpDatabase>;
   config: Extract<OtpConfiguration, { state: 'READY' }>;
-  input: { phone: string; locale: 'ar' | 'en'; device: StaffDeviceContext };
+  input: { phone: string; locale: 'ar' | 'en'; device: C };
   identity: ReturnType<OtpStrategies['identify']>;
   window: { createdAt: Date; deadline: Date; challengeId: string; attemptId: string };
 }): Promise<void> {
@@ -146,8 +149,8 @@ async function prepareRequest(request: {
   await authorizePrepared(options, database, window);
 }
 
-async function authorizePrepared(
-  options: StaffOtpApiOptions,
+async function authorizePrepared<C extends OtpContext, S>(
+  options: StaffOtpApiOptions<C, S>,
   database: ReturnType<typeof createStaffOtpDatabase>,
   window: { deadline: Date; challengeId: string; attemptId: string },
 ): Promise<void> {
@@ -173,17 +176,17 @@ async function authorizePrepared(
   }
 }
 
-export type StaffOtpApi = ReturnType<typeof createStaffOtpApi>;
+export type StaffOtpApi = ReturnType<typeof createStaffOtpApi<StaffDeviceContext, StaffSession>>;
 
-const otpRequest = async (
-  options: StaffOtpApiOptions,
+const otpRequest = async <C extends OtpContext, S>(
+  options: StaffOtpApiOptions<C, S>,
   database: ReturnType<typeof createStaffOtpDatabase>,
   availability: () => Promise<Extract<OtpConfiguration, { state: 'READY' }> | null>,
   input: {
     phone: string;
     locale: 'ar' | 'en';
     ip: string;
-    device: StaffDeviceContext;
+    device: C;
   },
 ) => {
   const config = await availability();

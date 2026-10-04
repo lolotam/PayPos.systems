@@ -23,6 +23,14 @@ export function challengeContext(
   challenge: Pick<OtpChallenge, 'id' | 'recipientHash' | 'deviceContext'>,
 ): Buffer {
   const d = challenge.deviceContext;
+  if ('purpose' in d)
+    return encode([
+      'pospay:personal-otp:context:v1',
+      challenge.id,
+      Buffer.from(challenge.recipientHash).toString('hex'),
+      d.companyId,
+      d.businessId,
+    ]);
   return encode([
     'pospay:staff-otp:context:v1',
     challenge.id,

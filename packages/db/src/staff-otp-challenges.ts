@@ -5,7 +5,7 @@ import {
 } from '../schema/identity-staff-otp.ts';
 import { user } from '../schema/identity-auth.ts';
 import type { OtpRuntime } from './staff-otp-runtime.ts';
-import type { OtpChallengeRecord, OtpDeviceContext, OtpPreparation } from './staff-otp-types.ts';
+import type { OtpChallengeRecord, OtpContext, OtpPreparation } from './staff-otp-types.ts';
 
 export function otpChallenges(runtime: OtpRuntime) {
   return {
@@ -20,7 +20,7 @@ export function otpChallenges(runtime: OtpRuntime) {
     find: (id: string, deadline?: Date) => find(runtime, id, deadline),
     consume: (
       id: string,
-      device: OtpDeviceContext,
+      device: OtpContext,
       compare: (c: OtpChallengeRecord) => boolean,
       identify: (phone: string) => Uint8Array,
       deadline?: Date,
@@ -83,16 +83,14 @@ const prepare = (runtime: OtpRuntime, input: OtpPreparation) =>
 const find = (runtime: OtpRuntime, id: string, deadline?: Date) =>
   runtime.run(async (tx): Promise<OtpChallengeRecord | null> => {
     const [row] = await tx.select().from(challenges).where(eq(challenges.id, id));
-    return row === undefined
-      ? null
-      : { ...row, deviceContext: row.deviceContext as OtpDeviceContext };
+    return row === undefined ? null : { ...row, deviceContext: row.deviceContext as OtpContext };
   }, deadline);
 
 const consume = (
   runtime: OtpRuntime,
   input: {
     id: string;
-    device: OtpDeviceContext;
+    device: OtpContext;
     compare: (c: OtpChallengeRecord) => boolean;
     identify: (phone: string) => Uint8Array;
     deadline: Date | undefined;
@@ -108,7 +106,7 @@ const consume = (
     await runtime.lock(tx, hint.hash);
     const [row] = await tx.select().from(challenges).where(eq(challenges.id, id)).for('update');
     if (row === undefined || row.status !== 'ACTIVE') return null;
-    const c = { ...row, deviceContext: row.deviceContext as OtpDeviceContext };
+    const c = { ...row, deviceContext: row.deviceContext as OtpContext };
     const [bound] =
       row.userId === null
         ? []
