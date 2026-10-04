@@ -11,7 +11,11 @@ import { createHash } from 'node:crypto';
 import { scheduleToday } from '../domain/schedule-calendar.ts';
 import { validateLeaveEmployee } from '../domain/leave-policy.ts';
 import { LeaveError, type LeaveRecord } from '../domain/leave-types.ts';
-import type { LeaveActor, LeaveTransactions } from '../ports/leave-transactions.port.ts';
+import type {
+  LeaveActor,
+  LeaveClock,
+  LeaveTransactions,
+} from '../ports/leave-transactions.port.ts';
 import {
   leaveAuthority,
   leaveAuthorityLock,
@@ -20,7 +24,7 @@ import {
 import { lockedLeaveEmployee, lockedLeaveRecord } from './leave-records.ts';
 import { saveLeave } from './leave-writes.ts';
 
-async function resolve(tx: Tx, actor: LeaveActor, action: 'create' | 'cancel') {
+async function resolve(tx: Tx, actor: LeaveActor, action: 'create' | 'cancel', clock: LeaveClock) {
   if (!(await leaveAuthorityLock(tx, actor.companyId))) throw new LeaveError('NOT_FOUND');
   const employee = await lockedLeaveEmployee(tx, actor);
   const before = await lockedLeaveRecord(tx, actor, employee.id);
@@ -36,26 +40,40 @@ async function resolve(tx: Tx, actor: LeaveActor, action: 'create' | 'cancel') {
     (b) => b.id === authorityBranch && (b.is_active || (action === 'cancel' && !actor.own)),
   );
   if (!branch) throw new LeaveError('NOT_FOUND');
+  // لا نحفظ وقتاً قبل انتظار الأقفال؛ المنحة قد تنتهي والطلب ما زال في الطابور.
+  const now = clock.now();
   const access = await leaveAuthority(
     tx,
     actor.companyId,
     actor.userId,
     actor.businessId,
     [branch.id],
+    now,
     actor.own ? (employee.user_id ?? '') : undefined,
   );
   if (!access[action].includes(branch.id)) throw new LeaveError('NOT_FOUND');
+  // علاقة الموظف بالنطاق تسبق أخطاء الأهلية، حتى لا تكشف وجود موظف في فرع آخر.
+  if (
+    !employee.attachments.some((a) => a.branch_id === branch.id) ||
+    (actor.own && employee.user_id !== actor.userId)
+  )
+    throw new LeaveError('NOT_FOUND');
   if (!access.featureEnabled) throw new LeaveError('FEATURE_DISABLED');
   if (actor.own) {
-    const [clock] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
-    const today = scheduleToday(new Date(clock?.at ?? 0), branch.effective_timezone);
+    const today = scheduleToday(now, branch.effective_timezone);
     try {
       validateLeaveEmployee(employee, branch.id, { from: today, to: today });
     } catch {
       throw new LeaveError('NOT_FOUND');
     }
   }
-  return { employee, before, branchId, timezone: before?.timezone ?? branch.effective_timezone };
+  return {
+    employee,
+    before,
+    branchId,
+    timezone: before?.timezone ?? branch.effective_timezone,
+    now,
+  };
 }
 function persistenceError(error: unknown): never {
   if (
@@ -77,12 +95,12 @@ export function createLeaveTransactions(
   ids: IdGenerator,
 ): LeaveTransactions {
   return {
-    run: async (actor, action, work) => {
+    run: async (actor, action, clock, work) => {
       try {
         return await database.withTenant(
           actor.companyId,
           async (tx) => {
-            const context = await resolve(tx, actor, action);
+            const context = await resolve(tx, actor, action, clock);
             const fingerprint = createHash('sha256')
               .update(
                 JSON.stringify([

@@ -8,8 +8,9 @@ export const leaveAuthority = (
   userId: string,
   businessId: string,
   branchIds: readonly string[],
+  now: Date,
   subjectUserId?: string,
-) => readLeaveAccess(tx, companyId, userId, businessId, branchIds, subjectUserId);
+) => readLeaveAccess(tx, companyId, userId, businessId, branchIds, now, subjectUserId);
 export async function leaveBusinessContext(tx: Tx, companyId: string, businessId: string) {
   const tree = await describeWorkspaces(tx, [{ scope: 'BUSINESS', scopeId: businessId }]);
   return tree?.id === companyId ? (tree.businesses.find((b) => b.id === businessId) ?? null) : null;

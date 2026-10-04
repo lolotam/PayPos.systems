@@ -13,7 +13,7 @@ export interface LeaveActor {
 }
 /** مصادر الساعة والمعرفات المحقونة للإنشاء والإلغاء. */
 export interface LeaveClock {
-  /** يجعل شرط الماضي والإلغاء قابلاً للاختبار. */ now(): Date;
+  /** يثبت لحظة واحدة للسلطة وأهلية الموظف والماضي وتوقيت الإنشاء أو الإلغاء. */ now(): Date;
 }
 /** توليد UUID v7 لا يعرفه قلب قواعد الإجازة. */
 export interface LeaveIds {
@@ -21,6 +21,7 @@ export interface LeaveIds {
 }
 /** مستودع المعاملة يحمل الموظف المقفول والطلب السابق والتأثيرات الذرية. */
 export interface LeaveScope {
+  /** لحظة واحدة بعد انتظار الأقفال للسلطة والأهلية والفترة والتوقيت المسجل. */ now: Date;
   employee: LeaveEmployee;
   branchId: string;
   timezone: string;
@@ -51,12 +52,14 @@ export interface LeaveTransactions {
    *
    * @param actor الفاعل المتحقق منه
    * @param action العملية المطلوبة
+   * @param clock الساعة المحقونة التي تُقرأ بعد انتظار الأقفال وتُشارك لحظتها مع قواعد الفترة والأهلية
    *
    * @param work العمل داخل حد المعاملة
    */
   run(
     actor: LeaveActor,
     action: 'create' | 'cancel',
+    clock: LeaveClock,
     work: (scope: LeaveScope) => Promise<LeaveRecord>,
   ): Promise<LeaveRecord>;
 }

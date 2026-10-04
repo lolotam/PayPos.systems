@@ -245,6 +245,32 @@ it('own requester sees and cancels their pending leave from another paired branc
     timezone: made.timezone,
   });
 });
+it('owner immunity permits own leave despite a historical DENY; the same DENY blocks a non-owner', async () => {
+  const owner = SYSTEM_ROLES.find((r) => r.code === 'owner');
+  await f.h
+    .owner`UPDATE memberships SET role_id=${owner?.id as string},scope_type='COMPANY',scope_id=${f.company} WHERE company_id=${f.company} AND id=${f.memberId}`;
+  await f.h
+    .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by) VALUES(${f.company},${leaveIds.newId()},${f.memberId},'create:leave:own','DENY','BRANCH',${f.branch},'Synthetic historical own denial',${f.userId})`;
+  const allowed = await f.h.app.inject({
+    method: 'POST',
+    url: '/v1/staff/me/leave-requests',
+    headers: own(),
+    payload: { ...ownPayload, date: '2027-02-04' },
+  });
+  expect(allowed.statusCode).toBe(201);
+  expect(allowed.json()).toMatchObject({ employee_id: f.employee.id, requested_by: f.userId });
+  const manager = SYSTEM_ROLES.find((r) => r.code === 'business_manager');
+  await f.h
+    .owner`UPDATE memberships SET role_id=${manager?.id as string},scope_type='BUSINESS',scope_id=${f.business} WHERE company_id=${f.company} AND id=${f.memberId}`;
+  const refused = await f.h.app.inject({
+    method: 'POST',
+    url: '/v1/staff/me/leave-requests',
+    headers: own(),
+    payload: { ...ownPayload, date: '2027-02-05' },
+  });
+  expect(refused.statusCode).toBe(404);
+  expect(refused.json().code).toBe('NOT_FOUND');
+});
 it('branch manager is scoped, historical Device grants cannot bypass policy, and own DENY beats defaults', async () => {
   const role = SYSTEM_ROLES.find((r) => r.code === 'branch_manager');
   await f.h

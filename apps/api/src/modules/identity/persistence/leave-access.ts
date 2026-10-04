@@ -28,8 +28,9 @@ export async function lockLeaveAccess(tx: Tx, companyId: string): Promise<boolea
  * @param userId الفاعل المثبت
  * @param businessId النشاط المحلول من tenancy
  * @param branchIds الفروع الحقيقية في النشاط
+ * @param now لحظة الساعة المحقونة المشتركة مع أهلية الموظف والفترة
  * @param subjectUserId رابط الموظف للذات، أو undefined للمدير
- * @returns فروع كل فعل مع حالة الميزة؛ DENY يغلب والذات تحتاج تطابق المستخدمين
+ * @returns فروع كل فعل مع حالة الميزة؛ DENY يغلب لغير المالك والذات تحتاج تطابق المستخدمين
  */
 export async function readLeaveAccess(
   tx: Tx,
@@ -37,10 +38,10 @@ export async function readLeaveAccess(
   userId: string,
   businessId: string,
   branchIds: readonly string[],
+  now: Date,
   subjectUserId?: string,
 ) {
-  const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
-  const access = await readAccessTransaction(tx, companyId, userId, new Date(time?.at ?? 0));
+  const access = await readAccessTransaction(tx, companyId, userId, now);
   const suffix = subjectUserId === undefined ? 'branch' : 'own';
   const target = (branchId: string) => ({
     companyId,

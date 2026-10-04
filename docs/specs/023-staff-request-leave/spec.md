@@ -19,7 +19,7 @@ PRD P1-T3/P1-T7.4, ADR-0019/0024/0025 and the owner decisions of 2026-10-04.
 - LR-07: retries return the same response with one audit and one event; different body/actor
   with the same key refuses. Rollback leaves no request, audit, outbox or idempotency effect.
 - LR-08: unknown, foreign, unlinked, deleted and inaccessible resources share NOT_FOUND;
-  expired membership, covering DENY, revoked session/device and disabled staff feature refuse.
+  expired membership, non-owner covering DENY, revoked session/device and disabled staff feature refuse.
 - LR-09: employee history and the manager pending inbox paginate within authorized branches,
   without exposing another employee to an own caller. Result shapes and indexes are tested.
 - LR-10: admin employee page offers full/partial on-behalf request, history and pending cancel
@@ -28,6 +28,16 @@ PRD P1-T3/P1-T7.4, ADR-0019/0024/0025 and the owner decisions of 2026-10-04.
   company reassignment, tenant-qualified FKs, no-context reads and forbidden role access.
 - LR-12: every human system role receives own grants, but needs an eligible Employee link;
   manager defaults cover only their membership scope. Device ALLOW cells are forbidden.
+- LR-13: request/cancel/history hide employees with no relationship to the authorized
+  branch scope before feature, employment, period or revision diagnostics. HTTP regressions
+  compare complete NOT_FOUND envelopes against unknown employees, including own routes.
+- LR-14: each leave write/read samples its injected Clock once. That same instant drives
+  authority expiry, current employee eligibility, branch-local today and recorded timestamps;
+  a frozen Clock on the contract-end day remains valid when PostgreSQL is on the next day.
+  Writes sample after authority/employee/request lock waits, so expired permission cannot
+  survive a queued request; the resumed operation still uses one shared instant.
+- LR-15: owner immunity also covers own leave codes: a historical own-leave DENY does not
+  reduce an owner, while the same DENY still refuses a non-owner's own request.
 
 ## Functional requirements and business rules
 

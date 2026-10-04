@@ -89,7 +89,7 @@ function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator):
   const tx = database === undefined ? null : createLeaveTransactions(database, ids);
   return [
     StaffLeaveGuard,
-    { provide: LEAVE_READ_ACCESS, useValue: createLeaveReadAccess() },
+    { provide: LEAVE_READ_ACCESS, useValue: createLeaveReadAccess(systemClock) },
     {
       provide: RequestLeaveUseCase,
       useValue: tx === null ? null : new RequestLeaveUseCase(tx, ids, systemClock),

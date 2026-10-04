@@ -47,6 +47,10 @@ export function leavePageSql(
     'can_cancel',l.status='PENDING' AND l.branch_id=ANY(${uuidArray(scope.cancelBranches)}) AND (${!context.own} OR l.requested_by=${context.userId})) AS record
     FROM leave_requests l WHERE l.company_id=${context.companyId} AND l.business_id=${context.businessId}
     AND l.branch_id=ANY(${uuidArray(scope.branches)}) ${employee === undefined ? sql`` : sql`AND l.employee_id=${employee}`}
+    AND EXISTS (SELECT 1 FROM employees e JOIN employee_branches eb
+      ON eb.company_id=e.company_id AND eb.employee_id=e.id
+      WHERE e.company_id=l.company_id AND e.business_id=l.business_id AND e.id=l.employee_id
+      AND e.deleted_at IS NULL AND eb.branch_id=ANY(${uuidArray(scope.branches)}))
     ${pending ? sql`AND l.status='PENDING'` : sql``}
     ${query.cursor === undefined ? sql`` : sql`AND l.id>${query.cursor}::uuid`}
     ORDER BY l.id LIMIT ${query.limit + 1}`;

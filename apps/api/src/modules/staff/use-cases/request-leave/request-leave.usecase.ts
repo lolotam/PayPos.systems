@@ -16,8 +16,8 @@ export class RequestLeaveUseCase {
     private readonly clock: LeaveClock,
   ) {}
   execute(actor: LeaveActor, input: RequestLeaveInput) {
-    return this.transactions.run(actor, 'create', async (scope) => {
-      const now = this.clock.now();
+    return this.transactions.run(actor, 'create', this.clock, async (scope) => {
+      const now = scope.now;
       const period = materializeLeave(input, scope.timezone, now, actor.own);
       validateLeaveEmployee(scope.employee, scope.branchId, period);
       validateLeaveOverlap(period, await scope.overlaps(period));

@@ -42,6 +42,7 @@ it.each(PERMISSIONS.filter((code) => code.includes(':leave:')))(
         f.managerId,
         f.business,
         [f.branch],
+        new Date(),
         permission_code.endsWith(':own') ? f.managerId : undefined,
       ),
     );

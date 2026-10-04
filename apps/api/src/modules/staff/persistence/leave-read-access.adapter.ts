@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { LeaveEmployee } from '../domain/leave-types.ts';
 import { validateLeaveEmployee } from '../domain/leave-policy.ts';
 import { scheduleToday } from '../domain/schedule-calendar.ts';
+import type { LeaveClock } from '../ports/leave-transactions.port.ts';
 export interface LeaveReadContext {
   companyId: string;
   userId: string;
@@ -20,7 +21,7 @@ async function readEmployee(tx: Tx, c: LeaveReadContext): Promise<LeaveEmployee 
     FROM employees e WHERE company_id=${c.companyId} AND business_id=${c.businessId} AND deleted_at IS NULL AND ${c.own ? sql`user_id=${c.userId}` : sql`id=${c.employeeId ?? null}::uuid`}`);
   return row?.record ?? null;
 }
-export function createLeaveReadAccess() {
+export function createLeaveReadAccess(clock: LeaveClock) {
   return {
     check: async (tx: Tx, c: LeaveReadContext) => {
       const business = await leaveBusinessContext(tx, c.companyId, c.businessId);
@@ -31,27 +32,32 @@ export function createLeaveReadAccess() {
       const branches = business.branches.filter(
         (b) => !c.own || (b.is_active && b.id === c.branchId),
       );
+      const now = clock.now();
       const access = await leaveAuthority(
         tx,
         c.companyId,
         c.userId,
         c.businessId,
         branches.map((b) => b.id),
+        now,
         c.own ? (employee?.user_id ?? '') : undefined,
       );
+      if (
+        employee &&
+        (!employee.attachments.some((a) => access.read.includes(a.branch_id)) ||
+          (c.own && employee.user_id !== c.userId))
+      )
+        return null;
       if (c.own && employee) {
         const branch = branches[0];
         if (!branch) return null;
-        const [clock] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
-        const today = scheduleToday(new Date(clock?.at ?? 0), branch.effective_timezone);
+        const today = scheduleToday(now, branch.effective_timezone);
         try {
           validateLeaveEmployee(employee, branch.id, { from: today, to: today });
         } catch {
           return null;
         }
       }
-      if (employee && !employee.attachments.some((a) => access.read.includes(a.branch_id)))
-        return null;
       return {
         ...(employee ? { employeeId: employee.id } : {}),
         // ملكية الموظف تقيد سجل الذات، بينما إذن القراءة مثبت في الفرع الحالي للجلسة.

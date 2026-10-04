@@ -13,14 +13,14 @@ export class CancelLeaveUseCase {
     private readonly clock: LeaveClock,
   ) {}
   execute(actor: LeaveActor, input: CancelLeaveInput) {
-    return this.transactions.run(actor, 'cancel', async (scope) => {
+    return this.transactions.run(actor, 'cancel', this.clock, async (scope) => {
       if (!scope.before) throw new LeaveError('NOT_FOUND');
       const after = cancelPendingLeave(
         scope.before,
         actor.userId,
         actor.own,
         input.expected_revision,
-        this.clock.now(),
+        scope.now,
       );
       await scope.save(after);
       return after;

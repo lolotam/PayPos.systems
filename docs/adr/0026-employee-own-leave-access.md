@@ -13,7 +13,13 @@ user in a proven paired-device context, without granting employee access automat
 Add `own` to permission scope recognition, without introducing an OWN membership scope.
 The pure access target carries actorUserId and subjectUserId; an own permission is refused
 unless both exist and are equal. Normal scoped ALLOW/DENY evaluation then applies at the
-verified company/business/branch. Broad grants never bypass ownership or covering DENY.
+verified company/business/branch. Broad grants never bypass ownership. For non-owners,
+covering DENY always takes precedence over ALLOW.
+The recorded owner decision of 2026-10-03 (the owner keeps everything; nobody can reduce
+an owner; never add owner DENYs) also applies to own leave codes. Owner immunity takes
+precedence over covering DENY, including historical own-leave DENYs, while ownership,
+employee scope/eligibility and feature checks still apply. This exception never weakens
+DENY for a non-owner.
 Do not allow generic @Require to infer ownership from route/body parameters. Own routes
 use one @Authenticated declaration plus the existing STAFF_ROUTE policy, and staff's
 live identity read port explicitly evaluates ownership and feature availability.
@@ -27,6 +33,11 @@ requested_by for the own route. Manager routes evaluate branch permissions on st
 Own history remains employee-bound within the session business, and the requester can cancel
 their pending request after a branch transfer: own authority and current eligibility use the
 paired branch, while the saved request retains its original branch/timezone/interval.
+Before eligibility or period diagnostics, writes verify an employee attachment to their
+authorized branch and own identity; reads apply the same visibility rule before diagnostics.
+Each write/read samples the injected Clock once and passes that instant through permission
+expiry, employee eligibility and local-period validation, including idempotent authority checks.
+Writes sample after lock waits to preserve the existing live authority check before replay.
 
 Add six leave catalog codes and exhaustive default bundles in their own custom migration;
 all Device cells are forbidden using ADR-0025's eligibility projection, including historical
