@@ -36,18 +36,19 @@ export function usePersonalSession() {
     refetchOnReconnect: 'always',
   });
   useEffect(() => {
-    if (!query.isError && !(query.isSuccess && query.data === null)) return;
+    if (!(query.isSuccess && query.data === null)) return;
     const privateQueries = {
       predicate: (item: { queryKey: readonly unknown[] }) =>
         item.queryKey[0] !== 'personal-session',
     };
     void cache.cancelQueries(privateQueries).then(() => cache.removeQueries(privateQueries));
-  }, [cache, query.isError, query.isSuccess, query.data]);
+  }, [cache, query.isSuccess, query.data]);
   return {
     epoch,
     online,
     loading: online && query.isPending,
-    session: online && query.isSuccess && !query.isFetching ? query.data : null,
+    // الجلب الدوري يحتفظ بالجلسة المؤكدة؛ فشل الشبكة وحده لا يلغي إثباتاً صالحاً.
+    session: online ? (query.data ?? null) : null,
     changed: () => {
       announcePersonalChange();
       clear();

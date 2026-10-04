@@ -24,6 +24,14 @@ synthetic authenticator and migrated PostgreSQL, plus camera/client/result UI te
   attendance/audit/event/idempotency effect and requires a fresh assertion.
 - AT-07: online-only ar/en camera → passkey → result works; cancellation/unmount stops
   capture and prevents a pending assertion from submitting after logout/offline.
+- AT-08: routine personal-session validation keeps the last confirmed session and
+  mounted camera/passkey ceremony. Confirmed invalidation, logout, operator replacement
+  or going offline tears it down and clears private caches; transient validation failure
+  does not count as confirmed invalidation.
+- AT-09: shared personal eligibility checks dated attachments against each branch's
+  local date from the injected Clock (`from <= today`, exclusive `to > today`). Unknown
+  branch dates fail closed. This also applies to OTP/session validation, enrolment
+  (including its locked recheck), own schedule and own leave.
 
 ## Slice design
 
@@ -77,6 +85,9 @@ idempotency replay/body mismatch, rollback of session/audit/outbox, suspected cl
 and board/report index EXPLAIN. POS tests cover camera scan, passkey cancellation,
 offline/cache clearing, results/exceptions in ar/en. Online-only personal scan UI
 uses the generated client; no cards, missed-out job, correction, board or alerts ship.
+Parent-screen tests keep a pending attendance request alive across polling and abort
+it on confirmed invalidation. HTTP tests cover a non-primary Kuwait attachment on
+both sides of local midnight, including the exclusive attachment end.
 
 Gates: pnpm check without FORCE_COLOR; API/POS builds, auth build for browser helper;
 production startup smoke with all optional settings empty if startup wiring changes.
@@ -98,6 +109,6 @@ production startup smoke with all optional settings empty if startup wiring chan
 
 ## Success criteria
 
-All AT-01–AT-07 checks pass, there is never more than one OPEN session per employee,
+All AT-01–AT-09 checks pass, there is never more than one OPEN session per employee,
 cross-company reads return no rows and writes cannot cross tenant-qualified FKs.
 Attendance creates no salary/commission deduction. PRs 23–28 remain separate slices.

@@ -5,6 +5,8 @@ import {
   type TenantWrappers,
 } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import { systemClock } from '../../../shared/adapters/system-clock.ts';
+import type { Clock } from '../../../shared/ports/clock.port.ts';
 import { PasskeyBindingError } from '../domain/passkey-binding.ts';
 import type { PasskeyTransactions } from '../ports/passkeys.port.ts';
 import { personalEmployee } from './personal-employee.ts';
@@ -13,6 +15,7 @@ import { personalEmployee } from './personal-employee.ts';
 export function createPasskeyTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
+  clock: Clock = systemClock,
 ): PasskeyTransactions {
   return {
     run: async (scope, work) => {
@@ -20,7 +23,7 @@ export function createPasskeyTransactions(
         return await database.withTenant(
           scope.companyId,
           async (tx) => {
-            if ((await personalEmployee(tx, scope.userId, scope, true)) !== scope.employeeId)
+            if ((await personalEmployee(tx, scope.userId, scope, true, clock)) !== scope.employeeId)
               throw new PasskeyBindingError('FORBIDDEN');
             return work({
               history: async () => {

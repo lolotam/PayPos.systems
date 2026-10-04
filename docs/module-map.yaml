@@ -44,6 +44,7 @@ reads:
   - { from: staff, to: identity, symbol: readLeaveAccess, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
   - { from: staff, to: identity, symbol: personalMemberships, file: apps/api/src/modules/staff/persistence/personal-employee.ts }
+  - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/personal-employee.ts }
   - { from: staff, to: identity, symbol: scheduleAccess, file: apps/api/src/modules/staff/persistence/schedule-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/schedule-context.adapter.ts }
   - { from: staff, to: identity, symbol: lockEmployeeSalaryAccess, file: apps/api/src/modules/staff/persistence/employee-salary-access.adapter.ts }
