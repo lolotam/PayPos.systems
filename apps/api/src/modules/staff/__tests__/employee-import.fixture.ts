@@ -6,7 +6,10 @@ import { createHash } from 'node:crypto';
 import { startHarness } from '../../../../test/harness.ts';
 import { EMPLOYEE_IMPORT_HEADERS } from '../domain/employee-import.ts';
 import { createEmployeeImportTransactions } from '../persistence/drizzle-employee-import.ts';
-import { createImportSheetReader } from '../persistence/import-adapters.ts';
+import {
+  createImportSheetReader,
+  createObjectBytesReader,
+} from '../persistence/import-adapters.ts';
 import { PreviewEmployeeImportUseCase } from '../use-cases/preview-employee-import/preview-employee-import.usecase.ts';
 import { CommitEmployeeImportUseCase } from '../use-cases/commit-employee-import/commit-employee-import.usecase.ts';
 import { GetEmployeeImportTemplateUseCase } from '../use-cases/get-employee-import-template/get-employee-import-template.usecase.ts';
@@ -41,7 +44,8 @@ export async function seedImportWorkspace(
   const memberId = ids.newId();
   await h.owner`INSERT INTO roles(id,company_id,code,name_en)
     VALUES (${ids.newId()},${company},'synthetic_import_manager','Synthetic import manager')`;
-  const [role] = await h.owner`SELECT id FROM roles WHERE company_id=${company} AND code='synthetic_import_manager'`;
+  const [role] =
+    await h.owner`SELECT id FROM roles WHERE company_id=${company} AND code='synthetic_import_manager'`;
   await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     VALUES (${company},${memberId},${userId},${role?.['id'] as string},${company},'COMPANY',${company})`;
   const business = ids.newId();
@@ -96,7 +100,7 @@ export async function employeeImportFixture() {
     }),
     preview: new PreviewEmployeeImportUseCase(
       transactions,
-      bytes,
+      createObjectBytesReader(bytes),
       createImportSheetReader(),
       ids,
       clockPort,
@@ -113,7 +117,7 @@ export async function employeeImportFixture() {
         (company_id,id,business_id,owner_module,owner_entity_id,staging_key,storage_key,content_type,size_bytes,required_permission,created_by,created_at,status)
         VALUES (${company},${fileId},${options.businessId ?? business},'staff',${business},${`staging/${fileId}`},${storageKey},
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',${content.byteLength},
-          'manage:employees:business',${options.createdBy ?? userId},now(),'READY')`;
+          'read:files:business',${options.createdBy ?? userId},now(),'READY')`;
       return fileId;
     },
   };

@@ -32,6 +32,36 @@ event, plus one import summary event.
 
 ## Requirements
 
+### Review hardening (2026-10-04)
+
+Workbook loading is guarded at 2 MiB compressed and 20 MiB actual decompressed ZIP content,
+without a new dependency. Read only present rows and stop at 501 non-empty data rows; trailing
+blank rows are ignored. Data beneath an empty header is an `IMPORT_COLUMN_UNEXPECTED` row error.
+Storage read size violations and invalid workbook content return `IMPORT_FILE_CONTENT_INVALID`
+(422); storage outages return `STORAGE_UNAVAILABLE` (503), with bilingual envelopes.
+Template and preview authorization reads do not lock companies or memberships. Unknown/foreign
+businesses follow create-employee's refusal. Commit authorizes before idempotency and requires
+the preview creator. Employee and attachment inserts, audit and outbox writes are batched.
+The injected clock supplies employee and commit timestamps. A 500-row integration measurement
+guards synchronous commit; ADR-0034 records the measured local figure and CI threshold.
+
+### Touched outside the slice
+
+- `identity/persistence/employee-creation-access.ts` and `identity/index.ts`: reuse the PR 7
+  lock protocol for commit and expose a non-locking management access read for template/preview.
+- `files/queries/document-file.query.ts`: include verified file facts needed to check import
+  business, uploader, status, type and size without exposing storage details in the HTTP response.
+- `packages/db/src/outbox.ts`: batch events while retaining aggregate locks and ordering.
+- The leave fixture is main's version, unchanged by this hardening.
+- `apps/worker/src/main.ts`: compact the existing Redis logging callback with identical behavior
+  to resolve the pre-existing 401-line lint failure discovered by the required full gate.
+
+Branch re-validation requires that the stored branch id still belongs to the business. Renaming
+does not change the id and remains valid. Inactive branches follow create-employee exactly
+(creation permits inactive branches; import does too). There is no branch soft delete.
+TODO(spec) IM-Q3: define preview retention and the privileged cleanup grant/job in a later slice;
+recommend deleting expired previews after 30 days, subject to the owner's retention decision.
+
 - FR-001: one `.xlsx` workbook, first sheet only. English header row is authoritative; the Arabic labels
   ride as cell comments on the header cells and are never parsed, so the first data row is the sheet's
   second row. `exceljs` is pinned to exactly `4.4.0` (ADR-0034).
@@ -60,8 +90,8 @@ refuse the whole preview as `IMPORT_HEADER_INVALID`. An empty data sheet is `IMP
 
 ### Framework
 
-A small, entity-agnostic table reader (`domain/import-sheet.ts`) normalises an xlsx matrix into headers
-and data rows and enforces the header contract and row cap. An entity plug-in (`domain/employee-import.ts`)
+A small, entity-agnostic table reader (`apps/api/src/shared/import/import-sheet.ts`) normalises an xlsx matrix into headers
+and data rows and enforces the header contract and row cap. An entity plug-in (`domain/employee-import-row.ts`)
 maps an employee row to a candidate and reuses `validateEmployeeCreation`. Later services/customers/packages
 imports reuse `import-sheet.ts` and add their own plug-in; the preview table, storage reader, API shape and
 UI shell are shared, so PRs 32b/34b/D-51 add a plug-in, not a second engine.
@@ -80,7 +110,7 @@ the existing verification pipeline proves it. The import re-checks ≤ 2 MiB and
 | import_previews | company_id, id, business_id, entity, file_id?, created_by, created_at, expires_at, committed_at?, row_count, error_count, rows, errors | SELECT/INSERT/UPDATE, FORCE | company/business/created_at; company/file | company root; company/business; company/file_objects |
 
 `rows` and `errors` are JSONB and carry no secret: names, role codes, dates, branch names and named error
-codes only. `file_id` is stored for provenance. No DELETE grant: a future retention job may add it.
+codes only. `file_id` is stored for provenance. No DELETE grant: TODO(spec) IM-Q3 tracks the retention decision and future cleanup job/grant.
 
 ### API contract
 
@@ -90,13 +120,14 @@ codes only. `file_id` is stored for provenance. No DELETE grant: a future retent
   `{ preview_id, row_count, error_count, errors:[{row,column,code}] }`; body `{ file_id }`.
 - POST `/v1/businesses/{businessId}/employees/import/commits`: 201
   `{ preview_id, created_count, employee_ids:[…] }`; body `{ preview_id }`; requires `Idempotency-Key`.
-- All three use `@Authenticated()` + `SelectedCompanyGuard`; permission is resolved inside the write
-  transaction at the business primary scope, exactly like create-employee.
+- All three use `@Authenticated()` + `SelectedCompanyGuard`; permission is resolved inside the tenant
+  transaction at the business primary scope. Template/preview use non-locking authorization reads;
+  commit follows create-employee's write-lock protocol.
 - Errors: `IMPORT_FILE_NOT_FOUND` (404, unknown/cross-tenant/cross-business/not-uploaded-by-caller alike),
   `IMPORT_FILE_NOT_READY` (409), `IMPORT_FILE_TYPE_INVALID` (415), `IMPORT_FILE_SIZE_INVALID` (413),
   `IMPORT_PREVIEW_NOT_FOUND` (404), `IMPORT_PREVIEW_EXPIRED` (409), `IMPORT_PREVIEW_USED` (409),
   `IMPORT_HEADER_INVALID` (422), `IMPORT_ROW_LIMIT_EXCEEDED` (422), `IMPORT_PREVIEW_HAS_ERRORS` (409),
-  plus standard access/validation/retry envelopes.
+  `IMPORT_FILE_CONTENT_INVALID` (422), `STORAGE_UNAVAILABLE` (503), plus standard access/validation/retry envelopes.
 
 ### Permissions
 
@@ -110,10 +141,12 @@ No Phase 1 consumer; registered with the dispatcher (module-map §4) and recorde
 
 ### The 200 ms rule
 
-Preview and commit run synchronously in `api`. They are bounded (≤ 500 rows, ≤ 2 MiB) and the commit must
-be one transaction the caller sees the result of immediately; the preview parse is milliseconds. ADR-0034
-records this and the trigger to move the commit to a worker with polling if the 500-row cap is ever
-measured above 200 ms. See `TODO(spec)` IM-Q2.
+Preview and commit remain synchronous as required for this hardening. The 500-row use-case call
+measured 478.40 ms on shared test Postgres, 556.74 ms alone, 634.35 ms during the first full gate,
+and 472.37 ms on the final rerun (ADR-0034). The integration gate
+uses the owner's permitted < 1,000 ms shared-database fallback. The 200 ms target is exceeded;
+TODO(spec) IM-Q2 tracks moving the whole transaction to a worker with preview-status polling
+in a later owner-approved slice. Preview and commit retain their 500-row / 2 MiB bounds.
 
 ### Test plan
 
@@ -142,5 +175,8 @@ No new dependency beyond `exceljs@4.4.0` (apps/api). No new module arrow: staff 
 
 - **IM-Q1** — should a later PR allow a `user_id`/phone column to link imported employees to existing users?
   Recommendation: no in Phase 1; linking stays an explicit edit (spec 017).
+- **IM-Q3** — define retention for names/dates in expired previews and authorize a cleanup job.
+  Recommendation: 30 days after expiry, in a separate retention slice.
 - **IM-Q2** — confirm the synchronous commit at the 500-row cap, or require an async commit with polling.
-  Recommendation: keep synchronous for Phase 1; move to a worker only if profiling shows > 200 ms.
+  Recommendation: this PR stays synchronous per the hardening ruling; schedule a worker/polling follow-up
+  because the measured shared-database call exceeds 200 ms.

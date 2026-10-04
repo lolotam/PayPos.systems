@@ -221,6 +221,7 @@ export const ar: Catalog = {
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
+    IMPORT_FILE_CONTENT_INVALID: 'محتوى ملف الاستيراد غير صالح أو تعذّرت قراءته.',
     IMPORT_FILE_NOT_FOUND: 'ملف الاستيراد غير موجود.',
     IMPORT_FILE_NOT_READY: 'ملف الاستيراد لم يجتز التحقق بعد.',
     IMPORT_FILE_TYPE_INVALID: 'نوع ملف الاستيراد يجب أن يكون Excel بصيغة xlsx.',

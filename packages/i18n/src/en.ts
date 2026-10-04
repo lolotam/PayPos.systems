@@ -225,6 +225,7 @@ export const en = {
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:
       'This user already has an active employee record in this business.',
+    IMPORT_FILE_CONTENT_INVALID: 'The import file content is invalid or unreadable.',
     IMPORT_FILE_NOT_FOUND: 'The import file was not found.',
     IMPORT_FILE_NOT_READY: 'The import file has not passed verification yet.',
     IMPORT_FILE_TYPE_INVALID: 'The import file must be an Excel .xlsx workbook.',

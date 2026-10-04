@@ -1,6 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { Card } from '@pospay/ui';
+import { Button, Card } from '@pospay/ui';
 import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -38,37 +38,38 @@ export function EmployeeImportPanel({
   const clean = preview.isSuccess && preview.data.error_count === 0;
   return (
     <Card className="flex flex-col gap-4 p-6">
-      <button
+      <Button
         type="button"
-        className="self-start rounded-md border px-3 py-2 text-sm"
+        variant="outline"
+        className="self-start"
         disabled={template.isPending || template.isError}
         onClick={() =>
           template.data && downloadBase64(template.data.file_name, template.data.content_base64)
         }
       >
         {t(locale, 'employeeImport.download')}
-      </button>
+      </Button>
       <label className="flex flex-col gap-2 text-sm">
         {t(locale, 'employeeImport.choose')}
         <input type="file" accept=".xlsx" onChange={(event) => setFile(event.target.files?.[0])} />
       </label>
       <div className="flex gap-2">
-        <button
+        <Button
           type="button"
-          className="rounded-md border px-3 py-2 text-sm"
+          variant="outline"
           disabled={file === undefined || preview.isPending}
           onClick={() => file && preview.mutate(file)}
         >
           {t(locale, 'employeeImport.preview')}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="rounded-md border px-3 py-2 text-sm"
+          variant="outline"
           disabled={!clean || commit.isPending}
           onClick={() => preview.data && commit.mutate(preview.data.preview_id)}
         >
           {t(locale, 'employeeImport.commit')}
-        </button>
+        </Button>
       </div>
       {preview.isSuccess ? <EmployeeImportErrors preview={preview.data} /> : null}
       {commit.isSuccess ? (

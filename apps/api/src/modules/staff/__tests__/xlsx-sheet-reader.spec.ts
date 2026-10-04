@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { INVALID_CELL, readSheet } from '../../../shared/import/import-sheet.ts';
 import { EMPLOYEE_IMPORT_HEADERS } from '../domain/employee-import.ts';
 import { readWorkbookMatrix } from '../persistence/xlsx-sheet-reader.ts';
+import { validateEmployeeImport } from '../use-cases/preview-employee-import/employee-import.validator.ts';
+import { EmployeeImportError, EMPLOYEE_IMPORT_MAX_BYTES } from '../domain/employee-import.ts';
 
 const HEADERS = [...EMPLOYEE_IMPORT_HEADERS];
 
@@ -48,7 +50,7 @@ describe('readWorkbookMatrix', () => {
       sheet.getCell(2, 1).value = 'first';
       sheet.getCell(5, 1).value = 'second';
     });
-    const result = readSheet(matrix, HEADERS);
+    const result = readSheet(matrix, HEADERS, 500);
     expect(typeof result === 'string' ? result : result.rows.map((row) => row.row)).toEqual([2, 5]);
   });
 
@@ -56,6 +58,61 @@ describe('readWorkbookMatrix', () => {
     const matrix = await matrixOf((sheet) => {
       sheet.getCell(1, HEADERS.length + 1).value = 'notes';
     });
-    expect(readSheet(matrix, HEADERS)).toBe('IMPORT_HEADER_INVALID');
+    expect(readSheet(matrix, HEADERS, 500)).toBe('IMPORT_HEADER_INVALID');
   });
+});
+
+describe('workbook hardening', () => {
+  it('refuses 501 real xlsx data rows before growing an intermediate row matrix', async () => {
+    await expect(
+      matrixOf((sheet) => {
+        for (let row = 2; row <= 502; row += 1) sheet.getCell(row, 1).value = `Synthetic ${row}`;
+      }),
+    ).rejects.toThrow(new EmployeeImportError('IMPORT_ROW_LIMIT_EXCEEDED'));
+  });
+
+  it('ignores a blank at row 300000 with bounded memory and preserves sparse row numbers', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('employees');
+    sheet.addRow(HEADERS);
+    sheet.getCell(300000, 1).value = ' ';
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
+    const heap = process.memoryUsage().heapUsed;
+    const start = performance.now();
+    const matrix = await readWorkbookMatrix(bytes);
+    expect(performance.now() - start).toBeLessThan(1000);
+    expect(process.memoryUsage().heapUsed - heap).toBeLessThan(64 * 1024 * 1024);
+    expect(matrix).toHaveLength(1);
+    expect(readSheet(matrix, HEADERS, 500)).toBe('IMPORT_HEADER_INVALID');
+  });
+
+  it('rejects a 2 MiB+1 file before parsing', async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet('employees').addRow(HEADERS);
+    const bytes = Buffer.alloc(EMPLOYEE_IMPORT_MAX_BYTES + 1);
+    Buffer.from(await workbook.xlsx.writeBuffer()).copy(bytes);
+    await expect(readWorkbookMatrix(bytes)).rejects.toThrow('IMPORT_FILE_CONTENT_INVALID');
+  });
+
+  it.each([
+    [null, 'unheaded data'],
+    ['', 'unheaded data'],
+    [' ', { error: '#DIV/0!' }],
+  ] as const)(
+    'reports data under an empty header %j instead of discarding it',
+    async (header, data) => {
+      const matrix = await matrixOf((sheet) => {
+        sheet.getCell(1, HEADERS.length + 1).value = header;
+        sheet.addRow(['Synthetic', null, 'staff', '2026-01-01', null, 'Main', data]);
+      });
+      const sheet = readSheet(matrix, HEADERS, 500);
+      if (typeof sheet === 'string') throw new Error(sheet);
+      expect(
+        validateEmployeeImport(sheet, new Map([['main', '00000000-0000-7000-8000-000000000001']])),
+      ).toEqual({
+        rows: [],
+        errors: [{ row: 2, column: 'unexpected_column', code: 'IMPORT_COLUMN_UNEXPECTED' }],
+      });
+    },
+  );
 });

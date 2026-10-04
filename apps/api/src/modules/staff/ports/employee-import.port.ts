@@ -16,6 +16,7 @@ export interface ImportBranch {
 export interface StoredImportPreview {
   readonly id: string;
   readonly business_id: string;
+  readonly created_by: string;
   readonly committed_at: string | null;
   readonly expires_at: string;
   readonly rows: readonly EmployeeImportCandidate[];
@@ -24,6 +25,7 @@ export interface StoredImportPreview {
 
 /** مدخلات حفظ معاينة جديدة، بلا كتابة أي موظف. */
 export interface SaveImportPreviewInput {
+  readonly rowCount: number;
   readonly id: string;
   readonly businessId: string;
   readonly entity: string;
@@ -37,7 +39,7 @@ export interface SaveImportPreviewInput {
 /** نطاق المعاينة: إثبات الإذن، قراءة الملف والفروع، وحفظ المعاينة. */
 export interface ImportPreviewScope {
   /**
-   * يثبت إدارة الموظفين في النشاط تحت أقفال PR 7 ويرفض الميزة المعطلة بخطأ مسمى.
+   * يقرأ إدارة الموظفين في النشاط دون أقفال كتابة ويرفض الميزة المعطلة بخطأ مسمى.
    *
    * @param businessId النشاط المستهدف
    * @returns هل يملك الإذن الحي
@@ -102,16 +104,23 @@ export interface ImportCommitScope {
    * @param previewId معرف المعاينة
    * @param businessId النشاط
    * @param employeeIds الموظفون المنشؤون
+   * @param committedAt نفس لحظة إنشاء الصفوف من الساعة المحقونة
    * @returns اكتمال كتابة الحدث
    */
-  summary(previewId: string, businessId: string, employeeIds: readonly string[]): Promise<void>;
+  summary(
+    previewId: string,
+    businessId: string,
+    employeeIds: readonly string[],
+    committedAt: string,
+  ): Promise<void>;
   /**
    * يستهلك المعاينة مرة واحدة بتعيين committed_at.
    *
    * @param previewId معرف المعاينة
+   * @param committedAt لحظة الالتزام من الساعة المحقونة
    * @returns اكتمال التعيين
    */
-  markCommitted(previewId: string): Promise<void>;
+  markCommitted(previewId: string, committedAt: string): Promise<void>;
 }
 
 /** حد المعاملات يسمح باختبار التنسيق دون قاعدة بيانات. */
@@ -135,13 +144,22 @@ export interface EmployeeImportTransactions {
    * @param actor الهوية المتحقق منها
    * @param actor.companyId الشركة المستهدفة
    * @param actor.userId المستخدم المستورد
+   * @param actor.previewId المعاينة التي يثبت ملكيتها قبل إعادة الرد
+   * @param actor.businessId النشاط الذي يثبت إذنه قبل مطالبة المفتاح
    * @param actor.key مفتاح idempotency
    * @param actor.fingerprint بصمة الطلب (معرف المعاينة)
    * @param work عملية الالتزام
    * @returns ناتج العملية المخزّن أو الملعب
    */
   runCommit<T>(
-    actor: { companyId: string; userId: string; key: string; fingerprint: string },
+    actor: {
+      companyId: string;
+      userId: string;
+      businessId: string;
+      previewId: string;
+      key: string;
+      fingerprint: string;
+    },
     work: (scope: ImportCommitScope) => Promise<T>,
   ): Promise<T>;
 }

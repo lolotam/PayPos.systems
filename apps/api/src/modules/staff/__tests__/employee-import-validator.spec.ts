@@ -16,7 +16,7 @@ const BRANCHES = new Map([
 ]);
 
 const sheet = (rows: readonly (readonly ImportCell[])[]): ReadSheetResult => {
-  const result = readSheet([[...EMPLOYEE_IMPORT_HEADERS], ...rows], EMPLOYEE_IMPORT_HEADERS);
+  const result = readSheet([[...EMPLOYEE_IMPORT_HEADERS], ...rows], EMPLOYEE_IMPORT_HEADERS, 500);
   if (typeof result === 'string') throw new Error(result);
   return result;
 };
@@ -78,7 +78,6 @@ describe('validateEmployeeImport named errors', () => {
       { row: 2, column: 'contract_end', code: 'IMPORT_CONTRACT_END_BEFORE_HIRE' },
     ]);
   });
-
 });
 
 describe('validateEmployeeImport cell and name refusals', () => {

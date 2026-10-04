@@ -34,6 +34,24 @@ export async function lockEmployeeManagementAccess(
 ): Promise<{ manage: boolean; featureEnabled: boolean }> {
   if (!(await lockEmployeeManagementLocks(tx, companyId)))
     return { manage: false, featureEnabled: false };
+  return readEmployeeManagementAccess(tx, companyId, userId, businessId);
+}
+
+/**
+ * يقرأ إذن إدارة الموظفين الحي دون أقفال كتابة لكي لا تعطل المعاينة محرري العضويات.
+ *
+ * @param tx معاملة القراءة داخل الشركة
+ * @param companyId الشركة المتحقق منها
+ * @param userId المدير
+ * @param businessId النشاط المطلوب
+ * @returns الإذن وحالة ميزة الموظفين
+ */
+export async function readEmployeeManagementAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+) {
   const manage = await evaluateEmployeeManagement(tx, companyId, userId, businessId, undefined);
   return {
     manage,

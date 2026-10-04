@@ -8823,7 +8823,8 @@
           "role_code",
           "hire_date",
           "contract_end",
-          "primary_branch"
+          "primary_branch",
+          "unexpected_column"
         ]
       },
       "EmployeeImportErrorCode": {
@@ -8834,6 +8835,7 @@
           "IMPORT_ROLE_INVALID",
           "IMPORT_DATE_INVALID",
           "IMPORT_CELL_INVALID",
+          "IMPORT_COLUMN_UNEXPECTED",
           "IMPORT_BRANCH_NOT_FOUND",
           "IMPORT_CONTRACT_END_BEFORE_HIRE"
         ]

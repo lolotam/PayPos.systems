@@ -24,6 +24,8 @@ export const employeeImportEn = {
   code_IMPORT_ROLE_INVALID: 'Choose a role from the reference sheet.',
   code_IMPORT_DATE_INVALID: 'Enter a real date as YYYY-MM-DD.',
   code_IMPORT_CELL_INVALID: 'This cell could not be read.',
+  code_IMPORT_COLUMN_UNEXPECTED: 'Data appears under an empty or unexpected header.',
+  column_unexpected_column: 'Unexpected column',
   code_IMPORT_BRANCH_NOT_FOUND: 'This branch name is not in the business.',
   code_IMPORT_CONTRACT_END_BEFORE_HIRE: 'Contract end must be on or after the hire date.',
 } as const;
@@ -53,6 +55,8 @@ export const employeeImportAr = {
   code_IMPORT_ROLE_INVALID: 'اختر دوراً من ورقة المرجع.',
   code_IMPORT_DATE_INVALID: 'أدخل تاريخاً ميلادياً حقيقياً بصيغة YYYY-MM-DD.',
   code_IMPORT_CELL_INVALID: 'تعذّرت قراءة هذه الخلية.',
+  code_IMPORT_COLUMN_UNEXPECTED: 'توجد بيانات أسفل عنوان فارغ أو غير متوقع.',
+  column_unexpected_column: 'عمود غير متوقع',
   code_IMPORT_BRANCH_NOT_FOUND: 'اسم الفرع غير موجود في هذا النشاط.',
   code_IMPORT_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
 } as const;

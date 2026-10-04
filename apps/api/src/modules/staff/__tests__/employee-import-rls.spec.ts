@@ -14,9 +14,16 @@ let f: EmployeeImportFixture;
 let previewId: string;
 beforeAll(async () => {
   f = await employeeImportFixture();
-  previewId = (await f.preview.execute(previewCommand(f, await f.upload(await employeeWorkbook([
-    ['RLS employee', null, 'staff', '2026-01-01', null, 'Main'],
-  ]))))).preview_id;
+  previewId = (
+    await f.preview.execute(
+      previewCommand(
+        f,
+        await f.upload(
+          await employeeWorkbook([['RLS employee', null, 'staff', '2026-01-01', null, 'Main']]),
+        ),
+      ),
+    )
+  ).preview_id;
 });
 afterAll(async () => {
   await f?.h.close();
@@ -31,7 +38,9 @@ const asOwnCompany = (statement: ReturnType<typeof sql>) =>
 it('FORCE RLS hides the preview from another tenant and refuses cross-tenant inserts', async () => {
   expect(await asOther(sql`SELECT id FROM import_previews WHERE id=${previewId}`)).toHaveLength(0);
   expect(
-    await asOther(sql`UPDATE import_previews SET committed_at=now() WHERE id=${previewId} RETURNING id`),
+    await asOther(
+      sql`UPDATE import_previews SET committed_at=now() WHERE id=${previewId} RETURNING id`,
+    ),
   ).toHaveLength(0);
   await expect(
     asOther(sql`INSERT INTO import_previews
@@ -48,6 +57,7 @@ it('runtime may only consume a preview, never delete, re-home or rewrite its row
     sql`UPDATE import_previews SET business_id=${f.secondBusiness} WHERE id=${previewId}`,
   ])
     await expect(asOwnCompany(statement)).rejects.toThrow();
-  const [table] = await f.h.owner`SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname='import_previews'`;
+  const [table] = await f.h
+    .owner`SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname='import_previews'`;
   expect([table?.['relrowsecurity'], table?.['relforcerowsecurity']]).toEqual([true, true]);
 });

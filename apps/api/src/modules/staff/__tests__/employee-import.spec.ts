@@ -62,8 +62,7 @@ it('previews a valid workbook without writing any employee, then commits all row
   expect(commit.employee_ids).toHaveLength(2);
   expect(await employeeCount()).toEqual([{ n: 2 }]);
   expect(
-    await f.h
-      .owner`SELECT count(*)::int AS n FROM employee_branches WHERE company_id=${f.company}`,
+    await f.h.owner`SELECT count(*)::int AS n FROM employee_branches WHERE company_id=${f.company}`,
   ).toEqual([{ n: 2 }]);
   const imported = await f.h.owner`SELECT event_type FROM outbox WHERE company_id=${f.company}
     ORDER BY seq`;
@@ -82,13 +81,15 @@ it('is idempotent for a repeated commit key and refuses a second commit of the s
   const replay = await f.commit.execute(commitCommand(f, preview.preview_id, 'import-idem'));
   expect(replay).toEqual(first);
   expect((await employeeCount())[0]?.['n']).toBe(3);
-  expect(await rejected(f.commit.execute(commitCommand(f, preview.preview_id, 'import-second')))).toBe(
-    'IMPORT_PREVIEW_USED',
-  );
+  expect(
+    await rejected(f.commit.execute(commitCommand(f, preview.preview_id, 'import-second'))),
+  ).toBe('IMPORT_PREVIEW_USED');
 });
 
 it('serialises two concurrent commits: one wins and one sees the preview used', async () => {
-  const fileId = await f.upload(await employeeWorkbook([['Concurrent', null, 'staff', '2026-01-01', null, 'main']]));
+  const fileId = await f.upload(
+    await employeeWorkbook([['Concurrent', null, 'staff', '2026-01-01', null, 'main']]),
+  );
   const preview = await f.preview.execute(previewCommand(f, fileId));
   const results = await Promise.allSettled([
     f.commit.execute(commitCommand(f, preview.preview_id, 'concurrent-a')),
@@ -102,7 +103,8 @@ it('serialises two concurrent commits: one wins and one sees the preview used', 
       : null,
   ).toBe('IMPORT_PREVIEW_USED');
   expect(
-    await f.h.owner`SELECT count(*)::int AS n FROM employees WHERE company_id=${f.company} AND name_en='Concurrent'`,
+    await f.h
+      .owner`SELECT count(*)::int AS n FROM employees WHERE company_id=${f.company} AND name_en='Concurrent'`,
   ).toEqual([{ n: 1 }]);
 });
 
@@ -128,7 +130,8 @@ it('an invalid row writes nothing and the preview cannot be committed', async ()
 it('refuses an expired preview and a file of another business', async () => {
   const fileId = await f.upload(await employeeWorkbook([VALID[0]]));
   const preview = await f.preview.execute(previewCommand(f, fileId));
-  await f.h.owner`UPDATE import_previews SET created_at='2000-01-01T00:00:00Z', expires_at='2000-01-02T00:00:00Z' WHERE id=${preview.preview_id}`;
+  await f.h
+    .owner`UPDATE import_previews SET created_at='2000-01-01T00:00:00Z', expires_at='2000-01-02T00:00:00Z' WHERE id=${preview.preview_id}`;
   expect(await rejected(f.commit.execute(commitCommand(f, preview.preview_id, 'expired')))).toBe(
     'IMPORT_PREVIEW_EXPIRED',
   );
@@ -141,7 +144,8 @@ it('refuses an expired preview and a file of another business', async () => {
 
 it('fails the whole commit when a branch is no longer in the business', async () => {
   const branch2 = systemUuidV7().newId();
-  await f.h.owner`INSERT INTO branches (company_id,id,business_id,name_en) VALUES (${f.company},${branch2},${f.business},'Main2')`;
+  await f.h
+    .owner`INSERT INTO branches (company_id,id,business_id,name_en) VALUES (${f.company},${branch2},${f.business},'Main2')`;
   const fileId = await f.upload(
     await employeeWorkbook([['Moved branch', null, 'staff', '2026-01-01', null, 'Main2']]),
   );
@@ -153,6 +157,41 @@ it('fails the whole commit when a branch is no longer in the business', async ()
 });
 
 it('uses the preview primary key for its lookup', async () => {
-  const plan = await f.h.owner`EXPLAIN SELECT id FROM import_previews WHERE company_id=${f.company} AND id=${'00000000-0000-7000-8000-000000000000'}`;
+  const plan = await f.h
+    .owner`EXPLAIN ANALYZE SELECT id,business_id,created_by,committed_at,expires_at,rows,errors
+    FROM import_previews WHERE company_id=${f.company} AND id=${'00000000-0000-7000-8000-000000000000'} FOR UPDATE`;
   expect(plan.map((row) => String(row['QUERY PLAN'])).join('\n')).toMatch(/import_previews_pkey/);
+});
+
+it('commits 500 rows with batched database writes within the shared CI budget', async () => {
+  const file = await f.upload(
+    await employeeWorkbook(
+      Array.from({ length: 500 }, (_, index) => [
+        `Synthetic batch ${index}`,
+        null,
+        'staff',
+        '2026-01-01',
+        null,
+        'Main',
+      ]),
+    ),
+  );
+  const preview = await f.preview.execute(previewCommand(f, file));
+  expect(preview.error_count).toBe(0);
+  const start = performance.now();
+  const result = await f.commit.execute(commitCommand(f, preview.preview_id, 'batch-500'));
+  const elapsed = performance.now() - start;
+  console.info('EMPLOYEE_IMPORT_500_COMMIT_MS', { milliseconds: Number(elapsed.toFixed(2)) });
+  expect(elapsed).toBeLessThan(1000);
+  expect(result.created_count).toBe(500);
+  const [counts] = await f.h.owner`SELECT
+    (SELECT count(*)::int FROM audit_log WHERE company_id=${f.company} AND entity_id=ANY(${result.employee_ids}::uuid[])) AS audits,
+    (SELECT count(*)::int FROM outbox WHERE company_id=${f.company} AND aggregate_id=ANY(${result.employee_ids}::uuid[])) AS events`;
+  expect(counts).toMatchObject({ audits: 500, events: 500 });
+  const [summary] = await f.h.owner`SELECT payload FROM outbox WHERE company_id=${f.company}
+    AND aggregate_id=${preview.preview_id} AND event_type='ImportCommitted'`;
+  expect(summary?.['payload'].committed_at).toBe(f.clock.value.toISOString());
+  const [employee] = await f.h
+    .owner`SELECT created_at FROM employees WHERE company_id=${f.company} AND id=${result.employee_ids[0] as string}`;
+  expect(new Date(employee?.['created_at']).toISOString()).toBe(f.clock.value.toISOString());
 });

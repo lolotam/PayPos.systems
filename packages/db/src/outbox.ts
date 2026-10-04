@@ -48,3 +48,39 @@ export async function appendOutboxEvent(tx: Tx, id: string, event: OutboxEvent):
             ${aggregateId}, ${event.eventType},
             ${toJsonb(event.payload, 'payload')}::jsonb)`);
 }
+
+/**
+ * يكتب أحداث الدفعة بأمر واحد بعد تثبيت أقفال كل aggregate بترتيب ثابت لمنع تداخل ترتيب الالتزام.
+ *
+ * @param tx معاملة الشركة التي تملك التغيير
+ * @param entries معرفات UUID v7 والأحداث ذات القيم الأولية
+ * @returns اكتمال إدخال الدفعة داخل المعاملة دون التزام مستقل
+ */
+export async function appendOutboxEvents(
+  tx: Tx,
+  entries: readonly { id: string; event: OutboxEvent }[],
+): Promise<void> {
+  if (entries.length === 0) return;
+  const locks = new Map<string, { type: string; id: string }>();
+  for (const { event } of entries) {
+    const id = assertUuid(event.aggregateId, 'aggregateId').toLowerCase();
+    locks.set(`${event.aggregateType}:${id}`, { type: event.aggregateType, id });
+  }
+  const aggregates = [...locks.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, aggregate]) => aggregate);
+  const lockValues = aggregates.map(
+    ({ type, id }, index) => sql`(${index}::int, ${type}::text, ${id}::uuid)`,
+  );
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(
+    app_company_id()::text || ':' || ordered.kind || ':' || ordered.id::text, 0))
+    FROM (SELECT kind,id FROM (VALUES ${sql.join(lockValues, sql`,`)}) AS locks(position,kind,id)
+      ORDER BY position) AS ordered`);
+  const values = entries.map(
+    ({ id, event }) => sql`(app_company_id(), ${assertUuid(id, 'id')},
+    ${event.aggregateType}, ${assertUuid(event.aggregateId, 'aggregateId')}, ${event.eventType},
+    ${toJsonb(event.payload, 'payload')}::jsonb)`,
+  );
+  await tx.execute(sql`INSERT INTO outbox (company_id,id,aggregate_type,aggregate_id,event_type,payload)
+    VALUES ${sql.join(values, sql`,`)}`);
+}

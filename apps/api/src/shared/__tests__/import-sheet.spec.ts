@@ -1,17 +1,24 @@
-import { describe, expect, it } from 'vitest';
-
 import {
-  cellText,
   excelSerialToIsoDate,
   isoDateFromText,
-  readSheet,
-} from '../import/import-sheet.ts';
+} from '../../modules/staff/domain/employee-import-cells.ts';
+import { describe, expect, it } from 'vitest';
+
+import { cellText, readSheet } from '../import/import-sheet.ts';
 
 const headers = ['a', 'b'] as const;
 
 describe('readSheet', () => {
   it('accepts the exact header set in any order and numbers data rows from 2', () => {
-    const result = readSheet([['b', 'a'], [2, 1], [4, 3]], headers);
+    const result = readSheet(
+      [
+        ['b', 'a'],
+        [2, 1],
+        [4, 3],
+      ],
+      headers,
+      500,
+    );
     expect(result).toEqual({
       headers: ['b', 'a'],
       rows: [
@@ -22,23 +29,34 @@ describe('readSheet', () => {
   });
 
   it('rejects missing, extra and duplicate headers', () => {
-    expect(readSheet([['a']], headers)).toBe('IMPORT_HEADER_INVALID');
-    expect(readSheet([['a', 'b', 'c']], headers)).toBe('IMPORT_HEADER_INVALID');
-    expect(readSheet([['a', 'a']], headers)).toBe('IMPORT_HEADER_INVALID');
-    expect(readSheet([], headers)).toBe('IMPORT_HEADER_INVALID');
+    expect(readSheet([['a']], headers, 500)).toBe('IMPORT_HEADER_INVALID');
+    expect(readSheet([['a', 'b', 'c']], headers, 500)).toBe('IMPORT_HEADER_INVALID');
+    expect(readSheet([['a', 'a']], headers, 500)).toBe('IMPORT_HEADER_INVALID');
+    expect(readSheet([], headers, 500)).toBe('IMPORT_HEADER_INVALID');
   });
 
   it('skips fully empty rows but keeps their position number', () => {
-    const result = readSheet([['a', 'b'], [null, ''], [1, 2], ['', ''], [3, 4]], headers);
+    const result = readSheet(
+      [
+        ['a', 'b'],
+        [null, ''],
+        [1, 2],
+        ['', ''],
+        [3, 4],
+      ],
+      headers,
+      500,
+    );
     expect(result).not.toBe('IMPORT_HEADER_INVALID');
     expect(typeof result === 'string' ? [] : result.rows.map((row) => row.row)).toEqual([3, 5]);
   });
 
   it('refuses 501 data rows and accepts exactly 500', () => {
     const row = [1, 2];
-    const many = (n: number) => Array.from({ length: n + 1 }, (_, i) => (i === 0 ? ['a', 'b'] : row));
-    expect(readSheet(many(500), headers) !== 'IMPORT_ROW_LIMIT_EXCEEDED').toBe(true);
-    expect(readSheet(many(501), headers)).toBe('IMPORT_ROW_LIMIT_EXCEEDED');
+    const many = (n: number) =>
+      Array.from({ length: n + 1 }, (_, i) => (i === 0 ? ['a', 'b'] : row));
+    expect(readSheet(many(500), headers, 500) !== 'IMPORT_ROW_LIMIT_EXCEEDED').toBe(true);
+    expect(readSheet(many(501), headers, 500)).toBe('IMPORT_ROW_LIMIT_EXCEEDED');
   });
 });
 

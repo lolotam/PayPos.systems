@@ -2085,9 +2085,9 @@ export interface components {
         /** Format: date */
         EmployeeDate: string;
         /** @enum {string} */
-        EmployeeImportColumn: "name_en" | "name_ar" | "role_code" | "hire_date" | "contract_end" | "primary_branch";
+        EmployeeImportColumn: "name_en" | "name_ar" | "role_code" | "hire_date" | "contract_end" | "primary_branch" | "unexpected_column";
         /** @enum {string} */
-        EmployeeImportErrorCode: "IMPORT_REQUIRED_CELL" | "IMPORT_NAME_INVALID" | "IMPORT_ROLE_INVALID" | "IMPORT_DATE_INVALID" | "IMPORT_CELL_INVALID" | "IMPORT_BRANCH_NOT_FOUND" | "IMPORT_CONTRACT_END_BEFORE_HIRE";
+        EmployeeImportErrorCode: "IMPORT_REQUIRED_CELL" | "IMPORT_NAME_INVALID" | "IMPORT_ROLE_INVALID" | "IMPORT_DATE_INVALID" | "IMPORT_CELL_INVALID" | "IMPORT_COLUMN_UNEXPECTED" | "IMPORT_BRANCH_NOT_FOUND" | "IMPORT_CONTRACT_END_BEFORE_HIRE";
         EmployeeImportRowError: {
             row: number;
             column: components["schemas"]["EmployeeImportColumn"];

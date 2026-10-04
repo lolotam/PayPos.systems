@@ -1,6 +1,7 @@
 import type { EmployeeRecord } from './create-employee.ts';
 
 // TODO(spec) IM-Q1: لا عمود user_id/هاتف هنا؛ ربط الموظف بمستخدم قائم يبقى تعديلاً صريحاً في spec 017.
+// TODO(spec) IM-Q3: مدة الاحتفاظ بالمعاينات ووظيفة الحذف بصلاحيتها تُحسم في شريحة لاحقة؛ المقترح 30 يوماً بعد الانتهاء.
 /** أعمدة قالب الموظفين بالترتيب المرجعي (PR 11 rule 3)؛ لا راتب ولا صلاحيات ولا ربط مستخدم. */
 export const EMPLOYEE_IMPORT_HEADERS = [
   'name_en',
@@ -12,7 +13,7 @@ export const EMPLOYEE_IMPORT_HEADERS = [
 ] as const;
 
 /** أعمدة ورقة الموظفين كما يعرفها المستورد. */
-export type EmployeeImportColumn = (typeof EMPLOYEE_IMPORT_HEADERS)[number];
+export type EmployeeImportColumn = (typeof EMPLOYEE_IMPORT_HEADERS)[number] | 'unexpected_column';
 
 /** أسباب رفض خلية أو صف، مطابقة لعقد الـ API (employeeImportErrorCode). */
 export type EmployeeImportErrorCode =
@@ -21,6 +22,7 @@ export type EmployeeImportErrorCode =
   | 'IMPORT_ROLE_INVALID'
   | 'IMPORT_DATE_INVALID'
   | 'IMPORT_CELL_INVALID'
+  | 'IMPORT_COLUMN_UNEXPECTED'
   | 'IMPORT_BRANCH_NOT_FOUND'
   | 'IMPORT_CONTRACT_END_BEFORE_HIRE';
 
@@ -44,6 +46,8 @@ export interface EmployeeImportCandidate {
 
 /** الحد الأقصى لحجم ملف الاستيراد (PR 11 rule 2). */
 export const EMPLOYEE_IMPORT_MAX_BYTES = 2 * 1024 * 1024;
+/** حد صفوف الموظفين من قرار المالك؛ المستوردون الآخرون يمررون حدودهم للمحرك العام. */
+export const IMPORT_MAX_ROWS = 500;
 /** نوع محتوى مصنف الاستيراد الوحيد المقبول. */
 export const EMPLOYEE_IMPORT_CONTENT_TYPE =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -72,6 +76,8 @@ export class EmployeeImportError extends Error {
       | 'IMPORT_FILE_NOT_READY'
       | 'IMPORT_FILE_TYPE_INVALID'
       | 'IMPORT_FILE_SIZE_INVALID'
+      | 'IMPORT_FILE_CONTENT_INVALID'
+      | 'STORAGE_UNAVAILABLE'
       | 'IMPORT_HEADER_INVALID'
       | 'IMPORT_ROW_LIMIT_EXCEEDED'
       | 'IMPORT_PREVIEW_NOT_FOUND'
@@ -126,7 +132,11 @@ export function validateEmployeeImportFile(
  * @returns خريطة بحروف صغيرة للأسماء الفريدة فقط
  */
 export function branchNameIndex(
-  branches: readonly { readonly id: string; readonly name_en: string; readonly name_ar: string | null }[],
+  branches: readonly {
+    readonly id: string;
+    readonly name_en: string;
+    readonly name_ar: string | null;
+  }[],
 ): Map<string, string> {
   const index = new Map<string, string>();
   const ambiguous = new Set<string>();

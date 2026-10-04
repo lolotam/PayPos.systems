@@ -7,6 +7,7 @@ import {
   appendAuditLog,
   appendAuditLogs,
   appendOutboxEvent,
+  appendOutboxEvents,
   createDatabase,
   type Database,
 } from '../index.ts';
@@ -95,6 +96,29 @@ describe('outbox', () => {
       ),
     ).rejects.toMatchObject({ cause: { constraint_name: 'outbox_event_type_format' } });
   });
+});
+
+it('batch outbox keeps input event order for one aggregate and rolls back the entire batch', async () => {
+  const first = nextId();
+  const second = nextId();
+  await database.withTenant(TENANT.A.company, (tx) =>
+    appendOutboxEvents(tx, [
+      { id: first, event: event() },
+      { id: second, event: event() },
+    ]),
+  );
+  const rows =
+    await owner`SELECT id,company_id FROM outbox WHERE id IN (${first},${second}) ORDER BY seq`;
+  expect(rows.map((row) => row['id'])).toEqual([first, second]);
+  expect(rows.every((row) => row['company_id'] === TENANT.A.company)).toBe(true);
+  const rolledBack = nextId();
+  await expect(
+    database.withTenant(TENANT.A.company, async (tx) => {
+      await appendOutboxEvents(tx, [{ id: rolledBack, event: event() }]);
+      throw new Error('Synthetic rollback');
+    }),
+  ).rejects.toThrow('Synthetic rollback');
+  expect(await outboxRows(rolledBack)).toHaveLength(0);
 });
 
 const entry = {

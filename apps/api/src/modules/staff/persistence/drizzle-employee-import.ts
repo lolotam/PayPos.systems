@@ -1,5 +1,6 @@
 import {
-  appendAuditLog,
+  appendAuditLogs,
+  appendOutboxEvents,
   appendOutboxEvent,
   runIdempotent,
   IdempotencyKeyBusyError,
@@ -11,7 +12,10 @@ import {
 import { sql } from 'drizzle-orm';
 
 import { documentFileFacts } from '../../files/index.ts';
-import { lockEmployeeManagementAccess } from '../../identity/index.ts';
+import {
+  lockEmployeeManagementAccess,
+  readEmployeeManagementAccess,
+} from '../../identity/index.ts';
 import { describeWorkspaces } from '../../tenancy/index.ts';
 import type { EmployeeRecord } from '../domain/create-employee.ts';
 import {
@@ -34,8 +38,14 @@ async function authorize(
   companyId: string,
   userId: string,
   businessId: string,
+  lock: boolean,
 ): Promise<boolean> {
-  const decision = await lockEmployeeManagementAccess(tx, companyId, userId, businessId);
+  const tree = await describeWorkspaces(tx, [{ scope: 'BUSINESS', scopeId: businessId }]);
+  if (!tree?.businesses.some((business) => business.id === businessId))
+    throw new EmployeeImportError('EMPLOYEE_BRANCH_NOT_FOUND');
+  const decision = lock
+    ? await lockEmployeeManagementAccess(tx, companyId, userId, businessId)
+    : await readEmployeeManagementAccess(tx, companyId, userId, businessId);
   if (!decision.manage) return false;
   if (!decision.featureEnabled) throw new EmployeeImportError('FEATURE_DISABLED');
   return true;
@@ -55,7 +65,7 @@ async function branches(tx: Tx, businessId: string): Promise<readonly ImportBran
 
 function previewScope(tx: Tx, companyId: string, userId: string): ImportPreviewScope {
   return {
-    authorize: (businessId) => authorize(tx, companyId, userId, businessId),
+    authorize: (businessId) => authorize(tx, companyId, userId, businessId, false),
     fileFacts: (fileId): Promise<EmployeeImportFileFacts | null> =>
       documentFileFacts(tx, companyId, fileId) as Promise<EmployeeImportFileFacts | null>,
     branches: (businessId) => branches(tx, businessId),
@@ -63,13 +73,18 @@ function previewScope(tx: Tx, companyId: string, userId: string): ImportPreviewS
   };
 }
 
-function commitScope(tx: Tx, companyId: string, userId: string, ids: IdGenerator): ImportCommitScope {
+function commitScope(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  ids: IdGenerator,
+): ImportCommitScope {
   return {
-    authorize: (businessId) => authorize(tx, companyId, userId, businessId),
+    authorize: (businessId) => authorize(tx, companyId, userId, businessId, true),
     load: (previewId) => loadPreview(tx, companyId, previewId),
     branches: (businessId) => branches(tx, businessId),
     insert: (records) => insertEmployees(tx, companyId, ids, records),
-    summary: (previewId, businessId, employeeIds) =>
+    summary: (previewId, businessId, employeeIds, committedAt) =>
       appendOutboxEvent(tx, ids.newId(), {
         aggregateType: 'import_preview',
         aggregateId: previewId,
@@ -80,12 +95,16 @@ function commitScope(tx: Tx, companyId: string, userId: string, ids: IdGenerator
           entity: 'employees',
           created_count: employeeIds.length,
           employee_ids: [...employeeIds],
-          committed_at: new Date().toISOString(),
+          committed_at: committedAt,
         },
       }),
-    markCommitted: (previewId) =>
-      tx.execute(sql`UPDATE import_previews SET committed_at=clock_timestamp()
-        WHERE company_id=${companyId} AND id=${previewId}`).then(() => undefined),
+    markCommitted: (previewId, committedAt) =>
+      tx
+        .execute(
+          sql`UPDATE import_previews SET committed_at=${committedAt}
+        WHERE company_id=${companyId} AND id=${previewId}`,
+        )
+        .then(() => undefined),
   };
 }
 
@@ -98,13 +117,14 @@ async function savePreview(
   await tx.execute(sql`INSERT INTO import_previews
     (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors)
     VALUES (${companyId},${input.id},${input.businessId},${input.entity},${input.fileId},${userId},
-      ${input.createdAt},${input.expiresAt},${input.rows.length},${input.errors.length},
+      ${input.createdAt},${input.expiresAt},${input.rowCount},${input.errors.length},
       ${JSON.stringify(input.rows)}::jsonb,${JSON.stringify(input.errors)}::jsonb)`);
 }
 
 type PreviewRow = {
   id: string;
   business_id: string;
+  created_by: string;
   committed_at: Date | string | null;
   expires_at: Date | string;
   rows: readonly EmployeeImportCandidate[];
@@ -121,12 +141,14 @@ async function loadPreview(
   companyId: string,
   previewId: string,
 ): Promise<StoredImportPreview | null> {
-  const [row] = await tx.execute<PreviewRow>(sql`SELECT id,business_id,committed_at,expires_at,rows,errors
+  const [row] =
+    await tx.execute<PreviewRow>(sql`SELECT id,business_id,created_by,committed_at,expires_at,rows,errors
     FROM import_previews WHERE company_id=${companyId} AND id=${previewId} FOR UPDATE`);
   if (row === undefined) return null;
   return {
     id: row.id,
     business_id: row.business_id,
+    created_by: row.created_by,
     committed_at: row.committed_at === null ? null : asIso(row.committed_at),
     expires_at: asIso(row.expires_at),
     rows: row.rows,
@@ -140,34 +162,53 @@ async function insertEmployees(
   ids: IdGenerator,
   records: readonly EmployeeRecord[],
 ): Promise<void> {
-  for (const record of records) {
-    await tx.execute(sql`INSERT INTO employees (company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,role_code,hire_date,contract_end,created_at)
-      VALUES (${companyId},${record.id},${record.business_id},${record.primary_branch_id},${record.user_id},${record.name_ar},${record.name_en},${record.role_code},${record.hire_date},${record.contract_end},${record.created_at})`);
-    await tx.execute(sql`INSERT INTO employee_branches (company_id,id,business_id,employee_id,branch_id,"from")
-      VALUES (${companyId},${ids.newId()},${record.business_id},${record.id},${record.primary_branch_id},${record.hire_date})`);
-    await appendAuditLog(tx, ids.newId(), {
-      entity: 'employee',
-      entityId: record.id,
-      action: 'imported',
-      after: record,
-    });
-    await appendOutboxEvent(tx, ids.newId(), {
-      aggregateType: 'employee',
-      aggregateId: record.id,
-      eventType: 'EmployeeImported',
-      payload: {
-        employee_id: record.id,
-        business_id: record.business_id,
-        primary_branch_id: record.primary_branch_id,
-        name_en: record.name_en,
-        name_ar: record.name_ar,
-        role_code: record.role_code,
-        hire_date: record.hire_date,
-        contract_end: record.contract_end,
-        created_at: record.created_at,
+  if (records.length === 0) return;
+  const employees = records.map(
+    (r) =>
+      sql`(${companyId},${r.id},${r.business_id},${r.primary_branch_id},${r.user_id},${r.name_ar},${r.name_en},${r.role_code},${r.hire_date},${r.contract_end},${r.created_at})`,
+  );
+  await tx.execute(sql`INSERT INTO employees (company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,role_code,hire_date,contract_end,created_at)
+    VALUES ${sql.join(employees, sql`,`)}`);
+  const attachments = records.map(
+    (r) =>
+      sql`(${companyId},${ids.newId()},${r.business_id},${r.id},${r.primary_branch_id},${r.hire_date})`,
+  );
+  await tx.execute(sql`INSERT INTO employee_branches (company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES ${sql.join(attachments, sql`,`)}`);
+  await appendAuditLogs(
+    tx,
+    records.map((record) => ({
+      id: ids.newId(),
+      entry: {
+        entity: 'employee',
+        entityId: record.id,
+        action: 'imported',
+        after: record,
       },
-    });
-  }
+    })),
+  );
+  await appendOutboxEvents(
+    tx,
+    records.map((record) => ({
+      id: ids.newId(),
+      event: {
+        aggregateType: 'employee',
+        aggregateId: record.id,
+        eventType: 'EmployeeImported',
+        payload: {
+          employee_id: record.id,
+          business_id: record.business_id,
+          primary_branch_id: record.primary_branch_id,
+          name_en: record.name_en,
+          name_ar: record.name_ar,
+          role_code: record.role_code,
+          hire_date: record.hire_date,
+          contract_end: record.contract_end,
+          created_at: record.created_at,
+        },
+      },
+    })),
+  );
 }
 
 function cleanImportError(error: unknown): never {
@@ -203,17 +244,28 @@ export function createEmployeeImportTransactions(
         cleanImportError(error);
       }
     },
-    runCommit: async ({ companyId, userId, key, fingerprint }, work) => {
+    runCommit: async ({ companyId, userId, businessId, previewId, key, fingerprint }, work) => {
       try {
         return await database.withTenant(
           companyId,
           async (tx) => {
             const scope = commitScope(tx, companyId, userId, ids);
+            if (!(await scope.authorize(businessId))) throw new EmployeeImportError('FORBIDDEN');
+            const preview = await scope.load(previewId);
+            if (
+              preview === null ||
+              preview.business_id !== businessId ||
+              preview.created_by !== userId
+            )
+              throw new EmployeeImportError('IMPORT_PREVIEW_NOT_FOUND');
             const result = await runIdempotent(
               tx,
               { scope: 'COMPANY', operation: 'import-employees', key, fingerprint },
               async () => {
-                const body = await work(scope);
+                const body = await work({
+                  ...scope,
+                  load: async (id) => (id === previewId ? preview : scope.load(id)),
+                });
                 return { status: 201, body };
               },
             );

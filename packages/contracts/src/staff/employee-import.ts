@@ -2,9 +2,17 @@ import { z } from 'zod';
 
 import { id } from '../scalars/id.js';
 
-// ترتيب الأعمدة الإنجليزي هو المرجع؛ صف العناوين العربي الثاني للقراءة فقط ولا يُقرأ.
+// ترتيب الأعمدة الإنجليزي هو المرجع؛ التسميات العربية تعليقات على العناوين وليست صف بيانات.
 export const employeeImportColumn = z
-  .enum(['name_en', 'name_ar', 'role_code', 'hire_date', 'contract_end', 'primary_branch'])
+  .enum([
+    'name_en',
+    'name_ar',
+    'role_code',
+    'hire_date',
+    'contract_end',
+    'primary_branch',
+    'unexpected_column',
+  ])
   .meta({ id: 'EmployeeImportColumn' });
 // رموز أخطاء الصف: الـ UI يترجمها من مفاتيح i18n مع رقم الصف والعمود.
 export const employeeImportErrorCode = z
@@ -14,6 +22,7 @@ export const employeeImportErrorCode = z
     'IMPORT_ROLE_INVALID',
     'IMPORT_DATE_INVALID',
     'IMPORT_CELL_INVALID',
+    'IMPORT_COLUMN_UNEXPECTED',
     'IMPORT_BRANCH_NOT_FOUND',
     'IMPORT_CONTRACT_END_BEFORE_HIRE',
   ])
@@ -29,9 +38,7 @@ export const employeeImportRowError = z
 export const employeeImportTemplate = z
   .strictObject({
     file_name: z.string().min(1).max(255),
-    content_type: z.literal(
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    ),
+    content_type: z.literal('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
     content_base64: z.string().min(1),
   })
   .meta({ id: 'EmployeeImportTemplate' });

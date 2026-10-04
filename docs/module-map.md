@@ -271,6 +271,7 @@ reads:
   - staff -> tenancy.businessTimeZone @ apps/api/src/modules/staff/persistence/document-access.adapter.ts
   - staff -> files.documentFileFacts @ apps/api/src/modules/staff/persistence/document-files.adapter.ts
   - staff -> files.documentFileFacts @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
+  - staff -> identity.readEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
 ```
