@@ -26,8 +26,7 @@ async function signature(client: postgres.Sql | postgres.TransactionSql, oid: nu
       'columns', (SELECT jsonb_agg(pg_get_indexdef(i.indexrelid, n, false) ORDER BY n)
                   FROM generate_series(1, i.indnatts) AS n),
       'predicate', pg_get_expr(i.indpred, i.indrelid, false),
-      'options', (SELECT jsonb_agg(value ORDER BY value) FROM unnest(c.reloptions) AS value),
-      'tablespace', c.reltablespace
+      'options', (SELECT jsonb_agg(value ORDER BY value) FROM unnest(c.reloptions) AS value)
     )::text AS definition
     FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE c.oid = ${oid}`;
   if (!row) throw new Error('Concurrent index disappeared during definition comparison');
@@ -61,6 +60,20 @@ async function expectedSignature(
   });
 }
 
+async function hasActiveBuild(client: postgres.Sql, oid: number): Promise<boolean> {
+  const [row] = await client<{ active: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_stat_progress_create_index
+      WHERE datid = (SELECT oid FROM pg_database WHERE datname = current_database())
+        AND index_relid = ${oid}
+    ) OR EXISTS (
+      SELECT 1 FROM pg_locks
+      WHERE database = (SELECT oid FROM pg_database WHERE datname = current_database())
+        AND relation = ${oid} AND pid IS DISTINCT FROM pg_backend_pid()
+    ) AS active`;
+  return row?.active === true;
+}
+
 /** يفك بقايا البناء المقطوع، ولا يقبل index صالحاً إلا إذا طابق التعريف المطلوب. */
 export async function runConcurrentIndex(client: postgres.Sql, statement: string): Promise<void> {
   const index = parseConcurrentIndex(statement);
@@ -78,11 +91,20 @@ export async function runConcurrentIndex(client: postgres.Sql, statement: string
     LEFT JOIN pg_index i ON i.indexrelid = c.oid
     WHERE n.nspname = ${table.schema} AND c.relname = ${index.indexName}::name`;
   const name = `${quoteIdentifier(table.schema)}.${quoteIdentifier(index.indexName)}`;
+  // نتحقق من الجدول قبل إسقاط أي بقايا؛ الاسم وحده لا يثبت أنها تخص هذا migration.
+  if (existing && existing.tableOid !== table.oid) {
+    throw new Error(
+      `Concurrent index ${name} already exists with a different definition; migration aborted (target table differs)`,
+    );
+  }
   if (existing?.valid === false) {
+    // index غير صالح قد يكون قيد البناء الآن؛ لا نلغي عمل session أخرى.
+    if (await hasActiveBuild(client, existing.oid)) {
+      throw new Error(`Concurrent index ${name} has an active build or lock; retry later`);
+    }
     await client.unsafe(`DROP INDEX CONCURRENTLY ${name}`);
   } else if (existing) {
     if (
-      existing.tableOid !== table.oid ||
       existing.valid !== true ||
       (await signature(client, existing.oid)) !==
         (await expectedSignature(client, index, table.schema))

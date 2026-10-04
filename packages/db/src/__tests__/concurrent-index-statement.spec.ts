@@ -73,3 +73,57 @@ it.each(['DROP INDEX CONCURRENTLY IF EXISTS idx', 'CREATE INDEX idx ON things (i
     expect(parseConcurrentIndex(sql)).toBeUndefined();
   },
 );
+
+it.each([
+  '(id); SELECT 1',
+  '(id); /* suffix */ CREATE TABLE side_effect (id int)',
+  '(id); -- suffix\nINSERT INTO side_effect VALUES (1);',
+  '(id);;',
+  "(id) WHERE label = 'unterminated",
+  '(id) WHERE label = $Tag$unterminated$tag$',
+])('rejects extra statements and unterminated literals: %s', (definition) => {
+  expect(
+    parseConcurrentIndex(`CREATE INDEX CONCURRENTLY idx ON things ${definition}`),
+  ).toBeUndefined();
+});
+
+it.each([
+  `(id) WHERE label = '; SELECT 1'`,
+  `(id) WHERE label = E'escaped\\'; SELECT 1'`,
+  '(id) WHERE label = $Tag$; $tag$; SELECT 1$Tag$',
+  '("id;"); /* outer /* nested ; */ comment */',
+])('accepts semicolons inside protected SQL text: %s', (definition) => {
+  expect(
+    parseConcurrentIndex(
+      `/* leading */ -- retry\nCREATE INDEX CONCURRENTLY idx ON things ${definition}`,
+    ),
+  ).toBeDefined();
+});
+
+it('preserves mixed-case dollar-quoted contents when rebinding the definition probe', () => {
+  const definition =
+    '(id) WHERE public.things.label = $Tag$before $tag$ public.things.id; TABLESPACE elsewhere $Tag$';
+  const parsed = parseConcurrentIndex(`CREATE INDEX CONCURRENTLY idx ON things ${definition}`);
+  if (!parsed) throw new Error('Expected concurrent CREATE');
+  expect(probeDefinition(parsed, 'public')).toBe(
+    '(id) WHERE "things".label = $Tag$before $tag$ public.things.id; TABLESPACE elsewhere $Tag$',
+  );
+});
+
+it('omits the tablespace clause from the probe while preserving predicate text', () => {
+  const parsed = parseConcurrentIndex(
+    `CREATE INDEX CONCURRENTLY idx ON things (id) TABLESPACE "Custom.Space" WHERE label = 'TABLESPACE elsewhere' AND tablespace IS NULL;`,
+  );
+  if (!parsed) throw new Error('Expected concurrent CREATE');
+  expect(probeDefinition(parsed, 'public')).toBe(
+    `(id)  WHERE label = 'TABLESPACE elsewhere' AND tablespace IS NULL;`,
+  );
+});
+
+it('preserves expressions using a column named tablespace', () => {
+  const parsed = parseConcurrentIndex(
+    'CREATE INDEX CONCURRENTLY idx ON things ((tablespace IS NULL)) TABLESPACE pg_default',
+  );
+  if (!parsed) throw new Error('Expected concurrent CREATE');
+  expect(probeDefinition(parsed, 'public')).toBe('((tablespace IS NULL)) ');
+});

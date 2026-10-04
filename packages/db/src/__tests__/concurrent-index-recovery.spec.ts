@@ -196,3 +196,58 @@ it('keeps concurrent-prefix validation and ordinary CREATE INDEX execution uncha
   await expect(applyMigrations(owner, 'unused')).rejects.toMatchObject({ code: '42P07' });
   expect(await journalCount()).toBe(0);
 });
+
+it('never drops an invalid same-name index belonging to another table', async () => {
+  await owner`CREATE TABLE recovery_invalid_target (id int)`;
+  await owner`CREATE TABLE recovery_invalid_other (id int)`;
+  await owner`INSERT INTO recovery_invalid_other VALUES (1), (1)`;
+  await expect(
+    owner`CREATE UNIQUE INDEX CONCURRENTLY recovery_invalid_other_idx ON recovery_invalid_other (id)`,
+  ).rejects.toMatchObject({ code: '23505' });
+  const before = await indexState('recovery_invalid_other_idx');
+  expect(before?.valid).toBe(false);
+  files.sql = [
+    'CREATE UNIQUE INDEX CONCURRENTLY recovery_invalid_other_idx ON recovery_invalid_target (id)',
+  ];
+  await expect(applyMigrations(owner, 'unused')).rejects.toThrow('target table differs');
+  expect(await indexState('recovery_invalid_other_idx')).toEqual(before);
+  expect(await journalCount()).toBe(0);
+});
+
+it.each([false, true])(
+  'rejects a multi-statement chunk before execution or probing (existing=%s)',
+  async (existing) => {
+    const table = existing ? 'recovery_chunk_existing' : 'recovery_chunk_first';
+    const index = `${table}_idx`;
+    await owner.unsafe(`CREATE TABLE ${table} (id int)`);
+    if (existing) await owner.unsafe(`CREATE INDEX ${index} ON ${table} (id)`);
+    const before = await indexState(index);
+    files.sql = [
+      `CREATE INDEX CONCURRENTLY ${index} ON ${table} (id); INSERT INTO public.${table} VALUES (1)`,
+    ];
+    const execute = vi.spyOn(owner, 'unsafe');
+    try {
+      await expect(applyMigrations(owner, 'unused')).rejects.toThrow(
+        'Cannot safely resolve CREATE INDEX CONCURRENTLY statement',
+      );
+      expect(execute).not.toHaveBeenCalled();
+    } finally {
+      execute.mockRestore();
+    }
+    expect(await indexState(index)).toEqual(before);
+    expect(await owner.unsafe(`SELECT * FROM ${table}`)).toHaveLength(0);
+    expect(await journalCount()).toBe(0);
+  },
+);
+
+it('ignores tablespace in definition comparisons without resolving it', async () => {
+  await owner`CREATE TABLE recovery_tablespace (id int)`;
+  await owner`CREATE INDEX recovery_tablespace_idx ON recovery_tablespace (id)`;
+  const before = await indexState('recovery_tablespace_idx');
+  files.sql = [
+    'CREATE INDEX CONCURRENTLY recovery_tablespace_idx ON recovery_tablespace (id) TABLESPACE unused_storage',
+  ];
+  await applyMigrations(owner, 'unused');
+  expect(await indexState('recovery_tablespace_idx')).toEqual(before);
+  expect(await journalCount()).toBe(1);
+});

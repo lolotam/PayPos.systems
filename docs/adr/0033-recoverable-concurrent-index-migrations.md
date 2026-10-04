@@ -50,3 +50,27 @@ first execution, completed build plus rolled-back suffix/missing journal retry w
 invalid unique-build recovery, rejection of different valid definitions, and quoted index/table
 names in a non-default schema. Parser tests cover UNIQUE, WHERE, escaped quotes, qualified
 table names, optional IF NOT EXISTS, and every concurrent CREATE in migration history.
+
+## Amendment — recovery safeguards (2026-10-04)
+
+The target schema and table identity must match before either invalid-index recovery or
+valid-index comparison. A same-name index on another table is rejected without dropping it,
+regardless of validity.
+
+An invalid index is not necessarily abandoned. Before recovery, inspect
+`pg_stat_progress_create_index` and relation locks in the current database. An active build
+or a lock held by another session aborts with a clear `retry later` message. Only an invalid
+index with no active build or other-session relation lock is dropped. A live-build regression
+holds an open writer transaction to pause a concurrent build in its invalid phase, proves
+recovery leaves its OID intact and the journal empty, then releases it and retries successfully.
+
+Parse exactly one concurrent CREATE before executing anything or creating a definition probe.
+Leading comments and a trailing semicolon are permitted; extra statements and unterminated
+literals are rejected. Semicolons in quoted names, strings, dollar-quoted strings, and comments
+are not statement boundaries. Dollar-quote closing tags match case-sensitively.
+
+This amendment supersedes the original inclusion of tablespace in the comparison above.
+The project does not set custom tablespaces. Tablespace is excluded from the catalog signature,
+and the TABLESPACE clause is omitted from the definition probe. No tablespace resolution is
+performed. The original statement still determines storage placement on a first execution.
+All other index-definition attributes, transaction handling and journal semantics are unchanged.
