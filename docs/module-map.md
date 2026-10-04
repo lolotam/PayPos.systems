@@ -234,6 +234,9 @@ reads:
   - staff -> identity.lockPasskeyAccess @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
   - staff -> identity.readPasskeyAccess @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
+  - staff -> identity.lockLeaveAccess @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
+  - staff -> identity.readLeaveAccess @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-employee.ts
   - staff -> identity.scheduleAccess @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/schedule-context.adapter.ts

@@ -4,6 +4,7 @@ import { FUNCTION_INVENTORY } from '../../test/function-inventory.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
 import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
 import { SCHEDULE_COLUMN_GRANTS } from '../../test/schedule-grants.ts';
+import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -63,6 +64,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'in_app_notifications:INSERT',
     'in_app_notifications:SELECT',
     'in_app_notifications:UPDATE',
+    'leave_requests:INSERT',
+    'leave_requests:SELECT',
     'memberships:DELETE',
     'memberships:INSERT',
     'memberships:SELECT',
@@ -231,6 +234,7 @@ describe('direct privileges match the reviewed allowlist', () => {
     ).toEqual(
       [
         ...OTP_COLUMN_GRANTS,
+        ...LEAVE_COLUMN_GRANTS,
         ...FILE_COLUMN_GRANTS,
         ...OUTBOX_COLUMN_GRANTS,
         ...EMPLOYEE_COLUMN_GRANTS,

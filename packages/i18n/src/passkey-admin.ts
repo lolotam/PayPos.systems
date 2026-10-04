@@ -13,6 +13,8 @@ export const enPasskeyAdmin = {
   saved: 'Passkey unbound. The employee can enroll again.',
   invalid: 'Enter a reason of 1–500 characters.',
   empty: 'No employees available for passkey management.',
+  permissionRead: 'Read employee passkey bindings',
+  permissionUnbind: 'Unbind employee passkeys',
 };
 export const arPasskeyAdmin: Record<keyof typeof enPasskeyAdmin, string> = {
   title: 'مفتاح مرور الموظف',
@@ -29,4 +31,6 @@ export const arPasskeyAdmin: Record<keyof typeof enPasskeyAdmin, string> = {
   saved: 'تم فك الربط. يمكن للموظف التسجيل من جديد.',
   invalid: 'اكتب سبباً من حرف واحد إلى ٥٠٠ حرف.',
   empty: 'لا يوجد موظفون متاحون لإدارة مفاتيح المرور.',
+  permissionRead: 'قراءة ربط مفاتيح مرور الموظفين',
+  permissionUnbind: 'فك ربط مفاتيح مرور الموظفين',
 };

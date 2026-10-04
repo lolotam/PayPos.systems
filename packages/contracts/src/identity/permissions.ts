@@ -17,7 +17,7 @@ export const revokePermissionOverrideInput = z
   .meta({ id: 'RevokePermissionOverrideInput' });
 export const permissionOverrideInput = z
   .strictObject({
-    permission_code: z.string().regex(/^[a-z][a-z-]*:[a-z][a-z-]*:(company|business|branch)$/),
+    permission_code: z.string().regex(/^[a-z][a-z-]*:[a-z][a-z-]*:(company|business|branch|own)$/),
     effect: z.enum(['ALLOW', 'DENY']),
     scope_type: permissionScopeType,
     scope_id: id,

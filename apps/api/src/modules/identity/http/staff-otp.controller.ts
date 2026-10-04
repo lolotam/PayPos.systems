@@ -28,7 +28,8 @@ import { toWebHeaders } from '../../../shared/web-headers.ts';
 
 export const STAFF_OTP_API = Symbol('STAFF_OTP_API');
 export const STAFF_SESSIONS = Symbol('STAFF_SESSIONS');
-export const STAFF_POS_ORIGIN = Symbol('STAFF_POS_ORIGIN');
+export { STAFF_POS_ORIGIN } from '../../../shared/staff-origin.token.ts';
+import { STAFF_POS_ORIGIN } from '../../../shared/staff-origin.token.ts';
 
 @Controller('devices/me')
 export class StaffOtpController {

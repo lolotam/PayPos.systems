@@ -75,6 +75,11 @@ it('covers exactly the current catalog and every system role', () => {
 for (const role of SYSTEM_ROLES) {
   it.each(PERMISSIONS)(`${role.code} default for %s follows the owner matrix`, (code) => {
     const actual: readonly string[] = ROLE_DEFAULTS[code];
-    expect(actual.includes(role.code)).toBe(expectations[role.code]?.includes(code));
+    const leaveDefault = code.endsWith(':leave:own')
+      ? role.code !== 'device'
+      : code.endsWith(':leave:branch')
+        ? ['owner', 'general_manager', 'business_manager', 'branch_manager'].includes(role.code)
+        : expectations[role.code]?.includes(code);
+    expect(actual.includes(role.code)).toBe(leaveDefault);
   });
 }

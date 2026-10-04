@@ -1,10 +1,12 @@
-// The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
+import { leaveEn } from './leave-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
+import { personalStaffEn } from './personal-staff-catalog.js';
+import { staffLoginEn } from './staff-login-catalog.js';
+// The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   passkeyAdmin: enPasskeyAdmin,
+  leave: leaveEn,
   permissionCodes: {
-    readPasskeysBranch: 'Read employee passkey bindings',
-    unbindPasskeysBranch: 'Unbind employee passkeys',
     readSchedulesBranch: 'Read branch schedules',
     manageSchedulesBranch: 'Manage branch schedules',
     readSchedulesBusiness: 'Read business shift templates',
@@ -53,19 +55,7 @@ export const en = {
     employeeAccessHint:
       'Salaries are managed from the employee screen and also require employee-management access.',
   },
-  personalStaff: {
-    title: 'Personal staff sign-in',
-    lead: 'Use your own phone to register your fingerprint, face or screen lock.',
-    linkRequired: 'Ask your manager for your personal sign-in link.',
-    enrol: 'Register a passkey',
-    bound: 'Your passkey is registered. Replacement requires your manager to unbind it first.',
-    unbound: 'Register your passkey on this phone.',
-    signOut: 'Sign out',
-    retry: 'Start again',
-    personalLink: 'Personal staff sign-in',
-    loading: 'Checking your session…',
-    offline: 'Reconnect to sign in or register a passkey.',
-  },
+  personalStaff: personalStaffEn,
   shell: {
     schedule_title: 'Weekly schedules',
     schedule_lead: 'Saturday to Friday in the selected branch timezone.',
@@ -168,33 +158,7 @@ export const en = {
     active: 'Active',
     expired: 'Expired',
   },
-  staffLogin: {
-    switchOperator: 'Change operator',
-    cancelSwitch: 'Return to current operator',
-    ownPin: 'Your own four-digit cashier PIN',
-    pinInvalid: 'Sign-in was refused. Check your own PIN or ask your manager for help.',
-    pinSignIn: 'Sign in with my PIN',
-    usePin: 'Use my cashier PIN',
-    useWhatsApp: 'Use WhatsApp',
-    title: 'Staff sign-in',
-    phone: 'International phone number',
-    language: 'Code language',
-    chooseLanguage: 'Choose a language',
-    arabic: 'Arabic',
-    english: 'English',
-    request: 'Request code',
-    code: 'Six-digit code',
-    verify: 'Sign in',
-    newCode: 'Request a new code',
-    countdown: 'New code in seconds:',
-    recovery:
-      'If a code arrives, enter it. Otherwise ask your manager for help signing in on this branch device with your own cashier PIN.',
-    reconnect: 'Reconnect to sign in or validate your staff session.',
-    signedIn: 'Staff signed in',
-    expiresIn: 'Session ends in {minutes} minutes',
-    signOut: 'Sign out',
-    inputInvalid: 'Enter an international phone and choose a language.',
-  },
+  staffLogin: staffLoginEn,
   inApp: {
     title: 'Notifications',
     unread: 'Unread',
@@ -207,6 +171,19 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    LEAVE_PERIOD_INVALID: 'Leave dates or times are invalid.',
+    LEAVE_TIME_STEP_INVALID:
+      'Leave start and end times must use 15-minute steps in branch local time.',
+    LEAVE_SPAN_TOO_LONG: 'Full-day leave cannot exceed 90 days, including the start and end dates.',
+    LEAVE_NOTE_REQUIRED: 'Provide a note of 1–500 characters; Other requires a note.',
+    LEAVE_LOCAL_TIME_INVALID:
+      'The local time does not identify a unique instant in this branch timezone.',
+    LEAVE_EMPLOYEE_INELIGIBLE: 'The employee is not eligible in this branch for the whole period.',
+    LEAVE_OVERLAP: 'This request overlaps pending or approved leave.',
+    LEAVE_PAST_OWN_FORBIDDEN:
+      'Own leave requests cannot start before today in the branch timezone.',
+    LEAVE_NOT_PENDING: 'Only pending leave can be cancelled.',
+    LEAVE_REVISION_CONFLICT: 'The leave request changed. Reload and try again.',
     SCHEDULE_WEEK_INVALID: 'The schedule week must start on Saturday.',
     SCHEDULE_SHIFT_INVALID: 'Use up to two shifts per day, each at most 16 hours.',
     SCHEDULE_SHIFT_OVERLAP: 'The employee has overlapping shifts.',

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { unbindPasskeySchemas } from './staff/unbind-passkey.js';
 import { unbindPasskeyPaths } from './staff/unbind-passkey-openapi.js';
+import { leaveSchemas } from './staff/leave.js';
+import { leavePaths } from './staff/leave-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
 import { passkeyPaths } from './staff/passkeys-openapi.js';
 import { scheduleSchemas } from './staff/schedules.js';
@@ -82,6 +84,7 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...leaveSchemas,
   ...passkeySchemas,
   ...unbindPasskeySchemas,
   ...scheduleSchemas,
@@ -184,6 +187,7 @@ const PATHS = {
   ...settingsPaths,
   ...filePaths,
   ...staffPaths,
+  ...leavePaths,
   ...permissionPaths,
   ...customerPaths,
   '/v1/devices/me/attendance-qr': {
@@ -316,6 +320,18 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     components: {
       schemas: components,
       securitySchemes: {
+        PersonalStaffSession: {
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'pospay-personal.session_token',
+          description: 'LIMITED STAFF_PERSONAL purpose; own routes only.',
+        },
+        KioskStaffSession: {
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'pospay-staff.session_token',
+          description: 'STAFF_POS purpose; requires the paired Device credential.',
+        },
         DeviceToken: {
           type: 'apiKey',
           in: 'header',

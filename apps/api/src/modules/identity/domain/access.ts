@@ -21,9 +21,13 @@ export interface AccessTarget {
   readonly companyId: string;
   readonly businessId?: string;
   readonly branchId?: string;
+  /** هوية الفاعل المثبتة؛ وجود own وحده لا يثبت الملكية. */
+  readonly actorUserId?: string;
+  /** هوية صاحب المورد من السجل أو رابط الموظف، لا من العميل. */
+  readonly subjectUserId?: string;
 }
 
-const SCOPES = ['platform', 'company', 'business', 'branch'] as const;
+const SCOPES = ['platform', 'company', 'business', 'branch', 'own'] as const;
 
 /**
  * الـ scope اللي في آخر الصلاحية ('manage:orders:branch' ← 'branch') — ده اللي بيحدد الـ route محتاج target إيه.
@@ -63,6 +67,13 @@ export function evaluateAccess(
   permission: string,
   target: AccessTarget,
 ): boolean {
+  if (
+    permissionScope(permission) === 'own' &&
+    (target.actorUserId === undefined ||
+      target.subjectUserId === undefined ||
+      target.actorUserId !== target.subjectUserId)
+  )
+    return false;
   const applicable = grants.filter((g) => g.permission === permission && covers(g, target));
   if (applicable.some((g) => g.effect === 'DENY')) return false;
   return applicable.some((g) => g.effect === 'ALLOW');

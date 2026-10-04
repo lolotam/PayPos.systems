@@ -1,5 +1,6 @@
 import type { TestProject } from 'vitest/node';
 import postgres from 'postgres';
+import { setTimeout as delay } from 'node:timers/promises';
 
 import { migrateDatabase } from '../src/migrations.ts';
 import { pgUrl, readPgTestEnv, type PgTestEnv } from './pg-env.ts';
@@ -81,11 +82,14 @@ async function prepareTemplate(sql: postgres.Sql, env: PgTestEnv, template: stri
   }
   // القالب للاستنساخ فقط بعد إغلاق pool الـ migrations؛ أي helper يتصل به خطأً يرفض فوراً.
   await sql.unsafe(`ALTER DATABASE "${template}" ALLOW_CONNECTIONS false`);
-  const [remaining] = await sql<{ count: number }[]>`
-    SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=${template}`;
-  if (remaining?.count !== 0) {
-    throw new Error('Test template migration connections were not closed');
+  // إغلاق العميل يسبق أحياناً اختفاء backend من pg_stat_activity؛ ننتظر التصريف فقط بحد ثانيتين.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const [remaining] = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=${template}`;
+    if (remaining?.count === 0) return;
+    await delay(100);
   }
+  throw new Error('Test template migration connections were not closed');
 }
 
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {

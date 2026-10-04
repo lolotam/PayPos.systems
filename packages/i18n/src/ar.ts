@@ -1,12 +1,14 @@
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
+import { leaveAr } from './leave-catalog.js';
+import { personalStaffAr } from './personal-staff-catalog.js';
+import { staffLoginAr } from './staff-login-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
   passkeyAdmin: arPasskeyAdmin,
+  leave: leaveAr,
   permissionCodes: {
-    readPasskeysBranch: 'قراءة ربط مفاتيح مرور الموظفين',
-    unbindPasskeysBranch: 'فك ربط مفاتيح مرور الموظفين',
     readSchedulesBranch: 'قراءة جداول الفرع',
     manageSchedulesBranch: 'إدارة جداول الفرع',
     readSchedulesBusiness: 'قراءة قوالب دوام النشاط',
@@ -53,19 +55,7 @@ export const ar: Catalog = {
     managePermission: 'تعيين الراتب',
     employeeAccessHint: 'تُدار الرواتب من شاشة الموظفين، وتحتاج أيضًا إلى صلاحية إدارة الموظفين.',
   },
-  personalStaff: {
-    title: 'دخول الموظف من هاتفه الشخصي',
-    lead: 'استخدم هاتفك الشخصي لتسجيل البصمة أو الوجه أو رمز قفل الشاشة.',
-    linkRequired: 'اطلب من المدير رابط الدخول الشخصي الخاص بنشاطك.',
-    enrol: 'تسجيل مفتاح مرور',
-    bound: 'تم تسجيل مفتاح المرور. لتغييره اطلب من المدير فك الربط أولاً.',
-    unbound: 'سجل مفتاح المرور من هذا الهاتف.',
-    signOut: 'تسجيل الخروج',
-    retry: 'البدء من جديد',
-    personalLink: 'دخول الموظف الشخصي',
-    loading: 'جارٍ التحقق من الجلسة…',
-    offline: 'اتصل بالإنترنت للدخول أو تسجيل مفتاح المرور.',
-  },
+  personalStaff: personalStaffAr,
   shell: {
     schedule_title: 'جداول العمل الأسبوعية',
     schedule_lead: 'من السبت إلى الجمعة حسب المنطقة الزمنية للفرع المختار.',
@@ -168,33 +158,7 @@ export const ar: Catalog = {
     active: 'ساري',
     expired: 'منتهي',
   },
-  staffLogin: {
-    switchOperator: 'تغيير مشغل الجهاز',
-    cancelSwitch: 'الرجوع للمشغل الحالي',
-    ownPin: 'الرقم السري الخاص بك للكاشير (٤ أرقام)',
-    pinInvalid: 'تعذر الدخول. تحقق من الرقم السري الخاص بك أو اطلب مساعدة المدير.',
-    pinSignIn: 'الدخول بالرقم السري الخاص بي',
-    usePin: 'استخدام الرقم السري الخاص بي',
-    useWhatsApp: 'استخدام واتساب',
-    title: 'دخول الموظف',
-    phone: 'رقم الهاتف الدولي',
-    language: 'لغة الرمز',
-    chooseLanguage: 'اختر اللغة',
-    arabic: 'العربية',
-    english: 'الإنجليزية',
-    request: 'طلب الرمز',
-    code: 'رمز من ستة أرقام',
-    verify: 'دخول',
-    newCode: 'طلب رمز جديد',
-    countdown: 'ثوانٍ حتى طلب رمز جديد:',
-    recovery:
-      'إذا وصلك رمز فأدخله. وإلا اطلب مساعدة المدير للدخول على جهاز الفرع بالرقم السري الخاص بك.',
-    reconnect: 'اتصل بالإنترنت للدخول أو التحقق من جلسة الموظف.',
-    signedIn: 'الموظف مسجل الدخول',
-    expiresIn: 'تنتهي الجلسة خلال {minutes} دقيقة',
-    signOut: 'خروج',
-    inputInvalid: 'أدخل رقم الهاتف الدولي واختر اللغة.',
-  },
+  staffLogin: staffLoginAr,
   inApp: {
     title: 'الإشعارات',
     unread: 'غير مقروء',
@@ -207,6 +171,17 @@ export const ar: Catalog = {
     generic_notice: 'تحديث بخصوص {{subject}}',
   },
   errors: {
+    LEAVE_PERIOD_INVALID: 'تواريخ الإجازة أو أوقاتها غير صحيحة.',
+    LEAVE_TIME_STEP_INVALID:
+      'يجب أن تكون بداية الإجازة ونهايتها على خطوات ١٥ دقيقة بتوقيت الفرع المحلي.',
+    LEAVE_SPAN_TOO_LONG: 'لا يمكن أن تتجاوز الإجازة الكاملة ٩٠ يوماً شاملة يومي البداية والنهاية.',
+    LEAVE_NOTE_REQUIRED: 'أدخل ملاحظة من ١ إلى ٥٠٠ حرف؛ نوع أخرى يحتاج ملاحظة.',
+    LEAVE_LOCAL_TIME_INVALID: 'الوقت المحلي لا يحدد لحظة واحدة في المنطقة الزمنية للفرع.',
+    LEAVE_EMPLOYEE_INELIGIBLE: 'الموظف غير مؤهل في هذا الفرع خلال الفترة كاملة.',
+    LEAVE_OVERLAP: 'يتداخل الطلب مع إجازة معلقة أو معتمدة.',
+    LEAVE_PAST_OWN_FORBIDDEN: 'طلب الإجازة الذاتي لا يبدأ قبل اليوم بتوقيت الفرع.',
+    LEAVE_NOT_PENDING: 'يمكن إلغاء الإجازات المعلقة فقط.',
+    LEAVE_REVISION_CONFLICT: 'تغير طلب الإجازة. أعد التحميل وحاول مرة أخرى.',
     SCHEDULE_WEEK_INVALID: 'أسبوع الجدول لازم يبدأ السبت.',
     SCHEDULE_SHIFT_INVALID: 'الحد ورديتان في اليوم ومدة كل وردية لا تزيد عن ١٦ ساعة.',
     SCHEDULE_SHIFT_OVERLAP: 'ورديات الموظف متداخلة.',

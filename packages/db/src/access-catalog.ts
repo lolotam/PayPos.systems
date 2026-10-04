@@ -7,6 +7,12 @@
 export const PERMISSIONS = [
   'read:passkeys:branch',
   'unbind:passkeys:branch',
+  'create:leave:own',
+  'read:leave:own',
+  'cancel:leave:own',
+  'create:leave:branch',
+  'read:leave:branch',
+  'cancel:leave:branch',
   'read:schedules:branch',
   'manage:schedules:branch',
   'read:schedules:business',
