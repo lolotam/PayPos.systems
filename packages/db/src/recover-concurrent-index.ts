@@ -14,6 +14,11 @@ interface ExistingIndex {
   readonly tableOid: number | null;
 }
 
+interface TargetTable {
+  readonly oid: number;
+  readonly schema: string;
+}
+
 async function signature(client: postgres.Sql | postgres.TransactionSql, oid: number) {
   const [row] = await client<{ definition: string }[]>`
     SELECT jsonb_build_object(
@@ -60,18 +65,65 @@ async function expectedSignature(
   });
 }
 
-async function hasActiveBuild(client: postgres.Sql, oid: number): Promise<boolean> {
-  const [row] = await client<{ active: boolean }[]>`
-    SELECT EXISTS (
-      SELECT 1 FROM pg_stat_progress_create_index
-      WHERE datid = (SELECT oid FROM pg_database WHERE datname = current_database())
-        AND index_relid = ${oid}
-    ) OR EXISTS (
-      SELECT 1 FROM pg_locks
-      WHERE database = (SELECT oid FROM pg_database WHERE datname = current_database())
-        AND relation = ${oid} AND pid IS DISTINCT FROM pg_backend_pid()
-    ) AS active`;
-  return row?.active === true;
+async function existingIndex(
+  client: postgres.Sql | postgres.TransactionSql,
+  schema: string,
+  indexName: string,
+): Promise<ExistingIndex | undefined> {
+  const [row] = await client<ExistingIndex[]>`
+    SELECT c.oid, i.indisvalid AS valid, i.indrelid AS "tableOid"
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    LEFT JOIN pg_index i ON i.indexrelid = c.oid
+    WHERE n.nspname = ${schema} AND c.relname = ${indexName}::name`;
+  return row;
+}
+
+function assertTableIdentity(existing: ExistingIndex | undefined, tableOid: number, name: string) {
+  if (existing && existing.tableOid !== tableOid) {
+    throw new Error(
+      `Concurrent index ${name} already exists with a different definition; migration aborted (target table differs)`,
+    );
+  }
+}
+
+async function recoverInvalidIndex(
+  client: postgres.Sql,
+  index: ConcurrentIndexStatement,
+  table: TargetTable,
+  name: string,
+): Promise<ExistingIndex | undefined> {
+  const target = `${quoteIdentifier(table.schema)}.${quoteIdentifier(index.tableName)}`;
+  try {
+    return await client.begin(async (tx) => {
+      // القفل ينتظر انتهاء البناء ويمنع تغيّر الصلاحية بين القراءة والإسقاط.
+      await tx`SET LOCAL lock_timeout = '5s'`;
+      await tx.unsafe(`LOCK TABLE ${target} IN ACCESS EXCLUSIVE MODE`);
+      const [locked] = await tx<{ oid: number; schema: string }[]>`
+        SELECT c.oid, n.nspname AS schema FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.oid = to_regclass(${target})`;
+      if (locked?.oid !== table.oid || locked.schema !== table.schema) {
+        throw new Error(`Concurrent index ${name} target table changed; migration aborted`);
+      }
+      const current = await existingIndex(tx, table.schema, index.indexName);
+      assertTableIdentity(current, locked.oid, name);
+      // البناء قد اكتمل أثناء الانتظار؛ نعيد الـ index الصالح للمقارنة من غير إسقاطه.
+      if (current?.valid !== false) return current;
+      await tx.unsafe(`DROP INDEX ${name}`);
+      return undefined;
+    });
+  } catch (error) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error.code === '55P03' || error.code === '40P01')
+    ) {
+      throw new Error(`Concurrent index ${name} has an active build or lock; retry later`, {
+        cause: error,
+      });
+    }
+    throw error;
+  }
 }
 
 /** يفك بقايا البناء المقطوع، ولا يقبل index صالحاً إلا إذا طابق التعريف المطلوب. */
@@ -80,30 +132,19 @@ export async function runConcurrentIndex(client: postgres.Sql, statement: string
   if (!index) {
     throw new Error('Cannot safely resolve CREATE INDEX CONCURRENTLY statement');
   }
-  const [table] = await client<{ oid: number; schema: string }[]>`
+  const [table] = await client<TargetTable[]>`
     SELECT c.oid, n.nspname AS schema FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE c.oid = to_regclass(${tableReference(index)})`;
   if (!table)
     throw new Error(`Concurrent index target table does not exist: ${tableReference(index)}`);
-  const [existing] = await client<ExistingIndex[]>`
-    SELECT c.oid, i.indisvalid AS valid, i.indrelid AS "tableOid"
-    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-    LEFT JOIN pg_index i ON i.indexrelid = c.oid
-    WHERE n.nspname = ${table.schema} AND c.relname = ${index.indexName}::name`;
+  let existing = await existingIndex(client, table.schema, index.indexName);
   const name = `${quoteIdentifier(table.schema)}.${quoteIdentifier(index.indexName)}`;
   // نتحقق من الجدول قبل إسقاط أي بقايا؛ الاسم وحده لا يثبت أنها تخص هذا migration.
-  if (existing && existing.tableOid !== table.oid) {
-    throw new Error(
-      `Concurrent index ${name} already exists with a different definition; migration aborted (target table differs)`,
-    );
-  }
+  assertTableIdentity(existing, table.oid, name);
   if (existing?.valid === false) {
-    // index غير صالح قد يكون قيد البناء الآن؛ لا نلغي عمل session أخرى.
-    if (await hasActiveBuild(client, existing.oid)) {
-      throw new Error(`Concurrent index ${name} has an active build or lock; retry later`);
-    }
-    await client.unsafe(`DROP INDEX CONCURRENTLY ${name}`);
-  } else if (existing) {
+    existing = await recoverInvalidIndex(client, index, table, name);
+  }
+  if (existing) {
     if (
       existing.valid !== true ||
       (await signature(client, existing.oid)) !==

@@ -78,6 +78,7 @@ it.each([
   '(id); SELECT 1',
   '(id); /* suffix */ CREATE TABLE side_effect (id int)',
   '(id); -- suffix\nINSERT INTO side_effect VALUES (1);',
+  '(id); -- suffix\rINSERT INTO side_effect VALUES (1);',
   '(id);;',
   "(id) WHERE label = 'unterminated",
   '(id) WHERE label = $Tag$unterminated$tag$',
@@ -85,6 +86,14 @@ it.each([
   expect(
     parseConcurrentIndex(`CREATE INDEX CONCURRENTLY idx ON things ${definition}`),
   ).toBeUndefined();
+});
+
+it('ends leading and predicate line comments at a carriage return', () => {
+  const parsed = parseConcurrentIndex(
+    '-- leading\rCREATE INDEX CONCURRENTLY idx ON public.things (id) WHERE -- predicate\rpublic.things.label IS NULL',
+  );
+  if (!parsed) throw new Error('Expected concurrent CREATE');
+  expect(probeDefinition(parsed, 'public')).toBe('(id) WHERE -- predicate\r"things".label IS NULL');
 });
 
 it.each([

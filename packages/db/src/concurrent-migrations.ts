@@ -3,7 +3,8 @@ import type postgres from 'postgres';
 
 import { runConcurrentIndex } from './recover-concurrent-index.ts';
 
-const CONCURRENT = /^\s*(?:--[^\n]*\n\s*)*(?:CREATE|DROP)\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i;
+const CONCURRENT =
+  /^\s*(?:--[^\r\n]*[\r\n]\s*)*(?:CREATE|DROP)\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i;
 
 // The connection is held (max:1) until the session advisory lock is released. Only a concurrent-index prefix
 // may run outside a transaction. The remaining DDL and journal entry commit together, as Drizzle normally does.
@@ -34,7 +35,7 @@ export async function applyMigrations(client: postgres.Sql, folder: string): Pro
         throw new Error('Concurrent indexes must precede transactional migration statements');
       }
       for (const statement of statements.slice(0, prefixLength)) {
-        if (/^\s*(?:--[^\n]*\n\s*)*CREATE\b/i.test(statement)) {
+        if (/^\s*(?:--[^\r\n]*[\r\n]\s*)*CREATE\b/i.test(statement)) {
           await runConcurrentIndex(client, statement);
         } else {
           await client.unsafe(statement);

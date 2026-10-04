@@ -74,3 +74,35 @@ The project does not set custom tablespaces. Tablespace is excluded from the cat
 and the TABLESPACE clause is omitted from the definition probe. No tablespace resolution is
 performed. The original statement still determines storage placement on a first execution.
 All other index-definition attributes, transaction handling and journal semantics are unchanged.
+
+## Amendment — atomic invalid-index recovery (2026-10-04)
+
+This supersedes the progress/lock detection and concurrent DROP approach above. A catalog
+read and a separate activity check can race with a concurrent build completing: a stale
+INVALID result must never authorize dropping an index that has since become VALID.
+
+For an initially invalid index, begin a transaction and set `SET LOCAL lock_timeout = '5s'`.
+Acquire `ACCESS EXCLUSIVE` on the quoted, schema-qualified target table. This conflicts with
+the `SHARE UPDATE EXCLUSIVE` lock held by a concurrent index build, so recovery waits for
+completion. Under the acquired lock, re-read the target table identity and index validity,
+and reject any table-identity mismatch before dropping anything.
+
+Only an index that is still INVALID under that lock is dropped with plain `DROP INDEX`
+inside the same transaction. Commit before executing the original concurrent CREATE. If it
+became VALID, preserve it and use the existing definition comparison to skip or reject it.
+A lock timeout or deadlock rolls back recovery and reports `retry later` without changing the index or
+journal. This recovery transaction can briefly block table access; valid-index comparison
+and first-time builds retain their existing behaviour. The migration suffix and journal
+still commit together in their original transaction.
+
+Real PostgreSQL regressions pause a builder with an open writer, read the actual INVALID
+catalog row, then use a test-only client barrier to finish the build before the runner acts
+on that row. Matching and differing completed definitions both retain the original valid OID;
+only the matching definition journals. A separate timeout case leaves the live build intact.
+Waiting for the table lock can deadlock with a builder waiting for the recovery transaction's
+virtual transaction; that lock failure is also surfaced as retryable rather than dropping
+from the stale read.
+
+Line comments terminate at either LF or CR, matching PostgreSQL lexical rules. A regression
+uses an actual carriage return after `--` to expose and reject a hidden second statement
+before execution or probing.

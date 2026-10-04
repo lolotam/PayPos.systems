@@ -1,7 +1,7 @@
 import { isSingleSqlStatement } from './single-sql-statement.ts';
 
 const IDENTIFIER = String.raw`(?:"(?:[^"]|"")+"|[a-zA-Z_\u0080-\uffff][a-zA-Z0-9_$\u0080-\uffff]*)`;
-const GAP = String.raw`(?:\s|--[^\n]*(?:\n|$)|/\*[\s\S]*?\*/)*`;
+const GAP = String.raw`(?:\s|--[^\r\n]*(?:[\r\n]|$)|/\*[\s\S]*?\*/)*`;
 const CREATE = new RegExp(
   `^${GAP}CREATE\\s+(UNIQUE\\s+)?INDEX\\s+CONCURRENTLY\\s+` +
     `(?:IF\\s+NOT\\s+EXISTS\\s+)?(${IDENTIFIER})\\s+ON\\s+` +
@@ -9,7 +9,7 @@ const CREATE = new RegExp(
     `(${GAP}(?:USING\\b|\\()[\\s\\S]*)$`,
   'i',
 );
-const PROTECTED = String.raw`[eE]'(?:[^'\\]|\\[\s\S]|'')*'|'(?:[^']|'')*'|\$(?<tag>[a-zA-Z_\u0080-\uffff][a-zA-Z0-9_\u0080-\uffff]*|)\$[\s\S]*?\$\k<tag>\$|--[^\n]*|/\*[\s\S]*?\*/`;
+const PROTECTED = String.raw`[eE]'(?:[^'\\]|\\[\s\S]|'')*'|'(?:[^']|'')*'|\$(?<tag>[a-zA-Z_\u0080-\uffff][a-zA-Z0-9_\u0080-\uffff]*|)\$[\s\S]*?\$\k<tag>\$|--[^\r\n]*|/\*[\s\S]*?\*/`;
 const QUALIFIED_COLUMN = new RegExp(
   PROTECTED +
     `|(?<schema>${IDENTIFIER})${GAP}\\.${GAP}(?<table>${IDENTIFIER})${GAP}\\.${GAP}(?=${IDENTIFIER})`,

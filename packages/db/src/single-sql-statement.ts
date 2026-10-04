@@ -32,8 +32,8 @@ export function isSingleSqlStatement(sql: string): boolean {
   for (let offset = 0; offset < sql.length;) {
     if (/\s/.test(sql[offset] ?? '')) offset++;
     else if (sql.startsWith('--', offset)) {
-      const end = sql.indexOf('\n', offset + 2);
-      offset = end === -1 ? sql.length : end + 1;
+      const end = sql.slice(offset + 2).search(/[\r\n]/);
+      offset = end === -1 ? sql.length : offset + 2 + end + 1;
     } else if (sql.startsWith('/*', offset)) {
       offset = blockCommentEnd(sql, offset);
       if (offset === -1) return false;

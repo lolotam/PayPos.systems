@@ -223,7 +223,7 @@ it.each([false, true])(
     if (existing) await owner.unsafe(`CREATE INDEX ${index} ON ${table} (id)`);
     const before = await indexState(index);
     files.sql = [
-      `CREATE INDEX CONCURRENTLY ${index} ON ${table} (id); INSERT INTO public.${table} VALUES (1)`,
+      `CREATE INDEX CONCURRENTLY ${index} ON ${table} (id); -- hidden suffix\rINSERT INTO public.${table} VALUES (1)`,
     ];
     const execute = vi.spyOn(owner, 'unsafe');
     try {
@@ -250,4 +250,38 @@ it('ignores tablespace in definition comparisons without resolving it', async ()
   await applyMigrations(owner, 'unused');
   expect(await indexState('recovery_tablespace_idx')).toEqual(before);
   expect(await journalCount()).toBe(1);
+});
+
+it('handles carriage-return comments through prefix detection and definition probing', async () => {
+  await owner`CREATE TABLE recovery_cr (id int, label text)`;
+  await owner`CREATE INDEX recovery_cr_idx ON recovery_cr (id) WHERE label IS NULL`;
+  const before = await indexState('recovery_cr_idx');
+  files.sql = [
+    '-- leading\rCREATE INDEX CONCURRENTLY recovery_cr_idx ON public.recovery_cr (id) WHERE -- predicate\rpublic.recovery_cr.label IS NULL',
+  ];
+  await applyMigrations(owner, 'unused');
+  expect(await indexState('recovery_cr_idx')).toEqual(before);
+  expect(await journalCount()).toBe(1);
+});
+
+it('reports a recovery deadlock as retry later without changing the invalid index', async () => {
+  await owner`CREATE TABLE recovery_deadlock (id int)`;
+  await owner`INSERT INTO recovery_deadlock VALUES (1), (1)`;
+  await expect(
+    owner`CREATE UNIQUE INDEX CONCURRENTLY recovery_deadlock_idx ON recovery_deadlock (id)`,
+  ).rejects.toMatchObject({ code: '23505' });
+  const before = await indexState('recovery_deadlock_idx');
+  files.sql = ['CREATE UNIQUE INDEX CONCURRENTLY recovery_deadlock_idx ON recovery_deadlock (id)'];
+  const begin = vi.spyOn(owner, 'begin').mockImplementationOnce(async () => {
+    throw Object.assign(new Error('deadlock detected'), { code: '40P01' });
+  });
+  try {
+    await expect(applyMigrations(owner, 'unused')).rejects.toThrow(
+      'Concurrent index "public"."recovery_deadlock_idx" has an active build or lock; retry later',
+    );
+  } finally {
+    begin.mockRestore();
+  }
+  expect(await indexState('recovery_deadlock_idx')).toEqual(before);
+  expect(await journalCount()).toBe(0);
 });
