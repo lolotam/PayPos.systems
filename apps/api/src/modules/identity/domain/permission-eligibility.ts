@@ -17,10 +17,23 @@ export function personalAllowFailure(terms: OverrideTerms, context: PermissionEd
     return 'PERMISSION_ROLE_FORBIDDEN' as const;
   if (
     member.systemRoleCode === 'business_manager' &&
-    ['read:memberships:business', 'manage:memberships:business'].includes(terms.permission_code) &&
+    [
+      'read:memberships:business',
+      'manage:memberships:business',
+      'create:customers:business',
+      'manage:discount-limits:business',
+    ].includes(terms.permission_code) &&
     (member.scopeType !== 'BUSINESS' ||
       context.membershipTarget?.businessId === undefined ||
       context.target?.businessId !== context.membershipTarget.businessId)
+  )
+    return 'PERMISSION_SCOPE_OUTSIDE_REACH' as const;
+  if (
+    ['branch_manager', 'cashier'].includes(member.systemRoleCode ?? '') &&
+    terms.permission_code === 'create:customers:branch' &&
+    (member.scopeType !== 'BRANCH' ||
+      terms.scope_type !== 'BRANCH' ||
+      terms.scope_id !== member.scopeId)
   )
     return 'PERMISSION_SCOPE_OUTSIDE_REACH' as const;
   return null;

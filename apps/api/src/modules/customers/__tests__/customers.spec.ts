@@ -58,10 +58,14 @@ const send = (phone: unknown = payload.phone, extra: object = {}) =>
     body: { ...payload, phone, ...extra },
   });
 
-it('CUS-08 Owner default exists; Viewer without a grant and missing session are refused', async () => {
+it('CUS-08 Owner and GM defaults exist; Viewer without a grant and missing session are refused', async () => {
   expect(
-    await h.owner`SELECT 1 FROM role_permissions WHERE permission_code = 'create:customers:company'`,
-  ).toHaveLength(1);
+    await h.owner`SELECT role_id FROM role_permissions WHERE role_owner_key='global'
+      AND permission_code='create:customers:company' ORDER BY role_id`,
+  ).toEqual([
+    { role_id: '01920000-0000-7000-8000-000000000101' },
+    { role_id: '01920000-0000-7000-8000-000000000102' },
+  ]);
   const deniedCookie = await h.signedInOperator('customers-viewer@example.test');
   const [viewer] = await h.owner`SELECT id FROM "user" WHERE email='customers-viewer@example.test'`;
   await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)

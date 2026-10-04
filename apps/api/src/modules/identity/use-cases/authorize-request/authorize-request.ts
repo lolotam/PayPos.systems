@@ -1,8 +1,9 @@
-import { evaluateAccess, type AccessTarget } from '../../domain/access.ts';
+import { permissionPossessionFailure } from '../../domain/permission-edit.ts';
 import type {
   AccessReader,
   ActiveMembership,
   SourcedGrant,
+  ResolvedAccessTargets,
 } from '../../ports/access-reader.port.ts';
 
 /**
@@ -16,6 +17,7 @@ export interface AuthorizeRequestInput {
   /** The raw route parameter values naming the target, when the permission's scope needs one. */
   readonly businessParam?: unknown;
   readonly branchParam?: unknown;
+  readonly membershipParam?: unknown;
 }
 
 export interface Authorized {
@@ -47,29 +49,47 @@ export class AuthorizeRequest {
     if (companyId === null) return null;
     // Refused before any tenant is entered: the membership list is read under withUser only.
     if (!(await this.#reader.companiesOf(input.userId)).includes(companyId)) return null;
-    const target = await this.#target(companyId, input);
-    if (target === null) return null;
+    const targets = await this.#target(companyId, input);
+    if (targets === null) return null;
     const access = await this.#reader.accessIn(companyId, input.userId);
-    if (!evaluateAccess(access.grants, input.permission, target)) return null;
+    // فحص التوابع هنا يسبق Zod؛ الجسم غير الصحيح لا يكشف عضوية ممنوعة بـ DENY في فرع تابع.
+    if (
+      permissionPossessionFailure(
+        access.grants,
+        input.permission,
+        targets.target,
+        targets.descendantTargets,
+      ) !== null
+    )
+      return null;
     return { companyId, memberships: access.memberships, grants: access.grants };
   }
 
-  async #target(companyId: string, input: AuthorizeRequestInput): Promise<AccessTarget | null> {
+  async #target(
+    companyId: string,
+    input: AuthorizeRequestInput,
+  ): Promise<ResolvedAccessTargets | null> {
+    if (input.membershipParam !== undefined) {
+      const membershipId = asUuid(input.membershipParam);
+      return membershipId === null ? null : this.#reader.membershipTarget(companyId, membershipId);
+    }
     if (input.branchParam !== undefined) {
       const branchId = asUuid(input.branchParam);
       if (branchId === null) return null;
       // The branch's business comes from the database, inside the verified company — never from the client.
       const businessId = await this.#reader.businessOfBranch(companyId, branchId);
-      return businessId === null ? null : { companyId, businessId, branchId };
+      return businessId === null
+        ? null
+        : { target: { companyId, businessId, branchId }, descendantTargets: [] };
     }
     if (input.businessParam !== undefined) {
       const businessId = asUuid(input.businessParam);
       if (businessId === null) return null;
       // Another company's business, or an unknown one, is refused here — the same 403 as no permission.
       return (await this.#reader.businessInCompany(companyId, businessId))
-        ? { companyId, businessId }
+        ? { target: { companyId, businessId }, descendantTargets: [] }
         : null;
     }
-    return { companyId };
+    return { target: { companyId }, descendantTargets: [] };
   }
 }

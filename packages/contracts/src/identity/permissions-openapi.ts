@@ -53,6 +53,8 @@ const companyPermissionPaths = {
   '/v1/permissions/memberships/{membershipId}/discount-limit': {
     post: {
       ...operation('setMembershipDiscountLimit', 'DiscountLimit'),
+      description:
+        'Requires manage:discount-limits:business at the resolved membership scope; self and canonical Owner holders are protected.',
       parameters: [company, member],
       requestBody: { required: true, content: json('DiscountLimitInput') },
     },
