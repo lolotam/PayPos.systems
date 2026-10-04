@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { unbindPasskeySchemas } from './staff/unbind-passkey.js';
+import { unbindPasskeyPaths } from './staff/unbind-passkey-openapi.js';
 import { leaveSchemas } from './staff/leave.js';
 import { leavePaths } from './staff/leave-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
@@ -87,6 +89,7 @@ const SCHEMAS = [
   ...clockAttendanceSchemas,
   ...leaveSchemas,
   ...passkeySchemas,
+  ...unbindPasskeySchemas,
   ...scheduleSchemas,
   setSalaryInput,
   employeeSalary,
@@ -184,6 +187,7 @@ function operation(
 const PATHS = {
   ...passkeyPaths,
   ...clockAttendancePaths,
+  ...unbindPasskeyPaths,
   ...settingsPaths,
   ...filePaths,
   ...staffPaths,

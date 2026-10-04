@@ -53,3 +53,10 @@ export interface AttendanceClockedIn {
 export type AttendanceClockedOut = AttendanceClockedIn;
 /** يصدر عند اكتشاف حد ١٦ ساعة، منفصلاً عن حركة الفتح الجديدة. */
 export type AttendanceMissedOut = AttendanceClockedIn;
+/** يصدر عند فك المدير للربط وإبطال النسخة مع التدقيق في نفس commit، دون الاعتماد أو السبب الحر. */
+export interface EmployeePasskeyUnbound {
+  readonly employee_id: string;
+  readonly binding_id: string;
+  readonly revision: number;
+  readonly unbound_at: string;
+}

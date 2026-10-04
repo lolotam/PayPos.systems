@@ -1,10 +1,13 @@
 import { attendanceAr } from './attendance-ar.js';
 import type { Catalog } from './catalog.js';
+import { arPasskeyAdmin } from './passkey-admin.js';
 import { leaveAr } from './leave-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
+import { staffLoginAr } from './staff-login-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  passkeyAdmin: arPasskeyAdmin,
   leave: leaveAr,
   permissionCodes: {
     readSchedulesBranch: 'قراءة جداول الفرع',
@@ -157,33 +160,7 @@ export const ar: Catalog = {
     active: 'ساري',
     expired: 'منتهي',
   },
-  staffLogin: {
-    switchOperator: 'تغيير مشغل الجهاز',
-    cancelSwitch: 'الرجوع للمشغل الحالي',
-    ownPin: 'الرقم السري الخاص بك للكاشير (٤ أرقام)',
-    pinInvalid: 'تعذر الدخول. تحقق من الرقم السري الخاص بك أو اطلب مساعدة المدير.',
-    pinSignIn: 'الدخول بالرقم السري الخاص بي',
-    usePin: 'استخدام الرقم السري الخاص بي',
-    useWhatsApp: 'استخدام واتساب',
-    title: 'دخول الموظف',
-    phone: 'رقم الهاتف الدولي',
-    language: 'لغة الرمز',
-    chooseLanguage: 'اختر اللغة',
-    arabic: 'العربية',
-    english: 'الإنجليزية',
-    request: 'طلب الرمز',
-    code: 'رمز من ستة أرقام',
-    verify: 'دخول',
-    newCode: 'طلب رمز جديد',
-    countdown: 'ثوانٍ حتى طلب رمز جديد:',
-    recovery:
-      'إذا وصلك رمز فأدخله. وإلا اطلب مساعدة المدير للدخول على جهاز الفرع بالرقم السري الخاص بك.',
-    reconnect: 'اتصل بالإنترنت للدخول أو التحقق من جلسة الموظف.',
-    signedIn: 'الموظف مسجل الدخول',
-    expiresIn: 'تنتهي الجلسة خلال {minutes} دقيقة',
-    signOut: 'خروج',
-    inputInvalid: 'أدخل رقم الهاتف الدولي واختر اللغة.',
-  },
+  staffLogin: staffLoginAr,
   inApp: {
     title: 'الإشعارات',
     unread: 'غير مقروء',
@@ -245,6 +222,8 @@ export const ar: Catalog = {
     OTP_UNAVAILABLE: 'الدخول بواتساب غير متاح. اطلب مساعدة المدير للدخول بالرقم السري الخاص بك.',
     PASSKEY_ALREADY_BOUND: 'تم ربط مفتاح مرور بالفعل. اطلب من المدير فك الربط أولاً.',
     PASSKEY_INVALID: 'تعذر التحقق من مفتاح المرور.',
+    PASSKEY_SELF_UNBIND: 'لا يمكنك فك ربط مفتاح مرورك بنفسك. اطلب من مدير آخر لديه الصلاحية.',
+    PASSKEY_REVISION_CONFLICT: 'تغير ربط مفتاح المرور. حدّث الحالة قبل المحاولة من جديد.',
     OTP_INVALID: 'رمز الدخول غير صحيح.',
     VALIDATION_FAILED: 'البيانات المرسلة غير صحيحة',
     INVALID_CUSTOMER_PHONE:

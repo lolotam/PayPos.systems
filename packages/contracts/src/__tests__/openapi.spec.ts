@@ -4,6 +4,16 @@ import committed from '../../openapi/openapi.json' with { type: 'json' };
 import { buildOpenApiDocument } from '../openapi.js';
 
 const expectedSchemas = [
+  'AttendanceInstallationSignal',
+  'EmployeePasskeyHistory',
+  'PasskeyEmployee',
+  'PasskeyEmployeePage',
+  'PasskeyHistoryEntry',
+  'PasskeyHistoryQuery',
+  'SharedInstallationFlag',
+  'SharedInstallationFlagPage',
+  'UnbindPasskeyInput',
+  'UnboundPasskey',
   'CancelLeaveInput',
   'LeaveListItem',
   'LeaveListQuery',

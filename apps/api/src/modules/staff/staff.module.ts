@@ -11,6 +11,12 @@ import { createLockedAttendanceQrVerifier } from './persistence/locked-attendanc
 import { ClockAttendance } from './use-cases/clock-attendance/clock-attendance.ts';
 import { RequestClockChallenge } from './use-cases/request-clock-challenge/request-clock-challenge.ts';
 import type { AttendancePasskeys } from './ports/clock-attendance.port.ts';
+import { EmployeePasskeysController } from './http/employee-passkeys.controller.ts';
+import { EmployeePasskeyUnbindGuard } from './http/employee-passkey-unbind.guard.ts';
+import { MANAGER_PASSKEY_ACCESS } from './queries/passkey-access.ts';
+import { createManagerPasskeyAccess } from './persistence/manager-passkey-access.adapter.ts';
+import { createUnbindPasskeyTransactions } from './persistence/unbind-passkey-transactions.ts';
+import { UnbindPasskeyUseCase } from './use-cases/unbind-passkey/unbind-passkey.usecase.ts';
 import { EnrolPasskey } from './use-cases/enrol-passkey/enrol-passkey.ts';
 import { createPasskeyTransactions } from './persistence/passkey-transactions.ts';
 import type { Provider } from '@nestjs/common';
@@ -60,6 +66,7 @@ import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-atte
 
 export const staffControllers = [
   ClockAttendanceController,
+  EmployeePasskeysController,
   EmployeeLeaveController,
   OwnLeaveController,
   LeaveInboxController,
@@ -132,6 +139,26 @@ function salaryProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
+function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
+  return [
+    EmployeePasskeyUnbindGuard,
+    {
+      provide: MANAGER_PASSKEY_ACCESS,
+      useValue: database === undefined ? null : createManagerPasskeyAccess(systemClock),
+    },
+    {
+      provide: UnbindPasskeyUseCase,
+      useValue:
+        database === undefined
+          ? null
+          : new UnbindPasskeyUseCase(
+              createUnbindPasskeyTransactions(database, ids, systemClock),
+              systemClock,
+            ),
+    },
+  ];
+}
+
 export function staffProviders(
   database?: TenantWrappers,
   redis?: Redis,
@@ -143,6 +170,7 @@ export function staffProviders(
   return [
     ...attendanceProviders(database, secrets, passkeys, ids),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
+    ...unbindProviders(database, ids),
     {
       provide: EnrolPasskey,
       useValue:

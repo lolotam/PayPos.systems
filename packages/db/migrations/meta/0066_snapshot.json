@@ -1,6 +1,6 @@
 {
-  "id": "a6d5f2d2-e98b-4510-9a03-d7782db6926e",
-  "prevId": "187a4151-b242-4eea-94a4-1e7deefb5ee9",
+  "id": "d3437a73-576e-42a5-96c4-27ca8ac4cd23",
+  "prevId": "68ffb659-c1dd-4c6a-b1bd-140cee403996",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7667,6 +7667,33 @@
           "method": "btree",
           "concurrently": false
         },
+        "employee_passkeys_employee_cursor_idx": {
+          "name": "employee_passkeys_employee_cursor_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
         "employee_passkeys_business_idx": {
           "name": "employee_passkeys_business_idx",
           "columns": [
@@ -7834,596 +7861,8 @@
       },
       "isRLSEnabled": false
     },
-    "public.attendance_clock_challenges": {
-      "name": "attendance_clock_challenges",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "employee_id": {
-          "name": "employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "branch_id": {
-          "name": "branch_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "binding_id": {
-          "name": "binding_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "binding_revision": {
-          "name": "binding_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "operation": {
-          "name": "operation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scan_digest": {
-          "name": "scan_digest",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "issued_at": {
-          "name": "issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "attendance_clock_challenges_employee_idx": {
-          "name": "attendance_clock_challenges_employee_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "issued_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_clock_challenges_branch_idx": {
-          "name": "attendance_clock_challenges_branch_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "branch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_clock_challenges_binding_idx": {
-          "name": "attendance_clock_challenges_binding_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "binding_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_clock_challenges_business_idx": {
-          "name": "attendance_clock_challenges_business_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_clock_challenges_user_idx": {
-          "name": "attendance_clock_challenges_user_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "attendance_clock_challenges_company_id_companies_id_fk": {
-          "name": "attendance_clock_challenges_company_id_companies_id_fk",
-          "tableFrom": "attendance_clock_challenges",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_clock_challenges_user_id_user_id_fk": {
-          "name": "attendance_clock_challenges_user_id_user_id_fk",
-          "tableFrom": "attendance_clock_challenges",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "tableTo": "user",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_clock_challenges_company_id_business_id_employee_id_employees_company_id_business_id_id_fk": {
-          "name": "attendance_clock_challenges_company_id_business_id_employee_id_employees_company_id_business_id_id_fk",
-          "tableFrom": "attendance_clock_challenges",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "employee_id"
-          ],
-          "tableTo": "employees",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_clock_challenges_company_id_business_id_branch_id_branches_company_id_business_id_id_fk": {
-          "name": "attendance_clock_challenges_company_id_business_id_branch_id_branches_company_id_business_id_id_fk",
-          "tableFrom": "attendance_clock_challenges",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "branch_id"
-          ],
-          "tableTo": "branches",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_clock_challenges_company_id_binding_id_employee_passkeys_company_id_id_fk": {
-          "name": "attendance_clock_challenges_company_id_binding_id_employee_passkeys_company_id_id_fk",
-          "tableFrom": "attendance_clock_challenges",
-          "columnsFrom": [
-            "company_id",
-            "binding_id"
-          ],
-          "tableTo": "employee_passkeys",
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "attendance_clock_challenges_company_id_id_pk": {
-          "name": "attendance_clock_challenges_company_id_id_pk",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "attendance_clock_challenges_operation": {
-          "name": "attendance_clock_challenges_operation",
-          "value": "\"attendance_clock_challenges\".\"operation\" IN ('CLOCK_IN','CLOCK_OUT')"
-        },
-        "attendance_clock_challenges_revision": {
-          "name": "attendance_clock_challenges_revision",
-          "value": "\"attendance_clock_challenges\".\"binding_revision\" > 0"
-        },
-        "attendance_clock_challenges_digest": {
-          "name": "attendance_clock_challenges_digest",
-          "value": "\"attendance_clock_challenges\".\"scan_digest\" ~ '^[0-9a-f]{64}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.attendance_exceptions": {
-      "name": "attendance_exceptions",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "employee_id": {
-          "name": "employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "branch_id": {
-          "name": "branch_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'OPEN'"
-        },
-        "raised_at": {
-          "name": "raised_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "resolved_at": {
-          "name": "resolved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolution": {
-          "name": "resolution",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolved_by": {
-          "name": "resolved_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "attendance_exceptions_session_idx": {
-          "name": "attendance_exceptions_session_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_exceptions_board_idx": {
-          "name": "attendance_exceptions_board_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "branch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "raised_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_exceptions_employee_idx": {
-          "name": "attendance_exceptions_employee_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "raised_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_exceptions_actor_idx": {
-          "name": "attendance_exceptions_actor_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "resolved_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "attendance_exceptions_company_id_companies_id_fk": {
-          "name": "attendance_exceptions_company_id_companies_id_fk",
-          "tableFrom": "attendance_exceptions",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_exceptions_resolved_by_user_id_fk": {
-          "name": "attendance_exceptions_resolved_by_user_id_fk",
-          "tableFrom": "attendance_exceptions",
-          "columnsFrom": [
-            "resolved_by"
-          ],
-          "tableTo": "user",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_exceptions_company_id_session_id_attendance_sessions_company_id_id_fk": {
-          "name": "attendance_exceptions_company_id_session_id_attendance_sessions_company_id_id_fk",
-          "tableFrom": "attendance_exceptions",
-          "columnsFrom": [
-            "company_id",
-            "session_id"
-          ],
-          "tableTo": "attendance_sessions",
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_exceptions_company_id_business_id_employee_id_employees_company_id_business_id_id_fk": {
-          "name": "attendance_exceptions_company_id_business_id_employee_id_employees_company_id_business_id_id_fk",
-          "tableFrom": "attendance_exceptions",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "employee_id"
-          ],
-          "tableTo": "employees",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_exceptions_company_id_business_id_branch_id_branches_company_id_business_id_id_fk": {
-          "name": "attendance_exceptions_company_id_business_id_branch_id_branches_company_id_business_id_id_fk",
-          "tableFrom": "attendance_exceptions",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "branch_id"
-          ],
-          "tableTo": "branches",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "attendance_exceptions_company_id_id_pk": {
-          "name": "attendance_exceptions_company_id_id_pk",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "attendance_exceptions_kind": {
-          "name": "attendance_exceptions_kind",
-          "value": "\"attendance_exceptions\".\"kind\" IN ('NONE','OUT_OF_RANGE','SUSPECTED_MISSED_OUT')"
-        },
-        "attendance_exceptions_status": {
-          "name": "attendance_exceptions_status",
-          "value": "\"attendance_exceptions\".\"status\" IN ('OPEN','RESOLVED')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.attendance_sessions": {
-      "name": "attendance_sessions",
+    "public.attendance_device_signals": {
+      "name": "attendance_device_signals",
       "schema": "",
       "columns": {
         "company_id": {
@@ -8456,178 +7895,28 @@
           "primaryKey": false,
           "notNull": true
         },
-        "working_date": {
-          "name": "working_date",
-          "type": "date",
+        "clock_event_id": {
+          "name": "clock_event_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "timezone": {
-          "name": "timezone",
+        "installation_hash": {
+          "name": "installation_hash",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "clock_in": {
-          "name": "clock_in",
+        "clocked_at": {
+          "name": "clocked_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "clock_out": {
-          "name": "clock_out",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "closed_by": {
-          "name": "closed_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "binding_id": {
-          "name": "binding_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "binding_revision": {
-          "name": "binding_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "out_binding_id": {
-          "name": "out_binding_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "out_binding_revision": {
-          "name": "out_binding_revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "qr_window": {
-          "name": "qr_window",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "out_qr_window": {
-          "name": "out_qr_window",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "geo": {
-          "name": "geo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "out_geo": {
-          "name": "out_geo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "latitude": {
-          "name": "latitude",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "longitude": {
-          "name": "longitude",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "accuracy": {
-          "name": "accuracy",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "out_latitude": {
-          "name": "out_latitude",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "out_longitude": {
-          "name": "out_longitude",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "out_accuracy": {
-          "name": "out_accuracy",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "late_minutes": {
-          "name": "late_minutes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scheduled_start": {
-          "name": "scheduled_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "scheduled_end": {
-          "name": "scheduled_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "device_id": {
-          "name": "device_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "operator_id": {
-          "name": "operator_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "out_device_id": {
-          "name": "out_device_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "out_operator_id": {
-          "name": "out_operator_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
-        "attendance_sessions_one_open": {
-          "name": "attendance_sessions_one_open",
+        "attendance_device_signals_clock_key": {
+          "name": "attendance_device_signals_clock_key",
           "columns": [
             {
               "expression": "company_id",
@@ -8636,483 +7925,7 @@
               "nulls": "last"
             },
             {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"attendance_sessions\".\"status\" = 'OPEN'",
-          "concurrently": false
-        },
-        "attendance_sessions_board_idx": {
-          "name": "attendance_sessions_board_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "branch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "working_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_sessions_employee_date_idx": {
-          "name": "attendance_sessions_employee_date_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "working_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "clock_in",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_sessions_business_date_idx": {
-          "name": "attendance_sessions_business_date_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "working_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_sessions_binding_idx": {
-          "name": "attendance_sessions_binding_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "binding_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_sessions_out_binding_idx": {
-          "name": "attendance_sessions_out_binding_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "out_binding_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_sessions_device_idx": {
-          "name": "attendance_sessions_device_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "device_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_sessions_out_device_idx": {
-          "name": "attendance_sessions_out_device_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "out_device_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_sessions_operator_idx": {
-          "name": "attendance_sessions_operator_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "operator_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "attendance_sessions_out_operator_idx": {
-          "name": "attendance_sessions_out_operator_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "out_operator_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "attendance_sessions_company_id_companies_id_fk": {
-          "name": "attendance_sessions_company_id_companies_id_fk",
-          "tableFrom": "attendance_sessions",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_sessions_operator_id_user_id_fk": {
-          "name": "attendance_sessions_operator_id_user_id_fk",
-          "tableFrom": "attendance_sessions",
-          "columnsFrom": [
-            "operator_id"
-          ],
-          "tableTo": "user",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_sessions_out_operator_id_user_id_fk": {
-          "name": "attendance_sessions_out_operator_id_user_id_fk",
-          "tableFrom": "attendance_sessions",
-          "columnsFrom": [
-            "out_operator_id"
-          ],
-          "tableTo": "user",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_sessions_company_id_business_id_employee_id_employees_company_id_business_id_id_fk": {
-          "name": "attendance_sessions_company_id_business_id_employee_id_employees_company_id_business_id_id_fk",
-          "tableFrom": "attendance_sessions",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "employee_id"
-          ],
-          "tableTo": "employees",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_sessions_company_id_business_id_branch_id_branches_company_id_business_id_id_fk": {
-          "name": "attendance_sessions_company_id_business_id_branch_id_branches_company_id_business_id_id_fk",
-          "tableFrom": "attendance_sessions",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "branch_id"
-          ],
-          "tableTo": "branches",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_sessions_company_id_binding_id_employee_passkeys_company_id_id_fk": {
-          "name": "attendance_sessions_company_id_binding_id_employee_passkeys_company_id_id_fk",
-          "tableFrom": "attendance_sessions",
-          "columnsFrom": [
-            "company_id",
-            "binding_id"
-          ],
-          "tableTo": "employee_passkeys",
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_sessions_company_id_out_binding_id_employee_passkeys_company_id_id_fk": {
-          "name": "attendance_sessions_company_id_out_binding_id_employee_passkeys_company_id_id_fk",
-          "tableFrom": "attendance_sessions",
-          "columnsFrom": [
-            "company_id",
-            "out_binding_id"
-          ],
-          "tableTo": "employee_passkeys",
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_sessions_company_id_device_id_devices_company_id_id_fk": {
-          "name": "attendance_sessions_company_id_device_id_devices_company_id_id_fk",
-          "tableFrom": "attendance_sessions",
-          "columnsFrom": [
-            "company_id",
-            "device_id"
-          ],
-          "tableTo": "devices",
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_sessions_company_id_out_device_id_devices_company_id_id_fk": {
-          "name": "attendance_sessions_company_id_out_device_id_devices_company_id_id_fk",
-          "tableFrom": "attendance_sessions",
-          "columnsFrom": [
-            "company_id",
-            "out_device_id"
-          ],
-          "tableTo": "devices",
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "attendance_sessions_company_id_id_pk": {
-          "name": "attendance_sessions_company_id_id_pk",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "attendance_sessions_status": {
-          "name": "attendance_sessions_status",
-          "value": "\"attendance_sessions\".\"status\" IN ('OPEN','CLOSED','MISSED_OUT')"
-        },
-        "attendance_sessions_source": {
-          "name": "attendance_sessions_source",
-          "value": "\"attendance_sessions\".\"source\" IN ('QR','BARCODE')"
-        },
-        "attendance_sessions_close_pair": {
-          "name": "attendance_sessions_close_pair",
-          "value": "(\"attendance_sessions\".\"status\" = 'OPEN' AND \"attendance_sessions\".\"clock_out\" IS NULL AND \"attendance_sessions\".\"closed_by\" IS NULL) OR (\"attendance_sessions\".\"status\" <> 'OPEN' AND \"attendance_sessions\".\"clock_out\" >= \"attendance_sessions\".\"clock_in\" AND \"attendance_sessions\".\"closed_by\" IN ('EMPLOYEE','MISSED_OUT'))"
-        },
-        "attendance_sessions_lateness": {
-          "name": "attendance_sessions_lateness",
-          "value": "\"attendance_sessions\".\"late_minutes\" >= 0"
-        },
-        "attendance_sessions_geo": {
-          "name": "attendance_sessions_geo",
-          "value": "\"attendance_sessions\".\"geo\" IN ('OK','NONE','OUT_OF_RANGE') AND (\"attendance_sessions\".\"out_geo\" IS NULL OR \"attendance_sessions\".\"out_geo\" IN ('OK','NONE','OUT_OF_RANGE'))"
-        },
-        "attendance_sessions_binding_pair": {
-          "name": "attendance_sessions_binding_pair",
-          "value": "(\"attendance_sessions\".\"binding_id\" IS NULL) = (\"attendance_sessions\".\"binding_revision\" IS NULL) AND (\"attendance_sessions\".\"binding_revision\" IS NULL OR \"attendance_sessions\".\"binding_revision\">0)"
-        },
-        "attendance_sessions_out_binding_pair": {
-          "name": "attendance_sessions_out_binding_pair",
-          "value": "(\"attendance_sessions\".\"out_binding_id\" IS NULL) = (\"attendance_sessions\".\"out_binding_revision\" IS NULL) AND (\"attendance_sessions\".\"out_binding_revision\" IS NULL OR \"attendance_sessions\".\"out_binding_revision\">0)"
-        },
-        "attendance_sessions_location": {
-          "name": "attendance_sessions_location",
-          "value": "(\"attendance_sessions\".\"latitude\" IS NULL AND \"attendance_sessions\".\"longitude\" IS NULL AND \"attendance_sessions\".\"accuracy\" IS NULL) OR (\"attendance_sessions\".\"latitude\" BETWEEN -90 AND 90 AND \"attendance_sessions\".\"longitude\" BETWEEN -180 AND 180 AND \"attendance_sessions\".\"accuracy\" >= 0)"
-        },
-        "attendance_sessions_out_location": {
-          "name": "attendance_sessions_out_location",
-          "value": "(\"attendance_sessions\".\"out_latitude\" IS NULL AND \"attendance_sessions\".\"out_longitude\" IS NULL AND \"attendance_sessions\".\"out_accuracy\" IS NULL) OR (\"attendance_sessions\".\"out_latitude\" BETWEEN -90 AND 90 AND \"attendance_sessions\".\"out_longitude\" BETWEEN -180 AND 180 AND \"attendance_sessions\".\"out_accuracy\" >= 0)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.attendance_states": {
-      "name": "attendance_states",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "employee_id": {
-          "name": "employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "last_accepted_scan_at": {
-          "name": "last_accepted_scan_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_result": {
-          "name": "last_result",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "attendance_states_employee_key": {
-          "name": "attendance_states_employee_key",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
+              "expression": "clock_event_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -9123,8 +7936,41 @@
           "method": "btree",
           "concurrently": false
         },
-        "attendance_states_business_idx": {
-          "name": "attendance_states_business_idx",
+        "attendance_device_signals_hash_time_idx": {
+          "name": "attendance_device_signals_hash_time_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "installation_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "clocked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "attendance_device_signals_branch_time_idx": {
+          "name": "attendance_device_signals_branch_time_idx",
           "columns": [
             {
               "expression": "company_id",
@@ -9137,6 +7983,51 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "clocked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "attendance_device_signals_employee_idx": {
+          "name": "attendance_device_signals_employee_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": false,
@@ -9146,22 +8037,9 @@
         }
       },
       "foreignKeys": {
-        "attendance_states_company_id_companies_id_fk": {
-          "name": "attendance_states_company_id_companies_id_fk",
-          "tableFrom": "attendance_states",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "attendance_states_company_id_business_id_employee_id_employees_company_id_business_id_id_fk": {
-          "name": "attendance_states_company_id_business_id_employee_id_employees_company_id_business_id_id_fk",
-          "tableFrom": "attendance_states",
+        "attendance_device_signals_employee_fk": {
+          "name": "attendance_device_signals_employee_fk",
+          "tableFrom": "attendance_device_signals",
           "columnsFrom": [
             "company_id",
             "business_id",
@@ -9175,11 +8053,28 @@
           ],
           "onUpdate": "no action",
           "onDelete": "no action"
+        },
+        "attendance_device_signals_branch_fk": {
+          "name": "attendance_device_signals_branch_fk",
+          "tableFrom": "attendance_device_signals",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "branch_id"
+          ],
+          "tableTo": "branches",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "attendance_states_company_id_id_pk": {
-          "name": "attendance_states_company_id_id_pk",
+        "attendance_device_signals_pkey": {
+          "name": "attendance_device_signals_pkey",
           "columns": [
             "company_id",
             "id"
@@ -9189,13 +8084,9 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "attendance_states_employee_id": {
-          "name": "attendance_states_employee_id",
-          "value": "\"attendance_states\".\"id\" = \"attendance_states\".\"employee_id\""
-        },
-        "attendance_states_result_pair": {
-          "name": "attendance_states_result_pair",
-          "value": "(\"attendance_states\".\"last_accepted_scan_at\" IS NULL) = (\"attendance_states\".\"last_result\" IS NULL)"
+        "attendance_device_signals_hash_format": {
+          "name": "attendance_device_signals_hash_format",
+          "value": "\"attendance_device_signals\".\"installation_hash\" ~ '^[a-f0-9]{64}$'"
         }
       },
       "isRLSEnabled": false

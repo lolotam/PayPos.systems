@@ -12,6 +12,12 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 vi.mock('../api/use-employees', () => ({
   useEmployees: (...args: unknown[]) => state.useEmployees(...args),
 }));
+vi.mock('../api/use-passkeys', () => ({
+  usePasskeyEmployees: () => ({
+    isFetchedAfterMount: true,
+    data: { items: [], next_cursor: null },
+  }),
+}));
 vi.mock('../ui/employee-edit-panel', () => ({
   EmployeeEditPanel: (props: object) => {
     state.edit(props);

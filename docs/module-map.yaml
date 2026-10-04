@@ -37,6 +37,9 @@ sync_writes:
 reads:
   - { from: staff, to: identity, symbol: personalMemberships, file: apps/api/src/modules/staff/persistence/attendance-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: attendanceBranch, file: apps/api/src/modules/staff/persistence/attendance-context.adapter.ts }
+  - { from: staff, to: identity, symbol: lockPasskeyAccess, file: apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts }
+  - { from: staff, to: identity, symbol: readPasskeyAccess, file: apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts }
+  - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts }
   - { from: staff, to: identity, symbol: lockLeaveAccess, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
   - { from: staff, to: identity, symbol: readLeaveAccess, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
