@@ -22,6 +22,8 @@ export function personalAllowFailure(terms: OverrideTerms, context: PermissionEd
       'manage:memberships:business',
       'create:customers:business',
       'manage:discount-limits:business',
+      'read:passkeys:branch',
+      'unbind:passkeys:branch',
     ].includes(terms.permission_code) &&
     (member.scopeType !== 'BUSINESS' ||
       context.membershipTarget?.businessId === undefined ||
@@ -30,7 +32,9 @@ export function personalAllowFailure(terms: OverrideTerms, context: PermissionEd
     return 'PERMISSION_SCOPE_OUTSIDE_REACH' as const;
   if (
     ['branch_manager', 'cashier'].includes(member.systemRoleCode ?? '') &&
-    terms.permission_code === 'create:customers:branch' &&
+    (terms.permission_code === 'create:customers:branch' ||
+      (member.systemRoleCode === 'branch_manager' &&
+        ['read:passkeys:branch', 'unbind:passkeys:branch'].includes(terms.permission_code))) &&
     (member.scopeType !== 'BRANCH' ||
       terms.scope_type !== 'BRANCH' ||
       terms.scope_id !== member.scopeId)

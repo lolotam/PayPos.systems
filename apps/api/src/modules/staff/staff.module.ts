@@ -5,6 +5,12 @@ import {
   type RegistrationOptionsPort,
 } from './http/passkeys.controller.ts';
 import type { PasskeyRegistration } from './ports/passkeys.port.ts';
+import { EmployeePasskeysController } from './http/employee-passkeys.controller.ts';
+import { EmployeePasskeyUnbindGuard } from './http/employee-passkey-unbind.guard.ts';
+import { MANAGER_PASSKEY_ACCESS } from './queries/passkey-access.ts';
+import { createManagerPasskeyAccess } from './persistence/manager-passkey-access.adapter.ts';
+import { createUnbindPasskeyTransactions } from './persistence/unbind-passkey-transactions.ts';
+import { UnbindPasskeyUseCase } from './use-cases/unbind-passkey/unbind-passkey.usecase.ts';
 import { EnrolPasskey } from './use-cases/enrol-passkey/enrol-passkey.ts';
 import { createPasskeyTransactions } from './persistence/passkey-transactions.ts';
 import type { Provider } from '@nestjs/common';
@@ -53,6 +59,7 @@ import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attenda
 import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
 
 export const staffControllers = [
+  EmployeePasskeysController,
   EmployeeLeaveController,
   OwnLeaveController,
   LeaveInboxController,
@@ -125,6 +132,26 @@ function salaryProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
+function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
+  return [
+    EmployeePasskeyUnbindGuard,
+    {
+      provide: MANAGER_PASSKEY_ACCESS,
+      useValue: database === undefined ? null : createManagerPasskeyAccess(systemClock),
+    },
+    {
+      provide: UnbindPasskeyUseCase,
+      useValue:
+        database === undefined
+          ? null
+          : new UnbindPasskeyUseCase(
+              createUnbindPasskeyTransactions(database, ids, systemClock),
+              systemClock,
+            ),
+    },
+  ];
+}
+
 export function staffProviders(
   database?: TenantWrappers,
   redis?: Redis,
@@ -135,6 +162,7 @@ export function staffProviders(
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
+    ...unbindProviders(database, ids),
     {
       provide: EnrolPasskey,
       useValue:

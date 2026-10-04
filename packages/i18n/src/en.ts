@@ -1,7 +1,10 @@
 import { leaveEn } from './leave-catalog.js';
+import { enPasskeyAdmin } from './passkey-admin.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
+import { staffLoginEn } from './staff-login-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  passkeyAdmin: enPasskeyAdmin,
   leave: leaveEn,
   permissionCodes: {
     readSchedulesBranch: 'Read branch schedules',
@@ -155,33 +158,7 @@ export const en = {
     active: 'Active',
     expired: 'Expired',
   },
-  staffLogin: {
-    switchOperator: 'Change operator',
-    cancelSwitch: 'Return to current operator',
-    ownPin: 'Your own four-digit cashier PIN',
-    pinInvalid: 'Sign-in was refused. Check your own PIN or ask your manager for help.',
-    pinSignIn: 'Sign in with my PIN',
-    usePin: 'Use my cashier PIN',
-    useWhatsApp: 'Use WhatsApp',
-    title: 'Staff sign-in',
-    phone: 'International phone number',
-    language: 'Code language',
-    chooseLanguage: 'Choose a language',
-    arabic: 'Arabic',
-    english: 'English',
-    request: 'Request code',
-    code: 'Six-digit code',
-    verify: 'Sign in',
-    newCode: 'Request a new code',
-    countdown: 'New code in seconds:',
-    recovery:
-      'If a code arrives, enter it. Otherwise ask your manager for help signing in on this branch device with your own cashier PIN.',
-    reconnect: 'Reconnect to sign in or validate your staff session.',
-    signedIn: 'Staff signed in',
-    expiresIn: 'Session ends in {minutes} minutes',
-    signOut: 'Sign out',
-    inputInvalid: 'Enter an international phone and choose a language.',
-  },
+  staffLogin: staffLoginEn,
   inApp: {
     title: 'Notifications',
     unread: 'Unread',
@@ -251,6 +228,9 @@ export const en = {
       'WhatsApp sign-in is unavailable. Ask your manager for help using your own cashier PIN.',
     PASSKEY_ALREADY_BOUND: 'A passkey is already bound. Ask your manager to unbind it first.',
     PASSKEY_INVALID: 'The passkey could not be verified.',
+    PASSKEY_SELF_UNBIND: 'You cannot unbind your own passkey. Ask another permitted manager.',
+    PASSKEY_REVISION_CONFLICT:
+      'The passkey binding changed. Refresh its status before trying again.',
     OTP_INVALID: 'The sign-in code is not valid.',
     VALIDATION_FAILED: 'The request is not valid',
     BAD_REQUEST: 'The request is malformed',

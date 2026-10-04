@@ -8,6 +8,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployees } from '../api/use-employees';
 import { EmployeeListPanel } from '../ui/employee-list-panel';
 import { EmployeeEditPanel } from '../ui/employee-edit-panel';
+import { PasskeyEmployeesPanel } from '../ui/passkey-employees-panel';
 
 export function EmployeesPage({
   companyId,
@@ -45,6 +46,7 @@ export function EmployeesPage({
         onSelect={setEmployeeId}
         onPage={page}
       />
+      <PasskeyEmployeesPanel companyId={companyId} business={business} userId={userId} />
       {employeeId ? (
         <EmployeeEditPanel
           key={employeeId}

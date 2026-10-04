@@ -132,6 +132,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/{employeeId}/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["employeePasskeyHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/passkeys/unbind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Scoped manager unbind, self forbidden. Binding/revision fence; mandatory trimmed reason. Audit and event atomic. No auth credential deletion. */
+        post: operations["unbindEmployeePasskey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employee-passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPasskeyEmployees"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/settings": {
         parameters: {
             query?: never;
@@ -1227,6 +1276,80 @@ export interface components {
                 };
             };
         };
+        UnbindPasskeyInput: {
+            /** Format: uuid */
+            binding_id: string;
+            revision: number;
+            reason: string;
+        };
+        UnboundPasskey: {
+            /** Format: uuid */
+            binding_id: string;
+            revision: number;
+            /** Format: date-time */
+            unbound_at: string;
+        };
+        PasskeyHistoryQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        PasskeyHistoryEntry: {
+            /** Format: uuid */
+            binding_id: string;
+            revision: number;
+            /** Format: date-time */
+            bound_at: string;
+            /** Format: date-time */
+            unbound_at: string | null;
+        };
+        EmployeePasskeyHistory: {
+            status: components["schemas"]["PasskeyBindingStatus"];
+            can_unbind: boolean;
+            items: components["schemas"]["PasskeyHistoryEntry"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+        };
+        PasskeyEmployee: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string | null;
+            /** Format: uuid */
+            primary_branch_id: string;
+        };
+        PasskeyEmployeePage: {
+            items: components["schemas"]["PasskeyEmployee"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+        };
+        AttendanceInstallationSignal: {
+            /** Format: uuid */
+            installation_id: string;
+        };
+        SharedInstallationFlag: {
+            /** Format: uuid */
+            first_signal_id: string;
+            /** Format: uuid */
+            second_signal_id: string;
+            /** Format: uuid */
+            first_employee_id: string;
+            /** Format: uuid */
+            second_employee_id: string;
+            /** Format: uuid */
+            first_branch_id: string;
+            /** Format: uuid */
+            second_branch_id: string;
+            /** Format: date-time */
+            first_clocked_at: string;
+            /** Format: date-time */
+            second_clocked_at: string;
+        };
+        SharedInstallationFlagPage: {
+            items: components["schemas"]["SharedInstallationFlag"][];
+            next_cursor: string | null;
+        };
         TemplateListQuery: {
             /** Format: uuid */
             cursor?: string;
@@ -2237,6 +2360,117 @@ export interface operations {
                 };
             };
             /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeePasskeyHistory: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scoped passkey result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeePasskeyHistory"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    unbindEmployeePasskey: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnbindPasskeyInput"];
+            };
+        };
+        responses: {
+            /** @description Scoped passkey result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnboundPasskey"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listPasskeyEmployees: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scoped passkey result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmployeePage"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
             default: {
                 headers: {
                     [name: string]: unknown;

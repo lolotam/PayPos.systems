@@ -47,6 +47,7 @@ export const employeePasskeys = pgTable(
       .on(t.companyId, t.employeeId)
       .where(sql`${t.unboundAt} IS NULL`),
     index('employee_passkeys_employee_history_idx').on(t.companyId, t.employeeId, t.boundAt),
+    index('employee_passkeys_employee_cursor_idx').on(t.companyId, t.employeeId, t.id),
     index('employee_passkeys_business_idx').on(t.companyId, t.businessId),
     index('employee_passkeys_credential_idx').on(t.companyId, t.passkeyId),
     index('employee_passkeys_bound_by_idx').on(t.boundBy),

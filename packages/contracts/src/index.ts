@@ -228,3 +228,4 @@ export type {
 export * from './staff/leave.js';
 
 export * from './staff/passkeys.js';
+export * from './staff/unbind-passkey.js';
