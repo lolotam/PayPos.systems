@@ -37,8 +37,9 @@ browser profiles, copying ids and synced passkeys mean this signal is advisory o
 Do not claim physical-device identity or block clocks based on the signal.
 
 Staff stores immutable observations only for accepted web clock effects in PR 22's
-transaction, with unique clock_event_id for retries. No attendance-session FK is invented
-before PR 22 exists. PR 27 uses a bounded cursor query over pairs visible at both branches;
+transaction, with unique clock_event_id for retries. `clock_event_id` is the id of the
+scan movement's permanent audit row (`clocked_in`/`clocked_out`), which names the attendance
+session; no extra FK or migration is added. PR 27 uses a bounded cursor query over pairs visible at both branches;
 the query never returns a hash or raw id. Pure domain rule tests use the same inclusive
 time window; query callers supply the selected window explicitly.
 
@@ -67,4 +68,18 @@ current binding state; this phase promises no consumer or replay-derived project
 - **UNB-Q4 — owner decision 2026-10-04 (recommended option)**: device signals are
   retained with attendance history; no cleanup job now.
 
-Amendment 2026-10-04: PR 21 and PR 22 were built in parallel, so PR 22 ships without the `installation_id` field, the POS identifier and the transactional signal write. They move to follow-up PR 22b; until it merges `attendance_device_signals` stays empty and the shared-device flag cannot fire.
+## Delivered clock wiring
+
+- `installation_id` is a required field of `ClockAttendanceInput` only. It is not part
+  of the challenge or of the QR/location digest the challenge freezes.
+- The POS personal app creates it once with `crypto.randomUUID()` in `localStorage`
+  (`pospay.attendance.installation`), never in IndexedDB or the sync queue. Personal
+  logout, operator replacement and private-cache clearing keep it; a malformed stored
+  value is replaced; blocked storage yields a page-lifetime id.
+- Inside the clock transaction, after the movement's audit/outbox rows, the persistence
+  adapter writes exactly one observation per accepted scan: CLOCK_IN, CLOCK_OUT and
+  MISSED_OUT plus CLOCK_IN alike. The system MISSED_OUT closure is not a scan and is
+  never observed. Branch is the QR branch; time is the single sampled request instant.
+- Five-minute dedupe, idempotent replay and every refusal return before persistence and
+  write nothing; a rollback removes the observation with the clock.
+- Technical log redaction also drops any `installation_id` key.

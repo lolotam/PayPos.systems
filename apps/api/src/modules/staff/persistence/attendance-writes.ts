@@ -6,6 +6,7 @@ import type {
   AttendanceContext,
   AttendanceWrite,
 } from '../ports/clock-attendance.port.ts';
+import { recordAttendanceDeviceSignal } from './attendance-device-signal.ts';
 
 export async function persistAttendance(
   tx: Tx,
@@ -15,39 +16,47 @@ export async function persistAttendance(
   write: AttendanceWrite,
   ids: IdGenerator,
 ) {
+  let accepted: string | null = null;
   if (write.open !== null && write.closeAt !== null) {
     await closeSession(tx, scope, scan, context, write);
     const missed = write.result.missed_session_id !== null;
-    await recordMovement(
-      tx,
-      scope,
-      write.open.id,
-      write.open.branchId,
-      missed ? 'AttendanceMissedOut' : 'AttendanceClockedOut',
-      write.closeAt,
-      write.at,
-      ids,
-    );
+    const closed = await recordMovement(tx, scope, ids, {
+      sessionId: write.open.id,
+      branchId: write.open.branchId,
+      eventType: missed ? 'AttendanceMissedOut' : 'AttendanceClockedOut',
+      at: write.closeAt,
+      recordedAt: write.at,
+    });
+    if (!missed) accepted = closed;
   }
   if (write.result.operation === 'CLOCK_IN') {
     await openSession(tx, scope, scan, context, write);
-    await recordMovement(
-      tx,
-      scope,
-      write.result.session_id,
-      scan.token.branch_id,
-      'AttendanceClockedIn',
-      write.at,
-      write.at,
-      ids,
-    );
+    accepted = await recordMovement(tx, scope, ids, {
+      sessionId: write.result.session_id,
+      branchId: scan.token.branch_id,
+      eventType: 'AttendanceClockedIn',
+      at: write.at,
+      recordedAt: write.at,
+    });
   }
+  if (accepted === null) throw new Error('ATTENDANCE_MOVEMENT_MISSING');
   if (write.geo !== 'OK')
     await tx.execute(sql`
     INSERT INTO attendance_exceptions(company_id,id,business_id,employee_id,branch_id,session_id,kind,raised_at)
     VALUES(${scope.companyId},${ids.newId()},${scope.businessId},${scope.employeeId},${scan.token.branch_id},${write.result.session_id},${write.geo},${write.at.toISOString()})`);
   await tx.execute(sql`UPDATE attendance_states SET last_accepted_scan_at=${write.at.toISOString()},last_result=${JSON.stringify(write.result)}::jsonb
     WHERE company_id=${scope.companyId} AND employee_id=${scope.employeeId}`);
+  // MISSED_OUT إغلاق نظامي لا مسح؛ الإشارة تربط بصف audit لحركة المسح نفسها، وهو يبقى دائماً ويسمي الجلسة.
+  await recordAttendanceDeviceSignal(tx, {
+    companyId: scope.companyId,
+    id: ids.newId(),
+    businessId: scope.businessId,
+    branchId: scan.token.branch_id,
+    employeeId: scope.employeeId,
+    clockEventId: accepted,
+    clockedAt: write.at,
+    installationId: write.installationId,
+  });
 }
 async function openSession(
   tx: Tx,
@@ -78,28 +87,31 @@ async function closeSession(
 async function recordMovement(
   tx: Tx,
   scope: PasskeyScope,
-  sessionId: string,
-  branchId: string,
-  eventType: string,
-  at: Date,
-  recordedAt: Date,
   ids: IdGenerator,
-) {
+  movement: {
+    sessionId: string;
+    branchId: string;
+    eventType: 'AttendanceClockedIn' | 'AttendanceClockedOut' | 'AttendanceMissedOut';
+    at: Date;
+    recordedAt: Date;
+  },
+): Promise<string> {
   const payload = {
-    session_id: sessionId,
+    session_id: movement.sessionId,
     employee_id: scope.employeeId,
     business_id: scope.businessId,
-    branch_id: branchId,
-    occurred_at: at.toISOString(),
-    recorded_at: recordedAt.toISOString(),
+    branch_id: movement.branchId,
+    occurred_at: movement.at.toISOString(),
+    recorded_at: movement.recordedAt.toISOString(),
   };
-  await appendAuditLog(tx, ids.newId(), {
+  const auditId = ids.newId();
+  await appendAuditLog(tx, auditId, {
     entity: 'attendance_session',
-    entityId: sessionId,
+    entityId: movement.sessionId,
     action:
-      eventType === 'AttendanceClockedIn'
+      movement.eventType === 'AttendanceClockedIn'
         ? 'clocked_in'
-        : eventType === 'AttendanceClockedOut'
+        : movement.eventType === 'AttendanceClockedOut'
           ? 'clocked_out'
           : 'missed_out',
     after: payload,
@@ -107,7 +119,8 @@ async function recordMovement(
   await appendOutboxEvent(tx, ids.newId(), {
     aggregateType: 'employee',
     aggregateId: scope.employeeId,
-    eventType,
+    eventType: movement.eventType,
     payload,
   });
+  return auditId;
 }

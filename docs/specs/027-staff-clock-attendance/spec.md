@@ -113,4 +113,14 @@ All AT-01–AT-09 checks pass, there is never more than one OPEN session per emp
 cross-company reads return no rows and writes cannot cross tenant-qualified FKs.
 Attendance creates no salary/commission deduction. PRs 23–28 remain separate slices.
 
-Amendment 2026-10-04: PR 21 and PR 22 were built in parallel, so PR 22 ships without the `installation_id` field, the POS identifier and the transactional signal write. They move to follow-up PR 22b; until it merges `attendance_device_signals` stays empty and the shared-device flag cannot fire.
+### Shared-installation signal (PR 22b)
+
+The clock body also requires `installation_id` (ADR-0029 `attendanceInstallationSignal`);
+the challenge does not take it and its scan digest ignores it. The POS personal app
+generates it once in `localStorage`, keeps it across logout/operator replacement and
+never syncs it. Each accepted scan — CLOCK_IN, CLOCK_OUT, or MISSED_OUT plus CLOCK_IN —
+writes exactly one `attendance_device_signals` row in the same transaction: QR branch,
+the sampled instant, the company-scoped hash and `clock_event_id` = the scan movement's
+audit row id. Dedupe, idempotent replay, refusal and rollback leave no row. Tests cover
+these cases, the raw id absent from every attendance/audit/outbox/idempotency row,
+tenant separation, and two employees on one installation flagged by the PR 21 query.

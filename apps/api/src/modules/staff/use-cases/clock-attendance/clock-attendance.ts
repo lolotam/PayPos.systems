@@ -34,7 +34,11 @@ export class ClockAttendance {
   ) {}
   execute(
     scope: PasskeyScope,
-    input: AttendanceScan & { challenge_id: string; response: AttendanceAssertion },
+    input: AttendanceScan & {
+      challenge_id: string;
+      response: AttendanceAssertion;
+      installation_id: string;
+    },
     idem: { key: string; fingerprint: string },
   ): Promise<ClockResult> {
     return this.transactions.run(
@@ -67,11 +71,15 @@ export class ClockAttendance {
           const operation =
             attendanceTransition(tx.context.open, at) === 'OUT' ? 'CLOCK_OUT' : 'CLOCK_IN';
           if (challenge.operation !== operation) throw new AttendanceError('PASSKEY_INVALID');
-          return this.apply(tx, at);
+          return this.apply(tx, at, input.installation_id);
         }),
     );
   }
-  private async apply(tx: AttendanceTransaction, at: Date): Promise<ClockResult> {
+  private async apply(
+    tx: AttendanceTransaction,
+    at: Date,
+    installationId: string,
+  ): Promise<ClockResult> {
     const context = tx.context;
     const transition = attendanceTransition(context.open, at);
     const workingDate = attendanceWorkingDate(at, context.timezone);
@@ -103,6 +111,8 @@ export class ClockAttendance {
           : transition === 'MISSED_IN'
             ? attendanceMissedDeadline(context.open)
             : at,
+      // إشارة واحدة لكل مسح مقبول: dedupe والإعادة المخزنة والرفض لا تصل إلى persist أصلاً.
+      installationId,
     });
     return result;
   }

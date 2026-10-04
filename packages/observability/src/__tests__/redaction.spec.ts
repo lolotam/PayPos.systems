@@ -181,3 +181,12 @@ it('WebAuthn ceremony material is removed through the real logger', () => {
   expect(line).not.toContain(value);
   expect(line).toContain(REDACTED);
 });
+
+it('a raw attendance installation id never reaches a log line, whatever its casing (ADR-0029)', () => {
+  const installation = '12345678-1234-4234-8234-123456789abc';
+  const line = logLine({
+    installation_id: installation,
+    body: { installationId: installation, nested: [{ INSTALLATION_ID: installation }] },
+  });
+  expect(line).not.toContain(installation);
+});

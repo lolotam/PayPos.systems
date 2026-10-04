@@ -1108,6 +1108,8 @@ export interface components {
                 accuracy: number;
             };
             /** Format: uuid */
+            installation_id: string;
+            /** Format: uuid */
             challenge_id: string;
             response: {
                 id: string;
