@@ -5,6 +5,9 @@ import { buildOpenApiDocument } from '../openapi.js';
 
 const expectedSchemas = [
   'CancelLeaveInput',
+  'DecideLeaveInput',
+  'RevokeLeaveInput',
+  'LeaveInboxQuery',
   'LeaveListItem',
   'LeaveListQuery',
   'LeavePage',

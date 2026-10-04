@@ -6,7 +6,7 @@ export type LeaveTerms = {
   | { kind: 'FULL_DAY'; from: string; to: string }
   | { kind: 'PARTIAL'; date: string; start: string; end: string }
 );
-/** حالة الإجازة تمتد للموافقة القادمة دون توفير قرار في هذا الـ slice. */
+/** حالات الطلب؛ سحب الموافقة يحتفظ بالقرار الأصلي ويستخدم CANCELLED مع هوية سحب منفصلة. */
 export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 /** نسخة مستقرة تحفظ المنطقة والفترة الأصلية لكي يسأل الحضور عن لحظة معتمدة لاحقاً. */
 export interface LeaveRecord {
@@ -32,6 +32,10 @@ export interface LeaveRecord {
   decided_by: string | null;
   decided_at: string | null;
   rejection_reason: string | null;
+  decision_reason: string | null;
+  revoked_by: string | null;
+  revoked_at: string | null;
+  revocation_reason: string | null;
   revision: number;
 }
 /** تاريخ الموظف المقفول؛ حدود ارتباط الفرع مستبعدة في نهايتها مثل PR 9/16. */
@@ -64,6 +68,11 @@ export class LeaveError extends Error {
       | 'LEAVE_PAST_OWN_FORBIDDEN'
       | 'LEAVE_NOT_PENDING'
       | 'LEAVE_REVISION_CONFLICT'
+      | 'LEAVE_SELF_DECISION_FORBIDDEN'
+      | 'LEAVE_REASON_REQUIRED'
+      | 'LEAVE_APPROVED_OVERLAP'
+      | 'LEAVE_NOT_APPROVED'
+      | 'LEAVE_ALREADY_STARTED'
       | 'TRANSACTION_RETRY_REQUIRED',
   ) {
     super(code);

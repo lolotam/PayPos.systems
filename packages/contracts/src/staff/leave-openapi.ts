@@ -68,7 +68,19 @@ export const leavePaths = {
     post: operation('cancelEmployeeLeave', [...employee, path('leaveId')], 'CancelLeaveInput'),
   },
   '/v1/businesses/{businessId}/leave-requests': {
-    get: operation('pendingLeaveInbox', [company, path('businessId')]),
+    get: operation('pendingLeaveInbox', [
+      company,
+      path('businessId'),
+      { in: 'query', name: 'branch_id', schema: { type: 'string', format: 'uuid' } },
+      { in: 'query', name: 'from', schema: { type: 'string', format: 'date' } },
+      { in: 'query', name: 'to', schema: { type: 'string', format: 'date' } },
+    ]),
+  },
+  '/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/decide': {
+    post: operation('decideEmployeeLeave', [...employee, path('leaveId')], 'DecideLeaveInput'),
+  },
+  '/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/revoke': {
+    post: operation('revokeEmployeeLeave', [...employee, path('leaveId')], 'RevokeLeaveInput'),
   },
   '/v1/staff/me/leave-requests': {
     get: { ...operation('ownLeaveHistory', staff), security: ownSecurity },

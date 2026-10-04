@@ -12,6 +12,9 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { EmployeeLeaveController } from './http/employee-leave.controller.ts';
 import { OwnLeaveController } from './http/own-leave.controller.ts';
 import { LeaveInboxController } from './http/leave-inbox.controller.ts';
+import { LeaveDecisionsController } from './http/leave-decisions.controller.ts';
+import { DecideLeaveUseCase } from './use-cases/decide-leave/decide-leave.usecase.ts';
+import { RevokeLeaveUseCase } from './use-cases/revoke-leave/revoke-leave.usecase.ts';
 import { createLeaveTransactions } from './persistence/drizzle-leave-transactions.ts';
 import { createLeaveReadAccess } from './persistence/leave-read-access.adapter.ts';
 import { LEAVE_READ_ACCESS } from './queries/leave-requests.query.ts';
@@ -56,6 +59,7 @@ export const staffControllers = [
   EmployeeLeaveController,
   OwnLeaveController,
   LeaveInboxController,
+  LeaveDecisionsController,
   AttendanceQrController,
   PasskeysController,
   MyScheduleController,
@@ -99,6 +103,14 @@ function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerato
 function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   const tx = database === undefined ? null : createLeaveTransactions(database, ids);
   return [
+    {
+      provide: DecideLeaveUseCase,
+      useValue: tx === null ? null : new DecideLeaveUseCase(tx, systemClock),
+    },
+    {
+      provide: RevokeLeaveUseCase,
+      useValue: tx === null ? null : new RevokeLeaveUseCase(tx, systemClock),
+    },
     StaffLeaveGuard,
     { provide: LEAVE_READ_ACCESS, useValue: createLeaveReadAccess(systemClock) },
     {

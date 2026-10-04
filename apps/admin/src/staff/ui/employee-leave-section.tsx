@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useLeave } from '../api/use-leave';
-import { LeaveHistoryTable } from './leave-history-table';
+import { EmployeeLeaveHistory } from './employee-leave-history';
 import { LeaveRequestForm } from './leave-request-form';
 import { LeavePagination } from './leave-pagination';
 export function EmployeeLeaveSection({
@@ -32,7 +32,8 @@ export function EmployeeLeaveSection({
   return (
     <section aria-label={t(locale, 'leave.title')} className="flex flex-col gap-4">
       <h3 className="font-bold">{t(locale, 'leave.title')}</h3>
-      <LeaveHistoryTable
+      <EmployeeLeaveHistory
+        scope={{ companyId, businessId, userId }}
         items={data.items}
         pending={cancel.isPending}
         onCancel={(row) => {

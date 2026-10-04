@@ -25,6 +25,8 @@ export const LEAVE_PERMISSIONS = [
   'create:leave:branch',
   'read:leave:branch',
   'cancel:leave:branch',
+  'decide:leave:branch',
+  'revoke:leave:branch',
 ] as const satisfies readonly Permission[];
 
 /** الراتب استثناء PR 10: افتراضي المالك مشتق من هويته، ولا يدخل role_permissions أبداً. */
@@ -49,6 +51,9 @@ export const ROLE_DEFAULTS = {
   'create:leave:branch': [...managers, 'branch_manager'],
   'read:leave:branch': [...managers, 'branch_manager'],
   'cancel:leave:branch': [...managers, 'branch_manager'],
+  // قرار المالك 2026-10-04 (DL-Q4، الخيار الموصى به): الافتراضي للموافقين الأربعة، والتفويض الشخصي متاح لباقي البشر.
+  'decide:leave:branch': [...managers, 'branch_manager'],
+  'revoke:leave:branch': [...managers, 'branch_manager'],
   'read:salaries:business': [],
   'manage:salaries:business': [],
   'read:schedules:branch': [...managers, 'branch_manager'],

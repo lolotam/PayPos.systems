@@ -10,6 +10,7 @@ import { sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { scheduleToday } from '../domain/schedule-calendar.ts';
 import { validateLeaveEmployee } from '../domain/leave-policy.ts';
+import { validateLeaveDecider } from '../domain/leave-decision.ts';
 import { LeaveError, type LeaveRecord } from '../domain/leave-types.ts';
 import type {
   LeaveActor,
@@ -24,7 +25,13 @@ import {
 import { lockedLeaveEmployee, lockedLeaveRecord } from './leave-records.ts';
 import { saveLeave } from './leave-writes.ts';
 
-async function resolve(tx: Tx, actor: LeaveActor, action: 'create' | 'cancel', clock: LeaveClock) {
+async function resolve(
+  tx: Tx,
+  actor: LeaveActor,
+  action: 'create' | 'cancel' | 'decide' | 'revoke',
+  clock: LeaveClock,
+) {
+  if (actor.own && (action === 'decide' || action === 'revoke')) throw new LeaveError('NOT_FOUND');
   if (!(await leaveAuthorityLock(tx, actor.companyId))) throw new LeaveError('NOT_FOUND');
   const employee = await lockedLeaveEmployee(tx, actor);
   const before = await lockedLeaveRecord(tx, actor, employee.id);
@@ -35,9 +42,9 @@ async function resolve(tx: Tx, actor: LeaveActor, action: 'create' | 'cancel', c
   const business = await leaveBusinessContext(tx, actor.companyId, actor.businessId);
   // الذات تثبت أهليتها في الفرع الحالي الموثق؛ لا تفقد حق إلغاء طلبها بعد نقل الفرع.
   const authorityBranch = actor.own ? actor.branchId : branchId;
-  // تعطيل الفرع يوقف الطلب الجديد، لكنه لا يسحب حق المدير في إلغاء طلب معلق داخل نطاقه.
+  // تعطيل الفرع يوقف الطلب الجديد، لكنه لا يسحب إدارة الطلبات القائمة داخل نطاق المدير.
   const branch = business?.branches.find(
-    (b) => b.id === authorityBranch && (b.is_active || (action === 'cancel' && !actor.own)),
+    (b) => b.id === authorityBranch && (b.is_active || (action !== 'create' && !actor.own)),
   );
   if (!branch) throw new LeaveError('NOT_FOUND');
   // لا نحفظ وقتاً قبل انتظار الأقفال؛ المنحة قد تنتهي والطلب ما زال في الطابور.
@@ -59,6 +66,8 @@ async function resolve(tx: Tx, actor: LeaveActor, action: 'create' | 'cancel', c
   )
     throw new LeaveError('NOT_FOUND');
   if (!access.featureEnabled) throw new LeaveError('FEATURE_DISABLED');
+  if (action === 'decide' || action === 'revoke')
+    validateLeaveDecider(employee.user_id, actor.userId);
   if (actor.own) {
     const today = scheduleToday(now, branch.effective_timezone);
     try {
@@ -109,6 +118,7 @@ export function createLeaveTransactions(
                   context.employee.id,
                   context.branchId,
                   actor.own,
+                  actor.leaveId,
                   actor.fingerprint,
                 ]),
               )
@@ -117,7 +127,7 @@ export function createLeaveTransactions(
               tx,
               {
                 scope: 'COMPANY',
-                operation: `${action === 'create' ? 'request' : 'cancel'}-leave`,
+                operation: `${action === 'create' ? 'request' : action}-leave`,
                 key: actor.key,
                 fingerprint,
               },
@@ -126,8 +136,8 @@ export function createLeaveTransactions(
                   ...context,
                   overlaps: (period) =>
                     tx.execute<
-                      Pick<LeaveRecord, 'starts_at' | 'ends_at' | 'status'>
-                    >(sql`SELECT to_char(starts_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS starts_at,to_char(ends_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS ends_at,status FROM leave_requests
+                      Pick<LeaveRecord, 'id' | 'starts_at' | 'ends_at' | 'status'>
+                    >(sql`SELECT id,to_char(starts_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS starts_at,to_char(ends_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS ends_at,status FROM leave_requests
                 WHERE company_id=${actor.companyId} AND employee_id=${context.employee.id} AND status IN ('PENDING','APPROVED') AND starts_at<${period.ends_at}::timestamptz AND ends_at>${period.starts_at}::timestamptz`),
                   save: (row) => saveLeave(tx, actor.companyId, ids, context.before, row),
                 });

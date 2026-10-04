@@ -69,6 +69,10 @@ export const leaveRequest = z
     decided_by: id.nullable(),
     decided_at: z.iso.datetime().nullable(),
     rejection_reason: z.string().nullable(),
+    decision_reason: z.string().nullable(),
+    revoked_by: id.nullable(),
+    revoked_at: z.iso.datetime().nullable(),
+    revocation_reason: z.string().nullable(),
     revision: z.number().int().positive(),
   })
   .meta({ id: 'LeaveRequest' });
@@ -81,7 +85,13 @@ export const leaveListQuery = z
 export const ownLeaveBranchQuery = z.strictObject({ branch_id: employeeInputId.optional() });
 export const ownLeaveListQuery = leaveListQuery.extend({ branch_id: employeeInputId.optional() });
 export const leaveListItem = leaveRequest
-  .extend({ can_cancel: z.boolean() })
+  .extend({
+    employee_name_en: z.string(),
+    employee_name_ar: z.string().nullable(),
+    can_cancel: z.boolean(),
+    can_decide: z.boolean(),
+    can_revoke: z.boolean(),
+  })
   .meta({ id: 'LeaveListItem' });
 export const leavePage = z
   .object({

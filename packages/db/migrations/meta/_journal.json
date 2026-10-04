@@ -456,6 +456,20 @@
       "when": 1791082605722,
       "tag": "0064_2026-10-04_leave-default-bundles",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1791086024039,
+      "tag": "0065_2026-10-04_staff-leave-decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1791086031396,
+      "tag": "0066_2026-10-04_leave-decision-access",
+      "breakpoints": true
     }
   ]
 }

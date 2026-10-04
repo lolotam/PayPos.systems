@@ -1,4 +1,4 @@
-import { leaveEn } from './leave-catalog.js';
+import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
@@ -205,7 +205,8 @@ export const en = {
     LEAVE_OVERLAP: 'This request overlaps pending or approved leave.',
     LEAVE_PAST_OWN_FORBIDDEN:
       'Own leave requests cannot start before today in the branch timezone.',
-    LEAVE_NOT_PENDING: 'Only pending leave can be cancelled.',
+    LEAVE_NOT_PENDING: 'Only pending leave can be decided or cancelled.',
+    ...leaveDecisionErrorsEn,
     LEAVE_REVISION_CONFLICT: 'The leave request changed. Reload and try again.',
     SCHEDULE_WEEK_INVALID: 'The schedule week must start on Saturday.',
     SCHEDULE_SHIFT_INVALID: 'Use up to two shifts per day, each at most 16 hours.',

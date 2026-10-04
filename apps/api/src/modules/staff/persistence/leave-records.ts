@@ -26,7 +26,8 @@ export async function lockedLeaveRecord(
     to_char(ends_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS ends_at,type,note,status,requested_by,
     to_char(requested_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS requested_at,cancelled_by,
     to_char(cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS cancelled_at,decided_by,
-    to_char(decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS decided_at,rejection_reason,revision
+    to_char(decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS decided_at,rejection_reason,decision_reason,revoked_by,
+    to_char(revoked_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS revoked_at,revocation_reason,revision
     FROM leave_requests WHERE company_id=${actor.companyId} AND business_id=${actor.businessId} AND employee_id=${employeeId} AND id=${actor.leaveId} FOR UPDATE`);
   if (!row) throw new LeaveError('NOT_FOUND');
   return row;

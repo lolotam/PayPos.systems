@@ -1,5 +1,5 @@
 import type { Catalog } from './catalog.js';
-import { leaveAr } from './leave-catalog.js';
+import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
@@ -203,7 +203,8 @@ export const ar: Catalog = {
     LEAVE_EMPLOYEE_INELIGIBLE: 'الموظف غير مؤهل في هذا الفرع خلال الفترة كاملة.',
     LEAVE_OVERLAP: 'يتداخل الطلب مع إجازة معلقة أو معتمدة.',
     LEAVE_PAST_OWN_FORBIDDEN: 'طلب الإجازة الذاتي لا يبدأ قبل اليوم بتوقيت الفرع.',
-    LEAVE_NOT_PENDING: 'يمكن إلغاء الإجازات المعلقة فقط.',
+    LEAVE_NOT_PENDING: 'يمكن البت في الإجازات المعلقة أو إلغاؤها فقط.',
+    ...leaveDecisionErrorsAr,
     LEAVE_REVISION_CONFLICT: 'تغير طلب الإجازة. أعد التحميل وحاول مرة أخرى.',
     SCHEDULE_WEEK_INVALID: 'أسبوع الجدول لازم يبدأ السبت.',
     SCHEDULE_SHIFT_INVALID: 'الحد ورديتان في اليوم ومدة كل وردية لا تزيد عن ١٦ ساعة.',

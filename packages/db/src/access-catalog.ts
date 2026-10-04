@@ -11,6 +11,8 @@ export const PERMISSIONS = [
   'create:leave:branch',
   'read:leave:branch',
   'cancel:leave:branch',
+  'decide:leave:branch',
+  'revoke:leave:branch',
   'read:schedules:branch',
   'manage:schedules:branch',
   'read:schedules:business',
