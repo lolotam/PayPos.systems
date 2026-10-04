@@ -37,6 +37,13 @@ holders remain protected. Reload scope, grants, holder identity and decision tim
 under PR 7's company → ordered memberships locking protocol. DENY/expiry apply,
 including descendant DENYs. Unknown/inactive/cross-tenant/out-of-reach targets
 all return the same 403 FORBIDDEN envelope before holder-specific failures.
+Review correction (PR #93, round 2): the HTTP guard checks both the immediate
+membership scope and every affected descendant before any body validation.
+An inaccessible membership and an unknown ID have identical status, code and body
+for valid and invalid requests alike. Self-edit and owner-protected failures may
+be named only after full target authorization; an authorized target's invalid body
+may return VALIDATION_FAILED. The mutation still repeats authorization under locks.
+Preflight also checks the company's non-deleted state, matching the locked reader.
 Every successful set/change/clear has the existing atomic audit and invalidation.
 
 Device may never hold read/manage:files:business, manage:employees:business,
@@ -82,6 +89,9 @@ personal decisions on the existing admin screen. Reception UI remains PR 35.
   personal ALLOW is granted, then loses access when that grant is revoked.
 - BM own-business discount edits, other-business/company/unknown refusal equality,
   self/sibling protection, GM/owner paths, canonical owner protection and DENY/expiry.
+- HTTP regression compares complete envelopes for descendant DENY, direct DENY,
+  inactive/cross-tenant/out-of-reach/unknown targets and deleted companies with valid and invalid bodies;
+  self/owner protections cannot expose a target that fails full authorization.
 - Every new Device never-cell refuses ALLOW; historical rows grant nothing and
   retain history. Device staff-login eligibility and existing QR/attendance tests pass.
 - Bilingual admin label/default tests. pnpm check with FORCE_COLOR unset, pnpm test,

@@ -12,6 +12,7 @@ import type { ScopeType } from '../domain/access.ts';
 import { protectOwnerAccess } from '../domain/owner-access.ts';
 import type { AccessReader, ActiveMembership, SourcedGrant } from '../ports/access-reader.port.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
+import { readScopeTargets } from './permission-scope-targets.ts';
 
 const SALARY_CODES = sql.join(
   OWNER_DERIVED_PERMISSIONS.map((p) => sql`${p}`),
@@ -31,20 +32,15 @@ export function createAccessReader(db: TenantWrappers): AccessReader {
         const [row] = await tx.execute<{
           scope_type: ScopeType;
           scope_id: string;
-          business_id: string | null;
         }>(sql`
-        SELECT m.scope_type, m.scope_id, b.business_id FROM memberships m
-        LEFT JOIN branches b ON b.company_id=m.company_id AND b.id=m.scope_branch_id
+        SELECT m.scope_type, m.scope_id FROM memberships m
+        JOIN companies c ON c.id=m.company_id AND c.deleted_at IS NULL
         WHERE m.company_id=${companyId} AND m.id=${membershipId} AND ${ACTIVE}`);
-        if (row === undefined || (row.scope_type === 'BRANCH' && row.business_id === null))
-          return null;
-        return {
-          companyId,
-          ...(row.scope_type === 'BUSINESS' ? { businessId: row.scope_id } : {}),
-          ...(row.scope_type === 'BRANCH' && row.business_id !== null
-            ? { businessId: row.business_id, branchId: row.scope_id }
-            : {}),
-        };
+        if (row === undefined) return null;
+        const scopes = await readScopeTargets(tx, companyId, row);
+        return scopes.target === null
+          ? null
+          : { target: scopes.target, descendantTargets: scopes.descendantTargets };
       }),
     companiesOf: (userId) =>
       db.withUser(userId, async (tx) => {

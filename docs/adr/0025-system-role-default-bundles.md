@@ -114,3 +114,10 @@ company discount management, and the three new codes. Shared eligibility rejects
 new ALLOWs and ignores historical ALLOWs while retaining history. Staff login stays
 eligible for Device under ADR-0019, with no new stored Device default. Scope checks
 also prevent historical or new BM/branch customer grants from broadening reach.
+
+Review correction for PR #93, round 2: limit administration checks immediate and
+descendant scopes in the HTTP guard before validating the body. Guard and locked
+mutation reuse one scope reader and the existing permission-possession rule.
+Unknown and inaccessible memberships share the complete FORBIDDEN envelope even
+for invalid bodies; self/owner errors require full target authorization first.
+The transaction retains its locked recheck against grants committed after preflight.
