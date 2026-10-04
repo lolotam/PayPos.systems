@@ -7,8 +7,8 @@ import { CreateEmployeeUseCase } from '../use-cases/create-employee/create-emplo
 import { createEmployeeDetailAccess } from '../persistence/employee-detail-access.adapter.ts';
 import { employeeDetail } from '../queries/employee-detail.query.ts';
 
-export async function employeesFixture() {
-  const h = await startHarness();
+export async function employeesFixture(options: Parameters<typeof startHarness>[0] = {}) {
+  const h = await startHarness(options);
   const ownerCookie = await h.signedInOperator('employee-owner@example.test');
   const cookie = await h.signedInOperator('employee-manager@example.test');
   const company = await h.onboard(ownerCookie, 'Synthetic employer');

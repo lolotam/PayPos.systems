@@ -35,6 +35,9 @@ composition_roots:
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
 reads:
+  - { from: staff, to: identity, symbol: lockLeaveAccess, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
+  - { from: staff, to: identity, symbol: readLeaveAccess, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
+  - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
   - { from: staff, to: identity, symbol: scheduleAccess, file: apps/api/src/modules/staff/persistence/schedule-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/schedule-context.adapter.ts }
   - { from: staff, to: identity, symbol: lockEmployeeSalaryAccess, file: apps/api/src/modules/staff/persistence/employee-salary-access.adapter.ts }

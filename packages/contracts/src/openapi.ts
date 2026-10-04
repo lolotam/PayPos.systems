@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { leaveSchemas } from './staff/leave.js';
+import { leavePaths } from './staff/leave-openapi.js';
 import { scheduleSchemas } from './staff/schedules.js';
 import {
   setSalaryInput,
@@ -78,6 +80,7 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...leaveSchemas,
   ...scheduleSchemas,
   setSalaryInput,
   employeeSalary,
@@ -176,6 +179,7 @@ const PATHS = {
   ...settingsPaths,
   ...filePaths,
   ...staffPaths,
+  ...leavePaths,
   ...permissionPaths,
   ...customerPaths,
   '/v1/devices/me/attendance-qr': {

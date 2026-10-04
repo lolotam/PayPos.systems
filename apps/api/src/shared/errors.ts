@@ -4,6 +4,16 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
+  LEAVE_PERIOD_INVALID: 400,
+  LEAVE_TIME_STEP_INVALID: 400,
+  LEAVE_SPAN_TOO_LONG: 400,
+  LEAVE_NOTE_REQUIRED: 400,
+  LEAVE_LOCAL_TIME_INVALID: 400,
+  LEAVE_EMPLOYEE_INELIGIBLE: 400,
+  LEAVE_OVERLAP: 409,
+  LEAVE_PAST_OWN_FORBIDDEN: 400,
+  LEAVE_NOT_PENDING: 409,
+  LEAVE_REVISION_CONFLICT: 409,
   SCHEDULE_WEEK_INVALID: 400,
   SCHEDULE_SHIFT_INVALID: 400,
   SCHEDULE_SHIFT_OVERLAP: 409,
@@ -71,6 +81,16 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'LEAVE_PERIOD_INVALID',
+  'LEAVE_TIME_STEP_INVALID',
+  'LEAVE_SPAN_TOO_LONG',
+  'LEAVE_NOTE_REQUIRED',
+  'LEAVE_LOCAL_TIME_INVALID',
+  'LEAVE_EMPLOYEE_INELIGIBLE',
+  'LEAVE_OVERLAP',
+  'LEAVE_PAST_OWN_FORBIDDEN',
+  'LEAVE_NOT_PENDING',
+  'LEAVE_REVISION_CONFLICT',
   'SCHEDULE_WEEK_INVALID',
   'SCHEDULE_SHIFT_INVALID',
   'SCHEDULE_SHIFT_OVERLAP',

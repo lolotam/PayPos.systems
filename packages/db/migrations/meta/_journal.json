@@ -414,6 +414,27 @@
       "when": 1791064382943,
       "tag": "0058_2026-10-03_system-role-default-bundles",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1791071996243,
+      "tag": "0059_2026-10-03_staff-leave-requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1791072001517,
+      "tag": "0060_2026-10-04_staff-leave-requests-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1791072003492,
+      "tag": "0061_2026-10-04_leave-default-bundles",
+      "breakpoints": true
     }
   ]
 }

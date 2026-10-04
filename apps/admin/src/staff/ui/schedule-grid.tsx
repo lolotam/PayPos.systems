@@ -4,6 +4,7 @@ import { t, type Locale } from '@pospay/i18n';
 import { Button, DataTableFrame } from '@pospay/ui';
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useMemo } from 'react';
+import Link from 'next/link';
 import { useLocale } from '@/shared/locale/locale-context';
 type Row = ScheduleGrid['items'][number];
 export const scheduleDayKeys = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'] as const;
@@ -19,6 +20,12 @@ function gridColumns(
       cell: ({ row }) => (
         <div>
           {locale === 'ar' ? (row.original.name_ar ?? row.original.name_en) : row.original.name_en}
+          <Link
+            className="block text-sm underline"
+            href={`/staff/${row.original.employee_id}/leave`}
+          >
+            {t(locale, 'leave.title')}
+          </Link>
           {row.original.schedule ? (
             <p dir="ltr" className="text-xs text-muted-foreground">
               {row.original.schedule.timezone}

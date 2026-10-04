@@ -1,9 +1,15 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { OWNER_ROLE_ID, PERMISSIONS, SYSTEM_ROLES, type Permission } from './access-catalog.ts';
-import { ROLE_DEFAULTS, OWNER_DERIVED_PERMISSIONS, SCHEDULE_PERMISSIONS } from './role-defaults.ts';
+import {
+  ROLE_DEFAULTS,
+  OWNER_DERIVED_PERMISSIONS,
+  SCHEDULE_PERMISSIONS,
+  LEAVE_PERMISSIONS,
+} from './role-defaults.ts';
 
 // spec 009 يجعل الأدوار المحذوفة من الصف ❌؛ الجهاز لا يرث سلطة موظف من ALLOW قديم.
 const deviceForbidden = [
+  ...LEAVE_PERMISSIONS,
   ...OWNER_DERIVED_PERMISSIONS,
   ...SCHEDULE_PERMISSIONS,
   'read:memberships:company',

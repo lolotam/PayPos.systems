@@ -8,6 +8,7 @@ import { useEmployeeEdit } from '../api/use-employees';
 import { EditEmployeeForm } from './edit-employee-form';
 import { EmployeeSalarySection } from './employee-salary-section';
 import { EmployeeEditActions } from './employee-edit-actions';
+import { EmployeeLeaveSection } from './employee-leave-section';
 
 export function EmployeeEditPanel({
   companyId,
@@ -61,6 +62,10 @@ export function EmployeeEditPanel({
           void record.refetch();
         }}
         onClose={onClose}
+      />
+      <EmployeeLeaveSection
+        {...{ companyId, businessId: business.id, userId, employeeId }}
+        branches={business.branches}
       />
     </Card>
   );

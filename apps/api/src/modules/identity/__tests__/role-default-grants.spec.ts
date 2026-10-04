@@ -98,6 +98,8 @@ it.each(SYSTEM_ROLES.filter((r) => r.code !== 'device'))(
         (code === 'owner' && (OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(permission));
       const expected =
         defaultAllowed &&
+        // الـ guard العام لا يثبت ملكية الموظف؛ الذات تمر من مسار الجلسة المتخصص فقط.
+        suffix !== 'own' &&
         (suffix !== 'company' || scope === 'COMPANY') &&
         (suffix !== 'business' || scope !== 'BRANCH');
       expect(own !== null, `${code} ${permission}`).toBe(expected);
@@ -111,7 +113,7 @@ it.each(SYSTEM_ROLES.filter((r) => r.code !== 'device'))(
             : { branchParam: otherBranch }),
         });
         expect(elsewhere !== null, `${code} ${permission} other scope`).toBe(
-          defaultAllowed && scope === 'COMPANY',
+          defaultAllowed && suffix !== 'own' && scope === 'COMPANY',
         );
       }
     }

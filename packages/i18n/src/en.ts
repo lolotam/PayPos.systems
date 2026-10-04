@@ -1,5 +1,7 @@
+import { leaveEn } from './leave-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  leave: leaveEn,
   permissionCodes: {
     readSchedulesBranch: 'Read branch schedules',
     manageSchedulesBranch: 'Manage branch schedules',
@@ -187,6 +189,19 @@ export const en = {
     generic_notice: 'Update for {{subject}}',
   },
   errors: {
+    LEAVE_PERIOD_INVALID: 'Leave dates or times are invalid.',
+    LEAVE_TIME_STEP_INVALID:
+      'Leave start and end times must use 15-minute steps in branch local time.',
+    LEAVE_SPAN_TOO_LONG: 'Full-day leave cannot exceed 90 days, including the start and end dates.',
+    LEAVE_NOTE_REQUIRED: 'Provide a note of 1–500 characters; Other requires a note.',
+    LEAVE_LOCAL_TIME_INVALID:
+      'The local time does not identify a unique instant in this branch timezone.',
+    LEAVE_EMPLOYEE_INELIGIBLE: 'The employee is not eligible in this branch for the whole period.',
+    LEAVE_OVERLAP: 'This request overlaps pending or approved leave.',
+    LEAVE_PAST_OWN_FORBIDDEN:
+      'Own leave requests cannot start before today in the branch timezone.',
+    LEAVE_NOT_PENDING: 'Only pending leave can be cancelled.',
+    LEAVE_REVISION_CONFLICT: 'The leave request changed. Reload and try again.',
     SCHEDULE_WEEK_INVALID: 'The schedule week must start on Saturday.',
     SCHEDULE_SHIFT_INVALID: 'Use up to two shifts per day, each at most 16 hours.',
     SCHEDULE_SHIFT_OVERLAP: 'The employee has overlapping shifts.',
