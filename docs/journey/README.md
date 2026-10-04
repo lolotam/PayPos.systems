@@ -48,5 +48,7 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 18 | [Set salary](18-set-salary.md) — تعيين الراتب | #88 | not yet (admin not deployed, issue #54) |
 | 19 | [Schedules](19-schedules.md) — جداول العمل | #89 | not yet (admin not deployed, issue #54); templates API only |
 | 20 | [Role default permissions](20-role-default-permissions.md) — صلاحيات الدور الافتراضية | #91 | not yet (admin not deployed, issue #54) |
+| 21 | [Role follow-ups](21-role-followups.md) — تكملة صلاحيات الأدوار | #93 | not yet (admin not deployed, issue #54); customer creation API only until PR 35 |
+| 22 | [Personal phone passkey](22-personal-phone-passkey.md) — مفتاح المرور على الموبايل الشخصي | #94 | not yet (POS not deployed); OTP sending OFF pending Meta templates + secrets; tests/local seams only |
 
 New journeys are added after every merge.
