@@ -3319,12 +3319,16 @@ export interface operations {
     ownLeaveHistory: {
         parameters: {
             query?: {
+                /** @description Required for personal sessions; kiosk sessions use their paired branch. */
+                branch_id?: string;
                 cursor?: string;
                 limit?: number;
             };
             header: {
-                /** @description Paired Device credential plus staff cookie */
-                Authorization: string;
+                /** @description Required with kiosk staff cookie; forbidden with a personal staff cookie. */
+                Authorization?: string;
+                /** @description Exact configured POS origin. */
+                Origin: string;
             };
             path?: never;
             cookie?: never;
@@ -3353,10 +3357,15 @@ export interface operations {
     };
     requestOwnLeave: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Required for personal sessions; kiosk sessions use their paired branch. */
+                branch_id?: string;
+            };
             header: {
-                /** @description Paired Device credential plus staff cookie */
-                Authorization: string;
+                /** @description Required with kiosk staff cookie; forbidden with a personal staff cookie. */
+                Authorization?: string;
+                /** @description Exact configured POS origin. */
+                Origin: string;
                 "Idempotency-Key": string;
             };
             path?: never;
@@ -3390,10 +3399,15 @@ export interface operations {
     };
     cancelOwnLeave: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Required for personal sessions; kiosk sessions use their paired branch. */
+                branch_id?: string;
+            };
             header: {
-                /** @description Paired Device credential plus staff cookie */
-                Authorization: string;
+                /** @description Required with kiosk staff cookie; forbidden with a personal staff cookie. */
+                Authorization?: string;
+                /** @description Exact configured POS origin. */
+                Origin: string;
                 "Idempotency-Key": string;
             };
             path: {

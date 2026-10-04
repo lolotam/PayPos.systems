@@ -2,7 +2,21 @@ import type { FastifyRequest } from 'fastify';
 import { ApiError } from '../../../shared/errors.ts';
 import type { IdempotencyInput } from '../../../shared/idempotency.ts';
 import { LeaveError } from '../use-cases/request-leave/request-leave.usecase.ts';
-export function ownLeaveActor(request: FastifyRequest, idem?: IdempotencyInput) {
+export function ownLeaveActor(request: FastifyRequest, idem?: IdempotencyInput, branchId?: string) {
+  const personal = request.personalSession;
+  if (personal && request.personalEmployeeId) {
+    if (!branchId)
+      throw new ApiError('VALIDATION_FAILED', [{ path: ['branch_id'], code: 'invalid_type' }]);
+    return {
+      companyId: personal.context.companyId,
+      businessId: personal.context.businessId,
+      employeeId: request.personalEmployeeId,
+      branchId,
+      userId: personal.userId,
+      own: true,
+      ...(idem ?? { key: '', fingerprint: '' }),
+    };
+  }
   const device = request.staffDevice,
     session = request.staffSession;
   if (!device || !session) throw new ApiError('UNAUTHENTICATED');

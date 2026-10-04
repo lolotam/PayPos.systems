@@ -7,6 +7,7 @@ export class StaffLeaveGuard implements CanActivate {
   constructor(@Inject(STAFF_POS_ORIGIN) private readonly origin: string | null) {}
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<FastifyRequest>();
+    if (request.personalSession && request.personalEmployeeId) return true;
     if (
       this.origin === null ||
       request.headers.origin !== this.origin ||

@@ -1,5 +1,6 @@
 import type { Catalog } from './catalog.js';
 import { leaveAr } from './leave-catalog.js';
+import { personalStaffAr } from './personal-staff-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
@@ -51,19 +52,7 @@ export const ar: Catalog = {
     managePermission: 'تعيين الراتب',
     employeeAccessHint: 'تُدار الرواتب من شاشة الموظفين، وتحتاج أيضًا إلى صلاحية إدارة الموظفين.',
   },
-  personalStaff: {
-    title: 'دخول الموظف من هاتفه الشخصي',
-    lead: 'استخدم هاتفك الشخصي لتسجيل البصمة أو الوجه أو رمز قفل الشاشة.',
-    linkRequired: 'اطلب من المدير رابط الدخول الشخصي الخاص بنشاطك.',
-    enrol: 'تسجيل مفتاح مرور',
-    bound: 'تم تسجيل مفتاح المرور. لتغييره اطلب من المدير فك الربط أولاً.',
-    unbound: 'سجل مفتاح المرور من هذا الهاتف.',
-    signOut: 'تسجيل الخروج',
-    retry: 'البدء من جديد',
-    personalLink: 'دخول الموظف الشخصي',
-    loading: 'جارٍ التحقق من الجلسة…',
-    offline: 'اتصل بالإنترنت للدخول أو تسجيل مفتاح المرور.',
-  },
+  personalStaff: personalStaffAr,
   shell: {
     schedule_title: 'جداول العمل الأسبوعية',
     schedule_lead: 'من السبت إلى الجمعة حسب المنطقة الزمنية للفرع المختار.',

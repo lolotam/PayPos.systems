@@ -23,11 +23,25 @@ const staff = [
   {
     in: 'header',
     name: 'Authorization',
+    required: false,
+    schema: { type: 'string' },
+    description: 'Required with kiosk staff cookie; forbidden with a personal staff cookie.',
+  },
+  {
+    in: 'header',
+    name: 'Origin',
     required: true,
     schema: { type: 'string' },
-    description: 'Paired Device credential plus staff cookie',
+    description: 'Exact configured POS origin.',
+  },
+  {
+    in: 'query',
+    name: 'branch_id',
+    schema: { type: 'string', format: 'uuid' },
+    description: 'Required for personal sessions; kiosk sessions use their paired branch.',
   },
 ];
+const ownSecurity = [{ PersonalStaffSession: [] }, { KioskStaffSession: [], DeviceToken: [] }];
 const paging = [
   { in: 'query', name: 'cursor', schema: { type: 'string', format: 'uuid' } },
   { in: 'query', name: 'limit', schema: { type: 'integer', minimum: 1, maximum: 100 } },
@@ -57,10 +71,16 @@ export const leavePaths = {
     get: operation('pendingLeaveInbox', [company, path('businessId')]),
   },
   '/v1/staff/me/leave-requests': {
-    get: operation('ownLeaveHistory', staff),
-    post: operation('requestOwnLeave', staff, 'RequestLeaveInput', '201'),
+    get: { ...operation('ownLeaveHistory', staff), security: ownSecurity },
+    post: {
+      ...operation('requestOwnLeave', staff, 'RequestLeaveInput', '201'),
+      security: ownSecurity,
+    },
   },
   '/v1/staff/me/leave-requests/{leaveId}/cancel': {
-    post: operation('cancelOwnLeave', [...staff, path('leaveId')], 'CancelLeaveInput'),
+    post: {
+      ...operation('cancelOwnLeave', [...staff, path('leaveId')], 'CancelLeaveInput'),
+      security: ownSecurity,
+    },
   },
 };

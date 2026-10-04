@@ -1,5 +1,5 @@
 import type { LeaveEmployee, LeaveRecord } from '../domain/leave-types.ts';
-/** هوية وسياق متحقق منهما؛ الذات تأتي من جلسة staff وحدها. */
+/** هوية وسياق متحقق منهما؛ الذات تأتي من جلسة kiosk أو جلسة شخصية محدودة وحدها. */
 export interface LeaveActor {
   companyId: string;
   userId: string;

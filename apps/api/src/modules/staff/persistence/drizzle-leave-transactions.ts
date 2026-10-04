@@ -33,7 +33,7 @@ async function resolve(tx: Tx, actor: LeaveActor, action: 'create' | 'cancel', c
   if (actor.own && before !== null && before.requested_by !== actor.userId)
     throw new LeaveError('NOT_FOUND');
   const business = await leaveBusinessContext(tx, actor.companyId, actor.businessId);
-  // الذات تثبت أهليتها في جهازها الحالي؛ لا تفقد حق إلغاء طلبها بعد نقل الفرع.
+  // الذات تثبت أهليتها في الفرع الحالي الموثق؛ لا تفقد حق إلغاء طلبها بعد نقل الفرع.
   const authorityBranch = actor.own ? actor.branchId : branchId;
   // تعطيل الفرع يوقف الطلب الجديد، لكنه لا يسحب حق المدير في إلغاء طلب معلق داخل نطاقه.
   const branch = business?.branches.find(

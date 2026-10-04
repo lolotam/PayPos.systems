@@ -18,7 +18,8 @@ async function readEmployee(tx: Tx, c: LeaveReadContext): Promise<LeaveEmployee 
     record: LeaveEmployee;
   }>(sql`SELECT jsonb_build_object('id',e.id,'user_id',e.user_id,'hire_date',e.hire_date,'contract_end',e.contract_end,'deleted_at',e.deleted_at,
     'attachments',COALESCE((SELECT jsonb_agg(jsonb_build_object('branch_id',branch_id,'from',"from",'to',"to")) FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id),'[]'::jsonb)) AS record
-    FROM employees e WHERE company_id=${c.companyId} AND business_id=${c.businessId} AND deleted_at IS NULL AND ${c.own ? sql`user_id=${c.userId}` : sql`id=${c.employeeId ?? null}::uuid`}`);
+    FROM employees e WHERE company_id=${c.companyId} AND business_id=${c.businessId} AND deleted_at IS NULL AND ${c.own ? sql`user_id=${c.userId}` : sql`id=${c.employeeId ?? null}::uuid`}
+    ${c.own && c.employeeId !== undefined ? sql`AND id=${c.employeeId}::uuid` : sql``}`);
   return row?.record ?? null;
 }
 export function createLeaveReadAccess(clock: LeaveClock) {

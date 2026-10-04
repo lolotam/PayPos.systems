@@ -1,4 +1,5 @@
 import { leaveEn } from './leave-catalog.js';
+import { personalStaffEn } from './personal-staff-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   leave: leaveEn,
@@ -51,19 +52,7 @@ export const en = {
     employeeAccessHint:
       'Salaries are managed from the employee screen and also require employee-management access.',
   },
-  personalStaff: {
-    title: 'Personal staff sign-in',
-    lead: 'Use your own phone to register your fingerprint, face or screen lock.',
-    linkRequired: 'Ask your manager for your personal sign-in link.',
-    enrol: 'Register a passkey',
-    bound: 'Your passkey is registered. Replacement requires your manager to unbind it first.',
-    unbound: 'Register your passkey on this phone.',
-    signOut: 'Sign out',
-    retry: 'Start again',
-    personalLink: 'Personal staff sign-in',
-    loading: 'Checking your session…',
-    offline: 'Reconnect to sign in or register a passkey.',
-  },
+  personalStaff: personalStaffEn,
   shell: {
     schedule_title: 'Weekly schedules',
     schedule_lead: 'Saturday to Friday in the selected branch timezone.',

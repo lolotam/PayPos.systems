@@ -5,7 +5,7 @@ PRD P1-T3/P1-T7.4, ADR-0019/0024/0025 and the owner decisions of 2026-10-04.
 
 ## User scenarios and testing
 
-- LR-01: an active linked employee uses the paired staff session to request their own leave;
+- LR-01: an active linked employee uses the paired or LIMITED personal staff session to request their own leave;
   the server resolves the employee, business and branch. A supplied employee identity is rejected.
 - LR-02: a manager requests leave on behalf of an eligible employee in an authorized branch.
 - LR-03: full days include both entered dates in the branch timezone; partial leave has one
@@ -43,6 +43,11 @@ PRD P1-T3/P1-T7.4, ADR-0019/0024/0025 and the owner decisions of 2026-10-04.
   reduce an owner, while the same DENY still refuses a non-owner's own request.
 - LR-16: schema-invalid create/cancel bodies return identical complete 400 envelopes for
   unknown and inaccessible identities. Schema validation remains before resource lookup.
+- LR-17: ADR-0027 personal sessions create/list/cancel only the caller's leave with live
+  own permissions, eligibility, non-owner DENY and owner immunity. Manager routes refuse
+  personal credentials even if that user also has a manager membership. Personal requests
+  require branch_id in the query, following my-schedule; kiosk requests retain their paired
+  branch. Neither employee nor workspace identity is accepted from the personal caller.
 
 ## Functional requirements and business rules
 
@@ -55,7 +60,9 @@ Employee eligibility uses employment dates and dated branch attachments for the 
 requested local period, with the same employee lock as HR edits/schedules. Branch timezone
 uses the business fallback, captured on the request so later settings cannot reinterpret it.
 Ambiguous/nonexistent local times are refused under ADR-0024's existing conversion policy.
-Own requests require the existing ADR-0019 session; personal-phone auth is PR 20.
+Own requests accept ADR-0019 kiosk sessions and ADR-0027 LIMITED personal sessions.
+Personal authentication uses the existing origin/session/employee guard with an empty
+membership/grant principal. Leave checks live own authority separately inside its transaction.
 Cancellation is restricted to the actual requested_by user on the own route (a manager may
 cancel in scope). An employee cannot use a client employee id or a manager grant as ownership.
 Deactivating a branch prevents new requests there; its existing pending requests remain visible
@@ -96,7 +103,8 @@ in both languages; pnpm check and API/admin builds exit 0.
   POST .../leave-requests/{leaveId}/cancel; GET /v1/businesses/{businessId}/leave-requests
   (pending inbox). Request body carries branch_id only on the admin route.
 - Own API: POST/GET /v1/staff/me/leave-requests and POST .../{leaveId}/cancel; paired
-  session/device context only. All writes require Idempotency-Key, fingerprint includes actor.
+  session/device context or personal session/workspace plus branch_id query. All writes
+  require Idempotency-Key, fingerprint includes actor.
   Creation uses the paired branch; own history is employee-bound within its business, and
   requester cancellation remains possible after a branch transfer under current own authority.
 - Access: one Authenticated declaration per route plus the existing staff policy or

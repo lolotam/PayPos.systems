@@ -8,7 +8,8 @@ export async function lockedLeaveEmployee(tx: Tx, actor: LeaveActor): Promise<Le
     'attachments',COALESCE((SELECT jsonb_agg(jsonb_build_object('branch_id',branch_id,'from',"from",'to',"to")) FROM employee_branches eb
       WHERE eb.company_id=e.company_id AND eb.employee_id=e.id),'[]'::jsonb)) AS record
     FROM employees e WHERE company_id=${actor.companyId} AND business_id=${actor.businessId} AND deleted_at IS NULL
-    AND ${actor.own ? sql`user_id=${actor.userId}` : sql`id=${actor.employeeId ?? null}::uuid`} FOR UPDATE`);
+    AND ${actor.own ? sql`user_id=${actor.userId}` : sql`id=${actor.employeeId ?? null}::uuid`}
+    ${actor.own && actor.employeeId !== undefined ? sql`AND id=${actor.employeeId}::uuid` : sql``} FOR UPDATE`);
   if (!row) throw new LeaveError('NOT_FOUND');
   return row.record;
 }
