@@ -1,6 +1,6 @@
 # Commission engine II — Phase 1 PR 30
 
-**Branch:** `feat/p1-30-engine-ii` · **Created:** 2026-10-03 · **Status:** Implemented; D-55 fixtures pending; merge blocked
+**Branch:** `feat/p1-30-engine-ii` · **Created:** 2026-10-03 · **Status:** Implemented; D-55 fixtures added (2026-10-05)
 
 Sources: Phase 1 SPEC §4, §5.1–5.8 and §6 input constraints; implementation-plan row 30;
 PRD D-14, D-35 (superseded by D-50), D-37, D-45, D-49, D-50, D-51, D-55, D-57;
@@ -77,8 +77,8 @@ Gates: `pnpm --filter @pospay/api exec vitest run --config vitest.unit.config.ts
 
 ## Open questions for the owner
 
-- **TODO(spec) D-55 — merge blocker:** the salon's real employee commission rules have not
-  been supplied. Keep a clearly named pending test block. Recommendation: provide each
-  distinct current plan (base, thresholds, modes, service exceptions, package-sale rule),
-  then add one independently hand-calculated fixture per real plan. **PR 30 cannot merge
-  until those real-plan fixtures exist**, even if all implemented tests and gates pass.
+- **D-55 — resolved 2026-10-05 (Waleed):** the pilot salon has one plan: no base, one MARGINAL AMOUNT
+  tier from `SALARY_MULTIPLE` 2 (twice the last-day salary) at 5 % on the part above it. Owner example:
+  salary 500.000, sales 2,000.000 → 50.000. Fixtures: `domain/__tests__/d55-salon-plan.spec.ts`
+  (example, at-threshold, starting at the threshold, half-mill rounding, raise mid-month, no salary).
+  This is one salon's configuration, not engine logic; other businesses configure their own plans.

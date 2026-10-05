@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { expect, it } from 'vitest';
 
 import { computePeriod } from '../period-commission.ts';
 import type { CommissionThreshold } from '../plan-types.ts';
@@ -61,11 +61,4 @@ it.each(cases)('§5.8 $kind/$mode base=$base tiers=$tiers', (fixture) => {
     ]),
     total: fixture.total,
   });
-});
-
-// TODO(spec) D-55: قواعد الصالون الفعلية مطلوبة قبل الدمج؛ الأرقام الاصطناعية ليست بديلاً عنها.
-describe('D-55 real salon plans (merge blocker)', () => {
-  it.todo(
-    'TODO(spec) D-55 — one hand-calculated fixture per real plan after owner supplies salon rules',
-  );
 });
