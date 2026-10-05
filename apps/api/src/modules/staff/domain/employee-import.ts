@@ -125,7 +125,7 @@ export function validateEmployeeImportFile(
 }
 
 /**
- * يبني خريطة اسم الفرع (إنجليزي أو عربي) إلى معرفه؛ الاسم المكرر أو الفارغ لا يُخمّن.
+ * يبني خريطة اسم الفرع إلى معرفه؛ تكرار الاسم بين فرعين مختلفين لا يُخمّن، وأسماء الفرع نفسه لا تتعارض.
  *
  * @param branches فروع النشاط من describeWorkspaces
  * @returns خريطة بحروف صغيرة للأسماء الفريدة فقط
@@ -143,7 +143,7 @@ export function branchNameIndex(
     for (const name of [branch.name_en, branch.name_ar]) {
       const key = name?.trim().toLowerCase();
       if (key === undefined || key === '') continue;
-      if (index.has(key) || ambiguous.has(key)) {
+      if ((index.has(key) && index.get(key) !== branch.id) || ambiguous.has(key)) {
         index.delete(key);
         ambiguous.add(key);
         continue;
@@ -152,4 +152,16 @@ export function branchNameIndex(
     }
   }
   return index;
+}
+
+/**
+ * لحظة قبول واحدة تربط صلاحية المعاينة بالطلب المحفوظ؛ المساواة منتهية مثل قاعدة العامل.
+ *
+ * @param expiresAt انتهاء المعاينة المحفوظ
+ * @param requestedAt لحظة قبول الطلب من الساعة المحقونة
+ * @returns لا شيء عند القبول قبل الانتهاء، وإلا رفض انتهاء مسمى
+ */
+export function requireEmployeeImportRequestExpiry(expiresAt: string, requestedAt: Date): void {
+  if (new Date(expiresAt).getTime() <= requestedAt.getTime())
+    throw new EmployeeImportError('IMPORT_PREVIEW_EXPIRED');
 }

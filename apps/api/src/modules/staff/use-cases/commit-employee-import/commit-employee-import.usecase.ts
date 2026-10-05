@@ -1,7 +1,10 @@
 import type { EmployeeImportCommitAccepted } from '@pospay/contracts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
-import { EmployeeImportError } from '../../domain/employee-import.ts';
+import {
+  EmployeeImportError,
+  requireEmployeeImportRequestExpiry,
+} from '../../domain/employee-import.ts';
 import type { EmployeeImportTransactions } from '../../ports/employee-import.port.ts';
 
 export interface CommitEmployeeImportCommand {
@@ -31,10 +34,10 @@ export class CommitEmployeeImportUseCase {
       )
         throw new EmployeeImportError('IMPORT_PREVIEW_NOT_FOUND');
       if (preview.status !== 'ready') return { preview_id: preview.id };
-      if (new Date(preview.expires_at).getTime() <= this.clock.now().getTime())
-        throw new EmployeeImportError('IMPORT_PREVIEW_EXPIRED');
+      const requestedAt = this.clock.now();
+      requireEmployeeImportRequestExpiry(preview.expires_at, requestedAt);
       if (preview.errors.length > 0) throw new EmployeeImportError('IMPORT_PREVIEW_HAS_ERRORS');
-      await scope.request(preview.id, this.clock.now().toISOString());
+      await scope.request(preview.id, requestedAt.toISOString());
       return { preview_id: preview.id };
     });
   }

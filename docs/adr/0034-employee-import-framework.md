@@ -163,6 +163,15 @@ ExcelJS parse, row validation and saved preview) measured 92.42, 90.30, 87.64, 8
 median **88.85 ms**, maximum **92.42 ms**, on the worktree's isolated test DB. This measures the
 maximum-field-length template case, not every possible malformed ZIP or extra-sheet payload.
 Preview remains synchronous for this review round.
+Third-layer hardening scans dimensions and merged ranges in every worksheet before ExcelJS loads.
+Bounds are 502 physical rows, eight columns and four worksheet parts: the row-limit error still
+sees the 501st data row; two spare columns retain unexpected-column feedback; the two-sheet template
+has room for two additional sheets. Oversized structure, including ignored-sheet merges, is 422
+IMPORT_FILE_CONTENT_INVALID. Exactly one EOCD signature, an EOF-aligned ZIP comment, consistent
+central/local metadata and no ZIP64 or alternate paths prevent guard/parser directory disagreements.
+API expiry and requested_at share one Clock instant, with equality expired. Aliases of one branch
+do not create ambiguity. Admin preview/result state belongs to the current file selection; selecting
+another file resets it and stale preview responses cannot enable commit.
 Only populated rows are visited; 501 non-empty data rows refuse the workbook. Blank trailing rows
 are ignored and source row numbers survive sparse input. Unheaded data produces a named row error.
 Storage read size failures and workbook parse failures are 422 `IMPORT_FILE_CONTENT_INVALID`;

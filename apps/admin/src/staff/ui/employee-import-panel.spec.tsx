@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
     error: null as unknown,
     data: undefined as Record<string, unknown> | undefined,
     mutate: vi.fn(),
+    reset: vi.fn(),
   },
   commit: {
     isPending: false,
@@ -25,6 +26,7 @@ const state = vi.hoisted(() => ({
     error: null as unknown,
     data: undefined as Record<string, unknown> | undefined,
     mutate: vi.fn(),
+    reset: vi.fn(),
   },
   status: {
     timedOut: false,
@@ -50,15 +52,26 @@ beforeEach(() => {
   state.status.timedOut = false;
   state.preview.mutate.mockClear();
   state.commit.mutate.mockClear();
+  state.preview.mutate.mockImplementation((_, callbacks) => {
+    if (state.preview.data) callbacks?.onSuccess(state.preview.data);
+  });
 });
+
+function previewSelection() {
+  fireEvent.change(screen.getByLabelText(t('en', 'employeeImport.choose')), {
+    target: { files: [new File(['synthetic'], 'employees.xlsx')] },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeImport.preview') }));
+}
 
 it('enables commit only once the preview is clean', () => {
   state.preview.isSuccess = true;
   state.preview.data = { preview_id: 'p', row_count: 2, error_count: 1, errors: [] };
-  const { rerender } = render(panel());
+  render(panel());
+  previewSelection();
   expect(commitButton().disabled).toBe(true);
   state.preview.data = { ...state.preview.data, error_count: 0 };
-  rerender(panel());
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeImport.preview') }));
   expect(commitButton().disabled).toBe(false);
 });
 
@@ -102,5 +115,5 @@ it('previews the chosen file through the hook', () => {
     target: { files: [file] },
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeImport.preview') }));
-  expect(state.preview.mutate).toHaveBeenCalledWith(file);
+  expect(state.preview.mutate).toHaveBeenCalledWith(file, { onSuccess: expect.any(Function) });
 });

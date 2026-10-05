@@ -5,6 +5,7 @@ import {
   EMPLOYEE_IMPORT_MAX_BYTES,
   EmployeeImportError,
   validateEmployeeImportFile,
+  requireEmployeeImportRequestExpiry,
   type EmployeeImportFileFacts,
 } from '../employee-import.ts';
 
@@ -64,7 +65,41 @@ describe('validateEmployeeImportFile owner decision PR 11', () => {
   });
 });
 
+describe('requireEmployeeImportRequestExpiry', () => {
+  const expiresAt = '2026-10-06T10:00:00.000Z';
+  it('accepts an instant strictly before expiry', () => {
+    expect(() =>
+      requireEmployeeImportRequestExpiry(expiresAt, new Date('2026-10-06T09:59:59.999Z')),
+    ).not.toThrow();
+  });
+  it.each([expiresAt, '2026-10-06T10:00:00.001Z'])(
+    'refuses equality or later request time %s',
+    (requestedAt) => {
+      expect(() => requireEmployeeImportRequestExpiry(expiresAt, new Date(requestedAt))).toThrow(
+        new EmployeeImportError('IMPORT_PREVIEW_EXPIRED'),
+      );
+    },
+  );
+});
+
 describe('branchNameIndex', () => {
+  it('keeps duplicate normalized aliases belonging to the same branch', () => {
+    const index = branchNameIndex([
+      { id: 'b1', name_en: ' Main ', name_ar: 'MAIN' },
+      { id: 'b1', name_en: 'main', name_ar: null },
+    ]);
+    expect(index.get('main')).toBe('b1');
+  });
+
+  it('rejects duplicate aliases only when different branch ids share the key', () => {
+    const index = branchNameIndex([
+      { id: 'b1', name_en: 'Main', name_ar: ' MAIN ' },
+      { id: 'b2', name_en: 'Other', name_ar: 'main' },
+    ]);
+    expect(index.has('main')).toBe(false);
+    expect(index.get('other')).toBe('b2');
+  });
+
   it('maps English and Arabic branch names case-insensitively', () => {
     const index = branchNameIndex([
       { id: 'b1', name_en: 'Main', name_ar: 'الرئيسي' },

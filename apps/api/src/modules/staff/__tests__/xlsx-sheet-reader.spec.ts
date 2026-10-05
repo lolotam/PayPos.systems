@@ -71,7 +71,7 @@ describe('workbook hardening', () => {
     ).rejects.toThrow(new EmployeeImportError('IMPORT_ROW_LIMIT_EXCEEDED'));
   });
 
-  it('ignores a blank at row 300000 with bounded memory and preserves sparse row numbers', async () => {
+  it('refuses a far-row dimension before parsing with bounded memory', async () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('employees');
     sheet.addRow(HEADERS);
@@ -79,11 +79,9 @@ describe('workbook hardening', () => {
     const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
     const heap = process.memoryUsage().heapUsed;
     const start = performance.now();
-    const matrix = await readWorkbookMatrix(bytes);
+    await expect(readWorkbookMatrix(bytes)).rejects.toThrow('IMPORT_FILE_CONTENT_INVALID');
     expect(performance.now() - start).toBeLessThan(1000);
     expect(process.memoryUsage().heapUsed - heap).toBeLessThan(64 * 1024 * 1024);
-    expect(matrix).toHaveLength(1);
-    expect(readSheet(matrix, HEADERS, 500)).toBe('IMPORT_HEADER_INVALID');
   });
 
   it('rejects a 2 MiB+1 file before parsing', async () => {

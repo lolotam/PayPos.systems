@@ -1,10 +1,10 @@
 'use client';
 import { t } from '@pospay/i18n';
 import { Button, Card } from '@pospay/ui';
-import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeImport } from '../api/use-employee-import';
+import { useImportSelection } from '../api/use-import-selection';
 import { EmployeeImportErrors } from './employee-import-errors';
 import { EmployeeImportResult } from './employee-import-result';
 
@@ -32,9 +32,12 @@ type EmployeeImportPanelProps = {
 export function EmployeeImportPanel({ companyId, businessId, userId }: EmployeeImportPanelProps) {
   const locale = useLocale();
   const { template, preview, commit, status } = useEmployeeImport(companyId, businessId, userId);
-  const [file, setFile] = useState<File>();
-  const error = [preview, commit, status].find((query) => query.isError)?.error ?? null;
-  const clean = preview.isSuccess && preview.data.error_count === 0;
+  const { file, select, inspect, result } = useImportSelection(preview, commit);
+  const clean = result?.error_count === 0;
+  const showResult = file === undefined || commit.isSuccess;
+  const error =
+    [preview, commit, showResult ? status : undefined].find((query) => query?.isError)?.error ??
+    null;
   return (
     <Card className="flex flex-col gap-4 p-6">
       <Button
@@ -50,35 +53,33 @@ export function EmployeeImportPanel({ companyId, businessId, userId }: EmployeeI
       </Button>
       <label className="flex flex-col gap-2 text-sm">
         {t(locale, 'employeeImport.choose')}
-        <input type="file" accept=".xlsx" onChange={(event) => setFile(event.target.files?.[0])} />
+        <input type="file" accept=".xlsx" onChange={(event) => select(event.target.files?.[0])} />
       </label>
       <div className="flex gap-2">
         <Button
           type="button"
           variant="outline"
           disabled={file === undefined || preview.isPending}
-          onClick={() => file && preview.mutate(file)}
+          onClick={inspect}
         >
           {t(locale, 'employeeImport.preview')}
         </Button>
         <Button
           type="button"
           variant="outline"
-          disabled={
-            !clean || commit.isPending || commit.data?.preview_id === preview.data?.preview_id
-          }
-          onClick={() => preview.data && commit.mutate(preview.data.preview_id)}
+          disabled={!clean || commit.isPending || commit.data?.preview_id === result?.preview_id}
+          onClick={() => result && commit.mutate(result.preview_id)}
         >
           {t(locale, 'employeeImport.commit')}
         </Button>
       </div>
-      {preview.isSuccess && commit.data?.preview_id !== preview.data.preview_id ? (
-        <EmployeeImportErrors preview={preview.data} />
+      {result !== undefined && commit.data?.preview_id !== result.preview_id ? (
+        <EmployeeImportErrors preview={result} />
       ) : null}
       <EmployeeImportResult
         accepted={commit.isSuccess}
-        status={status.data}
-        timedOut={status.timedOut}
+        status={showResult ? status.data : undefined}
+        timedOut={showResult && status.timedOut}
       />
       {error ? <p role="alert">{envelopeMessage(error, locale)}</p> : null}
     </Card>

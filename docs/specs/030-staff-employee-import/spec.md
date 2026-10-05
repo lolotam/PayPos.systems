@@ -95,6 +95,16 @@ recommend deleting expired previews after 30 days, subject to the owner's retent
 
 ### Edge cases
 
+Before ExcelJS loads any sheet, every worksheet XML part is structurally bounded: at most four
+worksheets, 502 physical rows (header plus the 501st data row needed for the named row-limit error),
+and eight columns (the six template columns plus two for nearby unexpected-column feedback).
+Oversized dimensions or merged ranges, including in ignored sheets, return IMPORT_FILE_CONTENT_INVALID.
+ZIP input must have exactly one EOCD signature, an EOF-aligned comment, a consistent central directory,
+and no ZIP64 or trailing bytes. Commit expiry and requested_at use one injected Clock instant;
+equality with expires_at is expired. Duplicate aliases of one branch remain resolvable; only different
+branch ids make a name ambiguous. Selecting another file clears the displayed preview/result and
+discards late preview responses for superseded selections.
+
 Empty rows are skipped. Formulas are read as their cached result; an error cell is `IMPORT_CELL_INVALID`.
 Dates accept real dates, Excel serial numbers and ISO text. Extra or missing headers, or a duplicate header,
 refuse the whole preview as `IMPORT_HEADER_INVALID`. An empty data sheet is `IMPORT_HEADER_INVALID`

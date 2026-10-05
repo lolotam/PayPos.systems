@@ -9,6 +9,7 @@ import { guardXlsxZip } from '../../../shared/import/xlsx-zip-guard.ts';
 import {
   EMPLOYEE_IMPORT_MAX_BYTES,
   IMPORT_MAX_ROWS,
+  EMPLOYEE_IMPORT_HEADERS,
   EmployeeImportError,
 } from '../domain/employee-import.ts';
 
@@ -42,7 +43,12 @@ export async function readWorkbookMatrix(bytes: Uint8Array): Promise<ImportMatri
   if (bytes.byteLength > EMPLOYEE_IMPORT_MAX_BYTES)
     throw new EmployeeImportError('IMPORT_FILE_CONTENT_INVALID');
   try {
-    guardXlsxZip(Buffer.from(bytes));
+    // هامش عمودين يحفظ أخطاء الأعمدة غير المعنونة؛ أربع أوراق تكفي القالب وورقتين إضافيتين بلا تضخيم.
+    guardXlsxZip(Buffer.from(bytes), {
+      maxRows: IMPORT_MAX_ROWS + 2,
+      maxColumns: EMPLOYEE_IMPORT_HEADERS.length + 2,
+      maxWorksheets: 4,
+    });
     return await loadMatrix(bytes);
   } catch (error) {
     if (error instanceof EmployeeImportError) throw error;
