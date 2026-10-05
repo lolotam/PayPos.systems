@@ -163,7 +163,9 @@ ExcelJS parse, row validation and saved preview) measured 92.42, 90.30, 87.64, 8
 median **88.85 ms**, maximum **92.42 ms**, on the worktree's isolated test DB. This measures the
 maximum-field-length template case, not every possible malformed ZIP or extra-sheet payload.
 Preview remains synchronous for this review round.
-Third-layer hardening scans dimensions and merged ranges in every worksheet before ExcelJS loads.
+Third-layer hardening scans dimensions, merged ranges and data-validation ranges in every worksheet, and
+defined names in the workbook, before ExcelJS loads: ExcelJS expands all four cell by cell. Whole-row
+or whole-column defined names and formula-based names are refused.
 Bounds are 502 physical rows, eight columns and four worksheet parts: the row-limit error still
 sees the 501st data row; two spare columns retain unexpected-column feedback; the two-sheet template
 has room for two additional sheets. Oversized structure, including ignored-sheet merges, is 422

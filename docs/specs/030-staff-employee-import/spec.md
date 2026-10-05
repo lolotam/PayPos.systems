@@ -98,7 +98,8 @@ recommend deleting expired previews after 30 days, subject to the owner's retent
 Before ExcelJS loads any sheet, every worksheet XML part is structurally bounded: at most four
 worksheets, 502 physical rows (header plus the 501st data row needed for the named row-limit error),
 and eight columns (the six template columns plus two for nearby unexpected-column feedback).
-Oversized dimensions or merged ranges, including in ignored sheets, return IMPORT_FILE_CONTENT_INVALID.
+Oversized dimensions, merged ranges, data-validation ranges or defined names (whole rows, whole
+columns and formulas included), even in ignored sheets, return IMPORT_FILE_CONTENT_INVALID.
 ZIP input must have exactly one EOCD signature, an EOF-aligned comment, a consistent central directory,
 and no ZIP64 or trailing bytes. Commit expiry and requested_at use one injected Clock instant;
 equality with expires_at is expired. Duplicate aliases of one branch remain resolvable; only different
