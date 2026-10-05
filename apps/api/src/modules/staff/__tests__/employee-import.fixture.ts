@@ -71,9 +71,7 @@ export async function employeeImportFixture() {
 
   const db = createDatabase({ url: h.urls.app, ids });
   const storage = new Map<string, Uint8Array>();
-  // ساعة المعاينة بتتولّد من ساعة النظام: مسار الـ HTTP بيستخدم systemClock، فتثبيت تاريخ قديم
-  // كان بيخلي أي معاينة منتهية بمجرد ما الـ 24 ساعة تعدّي من يوم كتابة الاختبار (قنبلة تاريخ).
-  const clock = { value: new Date(Date.now() - 1_000) };
+  const clock = { value: new Date('2026-10-04T10:00:00Z') };
   const clockPort = { now: () => clock.value };
   const bytes = {
     read: (key: string, maxBytes: number): Promise<Uint8Array> => {
