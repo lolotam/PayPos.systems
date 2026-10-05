@@ -12,6 +12,9 @@ import {
 let f: EmployeeImportFixture;
 beforeAll(async () => {
   f = await employeeImportFixture();
+  // المعاينة بتتعمل بساعة الـ fixture، لكن مسار HTTP بيحكم على انتهاء الـ 24 ساعة بساعة النظام؛
+  // من غير كده الاختبار بيفشل لوحده بعد يوم من تاريخ الـ fixture الثابت.
+  f.clock.value = new Date();
 });
 afterAll(async () => {
   await f?.h.close();
