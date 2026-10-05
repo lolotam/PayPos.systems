@@ -53,6 +53,12 @@ The insert is `INSERT … ON CONFLICT (company_id, document_id, expires_on) DO N
 inserted row appends the audit row and the outbox event in the same `withTenant` transaction. That is the DB
 guarantee behind DE-02 and DE-03:
 
+The candidate page is advisory. Before inserting, the notification transaction re-reads the current document
+and its type with `FOR SHARE OF d, t`, rechecks the domain window, and builds the payload from those fresh
+values. The locks remain held through ledger/audit/outbox commit, serializing replacement and `alert_days`
+edits with emission. A replacement or rule edit that commits first wins. Runtime grants do not permit changing
+`expires_on`; recording a replacement creates a new document id.
+
 - re-run / restart / concurrent worker → the unique key wins once;
 - replaced document → the old row is not current; the new document id has its own key;
 - edited `alert_days` → the key does not contain `alert_days`, so leaving and re-entering the window cannot
@@ -94,6 +100,11 @@ serves the anti-join.
   document per transaction.
 - `jobs/document-expiry.processor.ts` — BullMQ queue, worker (concurrency 1) and the scheduler registrar.
 - `events/published.ts` — `DocumentExpiring`.
+
+Business discovery is also keyset-paged (`business_id > after`, `ORDER BY business_id LIMIT 100`) through
+the same partial scan index. Each transaction returns at most one page, and the run retains only its current
+page and counters. The tenancy read reuses ADR-0031's existing staff-to-tenancy port arrow; its worker adapter
+and public export are declared in both module-map sources.
 
 ### Events and audit
 

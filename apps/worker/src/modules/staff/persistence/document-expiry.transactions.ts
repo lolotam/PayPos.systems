@@ -1,7 +1,13 @@
-import { appendAuditLog, appendOutboxEvent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
+import {
+  appendAuditLog,
+  appendOutboxEvent,
+  type IdGenerator,
+  type TenantWrappers,
+  type Tx,
+} from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { businessTimeZone } from '../../tenancy/index.ts';
-import { daysUntilExpiry } from '../domain/document-expiry.ts';
+import { daysUntilExpiry, documentExpiryCandidate } from '../domain/document-expiry.ts';
 import type {
   DocumentExpiryCandidate,
   DocumentExpiryCursor,
@@ -66,14 +72,15 @@ export function documentExpiryTransactions(
   ids: IdGenerator,
 ): DocumentExpiryTransactions {
   return {
-    businesses: (companyId) =>
+    businesses: (companyId, after, limit) =>
       database.withTenant(
         companyId,
         async (tx) => {
           const rows = await tx.execute<{ business_id: string }>(sql`
             SELECT DISTINCT business_id FROM employee_documents
             WHERE company_id = ${companyId} AND replaced_at IS NULL AND expires_on IS NOT NULL
-            ORDER BY business_id`);
+              ${after === null ? sql`` : sql`AND business_id > ${after}::uuid`}
+            ORDER BY business_id LIMIT ${limit}`);
           return rows.map((row) => row.business_id);
         },
         { timeoutMs: DOCUMENT_EXPIRY_TRANSACTION_TIMEOUT_MS },
@@ -98,10 +105,35 @@ export function documentExpiryTransactions(
     notify: (companyId, candidate, today, at) =>
       database.withTenant(
         companyId,
-        async (tx) => notifyOnce(tx, ids, companyId, candidate, today, at),
+        async (tx) => {
+          const current = await lockedCandidate(tx, companyId, candidate.documentId);
+          if (
+            current === null ||
+            !documentExpiryCandidate(current.expiresOn, current.alertDays, today)
+          )
+            return false;
+          return notifyOnce(tx, ids, companyId, current, today, at);
+        },
         { timeoutMs: DOCUMENT_EXPIRY_TRANSACTION_TIMEOUT_MS },
       ),
   };
+}
+
+async function lockedCandidate(
+  tx: Tx,
+  companyId: string,
+  documentId: string,
+): Promise<DocumentExpiryCandidate | null> {
+  // قفل المشاركة يمنع الاستبدال وتعديل قاعدة النوع حتى يثبت الإشعار؛ الصفحة السابقة مجرد ترشيح.
+  const [row] = await tx.execute<NoticeRow>(sql`
+    SELECT d.id, d.employee_id, d.business_id, d.type_code,
+      to_char(d.expires_on,'YYYY-MM-DD') AS expires_on, t.alert_days
+    FROM employee_documents d
+    JOIN document_types t ON t.company_id=d.company_id AND t.code=d.type_code
+    WHERE d.company_id=${companyId} AND d.id=${documentId}
+      AND d.replaced_at IS NULL AND d.expires_on IS NOT NULL
+    FOR SHARE OF d, t`);
+  return row === undefined ? null : toCandidate(row);
 }
 
 async function notifyOnce(

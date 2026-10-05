@@ -27,9 +27,11 @@ export interface DocumentExpiryTransactions {
    * أنشطة الشركة التي لها وثائق حالية بتواريخ انتهاء؛ لكل نشاط منطقة زمنية خاصة ليحسب يومه.
    *
    * @param companyId الشركة المجدولة
-   * @returns معرّفات الأنشطة المرشحة
+   * @param after آخر نشاط في الصفحة السابقة أو null للبداية
+   * @param limit حجم الصفحة
+   * @returns صفحة معرّفات الأنشطة المرشحة مرتبة تصاعدياً
    */
-  businesses(companyId: string): Promise<readonly string[]>;
+  businesses(companyId: string, after: string | null, limit: number): Promise<readonly string[]>;
   /**
    * منطقة النشاط الزمنية عبر قراءة tenancy المسجلة، أو الافتراضية إن غابت.
    *
@@ -58,13 +60,13 @@ export interface DocumentExpiryTransactions {
     limit: number,
   ): Promise<readonly DocumentExpiryCandidate[]>;
   /**
-   * يسجل إشعار الوثيقة مرة واحدة للتاريخ ويثبت التدقيق والحدث في نفس المعاملة.
+   * يعيد فحص الوثيقة والنوع تحت قفل، ثم يسجل الإشعار والتدقيق والحدث في نفس المعاملة.
    *
    * @param companyId الشركة المجدولة
    * @param candidate الوثيقة المرشحة
    * @param today يوم النشاط المحلي
    * @param at لحظة الإشعار من الـ Clock
-   * @returns true لو سُجل الآن، false لو كان مسجلاً من قبل
+   * @returns true لو سُجل الآن، false لو سبق تسجيله أو لم تعد الوثيقة مستحقة
    */
   notify(
     companyId: string,

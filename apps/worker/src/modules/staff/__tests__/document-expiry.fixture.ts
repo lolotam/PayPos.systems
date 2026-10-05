@@ -45,17 +45,12 @@ export async function documentExpiryFixture() {
     },
     detect: (port: DocumentExpiryTransactions = transactions) =>
       new DetectDocumentExpiries(port, clock),
-    tenant: () =>
-      newTenant(owner, userId, ids.newId(), ids.newId(), ids.newId()),
+    tenant: () => newTenant(owner, userId, ids.newId(), ids.newId(), ids.newId()),
     employee: (tenant: Tenant) => newEmployee(owner, ids.newId(), tenant),
     type: (tenant: Tenant, code: string, alertDays = 30, requiresExpiry = true) =>
       newType(owner, ids.newId(), tenant, code, alertDays, requiresExpiry),
-    document: (
-      tenant: Tenant,
-      employeeId: string,
-      typeCode: string,
-      expiresOn: string | null,
-    ) => newDocument(owner, ids.newId(), tenant, employeeId, typeCode, expiresOn, userId),
+    document: (tenant: Tenant, employeeId: string, typeCode: string, expiresOn: string | null) =>
+      newDocument(owner, ids.newId(), tenant, employeeId, typeCode, expiresOn, userId),
     replace: (
       tenant: Tenant,
       employeeId: string,
@@ -75,14 +70,16 @@ export async function documentExpiryFixture() {
       ),
     setAlertDays: (tenant: Tenant, typeCode: string, alertDays: number) =>
       setTypeAlertDays(owner, tenant, typeCode, alertDays),
-    close: async () => {
-      await db.close();
-      await owner.end();
-      await testDb.drop();
-    },
+    close: () => closeFixture(db, owner, testDb),
   };
 }
 export type DocumentExpiryFixture = Awaited<ReturnType<typeof documentExpiryFixture>>;
+
+async function closeFixture(db: Database, owner: postgres.Sql, testDb: TestDatabase) {
+  await db.close();
+  await owner.end();
+  await testDb.drop();
+}
 
 async function newTenant(
   owner: postgres.Sql,

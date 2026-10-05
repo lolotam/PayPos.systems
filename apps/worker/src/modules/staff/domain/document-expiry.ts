@@ -1,5 +1,28 @@
 const DAY_MS = 86_400_000;
 
+/** حصيلة الفحص التي تسمح بإعادة المحاولة لو فشلت معاملة، دون إعادة تنبيه الوثائق الناجحة. */
+export interface ExpiryProgress {
+  readonly notified: number;
+  readonly failed: number;
+}
+
+/**
+ * يضم نتيجة معاملة وثيقة لحصيلة الدورة؛ false يعني لا تغيير وnull يعني إعادة المحاولة.
+ *
+ * @param progress الحصيلة السابقة
+ * @param outcome نتيجة المعاملة
+ * @returns الحصيلة بعد هذه الوثيقة
+ */
+export function recordExpiryOutcome(
+  progress: ExpiryProgress,
+  outcome: boolean | null,
+): ExpiryProgress {
+  return {
+    notified: progress.notified + (outcome === true ? 1 : 0),
+    failed: progress.failed + (outcome === null ? 1 : 0),
+  };
+}
+
 /**
  * تاريخ اليوم بتوقيت النشاط من الساعة المحقونة، فلا يتغير شرط التنبيه مع مكان الخادم.
  * نسخة العامل من قاعدة spec 028 نفسها؛ العامل لا يستورد موديول API staff.
@@ -47,10 +70,7 @@ export function addExpiryDays(date: string, days: number): string {
  * @param alertDays أيام تنبيه النوع الحالية
  * @returns أول وآخر يوم يدخل فيهما date الانتهاء
  */
-export function expiryNoticeWindow(
-  today: string,
-  alertDays: number,
-): { from: string; to: string } {
+export function expiryNoticeWindow(today: string, alertDays: number): { from: string; to: string } {
   if (!realDate(today)) throw new Error('DOCUMENT_EXPIRY_TODAY_INVALID');
   if (!Number.isInteger(alertDays) || alertDays < 0 || alertDays > 365)
     throw new Error('DOCUMENT_EXPIRY_ALERT_DAYS_INVALID');
@@ -66,8 +86,7 @@ export function expiryNoticeWindow(
  */
 export function daysUntilExpiry(expiresOn: string | null, today: string): number | null {
   if (expiresOn === null) return null;
-  if (!realDate(today) || !realDate(expiresOn))
-    throw new Error('DOCUMENT_EXPIRY_DATE_INVALID');
+  if (!realDate(today) || !realDate(expiresOn)) throw new Error('DOCUMENT_EXPIRY_DATE_INVALID');
   return (Date.parse(`${expiresOn}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / DAY_MS;
 }
 
