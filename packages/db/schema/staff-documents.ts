@@ -89,6 +89,10 @@ export const employeeDocuments = pgTable(
     index('employee_documents_company_expires_idx')
       .on(t.companyId, t.expiresOn)
       .where(sql`${t.replacedAt} IS NULL AND ${t.expiresOn} IS NOT NULL`),
+    // فحص وظيفة الانتهاء لكل نشاط؛ نفس شرط الجزئية حتى لا يقرأ الصفوف المستبدلة أو بلا تاريخ.
+    index('employee_document_expiry_scan_idx')
+      .on(t.companyId, t.businessId, t.expiresOn)
+      .where(sql`${t.replacedAt} IS NULL AND ${t.expiresOn} IS NOT NULL`),
     index('employee_documents_company_employee_idx').on(
       t.companyId,
       t.employeeId,
@@ -102,5 +106,33 @@ export const employeeDocuments = pgTable(
       'employee_documents_replaced_after_record',
       sql`${t.replacedAt} IS NULL OR ${t.replacedAt} >= ${t.recordedAt}`,
     ),
+  ],
+);
+
+export const employeeDocumentExpiryNotices = pgTable(
+  'employee_document_expiry_notices',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    // الوثيقة الحالية التي أُرسل تنبيهها؛ مع تاريخ الانتهاء يشكّلان مفتاح منع التكرار.
+    documentId: uuid('document_id').notNull(),
+    employeeId: uuid('employee_id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    typeCode: text('type_code').notNull(),
+    expiresOn: date('expires_on').notNull(),
+    // لحظة الإشعار من الـ Clock المحقون، لا ساعة الخادم.
+    notifiedAt: timestamp('notified_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'employee_document_expiry_notices_pkey', columns: [t.companyId, t.id] }),
+    foreignKey({
+      name: 'employee_document_expiry_notices_document_fk',
+      columns: [t.companyId, t.documentId],
+      foreignColumns: [employeeDocuments.companyId, employeeDocuments.id],
+    }),
+    // مفتاح منع التكرار: إشعار واحد لكل وثيقة لكل تاريخ انتهاء، مهما تكررت الدورة أو تغيّر alert_days.
+    unique('employee_document_expiry_notices_key').on(t.companyId, t.documentId, t.expiresOn),
   ],
 );

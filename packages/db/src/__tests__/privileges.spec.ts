@@ -54,6 +54,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'document_types:SELECT',
     'employee_branches:INSERT',
     'employee_branches:SELECT',
+    'employee_document_expiry_notices:INSERT',
+    'employee_document_expiry_notices:SELECT',
     'employee_documents:INSERT',
     'employee_documents:SELECT',
     'employee_passkeys:INSERT',
@@ -156,6 +158,7 @@ const OUTBOX_COLUMN_GRANTS = [
 const TENANT_TABLES = [
   'document_types',
   'employee_documents',
+  'employee_document_expiry_notices',
   'attendance_states',
   'attendance_sessions',
   'attendance_exceptions',

@@ -276,6 +276,7 @@ reads:
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
   - staff -> tenancy.employeeImportBranches @ apps/worker/src/modules/staff/persistence/employee-import.transactions.ts
+  - staff -> tenancy.businessTimeZone @ apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be
