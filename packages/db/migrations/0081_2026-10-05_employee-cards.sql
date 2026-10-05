@@ -11,7 +11,7 @@ CREATE TABLE "employee_cards" (
 	"revoked_by" uuid,
 	CONSTRAINT "employee_cards_pkey" PRIMARY KEY("company_id","id"),
 	CONSTRAINT "employee_cards_code_hash" CHECK ("employee_cards"."card_code_hash" ~ '^[a-f0-9]{64}$'),
-	CONSTRAINT "employee_cards_code_suffix" CHECK (char_length("employee_cards"."card_code_suffix") BETWEEN 1 AND 4 AND "employee_cards"."card_code_suffix" ~ '^[!-~]+$'),
+	CONSTRAINT "employee_cards_code_suffix" CHECK (char_length("employee_cards"."card_code_suffix") BETWEEN 0 AND 4 AND "employee_cards"."card_code_suffix" ~ '^[!-~]*$'),
 	CONSTRAINT "employee_cards_revoked_pair" CHECK (("employee_cards"."revoked_at" IS NULL) = ("employee_cards"."revoked_by" IS NULL))
 );
 --> statement-breakpoint

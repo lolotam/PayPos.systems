@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   id,
   issueEmployeeCardInput,
@@ -16,13 +26,11 @@ import { ApiError } from '../../../shared/errors.ts';
 import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.ts';
 import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import {
-  EMPLOYEE_CARD_ACCESS,
-  readEmployeeCards,
-  type EmployeeCardAccess,
-} from '../queries/employee-cards.query.ts';
+import { readEmployeeCards } from '../queries/employee-cards.query.ts';
 import {
   EmployeeCardError,
+  EMPLOYEE_CARD_ACCESS,
+  type EmployeeCardAccess,
   IssueEmployeeCard,
   type EmployeeCardRecord,
 } from '../use-cases/issue-employee-card/issue-employee-card.usecase.ts';
@@ -46,17 +54,13 @@ export class EmployeeCardsController {
   ): Promise<EmployeeCardsView> {
     if (this.database === null || this.access === null) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
+    const access = this.access;
     const view = await this.database.withTenant(
       actor.companyId,
-      (tx) =>
-        readEmployeeCards(
-          tx,
-          actor.companyId,
-          businessId,
-          actor.userId,
-          employeeId,
-          this.access as EmployeeCardAccess,
-        ),
+      async (tx) => {
+        const decision = await access.read(tx, actor.companyId, actor.userId, businessId);
+        return readEmployeeCards(tx, actor.companyId, businessId, employeeId, decision);
+      },
       { userId: actor.userId },
     );
     if (view === 'FEATURE_DISABLED') throw new ApiError('FEATURE_DISABLED');

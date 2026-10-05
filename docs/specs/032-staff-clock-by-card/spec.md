@@ -66,10 +66,10 @@ Revocation has no request body; its card ID is a validated path parameter.
 
 `employee_cards` is a tenant table: `(company_id, id)` primary key, `business_id`,
 `employee_id`, `card_code_hash`, `card_code_suffix`, `issued_at`, `issued_by`, `revoked_at`, `revoked_by`. Two
-partial unique indexes hold one active card per employee and one active company-scoped HMAC per company. The HMAC key is domain-separated from the existing BETTER_AUTH_SECRET; rotating that root requires reissuing cards (ADR-0036). Daily QR secrets are unsuitable because they expire. `issued_by`/`revoked_by` reference the operator user and the revocation pair is
+partial unique indexes hold one active card per employee and one active company-scoped HMAC per company. The composition root calls `packages/auth`'s `deriveEmployeeCardKey` (HKDF-SHA256 with salt `pospay:employee-card:hkdf-salt:v1` and info `pospay:employee-card:key:v1`). Staff receives only the derived 32-byte Buffer, never BETTER_AUTH_SECRET; rotating that root requires reissuing cards (ADR-0036). Daily QR secrets are unsuitable because they expire. `issued_by`/`revoked_by` reference the operator user and the revocation pair is
 CHECKed together. RLS is FORCE + command-specific tenant policies for `pospay_app` with
 SELECT/INSERT and column-limited UPDATE. The card code is card-like secret material:
-never logged, never in audit/events, and never returned in full (only a suffix).
+never logged, never in audit/events, and never returned in full. Only normalized codes of length >= 8 expose their last four characters; shorter codes store/return an empty suffix. The allowed 4–64 range remains unchanged. Lookup, issue, revoke and clock fingerprints each use a distinct HMAC payload label (ADR-0036).
 
 A nonlocking hash lookup identifies the employee; AttendanceState is the first lock, followed by company, ordered memberships, device, employee/attachments, branch, and finally a locked card recheck. Unknown/revoked/foreign cards use an empty candidate through the same eligibility query sequence as unattached cards, with no explicit timing delay or case-specific response. Permission and device eligibility are checked independently of card existence.
 
@@ -80,6 +80,8 @@ unchanged; the shared attendance writer is parameterised with the movement sourc
 optional passkey binding and the device/operator instead of being duplicated. Issuing and
 revoking a card are audited; no business event is emitted (attendance never changes
 commission).
+
+The POS card screen is available only with an operator session. A 401 has its own bilingual signed-out outcome and refetches staff-session/device status. Scanner and issue fields are text inputs masked with `-webkit-text-security: disc`, with autocomplete, spellchecking and capitalization disabled.
 
 ### Test plan
 
@@ -109,6 +111,8 @@ all optional settings empty if startup wiring changes.
 - CB-Q4 — card management as its own PR: issuing/revoking cards is small but security-shaped;
   recommended answer: keep it in this PR only if the owner accepts the admin section, else
   split it into its own `--cards-management` PR before PR 23 ships.
+- D5 — deferred to the orchestrator issue: expose Cashier staff-login DENY through the permissions screen.
+- D6 — deferred to the orchestrator issue: define and implement rate limits for card clocking and issuance.
 - CB-Q5 — resolved: keep `clock:attendance:branch` at the verified device branch; explicit Device plus operator session, no CHECK change. PR 19 uses explicit Device checks, not a stored `:device` scope (ADR-0036).
 
 ## Success criteria

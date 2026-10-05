@@ -4,22 +4,27 @@ import { CircleAlert, EmptyState } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { CardClockOutcome } from '../api/clock-by-card';
 
+const rejectionMessages = {
+  refused: 'pos.cardForbidden',
+  'signed-out': 'pos.cardSignedOut',
+  invalid: 'pos.cardInvalid',
+  unavailable: 'pos.networkError',
+} as const;
+
 /** نتيجة المسح كما تعرضها الاستقبال: قبول أو رفض، بلا تفاصيل عن موظف أو كارت. */
 export function ClockByCardResult({ outcome }: { outcome: CardClockOutcome }) {
   const locale = useLocale();
-  if (outcome.kind === 'refused')
+  if (outcome.kind !== 'accepted') {
+    if (outcome.kind === 'offline') return null;
     return (
-      <EmptyState role="alert" tone="danger" icon={<CircleAlert />} title={t(locale, 'pos.cardForbidden')} />
+      <EmptyState
+        role="alert"
+        tone={outcome.kind === 'signed-out' ? 'warning' : 'danger'}
+        icon={<CircleAlert />}
+        title={t(locale, rejectionMessages[outcome.kind])}
+      />
     );
-  if (outcome.kind === 'invalid')
-    return (
-      <EmptyState role="alert" tone="danger" icon={<CircleAlert />} title={t(locale, 'pos.cardInvalid')} />
-    );
-  if (outcome.kind === 'unavailable')
-    return (
-      <EmptyState role="alert" tone="danger" icon={<CircleAlert />} title={t(locale, 'pos.networkError')} />
-    );
-  if (outcome.kind !== 'accepted') return null;
+  }
   const result = outcome.result;
   return (
     <div role="status" className="grid gap-2">

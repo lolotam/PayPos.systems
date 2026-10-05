@@ -1,3 +1,4 @@
+import { attendanceProviders, cardProviders } from './staff-attendance.providers.ts';
 import { MyScheduleController } from './http/my-schedule.controller.ts';
 import {
   PasskeysController,
@@ -6,10 +7,6 @@ import {
 } from './http/passkeys.controller.ts';
 import type { PasskeyRegistration } from './ports/passkeys.port.ts';
 import { ClockAttendanceController } from './http/clock-attendance.controller.ts';
-import { createAttendanceTransactions } from './persistence/attendance-transactions.ts';
-import { createLockedAttendanceQrVerifier } from './persistence/locked-attendance-qr.ts';
-import { ClockAttendance } from './use-cases/clock-attendance/clock-attendance.ts';
-import { RequestClockChallenge } from './use-cases/request-clock-challenge/request-clock-challenge.ts';
 import type { AttendancePasskeys } from './ports/clock-attendance.port.ts';
 import { EmployeePasskeysController } from './http/employee-passkeys.controller.ts';
 import { EmployeePasskeyUnbindGuard } from './http/employee-passkey-unbind.guard.ts';
@@ -82,21 +79,8 @@ import {
 import { PreviewEmployeeImportUseCase } from './use-cases/preview-employee-import/preview-employee-import.usecase.ts';
 import { CommitEmployeeImportUseCase } from './use-cases/commit-employee-import/commit-employee-import.usecase.ts';
 import { GetEmployeeImportTemplateUseCase } from './use-cases/get-employee-import-template/get-employee-import-template.usecase.ts';
-import { hmacAttendanceQr } from './persistence/hmac-attendance-qr.ts';
-import { createRedisAttendanceQrSecrets } from './persistence/redis-attendance-qr-secrets.ts';
-import { createAttendanceBranchReader } from './persistence/tenancy-attendance-branch.adapter.ts';
-import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attendance-qr.ts';
-import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
-import { ClockByCard } from './use-cases/clock-by-card/clock-by-card.ts';
 import { ClockByCardController } from './http/clock-by-card.controller.ts';
 import { EmployeeCardsController } from './http/employee-cards.controller.ts';
-import { IssueEmployeeCard } from './use-cases/issue-employee-card/issue-employee-card.usecase.ts';
-import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
-import { createCardClockTransactions } from './persistence/card-clock-transactions.ts';
-import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
-import { createEmployeeCardHash } from './persistence/employee-card-hash.ts';
-import { createEmployeeCardAccess } from './persistence/employee-card-access.adapter.ts';
-import { EMPLOYEE_CARD_ACCESS } from './queries/employee-cards.query.ts';
 
 export const staffControllers = [
   ClockAttendanceController,
@@ -257,14 +241,12 @@ export function staffProviders(
   redis?: Redis,
   passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null = null,
   importStorage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null = null,
-  cardHashSecret: string | null = null,
+  employeeCardKey: Buffer | null = null,
 ): Provider[] {
   const ids = systemUuidV7();
-  const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
-  const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
-    ...attendanceProviders(database, secrets, passkeys, ids),
-    ...cardProviders(database, ids, cardHashSecret),
+    ...attendanceProviders(database, redis, passkeys, ids),
+    ...cardProviders(database, ids, employeeCardKey),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
     ...unbindProviders(database, ids),
     ...enrolProviders(database, ids, passkeys),
@@ -290,20 +272,6 @@ export function staffProviders(
         database === undefined
           ? null
           : new CreateEmployeeUseCase(createEmployeeTransactions(database, ids), ids, systemClock),
-    },
-    {
-      provide: IssueAttendanceQr,
-      useValue:
-        branches === null || secrets === null
-          ? null
-          : new IssueAttendanceQr(branches, secrets, hmacAttendanceQr, systemClock),
-    },
-    {
-      provide: VerifyAttendanceQr,
-      useValue:
-        branches === null || secrets === null
-          ? null
-          : new VerifyAttendanceQr(branches, secrets, hmacAttendanceQr, systemClock),
     },
     ...employeeImportProviders(database, ids, importStorage),
   ];
@@ -344,56 +312,5 @@ function employeeImportProviders(
           ? null
           : new CommitEmployeeImportUseCase(transactions, ids, systemClock),
     },
-  ];
-}
-
-function attendanceProviders(
-  database: TenantWrappers | undefined,
-  secrets: ReturnType<typeof createRedisAttendanceQrSecrets> | null,
-  passkeys: AttendancePasskeys | null,
-  ids: IdGenerator,
-): Provider[] {
-  if (database === undefined || secrets === null || passkeys === null)
-    return [
-      { provide: ClockAttendance, useValue: null },
-      { provide: RequestClockChallenge, useValue: null },
-    ];
-  const qr = createLockedAttendanceQrVerifier(secrets, hmacAttendanceQr);
-  const transactions = createAttendanceTransactions(database, ids);
-  return [
-    {
-      provide: ClockAttendance,
-      useValue: new ClockAttendance(transactions, passkeys, qr, systemClock, ids),
-    },
-    {
-      provide: RequestClockChallenge,
-      useValue: new RequestClockChallenge(transactions, passkeys, qr, systemClock),
-    },
-  ];
-}
-
-function cardProviders(
-  database: TenantWrappers | undefined,
-  ids: IdGenerator,
-  secret: string | null,
-): Provider[] {
-  if (database === undefined || secret === null)
-    return [
-      { provide: ClockByCard, useValue: null },
-      { provide: IssueEmployeeCard, useValue: null },
-      { provide: RevokeEmployeeCard, useValue: null },
-      { provide: EMPLOYEE_CARD_ACCESS, useValue: null },
-    ];
-  const access = createEmployeeCardAccess();
-  const hash = createEmployeeCardHash(secret);
-  const cards = createEmployeeCards(database, ids, systemClock, access, hash);
-  return [
-    {
-      provide: ClockByCard,
-      useValue: new ClockByCard(createCardClockTransactions(database, ids, hash), systemClock, ids),
-    },
-    { provide: IssueEmployeeCard, useValue: new IssueEmployeeCard(cards) },
-    { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },
-    { provide: EMPLOYEE_CARD_ACCESS, useValue: access },
   ];
 }

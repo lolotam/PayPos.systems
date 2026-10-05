@@ -13,6 +13,8 @@ const resources = vi.hoisted(() => ({
   listen: vi.fn(),
   appOptions: vi.fn(),
   otpOptions: vi.fn(),
+  cardKey: Buffer.alloc(32, 41),
+  deriveCardKey: vi.fn(),
   personalSessions: {},
   configuration: { state: 'DISABLED' as 'READY' | 'DISABLED', fingerprint: 'synthetic-api' },
   transport: {
@@ -32,6 +34,10 @@ vi.mock('@pospay/db', () => ({
   }),
 }));
 vi.mock('@pospay/auth', () => ({
+  deriveEmployeeCardKey: (secret: string) => {
+    resources.deriveCardKey(secret);
+    return resources.cardKey;
+  },
   createAuth: async () => ({
     close: vi.fn(),
     ping: vi.fn(),
@@ -90,6 +96,7 @@ vi.mock('../config.ts', () => ({
     TRUSTED_PROXY_CIDRS: ['127.0.0.1/32'],
     AUTH_TRUSTED_ORIGINS: [],
     BETTER_AUTH_URL: 'https://api.synthetic.invalid',
+    BETTER_AUTH_SECRET: 'synthetic-auth-root-for-startup-tests',
   }),
 }));
 
@@ -104,6 +111,8 @@ beforeEach(() => {
 
 async function ordinaryReadiness() {
   const options = resources.appOptions.mock.calls.at(-1)?.[0];
+  expect(resources.deriveCardKey).toHaveBeenCalledWith('synthetic-auth-root-for-startup-tests');
+  expect(options.employeeCardKey).toBe(resources.cardKey);
   const app = Fastify();
   app.get('/ready', () => new HealthController(options.readiness).ready());
   try {

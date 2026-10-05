@@ -106,3 +106,28 @@ it('acknowledged logout clears local private data and announces only a structura
   expect(localStorage.getItem('pospay-staff-operator-change')).toMatch(/^\d+$/);
   expect(h.result.current.session).toBeNull();
 });
+
+it('keeps an authenticated operator during a background probe and removes it on expiry', async () => {
+  const h = display();
+  await waitFor(() =>
+    expect(h.result.current.authenticatedSession?.user_id).toBe('synthetic-operator'),
+  );
+  let finish: ((value: null) => void) | undefined;
+  calls.probe.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  let refresh: Promise<void> | undefined;
+  act(() => {
+    refresh = h.cache.invalidateQueries({ queryKey: ['staff-session'] });
+  });
+  await waitFor(() => expect(h.result.current.session).toBeNull());
+  expect(h.result.current.authenticatedSession?.user_id).toBe('synthetic-operator');
+  await act(async () => {
+    finish?.(null);
+    await refresh;
+  });
+  await waitFor(() => expect(h.result.current.authenticatedSession).toBeNull());
+});

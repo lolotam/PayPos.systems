@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { cardDisplaySuffix, normalizeCardCode, validCardCode } from '../employee-card.ts';
 
-it('never displays the entire code, including the minimum four-character card', () => {
-  expect(cardDisplaySuffix('ABCD')).toBe('BCD');
+it('hides codes below eight characters and reveals only four characters for longer codes', () => {
+  expect(cardDisplaySuffix('ABCD')).toBe('');
+  expect(cardDisplaySuffix('ABCDEFG')).toBe('');
+  expect(cardDisplaySuffix('ABCDEFGH')).toBe('EFGH');
   expect(cardDisplaySuffix('CARD-0001')).toBe('0001');
 });
 

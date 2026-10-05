@@ -144,14 +144,13 @@ it('projects only the display suffix and uses an employee index for the admin qu
   await f.owner`INSERT INTO employee_cards ${f.owner(cards)}`;
   await f.owner`ANALYZE employee_cards`;
   await f.database.withTenant(f.companyId, async (tx) => {
-    const view = await readEmployeeCards(
+    const decision = await createEmployeeCardAccess().read(
       tx,
       f.companyId,
-      f.businessId,
       f.operatorId,
-      f.employeeId,
-      createEmployeeCardAccess(),
+      f.businessId,
     );
+    const view = await readEmployeeCards(tx, f.companyId, f.businessId, f.employeeId, decision);
     expect(view).toMatchObject({ active: { card_code_suffix: '0001' }, can_manage: true });
     expect(JSON.stringify(view)).not.toContain(CARD_CODE);
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);

@@ -1,5 +1,5 @@
 {
-  "id": "c7fd79a0-e333-4736-9ef7-7bc30dc953a2",
+  "id": "d3d947e4-ab86-4d3b-8025-8c46fd1a126f",
   "prevId": "34254ce8-0721-4d28-989c-f4262c1fd210",
   "version": "7",
   "dialect": "postgresql",
@@ -9625,7 +9625,7 @@
         },
         "employee_cards_code_suffix": {
           "name": "employee_cards_code_suffix",
-          "value": "char_length(\"employee_cards\".\"card_code_suffix\") BETWEEN 1 AND 4 AND \"employee_cards\".\"card_code_suffix\" ~ '^[!-~]+$'"
+          "value": "char_length(\"employee_cards\".\"card_code_suffix\") BETWEEN 0 AND 4 AND \"employee_cards\".\"card_code_suffix\" ~ '^[!-~]*$'"
         },
         "employee_cards_revoked_pair": {
           "name": "employee_cards_revoked_pair",

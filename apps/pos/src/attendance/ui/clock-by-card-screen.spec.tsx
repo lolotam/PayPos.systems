@@ -11,12 +11,16 @@ import { ClockByCardScreen } from './clock-by-card-screen';
 const clock = vi.hoisted(() => vi.fn());
 vi.mock('../api/clock-by-card', () => ({ clockByCard: clock }));
 
-function show(locale: 'ar' | 'en', cache = new QueryClient()) {
+function show(
+  locale: 'ar' | 'en',
+  cache = new QueryClient(),
+  onRejected: () => Promise<void> = async () => undefined,
+) {
   return render(
     <QueryClientProvider client={cache}>
       <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <LocaleProvider locale={locale} setLocale={() => undefined}>
-          <ClockByCardScreen />
+          <ClockByCardScreen onRejected={onRejected} />
         </LocaleProvider>
       </DirectionProvider>
     </QueryClientProvider>,
@@ -84,7 +88,11 @@ describe('card credential lifetime and scanner focus', () => {
     );
     show('en');
     const input = screen.getByLabelText(t('en', 'pos.cardLabel')) as HTMLInputElement;
-    expect(input.type).toBe('password');
+    expect(input.type).toBe('text');
+    expect(input.classList.contains('card-code-mask')).toBe(true);
+    expect(input.autocomplete).toBe('off');
+    expect(input.getAttribute('spellcheck')).toBe('false');
+    expect(input.getAttribute('autocapitalize')).toBe('off');
     fireEvent.change(input, { target: { value: 'SYNTHETIC-CARD' } });
     fireEvent.submit(input.closest('form') as HTMLFormElement);
     expect(input.value).toBe('');
@@ -114,3 +122,21 @@ describe('card credential lifetime and scanner focus', () => {
     },
   );
 });
+
+it.each(['ar', 'en'] as const)(
+  'explains signed-out operators and refreshes both session contexts in %s',
+  async (locale) => {
+    clock.mockResolvedValue({ kind: 'signed-out' });
+    const cache = new QueryClient();
+    const refetch = vi.spyOn(cache, 'invalidateQueries');
+    const retry = vi.fn(async () => undefined);
+    show(locale, cache, retry);
+    const input = screen.getByLabelText(t(locale, 'pos.cardLabel')) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'SYNTHETIC-CARD' } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    expect(await screen.findByText(t(locale, 'pos.cardSignedOut'))).not.toBeNull();
+    expect(refetch).toHaveBeenCalledWith({ queryKey: ['staff-session'] });
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(input.disabled).toBe(true);
+  },
+);

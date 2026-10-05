@@ -6112,7 +6112,8 @@
           },
           "card_code_suffix": {
             "type": "string",
-            "maxLength": 4
+            "maxLength": 4,
+            "pattern": "^[\\x21-\\x7e]*$"
           },
           "issued_at": {
             "type": "string",

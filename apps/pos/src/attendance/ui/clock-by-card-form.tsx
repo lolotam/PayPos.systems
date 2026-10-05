@@ -35,7 +35,10 @@ export function ClockByCardForm({
       <Input
         id="card-code"
         ref={input}
-        type="password"
+        type="text"
+        className="card-code-mask"
+        spellCheck={false}
+        autoCapitalize="off"
         value={code}
         autoFocus
         autoComplete="off"

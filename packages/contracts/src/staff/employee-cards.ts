@@ -12,12 +12,15 @@ export const employeeCardCode = z
 export const issueEmployeeCardInput = z
   .strictObject({ card_code: employeeCardCode })
   .meta({ id: 'IssueEmployeeCardInput' });
-// لا يُعاد الكود الكامل؛ اللاحقة وحدها تكفي لتأكيد الكارت في الواجهة.
+// اللاحقة فارغة للكود الأقصر من ثمانية أحرف؛ لا يُعاد أي جزء منه.
 export const employeeCard = z
   .strictObject({
     id,
     employee_id: id,
-    card_code_suffix: z.string().max(4),
+    card_code_suffix: z
+      .string()
+      .max(4)
+      .regex(/^[\x21-\x7e]*$/),
     issued_at: timestamp,
     revoked_at: timestamp.nullable(),
   })
@@ -28,11 +31,7 @@ export const employeeCardsView = z
     can_manage: z.boolean(),
   })
   .meta({ id: 'EmployeeCardsView' });
-export const employeeCardSchemas = [
-  issueEmployeeCardInput,
-  employeeCard,
-  employeeCardsView,
-];
+export const employeeCardSchemas = [issueEmployeeCardInput, employeeCard, employeeCardsView];
 export type IssueEmployeeCardInput = z.infer<typeof issueEmployeeCardInput>;
 export type EmployeeCard = z.infer<typeof employeeCard>;
 export type EmployeeCardsView = z.infer<typeof employeeCardsView>;

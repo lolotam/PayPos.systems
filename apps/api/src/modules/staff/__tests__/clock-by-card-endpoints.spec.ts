@@ -1,3 +1,4 @@
+import { deriveEmployeeCardKey } from '@pospay/auth';
 import { randomUUID } from 'node:crypto';
 import { clockAttendanceResult, errorEnvelope } from '@pospay/contracts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -20,7 +21,9 @@ let deviceToken: string;
 let viewerDeviceToken: string;
 let staffCookie: string;
 let viewerCookie: string;
-const hash = createEmployeeCardHash('test-secret-that-is-long-enough-for-hmac');
+const hash = createEmployeeCardHash(
+  deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
+);
 
 async function pair(label: string) {
   const code = await h.send('POST', `/v1/branches/${branch}/devices/pairing-code`, {
@@ -148,7 +151,7 @@ beforeAll(async () => {
   viewerDeviceToken = viewerDevice.token;
   cardId = randomUUID();
   await h.owner`INSERT INTO employee_cards(company_id,id,business_id,employee_id,card_code_hash,card_code_suffix,issued_at,issued_by)
-    VALUES(${company},${cardId},${business},${employee},${createEmployeeCardHash('test-secret-that-is-long-enough-for-hmac')(company, CARD_CODE)},'TP-1',clock_timestamp(),${operatorId})`;
+    VALUES(${company},${cardId},${business},${employee},${createEmployeeCardHash(deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'))(company, CARD_CODE)},'TP-1',clock_timestamp(),${operatorId})`;
   // جلسة وردية واحدة لكل جهاز، فهما جهازان مختلفان لعاملين مختلفين.
   staffCookie = await session(operatorId, receptionDevice.deviceId);
   viewerCookie = await session(viewerId, viewerDevice.deviceId);

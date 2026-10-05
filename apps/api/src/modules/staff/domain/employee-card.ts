@@ -14,13 +14,13 @@ export function normalizeCardCode(raw: string): string {
 export function validCardCode(code: string): boolean {
   return code.length >= 4 && code.length <= 64 && /^[\x21-\x7e]+$/.test(code);
 }
-/** اللاحقة للتعرّف على الكارت فقط؛ حتى الكود القصير لا يُعرض كاملاً.
+/** اللاحقة للتعرّف فقط؛ الكود الأقصر من ثمانية أحرف لا يكشف أي جزء.
  *
  * @param code الكود المطبّع
- * @returns آخر أربعة أحرف بحد أقصى، مع إخفاء حرف واحد على الأقل
+ * @returns آخر أربعة أحرف للكود بطول ثمانية فأكثر، وإلا سلسلة فارغة
  */
 export function cardDisplaySuffix(code: string): string {
-  return code.slice(-Math.min(4, Math.max(0, code.length - 1)));
+  return code.length >= 8 ? code.slice(-4) : '';
 }
 /** الرفض يحمل الرمز الآمن فقط وتحوّله طبقة HTTP إلى مغلف ثنائي اللغة. */
 export class EmployeeCardError extends Error {

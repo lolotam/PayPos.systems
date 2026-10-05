@@ -31,7 +31,10 @@ export function EmployeeCardForm({
       <Label htmlFor="employee-card-code">{t(locale, 'employeeCard.issue')}</Label>
       <Input
         id="employee-card-code"
-        type="password"
+        type="text"
+        className="card-code-mask"
+        spellCheck={false}
+        autoCapitalize="off"
         value={code}
         autoComplete="off"
         onChange={(event) => setCode(event.target.value)}

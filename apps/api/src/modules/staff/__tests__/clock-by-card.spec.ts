@@ -186,3 +186,21 @@ it('issues, replaces and revokes a card with audit and idempotent replay', async
     AND entity='employee_card' ORDER BY at`;
   expect(actions.map((row) => row.action)).toEqual(expect.arrayContaining(['issued', 'revoked']));
 });
+
+it.each([
+  ['ABCD', ''],
+  ['ABCDEFG', ''],
+  ['ABCDEFGH', 'EFGH'],
+])('stores only the permitted suffix for %s', async (code, suffix) => {
+  const scope = {
+    companyId: f.companyId,
+    businessId: f.businessId,
+    employeeId: f.employeeId,
+    operatorId: f.operatorId,
+  };
+  const issued = await f.issue.execute(scope, code, f.idem());
+  expect(issued.cardCodeSuffix).toBe(suffix);
+  const [row] =
+    await f.owner`SELECT card_code_suffix FROM employee_cards WHERE company_id=${f.companyId} AND id=${issued.id}`;
+  expect(row?.card_code_suffix).toBe(suffix);
+});

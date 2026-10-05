@@ -9,7 +9,7 @@ import { RevokeEmployeeCard } from '../use-cases/revoke-employee-card/revoke-emp
 
 // كود اصطناعي فقط؛ لا يخص أي بطاقة حقيقية.
 export const CARD_CODE = 'CARD-0001';
-export const cardHash = createEmployeeCardHash('test-secret-that-is-long-enough-for-hmac');
+export const cardHash = createEmployeeCardHash(Buffer.alloc(32, 7));
 
 export interface CardFixture extends Omit<AttendanceFixture, 'scope'> {
   operatorId: string;

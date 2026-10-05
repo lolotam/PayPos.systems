@@ -1,9 +1,12 @@
+import { deriveEmployeeCardKey } from '@pospay/auth';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 
 import { createEmployeeCardHash } from '../persistence/employee-card-hash.ts';
-const hash = createEmployeeCardHash('test-secret-that-is-long-enough-for-hmac');
+const hash = createEmployeeCardHash(
+  deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
+);
 
 import { personalFixture } from '../../../../test/personal-staff.fixture.ts';
 

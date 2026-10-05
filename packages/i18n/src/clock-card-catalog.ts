@@ -27,11 +27,13 @@ export const clockCardAdminAr = {
 /** نصوص شاشة استقبال الكارت على الجهاز المثبّت (en). */
 export const clockCardPosEn = {
   cardTitle: 'Clock by card',
-  cardLead: 'Scan the attendance card with the reception scanner, or type its code and press Enter.',
+  cardLead:
+    'Scan the attendance card with the reception scanner, or type its code and press Enter.',
   cardLabel: 'Attendance card code',
   cardOffline: 'Card clocking needs an internet connection. Connect and scan again.',
   cardInvalid: 'The card was not accepted. Check the card or ask a manager.',
   cardForbidden: 'You do not have permission to clock staff by card on this device.',
+  cardSignedOut: 'The operator is signed out. Sign in again before scanning a card.',
   cardSubmit: 'Clock',
 } as const;
 
@@ -43,5 +45,6 @@ export const clockCardPosAr = {
   cardOffline: 'تسجيل الحضور بالكارت يحتاج اتصالاً بالإنترنت. اتصل وأعد المسح.',
   cardInvalid: 'لم يُقبل الكارت. تحقق من الكارت أو اطلب من المدير.',
   cardForbidden: 'لا تملك صلاحية تسجيل حضور الموظفين بالكارت على هذا الجهاز.',
+  cardSignedOut: 'تم تسجيل خروج المشغّل. سجّل الدخول مجددًا قبل مسح الكارت.',
   cardSubmit: 'تسجيل',
 };

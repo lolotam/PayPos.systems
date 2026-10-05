@@ -14,7 +14,11 @@ Use `clock:attendance:branch` at the verified device branch, with explicit Devic
 
 Under the user's request to make the reception default bundle work, promote Cashier's existing optional staff-login cell to a default. Cashier already holds the card clock permission. No Owner, manager or supervisor gains staff login implicitly. Existing permission overrides and custom roles are preserved. Migration 0082 adds the catalog code and system defaults; seed repeats them.
 
-Derive a card-only HMAC-SHA256 key from the existing BETTER_AUTH_SECRET using `pospay:employee-card:key:v1`. Bind lookup digests to company and `pospay:employee-card:v1`. Persist only the digest plus up to four display characters, always fewer than the complete code. Hash active-card uniqueness per company. Card-command idempotency fingerprints are keyed as well, with distinct command labels. No full code in API responses, logs, audit, outbox, local storage or offline queues.
+Derive a 32-byte card subkey with HKDF-SHA256 inside `packages/auth`, using salt `pospay:employee-card:hkdf-salt:v1` and info `pospay:employee-card:key:v1`. The composition root calls the narrow `deriveEmployeeCardKey` export; staff receives only its Buffer and never the auth root secret. The PIN counter derivation stays inside auth. HMAC payload labels separate card lookup (`pospay:employee-card:lookup:v1`), issue, revoke and clock idempotency (`pospay:employee-card:<operation>-idempotency:v1`), all bound to company. Persist only the digest and a four-character suffix for normalized codes of at least eight characters; shorter codes have an empty suffix. The allowed 4–64 code-length range is unchanged. Active-card uniqueness uses the company-bound lookup hash. No full code in responses, logs, audit, outbox, local storage or offline queues.
+
+Card inputs use text fields with CSS masking and autocomplete, capitalization and spellchecking disabled. A 401 displays a distinct signed-out message, refetches the operator session and retries device status; no card screen is offered without an operator session.
+
+The EmployeeCardAccess interface and token belong to staff ports. The controller reads access inside the tenant transaction and passes the decision values to the query, which imports no port. Controllers reach the token through the existing use-case export pattern. The layer matrix and boundary rules remain unchanged.
 
 ## Consequences
 

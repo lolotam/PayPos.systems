@@ -1,3 +1,4 @@
+import type { EmployeeCardHash } from './employee-card-hash.ts';
 import { runIdempotent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { ClockResult } from '../domain/clock-attendance.ts';
@@ -15,7 +16,7 @@ import { ATTENDANCE_TRANSACTION_TIMEOUT_MS } from './attendance-transactions.ts'
 export function createCardClockTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
-  hash: (companyId: string, code: string) => string,
+  hash: EmployeeCardHash,
 ): CardClockTransactions {
   return {
     run: (scope, cardCode, sample, work) =>
@@ -70,7 +71,7 @@ function buildTransaction(
   employeeId: string,
   context: CardClockContext,
   ids: IdGenerator,
-  hash: (companyId: string, code: string) => string,
+  hash: EmployeeCardHash,
 ): CardClockTransaction {
   return {
     context,
@@ -84,6 +85,7 @@ function buildTransaction(
           scope.operatorId,
           fingerprint,
         ]),
+        'clock',
       );
       const result = await runIdempotent(
         tx,

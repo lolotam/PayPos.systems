@@ -15,23 +15,16 @@ import type {
   EmployeeCardsPort,
 } from '../ports/employee-cards.port.ts';
 
-/** قرار إدارة الموظفين الذي يحتاجه الإصدار والإلغاء تحت القفل. */
-interface CardManageAccess {
-  lock(
-    tx: Tx,
-    companyId: string,
-    userId: string,
-    businessId: string,
-  ): Promise<{ manage: boolean; featureEnabled: boolean }>;
-}
+import type { EmployeeCardAccess } from '../ports/employee-card-access.port.ts';
+import type { EmployeeCardHash } from './employee-card-hash.ts';
 
 // الإصدار يستبدل النشط السابق؛ الكود الخام يبقى في باراميتر واحد ولا يدخل التدقيق أو الرد.
 export function createEmployeeCards(
   database: TenantWrappers,
   ids: IdGenerator,
   clock: Clock,
-  access: CardManageAccess,
-  hash: (companyId: string, code: string) => string,
+  access: EmployeeCardAccess,
+  hash: EmployeeCardHash,
 ): EmployeeCardsPort {
   return {
     issue: (scope, cardCode, idem) =>
@@ -82,7 +75,7 @@ export function createEmployeeCards(
   };
 }
 
-async function assertManage(tx: Tx, access: CardManageAccess, scope: EmployeeCardScope) {
+async function assertManage(tx: Tx, access: EmployeeCardAccess, scope: EmployeeCardScope) {
   const decision = await access.lock(tx, scope.companyId, scope.operatorId, scope.businessId);
   if (!decision.manage) throw new EmployeeCardError('FORBIDDEN');
   if (!decision.featureEnabled) throw new EmployeeCardError('FEATURE_DISABLED');
@@ -90,9 +83,9 @@ async function assertManage(tx: Tx, access: CardManageAccess, scope: EmployeeCar
 
 function boundFingerprint(
   scope: EmployeeCardScope,
-  operation: string,
+  operation: 'issue' | 'revoke',
   fingerprint: string,
-  hash: (companyId: string, code: string) => string,
+  hash: EmployeeCardHash,
 ) {
   return hash(
     scope.companyId,
@@ -105,6 +98,7 @@ function boundFingerprint(
       operation,
       fingerprint,
     ]),
+    operation,
   );
 }
 
@@ -114,7 +108,7 @@ async function issueCard(
   cardCode: string,
   at: Date,
   ids: IdGenerator,
-  hash: (companyId: string, code: string) => string,
+  hash: EmployeeCardHash,
 ): Promise<EmployeeCardRecord> {
   const [employee] = await tx.execute<{ id: string }>(sql`
     SELECT id FROM employees WHERE company_id=${scope.companyId} AND business_id=${scope.businessId}

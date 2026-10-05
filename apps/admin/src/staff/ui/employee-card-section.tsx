@@ -32,7 +32,8 @@ export function EmployeeCardSection({
         ) : (
           <div className="flex items-center justify-between gap-3">
             <span>
-              {t(locale, 'employeeCard.active')}: ••••{active.card_code_suffix}
+              {t(locale, 'employeeCard.active')}
+              {active.card_code_suffix ? `: ••••${active.card_code_suffix}` : ''}
             </span>
             {view.data.can_manage ? (
               <Button

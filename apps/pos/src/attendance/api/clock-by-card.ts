@@ -7,6 +7,7 @@ import { staffApiClient } from '@/shared/api/client';
 export type CardClockOutcome =
   | { kind: 'accepted'; result: ClockAttendanceResult }
   | { kind: 'refused' }
+  | { kind: 'signed-out' }
   | { kind: 'invalid' }
   | { kind: 'offline' }
   | { kind: 'unavailable' };
@@ -27,6 +28,7 @@ export async function clockByCard(
   );
   if (!outcome.ok) {
     if (outcome.failure.kind === 'network') return { kind: 'unavailable' };
+    if (outcome.failure.status === 401) return { kind: 'signed-out' };
     return outcome.failure.status === 403 ? { kind: 'refused' } : { kind: 'invalid' };
   }
   return { kind: 'accepted', result: clockAttendanceResult.parse(outcome.data) };

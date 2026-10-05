@@ -53,7 +53,7 @@ export const employeeCards = pgTable(
     check('employee_cards_code_hash', sql`${t.cardCodeHash} ~ '^[a-f0-9]{64}$'`),
     check(
       'employee_cards_code_suffix',
-      sql`char_length(${t.cardCodeSuffix}) BETWEEN 1 AND 4 AND ${t.cardCodeSuffix} ~ '^[!-~]+$'`,
+      sql`char_length(${t.cardCodeSuffix}) BETWEEN 0 AND 4 AND ${t.cardCodeSuffix} ~ '^[!-~]*$'`,
     ),
     check('employee_cards_revoked_pair', sql`(${t.revokedAt} IS NULL) = (${t.revokedBy} IS NULL)`),
   ],

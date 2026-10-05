@@ -1,12 +1,27 @@
 import { createHmac } from 'node:crypto';
 import { normalizeCardCode } from '../domain/employee-card.ts';
 
-// المفتاح مشتق من سر الخادم الثابت، لا سر QR اليومي الذي يبطل الكروت عند دورانه.
-export function createEmployeeCardHash(serverSecret: string) {
-  if (serverSecret.length < 32) throw new Error('CARD_KEY_UNAVAILABLE');
-  const key = createHmac('sha256', serverSecret).update('pospay:employee-card:key:v1').digest();
-  return (companyId: string, code: string): string =>
+const labels = {
+  lookup: 'pospay:employee-card:lookup:v1',
+  issue: 'pospay:employee-card:issue-idempotency:v1',
+  revoke: 'pospay:employee-card:revoke-idempotency:v1',
+  clock: 'pospay:employee-card:clock-idempotency:v1',
+} as const;
+
+// المفتاح الفرعي يصل جاهزاً من جذر التركيب؛ الفصل بين الأغراض يمنع إعادة استخدام بصمة كاعتماد.
+export function createEmployeeCardHash(cardKey: Buffer) {
+  if (!Buffer.isBuffer(cardKey) || cardKey.length !== 32) throw new Error('CARD_KEY_UNAVAILABLE');
+  const key = Buffer.from(cardKey);
+  return (companyId: string, value: string, purpose: keyof typeof labels = 'lookup'): string =>
     createHmac('sha256', key)
-      .update(JSON.stringify(['pospay:employee-card:v1', companyId, normalizeCardCode(code)]))
+      .update(
+        JSON.stringify([
+          labels[purpose],
+          companyId,
+          purpose === 'lookup' ? normalizeCardCode(value) : value,
+        ]),
+      )
       .digest('hex');
 }
+
+export type EmployeeCardHash = ReturnType<typeof createEmployeeCardHash>;

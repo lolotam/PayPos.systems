@@ -8,6 +8,10 @@ import type {
 
 export { EmployeeCardError } from '../../domain/employee-card.ts';
 export type { EmployeeCardRecord } from '../../ports/employee-cards.port.ts';
+export {
+  EMPLOYEE_CARD_ACCESS,
+  type EmployeeCardAccess,
+} from '../../ports/employee-card-access.port.ts';
 
 /** يصدر كارت حضور نشطاً لموظف، ويستبدل النشط السابق في نفس المعاملة. */
 export class IssueEmployeeCard {
