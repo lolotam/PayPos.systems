@@ -938,6 +938,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cursor-paginated services of one business. Missing, foreign and other-business ids answer like unknown. Requires read:services:business and the catalog feature. */
+        get: operations["listServices"];
+        put?: never;
+        /** @description Creates a business service with a KWD price and a commission rule. Requires manage:services:business and the catalog feature. Duplicate names are allowed; a zero price is allowed; a malformed rule or price returns a named 400. The write and its audit row commit in one transaction. */
+        post: operations["createService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/{serviceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One service of the business. Missing, foreign and other-business ids share SERVICE_NOT_FOUND (404). Requires read:services:business and the catalog feature. */
+        get: operations["getService"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Full replacement of the editable fields against expected_revision. Requires manage:services:business and the catalog feature. A price or rule change is audited; a stale revision returns SERVICE_REVISION_CONFLICT (409). */
+        patch: operations["updateService"];
+        trace?: never;
+    };
     "/v1/devices/me/attendance-qr": {
         parameters: {
             query?: never;
@@ -2167,6 +2203,73 @@ export interface components {
             name: string;
             /** @enum {string} */
             locale: "ar" | "en";
+        };
+        ServicePrice: string;
+        ServiceCommissionRule: {
+            /** @enum {string} */
+            kind: "FOLLOW_PLAN";
+        } | {
+            /** @enum {string} */
+            kind: "ZERO";
+        } | {
+            /** @enum {string} */
+            kind: "PCT";
+            value: number;
+        } | {
+            /** @enum {string} */
+            kind: "FIXED";
+            value: components["schemas"]["ServicePrice"];
+        };
+        CreateServiceInput: {
+            name_en: string;
+            name_ar?: string | null;
+            price: components["schemas"]["ServicePrice"];
+            commission_rule: components["schemas"]["ServiceCommissionRule"];
+            counts_toward_threshold?: boolean;
+        };
+        UpdateServiceInput: {
+            expected_revision: number;
+            name_en: string;
+            name_ar?: string | null;
+            price: components["schemas"]["ServicePrice"];
+            commission_rule: components["schemas"]["ServiceCommissionRule"];
+            counts_toward_threshold?: boolean;
+        };
+        Service: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            name_en: string;
+            name_ar: string | null;
+            price: components["schemas"]["ServicePrice"];
+            commission_rule: components["schemas"]["ServiceCommissionRule"];
+            counts_toward_threshold: boolean;
+            revision: number;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ServiceListItem: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string | null;
+            price: components["schemas"]["ServicePrice"];
+            commission_rule: components["schemas"]["ServiceCommissionRule"];
+            counts_toward_threshold: boolean;
+            revision: number;
+        };
+        ServicePage: {
+            items: components["schemas"]["ServiceListItem"][];
+            next_cursor: string | null;
+        };
+        ServiceListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
         };
         AttendanceQrToken: {
             /** Format: uuid */
@@ -5232,6 +5335,205 @@ export interface operations {
                 };
             };
             /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listServices: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServicePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createService: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServiceInput"];
+            };
+        };
+        responses: {
+            /** @description Created service */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getService: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                serviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Persisted service */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateService: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                serviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateServiceInput"];
+            };
+        };
+        responses: {
+            /** @description Updated service */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
             default: {
                 headers: {
                     [name: string]: unknown;

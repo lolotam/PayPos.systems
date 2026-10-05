@@ -26,6 +26,8 @@ export const PERMISSIONS = [
   'manage:document-types:company',
   'login:staff:branch',
   'manage:employees:business',
+  'read:services:business',
+  'manage:services:business',
   'read:memberships:company',
   'read:memberships:business',
   'create:customers:company',

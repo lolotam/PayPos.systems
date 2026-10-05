@@ -568,6 +568,20 @@
       "when": 1791155886814,
       "tag": "0080_2026-10-04_employee-import-recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1791200382030,
+      "tag": "0081_2026-10-05_catalog-services",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1791200391402,
+      "tag": "0082_2026-10-05_catalog-services-rls",
+      "breakpoints": true
     }
   ]
 }
