@@ -218,6 +218,370 @@
       "when": 1790887883996,
       "tag": "0030_2026-10-01_platform-whatsapp-grants",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790921986025,
+      "tag": "0031_2026-10-02_identity-staff-otp",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1790922004299,
+      "tag": "0032_2026-10-02_identity-staff-otp-grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790931058669,
+      "tag": "0033_2026-10-02_identity-staff-pin-recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790979791126,
+      "tag": "0034_2026-10-02_customers",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790979810717,
+      "tag": "0035_2026-10-02_customers-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790984018732,
+      "tag": "0036_2026-10-02_email-destination",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790984026175,
+      "tag": "0037_2026-10-02_email-destination-guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790988259215,
+      "tag": "0038_2026-10-03_staff-employees",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1790988268707,
+      "tag": "0039_2026-10-03_staff-employees-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790992182745,
+      "tag": "0040_2026-10-03_staff-active-user-business",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791009188165,
+      "tag": "0041_2026-10-03_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791009192495,
+      "tag": "0042_2026-10-03_files-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791009200974,
+      "tag": "0043_2026-10-03_files-retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1791009206926,
+      "tag": "0044_2026-10-03_files-retention-grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1791011586398,
+      "tag": "0045_2026-10-03_files-cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1791011593581,
+      "tag": "0046_2026-10-03_files-cleanup-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1791016800806,
+      "tag": "0047_2026-10-03_identity-discount-limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791016836150,
+      "tag": "0048_2026-10-03_identity-discount-permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791023585760,
+      "tag": "0049_2026-10-03_staff-update-employee",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791023592160,
+      "tag": "0050_2026-10-03_staff-update-employee-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791023600474,
+      "tag": "0051_2026-10-03_employee-branch-intervals",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791023605424,
+      "tag": "0052_2026-10-03_employee-branch-history-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1791031033432,
+      "tag": "0053_2026-10-03_business-discount-default",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791048495359,
+      "tag": "0054_2026-10-03_employee-salaries",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1791048502293,
+      "tag": "0055_2026-10-03_employee-salaries-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1791061341622,
+      "tag": "0056_2026-10-03_staff-schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1791061348231,
+      "tag": "0057_2026-10-03_staff-schedules-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1791064382943,
+      "tag": "0058_2026-10-03_system-role-default-bundles",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1791071611895,
+      "tag": "0059_2026-10-03_identity-role-followups",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1791080446440,
+      "tag": "0060_2026-10-04_staff-passkeys",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1791080462586,
+      "tag": "0061_2026-10-04_staff-passkey-grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1791082590889,
+      "tag": "0062_2026-10-04_staff-leave-requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1791082604185,
+      "tag": "0063_2026-10-04_staff-leave-requests-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791082605722,
+      "tag": "0064_2026-10-04_leave-default-bundles",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1791087324673,
+      "tag": "0065_2026-10-04_attendance-device-signals",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1791087340424,
+      "tag": "0066_2026-10-04_attendance-device-signals-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1791087342306,
+      "tag": "0067_2026-10-04_passkey-unbind-permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1791087344225,
+      "tag": "0068_2026-10-04_passkey-history-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1791092710881,
+      "tag": "0069_2026-10-04_staff-leave-decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1791092721853,
+      "tag": "0070_2026-10-04_leave-decision-access",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1791095494934,
+      "tag": "0071_2026-10-04_staff-attendance",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1791095505467,
+      "tag": "0072_2026-10-04_staff-attendance-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1791101191665,
+      "tag": "0073_2026-10-04_staff-employee-documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1791101194116,
+      "tag": "0074_2026-10-04_staff-employee-documents-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1791101195972,
+      "tag": "0075_2026-10-04_document-type-permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1791126532203,
+      "tag": "0076_2026-10-04_attendance-missed-out-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1791143945197,
+      "tag": "0077_2026-10-04_import-previews",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1791143947638,
+      "tag": "0078_2026-10-04_import-previews-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1791149657456,
+      "tag": "0079_2026-10-04_employee-import-commit-status",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1791155886814,
+      "tag": "0080_2026-10-04_employee-import-recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1791200226801,
+      "tag": "0081_2026-10-05_employee-document-expiry-notices",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1791200243052,
+      "tag": "0082_2026-10-05_employee-document-expiry-notices-rls",
+      "breakpoints": true
     }
   ]
 }

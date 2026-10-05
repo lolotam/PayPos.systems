@@ -28,14 +28,14 @@ Add `public.platform_whatsapp_suppressions`, classified as **global messaging co
 ADR-0003 class. No company/business/branch/user key and no tenant RLS: the same recipient is suppressed
 across every tenant sending from our platform number. It is neither identity nor shared reference data.
 
-| Column | Constraint / meaning |
-|---|---|
-| `recipient_hash` | `bytea`, primary key, exactly 32 bytes; the platform phone HMAC |
-| `hash_key_id` | non-null key identifier; metadata, never part of uniqueness |
-| `source` | non-null `STOP` or `MANUAL`, source of the latest distinct opt-out |
-| `first_opted_out_at` | non-null UTC `timestamptz`, first accepted opt-out, immutable |
-| `last_opted_out_at` | non-null UTC `timestamptz`, latest distinct accepted opt-out; >= first |
-| `opted_back_in_at` | UTC `timestamptz`, default NULL; Phase 1 `CHECK (opted_back_in_at IS NULL)` binds INSERT and UPDATE |
+| Column               | Constraint / meaning                                                                                |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| `recipient_hash`     | `bytea`, primary key, exactly 32 bytes; the platform phone HMAC                                     |
+| `hash_key_id`        | non-null key identifier; metadata, never part of uniqueness                                         |
+| `source`             | non-null `STOP` or `MANUAL`, source of the latest distinct opt-out                                  |
+| `first_opted_out_at` | non-null UTC `timestamptz`, first accepted opt-out, immutable                                       |
+| `last_opted_out_at`  | non-null UTC `timestamptz`, latest distinct accepted opt-out; >= first                              |
+| `opted_back_in_at`   | UTC `timestamptz`, default NULL; Phase 1 `CHECK (opted_back_in_at IS NULL)` binds INSERT and UPDATE |
 
 An existing row is suppressed while `opted_back_in_at IS NULL`. Phase 1 enforces that invariant in the
 database: no runtime role has INSERT or UPDATE privilege on `opted_back_in_at`, and the CHECK rejects
@@ -74,13 +74,13 @@ Clear scrubbed inbound payload JSON (`platform_whatsapp_inbox.raw_event`) after 
 Keep message-digest dedupe, suppression rows and the minimal append-only audit indefinitely. Payload cleanup
 must not delete dedupe identities, clear suppression or permit a command to be replayed.
 
-| Principal | Exact additional privileges |
-|---|---|
-| `pospay_notifications` | new LOGIN, NOSUPERUSER, NOBYPASSRLS, NOINHERIT, NOCREATEDB, NOCREATEROLE, owns nothing and member of no role; database CONNECT and schema `public` USAGE; suppression SELECT, column INSERT on `recipient_hash,hash_key_id,source,first_opted_out_at,last_opted_out_at` and column UPDATE on `source,last_opted_out_at` only (no table-wide INSERT/UPDATE and no write to `opted_back_in_at`); inbox SELECT/INSERT of the digest-only schema and UPDATE of `raw_event,suppression_applied_at,processed_at,enqueue_confirmed_at` only; audit INSERT of the inbox-UUID/operator schema only |
-| `pospay_suppression_reader` | new NOLOGIN with the same restricted attributes, member of no role; schema USAGE and suppression SELECT only; owns the check function below, no tables |
-| `pospay_app` | EXECUTE on `public.platform_whatsapp_is_suppressed(bytea)` only; no direct privilege on any of the three global tables |
-| `pospay_auth`, `pospay_dispatcher`, `PUBLIC` | no privilege on these tables and no EXECUTE on that function |
-| `pospay_owner` | migration ownership/access; operator inspection/retention maintenance only, never a serving connection |
+| Principal                                    | Exact additional privileges                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pospay_notifications`                       | new LOGIN, NOSUPERUSER, NOBYPASSRLS, NOINHERIT, NOCREATEDB, NOCREATEROLE, owns nothing and member of no role; database CONNECT and schema `public` USAGE; suppression SELECT, column INSERT on `recipient_hash,hash_key_id,source,first_opted_out_at,last_opted_out_at` and column UPDATE on `source,last_opted_out_at` only (no table-wide INSERT/UPDATE and no write to `opted_back_in_at`); inbox SELECT/INSERT of the digest-only schema and UPDATE of `raw_event,suppression_applied_at,processed_at,enqueue_confirmed_at` only; audit INSERT of the inbox-UUID/operator schema only |
+| `pospay_suppression_reader`                  | new NOLOGIN with the same restricted attributes, member of no role; schema USAGE and suppression SELECT only; owns the check function below, no tables                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `pospay_app`                                 | EXECUTE on `public.platform_whatsapp_is_suppressed(bytea)` only; no direct privilege on any of the three global tables                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `pospay_auth`, `pospay_dispatcher`, `PUBLIC` | no privilege on these tables and no EXECUTE on that function                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `pospay_owner`                               | migration ownership/access; operator inspection/retention maintenance only, never a serving connection                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 No additional sequence, DELETE, TRUNCATE, REFERENCES, TRIGGER, schema CREATE, database CREATE, role
 membership or SET ROLE privilege is granted to runtime roles. Explicitly revoke default PUBLIC function
@@ -174,11 +174,11 @@ Both transactions use `pg_advisory_xact_lock(phoneLockKey(hash))`: PR 4's signed
 with domain `pospay:notifications:phone-lock:v1\0`, **without company id**. Reuse the package function,
 not a second implementation. Locks last through commit/rollback; collisions only serialize extra phones.
 
-| Lock winner | Commit order and outcome |
-|---|---|
-| STOP | Upsert/audit/inbox commit releases the lock; authorization then checks a fresh snapshot, sees suppression, and records terminal SUPPRESSED, NULL destination, `NotificationFailed` with `failure_code=SUPPRESSED`; no authorization event or sender job |
-| Authorization | Check plus PENDING attempt/outbox commit while holding the lock; STOP cannot commit between check and insert; after authorization releases the lock STOP commits and blocks subsequent attempts |
-| Either rolls back | Its effect never linearizes; the waiting transaction checks committed state normally |
+| Lock winner       | Commit order and outcome                                                                                                                                                                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| STOP              | Upsert/audit/inbox commit releases the lock; authorization then checks a fresh snapshot, sees suppression, and records terminal SUPPRESSED, NULL destination, `NotificationFailed` with `failure_code=SUPPRESSED`; no authorization event or sender job |
+| Authorization     | Check plus PENDING attempt/outbox commit while holding the lock; STOP cannot commit between check and insert; after authorization releases the lock STOP commits and blocks subsequent attempts                                                         |
+| Either rolls back | Its effect never linearizes; the waiting transaction checks committed state normally                                                                                                                                                                    |
 
 The proof also requires suppression to be monotonic throughout Phase 1: restricted column grants plus
 `CHECK (opted_back_in_at IS NULL)` prevent runtime INSERT/UPDATE from making an accepted STOP invisible
@@ -242,8 +242,7 @@ mode. PR 5 must address all three existing guards: worker main, module factory a
 **PR 6 still gates outbound admission and OTP.** Removing the PR-5 refusal is not permission to retain
 the module's unconditional `reserve: true` default. Without an approved/bound live admission policy,
 leave outbound dispatch disabled/fail-closed; PR 5 can enable suppression and in-app processing independently.
-PR 6 owns approved Redis recipient limits, fail-closed admission, reserved OTP capacity, phone-number
-plugin, challenge/code derivation, expiry/resend/route policy, global auth attempt ledger and auth/worker
+PR 6 owns approved Redis recipient limits, fail-closed admission, reserved OTP capacity, auth-owned flow without phoneNumber/emailOTP plugins, challenge/code derivation, expiry/resend/route policy, global auth attempt ledger and auth/worker
 root binding. OTP suppression must use the same phone identity/lock/check on its later global-ledger
 transaction, not a tenant attempt or guessed company. PR 6 adds only check-function EXECUTE to `pospay_auth`
 and records that grant in ADR-0003; it receives no suppression-table privilege. Every-message STOP includes OTP; recovery must not
@@ -252,12 +251,12 @@ Reconcile the plan's PR 6 dependency row to include PR 5 before any live OTP use
 
 ### 6. Exact passkey dependency pins — PR 20
 
-| Package | Exact pin | Placement |
-|---|---|---|
-| `better-auth`, `@better-auth/drizzle-adapter` | `1.7.5` each | retain ADR-0009 pins |
-| `@better-auth/passkey` | `1.7.5` | `packages/auth`; server plugin and its `/client` integration |
-| `@simplewebauthn/server` | `13.3.1` | auth-owned attendance verification and plugin dependency |
-| `@simplewebauthn/browser` | `13.3.0` | plugin browser dependency, exposed through auth client facade |
+| Package                                       | Exact pin    | Placement                                                     |
+| --------------------------------------------- | ------------ | ------------------------------------------------------------- |
+| `better-auth`, `@better-auth/drizzle-adapter` | `1.7.5` each | retain ADR-0009 pins                                          |
+| `@better-auth/passkey`                        | `1.7.5`      | `packages/auth`; server plugin and its `/client` integration  |
+| `@simplewebauthn/server`                      | `13.3.1`     | auth-owned attendance verification and plugin dependency      |
+| `@simplewebauthn/browser`                     | `13.3.0`     | plugin browser dependency, exposed through auth client facade |
 
 Published registry metadata checked read-only on 2026-10-01: passkey 1.7.5 has peer
 `better-auth ^1.7.5`, server `^13.3.1`, browser `^13.3.0`; server requires Node >=20, compatible with
@@ -279,11 +278,11 @@ disable the policy. Compatibility here is manifest/source evidence; runtime proo
 Configure `rpName=PosPay`, explicit RP ID and explicit origin arrays; no Origin/header-derived default,
 wildcard, trailing slash, scheme/port in RP ID, or automatic trust of every cookie-sharing subdomain.
 
-| Environment | RP ID | Exact browser origin allowlist |
-|---|---|---|
-| Production | `pospay.systems` | `https://app.pospay.systems`, `https://pos.pospay.systems` |
-| Staging | `staging.pospay.systems` | `https://app.staging.pospay.systems`, `https://pos.staging.pospay.systems` |
-| Local development | `localhost` | explicit localhost admin/POS origins with the configured ports, never in staging/prod |
+| Environment       | RP ID                    | Exact browser origin allowlist                                                        |
+| ----------------- | ------------------------ | ------------------------------------------------------------------------------------- |
+| Production        | `pospay.systems`         | `https://app.pospay.systems`, `https://pos.pospay.systems`                            |
+| Staging           | `staging.pospay.systems` | `https://app.staging.pospay.systems`, `https://pos.staging.pospay.systems`            |
+| Local development | `localhost`              | explicit localhost admin/POS origins with the configured ports, never in staging/prod |
 
 These are ADR-0001's planned frontend hosts, not a claim that they are deployed. API hosts serve ceremonies
 at `/v1/auth`; they are not the browser WebAuthn origin. Admin may host authorized enrollment UI; staff
@@ -383,22 +382,22 @@ Approved by Waleed on 2026-10-01:
 
 ## Alternatives considered
 
-| Alternative | Rejected because |
-|---|---|
-| Per-company suppression or locks including company id | one sender's STOP must block all companies; distinct locks allow the race |
-| Full/encrypted phone or original unsanitized webhook bytes in global storage | violates this global-table privacy boundary; hash and finite command suffice |
-| Grant app direct SELECT/DML on global suppression | allows browsing/mutation of global recipient preferences; boolean check is sufficient |
-| Grant runtime opt-in column writes or rely only on endpoint restrictions | silently lifts accepted STOP; duplicate deliveries do not repair it; column denials and a NULL-only CHECK are required |
-| Retain original wamid as dedupe/audit evidence or use an unkeyed digest | provider ids can encode full phone digits; domain-separated HMAC and inbox UUID audit suffice |
-| Use auth/dispatcher roles, BYPASSRLS, superuser definer, or invent a tenant | broadens unrelated exceptions or weakens isolation |
-| Redis suppression, separate-connection check, or repeatable-read pre-lock snapshot | cannot prove the committed STOP-versus-authorization ordering |
-| Queue STOP before applying it; cancel/retry all pending attempts | delays STOP or changes ADR-0018's stated authorization window/fence |
-| Treat CANCEL, إلغاء or الغاء as STOP | appointment cancellation does not mean global messaging opt-out |
-| Enable START or manual removal in Phase 1; permit tenant unsuppress | excluded by the owner decision; a tenant override would defeat global STOP |
-| Upgrade Better Auth or float WebAuthn ranges | changes the ADR-0009 baseline and makes compatibility/age review irreproducible |
-| Plugin defaults/generic passkey login for attendance | UV is not enforced and a session is not a fresh attendance assertion |
-| Tenant-only credential store, copied counters, browser token/device fingerprint as binding | plugin uses global identity; duplicated state diverges; fingerprints/tokens do not prove authenticator possession |
-| Direct attestation, reject synced credentials, or hand-written WebAuthn | physical-phone proof is not promised; adds provenance/compatibility cost without satisfying SPEC better |
+| Alternative                                                                                | Rejected because                                                                                                       |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Per-company suppression or locks including company id                                      | one sender's STOP must block all companies; distinct locks allow the race                                              |
+| Full/encrypted phone or original unsanitized webhook bytes in global storage               | violates this global-table privacy boundary; hash and finite command suffice                                           |
+| Grant app direct SELECT/DML on global suppression                                          | allows browsing/mutation of global recipient preferences; boolean check is sufficient                                  |
+| Grant runtime opt-in column writes or rely only on endpoint restrictions                   | silently lifts accepted STOP; duplicate deliveries do not repair it; column denials and a NULL-only CHECK are required |
+| Retain original wamid as dedupe/audit evidence or use an unkeyed digest                    | provider ids can encode full phone digits; domain-separated HMAC and inbox UUID audit suffice                          |
+| Use auth/dispatcher roles, BYPASSRLS, superuser definer, or invent a tenant                | broadens unrelated exceptions or weakens isolation                                                                     |
+| Redis suppression, separate-connection check, or repeatable-read pre-lock snapshot         | cannot prove the committed STOP-versus-authorization ordering                                                          |
+| Queue STOP before applying it; cancel/retry all pending attempts                           | delays STOP or changes ADR-0018's stated authorization window/fence                                                    |
+| Treat CANCEL, إلغاء or الغاء as STOP                                                       | appointment cancellation does not mean global messaging opt-out                                                        |
+| Enable START or manual removal in Phase 1; permit tenant unsuppress                        | excluded by the owner decision; a tenant override would defeat global STOP                                             |
+| Upgrade Better Auth or float WebAuthn ranges                                               | changes the ADR-0009 baseline and makes compatibility/age review irreproducible                                        |
+| Plugin defaults/generic passkey login for attendance                                       | UV is not enforced and a session is not a fresh attendance assertion                                                   |
+| Tenant-only credential store, copied counters, browser token/device fingerprint as binding | plugin uses global identity; duplicated state diverges; fingerprints/tokens do not prove authenticator possession      |
+| Direct attestation, reject synced credentials, or hand-written WebAuthn                    | physical-phone proof is not promised; adds provenance/compatibility cost without satisfying SPEC better                |
 
 ## Consequences
 
@@ -421,10 +420,14 @@ Approved by Waleed on 2026-10-01:
 
 ## Open questions for the owner
 
-The only open business rule is **admission/OTP policy, for PR 6** (`TODO(spec)`); its recommendation is
-not approved, and dependent live dispatch stays disabled until approval.
+ADR-0019 records the owner-approved admission/OTP policy for PR 6: 1 outbound message/recipient/second,
+reserved concurrency 4 with <=5-second submission target, 5-minute validity, 60-second new-code cooldown,
+5 requests/phone/hour and 20/IP/hour. STOP also blocks OTP; recovery uses the employee's own PIN and
+separately attributed manager assistance. Loss/unknown outcome never authorizes automatic resend.
 
-1. **Admission/OTP policy (PR 6)?** Recommend ADR-0018's 1 outbound message/recipient/second, reserved OTP
-   capacity with <=5-second submission target, 5-minute OTP validity, 60-second new-code cooldown,
-   5 requests/phone/hour and 20/IP/hour; STOP also blocks OTP. Owner approves limits and recovery UX before
-   live dispatch; loss/unknown outcome never authorizes automatic resend of the same attempt/challenge.
+1. **OTP template/recovery approval (`TODO(spec)`, PR 6):** actual approved ar/en AUTHENTICATION copy,
+   names and components, and final bilingual recovery copy remain required before live activation.
+
+## Amendment — 2026-10-02, PR 6 / ADR-0019
+
+ADR-0019 settles the approved shared recipient interval at 1000 ms and request/verification limits. OTP is disabled by default; explicit complete activation opens OTP-only live dispatch while tenant outbound stays closed. Missing/partial OTP settings never block ordinary startup/readiness. Auth receives only suppression-function EXECUTE through its restricted global facade and uses the identical phone identity/lock. STOP also blocks paired-device OTP: initial preparation and acknowledged-enqueue release each check it in a fresh READ COMMITTED snapshot after the lock. PREPARED never grants sending; already-authorized PENDING may finish under §3. No suppression bypass or START is introduced. Staff session is restricted to the paired device and original eight-hour deadline; personal-phone enrollment needs a separate design before PR 20, and PR 22 still needs per-clock passkey UV/presence proof.

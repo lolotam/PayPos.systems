@@ -8,6 +8,19 @@ import {
 import { platformHarness } from './platform-harness.ts';
 import { seedInboxUsers } from '../../../../../../packages/db/test/in-app-fixtures.ts';
 import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
+import { createEmailModule } from '../email.module.ts';
+import { FakeChannel, type EmailRequest } from '@pospay/notifications';
+
+it('production email factory cannot accept an injected sending channel', () => {
+  expect(() =>
+    createEmailModule({
+      production: true,
+      ids: systemUuidV7(),
+      clock: { now: () => new Date() },
+      testing: { channel: new FakeChannel<EmailRequest>(() => new Date()) },
+    }),
+  ).toThrow('EMAIL_TEST_CHANNEL_IN_PRODUCTION');
+});
 
 let h: Awaited<ReturnType<typeof platformHarness>>;
 beforeAll(async () => {

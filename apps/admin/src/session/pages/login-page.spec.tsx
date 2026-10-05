@@ -22,5 +22,9 @@ describe('login page', () => {
     );
     const heading = screen.getByRole('heading', { name: t('ar', 'admin.signInTitle') });
     expect(heading.closest('[dir="rtl"]')).not.toBeNull();
+    const lockup = screen.getByRole('img', { name: t('ar', 'brand.title') });
+    expect(lockup.textContent).toContain(t('ar', 'brand.latinName'));
+    expect(lockup.textContent).toContain(t('ar', 'brand.arabicName'));
+    expect(lockup.classList.contains('mx-auto')).toBe(true);
   });
 });

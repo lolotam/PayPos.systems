@@ -10,10 +10,10 @@ function withDevice(request: Request, token: string): Request {
   return new Request(request, { headers });
 }
 
-export function createApiClient() {
+export function createApiClient(credentials: RequestCredentials = 'omit') {
   const client = createClient<paths>({
     baseUrl: apiOrigin(),
-    credentials: 'omit',
+    credentials,
   });
   client.use({
     async onRequest({ request }) {
@@ -28,6 +28,12 @@ export function createApiClient() {
 export type ApiClient = ReturnType<typeof createApiClient>;
 
 let singleton: ApiClient | undefined;
+let staffSingleton: ApiClient | undefined;
+
+export function staffApiClient(): ApiClient {
+  staffSingleton ??= createApiClient('include');
+  return staffSingleton;
+}
 
 export function apiClient(): ApiClient {
   singleton ??= createApiClient();

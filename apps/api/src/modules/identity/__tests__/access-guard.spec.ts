@@ -1,3 +1,4 @@
+import { refusingStaffSessions } from '../../../../test/refusing-staff-sessions.ts';
 import { Controller, Get, Req } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService } from '@pospay/auth';
@@ -75,6 +76,9 @@ const SESSIONS: Record<string, { userId: string; hint: string | null; platform?:
   operator: { userId: STRANGER, hint: null, platform: ['create:companies:platform'] },
 };
 const fakeAuth: AuthService = {
+  personal: {} as AuthService['personal'],
+  passkeys: {} as AuthService['passkeys'],
+  staff: refusingStaffSessions,
   handler: async () => new Response(null, { status: 404 }),
   getSession: async (headers) => {
     const session = SESSIONS[/sid=([\w-]+)/.exec(headers.get('cookie') ?? '')?.[1] ?? ''];
@@ -133,10 +137,11 @@ const member = (
   role: string,
   scope: [string, string],
   endsAt: string | null = null,
+  ownerKey = 'global',
 ) =>
   owner`
     INSERT INTO memberships (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at, ends_at)
-    VALUES (${company}, ${ids.newId()}, ${userId}, ${role}, 'global', ${scope[0]}, ${scope[1]},
+    VALUES (${company}, ${ids.newId()}, ${userId}, ${role}, ${ownerKey}, ${scope[0]}, ${scope[1]},
             now() - interval '1 day', ${endsAt}::timestamptz)
     RETURNING id`.then((rows) => rows[0]?.['id'] as string);
 
@@ -271,7 +276,7 @@ describe('membership window and overrides', () => {
     expect(await get('/v1/probe/access/company', 'stranger', B)).toMatchObject({ status: 403 });
   });
 
-  it("a DENY override beats the owner role's ALLOW; an expired DENY does not", async () => {
+  it('a historical DENY cannot reduce an active owner; expired DENY remains harmless', async () => {
     const membership = await member(STRANGER, C, OWNER_ROLE_ID, ['COMPANY', C]);
     expect(await get('/v1/probe/access/company', 'stranger', C)).toMatchObject({ status: 200 });
     await override(
@@ -284,13 +289,17 @@ describe('membership window and overrides', () => {
     );
     expect(await get('/v1/probe/access/company', 'stranger', C)).toMatchObject({ status: 200 });
     await override(C, membership, 'read:memberships:company', 'DENY', ['COMPANY', C]);
-    expect(await get('/v1/probe/access/company', 'stranger', C)).toMatchObject({ status: 403 });
+    expect(await get('/v1/probe/access/company', 'stranger', C)).toMatchObject({ status: 200 });
   });
 });
 
 describe('evaluation at the branch target (PRD D-31)', () => {
   beforeAll(async () => {
-    const membership = await member(VIEWER, A, VIEWER_ROLE, ['BUSINESS', BUSINESS]);
+    await member(VIEWER, A, VIEWER_ROLE, ['BUSINESS', BUSINESS]);
+    // الكود الاصطناعي خارج مصفوفة الأدوار النظامية؛ نختبر تفويض النطاق عبر عضوية مخصصة.
+    const role = ids.newId();
+    await owner`INSERT INTO roles(id,company_id,code,name_en) VALUES (${role},${A},'synthetic_probe','Synthetic probe')`;
+    const membership = await member(VIEWER, A, role, ['BUSINESS', BUSINESS], null, A);
     await override(A, membership, PROBE_BRANCH, 'ALLOW', ['BUSINESS', BUSINESS]);
     await override(A, membership, PROBE_BRANCH, 'DENY', ['BRANCH', BRANCH_3]);
   });
@@ -313,7 +322,7 @@ describe('evaluation at the branch target (PRD D-31)', () => {
     }
   });
 
-  it('the viewer role itself grants nothing yet (TODO(spec) D-07)', async () => {
+  it('the viewer defaults never include company membership management', async () => {
     expect(await get('/v1/probe/access/company', 'viewer', A)).toMatchObject({ status: 403 });
   });
 });

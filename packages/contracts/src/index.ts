@@ -1,10 +1,41 @@
 export { nameAr, nameEn } from './bilingual/names.js';
+export {
+  employee,
+  createEmployeeInput,
+  employeeRoleCode,
+  employeeDate,
+  type Employee,
+  type CreateEmployeeInput,
+} from './staff/employee.js';
+export {
+  customer,
+  findOrCreateCustomerInput,
+  type Customer,
+  type FindOrCreateCustomerInput,
+} from './customers.js';
 export { errorEnvelope, type ErrorEnvelope } from './errors/envelope.js';
 export { page, pageQuery, type PageQuery, type PageQueryRequest } from './pagination/cursor.js';
 export { currency } from './reference/currency.js';
 export { timeZone } from './reference/time-zone.js';
 export { id } from './scalars/id.js';
 export { timestamp } from './scalars/timestamp.js';
+export {
+  membershipPageQuery,
+  membershipPermissionsQuery,
+  revokePermissionOverrideInput,
+  type RevokePermissionOverrideInput,
+  type MembershipPermissionsQuery,
+  permissionOverrideInput,
+  permissionOverride,
+  permissionMembership,
+  permissionMembershipPage,
+  permissionOverridePage,
+  membershipPermissions,
+  type PermissionOverrideInput,
+  type PermissionOverride,
+  type PermissionMembership,
+  type MembershipPermissions,
+} from './identity/permissions.js';
 export { buildOpenApiDocument } from './openapi.js';
 export {
   business,
@@ -120,3 +151,111 @@ export {
   whatsappMessage,
   WhatsappEnvelopeInvalidError,
 } from './whatsapp-webhook.js';
+export {
+  attendanceQrToken,
+  attendanceQrBranch,
+  attendanceQrIssue,
+  type AttendanceQrToken,
+  type AttendanceQrBranch,
+  type AttendanceQrIssue,
+} from './staff/attendance-qr.js';
+export {
+  staffOtpRequestInput,
+  canonicalStaffPhone,
+  staffOtpVerifyInput,
+  staffOtpAcknowledgement,
+  staffSessionContext,
+  staffOtpJob,
+  staffPinInput,
+  staffPinResetInput,
+  type StaffPinInput,
+  type StaffPinResetInput,
+  type StaffOtpRequestInput,
+  type StaffOtpVerifyInput,
+  type StaffOtpAcknowledgement,
+  type StaffSessionContext,
+} from './identity/staff-otp.js';
+export {
+  updateEmployeeInput,
+  employeeDetailRecord,
+  employeeListItem,
+  employeePage,
+  employeeListQuery,
+  type UpdateEmployeeInput,
+  type EmployeeDetail,
+  type EmployeeListItem,
+  type EmployeePage,
+  type EmployeeListQuery,
+} from './staff/update-employee.js';
+export {
+  discountLimit,
+  discountLimitInput,
+  discountLimitBps,
+  type DiscountLimit,
+  type DiscountLimitInput,
+} from './identity/discount-limit.js';
+export {
+  discountPercentage,
+  discountLimitFormInput,
+  type DiscountLimitFormValues,
+} from './identity/discount-limit.js';
+export {
+  requestFileUpload,
+  fileUploadTicket,
+  fileStatus,
+  fileConfirmation,
+  fileDownload,
+  fileDownloadByKey,
+  fileVerificationJob,
+  fileRetentionJob,
+  type RequestFileUpload,
+  type FileStatus,
+} from './files.js';
+export * from './staff/schedules.js';
+export {
+  salaryAmount,
+  setSalaryInput,
+  employeeSalary,
+  salaryHistoryQuery,
+  salaryHistoryPage,
+} from './staff/salary.js';
+export type {
+  SetSalaryInput,
+  EmployeeSalary,
+  SalaryHistoryQuery,
+  SalaryHistoryPage,
+} from './staff/salary.js';
+export * from './staff/leave.js';
+export * from './staff/leave-decision.js';
+
+export * from './staff/passkeys.js';
+export * from './staff/clock-attendance.js';
+export * from './staff/unbind-passkey.js';
+export * from './staff/missed-out.js';
+export * from './staff/document-expiry.js';
+export * from './staff/employee-documents.js';
+export {
+  employeeImportColumn,
+  employeeImportErrorCode,
+  employeeImportRowError,
+  employeeImportTemplate,
+  previewEmployeeImportInput,
+  employeeImportPreview,
+  commitEmployeeImportInput,
+  employeeImportCommit,
+  type EmployeeImportColumn,
+  type EmployeeImportErrorCode,
+  type EmployeeImportRowError,
+  type PreviewEmployeeImportInput,
+  type EmployeeImportPreview,
+  type EmployeeImportTemplate,
+  type CommitEmployeeImportInput,
+  type EmployeeImportCommit,
+} from './staff/employee-import.js';
+export {
+  employeeImportCommitAccepted,
+  employeeImportStatus,
+  employeeImportCommitJob,
+  type EmployeeImportCommitAccepted,
+  type EmployeeImportStatus,
+} from './staff/employee-import.js';

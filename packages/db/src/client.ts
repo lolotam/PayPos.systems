@@ -2,6 +2,8 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
 import { createTenantWrappers, type IdGenerator, type TenantWrappers } from './with-tenant.ts';
+import { boundedPostgres } from './bounded-postgres.ts';
+import { boundedTenant } from './bounded-tenant.ts';
 
 /**
  * إعدادات الاتصال — الـ url لازم يبقى على pospay_app، مش الـ owner.
@@ -10,6 +12,7 @@ export interface DatabaseOptions {
   readonly url: string;
   readonly ids: IdGenerator;
   readonly maxConnections?: number;
+  readonly boundedTenantTransactions?: boolean;
 }
 
 /**
@@ -33,8 +36,14 @@ export function createDatabase(options: DatabaseOptions): Database {
     max: options.maxConnections ?? 10,
     onnotice: () => undefined,
   });
+  const bounded = options.boundedTenantTransactions ? boundedPostgres(options.url) : undefined;
+  const wrappers = createTenantWrappers(drizzle(client), options.ids);
   return {
-    ...createTenantWrappers(drizzle(client), options.ids),
+    ...wrappers,
+    withTenant: (companyId, work, transactionOptions = {}) =>
+      bounded !== undefined && transactionOptions.drainOnTimeout === true
+        ? boundedTenant(bounded, companyId, work, transactionOptions)
+        : wrappers.withTenant(companyId, work, transactionOptions),
     // /ready: the database answers AND the URL is the restricted application role — a DATABASE_URL pointing at
     // pospay_auth or pospay_dispatcher would pass SELECT 1 and then fail every tenant query.
     ping: async () => {
@@ -44,8 +53,11 @@ export function createDatabase(options: DatabaseOptions): Database {
       if (row?.role !== 'pospay_app' || row.privileged !== false) {
         throw new Error('DATABASE_URL must connect as pospay_app');
       }
+      await bounded?.warm();
     },
     // A bounded close: after 5 s postgres.js terminates the connections instead of waiting forever.
-    close: () => client.end({ timeout: 5 }),
+    close: async () => {
+      await Promise.all([client.end({ timeout: 5 }), bounded?.close()]);
+    },
   };
 }

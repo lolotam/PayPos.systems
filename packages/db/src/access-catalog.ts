@@ -1,12 +1,40 @@
 // الـ catalog بتاع الصلاحيات والـ roles اللي بيتزرع من الكود (ADR-0003 §2.3). كل slice بتضيف صلاحياتها هنا
-// في نفس الـ PR اللي بيعمل الـ route بتاعها، والـ Owner بياخدها أوتوماتيك (قرار Waleed 2026-09-23).
+// في نفس الـ PR اللي بيعمل الـ route بتاعها؛ الحزم النظامية موثقة في ADR-0025.
 
 /**
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
  */
 export const PERMISSIONS = [
+  'read:passkeys:branch',
+  'unbind:passkeys:branch',
+  'create:leave:own',
+  'read:leave:own',
+  'cancel:leave:own',
+  'create:leave:branch',
+  'read:leave:branch',
+  'cancel:leave:branch',
+  'decide:leave:branch',
+  'revoke:leave:branch',
+  'read:schedules:branch',
+  'manage:schedules:branch',
+  'read:schedules:business',
+  'manage:schedules:business',
+  'read:salaries:business',
+  'manage:salaries:business',
+  'manage:files:business',
+  'read:files:business',
+  'manage:document-types:company',
+  'login:staff:branch',
+  'manage:employees:business',
   'read:memberships:company',
+  'read:memberships:business',
+  'create:customers:company',
+  'create:customers:business',
+  'create:customers:branch',
   'manage:memberships:company',
+  'manage:memberships:business',
+  'manage:discounts:company',
+  'manage:discount-limits:business',
   'read:businesses:company',
   'create:businesses:company',
   'create:branches:business',
@@ -34,8 +62,8 @@ export interface SystemRole {
   readonly nameEn: string;
 }
 
-// TODO(spec): الـ codes مؤقتة لحد قرار D-07 (PRD §13) — تغيير الاسم بعدين data migration. الأسماء العربي
-// مستنية نفس القرار. استثناء ADR-0018: المديرون يقرأون سجل الإرسال؛ باقي الـ bundles مستنية D-07.
+// قرار المالك 2026-10-03: أكواد الأدوار البشرية الـ 13 نهائية؛ الأسماء المحلية في packages/i18n.
+// مصفوفة الحزم في docs/specs/019-identity-role-default-grants/spec.md وADR-0025.
 export const SYSTEM_ROLES: readonly SystemRole[] = [
   { id: '01920000-0000-7000-8000-000000000101', code: 'owner', nameEn: 'Owner' },
   {

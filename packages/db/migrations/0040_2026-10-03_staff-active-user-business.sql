@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX CONCURRENTLY "employees_active_user_business_key" ON "employees" USING btree ("company_id","business_id","user_id") WHERE "employees"."deleted_at" IS NULL AND "employees"."user_id" IS NOT NULL;

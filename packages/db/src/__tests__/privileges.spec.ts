@@ -1,3 +1,13 @@
+import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
+import { ATTENDANCE_TABLE_GRANTS } from '../../test/attendance-grants.ts';
+import { EMPLOYEE_COLUMN_GRANTS } from '../../test/employee-grants.ts';
+import { FUNCTION_INVENTORY } from '../../test/function-inventory.ts';
+import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
+import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
+import { SCHEDULE_COLUMN_GRANTS } from '../../test/schedule-grants.ts';
+import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
+import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
+import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -8,6 +18,11 @@ import { createTestDatabase, type TestDatabase } from '../../test/test-database.
 // is not written here fails the suite, so a broad grant cannot authorise itself.
 const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_app: [
+    ...[
+      ...ATTENDANCE_TABLE_GRANTS,
+      'attendance_device_signals:INSERT',
+      'attendance_device_signals:SELECT',
+    ].sort(),
     'audit_log:INSERT',
     'audit_log:SELECT',
     'branches:DELETE',
@@ -30,15 +45,41 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'company_feature_overrides:SELECT',
     'consumed_events:INSERT',
     'consumed_events:SELECT',
+    'customers:INSERT',
+    'customers:SELECT',
     'devices:INSERT',
     'devices:SELECT',
     'devices:UPDATE',
+    'document_types:INSERT',
+    'document_types:SELECT',
+    'employee_branches:INSERT',
+    'employee_branches:SELECT',
+    'employee_document_expiry_notices:INSERT',
+    'employee_document_expiry_notices:SELECT',
+    'employee_documents:INSERT',
+    'employee_documents:SELECT',
+    'employee_passkeys:INSERT',
+    'employee_passkeys:SELECT',
+    'employee_salaries:INSERT',
+    'employee_salaries:SELECT',
+    'employees:INSERT',
+    'employees:SELECT',
+    'file_access_audit:INSERT',
+    'file_access_audit:SELECT',
+    'file_cleanup_objects:INSERT',
+    'file_cleanup_objects:SELECT',
+    'file_objects:INSERT',
+    'file_objects:SELECT',
     'idempotency_keys:INSERT',
     'idempotency_keys:SELECT',
     'idempotency_keys:UPDATE',
+    'import_previews:INSERT',
+    'import_previews:SELECT',
     'in_app_notifications:INSERT',
     'in_app_notifications:SELECT',
     'in_app_notifications:UPDATE',
+    'leave_requests:INSERT',
+    'leave_requests:SELECT',
     'memberships:DELETE',
     'memberships:INSERT',
     'memberships:SELECT',
@@ -61,6 +102,13 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'roles:INSERT',
     'roles:SELECT',
     'roles:UPDATE',
+    'staff_schedule_shifts:DELETE',
+    'staff_schedule_shifts:INSERT',
+    'staff_schedule_shifts:SELECT',
+    'staff_schedules:INSERT',
+    'staff_schedules:SELECT',
+    'staff_shift_templates:INSERT',
+    'staff_shift_templates:SELECT',
   ],
   // Global identity (ADR-0003 §2.1): Better Auth's tables, reading platform grants and appending to their audit log.
   pospay_auth: [
@@ -68,6 +116,14 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'account:INSERT',
     'account:SELECT',
     'account:UPDATE',
+    'auth_notification_attempts:DELETE',
+    'auth_notification_attempts:SELECT',
+    'auth_otp_challenges:DELETE',
+    'auth_otp_challenges:SELECT',
+    'passkey:DELETE',
+    'passkey:INSERT',
+    'passkey:SELECT',
+    'passkey:UPDATE',
     'platform_audit_log:INSERT',
     'platform_grants:SELECT',
     'platform_roles:SELECT',
@@ -100,6 +156,25 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
 const TENANT_TABLES = [
+  'document_types',
+  'employee_documents',
+  'employee_document_expiry_notices',
+  'attendance_states',
+  'attendance_sessions',
+  'attendance_exceptions',
+  'attendance_clock_challenges',
+  'attendance_device_signals',
+  'file_objects',
+  'file_access_audit',
+  'file_cleanup_objects',
+  'import_previews',
+  'employees',
+  'employee_branches',
+  'employee_passkeys',
+  'staff_schedules',
+  'staff_schedule_shifts',
+  'staff_shift_templates',
+  'employee_salaries',
   'in_app_notifications',
   'notification_attempts',
   'companies',
@@ -120,6 +195,9 @@ const TENANT_TABLES = [
 ];
 const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
 const IDENTITY_TABLES = [
+  'passkey',
+  'auth_otp_challenges',
+  'auth_notification_attempts',
   'user',
   'session',
   'account',
@@ -166,7 +244,7 @@ describe('direct privileges match the reviewed allowlist', () => {
     expect(await aclGrants('PUBLIC')).toEqual([]);
   });
 
-  it('the only column-level grants are the delivery metadata of outbox, to the dispatcher', async () => {
+  it('column grants match the reviewed employee, OTP, file verification and outbox allowlists', async () => {
     const rows = await owner<{ grant: string }[]>`
       SELECT c.relname || '.' || a.attname || ':' || coalesce(r.rolname, 'PUBLIC') || ':' || x.privilege_type AS grant
       FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
@@ -175,7 +253,19 @@ describe('direct privileges match the reviewed allowlist', () => {
       ORDER BY 1`;
     expect(
       rows.filter((r) => !r.grant.startsWith('platform_whatsapp_')).map((r) => r.grant),
-    ).toEqual(OUTBOX_COLUMN_GRANTS);
+    ).toEqual(
+      [
+        ...OTP_COLUMN_GRANTS,
+        ...LEAVE_COLUMN_GRANTS,
+        ...FILE_COLUMN_GRANTS,
+        ...OUTBOX_COLUMN_GRANTS,
+        ...EMPLOYEE_COLUMN_GRANTS,
+        ...SCHEDULE_COLUMN_GRANTS,
+        ...PASSKEY_COLUMN_GRANTS,
+        ...DOCUMENT_COLUMN_GRANTS,
+        ...IMPORT_COLUMN_GRANTS,
+      ].sort(),
+    );
   });
 
   it.each(APP_ROLES)(
@@ -315,42 +405,21 @@ describe('effective access', () => {
 describe('function inventory', () => {
   it('lists every function; the one SECURITY DEFINER pins its search_path', async () => {
     const rows = await owner`
-      SELECT proname, prosecdef, proconfig FROM pg_proc
-      WHERE pronamespace = 'public'::regnamespace ORDER BY proname`;
-    expect(Array.from(rows)).toEqual([
-      { proname: 'app_company_id', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
-      { proname: 'app_user_id', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
-      {
-        proname: 'assert_company_keeps_an_owner',
-        prosecdef: false,
-        proconfig: ['search_path=public, pg_temp'],
-      },
-      {
-        proname: 'idempotency_keys_require_response',
-        prosecdef: false,
-        proconfig: ['search_path=public, pg_temp'],
-      },
-      {
-        proname: 'in_app_notifications_guard',
-        prosecdef: false,
-        proconfig: ['search_path=public, pg_temp'],
-      },
-      {
-        proname: 'notification_attempts_guard',
-        prosecdef: false,
-        proconfig: ['search_path=public, pg_temp'],
-      },
-      {
-        proname: 'platform_whatsapp_is_suppressed',
-        prosecdef: true,
-        proconfig: ['search_path=pg_catalog, pg_temp'],
-      },
-      {
-        proname: 'sweep_expired_idempotency_keys',
-        prosecdef: true,
-        proconfig: ['search_path=pg_catalog, pg_temp'],
-      },
-    ]);
+      SELECT proname, prosecdef, proconfig FROM pg_proc p
+      WHERE pronamespace = 'public'::regnamespace AND NOT EXISTS (
+        SELECT 1 FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
+        WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.refclassid='pg_extension'::regclass
+          AND d.deptype='e' AND e.extname='btree_gist') ORDER BY proname`;
+    expect(Array.from(rows)).toEqual(FUNCTION_INVENTORY);
+  });
+
+  it('btree_gist is installed and its extension functions cannot acquire definer privileges', async () => {
+    expect(await owner`SELECT 1 FROM pg_extension WHERE extname='btree_gist'`).toHaveLength(1);
+    expect(
+      await owner`SELECT p.proname FROM pg_proc p JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid
+      JOIN pg_extension e ON d.refclassid='pg_extension'::regclass AND e.oid=d.refobjid
+      WHERE d.deptype='e' AND e.extname='btree_gist' AND p.prosecdef`,
+    ).toHaveLength(0);
   });
 
   it('only pospay_dispatcher may execute the SECURITY DEFINER sweep', async () => {

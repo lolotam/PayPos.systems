@@ -1,4 +1,11 @@
 export type { Channel, ChannelRequest, ChannelResult, TemplateComponent } from './channel.ts';
+export { ResendChannel } from './adapters/resend.channel.ts';
+export type { EmailRequest } from './email-request.ts';
+export { createEmailIdentity, canonicalEmail } from './email-identity.ts';
+export { readEmailConfiguration } from './email-configuration.ts';
+export type { EmailConfiguration } from './email-configuration.ts';
+export { renderOperationalEmail } from './templates/email-operational.ts';
+export type { EmailContent } from './templates/email-operational.ts';
 export {
   GRAPH_API_VERSION,
   readNotificationConfiguration,
@@ -37,3 +44,8 @@ export {
   whatsappInboundJob,
   WhatsappQueueUnavailableError,
 } from './whatsapp-inbound-queue.ts';
+export {
+  readOtpTemplateApproval,
+  prepareStaffOtp,
+  type OtpTemplateApproval,
+} from './templates/staff-otp-preparation.ts';

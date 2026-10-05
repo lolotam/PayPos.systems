@@ -1,6 +1,7 @@
 'use client';
 
 import { t } from '@pospay/i18n';
+import { Building2, Store, MapPin, PageHeader, Stat } from '@pospay/ui';
 
 import { useLocale } from '@/shared/locale/locale-context';
 
@@ -19,20 +20,28 @@ export function HomePage() {
   const workspace = useWorkspace();
   if (workspace.status !== 'ready') return null;
   return (
-    <section className="flex max-w-xl flex-col gap-3">
-      <h1 className="text-start text-xl font-bold">{t(locale, 'admin.homeTitle')}</h1>
-      <p className="flex flex-wrap gap-2 text-start">
-        <span className="text-muted-foreground">{t(locale, 'admin.homeCompany')}</span>
-        <span>{displayName(workspace.company, locale)}</span>
-      </p>
-      <p className="flex flex-wrap gap-2 text-start">
-        <span className="text-muted-foreground">{t(locale, 'admin.homeBusiness')}</span>
-        <span>{chosen(workspace.business, locale)}</span>
-      </p>
-      <p className="flex flex-wrap gap-2 text-start">
-        <span className="text-muted-foreground">{t(locale, 'admin.homeBranch')}</span>
-        <span>{chosen(workspace.branch, locale)}</span>
-      </p>
+    <section className="flex flex-col gap-12">
+      <PageHeader
+        title={t(locale, 'admin.homeTitle')}
+        description={t(locale, 'shell.workspaceLead')}
+      />
+      <div className="grid gap-2 md:grid-cols-3">
+        <Stat
+          label={t(locale, 'admin.homeCompany')}
+          value={displayName(workspace.company, locale)}
+          icon={<Building2 className="size-5" />}
+        />
+        <Stat
+          label={t(locale, 'admin.homeBusiness')}
+          value={chosen(workspace.business, locale)}
+          icon={<Store className="size-5" />}
+        />
+        <Stat
+          label={t(locale, 'admin.homeBranch')}
+          value={chosen(workspace.branch, locale)}
+          icon={<MapPin className="size-5" />}
+        />
+      </div>
     </section>
   );
 }

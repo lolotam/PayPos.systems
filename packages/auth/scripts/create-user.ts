@@ -49,6 +49,10 @@ function trustedOrigins(): string[] {
 async function main(): Promise<void> {
   const input = readInput();
   const auth = await createAuth({
+    // هذا السكريبت ينشئ مستخدم الإدارة فقط؛ لا يمنح عمليات دخول الموظف أو قفل هاتف وهمياً.
+    staffPhoneLockKey: () => {
+      throw new Error('STAFF_OPERATIONS_UNAVAILABLE');
+    },
     databaseUrl: env('AUTH_DATABASE_URL'),
     secret: env('BETTER_AUTH_SECRET'),
     baseURL: env('BETTER_AUTH_URL'),

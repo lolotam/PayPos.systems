@@ -30,11 +30,35 @@ export interface AuditEntry {
  * @returns بيخلص لما الصف يتكتب (لسه مش committed)
  */
 export async function appendAuditLog(tx: Tx, id: string, entry: AuditEntry): Promise<void> {
-  const json = (value: unknown, name: string) =>
-    value === undefined ? sql`NULL` : sql`${toJsonb(redactSecrets(value), name)}::jsonb`;
+  await appendAuditLogs(tx, [{ id, entry }]);
+}
+
+/**
+ * يكتب تدقيق دفعة ذرية في أمر واحد بنفس تنقية الأسرار وهوية السياق المستخدمة للصف المفرد.
+ *
+ * @param tx معاملة الشركة
+ * @param entries معرفات السجل والتغييرات المعتمدة
+ * @returns يكتمل عند إدخال كل الصفوف داخل المعاملة
+ */
+export async function appendAuditLogs(
+  tx: Tx,
+  entries: readonly { id: string; entry: AuditEntry }[],
+): Promise<void> {
+  if (entries.length === 0) return;
+  const json = (value: unknown, name: string): string | null =>
+    value === undefined ? null : toJsonb(redactSecrets(value), name);
+  const values = entries.map(({ id, entry }) => ({
+    id: assertUuid(id, 'id'),
+    entity: entry.entity,
+    entity_id: assertUuid(entry.entityId, 'entityId'),
+    action: entry.action,
+    before: json(entry.before, 'before'),
+    after: json(entry.after, 'after'),
+  }));
+  // صفوف JSONB تقلل معاملات البروتوكول دون تغيير التنقية أو هوية سياق المعاملة.
   await tx.execute(sql`
     INSERT INTO audit_log (company_id, id, actor_user_id, entity, entity_id, action, before, after)
-    VALUES (app_company_id(), ${assertUuid(id, 'id')}, app_user_id(), ${entry.entity},
-            ${assertUuid(entry.entityId, 'entityId')}, ${entry.action},
-            ${json(entry.before, 'before')}, ${json(entry.after, 'after')})`);
+    SELECT app_company_id(),id,app_user_id(),entity,entity_id,action,before::jsonb,after::jsonb
+    FROM jsonb_to_recordset(${JSON.stringify(values)}::jsonb)
+      AS r(id uuid,entity text,entity_id uuid,action text,before text,after text)`);
 }

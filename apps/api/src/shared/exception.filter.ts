@@ -17,7 +17,8 @@ export class EnvelopeExceptionFilter implements ExceptionFilter {
     const request = http.getRequest<FastifyRequest>();
 
     const error = toApiError(exception);
-    if (error.code === 'TOO_MANY_REQUESTS') void reply.header('retry-after', '60');
+    if (error.code === 'TOO_MANY_REQUESTS' && !reply.hasHeader('retry-after'))
+      void reply.header('retry-after', '60');
     if (error.code === 'INTERNAL_ERROR') {
       request.log.error({ err: exception }, 'unhandled error');
     }
@@ -27,6 +28,7 @@ export class EnvelopeExceptionFilter implements ExceptionFilter {
 
 function toApiError(exception: unknown): ApiError {
   if (exception instanceof ApiError) return exception;
+  if (isRetryableTransactionConflict(exception)) return new ApiError('TRANSACTION_RETRY_REQUIRED');
   // Raised by runIdempotent inside the use case's transaction, which has already rolled back.
   if (exception instanceof IdempotencyKeyReusedError) return new ApiError('IDEMPOTENCY_KEY_REUSED');
   if (exception instanceof IdempotencyKeyBusyError)
@@ -38,4 +40,17 @@ function toApiError(exception: unknown): ApiError {
     return new ApiError(codeForStatus(status));
   }
   return new ApiError('INTERNAL_ERROR');
+}
+
+function isRetryableTransactionConflict(exception: unknown): boolean {
+  const seen = new Set<object>();
+  let current = exception;
+  // Drizzle يغلف خطأ PostgreSQL في cause؛ نعرض طلب إعادة المحاولة بعد rollback بدون تسريب SQL أو الدوران في cause دائري.
+  while (typeof current === 'object' && current !== null && !seen.has(current)) {
+    seen.add(current);
+    const error = current as { code?: unknown; cause?: unknown };
+    if (error.code === '40P01' || error.code === '40001') return true;
+    current = error.cause;
+  }
+  return false;
 }

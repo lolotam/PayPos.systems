@@ -3,6 +3,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -24,6 +25,8 @@ export const businessSettings = pgTable(
     businessId: uuid('business_id').notNull(),
     defaultLanguage: text('default_language'),
     calendar: text('calendar'),
+    // حد النشاط عند غياب الحد الشخصي؛ null يتركه غير مضبوط ولا يعني سلطة غير محدودة.
+    limitBps: integer('limit_bps'),
     // قاعدة الـ VAT (packages/domain TaxRule) — null = مفيش ضريبة. الكويت مفيهاش النهارده، ومفيش route بيكتبها لحد
     // P2-T4 (PRD D-27).
     taxRule: jsonb('tax_rule'),
@@ -44,6 +47,10 @@ export const businessSettings = pgTable(
     check(
       'business_settings_calendar',
       sql`${t.calendar} IS NULL OR ${t.calendar} IN ('gregorian', 'hijri')`,
+    ),
+    check(
+      'business_settings_limit_bps',
+      sql`${t.limitBps} IS NULL OR ${t.limitBps} BETWEEN 0 AND 10000`,
     ),
     index('business_settings_updated_by_idx').on(t.updatedBy),
   ],

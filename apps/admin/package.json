@@ -21,6 +21,7 @@
     "@pospay/i18n": "workspace:*",
     "@pospay/ui": "workspace:*",
     "@tanstack/react-query": "5.104.0",
+    "@tanstack/react-table": "8.21.3",
     "next": "16.3.7",
     "openapi-fetch": "0.17.0",
     "qrcode.react": "4.2.0",

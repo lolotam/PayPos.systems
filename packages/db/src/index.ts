@@ -14,7 +14,8 @@ export {
   type IdentitySchema,
   type PlatformAuditEntry,
 } from './auth-database.ts';
-export { appendAuditLog, type AuditEntry } from './audit-log.ts';
+export { appendAuditLog, appendAuditLogs, type AuditEntry } from './audit-log.ts';
+export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { markEventConsumed } from './consumed-events.ts';
 export {
@@ -32,9 +33,16 @@ export {
   type IdempotentResult,
   type StoredResponse,
 } from './idempotency.ts';
-export { appendOutboxEvent, type OutboxEvent } from './outbox.ts';
+export { appendOutboxEvent, appendOutboxEvents, type OutboxEvent } from './outbox.ts';
 export type { IdGenerator, TenantOptions, TenantWrappers, Tx } from './with-tenant.ts';
+export { OWNER_DERIVED_PERMISSIONS } from './role-defaults.ts';
 export { FEATURE_FLAGS, PROVISIONAL_PLAN_ID, type FeatureFlag } from './seed.ts';
+export {
+  canonicalOwnerSql,
+  systemRolePolicy,
+  systemRoleOverrideAllowedSql,
+  systemRoleGrantAllowedSql,
+} from './system-role-policy.ts';
 export { verticalTemplate, type VerticalTemplate } from './vertical-templates.ts';
 export {
   grantPlatformPermission,
@@ -46,3 +54,9 @@ export {
   createPlatformWhatsappDatabase,
   type PlatformWhatsappDatabase,
 } from './platform-whatsapp-database.ts';
+export { createStaffOtpDatabase, type StaffOtpDatabase } from './staff-otp-database.ts';
+export type {
+  OtpChallengeRecord,
+  OtpAttemptRecord,
+  OtpExecutionResult,
+} from './staff-otp-types.ts';

@@ -4,6 +4,1052 @@
  */
 
 export interface paths {
+    "/v1/document-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Every company document type, active first. Requires manage:document-types:company. */
+        get: operations["listDocumentTypes"];
+        put?: never;
+        /** @description Adds a company document type with a generated immutable code; audited. */
+        post: operations["createDocumentType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/document-types/{typeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Edits names, alert days and the expiry rule at the expected revision; audited. */
+        patch: operations["updateDocumentType"];
+        trace?: never;
+    };
+    "/v1/document-types/{typeId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Hides the type from new documents; existing documents keep it. Never deletes. */
+        post: operations["deactivateDocumentType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/document-types/{typeId}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Makes an inactive type selectable again. */
+        post: operations["reactivateDocumentType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current document per type with its expiry status in the business timezone. Requires read:files:business and the staff feature. */
+        get: operations["listEmployeeDocuments"];
+        put?: never;
+        /** @description Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together. */
+        post: operations["recordEmployeeDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/import/previews/{previewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Creator-only employee import status; unknown and inaccessible previews share a 404. */
+        get: operations["employeeImportStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Bilingual employee import template for one business. Requires manage:employees:business and the staff feature; unknown and inaccessible businesses share the same refusal. */
+        get: operations["employeeImportTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/import/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Parses a READY uploaded workbook (first sheet, English headers), validates every row with the create-employee rules and writes no employee. Unknown, cross-tenant or cross-business files all answer IMPORT_FILE_NOT_FOUND (404). */
+        post: operations["previewEmployeeImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/import/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requests a worker commit for a creator-owned clean, unused, unexpired preview. Repeated requests return the same preview id. Requires Idempotency-Key; poll the preview status for the atomic result. */
+        post: operations["commitEmployeeImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/personal-otp/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestPersonalOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/personal-otp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["verifyPersonalOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/personal-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPersonalSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/personal-session/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["signOutPersonalStaff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/my-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPersonalSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/passkey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getPersonalPasskeyBinding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["generatePersonalPasskeyOptions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/passkey/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["enrolPersonalPasskey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/attendance/challenge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestAttendanceClockChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/attendance/clock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["clockPersonalAttendance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["employeePasskeyHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/passkeys/unbind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Scoped manager unbind, self forbidden. Binding/revision fence; mandatory trimmed reason. Audit and event atomic. No auth credential deletion. */
+        post: operations["unbindEmployeePasskey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employee-passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPasskeyEmployees"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getBusinessSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateBusinessSettings"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/settings/discount-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setBusinessDiscountDefault"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueFileDownloadByKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/files/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmFileUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFileStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueFileDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["branchScheduleWeek"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/schedules/{employeeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["employeeScheduleWeek"];
+        put: operations["setEmployeeScheduleWeek"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/shift-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listShiftTemplates"];
+        put?: never;
+        post: operations["createShiftTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/shift-templates/{templateId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["updateShiftTemplate"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/shift-templates/{templateId}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["archiveShiftTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/shift-templates/{templateId}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["applyShiftTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/salaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Restricted salary history. Missing and inaccessible share 404. Owner or explicit personal read grant; DENY wins. Requires staff feature. */
+        get: operations["salaryHistory"];
+        put?: never;
+        /** @description Set monthly basic salary on any date. Same date replaces entry and increments revision. Requires read and manage salary access; row, audit and SalaryChanged commit together. */
+        post: operations["setSalary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. */
+        get: operations["listEmployees"];
+        put?: never;
+        /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). */
+        post: operations["createEmployee"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires manage:employees:business at the persisted employee business and primary branch, with DENY winning, and the staff feature. Branch-only ALLOW is accepted. Inaccessible and missing employees share NOT_FOUND (404). */
+        get: operations["getEmployee"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Full editable employee replacement against expected_revision. All persisted and requested branches require manage:employees:business and staff feature. After persisted-source access, missing, other-business and other-company requested branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature, revision or employee diagnostics. Never grants access. Preserves branch history using the supplied branch_effective_date, with start-inclusive/end-exclusive intervals. Closing requires a date strictly after the start. Overlap with open or closed history returns EMPLOYEE_BRANCH_HISTORY_OVERLAP (409); closed history is immutable (EMPLOYEE_BRANCH_HISTORY_IMMUTABLE, 409). Adjacent intervals are allowed. Stale revision returns EMPLOYEE_REVISION_CONFLICT (409). */
+        patch: operations["updateEmployee"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["employeeLeaveHistory"];
+        put?: never;
+        post: operations["requestEmployeeLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelEmployeeLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/leave-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pendingLeaveInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["decideEmployeeLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeEmployeeLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/me/leave-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ownLeaveHistory"];
+        put?: never;
+        post: operations["requestOwnLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/me/leave-requests/{leaveId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelOwnLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/memberships/{membershipId}/discount-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires manage:discount-limits:business at the resolved membership scope; self and canonical Owner holders are protected. */
+        post: operations["setMembershipDiscountLimit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listPermissionMemberships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/memberships/{membershipId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMembershipPermissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/memberships/{membershipId}/overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["grantPermissionOverride"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/permissions/memberships/{membershipId}/overrides/{overrideId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokePermissionOverride"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/permissions/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["business_listPermissionMemberships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/permissions/memberships/{membershipId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["business_getMembershipPermissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/permissions/memberships/{membershipId}/overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["business_grantPermissionOverride"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/permissions/memberships/{membershipId}/overrides/{overrideId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["business_revokePermissionOverride"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/customers/find-or-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires create:customers:company and the customers feature. Existing name and locale are preserved. */
+        post: operations["findOrCreateCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/customers/find-or-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped. */
+        post: operations["findOrCreateBusinessCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/branches/{branchId}/customers/find-or-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped. */
+        post: operations["findOrCreateBranchCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/attendance-qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["issueAttendanceQr"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-pin/sign-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["signInStaffPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff-pins/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resetStaffPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-otp/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestStaffOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-otp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["verifyStaffOtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getStaffSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/devices/me/staff-session/sign-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["signOutStaff"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/webhooks/whatsapp": {
         parameters: {
             query?: never;
@@ -201,6 +1247,995 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {string} */
+        EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
+        CreateDocumentTypeInput: {
+            name_en: string;
+            name_ar?: string | null;
+            alert_days: number;
+            requires_expiry: boolean;
+        };
+        UpdateDocumentTypeInput: {
+            name_en: string;
+            name_ar?: string | null;
+            alert_days: number;
+            requires_expiry: boolean;
+            expected_revision: number;
+        };
+        DocumentTypeRevisionInput: {
+            expected_revision: number;
+        };
+        DocumentType: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            name_en: string;
+            name_ar: string | null;
+            alert_days: number;
+            requires_expiry: boolean;
+            active: boolean;
+            revision: number;
+        };
+        DocumentTypeList: {
+            items: components["schemas"]["DocumentType"][];
+        };
+        RecordEmployeeDocumentInput: {
+            type_code: string;
+            /** Format: uuid */
+            file_id: string;
+            expires_on: (string & (string)) | null;
+        };
+        EmployeeDocument: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            type_code: string;
+            type_name_en: string;
+            type_name_ar: string | null;
+            object_key: string;
+            expires_on: (string & (string)) | null;
+            /** Format: uuid */
+            uploaded_by: string;
+            /** Format: date-time */
+            recorded_at: string;
+            status: components["schemas"]["EmployeeDocumentStatus"];
+        };
+        EmployeeDocumentsView: {
+            today: string & (string);
+            items: components["schemas"]["EmployeeDocument"][];
+            types: components["schemas"]["DocumentType"][];
+            can_manage: boolean;
+        };
+        ClockChallengeInput: {
+            token: components["schemas"]["AttendanceQrToken"];
+            location?: {
+                lat: number;
+                lng: number;
+                accuracy: number;
+            };
+        };
+        ClockAttendanceInput: {
+            token: components["schemas"]["AttendanceQrToken"];
+            location?: {
+                lat: number;
+                lng: number;
+                accuracy: number;
+            };
+            /** Format: uuid */
+            installation_id: string;
+            /** Format: uuid */
+            challenge_id: string;
+            response: {
+                id: string;
+                rawId: string;
+                /** @enum {string} */
+                type: "public-key";
+                /** @enum {string} */
+                authenticatorAttachment?: "platform" | "cross-platform";
+                clientExtensionResults: Record<string, never>;
+                response: {
+                    clientDataJSON: string;
+                    authenticatorData: string;
+                    signature: string;
+                    userHandle?: string;
+                };
+            };
+        };
+        ClockChallenge: {
+            /** Format: uuid */
+            challenge_id: string;
+            options: {
+                challenge: string;
+                rpId: string;
+                timeout?: number;
+                /** @enum {string} */
+                userVerification: "required";
+                allowCredentials?: {
+                    id: string;
+                    /** @enum {string} */
+                    type: "public-key";
+                }[];
+            };
+        };
+        ClockAttendanceResult: {
+            /** Format: uuid */
+            session_id: string;
+            /** @enum {string} */
+            operation: "CLOCK_IN" | "CLOCK_OUT";
+            working_date: string;
+            /** Format: date-time */
+            accepted_at: string;
+            exceptions: ("NONE" | "OUT_OF_RANGE")[];
+            late_minutes: number;
+            /** Format: uuid */
+            missed_session_id: string | null;
+        };
+        RequestLeaveInput: {
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note?: string;
+            /** @enum {string} */
+            kind: "FULL_DAY";
+            from: components["schemas"]["EmployeeDate"];
+            /** @description Inclusive end date; full-day requests span at most 90 civil days. */
+            to: components["schemas"]["EmployeeDate"];
+        } | {
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note?: string;
+            /** @enum {string} */
+            kind: "PARTIAL";
+            date: components["schemas"]["EmployeeDate"];
+            start: string & (string);
+            end: string & (string);
+        };
+        RequestEmployeeLeaveInput: {
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note?: string;
+            /** @enum {string} */
+            kind: "FULL_DAY";
+            from: components["schemas"]["EmployeeDate"];
+            /** @description Inclusive end date; full-day requests span at most 90 civil days. */
+            to: components["schemas"]["EmployeeDate"];
+            /** Format: uuid */
+            branch_id: string;
+        } | {
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note?: string;
+            /** @enum {string} */
+            kind: "PARTIAL";
+            date: components["schemas"]["EmployeeDate"];
+            start: string & (string);
+            end: string & (string);
+            /** Format: uuid */
+            branch_id: string;
+        };
+        CancelLeaveInput: {
+            expected_revision: number;
+        };
+        LeaveRequest: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** @enum {string} */
+            kind: "FULL_DAY" | "PARTIAL";
+            from: components["schemas"]["EmployeeDate"];
+            to: components["schemas"]["EmployeeDate"];
+            start: string | null;
+            end: string | null;
+            timezone: components["schemas"]["TimeZone"];
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            /** Format: uuid */
+            decided_by: string | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            rejection_reason: string | null;
+            decision_reason: string | null;
+            /** Format: uuid */
+            revoked_by: string | null;
+            /** Format: date-time */
+            revoked_at: string | null;
+            revocation_reason: string | null;
+            revision: number;
+        };
+        LeaveListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        LeaveListItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** @enum {string} */
+            kind: "FULL_DAY" | "PARTIAL";
+            from: components["schemas"]["EmployeeDate"];
+            to: components["schemas"]["EmployeeDate"];
+            start: string | null;
+            end: string | null;
+            timezone: components["schemas"]["TimeZone"];
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            /** Format: uuid */
+            decided_by: string | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            rejection_reason: string | null;
+            decision_reason: string | null;
+            /** Format: uuid */
+            revoked_by: string | null;
+            /** Format: date-time */
+            revoked_at: string | null;
+            revocation_reason: string | null;
+            revision: number;
+            employee_name_en: string;
+            employee_name_ar: string | null;
+            can_cancel: boolean;
+            can_decide: boolean;
+            can_revoke: boolean;
+        };
+        LeavePage: {
+            items: components["schemas"]["LeaveListItem"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+            request_branch_ids: string[];
+        };
+        DecideLeaveInput: {
+            expected_revision: number;
+            /** @enum {string} */
+            decision: "APPROVED";
+            reason?: string;
+        } | {
+            expected_revision: number;
+            /** @enum {string} */
+            decision: "REJECTED";
+            reason: string;
+        };
+        RevokeLeaveInput: {
+            expected_revision: number;
+            reason: string;
+        };
+        LeaveInboxQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            /** Format: uuid */
+            branch_id?: string;
+            from?: components["schemas"]["EmployeeDate"];
+            to?: components["schemas"]["EmployeeDate"];
+        };
+        PersonalOtpRequestInput: {
+            phone: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string;
+        };
+        PersonalOtpVerifyInput: {
+            /** Format: uuid */
+            challenge_id: string;
+            code: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string;
+        };
+        PersonalSessionContext: {
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            user_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        PersonalSchedule: {
+            schedule: components["schemas"]["StaffSchedule"] | null;
+        };
+        PasskeyVerifyInput: {
+            /** Format: uuid */
+            challenge_id: string;
+            response: {
+                id: string;
+                rawId: string;
+                /** @enum {string} */
+                type: "public-key";
+                /** @enum {string} */
+                authenticatorAttachment?: "platform" | "cross-platform";
+                clientExtensionResults: {
+                    credProps?: {
+                        rk: boolean;
+                    };
+                };
+                response: {
+                    clientDataJSON: string;
+                    attestationObject: string;
+                    transports?: ("ble" | "cable" | "hybrid" | "internal" | "nfc" | "smart-card" | "usb")[];
+                    authenticatorData?: string;
+                    publicKey?: string;
+                    publicKeyAlgorithm?: number;
+                };
+            };
+        };
+        PasskeyBindingStatus: {
+            bound: boolean;
+            /** Format: uuid */
+            binding_id: string | null;
+            revision: number | null;
+            /** Format: date-time */
+            bound_at: string | null;
+        };
+        PasskeyRegistrationOptions: {
+            /** Format: uuid */
+            challenge_id: string;
+            options: {
+                challenge: string;
+                rp: {
+                    id: string;
+                    /** @enum {string} */
+                    name: "PosPay";
+                };
+                user: {
+                    id: string;
+                    name: string;
+                    displayName: string;
+                };
+                pubKeyCredParams: {
+                    /** @enum {string} */
+                    type: "public-key";
+                    alg: number;
+                }[];
+                hints?: ("security-key" | "client-device" | "hybrid")[];
+                timeout?: number;
+                /** @enum {string} */
+                attestation: "none";
+                excludeCredentials?: {
+                    id: string;
+                    /** @enum {string} */
+                    type: "public-key";
+                    transports?: ("ble" | "cable" | "hybrid" | "internal" | "nfc" | "smart-card" | "usb")[];
+                }[];
+                authenticatorSelection: {
+                    /** @enum {string} */
+                    authenticatorAttachment: "platform";
+                    /** @enum {string} */
+                    residentKey: "required";
+                    requireResidentKey?: boolean;
+                    /** @enum {string} */
+                    userVerification: "required";
+                };
+                extensions?: {
+                    credProps?: boolean;
+                };
+            };
+        };
+        UnbindPasskeyInput: {
+            /** Format: uuid */
+            binding_id: string;
+            revision: number;
+            reason: string;
+        };
+        UnboundPasskey: {
+            /** Format: uuid */
+            binding_id: string;
+            revision: number;
+            /** Format: date-time */
+            unbound_at: string;
+        };
+        PasskeyHistoryQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        PasskeyHistoryEntry: {
+            /** Format: uuid */
+            binding_id: string;
+            revision: number;
+            /** Format: date-time */
+            bound_at: string;
+            /** Format: date-time */
+            unbound_at: string | null;
+        };
+        EmployeePasskeyHistory: {
+            status: components["schemas"]["PasskeyBindingStatus"];
+            can_unbind: boolean;
+            items: components["schemas"]["PasskeyHistoryEntry"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+        };
+        PasskeyEmployee: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string | null;
+            /** Format: uuid */
+            primary_branch_id: string;
+        };
+        PasskeyEmployeePage: {
+            items: components["schemas"]["PasskeyEmployee"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+        };
+        AttendanceInstallationSignal: {
+            /** Format: uuid */
+            installation_id: string;
+        };
+        SharedInstallationFlag: {
+            /** Format: uuid */
+            first_signal_id: string;
+            /** Format: uuid */
+            second_signal_id: string;
+            /** Format: uuid */
+            first_employee_id: string;
+            /** Format: uuid */
+            second_employee_id: string;
+            /** Format: uuid */
+            first_branch_id: string;
+            /** Format: uuid */
+            second_branch_id: string;
+            /** Format: date-time */
+            first_clocked_at: string;
+            /** Format: date-time */
+            second_clocked_at: string;
+        };
+        SharedInstallationFlagPage: {
+            items: components["schemas"]["SharedInstallationFlag"][];
+            next_cursor: string | null;
+        };
+        TemplateListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        ScheduleShift: {
+            day: number;
+            start: string;
+            end: string;
+        };
+        SchedulePattern: components["schemas"]["ScheduleShift"][];
+        SetScheduleInput: {
+            week_start: components["schemas"]["EmployeeDate"];
+            expected_revision: number;
+            shifts: components["schemas"]["SchedulePattern"];
+            reason?: string;
+        };
+        ConcreteShift: {
+            day: number;
+            start: string;
+            end: string;
+            working_date: components["schemas"]["EmployeeDate"];
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+        };
+        StaffSchedule: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            week_start: components["schemas"]["EmployeeDate"];
+            timezone: components["schemas"]["TimeZone"];
+            revision: number;
+            shifts: components["schemas"]["ConcreteShift"][];
+        };
+        ScheduleWeekQuery: {
+            week_start: components["schemas"]["EmployeeDate"];
+        };
+        ScheduleListQuery: {
+            week_start: components["schemas"]["EmployeeDate"];
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        ScheduleWeekResult: {
+            schedule: components["schemas"]["StaffSchedule"] | null;
+        };
+        ScheduleGridRow: {
+            /** Format: uuid */
+            employee_id: string;
+            name_en: string;
+            name_ar: string | null;
+            schedule: components["schemas"]["StaffSchedule"] | null;
+        };
+        ScheduleGrid: {
+            week_start: components["schemas"]["EmployeeDate"];
+            days: components["schemas"]["EmployeeDate"][];
+            timezone: components["schemas"]["TimeZone"];
+            items: components["schemas"]["ScheduleGridRow"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+        };
+        TemplateTerms: {
+            name_en: string;
+            name_ar?: string | null;
+            shifts: components["schemas"]["SchedulePattern"];
+        };
+        UpdateTemplateInput: {
+            name_en: string;
+            name_ar?: string | null;
+            shifts: components["schemas"]["SchedulePattern"];
+            expected_revision: number;
+        };
+        ArchiveTemplateInput: {
+            expected_revision: number;
+        };
+        ShiftTemplate: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            name_en: string;
+            name_ar: string | null;
+            shifts: components["schemas"]["SchedulePattern"];
+            revision: number;
+            /** Format: date-time */
+            archived_at: string | null;
+        };
+        TemplatePage: {
+            items: components["schemas"]["ShiftTemplate"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+        };
+        /** @description At most 12 weeks and 20 employee-week copies per synchronous application; larger applications require a future worker path. */
+        ApplyTemplateInput: {
+            /** Format: uuid */
+            branch_id: string;
+            employee_ids: string[];
+            weeks: components["schemas"]["EmployeeDate"][];
+            /** @default false */
+            replace: boolean;
+            reason?: string;
+        };
+        ApplyTemplateResult: {
+            schedules: components["schemas"]["StaffSchedule"][];
+        };
+        SetSalaryInput: {
+            effective_from: string & (string);
+            amount: string;
+            reason: string;
+        };
+        EmployeeSalary: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            effective_from: string & (string);
+            amount: string;
+            /** Format: uuid */
+            set_by: string;
+            revision: number;
+            reason: string;
+        };
+        SalaryHistoryQuery: {
+            cursor?: string & (string);
+            /** @default 20 */
+            limit: number;
+        };
+        SalaryHistoryPage: {
+            items: components["schemas"]["EmployeeSalary"][];
+            next_cursor: (string & (string)) | null;
+            can_manage: boolean;
+        };
+        UpdateEmployeeInput: {
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar?: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end?: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id?: string | null;
+            expected_revision: number;
+            branch_ids: string[];
+            branch_effective_date: components["schemas"]["EmployeeDate"];
+        };
+        EmployeeDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+            revision: number;
+            branch_ids: string[];
+        };
+        EmployeeListItem: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            /** Format: uuid */
+            primary_branch_id: string;
+            hire_date: components["schemas"]["EmployeeDate"];
+        };
+        EmployeePage: {
+            items: components["schemas"]["EmployeeListItem"][];
+            next_cursor: string | null;
+        };
+        EmployeeListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        DiscountLimit: {
+            limit_bps: number | null;
+        };
+        DiscountLimitInput: {
+            limit_bps: number | null;
+            reason: string;
+        };
+        MembershipPageQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        MembershipPermissionsQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            /** Format: uuid */
+            history_cursor?: string;
+        };
+        RevokePermissionOverrideInput: {
+            reason: string;
+        };
+        PermissionOverrideInput: {
+            permission_code: string;
+            /** @enum {string} */
+            effect: "ALLOW" | "DENY";
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            reason: string;
+            /** Format: date-time */
+            expires_at: string | null;
+        };
+        PermissionOverride: {
+            permission_code: string;
+            /** @enum {string} */
+            effect: "ALLOW" | "DENY";
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            reason: string;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            granted_by: string;
+            /** Format: date-time */
+            granted_at: string;
+        };
+        PermissionMembership: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: uuid */
+            employee_id: string | null;
+            role_code: string;
+            role_name_ar: string | null;
+            role_name_en: string;
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string | null;
+        };
+        PermissionMembershipPage: {
+            items: components["schemas"]["PermissionMembership"][];
+            next_cursor: string | null;
+        };
+        PermissionOverridePage: {
+            items: components["schemas"]["PermissionOverride"][];
+            next_cursor: string | null;
+        };
+        MembershipPermissions: {
+            membership: components["schemas"]["PermissionMembership"];
+            role_defaults: string[];
+            permission_catalog: string[];
+            overrides: components["schemas"]["PermissionOverridePage"];
+            ended_overrides: components["schemas"]["PermissionOverridePage"];
+            editing_enabled: boolean;
+            /** @default false */
+            discount_limit_editing_enabled: boolean;
+            discount_limit: components["schemas"]["DiscountLimit"];
+        };
+        RequestFileUpload: {
+            owner_module: string;
+            /** Format: uuid */
+            owner_entity_id: string;
+            /** Format: uuid */
+            branch_id?: string;
+            /** @enum {string} */
+            content_type: "application/pdf" | "image/jpeg" | "image/png" | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            size_bytes: number;
+            required_permission: string;
+        };
+        FileUploadTicket: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uri */
+            upload_url: string;
+            /** @enum {number} */
+            expires_in: 120;
+            headers: {
+                "content-type": string;
+                "content-length": string;
+            };
+        };
+        FileStatus: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "PENDING" | "VERIFYING" | "READY" | "REJECTED";
+            content_type: string;
+            size_bytes: number;
+            storage_key?: string;
+            /** @enum {string} */
+            rejection_code?: "FILE_TYPE_INVALID" | "FILE_SIZE_INVALID" | "FILE_CONTENT_INVALID";
+        };
+        FileConfirmation: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "QUEUED";
+        };
+        FileDownload: {
+            /** Format: uri */
+            download_url: string;
+            /** @enum {number} */
+            expires_in: 60;
+        };
+        FileDownloadByKey: {
+            storage_key: string;
+        };
+        Employee: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        CreateEmployeeInput: {
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar?: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end?: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id?: string | null;
+        };
+        /** @enum {string} */
+        EmployeeRoleCode: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
+        /** Format: date */
+        EmployeeDate: string;
+        /** @enum {string} */
+        EmployeeImportColumn: "name_en" | "name_ar" | "role_code" | "hire_date" | "contract_end" | "primary_branch" | "unexpected_column";
+        /** @enum {string} */
+        EmployeeImportErrorCode: "IMPORT_REQUIRED_CELL" | "IMPORT_NAME_INVALID" | "IMPORT_ROLE_INVALID" | "IMPORT_DATE_INVALID" | "IMPORT_CELL_INVALID" | "IMPORT_COLUMN_UNEXPECTED" | "IMPORT_BRANCH_NOT_FOUND" | "IMPORT_CONTRACT_END_BEFORE_HIRE";
+        EmployeeImportRowError: {
+            row: number;
+            column: components["schemas"]["EmployeeImportColumn"];
+            code: components["schemas"]["EmployeeImportErrorCode"];
+        };
+        EmployeeImportTemplate: {
+            file_name: string;
+            /** @enum {string} */
+            content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            content_base64: string;
+        };
+        PreviewEmployeeImportInput: {
+            /** Format: uuid */
+            file_id: string;
+        };
+        EmployeeImportPreview: {
+            /** Format: uuid */
+            preview_id: string;
+            row_count: number;
+            error_count: number;
+            errors: components["schemas"]["EmployeeImportRowError"][];
+        };
+        CommitEmployeeImportInput: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        EmployeeImportCommit: {
+            /** Format: uuid */
+            preview_id: string;
+            created_count: number;
+            employee_ids: string[];
+        };
+        EmployeeImportCommitAccepted: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        EmployeeImportStatus: {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
+            status: "ready" | "commit_requested" | "committed" | "failed";
+            created_count: number;
+            /** @enum {string|null} */
+            error_code: "EMPLOYEE_BRANCH_NOT_FOUND" | "IMPORT_PREVIEW_HAS_ERRORS" | "IMPORT_PREVIEW_EXPIRED" | "EMPLOYEE_CONTRACT_END_BEFORE_HIRE" | "IMPORT_COMMIT_FAILED" | null;
+        };
+        Customer: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            opted_out: boolean;
+            phone: string;
+        };
+        FindOrCreateCustomerInput: {
+            phone: {
+                calling_code: string;
+                national_number: string;
+            };
+            name: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+        };
+        AttendanceQrToken: {
+            /** Format: uuid */
+            branch_id: string;
+            window: number;
+            sig: string;
+        };
+        AttendanceQrBranch: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            effective_timezone: components["schemas"]["TimeZone"];
+        };
+        AttendanceQrIssue: {
+            token: components["schemas"]["AttendanceQrToken"];
+            branch: components["schemas"]["AttendanceQrBranch"];
+            /** Format: date-time */
+            server_time: string;
+            /** Format: date-time */
+            refresh_at: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        StaffPinInput: {
+            phone: string;
+            pin: string;
+        };
+        StaffPinResetInput: {
+            /** Format: uuid */
+            user_id: string;
+            pin: string;
+        };
+        StaffOtpRequestInput: {
+            phone: string;
+            /** @enum {string} */
+            locale: "ar" | "en";
+        };
+        StaffOtpVerifyInput: {
+            /** Format: uuid */
+            challenge_id: string;
+            code: string;
+        };
+        StaffOtpAcknowledgement: {
+            /** @enum {string} */
+            status: "ACCEPTED";
+            /** Format: uuid */
+            challenge_id: string;
+            /** @enum {number} */
+            expires_in: 300;
+            /** @enum {number} */
+            retry_after: 60;
+            /** @enum {string} */
+            recovery: "ASK_MANAGER";
+        };
+        StaffSessionContext: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            device_id: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
         WhatsappWebhookAcknowledgement: {
             /** @enum {boolean} */
             received: true;
@@ -269,12 +2304,12 @@ export interface components {
             /** Format: uuid */
             source_event_id: string;
             /** @enum {string} */
-            channel: "whatsapp";
+            channel: "whatsapp" | "email";
             template_key: string;
             template_revision: number;
             /** @enum {string|null} */
             locale: "ar" | "en" | null;
-            phone_last3: string;
+            phone_last3: string | null;
             /** @enum {string} */
             status: "PENDING" | "SENDING" | "SENT" | "FAILED" | "EXPIRED" | "SUPPRESSED";
             /** Format: date-time */
@@ -475,8 +2510,9 @@ export interface components {
             business_id: string;
             default_language: components["schemas"]["Language"];
             calendar: components["schemas"]["Calendar"];
+            limit_bps: number | null;
             tax_rule: components["schemas"]["TaxRule"] | null;
-            overridden: ("default_language" | "calendar")[];
+            overridden: ("default_language" | "calendar" | "limit_bps")[];
             /** Format: date-time */
             updated_at: string | null;
         };
@@ -522,6 +2558,2907 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listDocumentTypes: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description DocumentTypeList */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTypeList"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createDocumentType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDocumentTypeInput"];
+            };
+        };
+        responses: {
+            /** @description DocumentType */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentType"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateDocumentType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                typeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDocumentTypeInput"];
+            };
+        };
+        responses: {
+            /** @description DocumentType */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentType"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    deactivateDocumentType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                typeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentTypeRevisionInput"];
+            };
+        };
+        responses: {
+            /** @description DocumentType */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentType"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reactivateDocumentType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                typeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentTypeRevisionInput"];
+            };
+        };
+        responses: {
+            /** @description DocumentType */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentType"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listEmployeeDocuments: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description EmployeeDocumentsView */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDocumentsView"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    recordEmployeeDocument: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordEmployeeDocumentInput"];
+            };
+        };
+        responses: {
+            /** @description EmployeeDocument */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDocument"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeImportStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                previewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Import status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeImportStatus"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeImportTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Template workbook */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeImportTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    previewEmployeeImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewEmployeeImportInput"];
+            };
+        };
+        responses: {
+            /** @description Preview with per-row errors */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeImportPreview"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    commitEmployeeImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommitEmployeeImportInput"];
+            };
+        };
+        responses: {
+            /** @description Commit accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeImportCommitAccepted"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestPersonalOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalOtpRequestInput"];
+            };
+        };
+        responses: {
+            /** @description requestPersonalOtp */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOtpAcknowledgement"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    verifyPersonalOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalOtpVerifyInput"];
+            };
+        };
+        responses: {
+            /** @description verifyPersonalOtp */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSessionContext"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPersonalSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description getPersonalSession */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSessionContext"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    signOutPersonalStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description signOutPersonalStaff */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPersonalSchedule: {
+        parameters: {
+            query: {
+                branch_id: string;
+                week_start: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description getPersonalSchedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSchedule"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPersonalPasskeyBinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description getPersonalPasskeyBinding */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyBindingStatus"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    generatePersonalPasskeyOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description generatePersonalPasskeyOptions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyRegistrationOptions"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    enrolPersonalPasskey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyVerifyInput"];
+            };
+        };
+        responses: {
+            /** @description enrolPersonalPasskey */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyBindingStatus"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestAttendanceClockChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockChallengeInput"];
+            };
+        };
+        responses: {
+            /** @description requestAttendanceClockChallenge */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockChallenge"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    clockPersonalAttendance: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockAttendanceInput"];
+            };
+        };
+        responses: {
+            /** @description clockPersonalAttendance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockAttendanceResult"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeePasskeyHistory: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scoped passkey result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeePasskeyHistory"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    unbindEmployeePasskey: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnbindPasskeyInput"];
+            };
+        };
+        responses: {
+            /** @description Scoped passkey result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnboundPasskey"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listPasskeyEmployees: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scoped passkey result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEmployeePage"];
+                };
+            };
+            /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getBusinessSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessSettings"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateBusinessSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBusinessSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessSettings"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBusinessDiscountDefault: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountLimitInput"];
+            };
+        };
+        responses: {
+            /** @description Business settings result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountLimit"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    issueFileDownloadByKey: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileDownloadByKey"];
+            };
+        };
+        responses: {
+            /** @description FileDownload */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownload"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestFileUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestFileUpload"];
+            };
+        };
+        responses: {
+            /** @description FileUploadTicket */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileUploadTicket"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirmFileUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FileConfirmation */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileConfirmation"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFileStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FileStatus */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileStatus"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    issueFileDownload: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description FileDownload */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownload"];
+                };
+            };
+            /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    branchScheduleWeek: {
+        parameters: {
+            query: {
+                week_start: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ScheduleGrid */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleGrid"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeScheduleWeek: {
+        parameters: {
+            query: {
+                week_start: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ScheduleWeekResult */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleWeekResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setEmployeeScheduleWeek: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetScheduleInput"];
+            };
+        };
+        responses: {
+            /** @description StaffSchedule */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSchedule"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listShiftTemplates: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description TemplatePage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplatePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createShiftTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateTerms"];
+            };
+        };
+        responses: {
+            /** @description ShiftTemplate */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateShiftTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTemplateInput"];
+            };
+        };
+        responses: {
+            /** @description ShiftTemplate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    archiveShiftTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveTemplateInput"];
+            };
+        };
+        responses: {
+            /** @description ShiftTemplate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    applyShiftTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                templateId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyTemplateInput"];
+            };
+        };
+        responses: {
+            /** @description ApplyTemplateResult */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplyTemplateResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    salaryHistory: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Salary history page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalaryHistoryPage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setSalary: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSalaryInput"];
+            };
+        };
+        responses: {
+            /** @description Set salary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeSalary"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listEmployees: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Employee page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createEmployee: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEmployeeInput"];
+            };
+        };
+        responses: {
+            /** @description Created employee */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Employee"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getEmployee: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Persisted employee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateEmployee: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEmployeeInput"];
+            };
+        };
+        responses: {
+            /** @description Updated employee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeLeaveHistory: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LeavePage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeavePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestEmployeeLeave: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestEmployeeLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelEmployeeLeave: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+                leaveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    pendingLeaveInbox: {
+        parameters: {
+            query?: {
+                branch_id?: string;
+                from?: string;
+                to?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LeavePage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeavePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideEmployeeLeave: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+                leaveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokeEmployeeLeave: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+                leaveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    ownLeaveHistory: {
+        parameters: {
+            query?: {
+                /** @description Required for personal sessions; kiosk sessions use their paired branch. */
+                branch_id?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                /** @description Required with kiosk staff cookie; forbidden with a personal staff cookie. */
+                Authorization?: string;
+                /** @description Exact configured POS origin. */
+                Origin: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description LeavePage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeavePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestOwnLeave: {
+        parameters: {
+            query?: {
+                /** @description Required for personal sessions; kiosk sessions use their paired branch. */
+                branch_id?: string;
+            };
+            header: {
+                /** @description Required with kiosk staff cookie; forbidden with a personal staff cookie. */
+                Authorization?: string;
+                /** @description Exact configured POS origin. */
+                Origin: string;
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelOwnLeave: {
+        parameters: {
+            query?: {
+                /** @description Required for personal sessions; kiosk sessions use their paired branch. */
+                branch_id?: string;
+            };
+            header: {
+                /** @description Required with kiosk staff cookie; forbidden with a personal staff cookie. */
+                Authorization?: string;
+                /** @description Exact configured POS origin. */
+                Origin: string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                leaveId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelLeaveInput"];
+            };
+        };
+        responses: {
+            /** @description LeaveRequest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setMembershipDiscountLimit: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscountLimitInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscountLimit"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listPermissionMemberships: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionMembershipPage"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getMembershipPermissions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                history_cursor?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPermissions"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    grantPermissionOverride: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PermissionOverrideInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionOverride"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokePermissionOverride: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                membershipId: string;
+                overrideId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokePermissionOverrideInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionOverride"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    business_listPermissionMemberships: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionMembershipPage"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    business_getMembershipPermissions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                history_cursor?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPermissions"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    business_grantPermissionOverride: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                membershipId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PermissionOverrideInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionOverride"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    business_revokePermissionOverride: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                membershipId: string;
+                overrideId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokePermissionOverrideInput"];
+            };
+        };
+        responses: {
+            /** @description Permission screen result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionOverride"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    findOrCreateCustomer: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+            };
+        };
+        responses: {
+            /** @description Customer with masked phone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    findOrCreateBusinessCustomer: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+            };
+        };
+        responses: {
+            /** @description Customer with masked phone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    findOrCreateBranchCustomer: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FindOrCreateCustomerInput"];
+            };
+        };
+        responses: {
+            /** @description Customer with masked phone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Customer"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    issueAttendanceQr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current QR for the authenticated device branch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceQrIssue"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    signInStaffPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPinInput"];
+            };
+        };
+        responses: {
+            /** @description Restricted staff session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionContext"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resetStaffPin: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPinResetInput"];
+            };
+        };
+        responses: {
+            /** @description PIN reset; no session issued */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestStaffOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffOtpRequestInput"];
+            };
+        };
+        responses: {
+            /** @description Indistinguishable acknowledgment */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOtpAcknowledgement"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    verifyStaffOtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffOtpVerifyInput"];
+            };
+        };
+        responses: {
+            /** @description Restricted staff session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionContext"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getStaffSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current device operator */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSessionContext"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    signOutStaff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     verifyWhatsappWebhook: {
         parameters: {
             query: {

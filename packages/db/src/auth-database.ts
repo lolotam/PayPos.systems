@@ -4,7 +4,10 @@ import postgres from 'postgres';
 
 import { account, session, twoFactor, user, verification } from '../schema/identity-auth.ts';
 
-const identitySchema = { user, session, account, verification, twoFactor };
+import { assertionConsumer } from './passkey-assertion.ts';
+import { passkey } from '../schema/identity-passkey.ts';
+
+const identitySchema = { user, session, account, verification, twoFactor, passkey };
 
 /**
  * جداول الهوية العامة بأسماء الـ models بتاعة Better Auth — الـ drizzle adapter محتاجها كده بالظبط.
@@ -35,6 +38,8 @@ export interface AuthDatabase {
   activePlatformPermissions(userId: string): Promise<readonly string[]>;
   /** بيضيف سطر في platform_audit_log — الجدول insert-only لـ pospay_auth. */
   recordPlatformAction(entry: PlatformAuditEntry): Promise<void>;
+  /** استهلاك تحدي حضور مع قفل الاعتماد وتحديث عداده. */
+  readonly consumeAssertion: ReturnType<typeof assertionConsumer>;
   close(): Promise<void>;
 }
 
@@ -80,6 +85,7 @@ export function createAuthDatabase(options: {
         VALUES (${entry.id}, ${entry.actor}, ${entry.action}, ${entry.targetUserId},
                 ${JSON.stringify(entry.details)}::jsonb)`;
     },
+    consumeAssertion: assertionConsumer(client),
     close: () => client.end({ timeout: 5 }),
   };
 }

@@ -12,7 +12,7 @@ async function readAttempt(tx: Tx, id: string): Promise<Attempt | null> {
   >(sql`
     SELECT company_id AS "companyId", id, business_id AS "businessId", branch_id AS "branchId",
       source_event_id AS "sourceEventId", channel, template_key AS "templateKey", template_revision AS "templateRevision",
-      locale, provider_template_name AS "providerTemplateName", recipient_phone AS phone,
+      locale, provider_template_name AS "providerTemplateName", recipient_phone AS phone, recipient_email AS email,
       recipient_hash AS hash, hash_key_id AS "hashKeyId", phone_last3 AS last3, safe_parameters AS "safeParameters",
       status, authorized_at AS "authorizedAt", send_deadline AS deadline, execution_id AS "executionId", sending_at AS "sendingAt"
     FROM notification_attempts WHERE company_id = app_company_id() AND id = ${id}`);
@@ -23,7 +23,7 @@ async function readAttempt(tx: Tx, id: string): Promise<Attempt | null> {
     authorizedAt: new Date(attempt.authorizedAt),
     deadline: attempt.deadline === null ? null : new Date(attempt.deadline),
     sendingAt: attempt.sendingAt === null ? null : new Date(attempt.sendingAt),
-    identity: { hash, hashKeyId, last3, valid: true },
+    identity: { hash, hashKeyId, last3: last3 ?? '', valid: true },
   };
 }
 
@@ -36,7 +36,7 @@ async function record(
   pending: boolean,
 ): Promise<boolean> {
   const rows =
-    await tx.execute(sql`UPDATE notification_attempts SET status = ${result.status}, recipient_phone = NULL,
+    await tx.execute(sql`UPDATE notification_attempts SET status = ${result.status}, recipient_phone = NULL, recipient_email = NULL,
     provider_message_id = ${result.providerMessageId}, failure_code = ${result.failureCode}, outcome_known = ${result.outcomeKnown},
     finished_at = ${now.toISOString()}, updated_at = ${now.toISOString()}
     WHERE company_id = app_company_id() AND id = ${attempt.id}
@@ -102,9 +102,9 @@ async function clearAbandoned(
   )
     return false;
   const rows =
-    await tx.execute(sql`UPDATE notification_attempts SET recipient_phone = NULL, updated_at = ${now.toISOString()}
+    await tx.execute(sql`UPDATE notification_attempts SET recipient_phone = NULL, recipient_email = NULL, updated_at = ${now.toISOString()}
     WHERE company_id = app_company_id() AND id = ${input.attemptId} AND status = 'SENDING'
-    AND execution_id = ${input.executionId} AND recipient_phone IS NOT NULL RETURNING id`);
+    AND execution_id = ${input.executionId} AND (recipient_phone IS NOT NULL OR recipient_email IS NOT NULL) RETURNING id`);
   if (rows.length === 0) return false;
   await appendAuditLog(tx, auditId, {
     entity: 'notification_attempt',

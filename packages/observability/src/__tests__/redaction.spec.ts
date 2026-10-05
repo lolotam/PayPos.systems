@@ -24,6 +24,21 @@ const logLine = (entry: Record<string, unknown>): string =>
 
 const SECRETS = ['4821', 'hunter2hunter2', 'tok_live_abcdef', 'key_live_123', 'rt_xyz'];
 
+it('email addresses and operational bodies never enter diagnostics at any depth', () => {
+  const email = 'synthetic.owner@example.invalid';
+  const line = logLine({
+    recipientEmail: email,
+    nested: [{ EMAIL_ADDRESS: email }],
+    note: `Delivery failed for ${email}`,
+    emailHtml: 'private email body',
+    emailText: 'private email body',
+    providerBody: { to: email },
+    rawBody: 'private email body',
+  });
+  expect(line).not.toContain(email);
+  expect(line).not.toContain('private email body');
+});
+
 describe('secrets are removed at any depth (CLAUDE.md §8)', () => {
   it('top level, nested three levels deep, and inside arrays', () => {
     const line = logLine({
@@ -145,4 +160,33 @@ describe('code-named secrets (T11)', () => {
       status_code: 201,
     });
   });
+});
+
+it('WebAuthn ceremony material is removed through the real logger', () => {
+  const value = 'synthetic-webauthn-private-material';
+  const line = logLine({
+    credentialId: value,
+    publicKey: value,
+    challenge: value,
+    assertion: value,
+    nested: [
+      {
+        challenge_id: value,
+        attestationObject: value,
+        clientDataJSON: value,
+        authenticatorData: value,
+      },
+    ],
+  });
+  expect(line).not.toContain(value);
+  expect(line).toContain(REDACTED);
+});
+
+it('a raw attendance installation id never reaches a log line, whatever its casing (ADR-0029)', () => {
+  const installation = '12345678-1234-4234-8234-123456789abc';
+  const line = logLine({
+    installation_id: installation,
+    body: { installationId: installation, nested: [{ INSTALLATION_ID: installation }] },
+  });
+  expect(line).not.toContain(installation);
 });

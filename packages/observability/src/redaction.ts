@@ -12,6 +12,13 @@ const SECRET_SUFFIXES = [
   'passwordhash',
   'apikey',
   'credential',
+  'credentialid',
+  'challenge',
+  'challengeid',
+  'assertion',
+  'attestationobject',
+  'clientdatajson',
+  'authenticatordata',
   'credentials',
   'cookie',
   'authorization',
@@ -23,6 +30,9 @@ const SECRET_SUFFIXES = [
   'otpcode',
   'securitycode',
   'verificationcode',
+  'codemac',
+  'derivationkey',
+  'verificationkey',
   'cvv',
   // a hash of a secret (pin_hash, token_hash, password_hash) is still sensitive
   'hash',
@@ -35,6 +45,8 @@ const SECRET_SUFFIXES = [
   // presigned-URL and webhook signatures (X-Amz-Signature, sig)
   'signature',
   'connectionstring',
+  // a raw attendance installation id is advisory, not a secret, but ADR-0029 keeps it out of every log
+  'installationid',
 ];
 const STRUCTURAL_KEYS = new Set([
   'sortkey',
@@ -51,6 +63,8 @@ const STRUCTURAL_KEYS = new Set([
   'i18nkey',
 ]);
 const PHONE_SUFFIXES = ['phone', 'phones', 'phonenumber', 'phonenumbers', 'mobile', 'mobiles'];
+// المبلغ قد يأتي داخل before/after أو سجل مستقل؛ حجب المبالغ يحمي الراتب دون تخمين سياقه.
+const SALARY_SUFFIXES = ['salary', 'salaries', 'amount', 'amounts', 'mills'];
 // Notification/source payloads and provider bodies never belong in technical diagnostics (ADR-0018 §3).
 const PRIVATE_PAYLOAD_KEYS = new Set([
   'payload',
@@ -58,8 +72,12 @@ const PRIVATE_PAYLOAD_KEYS = new Set([
   'jobdata',
   'providerbody',
   'rawbody',
+  'requestbody',
   'safeparameters',
   'components',
+  'emailbody',
+  'emailhtml',
+  'emailtext',
 ]);
 const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
 // A plural container ("passwords", "tokens", "hashes") holds secrets under ordinary child keys, so the key
@@ -72,6 +90,8 @@ const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
 const isSecretKey = (key: string): boolean =>
   endsWithAny(key, SECRET_SUFFIXES) && !STRUCTURAL_KEYS.has(normalizeKey(key));
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
+const isEmailKey = (key: string): boolean =>
+  endsWithAny(key, ['email', 'emails', 'emailaddress', 'emailaddresses']);
 
 // URLs are checked in every string value, because their key (DATABASE_URL, url, link) looks harmless. A URL
 // is PARSED, not pattern-matched: the parser knows that the last "@" before the host ends the userinfo (a
@@ -80,6 +100,8 @@ const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 // phone number in the query (even a bare `?token`), and no name or pattern tells those from harmless ones.
 const URL_START = /^\s*[a-z][a-z0-9+.-]*:\/\//i;
 const URL_IN_TEXT = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi;
+const EMAIL_OR_URL =
+  /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+|[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9.-]+/gi;
 
 function scrubUrl(candidate: string): string {
   try {
@@ -133,7 +155,11 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
     if (typeof node === 'bigint') return node.toString();
     if (typeof node === 'string') {
       const text = scrubUrlCredentials(node);
-      return maskPhones ? text.replace(/\+[1-9]\d{7,14}/g, maskPhone) : text;
+      return maskPhones
+        ? text
+            .replace(/\+[1-9]\d{7,14}/g, maskPhone)
+            .replace(EMAIL_OR_URL, (part) => (URL_START.test(part) ? part : REDACTED))
+        : text;
     }
     if (node === null || typeof node !== 'object') return node;
     if (node instanceof Date) return Number.isNaN(node.getTime()) ? null : node.toISOString();
@@ -144,10 +170,22 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
     if (depth >= MAX_DEPTH) return '[Truncated]';
     seen.add(node);
     if (Array.isArray(node)) return node.map((item) => walk(item, depth + 1));
+    // سبب تعطل خدمة مطلوب للتشخيص؛ سبب الراتب يُحجب فقط مع حقول سياقه المالي.
+    const salaryShaped = Object.keys(node).some(
+      (key) => endsWithAny(key, SALARY_SUFFIXES) || normalizeKey(key) === 'effectivefrom',
+    );
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(node)) {
       if (typeof child === 'function') continue;
-      if (isSecretKey(key) || (maskPhones && PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
+      if (
+        isSecretKey(key) ||
+        (normalizeKey(key) === 'code' && typeof child === 'string' && /^\d{6}$/.test(child)) ||
+        (maskPhones &&
+          (isEmailKey(key) ||
+            endsWithAny(key, SALARY_SUFFIXES) ||
+            (salaryShaped && endsWithAny(key, ['reason'])) ||
+            PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
+      )
         out[key] = REDACTED;
       else if (maskPhones && isPhoneKey(key))
         out[key] = Array.isArray(child) ? child.map(maskPhone) : maskPhone(child);

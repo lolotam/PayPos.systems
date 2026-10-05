@@ -43,6 +43,15 @@ export const whatsappRecipient = z.strictObject({
 });
 export const notificationRecipient = z.discriminatedUnion('channel', [
   whatsappRecipient,
+  z.strictObject({
+    email: z.string().max(254),
+    locale: z.string().max(32).nullish(),
+    channel: z.literal('email'),
+    template_key: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+    template_revision: z.number().int().positive(),
+    safe_parameters: z.array(notificationParameter).max(20),
+    send_deadline: timestamp.nullish(),
+  }),
   inAppRecipient,
 ]);
 export const notificationRequest = z
@@ -60,7 +69,7 @@ export const notificationResult = z
     source_event_id: id,
     business_id: id.nullable(),
     branch_id: id.nullable(),
-    channel: z.enum(['whatsapp', 'IN_APP']),
+    channel: z.enum(['whatsapp', 'email', 'IN_APP']),
     recipient_user_id: id.optional(),
     template_key: z.string(),
     locale: z.enum(['ar', 'en']).nullable(),
@@ -87,11 +96,14 @@ export const deliveryLogItem = z
     business_id: id.nullable(),
     branch_id: id.nullable(),
     source_event_id: id,
-    channel: z.literal('whatsapp'),
+    channel: z.enum(['whatsapp', 'email']),
     template_key: z.string(),
     template_revision: z.number().int(),
     locale: z.enum(['ar', 'en']).nullable(),
-    phone_last3: z.string().regex(/^\d{3}$/),
+    phone_last3: z
+      .string()
+      .regex(/^\d{3}$/)
+      .nullable(),
     status: notificationStatus,
     authorized_at: timestamp,
     send_deadline: timestamp.nullable(),
@@ -103,6 +115,9 @@ export const deliveryLogItem = z
     created_at: timestamp,
     updated_at: timestamp,
   })
+  .refine((value) =>
+    value.channel === 'email' ? value.phone_last3 === null : value.phone_last3 !== null,
+  )
   .meta({ id: 'DeliveryLogItem' });
 export const deliveryLogQuery = pageQuery.meta({ id: 'DeliveryLogQuery' });
 export const deliveryLogPage = z

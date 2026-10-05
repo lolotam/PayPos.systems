@@ -1,6 +1,6 @@
 import type { TemplateDefinition } from './definition.ts';
 
-// TODO(spec): owner/Meta approval of exact ar/en copy, category and button components; definition only until PR 6.
+// TODO(spec): owner/Meta approval of exact ar/en AUTHENTICATION copy, actual Meta names and button components; live activation stays closed until supplied.
 export const staffOtp: TemplateDefinition = {
   key: 'staff_otp',
   revision: 1,

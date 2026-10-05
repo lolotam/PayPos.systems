@@ -7,7 +7,7 @@ user needs memberships in two companies, a business with two branches, and one i
 
 ## العربي
 
-1. بعد الدخول بص فوق: فيه 3 قوائم **الشركة** و **النشاط** و **الفرع**.
+1. بعد الدخول بص في أول القائمة الجانبية (تحت اللوجو): فيه 3 قوائم **الشركة** و **النشاط** و **الفرع**.
    - لو المستخدم عضو في شركة واحدة بس: هتتختار لوحدها.
    - لو مش عضو في أي شركة: هتشوف **لا توجد شركة**.
 2. اختار شركة ← قائمة النشاط تتملي بأنشطة الشركة دي بس ← اختار نشاط ← قائمة الفرع تتملي بفروعه بس.
@@ -21,7 +21,7 @@ user needs memberships in two companies, a business with two branches, and one i
 
 ## English
 
-1. After signing in, the top bar shows three lists: **Company** (الشركة), **Business** (النشاط), **Branch** (الفرع).
+1. After signing in, the top of the dark sidebar (under the logo) shows three lists: **Company** (الشركة), **Business** (النشاط), **Branch** (الفرع).
    One available company → chosen automatically; none → "No company yet" (لا توجد شركة).
 2. Choose a company → Business lists only that company's businesses → choose one → Branch lists only its branches.
 3. An inactive branch is shown with **Inactive** (غير نشط) and can still be chosen.

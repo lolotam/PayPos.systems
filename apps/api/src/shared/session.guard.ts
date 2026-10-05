@@ -6,8 +6,19 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { DEVICE_AUTHENTICATOR, type DeviceAuthenticator } from './device-authenticator.ts';
 import { ApiError } from './errors.ts';
+import {
+  PERSONAL_AUTHENTICATION,
+  PERSONAL_ROUTE,
+  type PersonalAuthentication,
+} from './personal-authentication.ts';
+import { personalSessionRequest } from './personal-session.guard.ts';
 import { PUBLIC_ROUTE } from './public.decorator.ts';
 import { toWebHeaders } from './web-headers.ts';
+import {
+  STAFF_AUTHENTICATION,
+  STAFF_ROUTE,
+  type StaffAuthentication,
+} from './staff-authentication.ts';
 
 export const AUTH_SERVICE = Symbol('AUTH_SERVICE');
 
@@ -35,6 +46,8 @@ export class SessionGuard implements CanActivate {
     @Inject(Reflector) reflector: Reflector,
     @Inject(AUTH_SERVICE) auth: AuthService | null,
     @Inject(DEVICE_AUTHENTICATOR) devices: DeviceAuthenticator | null,
+    @Inject(STAFF_AUTHENTICATION) private readonly staff: StaffAuthentication | null,
+    @Inject(PERSONAL_AUTHENTICATION) private readonly personal: PersonalAuthentication | null,
   ) {
     this.#reflector = reflector;
     this.#auth = auth;
@@ -49,8 +62,22 @@ export class SessionGuard implements CanActivate {
     if (isPublic === true) return true;
     const http = context.switchToHttp();
     const request = http.getRequest<FastifyRequest>();
+    const personalPolicy = this.#reflector.get<boolean | 'staff'>(
+      PERSONAL_ROUTE,
+      context.getHandler(),
+    );
+    if (
+      personalPolicy === true ||
+      (personalPolicy === 'staff' && request.headers.authorization === undefined)
+    )
+      return personalSessionRequest(request, this.personal);
     // The scheme is case-insensitive (RFC 9110 §11.1): `device <token>` must never fall back to a cookie session.
     const authorization = request.headers.authorization ?? '';
+    const policy = this.#reflector.get<'device' | 'staff' | undefined>(
+      STAFF_ROUTE,
+      context.getHandler(),
+    );
+    if (policy !== undefined) return this.#staff(request, authorization, policy);
     if (/^device(\s|$)/i.test(authorization)) {
       return this.#device(request, authorization.slice('device'.length).trim());
     }
@@ -66,6 +93,47 @@ export class SessionGuard implements CanActivate {
     if (resolved.principal.userId !== null)
       updateRequestContext({ userId: resolved.principal.userId });
     request.companyHint = resolved.companyHint;
+    return true;
+  }
+
+  async #staff(
+    request: FastifyRequest,
+    authorization: string,
+    policy: 'device' | 'staff',
+  ): Promise<boolean> {
+    if (!/^device\s/i.test(authorization)) throw new ApiError('UNAUTHENTICATED');
+    await this.#device(request, authorization.slice('device'.length).trim());
+    const principal = request.principal;
+    const branchId = principal?.memberships[0]?.scopeId;
+    if (
+      principal?.companyId === null ||
+      principal?.companyId === undefined ||
+      principal.deviceId === null ||
+      branchId === undefined
+    )
+      throw new ApiError('UNAUTHENTICATED');
+    const device =
+      this.staff === null
+        ? null
+        : await this.staff.context({
+            companyId: principal.companyId,
+            deviceId: principal.deviceId,
+            branchId,
+          });
+    if (device === null) throw new ApiError('UNAUTHENTICATED');
+    request.staffDevice = device;
+    if (policy === 'device') return true;
+    const session = await this.#auth?.staff.resolve(toWebHeaders(request), device);
+    if (
+      session === null ||
+      session === undefined ||
+      this.staff === null ||
+      !(await this.staff.eligible(session.userId, device))
+    )
+      throw new ApiError('UNAUTHENTICATED');
+    request.staffSession = session;
+    request.principal = { ...principal, userId: session.userId, grants: [] };
+    updateRequestContext({ userId: session.userId });
     return true;
   }
 

@@ -3,6 +3,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -13,6 +14,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { user } from './identity-auth.ts';
+import { employees } from './staff.ts';
 import { branches, businesses, companies } from './tenancy.ts';
 
 // الصلاحيات (ADR-0003 §2.2، §2.3): memberships و permission_overrides هما الـ bridge (RLS على اليوزر وعلى الشركة)،
@@ -46,7 +48,7 @@ export const permissions = pgTable(
   (t) => [
     check(
       'permissions_code_format',
-      sql`${t.code} ~ '^[a-z][a-z-]*:[a-z][a-z-]*:(platform|company|business|branch)$'`,
+      sql`${t.code} ~ '^[a-z][a-z-]*:[a-z][a-z-]*:(platform|company|business|branch|own)$'`,
     ),
   ],
 );
@@ -119,17 +121,24 @@ export const memberships = pgTable(
     id: uuid('id').notNull(),
     // صاحب العضوية واحد بس: يوزر أو موظف (بـ PIN على جهاز، T9b) — ADR-0003 §4 path B.
     userId: uuid('user_id').references(() => user.id),
-    // الـ FK على staff.employees بييجي مع staff في Phase 1 (ADR-0003 §4.2).
+    // الاعتماد باسم موظف لا يعبر حدود الشركة (ADR-0003 §4.2).
     employeeId: uuid('employee_id'),
     roleId: uuid('role_id').notNull(),
     roleOwnerKey: text('role_owner_key').notNull(),
     ...scopeColumns(),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull().defaultNow(),
     endsAt: timestamp('ends_at', { withTimezone: true }),
+    // NULL يعني مفيش حد شخصي؛ إعداد النشاط يُطبق لاحقاً في PR 7c، والصفر حد صريح.
+    limitBps: integer('limit_bps'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ name: 'memberships_pkey', columns: [t.companyId, t.id] }),
+    foreignKey({
+      name: 'memberships_employee_fk',
+      columns: [t.companyId, t.employeeId],
+      foreignColumns: [employees.companyId, employees.id],
+    }),
     foreignKey({
       name: 'memberships_role_fk',
       columns: [t.roleId, t.roleOwnerKey],
@@ -157,6 +166,7 @@ export const memberships = pgTable(
       sql`${t.scopeType} <> 'COMPANY' OR ${t.scopeId} = ${t.companyId}`,
     ),
     check('memberships_window', sql`${t.endsAt} IS NULL OR ${t.endsAt} > ${t.startsAt}`),
+    check('memberships_limit_bps', sql`${t.limitBps} IS NULL OR ${t.limitBps} BETWEEN 0 AND 10000`),
     index('memberships_user_id_idx').on(t.userId),
     index('memberships_company_id_employee_id_idx').on(t.companyId, t.employeeId),
     index('memberships_role_idx').on(t.roleId, t.roleOwnerKey),

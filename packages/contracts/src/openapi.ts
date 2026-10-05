@@ -1,4 +1,60 @@
 import { z } from 'zod';
+import { unbindPasskeySchemas } from './staff/unbind-passkey.js';
+import { unbindPasskeyPaths } from './staff/unbind-passkey-openapi.js';
+import { leaveSchemas } from './staff/leave.js';
+import { employeeDocumentSchemas } from './staff/employee-documents.js';
+import { employeeDocumentPaths } from './staff/employee-documents-openapi.js';
+import { leaveDecisionSchemas } from './staff/leave-decision.js';
+import { leavePaths } from './staff/leave-openapi.js';
+import { passkeySchemas } from './staff/passkeys.js';
+import { clockAttendanceSchemas } from './staff/clock-attendance.js';
+import { clockAttendancePaths } from './staff/clock-attendance-openapi.js';
+import { passkeyPaths } from './staff/passkeys-openapi.js';
+import { scheduleSchemas } from './staff/schedules.js';
+import {
+  setSalaryInput,
+  employeeSalary,
+  salaryHistoryQuery,
+  salaryHistoryPage,
+} from './staff/salary.js';
+import { settingsPaths } from './settings/settings-openapi.js';
+import { notificationPaths } from './notifications-openapi.js';
+import { filePaths, fileSchemas } from './files-openapi.js';
+import { employee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
+import {
+  employeeImportColumn,
+  employeeImportErrorCode,
+  employeeImportRowError,
+  employeeImportTemplate,
+  previewEmployeeImportInput,
+  employeeImportPreview,
+  commitEmployeeImportInput,
+  employeeImportCommit,
+  employeeImportCommitAccepted,
+  employeeImportStatus,
+} from './staff/employee-import.js';
+import { employeeImportPaths } from './staff/employee-import-openapi.js';
+import { staffPaths } from './staff/staff-openapi.js';
+import {
+  updateEmployeeInput,
+  employeeDetailRecord,
+  employeeListItem,
+  employeePage,
+  employeeListQuery,
+} from './staff/update-employee.js';
+import { permissionPaths, permissionSchemas } from './identity/permissions-openapi.js';
+import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
+import { customer, findOrCreateCustomerInput } from './customers.js';
+import { customerPaths } from './customers-openapi.js';
+import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
+import {
+  staffOtpRequestInput,
+  staffOtpVerifyInput,
+  staffOtpAcknowledgement,
+  staffSessionContext,
+  staffPinInput,
+  staffPinResetInput,
+} from './identity/staff-otp.js';
 
 import { errorEnvelope } from './errors/envelope.js';
 import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
@@ -46,6 +102,49 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...employeeDocumentSchemas,
+  ...clockAttendanceSchemas,
+  ...leaveSchemas,
+  ...leaveDecisionSchemas,
+  ...passkeySchemas,
+  ...unbindPasskeySchemas,
+  ...scheduleSchemas,
+  setSalaryInput,
+  employeeSalary,
+  salaryHistoryQuery,
+  salaryHistoryPage,
+  updateEmployeeInput,
+  employeeDetailRecord,
+  employeeListItem,
+  employeePage,
+  employeeListQuery,
+  ...permissionSchemas,
+  ...fileSchemas,
+  employee,
+  createEmployeeInput,
+  employeeRoleCode,
+  employeeDate,
+  employeeImportColumn,
+  employeeImportErrorCode,
+  employeeImportRowError,
+  employeeImportTemplate,
+  previewEmployeeImportInput,
+  employeeImportPreview,
+  commitEmployeeImportInput,
+  employeeImportCommit,
+  employeeImportCommitAccepted,
+  employeeImportStatus,
+  customer,
+  findOrCreateCustomerInput,
+  attendanceQrToken,
+  attendanceQrBranch,
+  attendanceQrIssue,
+  staffPinInput,
+  staffPinResetInput,
+  staffOtpRequestInput,
+  staffOtpVerifyInput,
+  staffOtpAcknowledgement,
+  staffSessionContext,
   whatsappWebhookAcknowledgement,
   whatsappEnvelope,
   whatsappHandshake,
@@ -97,7 +196,7 @@ const json = (schema: string) => ({
 
 function operation(
   operationId: string,
-  status: '200' | '201',
+  status: '200' | '201' | '202',
   description: string,
   response: string,
   body?: string,
@@ -114,6 +213,29 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...employeeDocumentPaths,
+  ...employeeImportPaths,
+  ...passkeyPaths,
+  ...clockAttendancePaths,
+  ...unbindPasskeyPaths,
+  ...settingsPaths,
+  ...filePaths,
+  ...staffPaths,
+  ...leavePaths,
+  ...permissionPaths,
+  ...customerPaths,
+  '/v1/devices/me/attendance-qr': {
+    post: {
+      ...operation(
+        'issueAttendanceQr',
+        '200',
+        'Current QR for the authenticated device branch',
+        'AttendanceQrIssue',
+      ),
+      security: [{ DeviceToken: [] }],
+    },
+  },
+  ...staffSignInPaths,
   '/v1/webhooks/whatsapp': {
     get: {
       operationId: 'verifyWhatsappWebhook',
@@ -167,27 +289,7 @@ const PATHS = {
         'Meta HMAC over original body bytes; STOP commits before enqueue and acknowledgement.',
     },
   },
-  '/v1/me/notifications': {
-    get: inboxOperation('listMyNotifications', 'InAppNotificationPage', true),
-  },
-  '/v1/me/notifications/unread-count': {
-    get: inboxOperation('countMyUnreadNotifications', 'NotificationUnreadCount'),
-  },
-  '/v1/me/notifications/{id}/read': {
-    post: inboxOperation('readMyNotification', 'NotificationReadResult', false, true),
-  },
-  '/v1/me/notifications/read-all': {
-    post: inboxOperation('readAllMyNotifications', 'NotificationReadResult'),
-  },
-  '/v1/notifications/delivery-log': {
-    get: logOperation('listCompanyNotificationDeliveries'),
-  },
-  '/v1/businesses/{businessId}/notifications/delivery-log': {
-    get: logOperation('listBusinessNotificationDeliveries', 'businessId'),
-  },
-  '/v1/branches/{branchId}/notifications/delivery-log': {
-    get: logOperation('listBranchNotificationDeliveries', 'branchId'),
-  },
+  ...notificationPaths,
   '/v1/me/workspaces': {
     get: operation(
       'listMyWorkspaces',
@@ -219,65 +321,6 @@ const PATHS = {
   },
 };
 
-function inboxOperation(operationId: string, response: string, paginated = false, single = false) {
-  return {
-    ...operation(operationId, '200', 'Personal notifications in the selected company', response),
-    parameters: [
-      {
-        in: 'header',
-        name: 'x-company-id',
-        required: true,
-        schema: { type: 'string', format: 'uuid' },
-      },
-      ...(paginated
-        ? [
-            { in: 'query', name: 'cursor', required: false, schema: { type: 'string' } },
-            {
-              in: 'query',
-              name: 'limit',
-              required: false,
-              schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
-            },
-          ]
-        : []),
-      ...(single
-        ? [{ in: 'path', name: 'id', required: true, schema: { type: 'string', format: 'uuid' } }]
-        : []),
-    ],
-  };
-}
-
-function logOperation(operationId: string, scope?: string) {
-  return {
-    ...operation(
-      operationId,
-      '200',
-      'Provider submission log for the guarded scope',
-      'DeliveryLogPage',
-    ),
-    parameters: [
-      {
-        in: 'header',
-        name: 'x-company-id',
-        required: true,
-        schema: { type: 'string', format: 'uuid' },
-      },
-      { in: 'query', name: 'cursor', required: false, schema: { type: 'string' } },
-      {
-        in: 'query',
-        name: 'limit',
-        required: false,
-        schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
-      },
-      ...(scope === undefined
-        ? []
-        : [
-            { in: 'path', name: scope, required: true, schema: { type: 'string', format: 'uuid' } },
-          ]),
-    ],
-  };
-}
-
 /**
  * بيبني وثيقة OpenAPI من الـ Zod schemas. دالة pure من غير fs، عشان الاختبار يقارن الملف
  * المحفوظ بالناتج ويقع لو حد غيّر contract ونسي يعمل pnpm contracts:openapi.
@@ -308,6 +351,28 @@ export function buildOpenApiDocument(): Record<string, unknown> {
     openapi: '3.0.3',
     info: { title: 'PosPay API', version: '0.0.0' },
     paths: PATHS,
-    components: { schemas: components },
+    components: {
+      schemas: components,
+      securitySchemes: {
+        PersonalStaffSession: {
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'pospay-personal.session_token',
+          description: 'LIMITED STAFF_PERSONAL purpose; own routes only.',
+        },
+        KioskStaffSession: {
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'pospay-staff.session_token',
+          description: 'STAFF_POS purpose; requires the paired Device credential.',
+        },
+        DeviceToken: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'Authorization',
+          description: 'Device authentication scheme',
+        },
+      },
+    },
   };
 }

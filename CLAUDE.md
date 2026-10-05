@@ -3,6 +3,7 @@
 > Read this file fully before any task.
 >
 > **The three documents that govern this project:**
+>
 > - `06_Tech_Stack_Architecture_EN.md` — **what** we build with (stack, engines, infrastructure). Currently V1.3 (V1.4 is cited in older notes but was never recovered — PRD §13 item 1).
 > - `CLAUDE.architecture.md` — **how the code is shaped** (folder structure, layers, dependency rules). Currently A1.0.
 > - **This file** — the day-to-day rules the AI must obey while writing a slice.
@@ -13,6 +14,7 @@
 > If a rule here conflicts with a request, **stop and ask** — do not silently break a rule.
 >
 > **Changelog**
+>
 > - **V3.7 (2026-10-02)** — §5: public rating links are the fourth session-less entry point, with tenant-local token validation and limited rating/opt-out capabilities (ADR-0011, Proposed; Phase 1 G3).
 > - **V3.6 (2026-10-01)** — §10: the reverse proxy is Dokploy's shared Traefik, not a container we deploy; `06` is V1.3 (after Eng. Khaled's audit).
 > - **V3.5 (2026-09-23)** — §5: the dispatcher exception includes the idempotency sweep (ADR-0003, T7b).
@@ -25,9 +27,11 @@
 > - V1 — initial rules.
 
 ## 0. What this project is
+
 Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointments, staff attendance & commissions, customers/loyalty, reporting). Arabic-first + English, RTL, KWD (3 decimals). Modular monolith. Solo developer + AI.
 
 ## 1. Workflow — one vertical slice at a time
+
 1. Never implement a whole module. Implement **one use case** (e.g. "post stock adjustment").
 2. Before code, write/update the slice spec in `docs/specs/NNN-<module>-<use-case>/spec.md` (created by `/speckit-specify` — see `.specify/PROJECT-OVERRIDES.md`): requirements, business rules, edge cases, acceptance criteria, schema changes, API contract, permissions, tests.
 3. Then, in this order: **contract (Zod) → migration + RLS policy → domain functions + their tests → use case → adapters (persistence, http) → integration tests → UI.** Run `pnpm check` before declaring done.
@@ -35,11 +39,12 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
 5. Every architectural decision → `docs/adr/NNNN-title.md` (context, decision, consequences).
 6. **A slice is not done until the checklist in `CLAUDE.architecture.md` §15 passes.**
 
-> **A doc comment is written with its function, not afterwards** (§3.1). "I'll document it later" means it never gets documented, and by then the author has forgotten the *why* — which is the only part worth writing down.
+> **A doc comment is written with its function, not afterwards** (§3.1). "I'll document it later" means it never gets documented, and by then the author has forgotten the _why_ — which is the only part worth writing down.
 
 ## 2. Repo layout (do not invent new top-level folders)
 
 ### 2.1 Workspace
+
 ```
 apps/
   admin    Next.js — back-office (all business types)
@@ -93,10 +98,12 @@ Worker modules mirror this with `jobs/` instead of `http/`.
 **Full rules, the import matrix and the frontend equivalent: `CLAUDE.architecture.md` §3–§6 and §11.**
 
 ### 2.3 Banned folder names
+
 `utils/` · `helpers/` · `common/` · `misc/` · `managers/` · `models/` or `services/` as a root folder · `lib/` outside `packages/`.
 One `shared/` per app is allowed, and only for code with **no business meaning** (`CLAUDE.architecture.md` §6.4).
 
 ## 3. File & function size (enforced by ESLint)
+
 - `max-lines`: **300 warn / 400 error** per file (excluded: `packages/db/schema/*`, migrations, generated, fixtures, `*.sql`).
 - `max-lines-per-function`: 60. One React component per file. One NestJS controller per resource.
 - If a file would exceed limits, split by responsibility — never by arbitrary line count. A use case at 400 lines is three use cases.
@@ -115,26 +122,26 @@ const shift = await this.shifts.findOpenById(input.shiftId);
 // ✅ explains a decision the code cannot show
 // المدفوعات المعلقة بتمنع قفل الشيفت، لأن الكاش هيبان ناقص
 // والفرق ده مش عجز حقيقي — البوابة لسه مردتش
-const unresolved = tenders.filter(t => t.status === 'PENDING_GATEWAY');
+const unresolved = tenders.filter((t) => t.status === 'PENDING_GATEWAY');
 ```
 
 #### Mandatory — Arabic JSDoc, no exceptions
 
-| Where | What is required |
-|---|---|
+| Where                                 | What is required                                                                                         |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `domain/**` — every exported function | Full JSDoc: what it computes, the business rule in one sentence, `@param` for every argument, `@returns` |
-| `ports/**` — every interface method | One line: what it returns and why the consumer needs it |
-| `events/published.ts` — every event | One line: when exactly it is emitted |
+| `ports/**` — every interface method   | One line: what it returns and why the consumer needs it                                                  |
+| `events/published.ts` — every event   | One line: when exactly it is emitted                                                                     |
 
-These three are where the money, the business rules and the contracts between modules live. They are also the places whose *why* cannot be recovered from the code six months later.
+These three are where the money, the business rules and the contracts between modules live. They are also the places whose _why_ cannot be recovered from the code six months later.
 
 #### Required, lighter
 
-| Where | What is required |
-|---|---|
-| `use-cases/**` | One line above the class: the business step it performs |
-| `queries/**` | One line above the SQL: which screen consumes it |
-| `packages/db/schema/**` | One line on any column whose name is not self-evident |
+| Where                   | What is required                                        |
+| ----------------------- | ------------------------------------------------------- |
+| `use-cases/**`          | One line above the class: the business step it performs |
+| `queries/**`            | One line above the SQL: which screen consumes it        |
+| `packages/db/schema/**` | One line on any column whose name is not self-evident   |
 
 #### Banned outright
 
@@ -182,6 +189,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 ## 4. Module boundaries
 
 ### 4.1 Between modules
+
 - Allowed arrows are declared in `docs/module-map.md` (mirroring `06` §3). **An undeclared arrow fails CI** — adding one requires an ADR.
 - Cross-module **side effects** go through **domain events (outbox)**, never direct service calls (`orders` must not call `inventory`; it emits `OrderCompleted`).
 - Cross-module **reads** go through a **port** the consuming module defines in its own `ports/`, implemented by an adapter. This is how a cycle is broken (`CLAUDE.architecture.md` §6.2).
@@ -189,20 +197,23 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - `pos` is a frontend app, not a backend module. It orchestrates `orders`, `payments`, `cash` via the API.
 
 ### 4.2 Inside a module
+
 - **No business logic in controllers, jobs, or React components.** Controllers validate + delegate; use cases orchestrate; `domain/` holds the rules; `persistence/` holds the queries.
 - **No arithmetic in a use case.** Totals, tax, discounts, commissions, stock costing, lateness — all of it lives in `domain/` as pure functions with exhaustive unit tests that run with no database.
 - **A use case never contains the words `drizzle`, `sql`, `fetch` or `axios`.** CI greps for this.
 
 ### 4.3 Injected, never called directly
+
 `Clock` and `IdGenerator` are ports. A use case that calls `Date.now()` or `crypto.randomUUID()` directly is not deterministically testable and will be rejected.
 
 ## 5. Database rules
+
 - PostgreSQL only via **Drizzle** schema + `drizzle-kit` migrations (`pnpm db:migrate`). Never edit the DB by hand. Never use `db push` in shared envs.
 - Every tenant table has `company_id uuid NOT NULL` (+ `business_id` where applicable) and an RLS policy — except the tenant root `companies`, whose `id` **is** the tenant key (ADR-0003 §2.4). **New table ⇒ new policy + negative isolation test, in the same PR.** A tenant table's primary key is `(company_id, id)` — never `id` alone, whose uniqueness check would reveal another tenant's rows (ADR-0007).
 - All tenant-data access goes through `withTenant(companyId, tx => …)` which sets `app.company_id` inside the transaction. **Exporting the raw Drizzle client from `packages/db` is forbidden** — modules receive `tx` only.
 - The four entry points with no session (gateway webhooks, messaging callbacks, worker jobs, **public rating links — ADR-0011**) resolve the tenant from an identifier and then use the same `withTenant()` wrapper. A rating link is `<company_id>.<256-bit random>`: its prefix selects a candidate tenant; its stored full-token hash and 7-day expiry are validated inside `withTenant()` before any business/rating data is returned. Rating submission consumes it once by an atomic UPDATE; the same token can opt out until expiry, including after rating. Apply a per-IP rate limit; show only the business name and the stars form. This is a restricted capability, not a tenant session. There is no fifth way to reach tenant data — with **one named exception, the outbox dispatcher (ADR-0003 §3):** the `pospay_dispatcher` role reads and marks rows of the `outbox` table only, across tenants (plus the one `SECURITY DEFINER` sweep of expired idempotency keys), through `createOutboxDispatcherDatabase` in `packages/db`; every event *effect* still runs as `pospay_app` inside `withTenant(event.company_id)`.
-- **The one named exception — authentication (ADR-0003).** Login runs before a tenant is known, so the global identity tables (`user`, `session`, `account`, `verification`, `two_factor`, `apikey`) have no tenant RLS and — except `apikey` — no `company_id`. `apikey` carries a fixed, non-updatable `company_id` that binds the key to one tenant (ADR-0003 §4 path C). They are reachable **only** from `packages/auth`, on the dedicated `pospay_auth` role, whose grants are exactly the global-identity tables and privileges ADR-0003 §2.1 and §3 list (including reading `platform_grants` and inserting into `platform_audit_log`) and nothing else, and **no runtime role has `BYPASSRLS`** — the bootstrap owner that only runs migrations is the recorded exception (ADR-0003 §3). A user lists their own memberships through `withUser(userId, tx => …)`; a new company and its first owner are created only through `withNewTenant()` (ADR-0003 §3); every other business query goes through `withTenant()`. A new auth table is classified in ADR-0003 before it is created.
-- **Global messaging control (ADR-0013):** the notifications-owned `createPlatformWhatsappDatabase` facade on `pospay_notifications` is a named global intake/maintenance exception with no tenant access. Suppression/inbox/audit contain hashes only and no tenant/phone; no tenant RLS. `pospay_app` checks only the reader-owned boolean definer on its existing transaction after the phone lock; no new connection or SET ROLE. Runtime column grants and a validated NULL-only CHECK forbid re-subscription. Outbound admission/OTP remain disabled until PR 6.
+- **The one named exception — authentication (ADR-0003).** Login runs before a tenant is known, so the global identity tables (`user`, `session`, `account`, `verification`, `two_factor`, `passkey`, `apikey`, `auth_otp_challenges`, `auth_notification_attempts`) have no tenant RLS and — except `apikey` — no `company_id`. `apikey` carries a fixed, non-updatable `company_id` that binds the key to one tenant (ADR-0003 §4 path C). They are reachable **only** from `packages/auth`, on the dedicated `pospay_auth` role, whose grants are exactly the global-identity tables and privileges ADR-0003 §2.1 and §3 list (including reading `platform_grants` and inserting into `platform_audit_log`) and nothing else, and **no runtime role has `BYPASSRLS`** — the bootstrap owner that only runs migrations is the recorded exception (ADR-0003 §3). A user lists their own memberships through `withUser(userId, tx => …)`; a new company and its first owner are created only through `withNewTenant()` (ADR-0003 §3); every other business query goes through `withTenant()`. A new auth table is classified in ADR-0003 before it is created.
+- **Global messaging control (ADR-0013):** the notifications-owned `createPlatformWhatsappDatabase` facade on `pospay_notifications` is a named global intake/maintenance exception with no tenant access. Suppression/inbox/audit contain hashes only and no tenant/phone; no tenant RLS. `pospay_app` checks only the reader-owned boolean definer on its existing transaction after the phone lock; no new connection or SET ROLE. Runtime column grants and a validated NULL-only CHECK forbid re-subscription. ADR-0019 adds auth-only suppression-function EXECUTE, never table access. OTP defaults disabled; complete explicit activation opens only OTP with approved shared Redis admission. Tenant outbound remains separately closed.
 - IDs: **UUID v7** (generated client-side on the POS while offline). Timestamps: `timestamptz` in UTC; display in branch timezone.
 - Money: `numeric(14,3)` in Postgres; in TS **`bigint` mills (1 KWD = 1000)** or the `Money` type from `packages/domain` — **never `number`**.
 - Bilingual text: `name_ar`, `name_en` columns (English required, Arabic optional unless spec says otherwise).
@@ -210,7 +221,10 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - Soft delete (`deleted_at`) only for: items, customers, employees, categories. Everything financial is immutable + reversible (returns, negative entries), never deleted.
 - Index every RLS predicate column and every FK; add composite indexes for known list filters (`(company_id, branch_id, created_at)`). **The migration that adds a query adds its index.**
 
+- ADR-0019: new OTP tables use exact auth-only column grants without tenant RLS; the auth facade exposes no raw client. Only independently keyed challenge MACs persist. Auth owns derivation and approved global phone mapping; worker receives a narrow execution capability, not full auth or tenant access. Metadata retention is thirty days after expiry; in-flight SENDING stays until drained.
+
 ## 6. API rules
+
 - Contracts live in `packages/contracts` (Zod). Controllers use them for validation; frontends import the types. No hand-written duplicate types.
 - REST under `/v1`, cursor pagination, error envelope `{ code, message_ar, message_en, details? }`.
 - Any endpoint that creates money/stock effects requires `Idempotency-Key`, runs in **one DB transaction**, and writes its **outbox event inside that same transaction**.
@@ -221,7 +235,10 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - Inbound webhooks: verify signature → store raw → enqueue → ack 200. ADR-0013 WhatsApp stores only an allowlisted privacy-scrubbed envelope; original phone-bearing message ids/body exist only in verified intake memory. Permanent domain-separated message HMAC dedupe and inbox-UUID audit survive the 30-day JSON cleanup. STOP commits synchronously under the common phone lock in a bounded 200 ms transaction before enqueue/HTTP 200.
 - SSE: one endpoint `GET /v1/stream`. Channel subscription is resolved **server-side from the session**, never from what the client asks for. SSE is never the source of truth — if the stream dies, screens fall back to polling and the POS keeps working.
 
+- ADR-0019: paired-device OTP uses @Authenticated plus explicit device-only/origin enforcement. Id-only enqueue and acknowledged PREPARED release share a bounded, drained 200 ms window; every admitted outcome has the same 202. Provider HTTP belongs only to the reserved worker outside transactions.
+
 ## 7. Frontend rules
+
 - All strings via `packages/i18n` keys (`t('orders.create')`) — no hardcoded Arabic/English in JSX.
 - RTL-safe CSS: logical properties only (`ps-`, `pe-`, `ms-`, `me-`, `start`, `end`), never `left/right` paddings/margins.
 - Use `packages/ui` components; do not install another component library. Icons: lucide.
@@ -232,7 +249,10 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - **Totals in the POS are computed by importing `packages/domain` — the exact same functions the API uses.** Re-implementing pricing in the browser is a money bug, not a style issue.
 - **No closing comments in JSX** (§3.1). A component that needs one is a component that needs splitting.
 
+- ADR-0019 online-only exception: staff OTP/PIN authentication and private staff access require fresh server validation. Never persist or sync login commands, phone, code or challenge. Operator replacement/logout clears private forms and caches across tabs; device pairing survives.
+
 ## 8. Security
+
 - Better Auth for sessions; cashier PIN + device token for POS; TOTP 2FA for owners/admins. **No module ever signs a JWT, compares a password, or hashes a PIN by hand** — only `packages/auth` or approved `identity` helpers.
 - **All third-party credentials are envelope-encrypted at rest** (gateway keys, WABA tokens, SMS/email keys), decrypted only inside the owning package, never returned by an API, never logged, not visible to platform super-admins.
 - Secrets only via env (`.env.example` kept updated). Never commit `.env`, keys, or customer data. The master encryption key lives only in Dokploy secrets.
@@ -244,7 +264,12 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - **Never put a secret, a key, a token or a real customer phone number in a comment or a code example.** A comment is committed exactly like code.
 - Audit log entry for every change to prices, discounts, permissions, payments, refunds, stock posts, settings, device approval/revocation, gateway connect/disconnect, private-file access, and marketing sends. `AuditLog` lives in Postgres forever and is separate from technical logs.
 
-## 9. Testing (required to merge)
+- ADR-0019 staff-purpose Better Auth sessions require Device plus isolated host-only cookie, active eligibility on every request and an absolute eight-hour deadline, without idle timeout/renewal. Generic auth/admin/platform routes refuse staff tokens. Redis uses the settled five/twenty request, twenty-five/one-hundred verification hourly caps, sixty-second cooldown and shared 1000 ms outbound admission. OTP configuration state stays separate from service readiness.
+
+- ADR-0027: personal staff sessions use an isolated host-only cookie and fixed eight-hour absolute deadline, with live eligibility and no business/kiosk/admin access. Passkey enrollment requires verified UV through auth; attendance requires a fresh 120-second single-use assertion.
+
+## 9. Testing (required to merge
+
 - **Unit tests for every pure `domain/` function**, exhaustive, with no database: totals, tax, discounts, tips, commissions (all rule types), moving-average cost, attendance lateness, unit conversion, status transitions.
 - **Integration tests for each use case** (happy path + listed edge cases) against a real Postgres — the T2 compose stack, one cloned database per spec file (ADR-0006).
 - **RLS negative tests for every tenant table** (cross-tenant read = 0 rows, write = error).
@@ -252,6 +277,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - E2E (Playwright) for the POS critical path: open shift → order → split payment → print → close shift, including the offline toggle.
 
 ## 10. Git & delivery
+
 - Conventional commits (`feat(orders): …`). One slice per PR. PR description = link to spec + checklist (spec, migration, RLS, indexes, tests, i18n, **doc comments**, docs).
 - **CI must pass, in this order:**
   `typecheck → lint (incl. max-lines) → lint:docs (JSDoc coverage + banned comments) → boundaries (eslint-plugin-boundaries) → cycles (dependency-cruiser / madge) → module-map check → unit (domain) → integration → RLS negative tests → EXPLAIN checks → build all apps → docker images`
@@ -262,6 +288,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - **A deploy that can't be rolled back in one click isn't finished.**
 
 ## 11. Things the AI must never do
+
 - Introduce a new framework/library/language without an ADR.
 - Use **floats for money**, `left/right` CSS, hardcoded strings, the **raw Drizzle client**, cross-module **deep imports**, direct stock quantity updates, or `Date.now()` / `randomUUID()` inside a use case.
 - Put arithmetic in a use case, SQL in a use case, or business logic in a controller, job, or React component.
@@ -276,4 +303,5 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - Guess business rules — ask, or mark `TODO(spec)` and stop.
 
 ## 12. Useful commands
+
 `pnpm dev` · `pnpm check` · `pnpm test` · `pnpm lint:docs` · `pnpm module-map:check` (boundaries in `lint`; cycles, arrows and the one synchronous write here) · `pnpm db:generate` · `pnpm db:migrate` · `pnpm db:seed` · `pnpm contracts:openapi` · `pnpm e2e`

@@ -27,6 +27,8 @@ export interface TenantOptions {
    * على الـ server كل statement وكل فترة سكون جوه الـ transaction محدودين بنفس المدة.
    */
   readonly timeoutMs?: number;
+  /** يملك اتصالاً منفصلاً ويصرف الإلغاء قبل الرجوع، لقراءات تجهيز OTP فقط. */
+  readonly drainOnTimeout?: boolean;
 }
 
 /**

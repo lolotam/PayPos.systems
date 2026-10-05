@@ -2,6 +2,7 @@ packages:
   - 'apps/*'
   - 'packages/*'
 allowBuilds:
+  sharp: true
   esbuild: false
   msgpackr-extract: false
   unrs-resolver: false
@@ -17,3 +18,9 @@ minimumReleaseAgeExclude:
   - '@typescript-eslint/utils@8.70.1'
   - '@typescript-eslint/visitor-keys@8.70.1'
   - typescript-eslint@8.70.1
+  - '@aws-sdk/client-s3@3.1146.0'
+  - '@aws-sdk/s3-request-presigner@3.1146.0'
+
+overrides:
+  '@better-auth/passkey@1.7.5>@simplewebauthn/server': '13.3.1'
+  '@better-auth/passkey@1.7.5>@simplewebauthn/browser': '13.3.0'

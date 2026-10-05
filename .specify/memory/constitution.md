@@ -1,5 +1,6 @@
 <!--
 Sync Impact Report
+- 2.2.0 (2026-10-02, MINOR): add the PR 6 staff-login section from Accepted ADR-0019, including default-disabled activation, global auth storage, scoped sessions and online-only authentication.
 - 2.1.4 (2026-10-01, PATCH): ADR-0013 Part A global messaging control exception and privacy.
 - 2.1.3 (2026-10-01, PATCH): narrow application-root auth/notifications wiring clarification (ADR-0018).
 - 2.1.2 (2026-10-01, PATCH): backups go to Cloudflare R2, not Backblaze B2 (Waleed, 2026-09-24;
@@ -432,4 +433,16 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.1.4 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-01
+**Version**: 2.2.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-02
+
+## PR 6 amendment — ADR-0019, 2026-10-02
+
+PR 6 remains dependent on PRs 3/4/5 and implements existing global users on a paired POS, with active device-scoped membership plus explicit login:staff:branch. Staff/cashier bundles are explicit; Owner/admin authority alone is insufficient. OTP defaults disabled and incomplete activation closes only its capability; production API/worker stay ready with empty notification settings. Auth-owned deterministic derivation uses independent verification MACs, a hash-only global ledger, acknowledged PREPARED→PENDING release, bounded worker wait outside DB connections, at-most-once execution and shared Redis admission. All admitted outcomes share the 200 ms 202 window. Sessions use Better Auth with isolated staff cookie and original eight-hour deadline, without idle timeout or renewal, and are revalidated online on every request. Recovery uses the employee's own PIN with manager assistance; no impersonation or STOP bypass. Login does not open a shift or record attendance.
+
+The slice includes contracts/schema and exact grants, auth facade/guards, both composition roots, POS generated client/i18n/cache clearing, secret-free observability, environment/deploy injection and independent readiness smoke. ADR-0019 §7 is the complete test obligation. Before PR 20, resolve personal-phone/passkey enrollment and use the scoped staff verification contract; never auto-enroll the shared kiosk. PR 22 still requires per-clock UV, QR and presence proof. Final bilingual Meta copy/names/components and recovery copy remain TODO(spec), blocking live activation until approved.
+
+ADR-0013 / ADR-0027 amendment (PR 20): `passkey` is global identity on `pospay_auth` only;
+`employee_passkeys` is tenant staff state with FORCE RLS. Application roots inject the restricted
+identity ceremony/counter facade into staff ports without a staff-to-auth business import.
+Personal staff sessions have an immutable purpose and deadline, no business grants, and require a
+live employee plus membership on each request. A session never substitutes for a per-clock assertion.

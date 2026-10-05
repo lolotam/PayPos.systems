@@ -10,8 +10,8 @@ export interface PlatformWhatsappDatabase {
   withGlobal<T>(work: (tx: Tx) => Promise<T>): Promise<T>;
   /** يفشل الاستعداد عند تغيّر الدور أو الصلاحيات أو قيد منع الاشتراك. */
   ping(): Promise<void>;
-  /** يغلق الاتصال عند إيقاف الخدمة. */
-  close(): Promise<void>;
+  /** يغلق الاتصال؛ الإيقاف القسري يصرف بدء التشغيل الفاشل دون انتظار مهلة الاتصال. */
+  close(force?: boolean): Promise<void>;
 }
 
 /** ينشئ اتصالاً خاصاً بدور الاستقبال دون كشف العميل أو قيم الاتصال في الأخطاء. */
@@ -37,7 +37,7 @@ export function createPlatformWhatsappDatabase(options: {
         }),
       ),
     ping: () => assertWhatsappInventory(db),
-    close: () => client.end({ timeout: 5 }),
+    close: (force = false) => client.end({ timeout: force ? 0 : 5 }),
   };
 }
 

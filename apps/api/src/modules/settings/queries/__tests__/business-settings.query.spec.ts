@@ -84,6 +84,7 @@ describe('business-settings.query', () => {
     const read = await businessSettingsQuery(db, noCache, TEMPLATE, access, A.business);
     expect(settingsSchema.parse(read)).toEqual({
       business_id: A.business,
+      limit_bps: null,
       default_language: 'ar',
       calendar: 'gregorian',
       tax_rule: null,

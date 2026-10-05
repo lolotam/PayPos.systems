@@ -1,3 +1,4 @@
+import { refusingStaffSessions } from '../../../test/refusing-staff-sessions.ts';
 import { Writable } from 'node:stream';
 
 import { Controller, Get, Req } from '@nestjs/common';
@@ -28,6 +29,9 @@ class ProtectedProbe {
 
 let seen: { method: string; url: string; body: string; cookie: string | null } | undefined;
 const fakeAuth: AuthService = {
+  personal: {} as AuthService['personal'],
+  passkeys: {} as AuthService['passkeys'],
+  staff: refusingStaffSessions,
   handler: async (request) => {
     seen = {
       method: request.method,

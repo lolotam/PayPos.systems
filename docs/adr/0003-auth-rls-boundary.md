@@ -10,6 +10,7 @@
 كل جدول عليه قفل (RLS) بيقول "متوريش غير بيانات الشركة بتاعتك". المشكلة إن وقت الـ login السيستم لسه ميعرفش إنت تبع أنهي شركة، ولو القفل ده على جدول المستخدمين، محدش هيعرف يدخل.
 
 الحل: **3 أنواع جداول**.
+
 - **هوية عامة** (المستخدم، الـ session، الباسورد): من غير قفل الشركة، وليها مستخدم database خاص صلاحياته على الجداول دي بس.
 - **الجسر** (`memberships`): قفل على المستخدم نفسه — كل واحد يشوف عضوياته هو بس.
 - **بيانات الشركة** (كل حاجة تانية): قفل على الشركة زي ما هو.
@@ -36,17 +37,20 @@ Every table falls in exactly one of five groups. A new table is classified in th
 
 Owned by Better Auth and reached **only** through `packages/auth`, on the dedicated `pospay_auth` role (§3).
 
-| Table | Created by | Notes |
-|---|---|---|
-| `user` | core | + `two_factor_enabled` (two-factor), `phone_number`, `phone_number_verified` (phone-number, when enabled) |
-| `session` | core | + `active_company_id` — a *hint* only, re-verified on every request (§4) |
-| `account` | core | password hash lives here; never selected by any module |
-| `verification` | core | email / reset tokens |
-| `two_factor` | `two-factor` plugin | TOTP secret + backup codes, encrypted at rest |
-| `platform_grants` | ours | global permissions not tied to a company, today only `create:companies:platform` (§3) |
-| `platform_roles` | ours | the platform staff role codes (P0-T9b.4, provisional per D-07); read by `pospay_auth`, written only by the seed; no permissions until the Platform module (Phase 5) — kept apart from tenant `roles` so no company can assign them |
-| `platform_audit_log` | ours | audit trail for platform grants and revocations; insert-only, no updates or deletes (§3) |
-| `apikey` | `api-key` plugin | created with the plugin in Phase 5 (P5-T7) — in Better Auth 1.7 it is the separate package `@better-auth/api-key`, so installing it earlier would add an unused dependency (ADR-0009, T9b); carries a non-updatable **`company_id` column** and its own scopes (§4 path C) — an API key never bypasses tenant resolution |
+| Table                        | Created by          | Notes                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `user`                       | core                | + `two_factor_enabled` (two-factor), `phone_number`, `phone_number_verified` (phone-number, when enabled)                                                                                                                                                                                                                |
+| `session`                    | core                | + `active_company_id` — a _hint_ only, re-verified on every request (§4)                                                                                                                                                                                                                                                 |
+| `account`                    | core                | password hash lives here; never selected by any module                                                                                                                                                                                                                                                                   |
+| `passkey` | ADR-0013 PR 20 | Global credential, exact pinned plugin columns; auth-only SELECT/INSERT/UPDATE/DELETE, no REFERENCES/TRIGGER/TRUNCATE; all other runtime roles and PUBLIC denied |
+| `verification`               | core                | email / reset tokens                                                                                                                                                                                                                                                                                                     |
+| `auth_otp_challenges`        | ADR-0019 PR 6       | global device-bound staff proof; keyed code MAC only; immutable context; no tenant RLS                                                                                                                                                                                                                                   |
+| `auth_notification_attempts` | ADR-0019 PR 6       | hash-only global send ledger; PREPARED is non-sendable, irreversible execution fence; no tenant RLS                                                                                                                                                                                                                      |
+| `two_factor`                 | `two-factor` plugin | TOTP secret + backup codes, encrypted at rest                                                                                                                                                                                                                                                                            |
+| `platform_grants`            | ours                | global permissions not tied to a company, today only `create:companies:platform` (§3)                                                                                                                                                                                                                                    |
+| `platform_roles`             | ours                | the platform staff role codes (P0-T9b.4, provisional per D-07); read by `pospay_auth`, written only by the seed; no permissions until the Platform module (Phase 5) — kept apart from tenant `roles` so no company can assign them                                                                                       |
+| `platform_audit_log`         | ours                | audit trail for platform grants and revocations; insert-only, no updates or deletes (§3)                                                                                                                                                                                                                                 |
+| `apikey`                     | `api-key` plugin    | created with the plugin in Phase 5 (P5-T7) — in Better Auth 1.7 it is the separate package `@better-auth/api-key`, so installing it earlier would add an unused dependency (ADR-0009, T9b); carries a non-updatable **`company_id` column** and its own scopes (§4 path C) — an API key never bypasses tenant resolution |
 
 **Not enabled:** the `organization` plugin. Its `organization`, `member` and `invitation` tables are not created. See §5.1.
 
@@ -65,23 +69,23 @@ Both are `SECURITY INVOKER` (the default). In addition, **every wrapper sets bot
 
 Policies are **split by command**. A combined `FOR ALL` policy is wrong here: `DELETE` never evaluates `WITH CHECK`, and an `UPDATE` could reach a row that is only visible through the user branch.
 
-| Table | `FOR SELECT` | `FOR INSERT / UPDATE / DELETE` |
-|---|---|---|
-| `memberships` | `USING (user_id = app_user_id() OR company_id = app_company_id())` | `USING (company_id = app_company_id())` `WITH CHECK (company_id = app_company_id())` |
-| `permission_overrides` | same as `memberships` | same as `memberships` |
+| Table                  | `FOR SELECT`                                                       | `FOR INSERT / UPDATE / DELETE`                                                       |
+| ---------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `memberships`          | `USING (user_id = app_user_id() OR company_id = app_company_id())` | `USING (company_id = app_company_id())` `WITH CHECK (company_id = app_company_id())` |
+| `permission_overrides` | same as `memberships`                                              | same as `memberships`                                                                |
 
 - The **user branch** lets a just-authenticated user list their own companies (via `withUser()`, §3) without already having a company.
-- The **company branch** lets an owner or manager administer the memberships of *their* company inside `withTenant()`. Whether they may is decided by the guard (`manage:memberships:company`), not by RLS.
-- Writes are always company-scoped: nobody inserts, changes or deletes a membership outside the current company — not even their own membership in another company, which the SELECT policy lets them *see*.
+- The **company branch** lets an owner or manager administer the memberships of _their_ company inside `withTenant()`. Whether they may is decided by the guard (`manage:memberships:company`), not by RLS.
+- Writes are always company-scoped: nobody inserts, changes or deletes a membership outside the current company — not even their own membership in another company, which the SELECT policy lets them _see_.
 
 ### 2.3 Global reference data — no RLS, read-only for the app
 
-| Table | Notes |
-|---|---|
-| `plans` | platform-level (Phase 0 T5.3) |
-| `permissions` | the catalogue of `action:resource:scope` strings, **seeded from code** on migrate |
-| `roles` | system roles have `company_id IS NULL`; custom company roles (Phase 1+) set `company_id` |
-| `role_permissions` | carries its role's `owner_key` (below) and `company_id` |
+| Table              | Notes                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `plans`            | platform-level (Phase 0 T5.3)                                                            |
+| `permissions`      | the catalogue of `action:resource:scope` strings, **seeded from code** on migrate        |
+| `roles`            | system roles have `company_id IS NULL`; custom company roles (Phase 1+) set `company_id` |
+| `role_permissions` | carries its role's `owner_key` (below) and `company_id`                                  |
 
 **Referencing a role safely.** A membership must point at a role that is either global or belongs to the membership's own company. A plain `role_id` FK allows another tenant's custom role; a composite FK on the nullable `company_id` is skipped by PostgreSQL whenever a column is `NULL` (`MATCH SIMPLE`), so it proves nothing for global roles. Instead every role has a non-null key that names its owner:
 
@@ -101,21 +105,21 @@ FOREIGN KEY (role_id, role_owner_key) REFERENCES roles (id, owner_key),
 CHECK (role_owner_key = COALESCE(company_id::text, 'global'))
 ```
 
-A membership may *use* a global role; a tenant may never *extend* one. On `role_permissions` a row with `company_id = <tenant>` must point at a role owned by that tenant, and only rows with `company_id IS NULL` — which the mutation policy never lets a tenant write — may point at a global role. So the pre-PIN `Device` role cannot gain a money-moving permission inside one tenant.
+A membership may _use_ a global role; a tenant may never _extend_ one. On `role_permissions` a row with `company_id = <tenant>` must point at a role owned by that tenant, and only rows with `company_id IS NULL` — which the mutation policy never lets a tenant write — may point at a global role. So the pre-PIN `Device` role cannot gain a money-moving permission inside one tenant.
 
 Both columns are `NOT NULL`, so the FK is always checked; the FK forces `role_owner_key` to be the role's real owner; the `CHECK` then allows only a global role or a role of the same company. The first owner's membership in `onboard-company` references the global Owner role with `role_owner_key = 'global'`. T5 adds a negative test assigning another company's custom role.
 
 `plans` and `permissions` have no RLS, and `pospay_app` has `SELECT` only. `roles` and `role_permissions` mix global and company rows, so they get **split** policies:
 
-| Table | `FOR SELECT` | `FOR INSERT / UPDATE / DELETE` |
-|---|---|---|
+| Table                       | `FOR SELECT`                                                  | `FOR INSERT / UPDATE / DELETE`                                                       |
+| --------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `roles`, `role_permissions` | `USING (company_id IS NULL OR company_id = app_company_id())` | `USING (company_id = app_company_id())` `WITH CHECK (company_id = app_company_id())` |
 
 A system row has `company_id IS NULL`, so it never satisfies the mutation policy: a tenant can read it but cannot update it, re-home it into its own company, or delete it. T5 adds a negative test for each of the three.
 
 ### 2.4 Tenant data — everything else
 
-**The tenant root.** `companies` has **no** `company_id` column: its `id` *is* the tenant key. Its policies are `FOR SELECT USING (id = app_company_id())` and `FOR INSERT / UPDATE WITH CHECK (id = app_company_id())`, with no `DELETE` grant (companies are closed, never deleted). Every child table's `company_id` references `companies(id)`. This leaves no second column that could disagree with the first.
+**The tenant root.** `companies` has **no** `company_id` column: its `id` _is_ the tenant key. Its policies are `FOR SELECT USING (id = app_company_id())` and `FOR INSERT / UPDATE WITH CHECK (id = app_company_id())`, with no `DELETE` grant (companies are closed, never deleted). Every child table's `company_id` references `companies(id)`. This leaves no second column that could disagree with the first.
 
 Every other tenant table is unchanged from `CLAUDE.md` §5: `company_id uuid NOT NULL`, `USING` **and** an explicit `WITH CHECK` on `company_id`, `FORCE ROW LEVEL SECURITY`, tenant-qualified composite foreign keys, reached only through `withTenant()`.
 
@@ -148,14 +152,14 @@ acquiring the shared platform-phone advisory lock. Errors fail closed; tenant RL
 
 ## 3. Database roles and the restricted wrappers
 
-| Role | Attributes | May touch | Used by |
-|---|---|---|---|
-| `pospay_owner` | owns every table, runs migrations | everything | `pnpm db:migrate` only — never a running container |
-| `pospay_app` | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing | tenant + bridge tables under RLS; `SELECT` on `plans` and `permissions`; `SELECT, INSERT, UPDATE, DELETE` on `roles` and `role_permissions` (the split policies in §2.3 decide which rows) | `api`, `worker` |
-| `pospay_auth` | `NOSUPERUSER`, `NOBYPASSRLS`, owns nothing | **only** the §2.1 tables, table-level grants | `packages/auth` |
-| `pospay_dispatcher` (added 2026-09-23, T7b) | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error`, `next_attempt_at`, `parked_at`; plus `EXECUTE` on the one `SECURITY DEFINER` sweep of expired idempotency keys (T7b) | the outbox dispatcher in `apps/worker`, through its own pool |
-| `pospay_notifications` (ADR-0013 Part A) | `LOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | only the three section 2.5 global WhatsApp tables with the exact table/column grants there; never `opted_back_in_at`, DELETE or TRUNCATE | API intake and inbound worker, through `createPlatformWhatsappDatabase` |
-| `pospay_suppression_reader` (ADR-0013 Part A) | `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, member of nothing | only SELECT on suppression; owns only the boolean SECURITY DEFINER function; `pospay_app` alone may EXECUTE it | function execution on the existing tenant Tx, never a pool login |
+| Role                                          | Attributes                                                                          | May touch                                                                                                                                                                                                   | Used by                                                                 |
+| --------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `pospay_owner`                                | owns every table, runs migrations                                                   | everything                                                                                                                                                                                                  | `pnpm db:migrate` only — never a running container                      |
+| `pospay_app`                                  | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing                             | tenant + bridge tables under RLS; `SELECT` on `plans` and `permissions`; `SELECT, INSERT, UPDATE, DELETE` on `roles` and `role_permissions` (the split policies in §2.3 decide which rows)                  | `api`, `worker`                                                         |
+| `pospay_auth`                                 | `NOSUPERUSER`, `NOBYPASSRLS`, owns nothing                                          | **only** the §2.1 tables, table-level grants                                                                                                                                                                | `packages/auth`                                                         |
+| `pospay_dispatcher` (added 2026-09-23, T7b)   | `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing          | **only** `outbox`: `SELECT`, and `UPDATE` of `published_at`, `attempts`, `last_error`, `next_attempt_at`, `parked_at`; plus `EXECUTE` on the one `SECURITY DEFINER` sweep of expired idempotency keys (T7b) | the outbox dispatcher in `apps/worker`, through its own pool            |
+| `pospay_notifications` (ADR-0013 Part A)      | `LOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, owns nothing, member of nothing | only the three section 2.5 global WhatsApp tables with the exact table/column grants there; never `opted_back_in_at`, DELETE or TRUNCATE                                                                    | API intake and inbound worker, through `createPlatformWhatsappDatabase` |
+| `pospay_suppression_reader` (ADR-0013 Part A) | `NOLOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`, member of nothing             | only SELECT on suppression; owns only the boolean SECURITY DEFINER function; `pospay_app` alone may EXECUTE it                                                                                              | function execution on the existing tenant Tx, never a pool login        |
 
 No **runtime** role has `BYPASSRLS`. The platform bypass role stays deferred (review finding #14).
 
@@ -165,6 +169,7 @@ has `BYPASSRLS`. It runs migrations only and never serves a request; `packages/d
 
 **`pospay_dispatcher` — the one cross-tenant reader (2026-09-23).** `pospay_app` needs a tenant to read anything, so
 it cannot drain every company's outbox. The dispatcher role can, on `outbox` **only**:
+
 - RLS stays forced on `outbox`. Its policies are role-scoped — `FOR SELECT TO pospay_dispatcher USING (true)` and
   `FOR UPDATE TO pospay_dispatcher USING (true) WITH CHECK (true)` — the one documented exception to the rule that
   every policy reads context through `app_company_id()` / `app_user_id()`.
@@ -201,10 +206,10 @@ Inside `fn`, `onboard-company` performs, in this order:
 
 Because the id is generated inside the wrapper and never accepted from outside, `withNewTenant` can only ever address a company that does not exist yet; it cannot be used to enter an existing tenant. It is importable only from `identity`'s `onboard-company` (`no-restricted-imports`).
 
-**Who may call it — platform grants.** Memberships authorize work *inside* a company; creating a company happens before any membership exists, so it needs a grant that is not tied to a company:
+**Who may call it — platform grants.** Memberships authorize work _inside_ a company; creating a company happens before any membership exists, so it needs a grant that is not tied to a company:
 
-| Table | Group | Columns | Access |
-|---|---|---|---|
+| Table             | Group                  | Columns                                                                                                            | Access                                                                                                                |
+| ----------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | `platform_grants` | global identity (§2.1) | `user_id`, `permission` (e.g. `create:companies:platform`), `granted_by`, `granted_at`, `expires_at`, `revoked_at` | read by `pospay_auth` only; written only by `pnpm platform:grant` run as `pospay_owner` — no API writes it in Phase 0 |
 
 - The guard `@RequirePlatform('create:companies:platform')` reads `principal.grants` (§4), which path A fills from the user's active platform grants.
@@ -265,17 +270,17 @@ The resolved principal, defined in `packages/auth/src/principal.ts` (T9a):
 ```ts
 type Principal = {
   kind: 'user' | 'device' | 'api-key';
-  userId: string | null;          // null for a device before a cashier PIN is entered
-  employeeId: string | null;      // set after a PIN, see §4.2
-  companyId: string | null;       // verified, never taken from the client; null only before onboarding
+  userId: string | null; // null for a device before a cashier PIN is entered
+  employeeId: string | null; // set after a PIN, see §4.2
+  companyId: string | null; // verified, never taken from the client; null only before onboarding
   deviceId: string | null;
   memberships: MembershipScope[]; // COMPANY | BUSINESS | BRANCH + scope_id, active window only
-  grants: Grant[];                // what the guard actually evaluates — see below
+  grants: Grant[]; // what the guard actually evaluates — see below
 };
 
 type Grant = {
-  permission: string;             // 'action:resource:scope'
-  effect: 'ALLOW' | 'DENY';       // DENY entries are kept, never pre-subtracted
+  permission: string; // 'action:resource:scope'
+  effect: 'ALLOW' | 'DENY'; // DENY entries are kept, never pre-subtracted
   source: 'role' | 'override' | 'device' | 'api-key' | 'platform';
   scopeType: 'PLATFORM' | 'COMPANY' | 'BUSINESS' | 'BRANCH';
   scopeId: string | null;
@@ -284,12 +289,12 @@ type Grant = {
 
 The guard evaluates `grants` only, so it has one code path for every credential. Each path fills it:
 
-| Path | `grants` come from |
-|---|---|
-| A · user | ALLOW from the role permissions of every active membership; ALLOW **and** DENY from active `permission_overrides`; ALLOW from active `platform_grants` |
-| B · device, before PIN | ALLOW from the system `Device` role, at the device's branch |
-| B · device + PIN | the employee's memberships and overrides as in path A, filtered to scopes that cover the device's branch — the `Device` grants are dropped |
-| C · API key | ALLOW from the key's scopes, at `COMPANY` scope for the key's company |
+| Path                   | `grants` come from                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A · user               | ALLOW from the role permissions of every active membership; ALLOW **and** DENY from active `permission_overrides`; ALLOW from active `platform_grants` |
+| B · device, before PIN | ALLOW from the system `Device` role, at the device's branch                                                                                            |
+| B · device + PIN       | the employee's memberships and overrides as in path A, filtered to scopes that cover the device's branch — the `Device` grants are dropped             |
+| C · API key            | ALLOW from the key's scopes, at `COMPANY` scope for the key's company                                                                                  |
 
 **Evaluation happens at the request's target scope**, not while building the list, because a broad ALLOW and a narrow DENY must both survive until the guard knows which branch is being touched:
 
@@ -302,12 +307,19 @@ So a business-wide ALLOW with a DENY on branch 3 permits branches 1, 2, 4 and re
 
 ### 4.1 Rules
 
-- **Company switching (path A).** The client may *ask* for any company id. The server honours it only if the user has an active membership in it; otherwise 403 before `withTenant()` is called. `session.active_company_id` is a convenience hint and is re-checked on every request. (T8 proves this with a spy on `withTenant`.)
+- **Company switching (path A).** The client may _ask_ for any company id. The server honours it only if the user has an active membership in it; otherwise 403 before `withTenant()` is called. `session.active_company_id` is a convenience hint and is re-checked on every request. (T8 proves this with a spy on `withTenant`.)
 - **Membership removal** takes effect on the next request: memberships are read per request, and the permission cache in Redis is invalidated on **every** change to `memberships`, `permission_overrides`, `roles`, `role_permissions` and `platform_grants` — for role changes, for every principal holding that role. The mutation and its invalidation are in the same use case; a cache key carries a version so a missed invalidation is bounded by a short TTL, not by the full cache lifetime.
 - **Membership window.** `starts_at` / `ends_at` are enforced in the query, not in a nightly job.
 - **Device revocation** is rejected on the next contact; a revoked device's unsynced sales are quarantined, never discarded (PRD §8.4).
 
 ### 4.2 `employee_ref`
+
+**PR 6 amendment (ADR-0019):** paired-device recovery may use the existing global user as the
+`cashier_pins.user_id` holder before Staff ships. Exactly one of user_id/employee_id is set; the user
+credential stays tenant data under the existing FORCE RLS and app grants, and auth gets no table access.
+This separate online-only proof issues only ADR-0019's restricted STAFF_POS session after effective
+device-scope eligibility, never an ordinary app session. The legacy employee-id verification response
+remains insufficient to issue a session. Manager reset and employee sign-in record distinct real actors.
 
 `cashier_pins.employee_id` and `memberships.employee_id` point at `staff.employees(id)` once `staff` exists (Phase 1), with a tenant-qualified FK `(company_id, employee_id)`. Until then they are plain columns with no FK, and T9b does not issue PINs to anything but test fixtures. An employee **may** be linked to a `user` (`module-map.md`: `staff → identity`), but a PIN never opens `app.`; it only identifies who is operating an already-approved device.
 
@@ -350,23 +362,27 @@ A company must never exist without an owner, and `tenancy` must not write into `
 
 Controller guard scanning cannot see routes mounted by Better Auth's handler, so they are listed here and in `apps/api/src/auth/public-routes.ts`. CI fails if a route is neither guarded nor in this list.
 
-| Route | Why public |
-|---|---|
-| `POST /v1/auth/sign-in/email` | login |
-| `POST /v1/auth/sign-out` | logout (own session only) |
-| `GET  /v1/auth/get-session` | session probe |
-| `POST /v1/auth/two-factor/verify-totp` | second factor |
-| `POST /v1/auth/forget-password` · `POST /v1/auth/reset-password` | recovery |
-| `GET  /v1/auth/verify-email` | email verification |
-| `POST /v1/devices/register` · `POST /v1/devices/claim` | device pairing with a single-use code valid 10 minutes, then a one-time token claim after a manager approves (T9b-2) |
-| `GET /v1/webhooks/whatsapp` | ADR-0013 constant-time verify-token handshake; 10/IP/minute; no tenant |
-| `POST /v1/webhooks/whatsapp` | ADR-0013 raw-body Meta signature, configured WABA/sender; 120/IP/minute plus 600/verified-sender/minute; bounded concurrency; synchronous STOP commit; no tenant |
-| `POST /v1/webhooks/*` (other providers) | signature-verified, tenant resolved from the payload (`CLAUDE.md` §6) |
-| `GET  /health` · `GET /ready` | probes |
+| Route                                                            | Why public                                                                                                                                                       |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/auth/sign-in/email`                                    | login                                                                                                                                                            |
+| `POST /v1/auth/sign-out`                                         | logout (own session only)                                                                                                                                        |
+| `GET  /v1/auth/get-session`                                      | session probe                                                                                                                                                    |
+| `POST /v1/auth/two-factor/verify-totp`                           | second factor                                                                                                                                                    |
+| `POST /v1/auth/forget-password` · `POST /v1/auth/reset-password` | recovery                                                                                                                                                         |
+| `GET  /v1/auth/verify-email`                                     | email verification                                                                                                                                               |
+| `POST /v1/devices/register` · `POST /v1/devices/claim`           | device pairing with a single-use code valid 10 minutes, then a one-time token claim after a manager approves (T9b-2)                                             |
+| `GET /v1/webhooks/whatsapp`                                      | ADR-0013 constant-time verify-token handshake; 10/IP/minute; no tenant                                                                                           |
+| `POST /v1/webhooks/whatsapp`                                     | ADR-0013 raw-body Meta signature, configured WABA/sender; 120/IP/minute plus 600/verified-sender/minute; bounded concurrency; synchronous STOP commit; no tenant |
+| `POST /v1/webhooks/*` (other providers)                          | signature-verified, tenant resolved from the payload (`CLAUDE.md` §6)                                                                                            |
+| `GET  /health` · `GET /ready`                                    | probes                                                                                                                                                           |
 
 Every public route is rate-limited in Redis **except `/health`**, which must report process liveness even when Redis is down or the limit is exhausted — otherwise an orchestrator restarts a healthy API during a Redis incident. `/ready` still reports Redis. Sign-up is **not** public: companies are created by `onboard-company`; users by the operator script `platform:create-user` in Phase 0. Inviting users into a company is a later deliverable (issue #19).
 
 ## 6a. Revisions
+
+**2026-10-02, PR 6 / ADR-0019:** the two OTP tables are global identity, owned by pospay_owner. pospay_auth has SELECT, column INSERT, DELETE for bounded 30-day retention and only challenge UPDATE(status,failed_attempts,code_mac,consumed_at,finished_at,updated_at) and attempt UPDATE(status,authorized_at,execution_id,sending_at,finished_at,failure_code,outcome_known,provider_message_digest,updated_at). No other runtime/PUBLIC grants, TRUNCATE, REFERENCES, TRIGGER, CREATE, membership or BYPASSRLS. Auth additionally receives only EXECUTE on platform_whatsapp_is_suppressed(bytea), never a global messaging table grant. This supersedes the pre-PR-6 auth function denial in §§2.5/3.
+
+Session server-only purpose=STAFF_POS, immutable device context/authenticated time and eight-hour absolute deadline are global credential restrictions, never membership authority. Both Device and isolated host-only staff cookie are required on explicitly permitted staff routes; ordinary authenticated/admin/platform/Better Auth routes reject this purpose, including normal-cookie token substitution. Device-only OTP request/verify are explicitly guarded, not public routes. Auth owns derivation, MAC, consumption, Better Auth issuance/rotation and narrow worker execution/retention facades. The device-proven eligibility reader uses only withTenant of the authenticated device company as pospay_app; candidate lookup never permits withUser or auth tenant access. User-session membership discovery stays unchanged.
 
 **2026-09-22, after Codex review of PR #5:** §4 split into three resolution paths (device tokens and API keys cannot go through `withUser()`); §2.2 and §2.3 policies split by command, so a tenant cannot delete or re-home a global role; every policy reads context through the `NULLIF` helpers, and both wrappers always set both settings.
 
@@ -406,10 +422,10 @@ to the operator.
 
 ## 8. Alternatives rejected
 
-| Alternative | Why not |
-|---|---|
-| `BYPASSRLS` on the auth role | one leaked query path reads every tenant — the exact risk RLS exists to remove |
-| `company_id` on `user` / `session` | a user belongs to several companies; the column would lie |
+| Alternative                                 | Why not                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------ |
+| `BYPASSRLS` on the auth role                | one leaked query path reads every tenant — the exact risk RLS exists to remove |
+| `company_id` on `user` / `session`          | a user belongs to several companies; the column would lie                      |
 | Better Auth `organization` as the authority | two authorities for permissions (§5.1); its model has no BUSINESS/BRANCH scope |
-| Auth in a separate database | cross-database consistency for `onboard-company` with no gain at this size |
-| Per-MAU hosted auth (Clerk, Auth0) | rejected earlier on cost (~500k MAU at 50 KWD/shop) |
+| Auth in a separate database                 | cross-database consistency for `onboard-company` with no gain at this size     |
+| Per-MAU hosted auth (Clerk, Auth0)          | rejected earlier on cost (~500k MAU at 50 KWD/shop)                            |
