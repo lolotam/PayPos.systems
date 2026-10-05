@@ -89,13 +89,15 @@ In hindsight: **DeepSeek won the race; MiMo had the better design.**
 
 ### 7. Recommendation
 
+**Owner decision (2026-10-05):** MiMo V2.6 Pro is removed from the project for every role. Design advice before risky slices now comes from two read-only advisors: Codex astra 6 medium (`gpt-6-astra`) and Claude Code Fable 5.1 medium (`claude-fable-5-1`). The trial results above stay as the historical record.
+
+
 1. **Default implementer: DeepSeek 4.1 flash** for well-specified slices. It is cheap, fast, stays in scope, and its
    defects are local and fixable. Always follow it with Codex review + fix and a Claude review.
-2. **Use MiMo V2.6 Pro for design**, not implementation. Before a slice that parses files, runs long work, or crosses
-   the 200 ms line, ask MiMo for the architecture (read-only), then hand that design to DeepSeek to implement.
-3. **Never let MiMo implement without a scope fence.** Its brief must list the files it may touch, and the review must
-   diff everything outside that list.
-4. For both: a green `pnpm check` on delivery means nothing about safety. Both shipped a P1 with green gates.
+2. **Design advice comes from two read-only advisors**, not from MiMo: before a slice that parses files, runs long
+   work, or crosses the 200 ms line, Codex astra 6 medium and Claude Code Fable 5.1 medium propose the architecture,
+   then DeepSeek implements it.
+3. For both models in this comparison: a green `pnpm check` on delivery means nothing about safety. Both shipped a P1 with green gates.
 
 ---
 
@@ -174,10 +176,11 @@ In hindsight: **DeepSeek won the race; MiMo had the better design.**
 
 ### ٧. التوصية
 
+**قرار صاحب المشروع (5 أكتوبر 2026):** MiMo V2.6 Pro اتشال من المشروع في كل الأدوار. الاستشارة في التصميم قبل المهام الحساسة بقت من مستشارين اتنين، قراءة بس: Codex astra 6 medium (`gpt-6-astra`) وClaude Code Fable 5.1 medium (`claude-fable-5-1`). نتايج التجربة اللي فوق بتفضل سجل تاريخي.
+
+
 1. **المنفّذ الأساسي: DeepSeek 4.1 flash** للمهام اللي الـ spec بتاعها واضح: رخيص وسريع وبيلتزم بالحدود، وأخطاؤه محلية
    وسهل تتصلّح. وبعده دايماً مراجعة وتصليح من Codex ومراجعة مني.
-2. **MiMo V2.6 Pro للتصميم مش للتنفيذ:** قبل أي مهمة فيها قراءة ملفات أو شغل طويل أو قريبة من حد الـ 200 ملي ثانية، نطلب من
-   MiMo التصميم (قراءة بس)، وبعدين DeepSeek ينفّذه.
-3. **MiMo ما ينفّذش أبداً من غير حدود واضحة:** الـ brief بتاعه لازم يحدد الملفات المسموح يلمسها، والمراجعة لازم تفحص أي تغيير
-   برّه القايمة دي.
-4. **للاتنين:** `pnpm check` أخضر وقت التسليم مالوش علاقة بالأمان. الاتنين سلّموا P1 والـ gates خضرا.
+2. **الاستشارة في التصميم من مستشارين اتنين قراءة بس، مش من MiMo:** قبل أي مهمة فيها قراءة ملفات أو شغل طويل أو قريبة من حد الـ 200 ملي ثانية،
+   Codex astra 6 medium وClaude Code Fable 5.1 medium يقترحوا التصميم، وبعدين DeepSeek ينفّذه.
+3. **للموديلين في المقارنة دي:** `pnpm check` أخضر وقت التسليم مالوش علاقة بالأمان. الاتنين سلّموا P1 والـ gates خضرا.
