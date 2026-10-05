@@ -50,6 +50,7 @@ import { permissionPaths, permissionSchemas } from './identity/permissions-opena
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
 import { customer, findOrCreateCustomerInput } from './customers.js';
 import { customerPaths } from './customers-openapi.js';
+import { catalogPaths, serviceSchemas } from './catalog/catalog-openapi.js';
 import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
 import {
   staffOtpRequestInput,
@@ -142,6 +143,7 @@ const SCHEMAS = [
   employeeImportStatus,
   customer,
   findOrCreateCustomerInput,
+  ...serviceSchemas,
   attendanceQrToken,
   attendanceQrBranch,
   attendanceQrIssue,
@@ -232,6 +234,7 @@ const PATHS = {
   ...leavePaths,
   ...permissionPaths,
   ...customerPaths,
+  ...catalogPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(

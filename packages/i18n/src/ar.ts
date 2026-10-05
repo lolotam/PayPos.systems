@@ -7,6 +7,7 @@ import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
 import { employeeDocumentsAr } from './employee-documents-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
+import { catalogServicesAr, serviceErrorsAr } from './catalog-services.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
@@ -41,6 +42,8 @@ export const ar: Catalog = {
     loginStaffBranch: 'الدخول إلى تطبيق الموظفين',
     clockAttendanceBranch: 'تسجيل حضور الموظفين بالكارت على جهاز مثبّت',
     createCompaniesPlatform: 'إنشاء شركات على المنصة',
+    readServicesBusiness: 'عرض خدمات النشاط',
+    manageServicesBusiness: 'إدارة خدمات النشاط',
   },
   brand: {
     title: 'PosPay — بوس باي',
@@ -227,6 +230,7 @@ export const ar: Catalog = {
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
     EMPLOYEE_CARD_CODE_IN_USE: 'كود الكارت مستخدم بالفعل لموظف نشط آخر في الشركة.',
     ...employeeImportErrorsAr,
+    ...serviceErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
@@ -294,6 +298,7 @@ export const ar: Catalog = {
     created: 'تمت إضافة الموظف:',
     invalid: 'راجع بيانات الموظف والتواريخ ومعرف المستخدم.',
   },
+  catalogServices: catalogServicesAr,
   admin: {
     appName: 'PosPay',
     signInTitle: 'تسجيل الدخول',

@@ -6,6 +6,7 @@ import { employeeDocumentsEn } from './employee-documents-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
+import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   employeeDocuments: employeeDocumentsEn,
@@ -39,6 +40,8 @@ export const en = {
     loginStaffBranch: 'Sign in to staff app',
     clockAttendanceBranch: 'Clock staff in by card on a paired device',
     createCompaniesPlatform: 'Create companies on the platform',
+    readServicesBusiness: 'Read business services',
+    manageServicesBusiness: 'Manage business services',
   },
   brand: {
     title: 'PosPay — بوس باي',
@@ -232,6 +235,7 @@ export const en = {
     EMPLOYEE_CARD_CODE_IN_USE:
       'This card code is already active for another employee in the company.',
     ...employeeImportErrorsEn,
+    ...serviceErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
@@ -304,6 +308,7 @@ export const en = {
     created: 'Employee created:',
     invalid: 'Check the employee details, dates and user ID.',
   },
+  catalogServices: catalogServicesEn,
   admin: {
     appName: 'PosPay',
     signInTitle: 'Sign in',

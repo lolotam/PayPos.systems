@@ -80,14 +80,14 @@ async function applyReferenceMigrations() {
     '0059_2026-10-03_identity-role-followups.sql',
     '0064_2026-10-04_leave-default-bundles.sql',
     '0070_2026-10-04_leave-decision-access.sql',
-    '0082_2026-10-05_employee-cards-rls.sql',
+    '0086_2026-10-05_employee-cards-rls.sql',
   ].map((name) => {
     const source = readFileSync(
       new URL(`../../../../../../packages/db/migrations/${name}`, import.meta.url),
       'utf8',
     );
     // الجدول وسياساته موجودان في الـ fixture؛ هذا الاختبار يعيد بيانات المرجع فقط من migration الكروت.
-    return name.startsWith('0082_')
+    return name.startsWith('0086_')
       ? source
           .split('--> statement-breakpoint')
           .filter((statement) => /^\s*INSERT INTO (permissions|role_permissions)\b/.test(statement))

@@ -1,6 +1,6 @@
 {
-  "id": "daeab564-9092-4227-96c1-c44e848a8edf",
-  "prevId": "d3d947e4-ab86-4d3b-8025-8c46fd1a126f",
+  "id": "a83308c2-2df3-4af8-a0ca-52737db6d2a2",
+  "prevId": "a7145803-cfcf-47ab-a6ac-656f767b7e59",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -9360,280 +9360,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.employee_cards": {
-      "name": "employee_cards",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "employee_id": {
-          "name": "employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "card_code_hash": {
-          "name": "card_code_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "card_code_suffix": {
-          "name": "card_code_suffix",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "issued_at": {
-          "name": "issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "issued_by": {
-          "name": "issued_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revoked_by": {
-          "name": "revoked_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "employee_cards_active_employee_key": {
-          "name": "employee_cards_active_employee_key",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"employee_cards\".\"revoked_at\" IS NULL",
-          "concurrently": false
-        },
-        "employee_cards_active_code_key": {
-          "name": "employee_cards_active_code_key",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "card_code_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"employee_cards\".\"revoked_at\" IS NULL",
-          "concurrently": false
-        },
-        "employee_cards_employee_history_idx": {
-          "name": "employee_cards_employee_history_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "issued_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "employee_cards_business_idx": {
-          "name": "employee_cards_business_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "employee_cards_issued_by_idx": {
-          "name": "employee_cards_issued_by_idx",
-          "columns": [
-            {
-              "expression": "issued_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "employee_cards_revoked_by_idx": {
-          "name": "employee_cards_revoked_by_idx",
-          "columns": [
-            {
-              "expression": "revoked_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "employee_cards_company_id_companies_id_fk": {
-          "name": "employee_cards_company_id_companies_id_fk",
-          "tableFrom": "employee_cards",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "employee_cards_issued_by_user_id_fk": {
-          "name": "employee_cards_issued_by_user_id_fk",
-          "tableFrom": "employee_cards",
-          "columnsFrom": [
-            "issued_by"
-          ],
-          "tableTo": "user",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "employee_cards_revoked_by_user_id_fk": {
-          "name": "employee_cards_revoked_by_user_id_fk",
-          "tableFrom": "employee_cards",
-          "columnsFrom": [
-            "revoked_by"
-          ],
-          "tableTo": "user",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "employee_cards_employee_fk": {
-          "name": "employee_cards_employee_fk",
-          "tableFrom": "employee_cards",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "employee_id"
-          ],
-          "tableTo": "employees",
-          "columnsTo": [
-            "company_id",
-            "business_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "employee_cards_pkey": {
-          "name": "employee_cards_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "employee_cards_code_hash": {
-          "name": "employee_cards_code_hash",
-          "value": "\"employee_cards\".\"card_code_hash\" ~ '^[a-f0-9]{64}$'"
-        },
-        "employee_cards_code_suffix": {
-          "name": "employee_cards_code_suffix",
-          "value": "char_length(\"employee_cards\".\"card_code_suffix\") BETWEEN 0 AND 4 AND \"employee_cards\".\"card_code_suffix\" ~ '^[!-~]*$'"
-        },
-        "employee_cards_revoked_pair": {
-          "name": "employee_cards_revoked_pair",
-          "value": "(\"employee_cards\".\"revoked_at\" IS NULL) = (\"employee_cards\".\"revoked_by\" IS NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.attendance_device_signals": {
       "name": "attendance_device_signals",
       "schema": "",
@@ -10022,6 +9748,120 @@
       },
       "isRLSEnabled": false
     },
+    "public.employee_document_expiry_notices": {
+      "name": "employee_document_expiry_notices",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type_code": {
+          "name": "type_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_on": {
+          "name": "expires_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notified_at": {
+          "name": "notified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipients_attached_at": {
+          "name": "recipients_attached_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "employee_document_expiry_notices_company_id_companies_id_fk": {
+          "name": "employee_document_expiry_notices_company_id_companies_id_fk",
+          "tableFrom": "employee_document_expiry_notices",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "tableTo": "companies",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "employee_document_expiry_notices_document_fk": {
+          "name": "employee_document_expiry_notices_document_fk",
+          "tableFrom": "employee_document_expiry_notices",
+          "columnsFrom": [
+            "company_id",
+            "document_id"
+          ],
+          "tableTo": "employee_documents",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "employee_document_expiry_notices_pkey": {
+          "name": "employee_document_expiry_notices_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "employee_document_expiry_notices_key": {
+          "name": "employee_document_expiry_notices_key",
+          "columns": [
+            "company_id",
+            "document_id",
+            "expires_on"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.employee_documents": {
       "name": "employee_documents",
       "schema": "",
@@ -10121,6 +9961,34 @@
           "columns": [
             {
               "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "where": "\"employee_documents\".\"replaced_at\" IS NULL AND \"employee_documents\".\"expires_on\" IS NOT NULL",
+          "concurrently": false
+        },
+        "employee_document_expiry_scan_idx": {
+          "name": "employee_document_expiry_scan_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

@@ -572,15 +572,43 @@
     {
       "idx": 81,
       "version": "7",
-      "when": 1791213816581,
-      "tag": "0081_2026-10-05_employee-cards",
+      "when": 1791200226801,
+      "tag": "0081_2026-10-05_employee-document-expiry-notices",
       "breakpoints": true
     },
     {
       "idx": 82,
       "version": "7",
-      "when": 1791213825399,
-      "tag": "0082_2026-10-05_employee-cards-rls",
+      "when": 1791200243052,
+      "tag": "0082_2026-10-05_employee-document-expiry-notices-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1791212491038,
+      "tag": "0083_2026-10-05_catalog-services",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1791212493654,
+      "tag": "0084_2026-10-05_catalog-services-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1791225179856,
+      "tag": "0085_2026-10-05_employee-cards",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1791225181660,
+      "tag": "0086_2026-10-05_employee-cards-rls",
       "breakpoints": true
     }
   ]

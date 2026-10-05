@@ -104,7 +104,7 @@ all optional settings empty if startup wiring changes.
   treat the fixed device as `OK` because it is physically installed at the branch. Recommended
   answer: keep `NONE` until the owner decides, so the report stays truthful; revisit as an
   owner decision before the exception board (PR 27).
-- CB-Q2 — resolved by the review request: store only a company-scoped HMAC and a suffix that never contains the whole code; hash lookups and keyed idempotency fingerprints, no plaintext column. Regenerated this slice's 0081/0082 (ADR-0036).
+- CB-Q2 — resolved by the review request: store only a company-scoped HMAC and a suffix that never contains the whole code; hash lookups and keyed idempotency fingerprints, no plaintext column. Regenerated this slice's 0085/0086 (ADR-0036).
 - CB-Q3 — who may clock by card: `clock:attendance:branch` is granted by default to the
   reception-capable human roles (owner, general manager, business manager, branch manager,
   shift supervisor, cashier). The review request makes Cashier staff login a default (previously optional in PR 7a), so a normal reception Cashier can use both capabilities. Owner/admin status still never enables staff login. Other manager/supervisor operators require a separate Cashier membership or an explicitly configured custom reception role. Confirm whether any further human role should gain login by default.

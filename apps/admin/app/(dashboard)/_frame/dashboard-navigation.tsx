@@ -13,6 +13,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
+import { CatalogNavItem } from './catalog-nav-item';
 
 export function DashboardNavigation() {
   const locale = useLocale();
@@ -51,6 +52,7 @@ export function DashboardNavigation() {
       >
         <Link href="/permissions" />
       </AppSidebarItem>
+      <CatalogNavItem />
       <AppSidebarItem
         asChild
         icon={<UserRound />}

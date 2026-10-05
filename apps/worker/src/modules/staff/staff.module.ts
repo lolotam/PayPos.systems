@@ -12,6 +12,9 @@ import { CommitEmployeeImport } from './use-cases/commit-employee-import/commit-
 import { RecoverEmployeeImports } from './use-cases/recover-employee-imports/recover-employee-imports.ts';
 import { employeeImportRecoveryTransactions } from './persistence/employee-import-recovery.transactions.ts';
 import { startEmployeeImportRecoveryProcessor } from './jobs/employee-import-recovery.processor.ts';
+import { DetectDocumentExpiries } from './use-cases/detect-document-expiries/detect-document-expiries.ts';
+import { documentExpiryTransactions } from './persistence/document-expiry.transactions.ts';
+import { startDocumentExpiryProcessor } from './jobs/document-expiry.processor.ts';
 
 // أحداث الحضور التي يعرفها هذا الإصدار؛ AttendanceClockedIn وحده يسجل جدول الشركة ولا مستهلك أعمال لأي منها.
 const ATTENDANCE_EVENT_TYPES = [
@@ -33,6 +36,11 @@ export function startStaffWorker(
 ) {
   const detect = new DetectMissedOuts(missedOutTransactions(database, ids), clock);
   const processor = startMissedOutProcessor(detect, redisUrl, prefix);
+  const expiry = startDocumentExpiryProcessor(
+    new DetectDocumentExpiries(documentExpiryTransactions(database, ids), clock),
+    redisUrl,
+    prefix,
+  );
   const imports = startEmployeeImportProcessor(
     new CommitEmployeeImport(employeeImportTransactions(database, ids), ids, clock),
     redisUrl,
@@ -44,20 +52,22 @@ export function startStaffWorker(
     prefix,
   );
   return {
-    eventTypes: [...ATTENDANCE_EVENT_TYPES, 'EmployeeImportCommitRequested'],
+    eventTypes: [...ATTENDANCE_EVENT_TYPES, 'EmployeeImportCommitRequested', 'EmployeeDocumentRecorded'],
     deliver: (
       event: Parameters<typeof processor.deliver>[0],
       next: Parameters<typeof processor.deliver>[1],
     ) =>
       event.eventType === 'EmployeeImportCommitRequested'
         ? recovery.deliver(event, () => imports.deliver(event))
-        : processor.deliver(event, next),
+        : expiry.deliver(event, () => processor.deliver(event, next)),
     ready: async () => {
       await processor.ready();
       await imports.ready();
       await recovery.ready();
+      await expiry.ready();
     },
     close: async () => {
+      await expiry.close();
       await imports.close();
       await recovery.close();
       await processor.close();

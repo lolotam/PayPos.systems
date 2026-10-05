@@ -103,6 +103,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
 | `staff` | `EmployeeDocumentReadAccess`, document-type authority | `identity`, `tenancy` | locked read/manage files and manage:document-types:company; business timezone for the expiry badge (ADR-0031) |
+| worker `staff` | `DocumentExpiryTransactions.timeZone` | worker `tenancy` | business timezone for the expiry window, reusing ADR-0031's staff-to-tenancy read; discovery stays on outbox delivery (ADR-0032) |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
@@ -159,7 +160,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `SalaryChanged`                                                             | `staff`         | `commissions`                                                                                     |
 | `LeaveRequested` / `LeaveCancelled` / `LeaveApproved` / `LeaveRejected` / `LeaveRevoked` | `staff` | no consumer yet; Phase 1 leave screens poll, attendance PR 26 will read approved intervals; staff in-app delivery is DL-Q3 in spec 025 |
 | `EmployeePasskeyUnbound`                                                    | `staff`         | None in Phase 1; known to the dispatcher, admin polls binding history (ADR-0029)                     |
-| `EmployeeDocumentRecorded` | `staff` | None in Phase 1; known to the dispatcher. PR 15 reads `expires_on` and `alert_days` directly (ADR-0031) |
+| `EmployeeDocumentRecorded` | `staff` | No business consumer. Worker `staff` registers the company's document-expiry schedule on delivery (PR 15, ADR-0032 pattern); the job reads `expires_on` and `alert_days` from the tables (ADR-0031) |
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
@@ -285,6 +286,7 @@ reads:
   - staff -> identity.lockAttendanceDeviceContext @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
   - staff -> identity.readEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
+  - staff -> tenancy.businessTimeZone @ apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be

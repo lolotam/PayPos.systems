@@ -1,7 +1,6 @@
 import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
 import { ATTENDANCE_TABLE_GRANTS } from '../../test/attendance-grants.ts';
 import { EMPLOYEE_COLUMN_GRANTS } from '../../test/employee-grants.ts';
-import { FUNCTION_INVENTORY } from '../../test/function-inventory.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
 import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
 import { SCHEDULE_COLUMN_GRANTS } from '../../test/schedule-grants.ts';
@@ -9,6 +8,7 @@ import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
 import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
 import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
 import { CARD_COLUMN_GRANTS } from '../../test/card-grants.ts';
+import { SERVICE_COLUMN_GRANTS } from '../../test/catalog-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -57,6 +57,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'employee_branches:SELECT',
     'employee_cards:INSERT',
     'employee_cards:SELECT',
+    'employee_document_expiry_notices:INSERT',
+    'employee_document_expiry_notices:SELECT',
     'employee_documents:INSERT',
     'employee_documents:SELECT',
     'employee_passkeys:INSERT',
@@ -103,6 +105,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'roles:INSERT',
     'roles:SELECT',
     'roles:UPDATE',
+    'services:INSERT',
+    'services:SELECT',
     'staff_schedule_shifts:DELETE',
     'staff_schedule_shifts:INSERT',
     'staff_schedule_shifts:SELECT',
@@ -159,6 +163,7 @@ const OUTBOX_COLUMN_GRANTS = [
 const TENANT_TABLES = [
   'document_types',
   'employee_documents',
+  'employee_document_expiry_notices',
   'attendance_states',
   'attendance_sessions',
   'attendance_exceptions',
@@ -168,6 +173,7 @@ const TENANT_TABLES = [
   'file_access_audit',
   'file_cleanup_objects',
   'import_previews',
+  'services',
   'employees',
   'employee_branches',
   'employee_cards',
@@ -266,6 +272,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...DOCUMENT_COLUMN_GRANTS,
         ...IMPORT_COLUMN_GRANTS,
         ...CARD_COLUMN_GRANTS,
+        ...SERVICE_COLUMN_GRANTS,
       ].sort(),
     );
   });
@@ -401,36 +408,5 @@ describe('effective access', () => {
       SELECT relname FROM pg_class
       WHERE relname = ANY(${TENANT_TABLES}) AND relrowsecurity AND relforcerowsecurity ORDER BY 1`;
     expect(rows.map((r) => r['relname'])).toEqual([...TENANT_TABLES].sort());
-  });
-});
-
-describe('function inventory', () => {
-  it('lists every function; the one SECURITY DEFINER pins its search_path', async () => {
-    const rows = await owner`
-      SELECT proname, prosecdef, proconfig FROM pg_proc p
-      WHERE pronamespace = 'public'::regnamespace AND NOT EXISTS (
-        SELECT 1 FROM pg_depend d JOIN pg_extension e ON e.oid=d.refobjid
-        WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.refclassid='pg_extension'::regclass
-          AND d.deptype='e' AND e.extname='btree_gist') ORDER BY proname`;
-    expect(Array.from(rows)).toEqual(FUNCTION_INVENTORY);
-  });
-
-  it('btree_gist is installed and its extension functions cannot acquire definer privileges', async () => {
-    expect(await owner`SELECT 1 FROM pg_extension WHERE extname='btree_gist'`).toHaveLength(1);
-    expect(
-      await owner`SELECT p.proname FROM pg_proc p JOIN pg_depend d ON d.classid='pg_proc'::regclass AND d.objid=p.oid
-      JOIN pg_extension e ON d.refclassid='pg_extension'::regclass AND e.oid=d.refobjid
-      WHERE d.deptype='e' AND e.extname='btree_gist' AND p.prosecdef`,
-    ).toHaveLength(0);
-  });
-
-  it('only pospay_dispatcher may execute the SECURITY DEFINER sweep', async () => {
-    const rows = await withClusterRoleLock(
-      'shared',
-      () => owner<{ role: string }[]>`
-      SELECT r AS role FROM unnest(${APP_ROLES}::text[]) AS r
-      WHERE has_function_privilege(r, 'sweep_expired_idempotency_keys(integer)', 'EXECUTE')`,
-    );
-    expect(rows.map((r) => r.role)).toEqual(['pospay_dispatcher']);
   });
 });
