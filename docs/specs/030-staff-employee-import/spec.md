@@ -95,11 +95,19 @@ recommend deleting expired previews after 30 days, subject to the owner's retent
 
 ### Edge cases
 
-Before ExcelJS loads any sheet, every worksheet XML part is structurally bounded: at most four
-worksheets, 502 physical rows (header plus the 501st data row needed for the named row-limit error),
-and eight columns (the six template columns plus two for nearby unexpected-column feedback).
-Oversized dimensions, merged ranges, data-validation ranges or defined names (whole rows, whole
-columns and formulas included), even in ignored sheets, return IMPORT_FILE_CONTENT_INVALID.
+Before ExcelJS loads, a single bounded scan of the inflated workbook parts uses one aggregate
+65,536-position budget: column declarations charge `max` including gaps; merged ranges, validation
+ranges and ordinary defined names charge their area, including every duplicate. Dimensions charge
+their declared area conservatively. At most four worksheets and eight columns are accepted. The first
+worksheet, resolved through workbook relationships, keeps the 502 physical-row bound (header plus
+the 501st data row needed for the named row-limit error); other sheets use a budget-derived 8,192-row
+ceiling. The generated reference sheet puts roles beside branches and is verified with 2,000 branches;
+this is a template compatibility guarantee, not a business branch limit. The budget exceeds six times
+the combined 502×8 data and 2001×3 reference grids, leaving headroom for ordinary saved metadata.
+Bounded `_xlnm.Print_Titles` row/column spans and `_xlnm.Print_Area` cell ranges are accepted as print
+metadata without cell expansion. Other defined names must contain only complete cell references.
+Markup/entities in name text, entities in validated attributes, excessive aggregate expansion or
+oversized coordinates, including ignored sheets, return IMPORT_FILE_CONTENT_INVALID.
 ZIP input must have exactly one EOCD signature, an EOF-aligned comment, a consistent central directory,
 and no ZIP64 or trailing bytes. Commit expiry and requested_at use one injected Clock instant;
 equality with expires_at is expired. Duplicate aliases of one branch remain resolvable; only different

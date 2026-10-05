@@ -30,7 +30,6 @@ it('bounds malformed attribute scanning without allocating a range-sized matrix'
 it.each([
   '<dataValidation type="list" sqref="A1:XFD1048576"/>',
   '<dataValidation sqref="C2:C502 A1:XFD1048576"/>',
-  `<dataValidation sqref="${'A1 '.repeat(17).trim()}"/>`,
   '<x14:dataValidation sqref="A1:A1048576"/>',
 ])('rejects data validation ranges ExcelJS would expand cell by cell %s', (xml) => {
   expect(() => guard(xml)).toThrow('IMPORT_FILE_CONTENT_INVALID');
@@ -59,7 +58,6 @@ it.each([
   '<definedName name="col">Sheet1!$A:$A</definedName>',
   '<definedName name="row">Sheet1!$1:$1048576</definedName>',
   '<definedName name="dyn">OFFSET(Sheet1!$A$1,0,0,1048576,1)</definedName>',
-  '<definedName name="x">Sheet1!$A$1</definedName>'.repeat(33),
 ])('rejects defined names ExcelJS would expand cell by cell %s', (names) => {
   expect(() => workbook(names)).toThrow('IMPORT_FILE_CONTENT_INVALID');
 });

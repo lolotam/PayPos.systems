@@ -163,12 +163,20 @@ ExcelJS parse, row validation and saved preview) measured 92.42, 90.30, 87.64, 8
 median **88.85 ms**, maximum **92.42 ms**, on the worktree's isolated test DB. This measures the
 maximum-field-length template case, not every possible malformed ZIP or extra-sheet payload.
 Preview remains synchronous for this review round.
-Third-layer hardening scans dimensions, merged ranges and data-validation ranges in every worksheet, and
-defined names in the workbook, before ExcelJS loads: ExcelJS expands all four cell by cell. Whole-row
-or whole-column defined names and formula-based names are refused.
-Bounds are 502 physical rows, eight columns and four worksheet parts: the row-limit error still
-sees the 501st data row; two spare columns retain unexpected-column feedback; the two-sheet template
-has room for two additional sheets. Oversized structure, including ignored-sheet merges, is 422
+Structural hardening scans each inflated workbook part once before ExcelJS loads, sharing one
+65,536-position expansion budget across all worksheets and workbook names. Column declarations charge
+their `max` (including gaps before `min`); merges, validation ranges and ordinary defined names charge
+their cell area, counting duplicates. Dimensions also charge their declared area conservatively.
+The budget exceeds six times the combined 502×8 data grid and 2001×3 reference grid, leaving room for
+normal saved merges, validations and names while rejecting repeated-range amplification immediately.
+The first worksheet is resolved from workbook relationships and retains 502 physical rows and eight
+columns; other worksheets retain eight columns and have a budget-derived 8,192-row ceiling. Four
+worksheet parts remain the maximum. The reference template places roles beside branches, and its
+round-trip guarantee covers 2,000 branches (not a business limit). `_xlnm.Print_Titles` and
+`_xlnm.Print_Area` accept bounded print coordinates without charging cell expansion: ExcelJS 4.4.0
+`workbook-xform.js` removes them before `DefinedNames.addEx`. Other names accept only complete cell
+references. Markup/entities in name text and entities in validated attributes are refused to keep the
+guard and ExcelJS interpretations identical. Oversized structure, including ignored-sheet ranges, is 422
 IMPORT_FILE_CONTENT_INVALID. Exactly one EOCD signature, an EOF-aligned ZIP comment, consistent
 central/local metadata and no ZIP64 or alternate paths prevent guard/parser directory disagreements.
 API expiry and requested_at share one Clock instant, with equality expired. Aliases of one branch

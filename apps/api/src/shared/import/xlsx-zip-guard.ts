@@ -1,5 +1,12 @@
 import { inflateRawSync } from 'node:zlib';
-import { guardWorkbookXml, guardWorksheetXml, type XlsxStructureBounds } from './xlsx-xml-guard.ts';
+import {
+  createXlsxExpansion,
+  guardWorkbookXml,
+  guardWorksheetXml,
+  referenceBounds,
+  xmlAttribute,
+  type XlsxStructureBounds,
+} from './xlsx-xml-guard.ts';
 
 const MAX_EXPANDED_BYTES = 5 * 1024 * 1024;
 const INVALID = () => new Error('IMPORT_FILE_CONTENT_INVALID');
@@ -100,23 +107,49 @@ export function guardXlsxZip(bytes: Buffer, bounds?: XlsxStructureBounds): void 
   const central = directory(bytes);
   let at = central.start;
   let total = 0;
-  let worksheets = 0;
+  const parts: { path: string; inflated: Buffer }[] = [];
   const paths = new Set<string>();
   for (let entry = 0; entry < central.entries; entry += 1) {
     const { path, inflated, next } = inflateEntry(bytes, at, central, total);
     if (paths.has(path)) throw INVALID();
     paths.add(path);
-    // ExcelJS يطابق اسم الورقة دون مراسي؛ نفحص أيضاً الأسماء ذات بادئة/لاحقة كي لا تفلت ورقة محملة.
-    const worksheet =
-      /^xl\/worksheets\/[^/]+\.xml$/.test(path) || /xl\/worksheets\/sheet\d+[.]xml/.test(path);
-    if (bounds !== undefined && worksheet) {
-      worksheets += 1;
-      if (worksheets > bounds.maxWorksheets) throw INVALID();
-      guardWorksheetXml(inflated, bounds);
-    }
-    if (bounds !== undefined && path === 'xl/workbook.xml') guardWorkbookXml(inflated, bounds);
+    if (bounds !== undefined) parts.push({ path, inflated });
     total += inflated.length;
     at = next;
   }
   if (at !== central.end) throw INVALID();
+  if (bounds !== undefined) guardParts(parts, bounds);
+}
+
+function guardParts(
+  parts: readonly { path: string; inflated: Buffer }[],
+  bounds: XlsxStructureBounds,
+): void {
+  const expansion = createXlsxExpansion();
+  const workbook = parts.find((part) => part.path === 'xl/workbook.xml');
+  if (workbook !== undefined) guardWorkbookXml(workbook.inflated, bounds, expansion);
+  const relationships = parts.find((part) => part.path === 'xl/_rels/workbook.xml.rels');
+  let firstPath: string | undefined;
+  if (relationships !== undefined && expansion.firstRelationship !== undefined) {
+    for (const tag of relationships.inflated
+      .toString('utf8')
+      .matchAll(/<Relationship\b([^<>]*)>/g)) {
+      const attributes = tag[1] ?? '';
+      const id = xmlAttribute(attributes, 'Id');
+      const target = xmlAttribute(attributes, 'Target') ?? '';
+      if (id === expansion.firstRelationship)
+        firstPath = `xl/${target.replace(/^(\s|\/xl\/)+/, '')}`;
+    }
+  }
+  let worksheets = 0;
+  for (const { path, inflated } of parts) {
+    // ExcelJS يطابق دون مراسي؛ فحص الأسماء البديلة يحفظ اتفاق المحللين حتى في الأوراق المهملة.
+    if (!/^xl\/worksheets\/[^/]+\.xml$/.test(path) && !/xl\/worksheets\/sheet\d+[.]xml/.test(path))
+      continue;
+    worksheets += 1;
+    if (worksheets > bounds.maxWorksheets) throw INVALID();
+    const sheetBounds =
+      firstPath === undefined || path === firstPath ? bounds : referenceBounds(bounds);
+    guardWorksheetXml(inflated, sheetBounds, expansion);
+  }
 }

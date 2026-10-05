@@ -69,7 +69,7 @@ it.each([0, 1])(
   },
 );
 
-it.each(['A1:F503', 'A1:I2', 'A1:XFD1048576'])(
+it.each(['A1:F10923', 'A1:I2', 'A1:XFD1048576'])(
   'rejects an oversized ignored-sheet dimension %s before invoking ExcelJS',
   async (ref) => {
     const load = vi

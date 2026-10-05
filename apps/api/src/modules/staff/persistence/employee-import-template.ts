@@ -33,11 +33,19 @@ export async function buildEmployeeImportTemplate(
     cell.note = { texts: [{ text: t('ar', ARABIC_LABELS[header]) }] };
   });
   const reference = workbook.addWorksheet('reference', { views: [{ rightToLeft: true }] });
-  reference.addRow(['branch_en', 'branch_ar']);
-  for (const branch of branches) reference.addRow([branch.name_en, branch.name_ar ?? '']);
-  reference.addRow([]);
-  reference.addRow(['role_code']);
-  for (const role of employeeRoleCode.options) reference.addRow([role]);
+  reference.addRow(['branch_en', 'branch_ar', 'role_code']);
+  for (
+    let index = 0;
+    index < Math.max(branches.length, employeeRoleCode.options.length);
+    index += 1
+  ) {
+    const branch = branches[index];
+    reference.addRow([
+      branch?.name_en ?? '',
+      branch?.name_ar ?? '',
+      employeeRoleCode.options[index] ?? '',
+    ]);
+  }
   const buffer = await workbook.xlsx.writeBuffer();
   return new Uint8Array(buffer as ArrayBuffer);
 }
