@@ -77,8 +77,12 @@ Gates: `pnpm --filter @pospay/api exec vitest run --config vitest.unit.config.ts
 
 ## Open questions for the owner
 
-- **D-55 — resolved 2026-10-05 (Waleed):** the pilot salon has one plan: no base, one MARGINAL AMOUNT
+- **D-55 — supplied 2026-10-05 by the salon owner via Waleed:** the pilot salon has one plan: no base, one MARGINAL AMOUNT
   tier from `SALARY_MULTIPLE` 2 (twice the last-day salary) at 5 % on the part above it. Owner example:
   salary 500.000, sales 2,000.000 → 50.000. Fixtures: `domain/__tests__/d55-salon-plan.spec.ts`
-  (example, at-threshold, starting at the threshold, half-mill rounding, raise mid-month, no salary).
+  (example, at-threshold, starting at the threshold, validator, fractional and exact half-mill rounding,
+  raise mid-month, no salary).
   This is one salon's configuration, not engine logic; other businesses configure their own plans.
+  Assumed, to confirm with the salon before onboarding (configuration, not a merge gate): "sales" means the
+  net, after-discount share of `counts = true` service lines; package sales do not move the threshold (D-51)
+  and earn nothing unless `package_sale` is enabled; product sales are out of Phase 1 (SPEC scope: Phase 2).

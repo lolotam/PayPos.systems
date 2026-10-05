@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { computePeriod } from '../period-commission.ts';
+import { validateCommissionPlan } from '../plan-validation.ts';
 import type { CommissionPlanVersion, CommissionSalary } from '../plan-types.ts';
 import { line, pct, period, version } from './engine-ii-fixtures.ts';
 
@@ -62,9 +63,18 @@ describe('D-55 real salon plan — 5% above twice the salary', () => {
     expectPeriod([1000000n, 100000n], [salary500], [0n, 5000n], 5000n);
   });
 
-  it('half a mill above the threshold rounds away from zero', () => {
+  it('the real plan passes the §5.7 validator', () => {
+    expect(validateCommissionPlan(salonPlan)).toEqual({ ok: true });
+  });
+
+  it('a fraction of a mill rounds to the nearest mill', () => {
     // 0.555 × 5% = 0.02775 دينار = 27.75 فلس → 28 فلس.
     expectPeriod([1000000n, 555n], [salary500], [0n, 28n], 28n);
+  });
+
+  it('exactly half a mill rounds away from zero', () => {
+    // 10 فلس × 5% = 0.5 فلس بالظبط → 1 فلس (half-even أو floor كانوا هيدّوا صفر).
+    expectPeriod([1000000n, 10n], [salary500], [0n, 1n], 1n);
   });
 
   it('a raise during the month moves the threshold to the last-day salary', () => {
