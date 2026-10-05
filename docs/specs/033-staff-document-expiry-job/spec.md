@@ -139,6 +139,13 @@ Gates: `pnpm check` without FORCE_COLOR; api + worker builds; production startup
 - MO-Q3 — page size: TODO(spec), recommended keyset pages of 100 candidates per query (implemented).
 - MO-Q4 — documents recorded before this release: TODO(spec), recommended they register their company only when a
   later `EmployeeDocumentRecorded` is delivered (the ADR-0032 precedent for clock-ins), rather than a backfill.
+  Owner decision (2026-10-05, recommended option): before the pilot goes live, replay each existing company's
+  prior `EmployeeDocumentRecorded` events once in a controlled way so its schedule is registered.
+- MO-Q5 — soft-deleted employees and inactive document types: TODO(spec). The scan does not join `employees`, so
+  once recipients exist (PR 62) a deleted employee's current documents could still be announced. No runtime soft-delete
+  path exists yet. Recommended: filter `employees.deleted_at IS NULL` and active types when PR 62 adds recipients.
+- A replacement document with the same `expires_on` is a new document id and produces its own notice (by design,
+  DE-03).
 
 ## Success criteria
 
