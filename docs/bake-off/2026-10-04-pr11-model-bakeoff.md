@@ -87,8 +87,11 @@ Recommendation for the project:
 1. **DeepSeek 4.1 flash as a cheap first-draft implementer** for well-specified slices, always followed by the
    Codex review + fix pass and the Claude review. Do not merge any of these models' output unreviewed: every
    candidate had at least one P1.
-2. **MiMo V2.6 Pro as a second opinion on design** (its worker-side parse and `packages/documents` placement were the
-   best architecture ideas in the trial), not as the primary implementer.
+2. **Design advice: two read-only advisors** before risky slices — Codex astra 6 medium and Claude Code Fable 5.1
+   medium. MiMo V2.6 Pro had the best architecture ideas in the trial (worker-side parse, `packages/documents`
+   placement) but is removed from the project by the owner.
+
+**Owner decision (2026-10-05):** MiMo V2.6 Pro is removed from the project for every role. Design advice before risky slices now comes from two read-only advisors: Codex astra 6 medium (`gpt-6-astra`) and Claude Code Fable 5.1 medium (`claude-fable-5-1`). The trial results above stay as the historical record.
 3. **Bunny** is free but too slow and incomplete for slice work; usable for small isolated tasks.
 4. **GLM 5.3 flash** is not ready for this codebase at this effort level; **Qwen 3.8 27B** is not usable headless.
 5. Codex (gpt-6.1-sol high) stays the reviewer and the fixer; the Codex PR bot is the third layer.
@@ -186,7 +189,9 @@ worktree لوحده، ومن نفس نقطة البداية (`6af8020`).
 التوصية:
 
 1. **DeepSeek:** منفّذ أولي رخيص للمهام اللي الـ spec بتاعها واضح، وبعده دايماً Codex يراجع ويصلّح، وبعده مراجعتي. مفيش موديل فيهم يتعمله merge من غير مراجعة، لأن كل واحد طلع عنده P1 على الأقل.
-2. **MiMo:** رأي تاني في التصميم والمعمارية، مش منفّذ أساسي.
+2. **الاستشارة في التصميم:** مستشارين اتنين قراءة بس قبل المهام الحساسة: Codex astra 6 medium وClaude Code Fable 5.1 medium. MiMo كان عنده أحسن أفكار معمارية في التجربة، لكن صاحب المشروع شاله من المشروع.
+
+**قرار صاحب المشروع (5 أكتوبر 2026):** MiMo V2.6 Pro اتشال من المشروع في كل الأدوار. الاستشارة في التصميم قبل المهام الحساسة بقت من مستشارين اتنين، قراءة بس: Codex astra 6 medium (`gpt-6-astra`) وClaude Code Fable 5.1 medium (`claude-fable-5-1`). نتايج التجربة اللي فوق بتفضل سجل تاريخي.
 3. **Bunny:** مجاني لكن بطيء ومش بيكمّل. ينفع للمهام الصغيرة المعزولة بس.
 4. **GLM وQwen:** مش جاهزين لمشروع بالحجم ده دلوقتي.
 5. **Codex:** يفضل المراجع والمصلّح، وبوت Codex على الـ PR هو الطبقة التالتة.

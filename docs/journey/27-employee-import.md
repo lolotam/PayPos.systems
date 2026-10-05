@@ -1,6 +1,6 @@
 # 27 · Import employees from Excel — استيراد الموظفين من Excel
 
-**Status / الحالة:** shipped in PR 11 (Phase 1). Admin not deployed (issue #54), so this runs **locally only**. The
+**Status / الحالة:** shipped in #107 (Phase 1 PR 11). Admin not deployed (issue #54), so this runs **locally only**. The
 commit runs as a **worker job**: the API accepts it (202) and the screen polls for the result, so the worker and Redis
 must be running. Phone/user linking is **not** part of the import (IM-Q1, recommended: keep it an explicit edit on the
 employee, [16](16-update-employee.md)). Deleting old previews is a later cleanup slice (IM-Q3).
