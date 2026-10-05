@@ -138,15 +138,13 @@ describe('services — writes and database checks', () => {
     },
   );
 
-  it('the creating migration has the company/business cursor index', async () => {
+  it('the unique key is the one company/business cursor index, with no duplicate btree', async () => {
     const indexes =
       await owner`SELECT indexdef FROM pg_indexes WHERE tablename = 'services' ORDER BY indexname`;
-    expect(indexes.map((r) => r['indexdef'])).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining('services_company_business_id_idx'),
-        expect.stringContaining('(company_id, business_id, id)'),
-      ]),
-    );
+    expect(indexes.map((r) => r['indexdef'])).toEqual([
+      'CREATE UNIQUE INDEX services_company_business_id_key ON public.services USING btree (company_id, business_id, id)',
+      'CREATE UNIQUE INDEX services_pkey ON public.services USING btree (company_id, id)',
+    ]);
   });
 });
 
