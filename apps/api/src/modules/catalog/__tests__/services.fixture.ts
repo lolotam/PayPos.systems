@@ -59,6 +59,7 @@ export type ServiceFixture = Awaited<ReturnType<typeof servicesFixture>>;
 
 export const termsFor = (name = 'Synthetic service') => ({
   name_en: name,
+  name_ar: null,
   price: '12.500',
   commission_rule: { kind: 'FOLLOW_PLAN' as const },
   counts_toward_threshold: true,

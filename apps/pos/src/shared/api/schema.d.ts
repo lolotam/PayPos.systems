@@ -2230,10 +2230,10 @@ export interface components {
         UpdateServiceInput: {
             expected_revision: number;
             name_en: string;
-            name_ar?: string | null;
+            name_ar: string | null;
             price: components["schemas"]["ServicePrice"];
             commission_rule: components["schemas"]["ServiceCommissionRule"];
-            counts_toward_threshold?: boolean;
+            counts_toward_threshold: boolean;
         };
         Service: {
             /** Format: uuid */

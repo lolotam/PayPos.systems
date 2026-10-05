@@ -9643,8 +9643,10 @@
         "required": [
           "expected_revision",
           "name_en",
+          "name_ar",
           "price",
-          "commission_rule"
+          "commission_rule",
+          "counts_toward_threshold"
         ],
         "additionalProperties": false
       },

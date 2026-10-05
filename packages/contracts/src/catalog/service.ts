@@ -38,10 +38,13 @@ export const createServiceInput = z.strictObject(serviceFields).meta({ id: 'Crea
 
 const revision = z.number().int().min(1).max(2_147_483_646);
 // استبدال كامل للحقول القابلة للتعديل مقابل النسخة المتوقعة، زي update-employee.
+// الحقلين إجباريين هنا: لو اتسابوا كان افتراضي الإنشاء هيمسح الاسم العربي ويقلب احتساب الحد، فتتغير العمولة بصمت.
 export const updateServiceInput = z
   .strictObject({
     expected_revision: revision,
     ...serviceFields,
+    name_ar: serviceNameAr.nullable(),
+    counts_toward_threshold: z.boolean(),
   })
   .meta({ id: 'UpdateServiceInput' });
 

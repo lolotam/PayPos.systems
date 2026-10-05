@@ -77,12 +77,10 @@ async function update(
     body: {
       expected_revision: body.expected_revision,
       name_en: body.name_en,
-      name_ar: body.name_ar ?? null,
+      name_ar: body.name_ar,
       price: body.price,
       commission_rule: body.commission_rule,
-      ...(body.counts_toward_threshold === undefined
-        ? {}
-        : { counts_toward_threshold: body.counts_toward_threshold }),
+      counts_toward_threshold: body.counts_toward_threshold,
     },
   });
   if (response.error) throw response.error;

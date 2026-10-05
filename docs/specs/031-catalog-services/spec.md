@@ -27,8 +27,9 @@ read the audit rows for both the creation and the price/rule change.
   `counts_toward_threshold` is a boolean.
 - SV-05: create and update each run in one tenant transaction; the row and its audit row commit together.
 - SV-06: an update carries the expected revision; a stale revision returns `SERVICE_REVISION_CONFLICT` (409).
-- SV-07: create/update require `manage:services:business` at the business and the `catalog` feature flag; missing
-  or foreign business answers like unknown.
+- SV-07: create/update require `manage:services:business` at the business and the `catalog` feature flag. The
+  permission guard refuses a business outside the caller's grant with the same 403 whether it exists or not, so
+  a missing or foreign business never reveals itself; a company-wide role naming a nonexistent business gets 404.
 - SV-08: list is cursor-paginated by `id` and never writes; get returns one service or 404.
 - SV-09: no service is deleted or soft-deleted here; the SPEC does not require it and `services` is not one of the
   soft-delete tables in CLAUDE.md §5.
@@ -72,8 +73,9 @@ menus. This mirrors `employees`, `employee_salaries`, `import_previews` and `bus
 
 ### Edge cases
 
-- A business of another company, a deleted/nonexistent business, or a foreign service id all return the same
-  404 `NOT_FOUND` / `SERVICE_NOT_FOUND` refusal — a foreign id never reveals that it exists.
+- A business outside the caller's grant (another company's, deleted or nonexistent) is refused by the guard with
+  one 403 for all three; a foreign or unknown service id inside an allowed business returns the same 404
+  `SERVICE_NOT_FOUND`. Neither reveals that the target exists.
 - SPEC §5/§5.7 imposes no FIXED-versus-price cap; FIXED may exceed the service price, including zero price.
 - A `FIXED` rule whose value overflows `numeric(14,3)` is refused with `SERVICE_COMMISSION_RULE_INVALID` (400)
   before the write, not by a Postgres error.

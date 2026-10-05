@@ -202,6 +202,27 @@ it('SV-06c a stale revision is refused with SERVICE_REVISION_CONFLICT', async ()
   });
 });
 
+it('SV-06d an update omitting name_ar or counts_toward_threshold is refused, never reset to create defaults', async () => {
+  const full = {
+    expected_revision: 2,
+    name_en: 'Haircut',
+    name_ar: 'قص شعر',
+    price: '8.000',
+    commission_rule: { kind: 'FIXED', value: '1.500' },
+    counts_toward_threshold: false,
+  };
+  for (const omitted of ['counts_toward_threshold', 'name_ar']) {
+    const body = Object.fromEntries(Object.entries(full).filter(([key]) => key !== omitted));
+    const response = await patch(createdId, body);
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+  }
+  expect(
+    await f.h
+      .owner`SELECT name_ar,counts_toward_threshold,revision FROM services WHERE company_id=${f.company} AND id=${createdId}`,
+  ).toEqual([{ name_ar: 'قص شعر', counts_toward_threshold: false, revision: 2 }]);
+});
+
 it('SV-01b a foreign or unknown service id answers SERVICE_NOT_FOUND for read and write', async () => {
   const unknown = ids.newId();
   expect((await getOne(unknown)).status).toBe(404);

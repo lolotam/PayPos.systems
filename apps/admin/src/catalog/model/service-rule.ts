@@ -32,11 +32,16 @@ export function serviceRuleValueText(rule: ServiceCommissionRuleInput): string {
   return '';
 }
 
-/** يحوّل نص الحقل لقاعدة صالحة؛ النسبة رقم صحيح والمبلغ نص يمر على عقد السعر. */
+/**
+ * يحوّل نص الحقل لقاعدة؛ النسبة أرقام صحيحة بس والمبلغ نص يمر على عقد السعر.
+ * null يعني نص نسبة مرفوض، فالحقل بيحتفظ بآخر قيمة صالحة بدل ما Number() يقبل 0x1F4 أو 1e3 أو يعرض NaN.
+ */
 export function serviceRuleFromText(
   kind: 'PCT' | 'FIXED',
   text: string,
-): ServiceCommissionRuleInput {
-  if (kind === 'PCT') return { kind: 'PCT', value: text.trim() === '' ? 0 : Number(text) };
-  return { kind: 'FIXED', value: text };
+): ServiceCommissionRuleInput | null {
+  if (kind === 'FIXED') return { kind: 'FIXED', value: text };
+  const digits = text.trim();
+  if (digits === '') return { kind: 'PCT', value: 0 };
+  return /^\d{1,5}$/.test(digits) ? { kind: 'PCT', value: Number(digits) } : null;
 }

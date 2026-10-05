@@ -27,10 +27,12 @@ export function ServiceRuleValueField({
         dir="ltr"
         inputMode="decimal"
         value={serviceRuleValueText(value)}
-        onChange={(event) => onChange(serviceRuleFromText(kind, event.target.value))}
+        onChange={(event) => {
+          const rule = serviceRuleFromText(kind, event.target.value);
+          if (rule) onChange(rule);
+        }}
         onBlur={(event) => {
-          if (kind === 'FIXED')
-            onChange(serviceRuleFromText(kind, normalizeKwdInput(event.target.value)));
+          if (kind === 'FIXED') onChange({ kind, value: normalizeKwdInput(event.target.value) });
         }}
       />
     </>

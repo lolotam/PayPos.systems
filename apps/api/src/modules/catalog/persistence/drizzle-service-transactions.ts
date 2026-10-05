@@ -70,6 +70,15 @@ async function saveService(
   if (rows.length === 0) throw new ServiceError('SERVICE_REVISION_CONFLICT');
 }
 
+function checkViolation(
+  cause: object,
+): 'SERVICE_NAME_INVALID' | 'SERVICE_COMMISSION_RULE_INVALID' | 'SERVICE_PRICE_INVALID' {
+  const name = 'constraint_name' in cause ? String(cause.constraint_name) : '';
+  if (name.startsWith('services_name_')) return 'SERVICE_NAME_INVALID';
+  if (name.startsWith('services_rule_')) return 'SERVICE_COMMISSION_RULE_INVALID';
+  return 'SERVICE_PRICE_INVALID';
+}
+
 // أخطاء السائق ممكن تحمل قيم dbinfo/extensions؛ منعديش أي جزء منها بره طبقة الـ persistence.
 function cleanServiceError(error: unknown): never {
   if (error instanceof ServiceError) throw error;
@@ -78,7 +87,9 @@ function cleanServiceError(error: unknown): never {
     const code = (cause as { code?: unknown }).code;
     if (code === '40P01' || code === '40001') throw new ServiceError('TRANSACTION_RETRY_REQUIRED');
     // قيمة خارج قيود numeric أو CHECK تعني مدخلات مش متحققة — نردها كرفض مسمّى مش 500.
-    if (code === '23514' || code === '22003') throw new ServiceError('SERVICE_PRICE_INVALID');
+    // تصنيف الـ glibc لحروف التحكم أوسع من \P{Cc} في العقد، فاسم ممكن يعدّي Zod ويقع هنا؛ نرجّع خطأ الاسم مش السعر.
+    if (code === '23514') throw new ServiceError(checkViolation(cause));
+    if (code === '22003') throw new ServiceError('SERVICE_PRICE_INVALID');
     // الـ FK المركّب على النشاط: مفيش نشاط بهوية دي في الشركة.
     if (code === '23503') throw new ServiceError('SERVICE_NOT_FOUND');
   }

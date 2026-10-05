@@ -14,6 +14,7 @@ export interface UpdateServiceCommand {
   readonly input: UpdateServiceInput;
 }
 
+/** يعدّل سعر الخدمة وقاعدة عمولتها مقابل النسخة المتوقعة، ويسجّل قبل/بعد في التدقيق. */
 export class UpdateServiceUseCase {
   constructor(
     private readonly transactions: ServiceTransactions,
