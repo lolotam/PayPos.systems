@@ -185,6 +185,10 @@ export function guardWorkbookXml(
       if (tag.name === 'sheet') {
         count += 1;
         if (count > bounds.maxWorksheets) throw invalid();
+        // Workbook بيحط الورقة في _worksheets[sheetId] و worksheets بيلف على طول المصفوفة،
+        // فـ sheetId ضخم يعمل مصفوفة طولها مليار؛ Excel بيزوّده بس مع إضافة/حذف أوراق.
+        const sheetId = tag.attributes['sheetId'];
+        if (sheetId !== undefined && !/^[1-9][0-9]{0,4}$/.test(sheetId)) throw invalid();
         const name = tag.attributes['name'] ?? '';
         const relation = tag.attributes['r:id'];
         if (count === 1 && relation !== undefined) expansion.firstRelationship = relation;

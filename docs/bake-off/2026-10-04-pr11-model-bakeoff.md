@@ -105,16 +105,18 @@ The DeepSeek candidate was kept as delivered (first commit on the PR branch) and
 | Layer 2, review | Claude | **Changes requested**: P2 a request could stay "pending" forever (no recovery, no client deadline); P2 staff rules had been moved into the shared kernel `packages/domain`; ten P3s (expiry clock, 5 MiB cap, document file types, missing index, status CHECKs, dead code, cross-app test imports, BOMs, ADR wording). |
 | Layer 1, round 3 | Codex | Fixed all twelve: a worker sweep fails requests stuck past 10 minutes without touching one that committed concurrently; the admin stops polling after 2 minutes; the shared kernel restored byte-for-byte; migration 0080 for indexes and CHECKs; warm 500-row preview measured at ~89 ms. |
 | Layer 2, confirm | Fresh Claude reviewer | Every earlier finding confirmed fixed. One new P2: the "taking longer" message told the user to preview again, which could import every employee twice. Fixed by Claude with three P3s (constraint validation in its own migration, a `requested_at` CHECK, guarded `sessionStorage`). |
-| Layer 3 | CI + Codex PR bot | LAYER3_EN |
+| Layer 3, review | Codex CLI (the GitHub Codex bot was out of quota) | **Changes requested**: two P1s the first two layers missed. A tiny workbook declaring a huge merged range makes ExcelJS allocate millions of cells; a crafted ZIP lets the guard and ExcelJS read different file indexes. Plus three P2s (two clock readings around expiry; a branch whose English and Arabic names match becomes unfindable; changing the file keeps the old preview committable). |
+| Layer 1, rounds 4–6 + Claude | Codex, Claude | Each confirm round found another way ExcelJS expands a declared number: data validations, defined names, column spans, a `>` hidden in a quoted attribute, row numbers, `sheetId`. The design changed twice: first one aggregate expansion budget instead of a rule per tag, then the guard parsing with the same XML parser ExcelJS uses (`saxes`), so the guard and the loader can no longer disagree. The last confirm ended with a complete inventory of ExcelJS's load path. |
+| Layer 3, CI | GitHub Actions | Green on every pushed head; merged only with CI green on the final commit. |
 
 **What the pipeline caught that the model missed:** one P1 (memory blow-up from a tiny workbook), a 200 ms rule
 violation that needed a different architecture (synchronous commit → worker job), an unbounded "pending" state, a
-shared-kernel boundary violation, and a message that would have caused duplicate imports. None of these would have
+shared-kernel boundary violation, a message that would have caused duplicate imports, and a family of upload attacks (a few KB of Excel that makes the API allocate millions of objects) that took six fix rounds and a parser change to close. None of these would have
 been visible from a green `pnpm check` alone: the candidate's own gates were green on day one.
 
-**Cost of the review layers:** Codex ran three implementation rounds on the owner's subscription (no per-token bill);
-Claude ran two reviews and the final fixes. The candidate added 4,049 lines (excluding generated
-files); the review-and-fix layers then added 3,625 and removed 758, for a final 6,997-line diff.
+**Cost of the review layers:** Codex ran six implementation rounds and five read-only reviews on the owner's subscription (no per-token bill);
+Claude ran two reviews, the decisions, and three rounds of direct fixes. The candidate added 4,049 lines (excluding generated
+files); the review-and-fix layers then added 4,853 and removed 775, for a final 8,208-line diff.
 
 ---
 
@@ -201,11 +203,12 @@ worktree لوحده، ومن نفس نقطة البداية (`6af8020`).
 | الطبقة 2، مراجعة | Claude | **مطلوب تعديلات:** طلب ممكن يفضل "قيد الانتظار" للأبد، وقواعد الموظفين اتحطت غلط في `packages/domain` المشتركة، و10 ملاحظات بسيطة. |
 | الطبقة 1، الجولة 3 | Codex | صلّح الـ 12: الـ worker بيقفل أي طلب متعلّق أكتر من 10 دقايق كفشل، الشاشة بتبطّل انتظار بعد دقيقتين، الـ kernel المشترك رجع زي ما كان، migration 0080 للفهارس والقيود، والمعاينة لـ 500 صف بقت ~89 ملي ثانية. |
 | الطبقة 2، تأكيد | مراجع Claude جديد | أكّد إن كل الملاحظات اتصلّحت. لقى P2 جديدة: رسالة "الاستيراد متأخر" كانت بتقول للمستخدم يعمل معاينة تاني، وده كان ممكن يستورد كل الموظفين مرتين. Claude صلّحها ومعاها 3 ملاحظات بسيطة. |
-| الطبقة 3 | CI + بوت Codex على الـ PR | LAYER3_AR |
+| الطبقة 3، مراجعة | Codex من الـ CLI (بوت GitHub خلص رصيده) | **مطلوب تعديلات**: P1 اتنين الطبقتين الأولانيين فوّتوهم: ملف صغير بيعلن نطاق دمج ضخم فـ ExcelJS يحجز ملايين الخلايا، وملف ZIP متلاعب فيه يخلّي الفحص وExcelJS يقروا فهرس مختلف. و3 P2. |
+| الطبقة 1، الجولات 4–6 + Claude | Codex وClaude | كل مراجعة تأكيد لقت طريقة تانية ExcelJS بيفرد بيها رقم معلَن: قواعد التحقق، الأسماء المعرّفة، الأعمدة، علامة `>` مستخبية في قيمة، أرقام الصفوف، `sheetId`. التصميم اتغيّر مرتين: ميزانية واحدة لكل التوسعات بدل قاعدة لكل وسم، وبعدين الفحص بقى بنفس قارئ XML اللي ExcelJS بيستخدمه (`saxes`) فمفيش اختلاف بينهم. آخر مراجعة خلصت بجرد كامل لمسار التحميل في ExcelJS. |
+| الطبقة 3، CI | GitHub Actions | أخضر على كل commit اتعمله push؛ والـ merge بس لما يبقى أخضر على آخر commit. |
 
 **البايبلاين مسك إيه الموديل فوّته:** P1 (ملف صغير بياكل رام السيرفر)، كسر قاعدة الـ 200 ملي ثانية واللي احتاج تغيير
-في التصميم كله، حالة "انتظار" ملهاش نهاية، كسر حدود الـ kernel المشترك، ورسالة كانت هتعمل استيراد مكرر. ولا حاجة من
+في التصميم كله، حالة "انتظار" ملهاش نهاية، كسر حدود الـ kernel المشترك، ورسالة كانت هتعمل استيراد مكرر، ومجموعة هجمات رفع ملفات (ملف Excel كام كيلو يخلّي الـ API يحجز ملايين العناصر) احتاجت 6 جولات تصليح وتغيير قارئ الـ XML عشان تتقفل. ولا حاجة من
 دول كانت هتبان من `pnpm check` الأخضر لوحده؛ الموديل سلّم gates خضرا من أول يوم.
 
-**تكلفة طبقات المراجعة:** Codex عمل 3 جولات على اشتراك صاحب المشروع (من غير فاتورة توكنز)، وClaude عمل مراجعتين والتصليحات
-الأخيرة. الموديل ضاف 4,049 سطر (من غير الملفات المولّدة)، وطبقات المراجعة والتصليح ضافت 3,625 وشالت 758، والـ diff النهائي 6,997 سطر.
+**تكلفة طبقات المراجعة:** Codex عمل 6 جولات تنفيذ و5 مراجعات قراءة بس على اشتراك صاحب المشروع (من غير فاتورة توكنز)، وClaude عمل مراجعتين والقرارات و3 جولات تصليح مباشر. الموديل ضاف 4,049 سطر (من غير الملفات المولّدة)، وطبقات المراجعة والتصليح ضافت 4,853 وشالت 775، والـ diff النهائي 8,208 سطر.

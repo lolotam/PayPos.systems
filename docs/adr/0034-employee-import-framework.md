@@ -186,6 +186,12 @@ Third-layer XML hardening promotes `saxes` to a direct `apps/api` dependency, pi
 differentials for quoted attributes, decoded entities and text across comments. The pin must follow
 ExcelJS's resolved SAX version when ExcelJS is upgraded. Scans remain synchronous within the existing
 5 MiB inflated-byte cap and 65,536-position budget.
+The final source inventory of ExcelJS 4.4.0's load path found three more places that size work by a
+declared number rather than by bytes: row indices (`_rows[r - 1]`, walked by `eachRow`), cell column
+letters (`getColumn` fills intervening columns) and workbook `sheetId` (`_worksheets[sheetId]`, walked
+by `worksheets`). The scan bounds all three, and refuses any element nested inside `definedName`.
+On the data sheet only, a row past the limit reports `IMPORT_ROW_LIMIT_EXCEEDED` instead of the
+generic content error.
 
 After the SAX replacement, one warm-up and five isolated full 500-row preview calls measured
 115.69, 110.57, 101.07, 95.99 and 94.41 ms (median **101.07 ms**). Compared with the previous

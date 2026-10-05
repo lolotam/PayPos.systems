@@ -76,3 +76,21 @@ it('keeps a far merge range on the generic content error', () => {
     'IMPORT_FILE_CONTENT_INVALID',
   );
 });
+
+it.each(['1000000000', '100000', '0', 'x'])(
+  'rejects a sheetId that would size the worksheet array: %s',
+  (sheetId) => {
+    const xml = Buffer.from(
+      `<workbook><sheets><sheet name="employees" sheetId="${sheetId}" r:id="rId1"/></sheets></workbook>`,
+    );
+    expect(() => guardWorkbookXml(xml, bounds)).toThrow('IMPORT_FILE_CONTENT_INVALID');
+  },
+);
+
+it('accepts the sheet ids Excel writes after sheets are added and removed', () => {
+  const xml = Buffer.from(
+    '<workbook><sheets><sheet name="employees" sheetId="1" r:id="rId1"/>' +
+      '<sheet name="reference" sheetId="7" r:id="rId2"/></sheets></workbook>',
+  );
+  expect(() => guardWorkbookXml(xml, bounds)).not.toThrow();
+});

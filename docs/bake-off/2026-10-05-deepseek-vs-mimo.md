@@ -79,7 +79,7 @@ else it broke. That is the more dangerous failure class.
 
 ### 6. What happened after (DeepSeek only, as the winner)
 
-DeepSeek's candidate went through five Codex fix rounds and three review layers before merge. The review layers found
+DeepSeek's candidate went through six Codex fix rounds, three rounds of direct fixes by Claude and three review layers before merge. The review layers found
 that **its design choice — parsing synchronously in the API with ExcelJS — was the root of most later P1s**: tiny
 workbooks that make ExcelJS expand merged cells, data validations, defined names or column spans into millions of
 objects. MiMo's choice (parse in the worker) would not have removed those attacks, but it would have moved them off
@@ -165,7 +165,7 @@ In hindsight: **DeepSeek won the race; MiMo had the better design.**
 
 ### ٦. اللي حصل بعد كده (DeepSeek بس، لأنه الفايز)
 
-نسخة DeepSeek عدّت على 5 جولات تصليح من Codex و3 طبقات مراجعة قبل الـ merge. المراجعات بيّنت إن **اختياره يقرا الملف في
+نسخة DeepSeek عدّت على 6 جولات تصليح من Codex و3 جولات تصليح مباشر من Claude و3 طبقات مراجعة قبل الـ merge. المراجعات بيّنت إن **اختياره يقرا الملف في
 الـ API مباشرة بـ ExcelJS كان أصل معظم الـ P1 اللي ظهرت بعدين**: ملفات صغيرة بتخلّي ExcelJS يفرد خلايا مدموجة أو قواعد
 تحقق أو أسماء معرّفة أو أعمدة لملايين العناصر. اختيار MiMo (القراءة في الـ worker) ماكانش هيمنع الهجمات دي، لكن كان
 هيبعدها عن الـ API، فالملف الخبيث كان هيبطّأ job في الخلفية بس، مش السيرفر نفسه.
