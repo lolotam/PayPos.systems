@@ -10361,6 +10361,10 @@
         "import_previews_count_committed": {
           "name": "import_previews_count_committed",
           "value": "\"import_previews\".\"status\" = 'committed' OR \"import_previews\".\"created_count\" = 0"
+        },
+        "import_previews_requested_at": {
+          "name": "import_previews_requested_at",
+          "value": "\"import_previews\".\"status\" <> 'commit_requested' OR \"import_previews\".\"requested_at\" IS NOT NULL"
         }
       },
       "isRLSEnabled": false

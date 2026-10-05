@@ -89,5 +89,9 @@ export const importPreviews = pgTable(
       'import_previews_count_committed',
       sql`${t.status} = 'committed' OR ${t.createdCount} = 0`,
     ),
+    check(
+      'import_previews_requested_at',
+      sql`${t.status} <> 'commit_requested' OR ${t.requestedAt} IS NOT NULL`,
+    ),
   ],
 );

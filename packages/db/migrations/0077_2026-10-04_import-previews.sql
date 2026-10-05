@@ -27,5 +27,3 @@ ALTER TABLE "import_previews" ADD CONSTRAINT "import_previews_file_fk" FOREIGN K
 CREATE INDEX "import_previews_company_business_created_idx" ON "import_previews" USING btree ("company_id","business_id","created_at");--> statement-breakpoint
 CREATE INDEX "import_previews_company_file_idx" ON "import_previews" USING btree ("company_id","file_id");--> statement-breakpoint
 ALTER TABLE "file_objects" ADD CONSTRAINT "file_objects_type" CHECK ("file_objects"."content_type" IN ('application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) NOT VALID;
---> statement-breakpoint
-ALTER TABLE file_objects VALIDATE CONSTRAINT file_objects_type;

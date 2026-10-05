@@ -14,7 +14,7 @@ export const employeeImportEn = {
   committed: 'Employees imported:',
   pending: 'Import queued. Waiting for the result…',
   delayed:
-    'The import is taking longer than expected. Check again later by reopening this page, or preview the workbook again.',
+    'The import is still running. Reopen this page later to see the result. Do not upload the workbook again unless the import shows as failed.',
   failed: 'The import failed. No employees were saved.',
   column_name_en: 'Name (English)',
   column_name_ar: 'Name (Arabic)',
@@ -48,7 +48,7 @@ export const employeeImportAr = {
   committed: 'الموظفون المستوردون:',
   pending: 'تمت إضافة الاستيراد إلى قائمة الانتظار. جارٍ انتظار النتيجة…',
   delayed:
-    'الاستيراد يستغرق وقتاً أطول من المتوقع. أعد فتح الصفحة للتحقق لاحقاً أو أنشئ معاينة جديدة للمصنف.',
+    'الاستيراد لا يزال قيد التنفيذ. أعد فتح الصفحة لاحقاً لمعرفة النتيجة. لا ترفع المصنف مرة أخرى إلا إذا ظهر أن الاستيراد فشل.',
   failed: 'فشل الاستيراد ولم يُحفظ أي موظف.',
   column_name_en: 'الاسم بالإنجليزية',
   column_name_ar: 'الاسم بالعربية',
