@@ -21,3 +21,18 @@ export interface AttendanceMissedOut {
   readonly occurred_at: string;
   readonly recorded_at: string;
 }
+
+// TODO(spec) MO-Q1: لا notification_recipients قبل وصول AlertRulesPort (PR 62)؛ مستهلك الإشعارات يقبل الحدث بلا إرسال (موصى به).
+/** يصدر مرة واحدة لكل وثيقة لكل تاريخ انتهاء عند دخولها نافذة التنبيه، داخل نفس معاملة دفتر المنع والتدقيق. */
+export interface DocumentExpiring {
+  readonly document_id: string;
+  readonly employee_id: string;
+  readonly business_id: string;
+  readonly type_code: string;
+  readonly expires_on: string;
+  readonly days_remaining: number;
+  readonly alert_days: number;
+  /** يوم النشاط المحلي الذي دخلت فيه النافذة. */
+  readonly today: string;
+  readonly detected_at: string;
+}
