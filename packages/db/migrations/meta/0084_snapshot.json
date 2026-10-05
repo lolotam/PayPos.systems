@@ -1,6 +1,6 @@
 {
-  "id": "a83308c2-2df3-4af8-a0ca-52737db6d2a2",
-  "prevId": "a7145803-cfcf-47ab-a6ac-656f767b7e59",
+  "id": "70469ede-8d12-4bf1-8a88-7cfab68cca7f",
+  "prevId": "468cf9cc-ddfa-4cf4-bd6c-071acfb78d03",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -640,6 +640,193 @@
         "customers_name": {
           "name": "customers_name",
           "value": "length(btrim(\"customers\".\"name\")) BETWEEN 1 AND 200"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.services": {
+      "name": "services",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_ar": {
+          "name": "name_ar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price": {
+          "name": "price",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "commission_rule_kind": {
+          "name": "commission_rule_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "commission_pct_bps": {
+          "name": "commission_pct_bps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commission_fixed_amount": {
+          "name": "commission_fixed_amount",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "counts_toward_threshold": {
+          "name": "counts_toward_threshold",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "services_company_id_companies_id_fk": {
+          "name": "services_company_id_companies_id_fk",
+          "tableFrom": "services",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "tableTo": "companies",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "services_business_fk": {
+          "name": "services_business_fk",
+          "tableFrom": "services",
+          "columnsFrom": [
+            "company_id",
+            "business_id"
+          ],
+          "tableTo": "businesses",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "services_pkey": {
+          "name": "services_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "services_company_business_id_key": {
+          "name": "services_company_business_id_key",
+          "columns": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "services_name_en_length": {
+          "name": "services_name_en_length",
+          "value": "char_length(trim(\"services\".\"name_en\")) BETWEEN 1 AND 255"
+        },
+        "services_name_ar_length": {
+          "name": "services_name_ar_length",
+          "value": "\"services\".\"name_ar\" IS NULL OR char_length(trim(\"services\".\"name_ar\")) BETWEEN 1 AND 255"
+        },
+        "services_price_nonnegative": {
+          "name": "services_price_nonnegative",
+          "value": "\"services\".\"price\" BETWEEN 0 AND 99999999999.999"
+        },
+        "services_rule_kind": {
+          "name": "services_rule_kind",
+          "value": "\"services\".\"commission_rule_kind\" IN ('FOLLOW_PLAN','ZERO','PCT','FIXED')"
+        },
+        "services_rule_pct_present": {
+          "name": "services_rule_pct_present",
+          "value": "(\"services\".\"commission_rule_kind\" = 'PCT') = (\"services\".\"commission_pct_bps\" IS NOT NULL)"
+        },
+        "services_rule_pct_bounds": {
+          "name": "services_rule_pct_bounds",
+          "value": "\"services\".\"commission_pct_bps\" IS NULL OR \"services\".\"commission_pct_bps\" BETWEEN 0 AND 10000"
+        },
+        "services_rule_fixed_present": {
+          "name": "services_rule_fixed_present",
+          "value": "(\"services\".\"commission_rule_kind\" = 'FIXED') = (\"services\".\"commission_fixed_amount\" IS NOT NULL)"
+        },
+        "services_rule_fixed_nonnegative": {
+          "name": "services_rule_fixed_nonnegative",
+          "value": "\"services\".\"commission_fixed_amount\" IS NULL OR \"services\".\"commission_fixed_amount\" BETWEEN 0 AND 99999999999.999"
+        },
+        "services_name_en_controls": {
+          "name": "services_name_en_controls",
+          "value": "\"services\".\"name_en\" !~ '[[:cntrl:]]'"
+        },
+        "services_name_ar_controls": {
+          "name": "services_name_ar_controls",
+          "value": "\"services\".\"name_ar\" IS NULL OR \"services\".\"name_ar\" !~ '[[:cntrl:]]'"
+        },
+        "services_revision_positive": {
+          "name": "services_revision_positive",
+          "value": "\"services\".\"revision\" > 0"
         }
       },
       "isRLSEnabled": false

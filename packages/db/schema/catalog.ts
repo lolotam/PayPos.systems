@@ -3,7 +3,6 @@ import {
   boolean,
   check,
   foreignKey,
-  index,
   integer,
   numeric,
   pgTable,
@@ -47,13 +46,13 @@ export const services = pgTable(
   },
   (t) => [
     primaryKey({ name: 'services_pkey', columns: [t.companyId, t.id] }),
+    // الـ unique ده هو نفسه فهرس قائمة النشاط وصفحاته (company_id, business_id, id)؛ فهرس تاني بنفس الأعمدة كان تكرار.
     unique('services_company_business_id_key').on(t.companyId, t.businessId, t.id),
     foreignKey({
       name: 'services_business_fk',
       columns: [t.companyId, t.businessId],
       foreignColumns: [businesses.companyId, businesses.id],
     }),
-    index('services_company_business_id_idx').on(t.companyId, t.businessId, t.id),
     check('services_name_en_length', sql`char_length(trim(${t.nameEn})) BETWEEN 1 AND 255`),
     check(
       'services_name_ar_length',

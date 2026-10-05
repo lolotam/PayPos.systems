@@ -72,3 +72,4 @@ reads:
   - { from: staff, to: identity, symbol: lockEmployeeManagementAccess, file: apps/api/src/modules/staff/persistence/drizzle-employee-import.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/drizzle-employee-import.ts }
   - { from: staff, to: tenancy, symbol: employeeImportBranches, file: apps/worker/src/modules/staff/persistence/employee-import.transactions.ts }
+  - { from: staff, to: tenancy, symbol: businessTimeZone, file: apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts }

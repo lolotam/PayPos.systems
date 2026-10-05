@@ -28,5 +28,4 @@ CREATE TABLE "services" (
 );
 --> statement-breakpoint
 ALTER TABLE "services" ADD CONSTRAINT "services_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "services" ADD CONSTRAINT "services_business_fk" FOREIGN KEY ("company_id","business_id") REFERENCES "public"."businesses"("company_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "services_company_business_id_idx" ON "services" USING btree ("company_id","business_id","id");
+ALTER TABLE "services" ADD CONSTRAINT "services_business_fk" FOREIGN KEY ("company_id","business_id") REFERENCES "public"."businesses"("company_id","id") ON DELETE no action ON UPDATE no action;

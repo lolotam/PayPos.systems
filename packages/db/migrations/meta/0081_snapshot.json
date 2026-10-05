@@ -1,5 +1,5 @@
 {
-  "id": "5517efe3-e28e-46ad-bbe9-5a74f55e9458",
+  "id": "a7145803-cfcf-47ab-a6ac-656f767b7e59",
   "prevId": "34254ce8-0721-4d28-989c-f4262c1fd210",
   "version": "7",
   "dialect": "postgresql",
@@ -640,221 +640,6 @@
         "customers_name": {
           "name": "customers_name",
           "value": "length(btrim(\"customers\".\"name\")) BETWEEN 1 AND 200"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.services": {
-      "name": "services",
-      "schema": "",
-      "columns": {
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "business_id": {
-          "name": "business_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_en": {
-          "name": "name_en",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name_ar": {
-          "name": "name_ar",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "price": {
-          "name": "price",
-          "type": "numeric(14, 3)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "commission_rule_kind": {
-          "name": "commission_rule_kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "commission_pct_bps": {
-          "name": "commission_pct_bps",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "commission_fixed_amount": {
-          "name": "commission_fixed_amount",
-          "type": "numeric(14, 3)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "counts_toward_threshold": {
-          "name": "counts_toward_threshold",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "revision": {
-          "name": "revision",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "services_company_business_id_idx": {
-          "name": "services_company_business_id_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "services_company_id_companies_id_fk": {
-          "name": "services_company_id_companies_id_fk",
-          "tableFrom": "services",
-          "tableTo": "companies",
-          "columnsFrom": [
-            "company_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "services_business_fk": {
-          "name": "services_business_fk",
-          "tableFrom": "services",
-          "tableTo": "businesses",
-          "columnsFrom": [
-            "company_id",
-            "business_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "services_pkey": {
-          "name": "services_pkey",
-          "columns": [
-            "company_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "services_company_business_id_key": {
-          "name": "services_company_business_id_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "company_id",
-            "business_id",
-            "id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "services_name_en_length": {
-          "name": "services_name_en_length",
-          "value": "char_length(trim(\"services\".\"name_en\")) BETWEEN 1 AND 255"
-        },
-        "services_name_ar_length": {
-          "name": "services_name_ar_length",
-          "value": "\"services\".\"name_ar\" IS NULL OR char_length(trim(\"services\".\"name_ar\")) BETWEEN 1 AND 255"
-        },
-        "services_price_nonnegative": {
-          "name": "services_price_nonnegative",
-          "value": "\"services\".\"price\" BETWEEN 0 AND 99999999999.999"
-        },
-        "services_rule_kind": {
-          "name": "services_rule_kind",
-          "value": "\"services\".\"commission_rule_kind\" IN ('FOLLOW_PLAN','ZERO','PCT','FIXED')"
-        },
-        "services_rule_pct_present": {
-          "name": "services_rule_pct_present",
-          "value": "(\"services\".\"commission_rule_kind\" = 'PCT') = (\"services\".\"commission_pct_bps\" IS NOT NULL)"
-        },
-        "services_rule_pct_bounds": {
-          "name": "services_rule_pct_bounds",
-          "value": "\"services\".\"commission_pct_bps\" IS NULL OR \"services\".\"commission_pct_bps\" BETWEEN 0 AND 10000"
-        },
-        "services_rule_fixed_present": {
-          "name": "services_rule_fixed_present",
-          "value": "(\"services\".\"commission_rule_kind\" = 'FIXED') = (\"services\".\"commission_fixed_amount\" IS NOT NULL)"
-        },
-        "services_rule_fixed_nonnegative": {
-          "name": "services_rule_fixed_nonnegative",
-          "value": "\"services\".\"commission_fixed_amount\" IS NULL OR \"services\".\"commission_fixed_amount\" BETWEEN 0 AND 99999999999.999"
-        },
-        "services_name_en_controls": {
-          "name": "services_name_en_controls",
-          "value": "\"services\".\"name_en\" !~ '[[:cntrl:]]'"
-        },
-        "services_name_ar_controls": {
-          "name": "services_name_ar_controls",
-          "value": "\"services\".\"name_ar\" IS NULL OR \"services\".\"name_ar\" !~ '[[:cntrl:]]'"
-        },
-        "services_revision_positive": {
-          "name": "services_revision_positive",
-          "value": "\"services\".\"revision\" > 0"
         }
       },
       "isRLSEnabled": false
@@ -9963,6 +9748,120 @@
       },
       "isRLSEnabled": false
     },
+    "public.employee_document_expiry_notices": {
+      "name": "employee_document_expiry_notices",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type_code": {
+          "name": "type_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_on": {
+          "name": "expires_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notified_at": {
+          "name": "notified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipients_attached_at": {
+          "name": "recipients_attached_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "employee_document_expiry_notices_company_id_companies_id_fk": {
+          "name": "employee_document_expiry_notices_company_id_companies_id_fk",
+          "tableFrom": "employee_document_expiry_notices",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "employee_document_expiry_notices_document_fk": {
+          "name": "employee_document_expiry_notices_document_fk",
+          "tableFrom": "employee_document_expiry_notices",
+          "tableTo": "employee_documents",
+          "columnsFrom": [
+            "company_id",
+            "document_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "employee_document_expiry_notices_pkey": {
+          "name": "employee_document_expiry_notices_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "employee_document_expiry_notices_key": {
+          "name": "employee_document_expiry_notices_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "company_id",
+            "document_id",
+            "expires_on"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.employee_documents": {
       "name": "employee_documents",
       "schema": "",
@@ -10062,6 +9961,34 @@
           "columns": [
             {
               "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"employee_documents\".\"replaced_at\" IS NULL AND \"employee_documents\".\"expires_on\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employee_document_expiry_scan_idx": {
+          "name": "employee_document_expiry_scan_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
