@@ -124,6 +124,8 @@ export const employeeDocumentExpiryNotices = pgTable(
     expiresOn: date('expires_on').notNull(),
     // لحظة الإشعار من الـ Clock المحقون، لا ساعة الخادم.
     notifiedAt: timestamp('notified_at', { withTimezone: true }).notNull(),
+    // NULL يبقي التنبيه بلا مستلمين قابلاً لإعادة الإصدار مرة في PR 62 لو الوثيقة حالية وداخل النافذة؛ يثبت الوقت مع الحدث في نفس المعاملة.
+    recipientsAttachedAt: timestamp('recipients_attached_at', { withTimezone: true }),
   },
   (t) => [
     primaryKey({ name: 'employee_document_expiry_notices_pkey', columns: [t.companyId, t.id] }),
@@ -132,7 +134,7 @@ export const employeeDocumentExpiryNotices = pgTable(
       columns: [t.companyId, t.documentId],
       foreignColumns: [employeeDocuments.companyId, employeeDocuments.id],
     }),
-    // مفتاح منع التكرار: إشعار واحد لكل وثيقة لكل تاريخ انتهاء، مهما تكررت الدورة أو تغيّر alert_days.
+    // مفتاح الإصدار الأول لكل وثيقة وتاريخ انتهاء؛ إرفاق مستلمين لاحقاً تحكمه recipients_attached_at.
     unique('employee_document_expiry_notices_key').on(t.companyId, t.documentId, t.expiresOn),
   ],
 );

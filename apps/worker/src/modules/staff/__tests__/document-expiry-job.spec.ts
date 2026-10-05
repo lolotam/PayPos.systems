@@ -1,7 +1,11 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { documentExpiryCandidatesStatement } from '../persistence/document-expiry.transactions.ts';
-import { documentExpiryFixture, type DocumentExpiryFixture, type Tenant } from './document-expiry.fixture.ts';
+import {
+  documentExpiryFixture,
+  type DocumentExpiryFixture,
+  type Tenant,
+} from './document-expiry.fixture.ts';
 
 let f: DocumentExpiryFixture;
 beforeAll(async () => {
@@ -12,7 +16,7 @@ afterAll(async () => {
 });
 
 const notices = (documentId: string) =>
-  f.owner`SELECT document_id, expires_on, notified_at FROM employee_document_expiry_notices
+  f.owner`SELECT document_id, expires_on, notified_at, recipients_attached_at FROM employee_document_expiry_notices
     WHERE document_id=${documentId}`;
 const events = (documentId: string) =>
   f.owner`SELECT payload FROM outbox WHERE event_type='DocumentExpiring'
@@ -31,6 +35,7 @@ it('emits exactly once per document per expiry date across two runs, and a re-ru
 
   expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
   expect(await notices(document)).toHaveLength(1);
+  expect((await notices(document))[0]?.['recipients_attached_at']).toBeNull();
   const [event] = await events(document);
   expect(event?.['payload']).toMatchObject({
     document_id: document,

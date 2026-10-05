@@ -40,7 +40,14 @@ it('employee_document_expiry_notices enforces FORCE RLS, hides reads and refuses
     ),
   ).rejects.toThrow();
   await expect(
-    f.db.withTenant(a.company, (tx) => tx.execute(sql`DELETE FROM employee_document_expiry_notices`)),
+    f.db.withTenant(a.company, (tx) =>
+      tx.execute(sql`UPDATE employee_document_expiry_notices SET recipients_attached_at=now()`),
+    ),
+  ).rejects.toThrow();
+  await expect(
+    f.db.withTenant(a.company, (tx) =>
+      tx.execute(sql`DELETE FROM employee_document_expiry_notices`),
+    ),
   ).rejects.toThrow();
 
   const raw = postgres(f.testDb.appUrl, { max: 1, onnotice: () => undefined });

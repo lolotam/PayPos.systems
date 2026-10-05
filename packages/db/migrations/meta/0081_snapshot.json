@@ -1,5 +1,5 @@
 {
-  "id": "1681b8f0-2e09-4299-af89-02dc15ad2173",
+  "id": "a7145803-cfcf-47ab-a6ac-656f767b7e59",
   "prevId": "34254ce8-0721-4d28-989c-f4262c1fd210",
   "version": "7",
   "dialect": "postgresql",
@@ -9799,6 +9799,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "recipients_attached_at": {
+          "name": "recipients_attached_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

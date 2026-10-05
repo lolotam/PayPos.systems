@@ -20,7 +20,8 @@ event once recipients are supplied.
   ends. `alert_days = 0` means the expiry day itself only; the day after is EXPIRED and is never selected.
   `today` is the injected Clock's date in the **business timezone** of the document.
 - DE-02: the job emits `DocumentExpiring` **exactly once per (document, expiry date)**. Re-runs, restarts, two
-  workers, a replaced document and an edited `alert_days` never produce a second event for the same key.
+  workers, a replaced document and an edited `alert_days` never produce a second recipient-free event for the
+  same key in PR 15. PR 62's one-time recipient-bearing re-emission is a separate delivery state below.
 - DE-03: a document without `expires_on` is ignored. A replaced document is not current and is never scanned; the
   replacement is a different document id and gets its own single event.
 - DE-04: the job is bounded: it pages through candidates with a keyset cursor, reads and writes only inside
@@ -48,6 +49,8 @@ A new tenant table `employee_document_expiry_notices` records that a notice was 
 - PK `(company_id, id)`, FK `(company_id, document_id)` → `employee_documents(company_id, id)`,
 - **UNIQUE `(company_id, document_id, expires_on)`** — the dedupe key,
 - `employee_id`, `business_id`, `type_code`, `notified_at` (from the Clock).
+- nullable `recipients_attached_at timestamptz`: NULL means the event was emitted without recipients.
+  PR 15 always leaves it NULL; its SELECT/INSERT grants remain unchanged, with no UPDATE grant.
 
 The insert is `INSERT … ON CONFLICT (company_id, document_id, expires_on) DO NOTHING RETURNING id`; only an
 inserted row appends the audit row and the outbox event in the same `withTenant` transaction. That is the DB
@@ -63,6 +66,26 @@ edits with emission. A replacement or rule edit that commits first wins. Runtime
 - replaced document → the old row is not current; the new document id has its own key;
 - edited `alert_days` → the key does not contain `alert_days`, so leaving and re-entering the window cannot
   re-emit; the notice stands for that expiry date.
+
+### PR 62 contract: attach recipients once
+
+The ledger records the initial emission separately from recipient attachment, so a recipient-free event does
+not permanently consume a future deliverable alert. PR 15 keeps its current anti-join and `ON CONFLICT`
+behaviour and emits one recipient-free `DocumentExpiring` with audit and ledger in one transaction.
+
+When alert rules ship in PR 62, a notice with `recipients_attached_at IS NULL` is eligible for one new
+`DocumentExpiring` event with `notification_recipients` only while its document remains current and inside the
+current type's alert window, using the injected Clock and business timezone. The future path must lock and
+recheck the notice, document and type inside `withTenant`, resolve actual recipients, append the
+recipient-bearing outbox event and audit, and set `recipients_attached_at` from the Clock in the same transaction. A committed
+non-NULL value prevents another recipient-bearing emission under retries or concurrent workers. If recipients
+are still absent, or the document was replaced or left its window, leave the marker NULL and do not emit a
+recipient-bearing event. The ledger's existing unique key remains unchanged; PR 62 must discover eligible NULL
+markers rather than letting PR 15's anti-join or a conflicting INSERT exclude them.
+
+The marker records recipient attachment, not provider delivery or acknowledgement. Notifications keeps its
+existing source-event dedupe and delivery handling. PR 62 must add the narrow column UPDATE grant and tenant
+UPDATE policy needed for this transition; neither is granted or implemented in PR 15.
 
 ### Scan query and its index
 
@@ -120,7 +143,8 @@ Pure: the window boundaries (alert_days 0, the expiry day, the day before, the d
 a timezone edge where the business date differs from UTC, and `NO_EXPIRY` ignored. PostgreSQL (cloned per file,
 as `pospay_app`): once-only across two runs and a concurrent second worker, a replaced document, an edited
 `alert_days`, a document without expiry ignored, another tenant untouched, RLS negative test and grants for the
-new table, and `EXPLAIN` of the scan (`employee_document_expiry_scan_idx`). Redis: `EmployeeDocumentRecorded`
+new table (including refusal to update `recipients_attached_at`), the NULL marker after emission, and `EXPLAIN`
+of the scan (`employee_document_expiry_scan_idx`). Redis: `EmployeeDocumentRecorded`
 delivery registers one id-only schedule per company, re-delivery is idempotent, a scheduling failure is a
 retryable outcome. Consumer: `DocumentExpiring` with no recipients is accepted unsent; with an IN_APP recipient
 it stores one in-app notification.
@@ -131,7 +155,10 @@ Gates: `pnpm check` without FORCE_COLOR; api + worker builds; production startup
 
 - MO-Q1 — notification recipients for `DocumentExpiring`: TODO(spec). SPEC §3 says the emitting module reads
   `AlertRulesPort` and puts recipients and channels in the event, but alert rules ship in PR 62, so this slice
-  emits the event with no recipients and notifications acknowledges it unsent. Recommend: when alert rules ship,
+  emits the event with no recipients and notifications acknowledges it unsent. `recipients_attached_at` remains
+  NULL, preserving PR 62's one-time recipient-bearing re-emission for documents still current and inside their
+  window, under the contract above. PR 15 does not implement recipient attachment. Recommend: when alert rules
+  ship,
   the document-expiry alert defaults to the users holding `manage:document-types:company` at the company
   (owner/general_manager by default; business_manager with a personal ALLOW), in-app only until email/WhatsApp are
   activated. Implementing it before PR 62 would need a new identity read (outside this slice).
@@ -149,5 +176,5 @@ Gates: `pnpm check` without FORCE_COLOR; api + worker builds; production startup
 
 ## Success criteria
 
-DE-01–DE-06 pass; never two ledger rows or two events per (document, expiry date); the job reads and writes only
-inside `withTenant` of the scheduled company; no live email or WhatsApp request is emitted.
+DE-01–DE-06 pass; never two ledger rows or two PR 15 recipient-free events per (document, expiry date); the job
+reads and writes only inside `withTenant` of the scheduled company; no live email or WhatsApp request is emitted.
