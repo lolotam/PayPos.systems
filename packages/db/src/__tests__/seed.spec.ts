@@ -19,6 +19,22 @@ afterAll(async () => {
   await owner.end();
   await testDb.drop();
 });
+
+it('migrations install card-clock reception defaults before any seed runs', async () => {
+  const grants = await owner`SELECT r.code,rp.permission_code FROM role_permissions rp
+    JOIN roles r ON r.id=rp.role_id AND r.owner_key=rp.role_owner_key
+    WHERE r.company_id IS NULL AND (rp.permission_code='clock:attendance:branch'
+      OR (r.code='cashier' AND rp.permission_code='login:staff:branch')) ORDER BY r.code,rp.permission_code`;
+  expect(grants).toEqual([
+    { code: 'branch_manager', permission_code: 'clock:attendance:branch' },
+    { code: 'business_manager', permission_code: 'clock:attendance:branch' },
+    { code: 'cashier', permission_code: 'clock:attendance:branch' },
+    { code: 'cashier', permission_code: 'login:staff:branch' },
+    { code: 'general_manager', permission_code: 'clock:attendance:branch' },
+    { code: 'owner', permission_code: 'clock:attendance:branch' },
+    { code: 'shift_supervisor', permission_code: 'clock:attendance:branch' },
+  ]);
+});
 // توقع مستقل لحزم PR 16؛ بقية المرجع يغطيه اختبار المصفوفة الكاملة.
 function expectedScheduleGrants() {
   return SYSTEM_ROLES.flatMap((r) => {

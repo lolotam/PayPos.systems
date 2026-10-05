@@ -282,6 +282,7 @@ reads:
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
   - staff -> tenancy.employeeImportBranches @ apps/worker/src/modules/staff/persistence/employee-import.transactions.ts
   - staff -> identity.readAttendanceDeviceAccess @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
+  - staff -> identity.lockAttendanceDeviceContext @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
   - staff -> identity.readEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
 ```

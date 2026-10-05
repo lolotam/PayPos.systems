@@ -1,4 +1,5 @@
 import { t } from '@pospay/i18n';
+import { useEffect, useRef } from 'react';
 import { Button, EmptyState, Input, Label, WifiOff } from '@pospay/ui';
 
 import { useLocale } from '@/shared/locale/locale-context';
@@ -18,6 +19,10 @@ export function ClockByCardForm({
   onSubmit: () => void;
 }) {
   const locale = useLocale();
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (online && !pending) input.current?.focus();
+  }, [online, pending]);
   return (
     <form
       className="flex flex-col gap-3 text-start"
@@ -29,6 +34,8 @@ export function ClockByCardForm({
       <Label htmlFor="card-code">{t(locale, 'pos.cardLabel')}</Label>
       <Input
         id="card-code"
+        ref={input}
+        type="password"
         value={code}
         autoFocus
         autoComplete="off"
@@ -39,7 +46,12 @@ export function ClockByCardForm({
         {t(locale, 'pos.cardSubmit')}
       </Button>
       {!online ? (
-        <EmptyState role="status" tone="warning" icon={<WifiOff />} title={t(locale, 'pos.cardOffline')} />
+        <EmptyState
+          role="status"
+          tone="warning"
+          icon={<WifiOff />}
+          title={t(locale, 'pos.cardOffline')}
+        />
       ) : null}
     </form>
   );

@@ -248,14 +248,14 @@ it('reads company/business/branch coverage and active windows in only the proven
   }
 });
 
-it('cashier requires explicit permission, DENY wins and closing the company removes eligibility without changing request privacy', async () => {
+it('cashier reception login is a default; DENY and company closure preserve refusal privacy', async () => {
   const db = createDatabase({ url: f.h.urls.app, ids: { newId: randomUUID } });
   const reader = createStaffEligibility(db),
     context = { companyId: company, businessId: business, branchId: branch, deviceId: device.id };
   const override = randomUUID();
   try {
     await setMembership('BRANCH', branch, 'cashier');
-    expect(await reader.eligible(userId, context)).toBe(false);
+    expect(await reader.eligible(userId, context)).toBe(true);
     await f.h
       .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
       VALUES(${company},${override},${member},'login:staff:branch','ALLOW','BRANCH',${branch},'synthetic explicit grant',${userId})`;
@@ -265,6 +265,7 @@ it('cashier requires explicit permission, DENY wins and closing the company remo
     expect(await reader.eligible(userId, context)).toBe(false);
     await f.h
       .owner`DELETE FROM permission_overrides WHERE company_id=${company} AND id=${override}`;
+    expect(await reader.eligible(userId, context)).toBe(true);
     await setMembership('BRANCH', branch, 'owner');
     expect(await reader.eligible(userId, context)).toBe(false);
     await setMembership('BRANCH', branch);

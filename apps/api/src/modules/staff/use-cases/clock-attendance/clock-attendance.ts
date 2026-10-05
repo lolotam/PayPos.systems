@@ -86,7 +86,9 @@ export class ClockAttendance {
         geo: context.geo,
       },
       at,
-      this.ids.newId(),
+      attendanceTransition(context.open, at) === 'OUT' && context.open !== null
+        ? context.open.id
+        : this.ids.newId(),
     );
     await tx.persist({
       result: plan.result,

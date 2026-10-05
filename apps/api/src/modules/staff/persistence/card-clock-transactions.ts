@@ -1,9 +1,6 @@
-import { createHash } from 'node:crypto';
 import { runIdempotent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { ClockResult } from '../domain/clock-attendance.ts';
-import { AttendanceError } from '../domain/clock-attendance.ts';
-import { cardCodeMatches, normalizeCardCode } from '../domain/employee-card.ts';
 import type {
   CardClockContext,
   CardClockScope,
@@ -18,42 +15,53 @@ import { ATTENDANCE_TRANSACTION_TIMEOUT_MS } from './attendance-transactions.ts'
 export function createCardClockTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
+  hash: (companyId: string, code: string) => string,
 ): CardClockTransactions {
   return {
     run: (scope, cardCode, sample, work) =>
       database.withTenant(
         scope.companyId,
         async (tx) => {
-          const card = await findActiveCard(tx, scope, normalizeCardCode(cardCode));
-          const state = await lockAttendanceState(tx, {
-            companyId: scope.companyId,
-            employeeId: card.employee_id,
-          });
+          const codeHash = hash(scope.companyId, cardCode);
+          const card = await findActiveCard(tx, scope, codeHash);
+          const employeeId = card?.employee_id ?? '00000000-0000-0000-0000-000000000000';
+          const state = await lockAttendanceState(
+            tx,
+            {
+              companyId: scope.companyId,
+              employeeId,
+            },
+            false,
+          );
           const { context, at } = await lockedCardContext(
             tx,
             scope,
-            card.employee_id,
+            employeeId,
             sample,
             state,
+            () => confirmCard(tx, scope, card?.id ?? null, codeHash),
           );
-          return work(buildTransaction(tx, scope, card.employee_id, context, ids), at);
+          return work(buildTransaction(tx, scope, employeeId, context, ids, hash), at);
         },
         { userId: scope.operatorId, timeoutMs: ATTENDANCE_TRANSACTION_TIMEOUT_MS },
       ),
   };
 }
 
-async function findActiveCard(tx: Tx, scope: CardClockScope, code: string) {
-  // TODO(spec) CB-Q2: the SPEC lists card_code, so the raw code is stored for the scan lookup;
-  // a keyed hash plus a display suffix needs its own ADR and migration.
-  const [card] = await tx.execute<{ id: string; card_code: string; employee_id: string }>(sql`
-    SELECT id,card_code,employee_id FROM employee_cards
-    WHERE company_id=${scope.companyId} AND business_id=${scope.businessId} AND card_code=${code}
-      AND revoked_at IS NULL FOR SHARE`);
-  // الكارت الملغى والمجهول وكارت نشاط آخر كلها لا صف نشط، فالرد واحد.
-  if (card === undefined || !cardCodeMatches(card.card_code, code))
-    throw new AttendanceError('NOT_FOUND');
+async function findActiveCard(tx: Tx, scope: CardClockScope, codeHash: string) {
+  // قراءة بلا قفل لتحديد الموظف فقط؛ State أول قفل، والكارت يُثبت بعد أقفال الهوية والموظف.
+  const [card] = await tx.execute<{ id: string; employee_id: string }>(sql`
+    SELECT id,employee_id FROM employee_cards
+    WHERE company_id=${scope.companyId} AND business_id=${scope.businessId} AND card_code_hash=${codeHash}
+      AND revoked_at IS NULL`);
   return card;
+}
+
+async function confirmCard(tx: Tx, scope: CardClockScope, cardId: string | null, codeHash: string) {
+  const rows = await tx.execute(sql`SELECT id FROM employee_cards
+    WHERE company_id=${scope.companyId} AND business_id=${scope.businessId} AND id=${cardId}::uuid
+      AND card_code_hash=${codeHash} AND revoked_at IS NULL FOR SHARE`);
+  return rows.length === 1;
 }
 
 function buildTransaction(
@@ -62,13 +70,21 @@ function buildTransaction(
   employeeId: string,
   context: CardClockContext,
   ids: IdGenerator,
+  hash: (companyId: string, code: string) => string,
 ): CardClockTransaction {
   return {
     context,
     idempotent: async (key, fingerprint, effect) => {
-      const bound = createHash('sha256')
-        .update(JSON.stringify([scope.companyId, scope.deviceId, scope.operatorId, fingerprint]))
-        .digest('hex');
+      const bound = hash(
+        scope.companyId,
+        JSON.stringify([
+          'clock-command:v1',
+          scope.companyId,
+          scope.deviceId,
+          scope.operatorId,
+          fingerprint,
+        ]),
+      );
       const result = await runIdempotent(
         tx,
         { scope: 'COMPANY', operation: 'clock-by-card', key, fingerprint: bound },

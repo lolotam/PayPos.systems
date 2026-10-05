@@ -62,7 +62,12 @@ const expectations: Record<string, readonly string[]> = {
     'manage:schedules:branch',
   ],
   shift_supervisor: ['read:branches:branch', 'clock:attendance:branch'],
-  cashier: ['read:branches:branch', 'create:customers:branch', 'clock:attendance:branch'],
+  cashier: [
+    'read:branches:branch',
+    'create:customers:branch',
+    'clock:attendance:branch',
+    'login:staff:branch',
+  ],
   waiter: ['read:branches:branch'],
   kitchen: [],
   storekeeper: ['read:branches:branch'],

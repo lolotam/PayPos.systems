@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -42,11 +43,13 @@ describe('DeviceScreen', () => {
     mockUseDeviceSession.mockReturnValue(session);
 
     render(
-      <DirectionProvider dir="rtl">
-        <LocaleProvider locale="ar" setLocale={() => undefined}>
-          <DeviceScreen />
-        </LocaleProvider>
-      </DirectionProvider>,
+      <QueryClientProvider client={new QueryClient()}>
+        <DirectionProvider dir="rtl">
+          <LocaleProvider locale="ar" setLocale={() => undefined}>
+            <DeviceScreen />
+          </LocaleProvider>
+        </DirectionProvider>
+      </QueryClientProvider>,
     );
 
     expect(screen.getByText(t('ar', 'pos.appName'))).not.toBeNull();

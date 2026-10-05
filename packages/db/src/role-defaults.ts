@@ -95,10 +95,8 @@ export const ROLE_DEFAULTS = {
   'create:customers:company': ['owner', 'general_manager'],
   'create:customers:business': ['owner', 'business_manager'],
   'create:customers:branch': ['owner', 'branch_manager', 'cashier'],
-  // ADR-0019 يمنع دخول الموظفين الضمني للمالك والمدير؛ الكاشير يحتاج ALLOW شخصي.
-  'login:staff:branch': ['staff'],
-  // قرار موصى به (CB-Q3): الحضور بالكارت لطاقم الاستقبال؛ غير سرّي ومنع مسح الهاتف مستقل.
-  // TODO(spec) CB-Q3: confirm the default bundle; no system role currently has both login:staff:branch and this code.
+  // تصحيح PR 23 بطلب المراجع: كاشير الاستقبال يحتاج الدخول والحضور معاً؛ سلطة المدير وحدها لا تفتح جلسة الموظف.
+  'login:staff:branch': ['staff', 'cashier'],
   'clock:attendance:branch': [...managers, 'branch_manager', 'shift_supervisor', 'cashier'],
   'create:companies:platform': [],
 } as const satisfies Record<Permission, readonly string[]>;

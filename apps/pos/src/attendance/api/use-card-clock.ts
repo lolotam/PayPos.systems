@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { clockByCard, type CardClockOutcome } from './clock-by-card';
+import { useCardClockLifetime } from './use-card-clock-lifetime';
 
 /** حالة مسح الكارت: مدخل واحد، مسح واحد أثناء الانتظار، ونتيجة أو رفض للعرض. */
 export function useCardClock() {
@@ -12,20 +13,19 @@ export function useCardClock() {
   );
   const active = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    const up = () => setOnline(true);
-    const down = () => setOnline(false);
-    window.addEventListener('online', up);
-    window.addEventListener('offline', down);
-    return () => {
-      window.removeEventListener('online', up);
-      window.removeEventListener('offline', down);
-    };
+  const clear = useCallback(() => {
+    active.current?.abort();
+    active.current = null;
+    setCode('');
+    setPending(false);
+    setOutcome(null);
   }, []);
+  useCardClockLifetime(clear, setOnline);
 
   const submit = useCallback(async () => {
     const value = code.trim();
     if (value.length === 0 || active.current !== null) return;
+    setCode('');
     if (!navigator.onLine) {
       setOutcome({ kind: 'offline' });
       return;
@@ -38,7 +38,6 @@ export function useCardClock() {
       const result = await clockByCard(value, controller.signal);
       if (!controller.signal.aborted) {
         setOutcome(result);
-        setCode('');
       }
     } finally {
       if (!controller.signal.aborted) {

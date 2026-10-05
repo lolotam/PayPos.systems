@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { describe, expect, it, vi } from 'vitest';
@@ -23,11 +24,13 @@ vi.mock('@/attendance/api/use-attendance-qr', () => ({
 
 function renderBody(session: DeviceSession) {
   return render(
-    <DirectionProvider dir="rtl">
-      <LocaleProvider locale="ar" setLocale={() => undefined}>
-        <DeviceBody session={session} />
-      </LocaleProvider>
-    </DirectionProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <DirectionProvider dir="rtl">
+        <LocaleProvider locale="ar" setLocale={() => undefined}>
+          <DeviceBody session={session} />
+        </LocaleProvider>
+      </DirectionProvider>
+    </QueryClientProvider>,
   );
 }
 

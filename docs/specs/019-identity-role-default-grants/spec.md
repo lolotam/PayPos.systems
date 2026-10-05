@@ -138,3 +138,7 @@ Acceptance: all four schedule/template Device ALLOWs return the named bilingual
 403, including user-bound Device memberships. Seed historical forbidden ALLOWs,
 prove guards refuse them and confirm unchanged current/history rows on the
 permissions screen. Keep positive delegation cases for human roles.
+
+## PR 23 reception amendment — review request 2026-10-05
+
+The reviewer/fixer request promotes Cashier's optional `login:staff:branch` cell to a stored default, alongside `clock:attendance:branch`, so the reception bundle operates without a custom role. Staff keeps its login default; no other role gains staff login. Owner/admin authority alone remains insufficient. Migration 0082 applies the added defaults to existing system memberships; seed uses the same matrix. See ADR-0036 and spec 032.

@@ -54,22 +54,24 @@ NOT_FOUND. The permission `clock:attendance:branch` is evaluated at the device's
 through identity's existing access reader. SPEC §7 names it `clock:attendance:device`,
 but the `permissions` catalog CHECK (ADR-0003 §2.2) allows only
 `platform|company|business|branch|own`, so a `:device` code cannot be stored without an
-architecture decision; the branch-scoped code is the faithful, valid spelling (CB-Q5).
+architecture decision. ADR-0036 records the branch-scoped spelling and explicit Device/operator checks, following PR 19 and ADR-0019; no permission CHECK change (CB-Q5 resolved).
 
 `packages/contracts` gains `clockByCardInput`, `issueEmployeeCardInput`,
-`revokeEmployeeCardInput`, `employeeCard`, `employeeCardsView` and the OpenAPI paths for
+`employeeCard`, `employeeCardsView` and the OpenAPI paths for
 the device clock and for issue/revoke/list under
 `/v1/businesses/{businessId}/employees/{employeeId}/cards`.
+Revocation has no request body; its card ID is a validated path parameter.
 
 ### Business rules, schema and events
 
 `employee_cards` is a tenant table: `(company_id, id)` primary key, `business_id`,
-`employee_id`, `card_code`, `issued_at`, `issued_by`, `revoked_at`, `revoked_by`. Two
-partial unique indexes hold one active card per employee and one active card code per
-company. `issued_by`/`revoked_by` reference the operator user and the revocation pair is
-CHECKed together. RLS is FORCE + a single tenant policy for `pospay_app` with
+`employee_id`, `card_code_hash`, `card_code_suffix`, `issued_at`, `issued_by`, `revoked_at`, `revoked_by`. Two
+partial unique indexes hold one active card per employee and one active company-scoped HMAC per company. The HMAC key is domain-separated from the existing BETTER_AUTH_SECRET; rotating that root requires reissuing cards (ADR-0036). Daily QR secrets are unsuitable because they expire. `issued_by`/`revoked_by` reference the operator user and the revocation pair is
+CHECKed together. RLS is FORCE + command-specific tenant policies for `pospay_app` with
 SELECT/INSERT and column-limited UPDATE. The card code is card-like secret material:
 never logged, never in audit/events, and never returned in full (only a suffix).
+
+A nonlocking hash lookup identifies the employee; AttendanceState is the first lock, followed by company, ordered memberships, device, employee/attachments, branch, and finally a locked card recheck. Unknown/revoked/foreign cards use an empty candidate through the same eligibility query sequence as unattached cards, with no explicit timing delay or case-specific response. Permission and device eligibility are checked independently of card existence.
 
 The card is a second entry point into the spec-027 domain. `attendanceTransition`,
 `attendanceDuplicate`, `attendanceWorkingDate`, `attendanceSchedule`,
@@ -81,7 +83,7 @@ commission).
 
 ### Test plan
 
-Pure tests cover card-code normalisation/validation, the constant-time comparison and the
+Pure tests cover card-code normalisation/validation and suffix masking; adapter tests cover keyed, tenant-separated digests and the
 reused transition/dedupe boundaries through the card entry point. Real migrated PostgreSQL
 tests cover card clock-in and clock-out, the 5-minute dedupe shared with the passkey path,
 the 16 h rule through the card, revoked and unknown cards answering identically, another
@@ -100,21 +102,14 @@ all optional settings empty if startup wiring changes.
   treat the fixed device as `OK` because it is physically installed at the branch. Recommended
   answer: keep `NONE` until the owner decides, so the report stays truthful; revisit as an
   owner decision before the exception board (PR 27).
-- CB-Q2 — card-code storage: the SPEC lists `card_code`, so the raw code is stored for the
-  equality lookup used by a keyboard-wedge scan. Recommended answer: add an ADR and store a
-  keyed HMAC (plus a display suffix), matching how the QR secret and the passkey material are
-  treated; this changes the lookup and needs its own migration.
+- CB-Q2 — resolved by the review request: store only a company-scoped HMAC and a suffix that never contains the whole code; hash lookups and keyed idempotency fingerprints, no plaintext column. Regenerated this slice's 0081/0082 (ADR-0036).
 - CB-Q3 — who may clock by card: `clock:attendance:branch` is granted by default to the
   reception-capable human roles (owner, general manager, business manager, branch manager,
-  shift supervisor, cashier). Recommended answer: confirm the exact bundle; the code is
-  deliberately not granted to non-reception roles.
+  shift supervisor, cashier). The review request makes Cashier staff login a default (previously optional in PR 7a), so a normal reception Cashier can use both capabilities. Owner/admin status still never enables staff login. Other manager/supervisor operators require a separate Cashier membership or an explicitly configured custom reception role. Confirm whether any further human role should gain login by default.
 - CB-Q4 — card management as its own PR: issuing/revoking cards is small but security-shaped;
   recommended answer: keep it in this PR only if the owner accepts the admin section, else
   split it into its own `--cards-management` PR before PR 23 ships.
-- CB-Q5 — permission code: SPEC §7 says `clock:attendance:device`, but the `permissions`
-  CHECK allows only `platform|company|business|branch|own`. Recommended answer: keep the
-  valid `clock:attendance:branch` and, if the owner truly wants a `:device` scope, record an
-  ADR and relax the CHECK (it would also need a new guard target).
+- CB-Q5 — resolved: keep `clock:attendance:branch` at the verified device branch; explicit Device plus operator session, no CHECK change. PR 19 uses explicit Device checks, not a stored `:device` scope (ADR-0036).
 
 ## Success criteria
 

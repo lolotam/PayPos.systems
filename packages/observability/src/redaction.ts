@@ -28,6 +28,7 @@ const SECRET_SUFFIXES = [
   'pincode',
   'passcode',
   'otpcode',
+  'cardcode',
   'securitycode',
   'verificationcode',
   'codemac',

@@ -218,6 +218,7 @@ async function prepareHarness(
       {
         readiness: [],
         auth: { service: auth, baseURL: BASE },
+        cardHashSecret: 'test-secret-that-is-long-enough-for-hmac',
         database: wrappers,
         ...(options.files === undefined ? {} : { files: options.files }),
         ...staffWiring(options, staffOtp, auth),

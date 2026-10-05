@@ -53,6 +53,7 @@ import {
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
 
 export interface AppDependencies {
+  readonly cardHashSecret?: string;
   readonly personal?: PersonalAuthentication | null;
   readonly files?: FilesRuntime | null;
   readonly staff?: {
@@ -138,6 +139,7 @@ class AppModule {
           deps.redis,
           deps.auth?.service.passkeys ?? null,
           deps.files?.storage ?? null,
+          deps.cardHashSecret ?? null,
         ),
         ...filesProviders(deps.database, deps.ids ?? systemUuidV7(), deps.files),
       ],

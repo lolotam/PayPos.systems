@@ -1,6 +1,6 @@
 {
-  "id": "3ed03fd7-9387-444f-97a7-143630105937",
-  "prevId": "ce4ef3ea-ca76-43c4-ae0d-012e939cf354",
+  "id": "467d20b3-e350-49b1-a123-2c3c4a9bd2c7",
+  "prevId": "c7fd79a0-e333-4736-9ef7-7bc30dc953a2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -9388,8 +9388,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "card_code": {
-          "name": "card_code",
+        "card_code_hash": {
+          "name": "card_code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "card_code_suffix": {
+          "name": "card_code_suffix",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -9452,7 +9458,7 @@
               "nulls": "last"
             },
             {
-              "expression": "card_code",
+              "expression": "card_code_hash",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -9613,9 +9619,13 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "employee_cards_code": {
-          "name": "employee_cards_code",
-          "value": "char_length(\"employee_cards\".\"card_code\") BETWEEN 4 AND 64 AND \"employee_cards\".\"card_code\" ~ '^[!-~]+$'"
+        "employee_cards_code_hash": {
+          "name": "employee_cards_code_hash",
+          "value": "\"employee_cards\".\"card_code_hash\" ~ '^[a-f0-9]{64}$'"
+        },
+        "employee_cards_code_suffix": {
+          "name": "employee_cards_code_suffix",
+          "value": "char_length(\"employee_cards\".\"card_code_suffix\") BETWEEN 1 AND 4 AND \"employee_cards\".\"card_code_suffix\" ~ '^[!-~]+$'"
         },
         "employee_cards_revoked_pair": {
           "name": "employee_cards_revoked_pair",

@@ -94,6 +94,7 @@ import { IssueEmployeeCard } from './use-cases/issue-employee-card/issue-employe
 import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
 import { createCardClockTransactions } from './persistence/card-clock-transactions.ts';
 import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
+import { createEmployeeCardHash } from './persistence/employee-card-hash.ts';
 import { createEmployeeCardAccess } from './persistence/employee-card-access.adapter.ts';
 import { EMPLOYEE_CARD_ACCESS } from './queries/employee-cards.query.ts';
 
@@ -256,13 +257,14 @@ export function staffProviders(
   redis?: Redis,
   passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null = null,
   importStorage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null = null,
+  cardHashSecret: string | null = null,
 ): Provider[] {
   const ids = systemUuidV7();
   const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
     ...attendanceProviders(database, secrets, passkeys, ids),
-    ...cardProviders(database, ids),
+    ...cardProviders(database, ids, cardHashSecret),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
     ...unbindProviders(database, ids),
     ...enrolProviders(database, ids, passkeys),
@@ -370,8 +372,12 @@ function attendanceProviders(
   ];
 }
 
-function cardProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
-  if (database === undefined)
+function cardProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  secret: string | null,
+): Provider[] {
+  if (database === undefined || secret === null)
     return [
       { provide: ClockByCard, useValue: null },
       { provide: IssueEmployeeCard, useValue: null },
@@ -379,11 +385,12 @@ function cardProviders(database: TenantWrappers | undefined, ids: IdGenerator): 
       { provide: EMPLOYEE_CARD_ACCESS, useValue: null },
     ];
   const access = createEmployeeCardAccess();
-  const cards = createEmployeeCards(database, ids, systemClock, access);
+  const hash = createEmployeeCardHash(secret);
+  const cards = createEmployeeCards(database, ids, systemClock, access, hash);
   return [
     {
       provide: ClockByCard,
-      useValue: new ClockByCard(createCardClockTransactions(database, ids), systemClock, ids),
+      useValue: new ClockByCard(createCardClockTransactions(database, ids, hash), systemClock, ids),
     },
     { provide: IssueEmployeeCard, useValue: new IssueEmployeeCard(cards) },
     { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },

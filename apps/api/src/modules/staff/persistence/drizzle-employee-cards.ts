@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import {
   appendAuditLog,
   runIdempotent,
@@ -8,7 +7,7 @@ import {
 } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import { EmployeeCardError } from '../domain/employee-card.ts';
+import { EmployeeCardError, cardDisplaySuffix } from '../domain/employee-card.ts';
 import type { Clock } from '../../../shared/ports/clock.port.ts';
 import type {
   EmployeeCardRecord,
@@ -32,6 +31,7 @@ export function createEmployeeCards(
   ids: IdGenerator,
   clock: Clock,
   access: CardManageAccess,
+  hash: (companyId: string, code: string) => string,
 ): EmployeeCardsPort {
   return {
     issue: (scope, cardCode, idem) =>
@@ -40,11 +40,19 @@ export function createEmployeeCards(
         async (tx) => {
           await assertManage(tx, access, scope);
           const at = clock.now();
-          const bound = boundFingerprint(scope, 'issue', idem.fingerprint);
+          const bound = boundFingerprint(scope, 'issue', idem.fingerprint, hash);
           const result = await runIdempotent(
             tx,
-            { scope: 'COMPANY', operation: 'issue-employee-card', key: idem.key, fingerprint: bound },
-            async () => ({ status: 200, body: await issueCard(tx, scope, cardCode, at, ids) }),
+            {
+              scope: 'COMPANY',
+              operation: 'issue-employee-card',
+              key: idem.key,
+              fingerprint: bound,
+            },
+            async () => ({
+              status: 200,
+              body: await issueCard(tx, scope, cardCode, at, ids, hash),
+            }),
           );
           return result.body as EmployeeCardRecord;
         },
@@ -56,10 +64,15 @@ export function createEmployeeCards(
         async (tx) => {
           await assertManage(tx, access, scope);
           const at = clock.now();
-          const bound = boundFingerprint(scope, 'revoke', idem.fingerprint);
+          const bound = boundFingerprint(scope, 'revoke', idem.fingerprint, hash);
           const result = await runIdempotent(
             tx,
-            { scope: 'COMPANY', operation: 'revoke-employee-card', key: idem.key, fingerprint: bound },
+            {
+              scope: 'COMPANY',
+              operation: 'revoke-employee-card',
+              key: idem.key,
+              fingerprint: bound,
+            },
             async () => ({ status: 200, body: await revokeCard(tx, scope, cardId, at, ids) }),
           );
           return result.body as EmployeeCardRecord;
@@ -75,19 +88,24 @@ async function assertManage(tx: Tx, access: CardManageAccess, scope: EmployeeCar
   if (!decision.featureEnabled) throw new EmployeeCardError('FEATURE_DISABLED');
 }
 
-function boundFingerprint(scope: EmployeeCardScope, operation: string, fingerprint: string) {
-  return createHash('sha256')
-    .update(
-      JSON.stringify([
-        scope.companyId,
-        scope.businessId,
-        scope.employeeId,
-        scope.operatorId,
-        operation,
-        fingerprint,
-      ]),
-    )
-    .digest('hex');
+function boundFingerprint(
+  scope: EmployeeCardScope,
+  operation: string,
+  fingerprint: string,
+  hash: (companyId: string, code: string) => string,
+) {
+  return hash(
+    scope.companyId,
+    JSON.stringify([
+      'card-command:v1',
+      scope.companyId,
+      scope.businessId,
+      scope.employeeId,
+      scope.operatorId,
+      operation,
+      fingerprint,
+    ]),
+  );
 }
 
 async function issueCard(
@@ -96,28 +114,29 @@ async function issueCard(
   cardCode: string,
   at: Date,
   ids: IdGenerator,
+  hash: (companyId: string, code: string) => string,
 ): Promise<EmployeeCardRecord> {
-  // قفل الكروت النشطة أولاً ثم الموظف: نفس ترتيب قفل مسار الساعة (كارت ثم موظف) بلا دورة انتظار.
-  const active = await tx.execute<{ id: string }>(sql`
-    SELECT id FROM employee_cards WHERE company_id=${scope.companyId} AND employee_id=${scope.employeeId}
-      AND revoked_at IS NULL FOR UPDATE`);
   const [employee] = await tx.execute<{ id: string }>(sql`
     SELECT id FROM employees WHERE company_id=${scope.companyId} AND business_id=${scope.businessId}
       AND id=${scope.employeeId} AND deleted_at IS NULL FOR UPDATE`);
   if (employee === undefined) throw new EmployeeCardError('NOT_FOUND');
+  const active = await tx.execute<{ id: string }>(sql`
+    SELECT id FROM employee_cards WHERE company_id=${scope.companyId} AND employee_id=${scope.employeeId}
+      AND revoked_at IS NULL FOR UPDATE`);
+  const codeHash = hash(scope.companyId, cardCode);
+  const suffix = cardDisplaySuffix(cardCode);
   const [duplicate] = await tx.execute<{ id: string }>(sql`
-    SELECT id FROM employee_cards WHERE company_id=${scope.companyId} AND card_code=${cardCode}
+    SELECT id FROM employee_cards WHERE company_id=${scope.companyId} AND card_code_hash=${codeHash}
       AND revoked_at IS NULL AND employee_id<>${scope.employeeId} LIMIT 1`);
   if (duplicate !== undefined) throw new EmployeeCardError('EMPLOYEE_CARD_CODE_IN_USE');
   for (const card of active) await revokeRow(tx, scope, card.id, at, ids);
   const id = ids.newId();
   try {
-    await tx.execute(sql`INSERT INTO employee_cards(company_id,id,business_id,employee_id,card_code,issued_at,issued_by)
-      VALUES(${scope.companyId},${id},${scope.businessId},${scope.employeeId},${cardCode},${at.toISOString()},${scope.operatorId})`);
+    await tx.execute(sql`INSERT INTO employee_cards(company_id,id,business_id,employee_id,card_code_hash,card_code_suffix,issued_at,issued_by)
+      VALUES(${scope.companyId},${id},${scope.businessId},${scope.employeeId},${codeHash},${suffix},${at.toISOString()},${scope.operatorId})`);
   } catch (error) {
     // الفهرس الجزئي هو الحرس النهائي في سباق إصدار بنفس الكود.
-    if ((error as { code?: string }).code === '23505')
-      throw new EmployeeCardError('EMPLOYEE_CARD_CODE_IN_USE');
+    if (uniqueViolation(error)) throw new EmployeeCardError('EMPLOYEE_CARD_CODE_IN_USE');
     throw error;
   }
   await appendAuditLog(tx, ids.newId(), {
@@ -126,7 +145,7 @@ async function issueCard(
     action: 'issued',
     after: { employee_id: scope.employeeId },
   });
-  return record(id, scope.employeeId, cardCode, at, null);
+  return record(id, scope.employeeId, suffix, at, null);
 }
 
 async function revokeCard(
@@ -136,12 +155,12 @@ async function revokeCard(
   at: Date,
   ids: IdGenerator,
 ): Promise<EmployeeCardRecord> {
-  const [card] = await tx.execute<{ card_code: string }>(sql`
-    SELECT card_code FROM employee_cards WHERE company_id=${scope.companyId} AND business_id=${scope.businessId}
+  const [card] = await tx.execute<{ card_code_suffix: string; issued_at: Date }>(sql`
+    SELECT card_code_suffix,issued_at FROM employee_cards WHERE company_id=${scope.companyId} AND business_id=${scope.businessId}
       AND employee_id=${scope.employeeId} AND id=${cardId} AND revoked_at IS NULL FOR UPDATE`);
   if (card === undefined) throw new EmployeeCardError('NOT_FOUND');
   await revokeRow(tx, scope, cardId, at, ids);
-  return record(cardId, scope.employeeId, card.card_code, at, at);
+  return record(cardId, scope.employeeId, card.card_code_suffix, new Date(card.issued_at), at);
 }
 
 async function revokeRow(
@@ -171,8 +190,14 @@ function record(
   return {
     id,
     employeeId,
-    cardCodeSuffix: cardCode.slice(-4),
+    cardCodeSuffix: cardCode,
     issuedAt: issuedAt.toISOString(),
     revokedAt: revokedAt === null ? null : revokedAt.toISOString(),
   };
+}
+
+function uniqueViolation(error: unknown): boolean {
+  if (error === null || typeof error !== 'object') return false;
+  const cause = error as { code?: string; cause?: unknown };
+  return cause.code === '23505' || (cause.cause !== undefined && uniqueViolation(cause.cause));
 }

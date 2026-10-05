@@ -79,6 +79,7 @@ export async function persistAttendanceMovement(
     const missed = write.result.missed_session_id !== null;
     const closed = await recordMovement(tx, ref, ids, {
       sessionId: write.open.id,
+      branchId: write.open.branchId,
       eventType: missed ? 'AttendanceMissedOut' : 'AttendanceClockedOut',
       at: write.closeAt,
       recordedAt: write.at,
@@ -89,6 +90,7 @@ export async function persistAttendanceMovement(
     await openSession(tx, ref, write);
     accepted = await recordMovement(tx, ref, ids, {
       sessionId: write.result.session_id,
+      branchId: ref.branchId,
       eventType: 'AttendanceClockedIn',
       at: write.at,
       recordedAt: write.at,
@@ -124,7 +126,7 @@ async function closeSession(tx: Tx, ref: AttendanceMovementRef, write: Attendanc
   await tx.execute(sql`UPDATE attendance_sessions SET clock_out=${write.closeAt?.toISOString() ?? null},status=${missed ? 'MISSED_OUT' : 'CLOSED'},closed_by=${missed ? 'MISSED_OUT' : 'EMPLOYEE'},
     out_binding_id=${missed ? null : (ref.binding?.id ?? null)},out_binding_revision=${missed ? null : (ref.binding?.revision ?? null)},out_qr_window=${missed ? null : ref.qrWindow},out_geo=${missed ? null : write.geo},
     out_latitude=${missed ? null : (ref.location?.lat ?? null)},out_longitude=${missed ? null : (ref.location?.lng ?? null)},out_accuracy=${missed ? null : (ref.location?.accuracy ?? null)},
-    out_device_id=${ref.deviceId},out_operator_id=${ref.operatorId}
+    out_device_id=${missed ? null : ref.deviceId},out_operator_id=${missed ? null : ref.operatorId}
     WHERE company_id=${ref.companyId} AND id=${write.open?.id ?? null} AND status='OPEN'`);
   await tx.execute(sql`UPDATE attendance_exceptions SET status='RESOLVED',resolution=${missed ? 'MISSED_OUT' : 'CLOSED_LATE'},resolved_at=${write.at.toISOString()},resolved_by=${ref.resolvedByUserId}
     WHERE company_id=${ref.companyId} AND session_id=${write.open?.id ?? null} AND kind='SUSPECTED_MISSED_OUT' AND status='OPEN'`);
@@ -135,6 +137,7 @@ async function recordMovement(
   ids: IdGenerator,
   movement: {
     sessionId: string;
+    branchId: string;
     eventType: 'AttendanceClockedIn' | 'AttendanceClockedOut' | 'AttendanceMissedOut';
     at: Date;
     recordedAt: Date;
@@ -144,7 +147,7 @@ async function recordMovement(
     session_id: movement.sessionId,
     employee_id: ref.employeeId,
     business_id: ref.businessId,
-    branch_id: ref.branchId,
+    branch_id: movement.branchId,
     occurred_at: movement.at.toISOString(),
     recorded_at: movement.recordedAt.toISOString(),
   };

@@ -38,11 +38,11 @@ export async function readEmployeeCards(
   const [row] = await tx.execute<{
     id: string;
     employee_id: string;
-    card_code: string;
+    card_code_suffix: string;
     issued_at: Date;
     revoked_at: Date | null;
   }>(sql`
-    SELECT id,employee_id,card_code,issued_at,revoked_at FROM employee_cards
+    SELECT id,employee_id,card_code_suffix,issued_at,revoked_at FROM employee_cards
     WHERE company_id=${companyId} AND business_id=${businessId} AND employee_id=${employeeId} AND revoked_at IS NULL`);
   return employeeCardsView.parse({
     active:
@@ -51,7 +51,7 @@ export async function readEmployeeCards(
         : {
             id: row.id,
             employee_id: row.employee_id,
-            card_code_suffix: row.card_code.slice(-4),
+            card_code_suffix: row.card_code_suffix,
             issued_at: new Date(row.issued_at).toISOString(),
             revoked_at: row.revoked_at === null ? null : new Date(row.revoked_at).toISOString(),
           },

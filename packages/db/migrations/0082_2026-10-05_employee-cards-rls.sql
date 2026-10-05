@@ -1,5 +1,4 @@
 -- Custom SQL migration file, put your code below! --
--- كود الكارت سري، والـ tenant وحده يشوفه؛ التعديل مسموح على حقول الإلغاء فقط بعد الإصدار.
 ALTER TABLE employee_cards ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE employee_cards FORCE ROW LEVEL SECURITY;
@@ -15,3 +14,14 @@ REVOKE ALL ON employee_cards FROM PUBLIC, pospay_app, pospay_auth, pospay_dispat
 GRANT SELECT, INSERT ON employee_cards TO pospay_app;
 --> statement-breakpoint
 GRANT UPDATE(revoked_at,revoked_by) ON employee_cards TO pospay_app;
+--> statement-breakpoint
+INSERT INTO permissions(code) VALUES ('clock:attendance:branch') ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
+SELECT id,'global',NULL,'clock:attendance:branch' FROM roles
+WHERE company_id IS NULL AND code IN ('owner','general_manager','business_manager','branch_manager','shift_supervisor','cashier')
+ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
+SELECT id,'global',NULL,'login:staff:branch' FROM roles WHERE company_id IS NULL AND code='cashier'
+ON CONFLICT DO NOTHING;
