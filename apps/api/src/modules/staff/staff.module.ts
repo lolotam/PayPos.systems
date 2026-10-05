@@ -87,9 +87,20 @@ import { createRedisAttendanceQrSecrets } from './persistence/redis-attendance-q
 import { createAttendanceBranchReader } from './persistence/tenancy-attendance-branch.adapter.ts';
 import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attendance-qr.ts';
 import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
+import { ClockByCard } from './use-cases/clock-by-card/clock-by-card.ts';
+import { ClockByCardController } from './http/clock-by-card.controller.ts';
+import { EmployeeCardsController } from './http/employee-cards.controller.ts';
+import { IssueEmployeeCard } from './use-cases/issue-employee-card/issue-employee-card.usecase.ts';
+import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
+import { createCardClockTransactions } from './persistence/card-clock-transactions.ts';
+import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
+import { createEmployeeCardAccess } from './persistence/employee-card-access.adapter.ts';
+import { EMPLOYEE_CARD_ACCESS } from './queries/employee-cards.query.ts';
 
 export const staffControllers = [
   ClockAttendanceController,
+  ClockByCardController,
+  EmployeeCardsController,
   EmployeePasskeysController,
   EmployeeLeaveController,
   OwnLeaveController,
@@ -224,6 +235,22 @@ function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
+function enrolProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null,
+): Provider[] {
+  return [
+    {
+      provide: EnrolPasskey,
+      useValue:
+        database === undefined || passkeys === null
+          ? null
+          : new EnrolPasskey(passkeys, createPasskeyTransactions(database, ids), ids, systemClock),
+    },
+  ];
+}
+
 export function staffProviders(
   database?: TenantWrappers,
   redis?: Redis,
@@ -235,15 +262,10 @@ export function staffProviders(
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
     ...attendanceProviders(database, secrets, passkeys, ids),
+    ...cardProviders(database, ids),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
     ...unbindProviders(database, ids),
-    {
-      provide: EnrolPasskey,
-      useValue:
-        database === undefined || passkeys === null
-          ? null
-          : new EnrolPasskey(passkeys, createPasskeyTransactions(database, ids), ids, systemClock),
-    },
+    ...enrolProviders(database, ids, passkeys),
     ...scheduleProviders(database, ids),
     ...leaveProviders(database, ids),
     ...salaryProviders(database, ids),
@@ -345,5 +367,26 @@ function attendanceProviders(
       provide: RequestClockChallenge,
       useValue: new RequestClockChallenge(transactions, passkeys, qr, systemClock),
     },
+  ];
+}
+
+function cardProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
+  if (database === undefined)
+    return [
+      { provide: ClockByCard, useValue: null },
+      { provide: IssueEmployeeCard, useValue: null },
+      { provide: RevokeEmployeeCard, useValue: null },
+      { provide: EMPLOYEE_CARD_ACCESS, useValue: null },
+    ];
+  const access = createEmployeeCardAccess();
+  const cards = createEmployeeCards(database, ids, systemClock, access);
+  return [
+    {
+      provide: ClockByCard,
+      useValue: new ClockByCard(createCardClockTransactions(database, ids), systemClock, ids),
+    },
+    { provide: IssueEmployeeCard, useValue: new IssueEmployeeCard(cards) },
+    { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },
+    { provide: EMPLOYEE_CARD_ACCESS, useValue: access },
   ];
 }

@@ -62,6 +62,7 @@ const expectedSchemas = [
   'ClaimDeviceInput',
   'ClockAttendanceInput',
   'ClockAttendanceResult',
+  'ClockByCardInput',
   'ClockChallenge',
   'ClockChallengeInput',
   'Company',
@@ -80,6 +81,8 @@ const expectedSchemas = [
   'DiscountLimit',
   'DiscountLimitInput',
   'Employee',
+  'EmployeeCard',
+  'EmployeeCardsView',
   'EmployeeDate',
   'EmployeeDetail',
   'EmployeeListItem',
@@ -151,6 +154,7 @@ const expectedSchemas = [
   'EmployeeImportRowError',
   'EmployeeImportTemplate',
   'PreviewEmployeeImportInput',
+  'IssueEmployeeCardInput',
 ].sort();
 
 describe('openapi/openapi.json', () => {

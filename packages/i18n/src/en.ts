@@ -1,4 +1,5 @@
 import { attendanceEn } from './attendance-en.js';
+import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { employeeDocumentsEn } from './employee-documents-catalog.js';
@@ -36,6 +37,7 @@ export const en = {
     createCustomersBranch: 'Create customers from this branch',
     manageDiscountLimitsBusiness: 'Administer personal discount limits',
     loginStaffBranch: 'Sign in to staff app',
+    clockAttendanceBranch: 'Clock staff in by card on a paired device',
     createCompaniesPlatform: 'Create companies on the platform',
   },
   brand: {
@@ -59,6 +61,7 @@ export const en = {
     employeeAccessHint:
       'Salaries are managed from the employee screen and also require employee-management access.',
   },
+  employeeCard: clockCardAdminEn,
   personalAttendance: attendanceEn,
   personalStaff: personalStaffEn,
   shell: {
@@ -226,6 +229,8 @@ export const en = {
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:
       'This user already has an active employee record in this business.',
+    EMPLOYEE_CARD_CODE_IN_USE:
+      'This card code is already active for another employee in the company.',
     ...employeeImportErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
@@ -385,6 +390,7 @@ export const en = {
     attendanceLoading: 'Loading a fresh attendance code…',
     attendanceRefreshLead: 'This code refreshes every 60 seconds. Scan it from your staff app.',
     branchLabel: 'Branch',
+    ...clockCardPosEn,
     unexpected: 'Something went wrong. Try again.',
     networkError: 'The server could not be reached. Try again.',
   },

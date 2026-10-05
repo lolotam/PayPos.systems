@@ -1,4 +1,5 @@
 import { attendanceAr } from './attendance-ar.js';
+import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
 import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
@@ -38,6 +39,7 @@ export const ar: Catalog = {
     createCustomersBranch: 'إنشاء عملاء من هذا الفرع',
     manageDiscountLimitsBusiness: 'إدارة حدود الخصم الشخصية',
     loginStaffBranch: 'الدخول إلى تطبيق الموظفين',
+    clockAttendanceBranch: 'تسجيل حضور الموظفين بالكارت على جهاز مثبّت',
     createCompaniesPlatform: 'إنشاء شركات على المنصة',
   },
   brand: {
@@ -59,6 +61,7 @@ export const ar: Catalog = {
     managePermission: 'تعيين الراتب',
     employeeAccessHint: 'تُدار الرواتب من شاشة الموظفين، وتحتاج أيضًا إلى صلاحية إدارة الموظفين.',
   },
+  employeeCard: clockCardAdminAr,
   personalAttendance: attendanceAr,
   personalStaff: personalStaffAr,
   shell: {
@@ -222,6 +225,7 @@ export const ar: Catalog = {
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
+    EMPLOYEE_CARD_CODE_IN_USE: 'كود الكارت مستخدم بالفعل لموظف نشط آخر في الشركة.',
     ...employeeImportErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
@@ -375,6 +379,7 @@ export const ar: Catalog = {
     attendanceLoading: 'جارٍ تحميل رمز حضور جديد…',
     attendanceRefreshLead: 'يتجدد الرمز كل 60 ثانية. امسحه من تطبيق الموظفين.',
     branchLabel: 'الفرع',
+    ...clockCardPosAr,
     unexpected: 'حدث خطأ. حاول مرة أخرى.',
     networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
   },

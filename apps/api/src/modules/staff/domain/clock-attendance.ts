@@ -28,7 +28,7 @@ export class AttendanceError extends Error {
    *
    * @param code سبب الرفض الآمن
    */
-  constructor(readonly code: 'NOT_FOUND' | 'PASSKEY_INVALID' | 'BAD_REQUEST') {
+  constructor(readonly code: 'NOT_FOUND' | 'PASSKEY_INVALID' | 'BAD_REQUEST' | 'FORBIDDEN') {
     super(code);
   }
 }
@@ -126,6 +126,61 @@ export function attendanceLateMinutes(scheduledStart: Date | null, at: Date): nu
 export function attendanceMissedDeadline(open: OpenAttendance): Date {
   // قرار المالك 2026-10-04 (AT-Q6، الخيار الموصى به): قفل MISSED_OUT عند حد ١٦ ساعة وتسجيل الاكتشاف منفصلاً.
   return new Date(open.clockIn.getTime() + 16 * 60 * 60 * 1000);
+}
+/** الحقائق الدنيا التي يحسبها الانتقال بغض النظر عن مصدر المسح. */
+export interface AttendancePlanInput {
+  open: OpenAttendance | null;
+  timezone: string;
+  shifts: readonly { startsAt: Date; endsAt: Date; workingDate: string }[];
+  location: ClockLocation | undefined;
+  geo: { lat: number; lng: number } | null;
+}
+/** خطة حركة واحدة: الرد المقبول ولحظة القفل والموقع والوردية. */
+export interface AttendancePlan {
+  result: ClockResult;
+  closeAt: Date | null;
+  geo: 'OK' | 'NONE' | 'OUT_OF_RANGE';
+  schedule: { startsAt: Date; endsAt: Date } | null;
+}
+/** يحسب الرد من نفس قواعد spec 027 لأي مصدر مسح (QR أو كارت)، فلا يوجد تنفيذ ثانٍ للانتقال.
+ *
+ * @param input حقائق الجلسة المفتوحة والورديات والموقع
+ * @param at وقت الطلب الواحد بعد كل الأقفال
+ * @param newSessionId معرّف محتمل للجلسة الجديدة، يُستخدم عند الفتح فقط
+ * @returns الرد المقبول وما يُكتب معه في نفس المعاملة
+ */
+export function planAttendance(
+  input: AttendancePlanInput,
+  at: Date,
+  newSessionId: string,
+): AttendancePlan {
+  const transition = attendanceTransition(input.open, at);
+  const workingDate = attendanceWorkingDate(at, input.timezone);
+  const schedule = attendanceSchedule(input.shifts, at, workingDate);
+  const geo = attendanceGeofence(input.location, input.geo);
+  const closing = transition === 'OUT';
+  return {
+    result: {
+      session_id: closing && input.open !== null ? input.open.id : newSessionId,
+      operation: closing ? 'CLOCK_OUT' : 'CLOCK_IN',
+      working_date: closing && input.open !== null ? input.open.workingDate : workingDate,
+      accepted_at: at.toISOString(),
+      exceptions: geo === 'OK' ? [] : [geo],
+      late_minutes:
+        closing && input.open !== null
+          ? input.open.lateMinutes
+          : attendanceLateMinutes(schedule?.startsAt ?? null, at),
+      missed_session_id: transition === 'MISSED_IN' && input.open !== null ? input.open.id : null,
+    },
+    closeAt:
+      input.open === null
+        ? null
+        : transition === 'MISSED_IN'
+          ? attendanceMissedDeadline(input.open)
+          : at,
+    geo,
+    schedule,
+  };
 }
 /** الشيفت الجاري أولاً وإلا أول شيفت يبدأ في نفس اليوم؛ الغموض موثق لصاحب القرار.
  *

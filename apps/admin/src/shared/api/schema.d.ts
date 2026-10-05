@@ -319,6 +319,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/devices/me/clock-by-card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Clock a staff member by their attendance card on the paired device; requires the Device credential and a signed-in operator holding clock:attendance:branch. */
+        post: operations["clockByCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The active attendance card for the employee, with manage capability. */
+        get: operations["readEmployeeCards"];
+        put?: never;
+        /** @description Issue an active attendance card; the previous active card is replaced and both changes are audited. */
+        post: operations["issueEmployeeCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/cards/{cardId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Revoke an active attendance card; the change is audited. */
+        post: operations["revokeEmployeeCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/passkeys": {
         parameters: {
             query?: never;
@@ -1370,6 +1422,27 @@ export interface components {
             late_minutes: number;
             /** Format: uuid */
             missed_session_id: string | null;
+        };
+        ClockByCardInput: {
+            card_code: string;
+        };
+        IssueEmployeeCardInput: {
+            card_code: string;
+        };
+        EmployeeCard: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            card_code_suffix: string;
+            /** Format: date-time */
+            issued_at: string;
+            /** Format: date-time */
+            revoked_at: string | null;
+        };
+        EmployeeCardsView: {
+            active: components["schemas"]["EmployeeCard"] | null;
+            can_manage: boolean;
         };
         RequestLeaveInput: {
             /** @enum {string} */
@@ -3398,6 +3471,150 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClockAttendanceResult"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    clockByCard: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockByCardInput"];
+            };
+        };
+        responses: {
+            /** @description Accepted attendance movement */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockAttendanceResult"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    readEmployeeCards: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Employee cards view */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeCardsView"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    issueEmployeeCard: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueEmployeeCardInput"];
+            };
+        };
+        responses: {
+            /** @description Issued card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeCard"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    revokeEmployeeCard: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+                cardId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeCard"];
                 };
             };
             /** @description Error envelope */

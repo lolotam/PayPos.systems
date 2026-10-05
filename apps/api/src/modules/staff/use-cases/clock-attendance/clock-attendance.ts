@@ -12,11 +12,7 @@ import type {
 import {
   attendanceDuplicate,
   attendanceTransition,
-  attendanceWorkingDate,
-  attendanceGeofence,
-  attendanceSchedule,
-  attendanceLateMinutes,
-  attendanceMissedDeadline,
+  planAttendance,
   AttendanceError,
   type ClockResult,
 } from '../../domain/clock-attendance.ts';
@@ -81,39 +77,27 @@ export class ClockAttendance {
     installationId: string,
   ): Promise<ClockResult> {
     const context = tx.context;
-    const transition = attendanceTransition(context.open, at);
-    const workingDate = attendanceWorkingDate(at, context.timezone);
-    const schedule = attendanceSchedule(context.shifts, at, workingDate);
-    const geo = attendanceGeofence(context.location, context.geo);
-    const closing = transition === 'OUT';
-    const result: ClockResult = {
-      session_id: closing && context.open !== null ? context.open.id : this.ids.newId(),
-      operation: closing ? 'CLOCK_OUT' : 'CLOCK_IN',
-      working_date: closing && context.open !== null ? context.open.workingDate : workingDate,
-      accepted_at: at.toISOString(),
-      exceptions: geo === 'OK' ? [] : [geo],
-      late_minutes:
-        closing && context.open !== null
-          ? context.open.lateMinutes
-          : attendanceLateMinutes(schedule?.startsAt ?? null, at),
-      missed_session_id:
-        transition === 'MISSED_IN' && context.open !== null ? context.open.id : null,
-    };
-    await tx.persist({
-      result,
-      geo,
+    const plan = planAttendance(
+      {
+        open: context.open,
+        timezone: context.timezone,
+        shifts: context.shifts,
+        location: context.location,
+        geo: context.geo,
+      },
       at,
-      schedule,
+      this.ids.newId(),
+    );
+    await tx.persist({
+      result: plan.result,
+      geo: plan.geo,
+      at,
+      schedule: plan.schedule,
       open: context.open,
-      closeAt:
-        context.open === null
-          ? null
-          : transition === 'MISSED_IN'
-            ? attendanceMissedDeadline(context.open)
-            : at,
+      closeAt: plan.closeAt,
       // إشارة واحدة لكل مسح مقبول: dedupe والإعادة المخزنة والرفض لا تصل إلى persist أصلاً.
       installationId,
     });
-    return result;
+    return plan.result;
   }
 }

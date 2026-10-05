@@ -1173,6 +1173,270 @@
         }
       }
     },
+    "/v1/devices/me/clock-by-card": {
+      "post": {
+        "operationId": "clockByCard",
+        "description": "Clock a staff member by their attendance card on the paired device; requires the Device credential and a signed-in operator holding clock:attendance:branch.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClockByCardInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted attendance movement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClockAttendanceResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DeviceToken": [],
+            "KioskStaffSession": []
+          }
+        ]
+      }
+    },
+    "/v1/businesses/{businessId}/employees/{employeeId}/cards": {
+      "get": {
+        "operationId": "readEmployeeCards",
+        "description": "The active attendance card for the employee, with manage capability.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Employee cards view",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeCardsView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "issueEmployeeCard",
+        "description": "Issue an active attendance card; the previous active card is replaced and both changes are audited.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueEmployeeCardInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Issued card",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeCard"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employees/{employeeId}/cards/{cardId}/revoke": {
+      "post": {
+        "operationId": "revokeEmployeeCard",
+        "description": "Revoke an active attendance card; the change is audited.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "cardId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked card",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeCard"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/employees/{employeeId}/passkeys": {
       "get": {
         "operationId": "employeePasskeyHistory",
@@ -5800,6 +6064,95 @@
           "exceptions",
           "late_minutes",
           "missed_session_id"
+        ],
+        "additionalProperties": false
+      },
+      "ClockByCardInput": {
+        "type": "object",
+        "properties": {
+          "card_code": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 64,
+            "pattern": "^[\\x21-\\x7e]+$"
+          }
+        },
+        "required": [
+          "card_code"
+        ],
+        "additionalProperties": false
+      },
+      "IssueEmployeeCardInput": {
+        "type": "object",
+        "properties": {
+          "card_code": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 64,
+            "pattern": "^[\\x21-\\x7e]+$"
+          }
+        },
+        "required": [
+          "card_code"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "card_code_suffix": {
+            "type": "string",
+            "maxLength": 4
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "revoked_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "employee_id",
+          "card_code_suffix",
+          "issued_at",
+          "revoked_at"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeCardsView": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EmployeeCard"
+              }
+            ]
+          },
+          "can_manage": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "active",
+          "can_manage"
         ],
         "additionalProperties": false
       },

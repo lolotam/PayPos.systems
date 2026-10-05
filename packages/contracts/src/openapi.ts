@@ -9,6 +9,10 @@ import { leavePaths } from './staff/leave-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
 import { clockAttendanceSchemas } from './staff/clock-attendance.js';
 import { clockAttendancePaths } from './staff/clock-attendance-openapi.js';
+import { clockByCardSchemas } from './staff/clock-by-card.js';
+import { clockByCardPaths } from './staff/clock-by-card-openapi.js';
+import { employeeCardSchemas } from './staff/employee-cards.js';
+import { employeeCardPaths } from './staff/employee-cards-openapi.js';
 import { passkeyPaths } from './staff/passkeys-openapi.js';
 import { scheduleSchemas } from './staff/schedules.js';
 import {
@@ -104,6 +108,8 @@ import {
 const SCHEMAS = [
   ...employeeDocumentSchemas,
   ...clockAttendanceSchemas,
+  ...clockByCardSchemas,
+  ...employeeCardSchemas,
   ...leaveSchemas,
   ...leaveDecisionSchemas,
   ...passkeySchemas,
@@ -217,6 +223,8 @@ const PATHS = {
   ...employeeImportPaths,
   ...passkeyPaths,
   ...clockAttendancePaths,
+  ...clockByCardPaths,
+  ...employeeCardPaths,
   ...unbindPasskeyPaths,
   ...settingsPaths,
   ...filePaths,

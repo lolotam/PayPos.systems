@@ -8,6 +8,7 @@ import { SCHEDULE_COLUMN_GRANTS } from '../../test/schedule-grants.ts';
 import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
 import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
 import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
+import { CARD_COLUMN_GRANTS } from '../../test/card-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -54,6 +55,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'document_types:SELECT',
     'employee_branches:INSERT',
     'employee_branches:SELECT',
+    'employee_cards:INSERT',
+    'employee_cards:SELECT',
     'employee_documents:INSERT',
     'employee_documents:SELECT',
     'employee_passkeys:INSERT',
@@ -167,6 +170,7 @@ const TENANT_TABLES = [
   'import_previews',
   'employees',
   'employee_branches',
+  'employee_cards',
   'employee_passkeys',
   'staff_schedules',
   'staff_schedule_shifts',
@@ -261,6 +265,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...PASSKEY_COLUMN_GRANTS,
         ...DOCUMENT_COLUMN_GRANTS,
         ...IMPORT_COLUMN_GRANTS,
+        ...CARD_COLUMN_GRANTS,
       ].sort(),
     );
   });
