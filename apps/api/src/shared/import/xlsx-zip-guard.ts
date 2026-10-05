@@ -4,7 +4,7 @@ import {
   guardWorkbookXml,
   guardWorksheetXml,
   referenceBounds,
-  xmlAttribute,
+  worksheetRelationshipPath,
   type XlsxStructureBounds,
 } from './xlsx-xml-guard.ts';
 
@@ -131,15 +131,7 @@ function guardParts(
   const relationships = parts.find((part) => part.path === 'xl/_rels/workbook.xml.rels');
   let firstPath: string | undefined;
   if (relationships !== undefined && expansion.firstRelationship !== undefined) {
-    for (const tag of relationships.inflated
-      .toString('utf8')
-      .matchAll(/<Relationship\b([^<>]*)>/g)) {
-      const attributes = tag[1] ?? '';
-      const id = xmlAttribute(attributes, 'Id');
-      const target = xmlAttribute(attributes, 'Target') ?? '';
-      if (id === expansion.firstRelationship)
-        firstPath = `xl/${target.replace(/^(\s|\/xl\/)+/, '')}`;
-    }
+    firstPath = worksheetRelationshipPath(relationships.inflated, expansion.firstRelationship);
   }
   let worksheets = 0;
   for (const { path, inflated } of parts) {

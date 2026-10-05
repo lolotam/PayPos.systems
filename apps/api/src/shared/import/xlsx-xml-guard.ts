@@ -1,3 +1,5 @@
+import { SaxesParser, type SaxesTagPlain } from 'saxes';
+
 export interface XlsxStructureBounds {
   readonly maxRows: number;
   readonly maxColumns: number;
@@ -44,38 +46,37 @@ function range(ref: string, bounds: XlsxStructureBounds): number {
   return (last.row - first.row + 1) * (last.column - first.column + 1);
 }
 
-// رفض الكيانات يمنع اختلاف القيمة التي نتحقق منها عن القيمة المفكوكة لدى ExcelJS.
-export function xmlAttribute(
-  attributes: string,
-  name: string,
-  required = true,
-): string | undefined {
-  let value: string | undefined;
-  for (const attribute of attributes.matchAll(
-    /(?:^|\s)([A-Za-z_][\w:.-]*)\s*=\s*("[^"]*"|'[^']*')/g,
-  )) {
-    if (attribute[1] !== name) continue;
-    if (value !== undefined) throw invalid();
-    value = (attribute[2] ?? '').slice(1, -1);
-    if (value.includes('&')) throw invalid();
-  }
-  if (required && value === undefined) throw invalid();
-  return value;
-}
-
 export function referenceBounds(bounds: XlsxStructureBounds): XlsxStructureBounds {
   return { ...bounds, maxRows: Math.floor(XLSX_EXPANSION_BUDGET / bounds.maxColumns) };
 }
 
-function xmlText(content: Buffer): string {
-  const xml = content.toString('utf8');
-  if (xml.includes('\0') || /<!DOCTYPE/i.test(xml)) throw invalid();
-  return xml;
+function scanXml(
+  content: Buffer,
+  open: (tag: SaxesTagPlain) => void,
+  text: (value: string) => void = () => undefined,
+  close: (tag: SaxesTagPlain) => void = () => undefined,
+): void {
+  // نفس خيارات ExcelJS تمنع اختلاف تفسير الاقتباسات والكيانات وأسماء الوسوم بين الفحص والتحميل.
+  const parser = new SaxesParser();
+  parser.on('opentag', open);
+  parser.on('text', text);
+  parser.on('closetag', close);
+  parser.on('doctype', () => {
+    throw invalid();
+  });
+  parser.on('error', () => {
+    throw invalid();
+  });
+  parser.write(content.toString('utf8')).close();
 }
 
-function columns(attributes: string, bounds: XlsxStructureBounds, expansion: XlsxExpansion): void {
-  const min = xmlAttribute(attributes, 'min') ?? '';
-  const max = xmlAttribute(attributes, 'max') ?? '';
+function columns(
+  attributes: Record<string, string>,
+  bounds: XlsxStructureBounds,
+  expansion: XlsxExpansion,
+): void {
+  const min = attributes['min'] ?? '';
+  const max = attributes['max'] ?? '';
   if (!/^[1-9][0-9]{0,4}$/.test(min) || !/^[1-9][0-9]{0,4}$/.test(max)) throw invalid();
   if (Number(min) > Number(max) || Number(max) > bounds.maxColumns) throw invalid();
   // Column.fromModel ينشئ الفجوات قبل min أيضاً؛ max حد محافظ حتى مع تداخل التصريحات.
@@ -87,16 +88,13 @@ export function guardWorksheetXml(
   bounds: XlsxStructureBounds,
   expansion: XlsxExpansion = createXlsxExpansion(),
 ): void {
-  const tags = xmlText(content).matchAll(
-    /<(?:[A-Za-z_][\w.-]*:)?(dimension|mergeCell|dataValidation|col)\b([^<>]*)>/g,
-  );
-  for (const tag of tags) {
-    const attributes = tag[2] ?? '';
-    if (tag[1] === 'col') {
-      columns(attributes, bounds, expansion);
-      continue;
+  scanXml(content, (tag) => {
+    if (tag.name === 'col') {
+      columns(tag.attributes, bounds, expansion);
+      return;
     }
-    const value = xmlAttribute(attributes, tag[1] === 'dataValidation' ? 'sqref' : 'ref') ?? '';
+    if (!['dimension', 'mergeCell', 'dataValidation'].includes(tag.name)) return;
+    const value = tag.attributes[tag.name === 'dataValidation' ? 'sqref' : 'ref'] ?? '';
     // نحسب مساحة dimension تحفظياً؛ ولا نحذف التكرارات التي يعيد ExcelJS زيارة خلاياها.
     let ranges = 0;
     for (const ref of value.matchAll(/\S+/g)) {
@@ -104,7 +102,7 @@ export function guardWorksheetXml(
       ranges += 1;
     }
     if (ranges === 0) throw invalid();
-  }
+  });
 }
 
 function printRange(ref: string, bounds: XlsxStructureBounds): void {
@@ -126,7 +124,7 @@ function definedName(
   bounds: XlsxStructureBounds,
   expansion: XlsxExpansion,
 ): void {
-  if (/[<&]/.test(formula) || formula.length === 0) throw invalid();
+  if (formula.length === 0) throw invalid();
   const references = /(?:(?:'((?:[^']|'')*)'|([^!,\s]+))!)?([$A-Z0-9:]+)(?:,|$)/gy;
   let end = 0;
   for (const match of formula.matchAll(references)) {
@@ -147,26 +145,43 @@ export function guardWorkbookXml(
   bounds: XlsxStructureBounds,
   expansion: XlsxExpansion = createXlsxExpansion(),
 ): void {
-  const xml = xmlText(content);
-  const tags = /<((?:[A-Za-z_][\w.-]*:)?)(sheet|definedName)\b([^<>]*)>/g;
   let count = 0;
-  for (let tag = tags.exec(xml); tag !== null; tag = tags.exec(xml)) {
-    const attributes = tag[3] ?? '';
-    if (tag[2] === 'sheet') {
-      count += 1;
-      if (count > bounds.maxWorksheets) throw invalid();
-      const name = xmlAttribute(attributes, 'name') ?? '';
-      const relation = xmlAttribute(attributes, 'r:id', false);
-      if (count === 1 && relation !== undefined) expansion.firstRelationship = relation;
-      expansion.sheetBounds.set(name, count === 1 ? bounds : referenceBounds(bounds));
-    } else {
-      const closing = `</${tag[1] ?? ''}definedName>`;
-      const end = xml.indexOf(closing, tags.lastIndex);
-      if (end === -1) throw invalid();
-      const name = xmlAttribute(attributes, 'name') ?? '';
-      xmlAttribute(attributes, 'localSheetId', false);
-      definedName(xml.slice(tags.lastIndex, end), name, bounds, expansion);
-      tags.lastIndex = end + closing.length;
+  let current: { name: string; text: string[] } | undefined;
+  scanXml(
+    content,
+    (tag) => {
+      if (tag.name === 'sheet') {
+        count += 1;
+        if (count > bounds.maxWorksheets) throw invalid();
+        const name = tag.attributes['name'] ?? '';
+        const relation = tag.attributes['r:id'];
+        if (count === 1 && relation !== undefined) expansion.firstRelationship = relation;
+        expansion.sheetBounds.set(name, count === 1 ? bounds : referenceBounds(bounds));
+      } else if (tag.name === 'definedName') {
+        current = { name: tag.attributes['name'] ?? '', text: [] };
+      } else if (current !== undefined) {
+        throw invalid();
+      }
+    },
+    (text) => {
+      // DefinedNameXform يجمع أحداث النص عبر التعليقات؛ ولا يستمع إلى أحداث CDATA.
+      current?.text.push(text);
+    },
+    (tag) => {
+      if (tag.name !== 'definedName' || current === undefined) return;
+      definedName(current.text.join(''), current.name, bounds, expansion);
+      current = undefined;
+    },
+  );
+}
+
+export function worksheetRelationshipPath(content: Buffer, id: string): string | undefined {
+  let path: string | undefined;
+  scanXml(content, (tag) => {
+    if (tag.name === 'Relationship' && tag.attributes['Id'] === id) {
+      const target = tag.attributes['Target'] ?? '';
+      path = `xl/${target.replace(/^(\s|\/xl\/)+/, '')}`;
     }
-  }
+  });
+  return path;
 }

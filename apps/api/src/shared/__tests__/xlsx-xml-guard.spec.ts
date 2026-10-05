@@ -2,7 +2,8 @@ import { expect, it } from 'vitest';
 import { guardWorkbookXml, guardWorksheetXml } from '../import/xlsx-xml-guard.ts';
 
 const bounds = { maxRows: 502, maxColumns: 8, maxWorksheets: 4 };
-const guard = (xml: string) => guardWorksheetXml(Buffer.from(xml), bounds);
+const guard = (xml: string) =>
+  guardWorksheetXml(Buffer.from(`<worksheet>${xml}</worksheet>`), bounds);
 
 it('accepts structural boundaries and either quote style', () => {
   expect(() =>
@@ -30,9 +31,14 @@ it('bounds malformed attribute scanning without allocating a range-sized matrix'
 it.each([
   '<dataValidation type="list" sqref="A1:XFD1048576"/>',
   '<dataValidation sqref="C2:C502 A1:XFD1048576"/>',
-  '<x14:dataValidation sqref="A1:A1048576"/>',
 ])('rejects data validation ranges ExcelJS would expand cell by cell %s', (xml) => {
   expect(() => guard(xml)).toThrow('IMPORT_FILE_CONTENT_INVALID');
+});
+
+it('ignores namespaced and differently-cased tags ignored by ExcelJS handlers', () => {
+  expect(() =>
+    guard('<x14:dataValidation sqref="A1:A1048576"/><DataValidation sqref="A1:A1048576"/>'),
+  ).not.toThrow();
 });
 
 it('accepts data validation ranges inside the template bounds', () => {

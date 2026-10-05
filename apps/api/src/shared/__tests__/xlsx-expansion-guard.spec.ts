@@ -1,13 +1,26 @@
 import { expect, it } from 'vitest';
 import { guardWorkbookXml, guardWorksheetXml } from '../import/xlsx-xml-guard.ts';
 import { guardXlsxZip } from '../import/xlsx-zip-guard.ts';
-import { archiveParts } from './xlsx-zip.fixture.ts';
+import { archiveParts as zipParts } from './xlsx-zip.fixture.ts';
 
 const bounds = { maxRows: 502, maxColumns: 8, maxWorksheets: 4 };
-const worksheet = (xml: string) => guardWorksheetXml(Buffer.from(xml), bounds);
-const workbook = (xml: string) => guardWorkbookXml(Buffer.from(xml), bounds);
+const worksheet = (xml: string) =>
+  guardWorksheetXml(Buffer.from(`<worksheet>${xml}</worksheet>`), bounds);
+const workbook = (xml: string) =>
+  guardWorkbookXml(Buffer.from(`<workbook>${xml}</workbook>`), bounds);
+const archiveParts = (parts: { name: string; content: string }[]) =>
+  zipParts(
+    parts.map((part) => {
+      const root = part.name.endsWith('.rels')
+        ? 'Relationships'
+        : part.name.endsWith('workbook.xml')
+          ? 'workbook'
+          : 'worksheet';
+      return { ...part, content: `<${root}>${part.content}</${root}>` };
+    }),
+  );
 
-it.each(['0', '9', '1048576', '1.5', '1e9', '&#49;'])(
+it.each(['0', '9', '1048576', '1.5', '1e9', '&#57;'])(
   'rejects column allocation min/max %s',
   (value) => {
     expect(() => worksheet(`<cols><col min="${value}" max="${value}"/></cols>`)).toThrow(
@@ -25,10 +38,8 @@ it.each(['<!--c-->', '<![CDATA[x]]>', '<x/>'])(
   },
 );
 
-it('rejects entities in validated defined-name attributes', () => {
-  expect(() => workbook('<definedName name="&#120;">employees!$A$1</definedName>')).toThrow(
-    'IMPORT_FILE_CONTENT_INVALID',
-  );
+it('accepts entity-decoded defined-name attributes', () => {
+  expect(() => workbook('<definedName name="&#120;">employees!$A$1</definedName>')).not.toThrow();
 });
 
 it('charges duplicate validation ranges against one aggregate budget', () => {

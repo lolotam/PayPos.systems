@@ -115,7 +115,7 @@ The warm median remains above 200 ms: **Stage B is implemented in this PR**, wit
 The warm API acceptance integration assertion is **< 200 ms**; the full workspace check measured
 **32.48 ms** for acceptance of a 500-row preview after a separate warm-up request. This is one
 acceptance measurement, not a median or worker creation time. Heavy creation runs only in worker.
-The temporary profiler is removed. No new external dependency. API staff owns create-employee rules;
+The temporary profiler is removed. Stage A/B added no external dependency. API staff owns create-employee rules;
 the worker consumes immutable validated preview rows and checks only branch membership and request-time
 expiry. Staff types/rules are removed from the shared kernel and worker no longer depends on it.
 
@@ -175,10 +175,25 @@ worksheet parts remain the maximum. The reference template places roles beside b
 round-trip guarantee covers 2,000 branches (not a business limit). `_xlnm.Print_Titles` and
 `_xlnm.Print_Area` accept bounded print coordinates without charging cell expansion: ExcelJS 4.4.0
 `workbook-xform.js` removes them before `DefinedNames.addEx`. Other names accept only complete cell
-references. Markup/entities in name text and entities in validated attributes are refused to keep the
-guard and ExcelJS interpretations identical. Oversized structure, including ignored-sheet ranges, is 422
+references. Defined-name text is concatenated across comments, and references use entity-decoded
+attribute/text values. Malformed XML and oversized structure, including ignored-sheet ranges, are 422
 IMPORT_FILE_CONTENT_INVALID. Exactly one EOCD signature, an EOF-aligned ZIP comment, consistent
 central/local metadata and no ZIP64 or alternate paths prevent guard/parser directory disagreements.
+
+Third-layer XML hardening promotes `saxes` to a direct `apps/api` dependency, pinned to exactly
+`5.0.1`, the version resolved by ExcelJS 4.4.0. Worksheet, workbook and relationship scans use
+`new SaxesParser()` with the same default options as ExcelJS's `parse-sax.js`, preventing parser
+differentials for quoted attributes, decoded entities and text across comments. The pin must follow
+ExcelJS's resolved SAX version when ExcelJS is upgraded. Scans remain synchronous within the existing
+5 MiB inflated-byte cap and 65,536-position budget.
+
+After the SAX replacement, one warm-up and five isolated full 500-row preview calls measured
+115.69, 110.57, 101.07, 95.99 and 94.41 ms (median **101.07 ms**). Compared with the previous
+round's 93.05 ms median, this run increased by 8.02 ms; it remains comfortably below 200 ms.
+The fixture was 26,103 compressed bytes and 542,362 expanded bytes. A concurrent-check run had
+a 148.42 ms median and 203.64 ms maximum, so these timings are observations rather than a
+guarantee under shared-host contention.
+
 API expiry and requested_at share one Clock instant, with equality expired. Aliases of one branch
 do not create ambiguity. Admin preview/result state belongs to the current file selection; selecting
 another file resets it and stale preview responses cannot enable commit.
@@ -190,7 +205,7 @@ transient storage errors are 503 `STORAGE_UNAVAILABLE`, both bilingual.
 Read authorization for template/preview takes no company or membership write lock and validates
 business existence before disclosure. Commit authorizes and verifies creator ownership before any
 idempotency replay. Employee/attachment inserts, audits and outbox events use batch statements;
-`appendOutboxEvents` preserves advisory aggregate locks and event order. No new dependency.
+`appendOutboxEvents` preserves advisory aggregate locks and event order.
 
 Commit uses branch ids: they must still exist in the business. Rename is allowed. Inactive branches
 are allowed exactly like create-employee (`employeeWorkplace` has no `is_active` predicate).

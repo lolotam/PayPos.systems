@@ -91,3 +91,19 @@ it('rejects more than four worksheets before invoking ExcelJS', async () => {
   ).rejects.toThrow('IMPORT_FILE_CONTENT_INVALID');
   expect(load).not.toHaveBeenCalled();
 });
+
+it.each([
+  `<dataValidation prompt=" sqref='A1' >" sqref="A1:H1048576"/>`,
+  `<col customWidth=" min='1' max='1' >" min="1" max="1048576"/>`,
+  `<mergeCell other=" ref='A1' >" ref="A1:H1048576"/>`,
+  `<dimension other=" ref='A1' >" ref="A1:H1048576"/>`,
+  '<dimension ref="A1"/><broken>',
+])('refuses XML tokenizer bypasses in an ignored sheet before ExcelJS: %s', async (xml) => {
+  const load = vi
+    .spyOn(Object.getPrototypeOf(new ExcelJS.Workbook().xlsx), 'load')
+    .mockRejectedValue(new Error('PARSER_REACHED'));
+  await expect(
+    readWorkbookMatrix(workbookXml(['<dimension ref="A1:F2"/>', xml])),
+  ).rejects.toMatchObject({ code: 'IMPORT_FILE_CONTENT_INVALID' });
+  expect(load).not.toHaveBeenCalled();
+});

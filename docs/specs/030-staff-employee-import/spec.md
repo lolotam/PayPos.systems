@@ -106,8 +106,10 @@ this is a template compatibility guarantee, not a business branch limit. The bud
 the combined 502×8 data and 2001×3 reference grids, leaving headroom for ordinary saved metadata.
 Bounded `_xlnm.Print_Titles` row/column spans and `_xlnm.Print_Area` cell ranges are accepted as print
 metadata without cell expansion. Other defined names must contain only complete cell references.
-Markup/entities in name text, entities in validated attributes, excessive aggregate expansion or
-oversized coordinates, including ignored sheets, return IMPORT_FILE_CONTENT_INVALID.
+Worksheet, workbook and relationship parts use the same default `saxes@5.0.1` parser as ExcelJS;
+defined-name text concatenates across comments and validated references use decoded entities.
+Malformed XML, excessive aggregate expansion or oversized coordinates, including ignored sheets,
+return IMPORT_FILE_CONTENT_INVALID.
 ZIP input must have exactly one EOCD signature, an EOF-aligned comment, a consistent central directory,
 and no ZIP64 or trailing bytes. Commit expiry and requested_at use one injected Clock instant;
 equality with expires_at is expired. Duplicate aliases of one branch remain resolvable; only different
