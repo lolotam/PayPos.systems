@@ -13,6 +13,22 @@ export {
   type Customer,
   type FindOrCreateCustomerInput,
 } from './customers.js';
+export {
+  createServiceInput,
+  updateServiceInput,
+  service,
+  serviceListItem,
+  servicePage,
+  serviceListQuery,
+  serviceCommissionRule,
+  type CreateServiceInput,
+  type UpdateServiceInput,
+  type Service,
+  type ServiceListItem,
+  type ServicePage,
+  type ServiceListQuery,
+  type ServiceCommissionRuleInput,
+} from './catalog/service.js';
 export { errorEnvelope, type ErrorEnvelope } from './errors/envelope.js';
 export { page, pageQuery, type PageQuery, type PageQueryRequest } from './pagination/cursor.js';
 export { currency } from './reference/currency.js';

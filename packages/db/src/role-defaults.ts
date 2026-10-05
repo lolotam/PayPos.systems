@@ -86,6 +86,9 @@ export const ROLE_DEFAULTS = {
   'manage:settings:business': settings,
   'view:notifications:business': managers,
   'manage:employees:business': managers,
+  'read:services:business': managers,
+  // TODO(spec) SV-Q1: SPEC لا يسمّي صلاحية الكتالوج؛ القرار المؤقت مطابق لـ manage:employees:business.
+  'manage:services:business': managers,
   'manage:files:business': managers,
   'read:files:business': managers,
   // قرار المالك 2026-10-04 (DOC-Q2، الخيار الموصى به): أنواع الوثائق للشركة كلها؛ مدير النشاط يحتاج ALLOW شخصياً على مستوى الشركة.

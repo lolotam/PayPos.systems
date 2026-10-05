@@ -74,6 +74,8 @@ it.each([
   'read:files:business',
   'manage:files:business',
   'manage:employees:business',
+  'read:services:business',
+  'manage:services:business',
   'create:customers:company',
   'create:customers:business',
   'create:customers:branch',
