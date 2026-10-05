@@ -1,11 +1,11 @@
-﻿import { appendAuditLogs, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
+import { appendAuditLogs, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { EmployeeRecord } from '@pospay/domain';
+import type { ImportedEmployeeRecord } from '../domain/employee-import.ts';
 export async function insertEmployees(
   tx: Tx,
   companyId: string,
   ids: IdGenerator,
-  records: readonly EmployeeRecord[],
+  records: readonly ImportedEmployeeRecord[],
 ): Promise<void> {
   if (records.length === 0) return;
   const employees = records.map(

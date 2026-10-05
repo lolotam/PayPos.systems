@@ -18,10 +18,3 @@ export {
   type Percentage,
 } from './percentage.js';
 export type { TaxMode, TaxRule } from './tax-rule.js';
-export {
-  EmployeeCreationError,
-  validateEmployeeBranch,
-  validateEmployeeCreation,
-  type EmployeeRecord,
-  type EmployeeCreationContext,
-} from './employee-creation.js';

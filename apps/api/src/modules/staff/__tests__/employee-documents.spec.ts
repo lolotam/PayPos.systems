@@ -30,6 +30,31 @@ const rows = (employeeId = f.employee.id) =>
     .owner`SELECT id,type_code,object_key,to_char(expires_on,'YYYY-MM-DD') AS expires_on,replaced_at
     FROM employee_documents WHERE company_id=${f.company} AND employee_id=${employeeId} ORDER BY recorded_at, id`;
 
+it('refuses a verified XLSX as an employee document with a named bilingual envelope and no writes', async () => {
+  const file = await documentFile(f, {
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const before = await rows();
+  expect(await failure(f.record.execute(recordCommand(f, file)))).toBe(
+    'DOCUMENT_FILE_TYPE_INVALID',
+  );
+  expect(await rows()).toEqual(before);
+  const response = await f.h.send('POST', f.path, {
+    cookie: f.cookie,
+    company: f.company,
+    key: documentIds.newId(),
+    body: recordCommand(f, file).input,
+  });
+  expect(response).toMatchObject({
+    status: 422,
+    body: {
+      code: 'DOCUMENT_FILE_TYPE_INVALID',
+      message_ar: expect.any(String),
+      message_en: expect.any(String),
+    },
+  });
+});
+
 it('records a READY file the recorder uploaded: key stored, status in the business day, audit and event keyless', async () => {
   const fileId = await documentFile(f);
   const result = await f.record.execute(recordCommand(f, fileId));

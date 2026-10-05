@@ -1,6 +1,6 @@
 import { inflateRawSync } from 'node:zlib';
 
-const MAX_EXPANDED_BYTES = 20 * 1024 * 1024;
+const MAX_EXPANDED_BYTES = 5 * 1024 * 1024;
 const INVALID = () => new Error('IMPORT_FILE_CONTENT_INVALID');
 
 function directory(bytes: Buffer): { start: number; end: number; entries: number } {

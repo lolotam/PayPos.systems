@@ -1,4 +1,4 @@
-﻿import {
+import {
   appendOutboxEvent,
   runIdempotent,
   IdempotencyKeyBusyError,
@@ -189,7 +189,7 @@ export function createEmployeeImportTransactions(
               preview.created_by !== userId
             )
               throw new EmployeeImportError('IMPORT_PREVIEW_NOT_FOUND');
-            await runIdempotent(
+            const result = await runIdempotent(
               tx,
               { scope: 'COMPANY', operation: 'import-employees', key, fingerprint },
               async () => {
@@ -200,8 +200,7 @@ export function createEmployeeImportTransactions(
                 return { status: 202, body };
               },
             );
-            // ردود النسخة المتزامنة القديمة قد تحمل ids/counts؛ عقد القبول الجديد يعيد المعرف فقط.
-            return { preview_id: preview.id };
+            return result.body as { preview_id: string };
           },
           { userId },
         );

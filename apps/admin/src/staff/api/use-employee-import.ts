@@ -7,7 +7,7 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import { uploadImportFile } from './upload-import-file';
-import { useState } from 'react';
+import { useImportRequest } from './use-import-request';
 import { useEmployeeImportStatus } from './use-employee-import-status';
 
 // نرفع رمز الحالة مع رفض الـ API كما تفعل بقية خطافات الموظفين.
@@ -19,7 +19,7 @@ const refusal = (error: unknown, response: Response) => ({
 /** خطافات استيراد الموظفين: القالب، المعاينة (مع الرفع)، والحفظ. */
 export function useEmployeeImport(companyId: string, businessId: string, userId: string) {
   const header = { 'x-company-id': companyId };
-  const [requestedPreview, setRequestedPreview] = useState<string>();
+  const request = useImportRequest(companyId, businessId, userId);
 
   const template = useQuery({
     queryKey: ['employee-import-template', companyId, businessId, userId],
@@ -66,10 +66,10 @@ export function useEmployeeImport(companyId: string, businessId: string, userId:
       if (result.error) throw refusal(result.error, result.response);
       return employeeImportCommitAccepted.parse(result.data);
     },
-    onSuccess: (accepted) => setRequestedPreview(accepted.preview_id),
+    onSuccess: (accepted) => request.accept(accepted.preview_id),
   });
 
-  const status = useEmployeeImportStatus(companyId, businessId, userId, requestedPreview);
+  const status = useEmployeeImportStatus(companyId, businessId, userId, request.previewId);
 
   return { template, preview, commit, status };
 }

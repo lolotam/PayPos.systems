@@ -43,10 +43,10 @@ preview expires after 24 h and is single-use.
 checks zero errors/unused/unexpired, sets `commit_requested`, and appends an id-only
 `EmployeeImportCommitRequested`. Same-preview repeats return the same acceptance without another event.
 Authorization precedes key claim/replay. The request is the authorization point for the durable command.
-Older synchronous idempotency bodies are normalized to the current id-only acceptance without another request event.
 
 **Worker commit.** The staff BullMQ `employee-import-commit` job uses `withTenant(company_id)` and
-locks the preview. Only `commit_requested` can execute. It revalidates expiry/errors and branch ownership,
+locks the preview. Only `commit_requested` can execute. Expiry compares expires_at to stored requested_at
+(equality is expired); execution delay does not expire a previously accepted request. It checks errors and branch ownership,
 locks current branch keys `FOR KEY SHARE`, then writes employees, primary attachments, audits,
 `EmployeeImported` events, the `ImportCommitted` summary and final status/count in one transaction.
 Injected Clock supplies one instant. The audit actor comes from the locked preview's creator.
@@ -55,7 +55,15 @@ Unexpected failures retry three times, then become stable `IMPORT_COMMIT_FAILED`
 rolls back; a crash after commit replays a terminal preview without another insert. Redis publishing runs
 after outbox claim commit (ADR-0018), following the missed-out transport pattern and staff module wiring.
 GET `…/previews/:id` returns creator-only status/count/error; admin polls every second and stops on
-`committed` or `failed`. Failed previews require a new preview rather than a second commit request.
+`committed`, `failed`, or a two-minute client deadline with a bilingual delayed state. Session storage
+retains only the accepted id, scoped by company/business/user; reopening the page reads status again.
+Failed previews require a new preview rather than a second commit request.
+
+**Recovery.** Before acknowledging EmployeeImportCommitRequested delivery, staff registers a per-company
+BullMQ sweep every minute, using PR 24 / ADR-0022's outbox tenant discovery and scheduler protocol.
+No cross-tenant reader or dispatcher exception is added. Each tenant-scoped read takes at most 50
+requests aged at least ten minutes, drains successive batches, and conditionally marks only still-pending requests failed with
+IMPORT_COMMIT_FAILED. A job that commits between read and update wins. No recovery re-enqueue occurs.
 
 **Sync vs worker.** The earlier synchronous constraint and < 1,000 ms fallback came from the
 orchestrator's brief, not an owner decision. That fallback was withdrawn on 2026-10-05.
@@ -107,8 +115,9 @@ The warm median remains above 200 ms: **Stage B is implemented in this PR**, wit
 The warm API acceptance integration assertion is **< 200 ms**; the full workspace check measured
 **32.48 ms** for acceptance of a 500-row preview after a separate warm-up request. This is one
 acceptance measurement, not a median or worker creation time. Heavy creation runs only in worker.
-The temporary profiler is removed. No new external dependency; worker adds the existing workspace
-`@pospay/domain` to reuse one pure employee-creation rule implementation across the two staff runtimes.
+The temporary profiler is removed. No new external dependency. API staff owns create-employee rules;
+the worker consumes immutable validated preview rows and checks only branch membership and request-time
+expiry. Staff types/rules are removed from the shared kernel and worker no longer depends on it.
 
 **Events.** `EmployeeImported` and `ImportCommitted` are emitted in the worker commit transaction.
 They have no Phase 1 business consumer. `EmployeeImportCommitRequested` is transported to the staff
@@ -123,22 +132,37 @@ the preview table, storage reader, API shape and UI shell. No second engine.
 
 - API `staff → files` is already declared. Worker `staff → tenancy.employeeImportBranches` is added
   for locked branch revalidation. The module map declares all three import events and the request consumer.
-- Widening the `files` allowlist means a one-line changeset in the policy, the `requestFileUpload` enum and
-  the `file_objects_type` check constraint (migration 0078); file-verification logic and its RLS are unchanged.
+- Widening the `files` transport allowlist changes the policy, `requestFileUpload` enum and
+  `file_objects_type` check constraint (migration 0077). Employee documents retain PDF/JPEG/PNG only
+  (owner decision 2026-10-03), rejecting XLSX with bilingual DOCUMENT_FILE_TYPE_INVALID.
 - The preview row holds names, roles, dates and branch names in JSONB under RLS. TODO(spec) IM-Q3 tracks the retention policy and future privileged cleanup job/grant
   (select/insert/update only today); recommend deletion 30 days after expiry, pending owner decision.
 - Extracting `staff` later needs the object-storage port and a files read API.
 - `exceljs@4.4.0` becomes a production dependency of `apps/api`; it is not imported by `packages/domain`,
   so the shared kernel stays dependency-free.
 - Migration 0079 adds status/request/count/error fields and column UPDATE grants, backfilling older
-  consumed previews as committed. Migrations 0077/0078 and main's 0076 are unchanged.
-- Pure employee-creation rules move to `packages/domain/employee-creation.ts`; API reexports them and
-  worker uses them directly. Commit persistence exists only in worker.
+  consumed previews as committed. New migration 0080 adds company/creator and company/status/requested_at/id
+  indexes plus committed timestamp, failed error and committed-only count checks. In 0077 only the
+  file_objects_type re-add becomes NOT VALID followed by VALIDATE; its snapshot and 0078 are unchanged.
+- Pure employee-creation rules stay in API staff domain. Commit persistence exists only in worker.
+- IM-08 explicitly accepts the authorization window: a manager revoked after API acceptance still
+  gets the accepted import committed. Worker does not recheck the feature flag or company deletion.
+  Normally the window is seconds; worker/dispatcher outages can make it hours. The ten-minute stale
+  threshold plus one-minute sweep cadence bounds recovery once worker/DB/Redis are available; recovery
+  cannot run while they are down. A commit that already won the transaction race remains committed.
 
 ## Review hardening
 
-ZIP input is limited to 2 MiB and 20 MiB actual expansion. The dependency-free central-directory
+ZIP input is limited to 2 MiB and 5 MiB actual expansion. The dependency-free central-directory
 reader also bounds real inflation with Node zlib, rejecting forged size metadata before ExcelJS.
+The layer-2 benchmark fills a real downloadable template with 500 valid rows, unique 255-character
+English/Arabic names, a 255-character branch label, role and both dates. Its compressed size is
+26,051 bytes and actual expansion 541,718 bytes, comfortably within 5 MiB. One separate preview
+warm-up followed by five full preview-use-case calls (authorization, object read, ZIP guard,
+ExcelJS parse, row validation and saved preview) measured 92.42, 90.30, 87.64, 88.85 and 88.30 ms;
+median **88.85 ms**, maximum **92.42 ms**, on the worktree's isolated test DB. This measures the
+maximum-field-length template case, not every possible malformed ZIP or extra-sheet payload.
+Preview remains synchronous for this review round.
 Only populated rows are visited; 501 non-empty data rows refuse the workbook. Blank trailing rows
 are ignored and source row numbers survive sparse input. Unheaded data produces a named row error.
 Storage read size failures and workbook parse failures are 422 `IMPORT_FILE_CONTENT_INVALID`;

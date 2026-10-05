@@ -9,6 +9,9 @@ import { startMissedOutProcessor } from './jobs/missed-out.processor.ts';
 import { startEmployeeImportProcessor } from './jobs/employee-import.processor.ts';
 import { employeeImportTransactions } from './persistence/employee-import.transactions.ts';
 import { CommitEmployeeImport } from './use-cases/commit-employee-import/commit-employee-import.ts';
+import { RecoverEmployeeImports } from './use-cases/recover-employee-imports/recover-employee-imports.ts';
+import { employeeImportRecoveryTransactions } from './persistence/employee-import-recovery.transactions.ts';
+import { startEmployeeImportRecoveryProcessor } from './jobs/employee-import-recovery.processor.ts';
 
 // أحداث الحضور التي يعرفها هذا الإصدار؛ AttendanceClockedIn وحده يسجل جدول الشركة ولا مستهلك أعمال لأي منها.
 const ATTENDANCE_EVENT_TYPES = [
@@ -35,6 +38,11 @@ export function startStaffWorker(
     redisUrl,
     prefix,
   );
+  const recovery = startEmployeeImportRecoveryProcessor(
+    new RecoverEmployeeImports(employeeImportRecoveryTransactions(database), clock),
+    redisUrl,
+    prefix,
+  );
   return {
     eventTypes: [...ATTENDANCE_EVENT_TYPES, 'EmployeeImportCommitRequested'],
     deliver: (
@@ -42,14 +50,16 @@ export function startStaffWorker(
       next: Parameters<typeof processor.deliver>[1],
     ) =>
       event.eventType === 'EmployeeImportCommitRequested'
-        ? imports.deliver(event)
+        ? recovery.deliver(event, () => imports.deliver(event))
         : processor.deliver(event, next),
     ready: async () => {
       await processor.ready();
       await imports.ready();
+      await recovery.ready();
     },
     close: async () => {
       await imports.close();
+      await recovery.close();
       await processor.close();
     },
   };

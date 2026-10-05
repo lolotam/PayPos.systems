@@ -82,7 +82,6 @@ export class EmployeeImportError extends Error {
       | 'IMPORT_ROW_LIMIT_EXCEEDED'
       | 'IMPORT_PREVIEW_NOT_FOUND'
       | 'IMPORT_PREVIEW_EXPIRED'
-      | 'IMPORT_PREVIEW_USED'
       | 'IMPORT_PREVIEW_HAS_ERRORS'
       | 'EMPLOYEE_BRANCH_NOT_FOUND'
       | 'FEATURE_DISABLED'

@@ -6,9 +6,11 @@ import { useLocale } from '@/shared/locale/locale-context';
 export function EmployeeImportResult({
   accepted,
   status,
+  timedOut = false,
 }: {
   accepted: boolean;
   status: EmployeeImportStatus | undefined;
+  timedOut?: boolean;
 }) {
   const locale = useLocale();
   if (status?.status === 'committed')
@@ -24,5 +26,8 @@ export function EmployeeImportResult({
         {status.error_code ? ` ${t(locale, `errors.${status.error_code}`)}` : ''}
       </p>
     );
-  return accepted ? <p role="status">{t(locale, 'employeeImport.pending')}</p> : null;
+  if (timedOut) return <p role="status">{t(locale, 'employeeImport.delayed')}</p>;
+  return accepted || status?.status === 'commit_requested' ? (
+    <p role="status">{t(locale, 'employeeImport.pending')}</p>
+  ) : null;
 }

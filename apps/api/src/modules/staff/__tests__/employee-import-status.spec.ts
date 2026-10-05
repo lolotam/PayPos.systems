@@ -48,7 +48,9 @@ it('returns API 202, identical replay, and creator-only status through to commit
     status: 200,
     body: { status: 'commit_requested', created_count: 0, error_code: null },
   });
-  await f.worker.execute(f.company, preview.preview_id);
+  // اختبار قارئ الحالة فقط؛ تنفيذ العامل مغطى بقاعدة مستقلة في تطبيق worker.
+  await f.h
+    .owner`UPDATE import_previews SET status='committed',committed_at=now(),created_count=1 WHERE id=${preview.preview_id}`;
   expect(await read()).toMatchObject({
     status: 200,
     body: { status: 'committed', created_count: 1 },

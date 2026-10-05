@@ -1,4 +1,4 @@
-﻿import { attendanceAr } from './attendance-ar.js';
+import { attendanceAr } from './attendance-ar.js';
 import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
@@ -178,6 +178,7 @@ export const ar: Catalog = {
   errors: {
     DOCUMENT_TYPE_UNAVAILABLE: 'نوع الوثيقة غير موجود أو موقوف.',
     DOCUMENT_EXPIRY_REQUIRED: 'هذا النوع من الوثائق يحتاج تاريخ انتهاء.',
+    DOCUMENT_FILE_TYPE_INVALID: 'وثائق الموظف يجب أن تكون PDF أو JPEG أو PNG.',
     DOCUMENT_FILE_ALREADY_RECORDED: 'هذا الملف مسجل بالفعل كوثيقة.',
     DOCUMENT_TYPE_REVISION_CONFLICT: 'تغير نوع الوثيقة. حدّثه قبل الحفظ من جديد.',
     DOCUMENT_TYPE_LIMIT_REACHED: 'وصلت الشركة إلى الحد الأقصى وهو ١٠٠ نوع وثيقة.',

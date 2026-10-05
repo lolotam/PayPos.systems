@@ -1,4 +1,4 @@
-﻿import type { EmployeeImportCommitAccepted } from '@pospay/contracts';
+import type { EmployeeImportCommitAccepted } from '@pospay/contracts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
 import { EmployeeImportError } from '../../domain/employee-import.ts';

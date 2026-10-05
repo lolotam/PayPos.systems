@@ -27,14 +27,16 @@ event, plus one import summary event.
   acceptance, one request event, and one worker effect. Terminal worker retries cannot create duplicates.
 - IM-06: the business/file/preview of another tenant or another business answer exactly like unknown.
 - IM-07: commit requires an `Idempotency-Key`; a repeat returns the stored result without a second import.
-- IM-08: permission is `manage:employees:business` for the business; Device is never accepted.
+- IM-08: permission is `manage:employees:business` at API acceptance; Device is never accepted.
+  Later revocation does not cancel the durable command; worker does not recheck feature flag/company
+  deletion. Stale requests recover through the ten-minute sweep threshold described below.
 - IM-09: a workbook over 2 MiB or over 500 data rows is refused before any write.
 
 ## Requirements
 
 ### Review hardening (2026-10-04)
 
-Workbook loading is guarded at 2 MiB compressed and 20 MiB actual decompressed ZIP content,
+Workbook loading is guarded at 2 MiB compressed and 5 MiB actual decompressed ZIP content,
 without a new dependency. Read only present rows and stop at 501 non-empty data rows; trailing
 blank rows are ignored. Data beneath an empty header is an `IMPORT_COLUMN_UNEXPECTED` row error.
 Storage read size violations and invalid workbook content return `IMPORT_FILE_CONTENT_INVALID`
@@ -54,8 +56,8 @@ Stage B moves creation to the worker and tests the warm API acceptance against t
 - `packages/db/src/outbox.ts`: batch events while retaining aggregate locks and ordering.
 - Delta: `packages/db/src/audit-log.ts` and outbox batch writers use JSONB recordsets with one bound
     payload, preserving SQL NULL/JSON null, redaction and explicit event order.
-- Delta: `packages/domain/src/employee-creation.ts` is the one pure rule implementation reused by
-    API and worker staff; the API domain file reexports it. Worker adds the existing workspace dependency.
+- Layer-2 review: create-employee rules remain in API staff domain; the shared kernel has no staff
+  records or rules. Worker checks only immutable-preview request-time expiry and current branch membership.
 - Delta: worker tenancy exposes `employeeImportBranches` to staff through its declared adapter;
     branch KEY SHARE locks preserve ownership during the job without cross-module SQL in staff.
 - Delta: import i18n errors move into the existing employee-import catalog file to keep ar/en
@@ -119,7 +121,7 @@ the existing verification pipeline proves it. The import re-checks ≤ 2 MiB and
 
 | Table | Columns | RLS / grants | Indexes | FKs |
 | --- | --- | --- | --- | --- |
-| import_previews | company_id, id, business_id, entity, file_id, created_by, created_at, expires_at, committed_at?, status, requested_at?, created_count, error_code?, row_count, error_count, rows, errors | SELECT/INSERT/column UPDATE, FORCE | company/business/created_at; company/file | company root; company/business; company/file_objects |
+| import_previews | company_id, id, business_id, entity, file_id, created_by, created_at, expires_at, committed_at?, status, requested_at?, created_count, error_code?, row_count, error_count, rows, errors | SELECT/INSERT/column UPDATE, FORCE | company/business/created_at; company/file; company/created_by; company/status/requested_at/id | company root; company/business; company/file_objects |
 
 `rows` and `errors` are JSONB and carry no secret: names, role codes, dates, branch names and named error
 codes only. `file_id` is stored for provenance. No DELETE grant: TODO(spec) IM-Q3 tracks the retention decision and future cleanup job/grant.
@@ -142,7 +144,7 @@ codes only. `file_id` is stored for provenance. No DELETE grant: TODO(spec) IM-Q
   commit follows create-employee's write-lock protocol.
 - Errors: `IMPORT_FILE_NOT_FOUND` (404, unknown/cross-tenant/cross-business/not-uploaded-by-caller alike),
   `IMPORT_FILE_NOT_READY` (409), `IMPORT_FILE_TYPE_INVALID` (415), `IMPORT_FILE_SIZE_INVALID` (413),
-  `IMPORT_PREVIEW_NOT_FOUND` (404), `IMPORT_PREVIEW_EXPIRED` (409), `IMPORT_PREVIEW_USED` (409),
+  `IMPORT_PREVIEW_NOT_FOUND` (404), `IMPORT_PREVIEW_EXPIRED` (409),
   `IMPORT_HEADER_INVALID` (422), `IMPORT_ROW_LIMIT_EXCEEDED` (422), `IMPORT_PREVIEW_HAS_ERRORS` (409),
   `IMPORT_FILE_CONTENT_INVALID` (422), `STORAGE_UNAVAILABLE` (503), plus standard access/validation/retry envelopes.
 
@@ -167,19 +169,36 @@ audit/outbox parameter optimisations. JSONB employee/attachment trials also rema
 ADR-0034 records the full breakdown and FK/attendance trigger evidence. Stage B is implemented:
 API accepts in a short transaction (warm integration assertion < 200 ms); worker owns the heavy commit.
 Preview and commit retain their 500-row / 2 MiB bounds.
+The maximum-field-length 500-row template preview benchmark has a warm five-run median of
+88.85 ms (maximum 92.42 ms); its 541,718-byte expansion fits the reduced 5 MiB guard (ADR-0034).
 
 ### Worker and polling
 
-The staff worker uses one tenant transaction and preview FOR UPDATE. It rechecks expiry/errors,
-locks branch keys to prevent deletion, reuses the shared pure create-employee rules, creates every row
+The staff worker uses one tenant transaction and preview FOR UPDATE. Expiry is checked against
+stored requested_at (expires_at must be strictly later), rather than the worker clock. It checks errors,
+locks branch keys to prevent deletion, verifies branch membership, and creates every immutable validated row
 and audit/event, writes ImportCommitted and marks committed with counts using one Clock instant.
 Validation failure rolls back all rows and records a stable failed code in a separate transaction;
 unexpected errors retry three times before IMPORT_COMMIT_FAILED. Terminal status makes crash retries
 and redelivery harmless. Authorization is checked at API acceptance; the worker executes that durable
-command and stamps audit with its locked creator. Inactive and renamed branches match create-employee.
-Admin uses TanStack Query refetchInterval (1 second), stopping on committed/failed. No component fetch.
+command and stamps audit with its locked creator. IM-08 accepts revocation after API acceptance:
+the manager's later revocation does not cancel creation; feature flag and company deletion are not
+rechecked by the worker. Normally the window is seconds; an outage can delay execution for hours.
+A recurring staff sweep fails still-pending requests aged at least ten minutes once the worker/DB
+are available, bounding recovery by the threshold plus sweep cadence; an already committed row wins.
+Inactive and renamed branches match create-employee.
+Tenant discovery follows PR 24 / ADR-0022: EmployeeImportCommitRequested registers a recurring
+per-company BullMQ sweep outside the outbox transaction, before publishing the commit job.
+The sweep conditionally fails only still-pending stale rows with IMPORT_COMMIT_FAILED; it cannot
+overwrite a committed row. Admin polling stops on terminal status or after two minutes, showing a
+bilingual delayed state. The last accepted preview is retained per company/business/user in session
+storage, so reopening the page reads its status again. No component fetch.
 Migration 0079 adds status/requested_at/created_count/error_code and UPDATE grants; older consumed rows
-backfill to committed. Existing migrations are untouched. No additional external dependency.
+backfill to committed. New migration 0080 adds the creator/sweep indexes and checks: committed status
+iff committed_at exists, failed requires error_code, and created_count is zero outside committed.
+Only 0077's file_objects_type re-add changes to NOT VALID followed by VALIDATE; its snapshot is unchanged.
+Employee documents still accept only PDF/JPEG/PNG, rejecting XLSX with DOCUMENT_FILE_TYPE_INVALID.
+No additional external dependency.
 
 ### Test plan
 
@@ -202,8 +221,8 @@ backfill to committed. Existing migrations are untouched. No additional external
 ## Assumptions
 
 Admin is online. Storage is configured; without it the import answers `STORAGE_NOT_CONFIGURED` on preview.
-No new external dependency beyond `exceljs@4.4.0` (apps/api). Worker adds the existing workspace
-`@pospay/domain`. Staff's existing tenancy arrow gains the declared worker `employeeImportBranches` reader.
+No new external dependency beyond `exceljs@4.4.0` (apps/api). Staff's existing tenancy arrow gains
+the declared worker `employeeImportBranches` reader.
 
 ## Open questions for the owner
 

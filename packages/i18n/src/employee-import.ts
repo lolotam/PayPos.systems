@@ -13,6 +13,8 @@ export const employeeImportEn = {
   reason: 'Reason',
   committed: 'Employees imported:',
   pending: 'Import queued. Waiting for the result…',
+  delayed:
+    'The import is taking longer than expected. Check again later by reopening this page, or preview the workbook again.',
   failed: 'The import failed. No employees were saved.',
   column_name_en: 'Name (English)',
   column_name_ar: 'Name (Arabic)',
@@ -45,6 +47,8 @@ export const employeeImportAr = {
   reason: 'السبب',
   committed: 'الموظفون المستوردون:',
   pending: 'تمت إضافة الاستيراد إلى قائمة الانتظار. جارٍ انتظار النتيجة…',
+  delayed:
+    'الاستيراد يستغرق وقتاً أطول من المتوقع. أعد فتح الصفحة للتحقق لاحقاً أو أنشئ معاينة جديدة للمصنف.',
   failed: 'فشل الاستيراد ولم يُحفظ أي موظف.',
   column_name_en: 'الاسم بالإنجليزية',
   column_name_ar: 'الاسم بالعربية',
@@ -74,7 +78,6 @@ export const employeeImportErrorsEn = {
   IMPORT_PREVIEW_NOT_FOUND: 'The import preview was not found.',
   IMPORT_PREVIEW_EXPIRED: 'The import preview expired after 24 hours.',
   IMPORT_COMMIT_FAILED: 'The import could not be completed. Preview the workbook again.',
-  IMPORT_PREVIEW_USED: 'This import preview was already used.',
   IMPORT_PREVIEW_HAS_ERRORS: 'Fix the preview errors before committing.',
 } as const;
 
@@ -89,6 +92,5 @@ export const employeeImportErrorsAr = {
   IMPORT_PREVIEW_NOT_FOUND: 'معاينة الاستيراد غير موجودة.',
   IMPORT_PREVIEW_EXPIRED: 'انتهت صلاحية معاينة الاستيراد (24 ساعة).',
   IMPORT_COMMIT_FAILED: 'تعذر إكمال الاستيراد. أنشئ معاينة جديدة للمصنف.',
-  IMPORT_PREVIEW_USED: 'تم استخدام معاينة الاستيراد بالفعل.',
   IMPORT_PREVIEW_HAS_ERRORS: 'لا يمكن الحفظ لوجود أخطاء في المعاينة.',
 } as const;

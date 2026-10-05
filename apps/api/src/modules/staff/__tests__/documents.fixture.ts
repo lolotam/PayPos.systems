@@ -57,6 +57,7 @@ export async function documentFile(
     module?: string;
     permission?: string;
     createdBy?: string;
+    contentType?: string;
     status?: 'PENDING' | 'READY';
   } = {},
 ) {
@@ -69,7 +70,7 @@ export async function documentFile(
     content_type,size_bytes,required_permission,created_by,created_at,status)
     VALUES (${company},${id},${business},${patch.module ?? 'staff'},${patch.entity ?? f.employee.id},
       ${`${company}/${business}/${id}/staging`},${ready ? `${company}/${business}/${id}/verified` : null},
-      'application/pdf',10,${patch.permission ?? 'read:files:business'},${patch.createdBy ?? f.userId},
+      ${patch.contentType ?? 'application/pdf'},10,${patch.permission ?? 'read:files:business'},${patch.createdBy ?? f.userId},
       '2026-10-04T08:00:00Z',${patch.status ?? 'READY'})`;
   return id;
 }

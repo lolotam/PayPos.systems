@@ -1,4 +1,4 @@
-﻿import { attendanceEn } from './attendance-en.js';
+import { attendanceEn } from './attendance-en.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { employeeDocumentsEn } from './employee-documents-catalog.js';
@@ -178,6 +178,7 @@ export const en = {
   errors: {
     DOCUMENT_TYPE_UNAVAILABLE: 'This document type does not exist or is inactive.',
     DOCUMENT_EXPIRY_REQUIRED: 'This document type needs an expiry date.',
+    DOCUMENT_FILE_TYPE_INVALID: 'Employee documents must be PDF, JPEG or PNG.',
     DOCUMENT_FILE_ALREADY_RECORDED: 'This file is already recorded as a document.',
     DOCUMENT_TYPE_REVISION_CONFLICT: 'The document type changed. Reload it before saving again.',
     DOCUMENT_TYPE_LIMIT_REACHED: 'The company has reached the maximum of 100 document types.',

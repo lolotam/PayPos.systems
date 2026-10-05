@@ -1,8 +1,7 @@
 import { appendOutboxEvent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
-import type { EmployeeRecord } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import { employeeImportBranches } from '../../tenancy/index.ts';
-import type { ImportCommitPreview } from '../domain/employee-import.ts';
+import type { ImportedEmployeeRecord, ImportCommitPreview } from '../domain/employee-import.ts';
 import type { ImportCommitTransactions } from '../ports/employee-import.port.ts';
 import { insertEmployees } from './employee-import-writes.ts';
 
@@ -10,7 +9,7 @@ async function complete(
   tx: Tx,
   ids: IdGenerator,
   preview: ImportCommitPreview,
-  records: readonly EmployeeRecord[],
+  records: readonly ImportedEmployeeRecord[],
   at: string,
 ) {
   await appendOutboxEvent(tx, ids.newId(), {
@@ -41,7 +40,7 @@ export function employeeImportTransactions(
         async (tx) => {
           const [preview] = await tx.execute<
             ImportCommitPreview & Record<string, unknown>
-          >(sql`SELECT id,business_id,created_by,status,expires_at,rows,errors
+          >(sql`SELECT id,business_id,created_by,status,expires_at,requested_at,rows,errors
         FROM import_previews WHERE company_id=${companyId} AND id=${previewId} AND entity='employees' FOR UPDATE`);
           // التدقيق يحمل صاحب الطلب المقبول؛ الهوية تأتي من الصف المقفل لا من payload الوظيفة.
           if (preview !== undefined)

@@ -156,7 +156,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeePasskeyUnbound`                                                    | `staff`         | None in Phase 1; known to the dispatcher, admin polls binding history (ADR-0029)                     |
 | `EmployeeDocumentRecorded` | `staff` | None in Phase 1; known to the dispatcher. PR 15 reads `expires_on` and `alert_days` directly (ADR-0031) |
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
-| `EmployeeImportCommitRequested` | `staff` | `staff` worker BullMQ employee-import-commit job, transported after outbox claim commits (ADR-0034, ADR-0018) |
+| `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031) |
 | `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`                                                                        |

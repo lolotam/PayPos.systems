@@ -1,5 +1,4 @@
-import type { EmployeeRecord } from '@pospay/domain';
-import type { ImportCommitPreview } from '../domain/employee-import.ts';
+import type { ImportedEmployeeRecord, ImportCommitPreview } from '../domain/employee-import.ts';
 
 /** نطاق الإنشاء الذري؛ لا يخرج أي اتصال من معاملة الشركة. */
 export interface ImportCommitScope {
@@ -16,7 +15,7 @@ export interface ImportCommitScope {
    *
    * @param records سجلات الموظفين المحققة
    */
-  insert(records: readonly EmployeeRecord[]): Promise<void>;
+  insert(records: readonly ImportedEmployeeRecord[]): Promise<void>;
   /**
    * يحفظ نتيجة الالتزام وحدث الملخص بنفس اللحظة المحقونة.
    *
@@ -26,7 +25,7 @@ export interface ImportCommitScope {
    */
   complete(
     preview: ImportCommitPreview,
-    records: readonly EmployeeRecord[],
+    records: readonly ImportedEmployeeRecord[],
     at: string,
   ): Promise<void>;
 }

@@ -27,8 +27,8 @@ function zip(expanded: number, declared = expanded) {
   return Buffer.concat([local, compressed, central, end]);
 }
 
-it('rejects more than 20 MiB expansion including forged central-directory sizes', () => {
-  const size = 20 * 1024 * 1024 + 1;
+it('rejects more than 5 MiB expansion including forged central-directory sizes', () => {
+  const size = 5 * 1024 * 1024 + 1;
   expect(() => guardXlsxZip(zip(size))).toThrow();
   expect(() => guardXlsxZip(zip(size, 100))).toThrow();
 });

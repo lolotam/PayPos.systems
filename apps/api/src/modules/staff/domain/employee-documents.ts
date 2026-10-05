@@ -22,6 +22,7 @@ export interface DocumentFileFacts {
   owner_entity_id: string;
   required_permission: string;
   created_by: string;
+  content_type: string;
   status: 'PENDING' | 'VERIFYING' | 'READY' | 'REJECTED';
   storage_key: string | null;
   purged: boolean;
@@ -33,7 +34,7 @@ export type DocumentStatus = 'NO_EXPIRY' | 'VALID' | 'EXPIRING' | 'EXPIRED';
 const DAY_MS = 86_400_000;
 
 /**
- * يقبل فقط ملفاً رفعه نفس المسجل لهذا الموظف بنفس النشاط وبصلاحية القراءة المحفوظة؛
+ * يقبل PDF/JPEG/PNG فقط من ملف رفعه نفس المسجل لهذا الموظف بنفس النشاط وبصلاحية القراءة المحفوظة؛
  * أي اختلاف يُعامل كأنه غير موجود حتى لا يكشف وجود ملفات غيره.
  *
  * @param file حقائق الملف من files أو null إن لم يوجد في الشركة
@@ -61,6 +62,9 @@ export function requireDocumentFile(
     throw new DocumentError('NOT_FOUND');
   if (file.status !== 'READY' || file.storage_key === null)
     throw new DocumentError('FILE_NOT_READY');
+  // قرار المالك 2026-10-03 يخص الوثائق: السماح بـ XLSX للاستيراد لا يوسع وثيقة الموظف.
+  if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.content_type))
+    throw new DocumentError('DOCUMENT_FILE_TYPE_INVALID');
   return file.storage_key;
 }
 

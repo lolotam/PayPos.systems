@@ -1,4 +1,4 @@
-﻿import { t } from '@pospay/i18n';
+import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -18,6 +18,7 @@ const props = { companyId: company, businessId: business, userId: user };
 
 const put = vi.fn();
 beforeEach(() => {
+  sessionStorage.clear();
   api.GET.mockReset();
   api.POST.mockReset();
   put.mockReset();

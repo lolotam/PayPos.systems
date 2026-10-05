@@ -1,4 +1,4 @@
-﻿import { MyScheduleController } from './http/my-schedule.controller.ts';
+import { MyScheduleController } from './http/my-schedule.controller.ts';
 import {
   PasskeysController,
   PASSKEY_OPTIONS,
@@ -290,7 +290,8 @@ function employeeImportProviders(
   ids: IdGenerator,
   importStorage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null,
 ): Provider[] {
-  const transactions = database === undefined ? null : createEmployeeImportTransactions(database, ids);
+  const transactions =
+    database === undefined ? null : createEmployeeImportTransactions(database, ids);
   return [
     {
       provide: GetEmployeeImportTemplateUseCase,

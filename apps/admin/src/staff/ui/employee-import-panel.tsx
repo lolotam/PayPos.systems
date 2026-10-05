@@ -33,13 +33,7 @@ export function EmployeeImportPanel({ companyId, businessId, userId }: EmployeeI
   const locale = useLocale();
   const { template, preview, commit, status } = useEmployeeImport(companyId, businessId, userId);
   const [file, setFile] = useState<File>();
-  const error = preview.isError
-    ? preview.error
-    : commit.isError
-      ? commit.error
-      : status.isError
-        ? status.error
-        : null;
+  const error = [preview, commit, status].find((query) => query.isError)?.error ?? null;
   const clean = preview.isSuccess && preview.data.error_count === 0;
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -81,7 +75,11 @@ export function EmployeeImportPanel({ companyId, businessId, userId }: EmployeeI
       {preview.isSuccess && commit.data?.preview_id !== preview.data.preview_id ? (
         <EmployeeImportErrors preview={preview.data} />
       ) : null}
-      <EmployeeImportResult accepted={commit.isSuccess} status={status.data} />
+      <EmployeeImportResult
+        accepted={commit.isSuccess}
+        status={status.data}
+        timedOut={status.timedOut}
+      />
       {error ? <p role="alert">{envelopeMessage(error, locale)}</p> : null}
     </Card>
   );

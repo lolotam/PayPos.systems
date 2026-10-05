@@ -61,6 +61,13 @@ export const importPreviews = pgTable(
       t.createdAt,
     ),
     index('import_previews_company_file_idx').on(t.companyId, t.fileId),
+    index('import_previews_company_creator_idx').on(t.companyId, t.createdBy),
+    index('import_previews_company_status_requested_idx').on(
+      t.companyId,
+      t.status,
+      t.requestedAt,
+      t.id,
+    ),
     check('import_previews_entity_format', sql`${t.entity} ~ '^[a-z][a-z0-9_]{1,31}$'`),
     check('import_previews_row_count', sql`${t.rowCount} BETWEEN 0 AND 500`),
     check('import_previews_error_count', sql`${t.errorCount} >= 0`),
@@ -70,5 +77,17 @@ export const importPreviews = pgTable(
       sql`${t.status} IN ('ready','commit_requested','committed','failed')`,
     ),
     check('import_previews_created_count', sql`${t.createdCount} BETWEEN 0 AND 500`),
+    check(
+      'import_previews_committed_consistent',
+      sql`(${t.status} = 'committed') = (${t.committedAt} IS NOT NULL)`,
+    ),
+    check(
+      'import_previews_failed_error',
+      sql`${t.status} <> 'failed' OR ${t.errorCode} IS NOT NULL`,
+    ),
+    check(
+      'import_previews_count_committed',
+      sql`${t.status} = 'committed' OR ${t.createdCount} = 0`,
+    ),
   ],
 );

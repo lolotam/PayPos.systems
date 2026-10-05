@@ -1,4 +1,4 @@
-import { createDatabase, type TenantWrappers } from '@pospay/db';
+import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import ExcelJS from 'exceljs';
 import { createHash } from 'node:crypto';
@@ -14,8 +14,6 @@ import { PreviewEmployeeImportUseCase } from '../use-cases/preview-employee-impo
 import { CommitEmployeeImportUseCase } from '../use-cases/commit-employee-import/commit-employee-import.usecase.ts';
 import { GetEmployeeImportTemplateUseCase } from '../use-cases/get-employee-import-template/get-employee-import-template.usecase.ts';
 import { buildEmployeeImportTemplate } from '../persistence/employee-import-template.ts';
-import { CommitEmployeeImport } from '../../../../../worker/src/modules/staff/use-cases/commit-employee-import/commit-employee-import.ts';
-import { employeeImportTransactions } from '../../../../../worker/src/modules/staff/persistence/employee-import.transactions.ts';
 
 export type ImportRow = readonly (string | number | null)[];
 
@@ -71,7 +69,7 @@ export async function employeeImportFixture() {
   const { company, business, secondBusiness, branch, userId, memberId, managerCookie } =
     await seedImportWorkspace(h, ids);
 
-  const db: TenantWrappers = createDatabase({ url: h.urls.app, ids });
+  const db = createDatabase({ url: h.urls.app, ids });
   const storage = new Map<string, Uint8Array>();
   const clock = { value: new Date('2026-10-04T10:00:00Z') };
   const clockPort = { now: () => clock.value };
@@ -107,7 +105,6 @@ export async function employeeImportFixture() {
       clockPort,
     ),
     commit: new CommitEmployeeImportUseCase(transactions, ids, clockPort),
-    worker: new CommitEmployeeImport(employeeImportTransactions(db, ids), ids, clockPort),
     async upload(
       content: Uint8Array,
       options: { businessId?: string; createdBy?: string } = {},

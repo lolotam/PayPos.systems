@@ -149,10 +149,9 @@ it('matches create-employee by accepting inactive branches and stable ids after 
   try {
     const result = await f.commit.execute(commitCommand(f, preview.preview_id, 'inactive-branch'));
     expect(result.preview_id).toBe(preview.preview_id);
-    await f.worker.execute(f.company, preview.preview_id);
     const [status] = await f.h
       .owner`SELECT status,created_count FROM import_previews WHERE id=${preview.preview_id}`;
-    expect(status).toMatchObject({ status: 'committed', created_count: 1 });
+    expect(status).toMatchObject({ status: 'commit_requested', created_count: 0 });
     const inactivePreview = await f.preview.execute(
       previewCommand(
         f,

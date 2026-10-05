@@ -27,6 +27,7 @@ const state = vi.hoisted(() => ({
     mutate: vi.fn(),
   },
   status: {
+    timedOut: false,
     isError: false,
     error: null as unknown,
     data: undefined as Record<string, unknown> | undefined,
@@ -46,6 +47,7 @@ beforeEach(() => {
   state.commit.isSuccess = false;
   state.commit.data = undefined;
   state.status.data = undefined;
+  state.status.timedOut = false;
   state.preview.mutate.mockClear();
   state.commit.mutate.mockClear();
 });
@@ -66,6 +68,14 @@ it('shows the created count after a successful commit', () => {
   state.status.data = { status: 'committed', created_count: 3 };
   render(panel());
   expect(screen.getByRole('status').textContent).toContain('3');
+});
+
+it('shows a bilingual delayed state when automatic polling reaches its deadline', () => {
+  state.status.timedOut = true;
+  state.status.data = { status: 'commit_requested' };
+  render(panel());
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'employeeImport.delayed'));
+  expect(t('ar', 'employeeImport.delayed')).not.toBe(t('en', 'employeeImport.delayed'));
 });
 
 it('shows pending until the worker reports a terminal result and disables duplicate submission', () => {

@@ -22,6 +22,7 @@ const file: DocumentFileFacts = {
   owner_entity_id: employeeId,
   required_permission: 'read:files:business',
   created_by: userId,
+  content_type: 'application/pdf',
   status: 'READY',
   storage_key: 'company/business/verified-key',
   purged: false,
@@ -46,6 +47,21 @@ const code = (fn: () => unknown) => {
 };
 
 describe('requireDocumentFile', () => {
+  it.each(['application/pdf', 'image/jpeg', 'image/png'])(
+    'accepts a verified %s document',
+    (content_type) => {
+      expect(requireDocumentFile({ ...file, content_type }, expected)).toBe(file.storage_key);
+    },
+  );
+  it('rejects a matching READY workbook but keeps another users workbook unknown', () => {
+    const content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    expect(code(() => requireDocumentFile({ ...file, content_type }, expected))).toBe(
+      'DOCUMENT_FILE_TYPE_INVALID',
+    );
+    expect(
+      code(() => requireDocumentFile({ ...file, content_type, created_by: employeeId }, expected)),
+    ).toBe('NOT_FOUND');
+  });
   it('returns the verified key of a READY file uploaded by the recorder for this employee', () => {
     expect(requireDocumentFile(file, expected)).toBe('company/business/verified-key');
   });

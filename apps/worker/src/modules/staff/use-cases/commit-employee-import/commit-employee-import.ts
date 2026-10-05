@@ -1,10 +1,10 @@
-import {
-  EmployeeCreationError,
-  validateEmployeeCreation,
-  type EmployeeRecord,
-} from '@pospay/domain';
 import type { IdGenerator } from '@pospay/db';
-import { ImportCommitError } from '../../domain/employee-import.ts';
+import {
+  ImportCommitError,
+  requireAcceptedImportExpiry,
+  requireImportBranches,
+  type ImportedEmployeeRecord,
+} from '../../domain/employee-import.ts';
 import type { ImportCommitTransactions } from '../../ports/employee-import.port.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 
@@ -26,11 +26,11 @@ export class CommitEmployeeImport {
         const preview = scope.preview;
         if (preview === null || preview.status !== 'commit_requested') return;
         if (preview.errors.length > 0) throw new ImportCommitError('IMPORT_PREVIEW_HAS_ERRORS');
-        if (new Date(preview.expires_at).getTime() <= this.clock.now().getTime())
-          throw new ImportCommitError('IMPORT_PREVIEW_EXPIRED');
+        requireAcceptedImportExpiry(preview);
         const branches = new Set(await scope.branches(preview.business_id));
+        requireImportBranches(preview.rows, branches);
         const at = this.clock.now().toISOString();
-        const records = preview.rows.map((row): EmployeeRecord => {
+        const records = preview.rows.map((row): ImportedEmployeeRecord => {
           const record = {
             id: this.ids.newId(),
             business_id: preview.business_id,
@@ -43,17 +43,13 @@ export class CommitEmployeeImport {
             user_id: null,
             created_at: at,
           };
-          validateEmployeeCreation(record, {
-            businessExists: true,
-            branchBusinessId: branches.has(row.primary_branch_id) ? preview.business_id : null,
-          });
           return record;
         });
         await scope.insert(records);
         await scope.complete(preview, records, at);
       });
     } catch (error) {
-      if (error instanceof ImportCommitError || error instanceof EmployeeCreationError)
+      if (error instanceof ImportCommitError)
         await this.transactions.fail(companyId, previewId, error.code);
       else throw error;
     }
