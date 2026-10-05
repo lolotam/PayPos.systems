@@ -1,9 +1,13 @@
 import { z } from 'zod';
 
 import { nameAr, nameEn } from '../bilingual/names.js';
+
 import { page } from '../pagination/cursor.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
+
+const serviceNameEn = nameEn.regex(/^\P{Cc}*$/u);
+const serviceNameAr = nameAr.regex(/^\P{Cc}*$/u);
 
 // المال بيتنقل كنص بـ 3 خانات عشرية دايماً؛ رقم JS كان بيضيّع فلوس (CLAUDE.md §5).
 // نفس حد salaryAmount: numeric(14,3) يعني 11 خانة صحيحة على الأكثر.
@@ -23,8 +27,8 @@ export const serviceCommissionRule = z
   .meta({ id: 'ServiceCommissionRule' });
 
 const serviceFields = {
-  name_en: nameEn,
-  name_ar: nameAr.nullable().optional(),
+  name_en: serviceNameEn,
+  name_ar: serviceNameAr.nullable().optional(),
   price: servicePrice,
   commission_rule: serviceCommissionRule,
   counts_toward_threshold: z.boolean().optional(),
@@ -45,8 +49,8 @@ export const service = z
   .object({
     id,
     business_id: id,
-    name_en: nameEn,
-    name_ar: nameAr.nullable(),
+    name_en: serviceNameEn,
+    name_ar: serviceNameAr.nullable(),
     price: servicePrice,
     commission_rule: serviceCommissionRule,
     counts_toward_threshold: z.boolean(),

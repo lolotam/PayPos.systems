@@ -1,11 +1,11 @@
 'use client';
 import type { CreateServiceInput } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import { normalizeKwdInput, t } from '@pospay/i18n';
 import { Input, Label } from '@pospay/ui';
 import { useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 
-// حقول الاسم والسعر؛ السعر نص KWD بثلاث خانات، مش رقم JS (CLAUDE.md §5).
+// النص يحفظ دقة الفلس أثناء الإدخال، بما فيها القيم الكبيرة التي لا يمثلها float بدقة.
 export function ServiceBasicsFields() {
   const locale = useLocale();
   const { register } = useFormContext<CreateServiceInput>();
@@ -26,8 +26,7 @@ export function ServiceBasicsFields() {
         id="service-price"
         dir="ltr"
         inputMode="decimal"
-        placeholder="0.000"
-        {...register('price')}
+        {...register('price', { setValueAs: normalizeKwdInput })}
       />
     </>
   );

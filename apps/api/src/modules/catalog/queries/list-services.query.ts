@@ -4,8 +4,7 @@ import { sql } from 'drizzle-orm';
 
 import { toServiceListItem, type ServiceListRow } from './service-projection.ts';
 
-// شاشة قائمة الخدمات: صفحة واحدة باستعلام واحد مفهرس على (company_id, business_id, id)؛
-// قراءة فقط ولا تمر على domain/ أو use-cases/.
+// ترتيب المعرّف يطابق الفهرس ويحفظ استقرار الصفحات عند إضافة خدمات جديدة.
 export function listServicesStatement(
   companyId: string,
   businessId: string,
@@ -18,7 +17,6 @@ export function listServicesStatement(
     ORDER BY id LIMIT ${query.limit + 1}`;
 }
 
-// صفحة واحدة لكل شاشة؛ المؤشر معرف خدمة مش موجود في الصفحة الجاية.
 export async function listServices(
   tx: Tx,
   companyId: string,

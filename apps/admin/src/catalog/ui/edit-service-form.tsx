@@ -1,10 +1,6 @@
 'use client';
 import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  updateServiceInput,
-  type Service,
-  type UpdateServiceInput,
-} from '@pospay/contracts';
+import { updateServiceInput, type Service, type UpdateServiceInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { FormProvider, useForm } from 'react-hook-form';

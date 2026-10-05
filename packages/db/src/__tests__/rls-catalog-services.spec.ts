@@ -79,12 +79,12 @@ describe('services — forced tenant isolation and minimal grants', () => {
   });
 
   it('the same id in A and B is allowed without an existence oracle', async () => {
-    expect(Array.from(await asA(insert({ company_id: A.company, business_id: A.business })))).toEqual(
-      [{ id: ID }],
-    );
     expect(
-      Array.from(await asA(sql`SELECT name_en FROM services WHERE id = ${ID}`)),
-    ).toEqual([{ name_en: 'Synthetic service' }]);
+      Array.from(await asA(insert({ company_id: A.company, business_id: A.business }))),
+    ).toEqual([{ id: ID }]);
+    expect(Array.from(await asA(sql`SELECT name_en FROM services WHERE id = ${ID}`))).toEqual([
+      { name_en: 'Synthetic service' },
+    ]);
     expect(
       await owner`SELECT name_en FROM services WHERE company_id = ${B.company} AND id = ${ID}`,
     ).toEqual([{ name_en: 'Sentinel B' }]);
@@ -148,4 +148,38 @@ describe('services — writes and database checks', () => {
       ]),
     );
   });
+});
+
+it('A cannot update B, including through upsert; outside a tenant sees no services', async () => {
+  expect(
+    Array.from(
+      await asA(sql`UPDATE services SET name_en='Synthetic overwrite'
+    WHERE company_id=${B.company} AND id=${ID} RETURNING id`),
+    ),
+  ).toEqual([]);
+  await rejectsWith(
+    asA(sql`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind)
+    VALUES (${B.company},${ID},${B.business},'Synthetic upsert','0.000','ZERO')
+    ON CONFLICT(company_id,id) DO UPDATE SET name_en=excluded.name_en`),
+    /row-level security/,
+  );
+  const app = postgres(testDb.appUrl, { max: 1, onnotice: () => undefined });
+  try {
+    expect(await app`SELECT id FROM services`).toEqual([]);
+  } finally {
+    await app.end();
+  }
+});
+
+it.each([
+  ['price', 'NaN', 'services_price_nonnegative'],
+  ['commission_fixed_amount', 'NaN', 'services_rule_fixed_nonnegative'],
+  ['name_en', 'a\u0001b', 'services_name_en_controls'],
+])('database refuses invalid %s', async (column, value, constraint) => {
+  const rule = column === 'commission_fixed_amount' ? sql`,commission_rule_kind='FIXED'` : sql``;
+  await rejectsWith(
+    asA(sql`UPDATE services SET ${sql.identifier(column)}=${value} ${rule}
+    WHERE company_id=${A.company} AND id=${ID}`),
+    new RegExp(constraint),
+  );
 });

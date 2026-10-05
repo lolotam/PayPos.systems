@@ -13,7 +13,7 @@ export interface CreateServiceCommand {
   readonly input: CreateServiceInput;
 }
 
-// ينشئ خدمة النشاط وسجل التدقيق في معاملة واحدة؛ مفيش أثر مالي ولا حدث لأن مفيش مستهلك في المرحلة.
+// مفيش حدث لأن مفيش مستهلك لتغييرات الخدمة في هذه المرحلة.
 export class CreateServiceUseCase {
   constructor(
     private readonly transactions: ServiceTransactions,

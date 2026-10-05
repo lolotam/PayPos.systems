@@ -1,6 +1,5 @@
 import { service, serviceListItem, type Service, type ServiceListItem } from '@pospay/contracts';
 
-// أعمدة قاعدة العمولة كما تظهر في القراءة؛ التحويل للشكل على السلك مشترك بين القائمة والتفاصيل.
 export type ServiceListRow = {
   readonly id: string;
   readonly name_en: string;

@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { listServices, listServicesStatement } from '../queries/list-services.query.ts';
+import { serviceDetail, serviceDetailStatement } from '../queries/service-detail.query.ts';
 import { servicesFixture, termsFor, type ServiceFixture } from './services.fixture.ts';
 
 let f: ServiceFixture;
@@ -77,4 +78,20 @@ it('SV-08d the list plan uses the company/business/id cursor index', async () =>
     );
   });
   expect(JSON.stringify(plan)).toContain('services_company_business_id');
+});
+
+it('the detail projection matches the contract and uses a tenant-scoped index', async () => {
+  const record = records[0];
+  if (record === undefined) throw new Error('Synthetic service fixture missing');
+  const result = await f.db.withTenant(f.company, (tx) =>
+    serviceDetail(tx, f.company, f.business, record.id),
+  );
+  expect(result).toEqual(record);
+  const plan = await f.db.withTenant(f.company, async (tx) => {
+    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    return tx.execute(
+      sql`EXPLAIN (ANALYZE, FORMAT JSON) ${serviceDetailStatement(f.company, f.business, record.id)}`,
+    );
+  });
+  expect(JSON.stringify(plan)).toMatch(/services_(company_business_id|pk)/);
 });

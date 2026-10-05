@@ -1,11 +1,10 @@
 'use client';
 import type { ServiceCommissionRuleInput } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import { normalizeKwdInput, t } from '@pospay/i18n';
 import { Input, Label } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { serviceRuleFromText, serviceRuleValueText } from '../model/service-rule';
 
-// قيمة القاعدة تظهر فقط للنوعين اللي ليهم قيمة؛ النسبة رقم صحيح والمبلغ نص KWD.
 export function ServiceRuleValueField({
   kind,
   value,
@@ -19,7 +18,9 @@ export function ServiceRuleValueField({
   return (
     <>
       <Label htmlFor="service-rule-value">
-        {kind === 'PCT' ? t(locale, 'catalogServices.ruleBps') : t(locale, 'catalogServices.ruleFixed')}
+        {kind === 'PCT'
+          ? t(locale, 'catalogServices.ruleBps')
+          : t(locale, 'catalogServices.ruleFixed')}
       </Label>
       <Input
         id="service-rule-value"
@@ -27,6 +28,10 @@ export function ServiceRuleValueField({
         inputMode="decimal"
         value={serviceRuleValueText(value)}
         onChange={(event) => onChange(serviceRuleFromText(kind, event.target.value))}
+        onBlur={(event) => {
+          if (kind === 'FIXED')
+            onChange(serviceRuleFromText(kind, normalizeKwdInput(event.target.value)));
+        }}
       />
     </>
   );

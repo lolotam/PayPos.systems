@@ -1,6 +1,7 @@
 import { MONEY_MAX } from '@pospay/domain';
 import { expect, it } from 'vitest';
 
+import type { ServiceCommissionRule } from '../service-commission-rule.ts';
 import { ServiceError } from '../errors.ts';
 import {
   newService,
@@ -78,7 +79,14 @@ it('SV-D5 builds terms from the wire: trims names and converts both rule kinds',
       commission_rule: { kind: 'PCT', value: 500 },
       counts_toward_threshold: true,
     }),
-  ).toEqual(terms({ name_en: 'Service', name_ar: 'خدمة', price: 1250n, commission_rule: { kind: 'PCT', value: 500n } }));
+  ).toEqual(
+    terms({
+      name_en: 'Service',
+      name_ar: 'خدمة',
+      price: 1250n,
+      commission_rule: { kind: 'PCT', value: 500n },
+    }),
+  );
   expect(
     serviceTerms({
       name_en: 'Service',
@@ -115,17 +123,25 @@ it('SV-D7 refuses a stale revision and only bumps when something actually change
     new Date('2026-10-06T10:00:00Z'),
   );
   expect(changed.changed).toBe(true);
-  expect(changed.after).toMatchObject({ price: 99_000n, revision: 5, updated_at: '2026-10-06T10:00:00.000Z' });
+  expect(changed.after).toMatchObject({
+    price: 99_000n,
+    revision: 5,
+    updated_at: '2026-10-06T10:00:00.000Z',
+  });
 });
 
 it('SV-D8 serialises price and rule to the wire without a JS number for money', () => {
   expect(serviceSnapshot(record()).price).toBe('12.500');
   expect(serviceSnapshot(record()).commission_rule).toEqual({ kind: 'FOLLOW_PLAN' });
-  expect(serviceSnapshot(record({ commission_rule: { kind: 'PCT', value: 500n } })).commission_rule).toEqual({
+  expect(
+    serviceSnapshot(record({ commission_rule: { kind: 'PCT', value: 500n } })).commission_rule,
+  ).toEqual({
     kind: 'PCT',
     value: 500,
   });
-  expect(serviceSnapshot(record({ commission_rule: { kind: 'FIXED', value: 2000n } })).commission_rule).toEqual({
+  expect(
+    serviceSnapshot(record({ commission_rule: { kind: 'FIXED', value: 2000n } })).commission_rule,
+  ).toEqual({
     kind: 'FIXED',
     value: '2.000',
   });
@@ -138,14 +154,14 @@ it('SV-D9 keeps the rule columns mutually consistent in both directions', () => 
     commission_pct_bps: 750,
     commission_fixed_amount: null,
   });
-  expect(
-    serviceColumnValues(record({ commission_rule: { kind: 'FIXED', value: 2000n } })),
-  ).toEqual({
-    price: '12.500',
-    commission_rule_kind: 'FIXED',
-    commission_pct_bps: null,
-    commission_fixed_amount: '2.000',
-  });
+  expect(serviceColumnValues(record({ commission_rule: { kind: 'FIXED', value: 2000n } }))).toEqual(
+    {
+      price: '12.500',
+      commission_rule_kind: 'FIXED',
+      commission_pct_bps: null,
+      commission_fixed_amount: '2.000',
+    },
+  );
 });
 
 it('SV-D10 round-trips a stored row back to a domain record', () => {
@@ -165,4 +181,37 @@ it('SV-D10 round-trips a stored row back to a domain record', () => {
       updated_at: new Date('2026-10-06T10:00:00.000Z'),
     }),
   ).toMatchObject({ price: 12_500n, commission_rule: { kind: 'PCT', value: 500n }, revision: 2 });
+});
+
+it.each([
+  { kind: 'ZERO', value: 0n },
+  { kind: 'FOLLOW_PLAN', value: 1n },
+  { kind: 'OTHER' },
+  { kind: 'PCT', value: 1.5 },
+  { kind: 'FIXED', value: '1.000' },
+  { kind: 'PCT' },
+  null,
+])('rejects malformed runtime rules before persistence: %o', (rule) => {
+  expect(() => validateServiceCommissionRule(rule as ServiceCommissionRule)).toThrow(
+    'SERVICE_COMMISSION_RULE_INVALID',
+  );
+});
+
+it('rejects whitespace-only names, controls and runtime number prices', () => {
+  expect(() => validateServiceName('  ', null)).toThrow('SERVICE_NAME_INVALID');
+  expect(() => validateServiceName('a\u0001b', null)).toThrow('SERVICE_NAME_INVALID');
+  expect(() => validateServiceName('valid', 'a\u007fb')).toThrow('SERVICE_NAME_INVALID');
+  expect(() => validateServiceDraft(terms({ price: 1 as unknown as bigint }))).toThrow(
+    'SERVICE_PRICE_INVALID',
+  );
+});
+
+it('keeps malformed FIXED wire values in the commission error family', () => {
+  expect(() =>
+    serviceTerms({
+      name_en: 'Synthetic',
+      price: '0.000',
+      commission_rule: { kind: 'FIXED', value: '100000000000.000' },
+    }),
+  ).toThrow('SERVICE_COMMISSION_RULE_INVALID');
 });

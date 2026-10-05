@@ -59,7 +59,7 @@ export const services = pgTable(
       'services_name_ar_length',
       sql`${t.nameAr} IS NULL OR char_length(trim(${t.nameAr})) BETWEEN 1 AND 255`,
     ),
-    check('services_price_nonnegative', sql`${t.price} >= 0`),
+    check('services_price_nonnegative', sql`${t.price} BETWEEN 0 AND 99999999999.999`),
     check(
       'services_rule_kind',
       sql`${t.commissionRuleKind} IN ('FOLLOW_PLAN','ZERO','PCT','FIXED')`,
@@ -78,8 +78,10 @@ export const services = pgTable(
     ),
     check(
       'services_rule_fixed_nonnegative',
-      sql`${t.commissionFixedAmount} IS NULL OR ${t.commissionFixedAmount} >= 0`,
+      sql`${t.commissionFixedAmount} IS NULL OR ${t.commissionFixedAmount} BETWEEN 0 AND 99999999999.999`,
     ),
+    check('services_name_en_controls', sql`${t.nameEn} !~ '[[:cntrl:]]'`),
+    check('services_name_ar_controls', sql`${t.nameAr} IS NULL OR ${t.nameAr} !~ '[[:cntrl:]]'`),
     check('services_revision_positive', sql`${t.revision} > 0`),
   ],
 );

@@ -1,13 +1,9 @@
-import {
-  MONEY_MAX,
-  moneyToString,
-  parseMoney,
-  type ServiceCommissionRule,
-} from '@pospay/domain';
+import { MONEY_MAX, moneyToString, parseMoney } from '@pospay/domain';
 
 import { ServiceError } from './errors.ts';
+import type { ServiceCommissionRule } from './service-commission-rule.ts';
 
-/** شكل قاعدة العمولة على السلك: النسبة عدد صحيح bps، والمبلغ الثابت نص KWD؛ النوع الصافي في shared kernel. */
+/** شكل قاعدة العمولة على السلك: النسبة عدد صحيح bps، والمبلغ الثابت نص KWD؛ النوع الصافي ملك نطاق catalog. */
 export type ServiceRuleWire =
   | { readonly kind: 'FOLLOW_PLAN' }
   | { readonly kind: 'ZERO' }
@@ -23,7 +19,6 @@ export interface ServiceTerms {
   readonly counts_toward_threshold: boolean;
 }
 
-// مدخلات العقد قبل التحويل؛ interface مسمّى عشان توثيق الدالة يشرح البنود مرة واحدة.
 interface ServiceTermsInput {
   readonly name_en: string;
   readonly name_ar?: string | null | undefined;
@@ -33,7 +28,6 @@ interface ServiceTermsInput {
   readonly counts_toward_threshold?: boolean | undefined;
 }
 
-// صف قاعدة البيانات الخام كما تقرأه دالة التحويل.
 interface ServiceRowInput {
   readonly id: string;
   readonly business_id: string;
@@ -72,6 +66,7 @@ export interface ServiceView extends Omit<ServiceRecord, 'price' | 'commission_r
  */
 export function parseServicePrice(text: string): bigint {
   try {
+    if (!/^(0|[1-9]\d{0,10})\.\d{3}$/.test(text)) throw new ServiceError('SERVICE_PRICE_INVALID');
     return parseMoney(text);
   } catch {
     throw new ServiceError('SERVICE_PRICE_INVALID');
@@ -86,27 +81,43 @@ export function parseServicePrice(text: string): bigint {
  * @returns لا شيء عند القبول، ويرفض بخطأ مسمّى
  */
 export function validateServiceName(nameEn: string, nameAr: string | null): void {
-  if (nameEn.length < 1 || nameEn.length > 255) throw new ServiceError('SERVICE_NAME_INVALID');
-  if (nameAr !== null && (nameAr.length < 1 || nameAr.length > 255))
+  if (nameEn.trim().length < 1 || nameEn.length > 255 || /\p{Cc}/u.test(nameEn))
+    throw new ServiceError('SERVICE_NAME_INVALID');
+  if (
+    nameAr !== null &&
+    (nameAr.trim().length < 1 || nameAr.length > 255 || /\p{Cc}/u.test(nameAr))
+  )
     throw new ServiceError('SERVICE_NAME_INVALID');
 }
 
 /**
  * يتحقق من قاعدة العمولة: PCT نقاط أساس 0–10000، FIXED فلوس غير سالبة داخل numeric(14,3)؛
- * FOLLOW_PLAN وZERO بلا قيمة. ده نفس النوع اللي محرك العمولة بيسعّر بيه (SPEC §5).
+ * FOLLOW_PLAN وZERO بلا قيمة. المعاني يحددها SPEC §5، والنوع ملك نطاق catalog.
  *
  * @param rule القاعدة الصافية
  * @returns لا شيء عند القبول، ويرفض بخطأ مسمّى
  */
 export function validateServiceCommissionRule(rule: ServiceCommissionRule): void {
-  if (rule.kind === 'PCT') {
-    if (rule.value < 0n || rule.value > 10_000n)
-      throw new ServiceError('SERVICE_COMMISSION_RULE_INVALID');
-    return;
-  }
-  if (rule.kind === 'FIXED') {
-    if (rule.value < 0n || rule.value > MONEY_MAX)
-      throw new ServiceError('SERVICE_COMMISSION_RULE_INVALID');
+  const invalid = () => {
+    throw new ServiceError('SERVICE_COMMISSION_RULE_INVALID');
+  };
+  if (typeof rule !== 'object' || rule === null) return invalid();
+  switch (rule.kind) {
+    case 'FOLLOW_PLAN':
+    case 'ZERO':
+      if ('value' in rule) invalid();
+      return;
+    case 'PCT':
+    case 'FIXED':
+      if (
+        typeof rule.value !== 'bigint' ||
+        rule.value < 0n ||
+        rule.value > (rule.kind === 'PCT' ? 10_000n : MONEY_MAX)
+      )
+        invalid();
+      return;
+    default:
+      return invalid();
   }
 }
 
@@ -118,7 +129,8 @@ export function validateServiceCommissionRule(rule: ServiceCommissionRule): void
  */
 export function validateServiceDraft(terms: ServiceTerms): void {
   validateServiceName(terms.name_en, terms.name_ar);
-  if (terms.price < 0n || terms.price > MONEY_MAX) throw new ServiceError('SERVICE_PRICE_INVALID');
+  if (typeof terms.price !== 'bigint' || terms.price < 0n || terms.price > MONEY_MAX)
+    throw new ServiceError('SERVICE_PRICE_INVALID');
   validateServiceCommissionRule(terms.commission_rule);
 }
 
@@ -263,14 +275,25 @@ function rowToRule(row: {
   if (row.commission_rule_kind === 'PCT')
     return { kind: 'PCT', value: BigInt(row.commission_pct_bps ?? 0) };
   if (row.commission_rule_kind === 'FIXED')
-    return { kind: 'FIXED', value: parseServicePrice(row.commission_fixed_amount ?? '0') };
+    return { kind: 'FIXED', value: parseServicePrice(row.commission_fixed_amount ?? '0.000') };
   if (row.commission_rule_kind === 'ZERO') return { kind: 'ZERO' };
   return { kind: 'FOLLOW_PLAN' };
 }
 
 function toCommissionRule(rule: ServiceRuleWire): ServiceCommissionRule {
-  if (rule.kind === 'PCT') return { kind: 'PCT', value: BigInt(rule.value) };
-  if (rule.kind === 'FIXED') return { kind: 'FIXED', value: parseServicePrice(rule.value) };
+  if (rule.kind === 'PCT') {
+    if (!Number.isInteger(rule.value) || rule.value < 0 || rule.value > 10_000)
+      throw new ServiceError('SERVICE_COMMISSION_RULE_INVALID');
+    return { kind: 'PCT', value: BigInt(rule.value) };
+  }
+  if (rule.kind === 'FIXED') {
+    try {
+      return { kind: 'FIXED', value: parseServicePrice(rule.value) };
+    } catch {
+      throw new ServiceError('SERVICE_COMMISSION_RULE_INVALID');
+    }
+  }
+  if ('value' in rule) throw new ServiceError('SERVICE_COMMISSION_RULE_INVALID');
   return { kind: rule.kind };
 }
 

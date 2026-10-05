@@ -8,6 +8,7 @@ export {
 } from './catalog.js';
 export { formatDate, formatTime, isTimeZone, localDate, type CalendarSystem } from './dates.js';
 export { formatKwd } from './format-kwd.js';
+export { normalizeKwdInput } from './kwd-input.js';
 export { formatInstant } from './format-instant.js';
 export { roleName } from './role-name.js';
 export { formatRemainingMinutes } from './remaining-minutes.js';

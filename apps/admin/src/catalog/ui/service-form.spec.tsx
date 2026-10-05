@@ -19,7 +19,7 @@ it.each(['ar', 'en'] as const)(
       target: { value: '  Synthetic service  ' },
     });
     fireEvent.change(screen.getByLabelText(t(locale, 'catalogServices.price')), {
-      target: { value: '12.500' },
+      target: { value: '12.5' },
     });
     fireEvent.click(screen.getByRole('button', { name: t(locale, 'catalogServices.create') }));
     await waitFor(() => expect(save).toHaveBeenCalled());

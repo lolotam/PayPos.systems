@@ -9582,13 +9582,15 @@
           "name_en": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 255
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
           },
           "name_ar": {
             "nullable": true,
             "type": "string",
             "minLength": 1,
-            "maxLength": 255
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
           },
           "price": {
             "$ref": "#/components/schemas/ServicePrice"
@@ -9618,13 +9620,15 @@
           "name_en": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 255
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
           },
           "name_ar": {
             "nullable": true,
             "type": "string",
             "minLength": 1,
-            "maxLength": 255
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
           },
           "price": {
             "$ref": "#/components/schemas/ServicePrice"
@@ -9660,13 +9664,15 @@
           "name_en": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 255
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
           },
           "name_ar": {
             "nullable": true,
             "type": "string",
             "minLength": 1,
-            "maxLength": 255
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
           },
           "price": {
             "$ref": "#/components/schemas/ServicePrice"
@@ -9717,13 +9723,15 @@
           "name_en": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 255
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
           },
           "name_ar": {
             "nullable": true,
             "type": "string",
             "minLength": 1,
-            "maxLength": 255
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
           },
           "price": {
             "$ref": "#/components/schemas/ServicePrice"

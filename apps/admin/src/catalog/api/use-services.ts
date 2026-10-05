@@ -130,7 +130,9 @@ export function useServiceEdit(
     mutationFn: (body: UpdateServiceInput) => update(companyId, businessId, serviceId, body),
     onSuccess: (saved) => {
       client.setQueryData(queryKey, saved);
-      return client.invalidateQueries({ queryKey: [...key(companyId, businessId, userId), 'list'] });
+      return client.invalidateQueries({
+        queryKey: [...key(companyId, businessId, userId), 'list'],
+      });
     },
   });
   return { record, save };

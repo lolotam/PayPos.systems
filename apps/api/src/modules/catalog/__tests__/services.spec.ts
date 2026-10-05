@@ -3,7 +3,13 @@ import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { CreateServiceUseCase } from '../use-cases/create-service/create-service.usecase.ts';
-import { servicesFixture, grantServices, detailFor, termsFor, type ServiceFixture } from './services.fixture.ts';
+import {
+  servicesFixture,
+  grantServices,
+  detailFor,
+  termsFor,
+  type ServiceFixture,
+} from './services.fixture.ts';
 
 const ids = systemUuidV7();
 let f: ServiceFixture;
@@ -38,7 +44,8 @@ const getOne = (serviceId: string, business = f.business) =>
 
 it('SV-07 default bundles grant managers; an ungranted membership is refused, and the route needs a session', async () => {
   expect(
-    await f.h.owner`SELECT 1 FROM role_permissions WHERE permission_code='manage:services:business'`,
+    await f.h
+      .owner`SELECT 1 FROM role_permissions WHERE permission_code='manage:services:business'`,
   ).toHaveLength(3);
   expect(
     await f.h.owner`SELECT 1 FROM role_permissions WHERE permission_code='read:services:business'`,
@@ -108,6 +115,7 @@ it('SV-04 refuses malformed bodies and named rule values without a partial write
   const before = await f.h.owner`SELECT count(*) AS n FROM services`;
   for (const change of [
     { name_en: '  ' },
+    { name_en: 'a\u0001b' },
     { price: '12.5' },
     { price: '-1.000' },
     { commission_rule: { kind: 'PCT', value: 10_001 } },
@@ -141,11 +149,20 @@ it('SV-06 updates price and rule, bumps revision once and audits before/after', 
     revision: 2,
   });
   expect(
-    await f.h
-      .owner`SELECT action,before->>'price' AS before_price,after->>'price' AS after_price
+    await f.h.owner`SELECT action,before->>'price' AS before_price,after->>'price' AS after_price,
+      before->'commission_rule' AS before_rule,after->'commission_rule' AS after_rule
       FROM audit_log WHERE company_id=${f.company} AND entity='service' AND entity_id=${createdId} AND action='updated'`,
-  ).toEqual([{ action: 'updated', before_price: '7.500', after_price: '8.000' }]);
-  const rows = await f.h.owner`SELECT id FROM services WHERE company_id=${f.company} AND id=${createdId}`;
+  ).toEqual([
+    {
+      action: 'updated',
+      before_price: '7.500',
+      after_price: '8.000',
+      before_rule: { kind: 'PCT', value: 2500 },
+      after_rule: { kind: 'FIXED', value: '1.500' },
+    },
+  ]);
+  const rows = await f.h
+    .owner`SELECT id FROM services WHERE company_id=${f.company} AND id=${createdId}`;
   expect(rows).toHaveLength(1);
 });
 
@@ -242,9 +259,7 @@ it('SV-09 rolls the whole write back when the audit insert fails', async () => {
       input: termsFor('Rollback service'),
     }),
   ).rejects.toThrow('SERVICE_PERSISTENCE_FAILED');
-  expect(
-    await f.h.owner`SELECT 1 FROM services WHERE name_en='Rollback service'`,
-  ).toHaveLength(0);
+  expect(await f.h.owner`SELECT 1 FROM services WHERE name_en='Rollback service'`).toHaveLength(0);
 });
 
 it('SV-08 lists cursor pages with exact projections and no duplicate rows', async () => {
@@ -281,4 +296,69 @@ it('SV-08 lists cursor pages with exact projections and no duplicate rows', asyn
       })
     ).status,
   ).toBe(400);
+});
+
+it('two concurrent editors cannot overwrite one revision or lose its audit', async () => {
+  const made = await post(termsFor('Concurrent service'));
+  const current = service.parse(made.body);
+  const responses = await Promise.all([
+    patch(current.id, { ...termsFor('Editor A'), expected_revision: 1, price: '1.001' }),
+    patch(current.id, { ...termsFor('Editor B'), expected_revision: 1, price: '2.002' }),
+  ]);
+  expect(responses.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+  const winner = service.parse(responses.find((r) => r.statusCode === 200)?.json());
+  expect(await detailFor(f, f.company, f.business, current.id)).toEqual(winner);
+  expect(winner.revision).toBe(2);
+  expect(
+    await f.h.owner`SELECT before,after FROM audit_log WHERE company_id=${f.company}
+    AND entity='service' AND entity_id=${current.id} AND action='updated'`,
+  ).toEqual([{ before: current, after: winner }]);
+});
+
+it('foreign tenant and business services share the unknown read/update envelope', async () => {
+  const targets = [
+    { companyId: f.company, businessId: f.secondBusiness },
+    { companyId: f.otherCompany, businessId: f.foreignBusiness },
+  ];
+  const unknown = ids.newId();
+  const missingRead = await getOne(unknown);
+  const missingWrite = await patch(unknown, { ...termsFor(), expected_revision: 1 });
+  for (const target of targets) {
+    const foreign = await f.create.execute({ ...target, userId: f.userId, input: termsFor() });
+    const read = await getOne(foreign.id);
+    const write = await patch(foreign.id, { ...termsFor(), expected_revision: 1 });
+    expect({ status: read.status, body: read.body }).toEqual({
+      status: missingRead.status,
+      body: missingRead.body,
+    });
+    expect({ status: write.statusCode, body: write.json() }).toEqual({
+      status: missingWrite.statusCode,
+      body: missingWrite.json(),
+    });
+  }
+});
+
+it('Device role cannot use service routes even with historical business ALLOWs', async () => {
+  const [previous] = await f.h.owner`SELECT role_id,role_owner_key FROM memberships
+    WHERE company_id=${f.company} AND id=${f.memberId}`;
+  await f.h
+    .owner`UPDATE memberships SET role_id='01920000-0000-7000-8000-00000000010e',role_owner_key='global'
+    WHERE company_id=${f.company} AND id=${f.memberId}`;
+  try {
+    expect((await post(termsFor('Device refused'))).status).toBe(403);
+    expect((await getOne(createdId)).status).toBe(403);
+    expect((await patch(createdId, { ...termsFor(), expected_revision: 2 })).statusCode).toBe(403);
+    expect(
+      (
+        await f.h.send('GET', `/v1/businesses/${f.business}/services`, {
+          cookie: f.cookie,
+          company: f.company,
+        })
+      ).status,
+    ).toBe(403);
+  } finally {
+    await f.h.owner`UPDATE memberships SET role_id=${previous?.['role_id'] as string},
+      role_owner_key=${previous?.['role_owner_key'] as string}
+      WHERE company_id=${f.company} AND id=${f.memberId}`;
+  }
 });

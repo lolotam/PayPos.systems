@@ -1,8 +1,13 @@
-// قاعدة الخدمة اتنقلت للـ shared kernel عشان catalog (تخزينها) وcommissions (تسعيرها) يستخدموا نفس النوع
-// من غير نسخة تانية ولا import بين domain موديولين؛ إعادة التصدير دي بتحافظ على مسارات PR 29 كما هي.
-import type { CommissionCalc, ServiceCommissionRule } from '@pospay/domain';
+/** حساب النسبة بوحدات bps أو المبلغ الثابت بالفلس؛ المقام المشترك للحساب الدقيق هو 10000. */
+export interface CommissionCalc {
+  readonly kind: 'PCT' | 'FIXED';
+  /** value نسبة bps عند PCT، ومبلغ bigint mills عند FIXED؛ ليست وحدات Percentage المشتركة. */
+  readonly value: bigint;
+}
 
-export type { CommissionCalc, ServiceCommissionRule } from '@pospay/domain';
+/** قاعدة الخدمة تستبدل الخطة للبند؛ FOLLOW_PLAN وحدها تستخدم الأساسي والشرائح. */
+export type ServiceCommissionRule =
+  CommissionCalc | { readonly kind: 'ZERO' } | { readonly kind: 'FOLLOW_PLAN' };
 
 /** نصيب الموظفة بعد توزيع فلس الباقي؛ counts يحدد دخول قيمة البند في المجمّع. */
 export interface CommissionPricingLine {

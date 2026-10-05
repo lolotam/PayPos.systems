@@ -5,7 +5,7 @@ import type { MessageKey } from '@pospay/i18n';
 export const SERVICE_RULE_KINDS = ['FOLLOW_PLAN', 'ZERO', 'PCT', 'FIXED'] as const;
 export type ServiceRuleKind = (typeof SERVICE_RULE_KINDS)[number];
 
-/** اسم القاعدة المحلي للعرض فقط؛ الحساب مكانه packages/domain على السيرفر. */
+/** اسم القاعدة المحلي للعرض فقط؛ التسعير يملكه commissions على السيرفر. */
 export const SERVICE_RULE_LABEL: Record<ServiceCommissionRuleInput['kind'], MessageKey> = {
   FOLLOW_PLAN: 'catalogServices.ruleFollowPlan',
   ZERO: 'catalogServices.ruleZero',

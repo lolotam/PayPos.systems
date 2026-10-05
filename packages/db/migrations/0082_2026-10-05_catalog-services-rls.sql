@@ -19,7 +19,7 @@ GRANT UPDATE (name_en, name_ar, price, commission_rule_kind, commission_pct_bps,
   commission_fixed_amount, counts_toward_threshold, revision, updated_at) ON services TO pospay_app;
 --> statement-breakpoint
 -- SV-Q1 (افتراض موصى به): نفس افتراضي manage:employees:business. المديرون الثلاثة بيديروا الخدمات
--- ويقرواها؛ مدير الفرع يحتاج ALLOW شخصياً على النشاط لأن صلاحية :business مش بتتغطى بنطاق فرع.
+-- ويقرواها؛ بقية أدوار النظام ممنوعة وفق PR 7، والجهاز لا يكتسبها من ALLOW قديم.
 INSERT INTO permissions(code) VALUES ('read:services:business'),('manage:services:business') ON CONFLICT DO NOTHING;
 --> statement-breakpoint
 INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code) VALUES

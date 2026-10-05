@@ -1,5 +1,5 @@
 {
-  "id": "5dc16117-b9b8-428e-96fc-0f0e98452fd5",
+  "id": "5517efe3-e28e-46ad-bbe9-5a74f55e9458",
   "prevId": "34254ce8-0721-4d28-989c-f4262c1fd210",
   "version": "7",
   "dialect": "postgresql",
@@ -822,7 +822,7 @@
         },
         "services_price_nonnegative": {
           "name": "services_price_nonnegative",
-          "value": "\"services\".\"price\" >= 0"
+          "value": "\"services\".\"price\" BETWEEN 0 AND 99999999999.999"
         },
         "services_rule_kind": {
           "name": "services_rule_kind",
@@ -842,7 +842,15 @@
         },
         "services_rule_fixed_nonnegative": {
           "name": "services_rule_fixed_nonnegative",
-          "value": "\"services\".\"commission_fixed_amount\" IS NULL OR \"services\".\"commission_fixed_amount\" >= 0"
+          "value": "\"services\".\"commission_fixed_amount\" IS NULL OR \"services\".\"commission_fixed_amount\" BETWEEN 0 AND 99999999999.999"
+        },
+        "services_name_en_controls": {
+          "name": "services_name_en_controls",
+          "value": "\"services\".\"name_en\" !~ '[[:cntrl:]]'"
+        },
+        "services_name_ar_controls": {
+          "name": "services_name_ar_controls",
+          "value": "\"services\".\"name_ar\" IS NULL OR \"services\".\"name_ar\" !~ '[[:cntrl:]]'"
         },
         "services_revision_positive": {
           "name": "services_revision_positive",

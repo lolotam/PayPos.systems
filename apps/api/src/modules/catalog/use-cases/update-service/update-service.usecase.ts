@@ -14,7 +14,6 @@ export interface UpdateServiceCommand {
   readonly input: UpdateServiceInput;
 }
 
-// يعدل خدمة النشاط بعد قفل الصف وفحص النسخة، ويسجل تغيير السعر أو القاعدة في سجل التدقيق.
 export class UpdateServiceUseCase {
   constructor(
     private readonly transactions: ServiceTransactions,

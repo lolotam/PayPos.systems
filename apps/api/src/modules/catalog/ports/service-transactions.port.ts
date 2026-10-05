@@ -48,8 +48,5 @@ export interface ServiceTransactions {
    * @param work عملية الخدمة على نطاق المعاملة
    * @returns ناتج العملية بعد نجاح commit
    */
-  run<T>(
-    actor: ServiceActor,
-    work: (scope: ServiceScope) => Promise<T>,
-  ): Promise<T>;
+  run<T>(actor: ServiceActor, work: (scope: ServiceScope) => Promise<T>): Promise<T>;
 }

@@ -76,8 +76,7 @@ function cleanServiceError(error: unknown): never {
   const cause = error instanceof Error && 'cause' in error ? error.cause : error;
   if (typeof cause === 'object' && cause !== null && 'code' in cause) {
     const code = (cause as { code?: unknown }).code;
-    if (code === '40P01' || code === '40001')
-      throw new ServiceError('TRANSACTION_RETRY_REQUIRED');
+    if (code === '40P01' || code === '40001') throw new ServiceError('TRANSACTION_RETRY_REQUIRED');
     // قيمة خارج قيود numeric أو CHECK تعني مدخلات مش متحققة — نردها كرفض مسمّى مش 500.
     if (code === '23514' || code === '22003') throw new ServiceError('SERVICE_PRICE_INVALID');
     // الـ FK المركّب على النشاط: مفيش نشاط بهوية دي في الشركة.
@@ -98,8 +97,7 @@ export function createServiceTransactions(
           try {
             return await work({
               insert: (record) => insertService(tx, companyId, record),
-              load: (businessId, serviceId) =>
-                loadService(tx, companyId, businessId, serviceId),
+              load: (businessId, serviceId) => loadService(tx, companyId, businessId, serviceId),
               save: (before, after) => saveService(tx, companyId, before, after),
               audit: (before, after) =>
                 appendAuditLog(tx, ids.newId(), {

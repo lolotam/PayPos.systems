@@ -4,7 +4,11 @@ import { t, type MessageKey } from '@pospay/i18n';
 import { Label, Select } from '@pospay/ui';
 import { Controller, useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { defaultServiceRule, SERVICE_RULE_KINDS, type ServiceRuleKind } from '../model/service-rule';
+import {
+  defaultServiceRule,
+  SERVICE_RULE_KINDS,
+  type ServiceRuleKind,
+} from '../model/service-rule';
 import { ServiceRuleValueField } from './service-rule-value-field';
 
 const KIND_LABEL: Record<ServiceRuleKind, MessageKey> = {
@@ -14,7 +18,6 @@ const KIND_LABEL: Record<ServiceRuleKind, MessageKey> = {
   FIXED: 'catalogServices.ruleFixed',
 };
 
-// قاعدة العمولة: نوع من قائمة، وقيمة واحدة نوعها يتبع النوع، وراية احتساب المجمّع.
 export function ServiceRuleFields() {
   const locale = useLocale();
   const { control } = useFormContext<CreateServiceInput>();
@@ -46,7 +49,9 @@ export function ServiceRuleFields() {
           );
         }}
       />
-      <Label htmlFor="service-threshold">{t(locale, 'catalogServices.countsTowardThreshold')}</Label>
+      <Label htmlFor="service-threshold">
+        {t(locale, 'catalogServices.countsTowardThreshold')}
+      </Label>
       <Controller
         name="counts_toward_threshold"
         control={control}

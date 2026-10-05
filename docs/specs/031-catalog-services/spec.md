@@ -46,16 +46,14 @@ menus. This mirrors `employees`, `employee_salaries`, `import_previews` and `bus
 
 ### Touched outside the slice
 
-- `packages/domain`: the shared commission rule type (`CommissionCalc`, `ServiceCommissionRule`) moves to the
-  shared kernel from `apps/api/src/modules/commissions/domain/commission-types.ts` (ADR-0035). Both `catalog`
-  and `commissions` need it, `domain/` may import only `packages/domain`, and cross-module domain imports are
-  banned.
-  The commissions file re-exports the moved type so PR 29 code is unchanged. This is the only file touched
-  outside the slice, and it is behaviour-preserving.
+- `packages/domain` and `modules/commissions` remain byte-identical to main (decision 40, ADR-0035).
+  Catalog owns its own rule type and validation in `catalog/domain`; the SPEC is the source of semantics.
+  Consumers define their own port DTO and map every kind with an exhaustive `assertNever` switch and an
+  all-kinds unit test when orders' `CatalogReaderPort` arrives in PR 35. No public rule export is needed now.
 - `packages/db`: `catalog` feature flag already exists; two new permissions are added to the catalog and the
   default bundles; the new table, its RLS policy and its indexes.
 - `docs/module-map.md`: `catalog: [tenancy]` already exists and gains no new arrow (the rule type lives in the
-  shared kernel, not in `commissions`).
+  catalog domain, not in `commissions`).
 
 ### Service rules
 
@@ -76,6 +74,7 @@ menus. This mirrors `employees`, `employee_salaries`, `import_previews` and `bus
 
 - A business of another company, a deleted/nonexistent business, or a foreign service id all return the same
   404 `NOT_FOUND` / `SERVICE_NOT_FOUND` refusal — a foreign id never reveals that it exists.
+- SPEC §5/§5.7 imposes no FIXED-versus-price cap; FIXED may exceed the service price, including zero price.
 - A `FIXED` rule whose value overflows `numeric(14,3)` is refused with `SERVICE_COMMISSION_RULE_INVALID` (400)
   before the write, not by a Postgres error.
 - `PCT` `0` is valid (pay nothing) and distinct from `ZERO`.
@@ -114,8 +113,9 @@ number" and keeps the future `CatalogReaderPort` adapter trivial.
 ### Permissions
 
 New `manage:services:business` and `read:services:business`. Defaults (TODO(spec) SV-Q1): both → owner,
-general_manager, business_manager. A branch manager needs a personal ALLOW at business scope; a `:business`
-permission is never covered by a branch-scoped membership. The SPEC does not name the catalog permission; the
+general_manager, business_manager. Other system roles, including Branch Manager and Device, are forbidden by the PR 7 matrix;
+a `:business` permission is never covered by a branch-scoped membership. A custom human role may receive
+a scoped personal ALLOW under the existing PR 7 policy. The SPEC does not name the catalog permission; the
 choice follows `manage:employees:business`.
 
 ### Events
@@ -137,7 +137,7 @@ framework — this slice only shapes the row validator it reuses.
 - Integration: create happy path; invalid inputs with named errors; permission refused; another tenant or
   business answers like unknown; update keeps a single row and bumps revision; stale revision 409; audit rows for
   create and for a price/rule change; RLS negative test.
-- Query shape + `EXPLAIN ANALYZE` on the list query.
+- Query shape + `EXPLAIN ANALYZE` on the list and detail queries.
 - Admin UI: list, create form, edit form with money in KWD 3 dp as a string, ar/en, RTL.
 
 ## Success Criteria
@@ -149,8 +149,8 @@ framework — this slice only shapes the row validator it reuses.
 
 ## Assumptions
 
-Admin is online. The `catalog` feature flag exists in the provisional plan. The commission engine's rule type is
-the single source of truth, moved to `packages/domain`. No new external dependency.
+Admin is online. The `catalog` feature flag exists in the provisional plan. The Phase 1 SPEC is
+the single source of rule semantics; each bounded context owns its type (ADR-0035). No new external dependency.
 
 ## Open questions for the owner
 
