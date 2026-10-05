@@ -7,6 +7,7 @@ import {
   appendAuditLog,
   appendAuditLogs,
   appendOutboxEvent,
+  appendOutboxEvents,
   createDatabase,
   type Database,
 } from '../index.ts';
@@ -97,12 +98,55 @@ describe('outbox', () => {
   });
 });
 
+it('batch outbox keeps input event order for one aggregate and rolls back the entire batch', async () => {
+  const first = nextId();
+  const second = nextId();
+  await database.withTenant(TENANT.A.company, (tx) =>
+    appendOutboxEvents(tx, [
+      { id: first, event: event() },
+      { id: second, event: event() },
+    ]),
+  );
+  const rows =
+    await owner`SELECT id,company_id FROM outbox WHERE id IN (${first},${second}) ORDER BY seq`;
+  expect(rows.map((row) => row['id'])).toEqual([first, second]);
+  expect(rows.every((row) => row['company_id'] === TENANT.A.company)).toBe(true);
+  const rolledBack = nextId();
+  await expect(
+    database.withTenant(TENANT.A.company, async (tx) => {
+      await appendOutboxEvents(tx, [{ id: rolledBack, event: event() }]);
+      throw new Error('Synthetic rollback');
+    }),
+  ).rejects.toThrow('Synthetic rollback');
+  expect(await outboxRows(rolledBack)).toHaveLength(0);
+});
+
 const entry = {
   entity: 'business',
   entityId: TENANT.A.business,
   action: 'created',
   after: { a: 1 },
 };
+
+it('recordset batches preserve JSON null distinctly from an absent audit snapshot', async () => {
+  const absent = nextId(),
+    explicit = nextId(),
+    outboxId = nextId();
+  await database.withTenant(TENANT.A.company, async (tx) => {
+    await appendAuditLogs(tx, [
+      { id: absent, entry },
+      { id: explicit, entry: { ...entry, before: null } },
+    ]);
+    await appendOutboxEvents(tx, [{ id: outboxId, event: { ...event(), payload: null } }]);
+  });
+  const rows = await owner`SELECT id,before IS NULL AS sql_null,jsonb_typeof(before) AS kind
+    FROM audit_log WHERE id IN (${absent},${explicit}) ORDER BY id`;
+  expect(Array.from(rows)).toEqual([
+    { id: absent, sql_null: true, kind: null },
+    { id: explicit, sql_null: false, kind: 'null' },
+  ]);
+  expect(await outboxRows(outboxId)).toHaveLength(1);
+});
 
 describe('audit_log', () => {
   it('records the context company and acting user, and NULL for a system action', async () => {

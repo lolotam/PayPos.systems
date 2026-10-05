@@ -44,9 +44,7 @@ const app = createDatabase({ url: config.DATABASE_URL, ids: systemUuidV7() });
 const dispatcher = createOutboxDispatcherDatabase({ url: config.DISPATCHER_DATABASE_URL });
 const redis = new Redis(config.REDIS_URL, { enableOfflineQueue: false, maxRetriesPerRequest: 1 });
 // Attached before any connection event, so ioredis never prints raw errors outside the logger.
-redis.on('error', (error: unknown) => {
-  logger.warn({ err: error }, 'redis connection error');
-});
+redis.on('error', (error: unknown) => logger.warn({ err: error }, 'redis connection error'));
 
 // ADR-0019: استقبال STOP وin-app مستقلان؛ تفعيل OTP لا يفتح إرسال الشركات.
 const production = process.env['NODE_ENV'] === 'production';
@@ -106,6 +104,9 @@ const KNOWN_EVENT_TYPES = [
   ...staff.eventTypes,
   // PR 13: لا مستهلك بعد؛ job الانتهاء في PR 15 يقرأ التاريخ من الجدول مباشرة.
   'EmployeeDocumentRecorded',
+  // PR 11: لا مستهلك بعد؛ سجل الاستيراد التدقيق والأحداث في نفس المعاملة ولا يحتاج إعادة محاولة (ADR-0034).
+  'EmployeeImported',
+  'ImportCommitted',
   ...(notifications?.eventTypes ?? []),
   ...(inApp?.eventTypes ?? []),
   'FileUploadRequested',

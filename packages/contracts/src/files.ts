@@ -6,7 +6,12 @@ export const requestFileUpload = z
     owner_module: z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),
     owner_entity_id: id,
     branch_id: id.optional(),
-    content_type: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
+    content_type: z.enum([
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ]),
     size_bytes: z
       .number()
       .int()

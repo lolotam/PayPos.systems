@@ -25,3 +25,4 @@ export * from './staff-passkeys.ts';
 export * from './staff-attendance.ts';
 export * from './staff-device-signals.ts';
 export * from './staff-documents.ts';
+export * from './staff-import.ts';

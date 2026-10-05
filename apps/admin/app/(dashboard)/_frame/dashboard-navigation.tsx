@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   UserRound,
   Clock3,
+  Upload,
 } from '@pospay/ui';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -54,9 +55,17 @@ export function DashboardNavigation() {
         asChild
         icon={<UserRound />}
         label={t(locale, 'staff.listTitle')}
-        active={pathname.startsWith('/staff')}
+        active={pathname.startsWith('/staff') && !pathname.startsWith('/staff/import')}
       >
         <Link href="/staff" />
+      </AppSidebarItem>
+      <AppSidebarItem
+        asChild
+        icon={<Upload />}
+        label={t(locale, 'employeeImport.title')}
+        active={pathname === '/staff/import'}
+      >
+        <Link href="/staff/import" />
       </AppSidebarItem>
     </AppSidebarGroup>
   );

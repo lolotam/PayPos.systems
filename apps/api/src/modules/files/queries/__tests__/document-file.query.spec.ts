@@ -51,6 +51,8 @@ it('exposes the key only once READY and never across tenants', async () => {
     owner_entity_id: ready,
     required_permission: 'read:files:business',
     created_by: USER,
+    content_type: 'application/pdf',
+    size_bytes: 10,
     status: 'READY',
     storage_key: `${ready}/verified`,
     purged: false,

@@ -1,10 +1,10 @@
-import { randomInt } from 'node:crypto';
 import { Queue } from 'bullmq';
 import { afterAll, beforeAll, expect, inject, it } from 'vitest';
 import { pgUrl } from '../../../packages/db/test/pg-env.ts';
 import { startHarness, type Harness } from './harness.ts';
 import { origin, paired, phone } from './staff-otp-harness.ts';
 import { builtSmoke } from './built-smoke.ts';
+import { availableSmokePort } from './smoke-port.ts';
 
 let h: Harness, device: Awaited<ReturnType<typeof paired>>;
 let workspace: { company_id: string; business_id: string };
@@ -100,8 +100,8 @@ async function personalOtpUnavailable(base: string) {
 it.each(['empty', 'intake-url-only', 'malformed-worker-auth'] as const)(
   'built production API and worker stay ready with %s optional settings',
   async (variant) => {
-    const apiPort = randomInt(40000, 45000),
-      workerPort = randomInt(45000, 50000);
+    const apiPort = await availableSmokePort(),
+      workerPort = await availableSmokePort();
     const before = await h.owner`SELECT count(*)::int AS count FROM auth_otp_challenges`;
     const connection = h.redis.duplicate({ keyPrefix: '' });
     connection.on('error', () => undefined);

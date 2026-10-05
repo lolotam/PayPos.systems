@@ -437,6 +437,397 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/employees/import/previews/{previewId}": {
+      "get": {
+        "operationId": "employeeImportStatus",
+        "description": "Creator-only employee import status; unknown and inaccessible previews share a 404.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Import status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeImportStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employees/import/template": {
+      "get": {
+        "operationId": "employeeImportTemplate",
+        "description": "Bilingual employee import template for one business. Requires manage:employees:business and the staff feature; unknown and inaccessible businesses share the same refusal.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template workbook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeImportTemplate"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employees/import/previews": {
+      "post": {
+        "operationId": "previewEmployeeImport",
+        "description": "Parses a READY uploaded workbook (first sheet, English headers), validates every row with the create-employee rules and writes no employee. Unknown, cross-tenant or cross-business files all answer IMPORT_FILE_NOT_FOUND (404).",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewEmployeeImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Preview with per-row errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeImportPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employees/import/commits": {
+      "post": {
+        "operationId": "commitEmployeeImport",
+        "description": "Requests a worker commit for a creator-owned clean, unused, unexpired preview. Repeated requests return the same preview id. Requires Idempotency-Key; poll the preview status for the atomic result.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommitEmployeeImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Commit accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeImportCommitAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/staff/personal-otp/request": {
       "post": {
         "operationId": "requestPersonalOtp",
@@ -8194,7 +8585,8 @@
             "enum": [
               "application/pdf",
               "image/jpeg",
-              "image/png"
+              "image/png",
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             ]
           },
           "size_bytes": {
@@ -8499,6 +8891,227 @@
         "type": "string",
         "format": "date",
         "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+      },
+      "EmployeeImportColumn": {
+        "type": "string",
+        "enum": [
+          "name_en",
+          "name_ar",
+          "role_code",
+          "hire_date",
+          "contract_end",
+          "primary_branch",
+          "unexpected_column"
+        ]
+      },
+      "EmployeeImportErrorCode": {
+        "type": "string",
+        "enum": [
+          "IMPORT_REQUIRED_CELL",
+          "IMPORT_NAME_INVALID",
+          "IMPORT_ROLE_INVALID",
+          "IMPORT_DATE_INVALID",
+          "IMPORT_CELL_INVALID",
+          "IMPORT_COLUMN_UNEXPECTED",
+          "IMPORT_BRANCH_NOT_FOUND",
+          "IMPORT_CONTRACT_END_BEFORE_HIRE"
+        ]
+      },
+      "EmployeeImportRowError": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 9007199254740991
+          },
+          "column": {
+            "$ref": "#/components/schemas/EmployeeImportColumn"
+          },
+          "code": {
+            "$ref": "#/components/schemas/EmployeeImportErrorCode"
+          }
+        },
+        "required": [
+          "row",
+          "column",
+          "code"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeImportTemplate": {
+        "type": "object",
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ]
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "file_name",
+          "content_type",
+          "content_base64"
+        ],
+        "additionalProperties": false
+      },
+      "PreviewEmployeeImportInput": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "file_id"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeImportPreview": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "row_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "error_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "errors": {
+            "maxItems": 5000,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmployeeImportRowError"
+            }
+          }
+        },
+        "required": [
+          "preview_id",
+          "row_count",
+          "error_count",
+          "errors"
+        ],
+        "additionalProperties": false
+      },
+      "CommitEmployeeImportInput": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeImportCommit": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "created_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "employee_ids": {
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": [
+          "preview_id",
+          "created_count",
+          "employee_ids"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeImportCommitAccepted": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeImportStatus": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "commit_requested",
+              "committed",
+              "failed"
+            ]
+          },
+          "created_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "error_code": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "EMPLOYEE_BRANCH_NOT_FOUND",
+              "IMPORT_PREVIEW_HAS_ERRORS",
+              "IMPORT_PREVIEW_EXPIRED",
+              "EMPLOYEE_CONTRACT_END_BEFORE_HIRE",
+              "IMPORT_COMMIT_FAILED"
+            ]
+          }
+        },
+        "required": [
+          "preview_id",
+          "status",
+          "created_count",
+          "error_code"
+        ],
+        "additionalProperties": false
       },
       "Customer": {
         "type": "object",

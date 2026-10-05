@@ -1,4 +1,5 @@
 import { attendanceAr } from './attendance-ar.js';
+import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
 import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
@@ -177,6 +178,7 @@ export const ar: Catalog = {
   errors: {
     DOCUMENT_TYPE_UNAVAILABLE: 'نوع الوثيقة غير موجود أو موقوف.',
     DOCUMENT_EXPIRY_REQUIRED: 'هذا النوع من الوثائق يحتاج تاريخ انتهاء.',
+    DOCUMENT_FILE_TYPE_INVALID: 'وثائق الموظف يجب أن تكون PDF أو JPEG أو PNG.',
     DOCUMENT_FILE_ALREADY_RECORDED: 'هذا الملف مسجل بالفعل كوثيقة.',
     DOCUMENT_TYPE_REVISION_CONFLICT: 'تغير نوع الوثيقة. حدّثه قبل الحفظ من جديد.',
     DOCUMENT_TYPE_LIMIT_REACHED: 'وصلت الشركة إلى الحد الأقصى وهو ١٠٠ نوع وثيقة.',
@@ -220,6 +222,7 @@ export const ar: Catalog = {
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
+    ...employeeImportErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
@@ -375,4 +378,5 @@ export const ar: Catalog = {
     unexpected: 'حدث خطأ. حاول مرة أخرى.',
     networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
   },
+  employeeImport: employeeImportAr,
 };

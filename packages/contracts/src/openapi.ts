@@ -21,6 +21,19 @@ import { settingsPaths } from './settings/settings-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
 import { employee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
+import {
+  employeeImportColumn,
+  employeeImportErrorCode,
+  employeeImportRowError,
+  employeeImportTemplate,
+  previewEmployeeImportInput,
+  employeeImportPreview,
+  commitEmployeeImportInput,
+  employeeImportCommit,
+  employeeImportCommitAccepted,
+  employeeImportStatus,
+} from './staff/employee-import.js';
+import { employeeImportPaths } from './staff/employee-import-openapi.js';
 import { staffPaths } from './staff/staff-openapi.js';
 import {
   updateEmployeeInput,
@@ -111,6 +124,16 @@ const SCHEMAS = [
   createEmployeeInput,
   employeeRoleCode,
   employeeDate,
+  employeeImportColumn,
+  employeeImportErrorCode,
+  employeeImportRowError,
+  employeeImportTemplate,
+  previewEmployeeImportInput,
+  employeeImportPreview,
+  commitEmployeeImportInput,
+  employeeImportCommit,
+  employeeImportCommitAccepted,
+  employeeImportStatus,
   customer,
   findOrCreateCustomerInput,
   attendanceQrToken,
@@ -191,6 +214,7 @@ function operation(
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
   ...employeeDocumentPaths,
+  ...employeeImportPaths,
   ...passkeyPaths,
   ...clockAttendancePaths,
   ...unbindPasskeyPaths,

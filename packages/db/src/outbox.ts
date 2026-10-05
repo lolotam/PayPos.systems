@@ -48,3 +48,45 @@ export async function appendOutboxEvent(tx: Tx, id: string, event: OutboxEvent):
             ${aggregateId}, ${event.eventType},
             ${toJsonb(event.payload, 'payload')}::jsonb)`);
 }
+
+/**
+ * يكتب أحداث الدفعة بأمر واحد بعد تثبيت أقفال كل aggregate بترتيب ثابت لمنع تداخل ترتيب الالتزام.
+ *
+ * @param tx معاملة الشركة التي تملك التغيير
+ * @param entries معرفات UUID v7 والأحداث ذات القيم الأولية
+ * @returns اكتمال إدخال الدفعة داخل المعاملة دون التزام مستقل
+ */
+export async function appendOutboxEvents(
+  tx: Tx,
+  entries: readonly { id: string; event: OutboxEvent }[],
+): Promise<void> {
+  if (entries.length === 0) return;
+  const locks = new Map<string, { type: string; id: string }>();
+  for (const { event } of entries) {
+    const id = assertUuid(event.aggregateId, 'aggregateId').toLowerCase();
+    locks.set(`${event.aggregateType}:${id}`, { type: event.aggregateType, id });
+  }
+  const aggregates = [...locks.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, aggregate]) => aggregate);
+  const lockValues = JSON.stringify(
+    aggregates.map(({ type, id }, position) => ({ position, kind: type, id })),
+  );
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(
+    app_company_id()::text || ':' || ordered.kind || ':' || ordered.id::text, 0))
+    FROM (SELECT kind,id FROM jsonb_to_recordset(${lockValues}::jsonb) AS locks(position int,kind text,id uuid)
+      ORDER BY position) AS ordered`);
+  const values = entries.map(({ id, event }, position) => ({
+    position,
+    id: assertUuid(id, 'id'),
+    aggregate_type: event.aggregateType,
+    aggregate_id: assertUuid(event.aggregateId, 'aggregateId'),
+    event_type: event.eventType,
+    payload: toJsonb(event.payload, 'payload'),
+  }));
+  await tx.execute(sql`INSERT INTO outbox (company_id,id,aggregate_type,aggregate_id,event_type,payload)
+    SELECT app_company_id(),id,aggregate_type,aggregate_id,event_type,payload::jsonb
+    FROM jsonb_to_recordset(${JSON.stringify(values)}::jsonb)
+      AS r(position int,id uuid,aggregate_type text,aggregate_id uuid,event_type text,payload text)
+    ORDER BY position`);
+}

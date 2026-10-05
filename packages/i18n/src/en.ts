@@ -1,4 +1,5 @@
 import { attendanceEn } from './attendance-en.js';
+import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { employeeDocumentsEn } from './employee-documents-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
@@ -177,6 +178,7 @@ export const en = {
   errors: {
     DOCUMENT_TYPE_UNAVAILABLE: 'This document type does not exist or is inactive.',
     DOCUMENT_EXPIRY_REQUIRED: 'This document type needs an expiry date.',
+    DOCUMENT_FILE_TYPE_INVALID: 'Employee documents must be PDF, JPEG or PNG.',
     DOCUMENT_FILE_ALREADY_RECORDED: 'This file is already recorded as a document.',
     DOCUMENT_TYPE_REVISION_CONFLICT: 'The document type changed. Reload it before saving again.',
     DOCUMENT_TYPE_LIMIT_REACHED: 'The company has reached the maximum of 100 document types.',
@@ -224,6 +226,7 @@ export const en = {
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:
       'This user already has an active employee record in this business.',
+    ...employeeImportErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
@@ -385,4 +388,5 @@ export const en = {
     unexpected: 'Something went wrong. Try again.',
     networkError: 'The server could not be reached. Try again.',
   },
+  employeeImport: employeeImportEn,
 } as const;
