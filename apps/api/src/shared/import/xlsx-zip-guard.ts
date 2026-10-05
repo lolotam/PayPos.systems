@@ -1,6 +1,7 @@
 import { inflateRawSync } from 'node:zlib';
 import {
   createXlsxExpansion,
+  rowLimitExceeded,
   guardWorkbookXml,
   guardWorksheetXml,
   referenceBounds,
@@ -142,6 +143,8 @@ function guardParts(
     if (worksheets > bounds.maxWorksheets) throw INVALID();
     const sheetBounds =
       firstPath === undefined || path === firstPath ? bounds : referenceBounds(bounds);
-    guardWorksheetXml(inflated, sheetBounds, expansion);
+    // رسالة حد الصفوف تخص ورقة البيانات بس؛ أي ورقة تانية بترجع "محتوى غير صالح".
+    const rowOverflow = path === firstPath ? rowLimitExceeded : INVALID;
+    guardWorksheetXml(inflated, sheetBounds, expansion, rowOverflow);
   }
 }

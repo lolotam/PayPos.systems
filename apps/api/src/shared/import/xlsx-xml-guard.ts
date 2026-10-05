@@ -16,6 +16,15 @@ export interface XlsxExpansion {
 }
 export const createXlsxExpansion = (): XlsxExpansion => ({ used: 0, sheetBounds: new Map() });
 const invalid = () => new Error('IMPORT_FILE_CONTENT_INVALID');
+// صف أبعد من الحد في ملف سليم غالباً معناه ملف فيه صفوف كتير، فالمستخدم يشوف رسالة حد الصفوف
+// المفهومة بدل "محتوى غير صالح"؛ الرفض نفسه بيحصل في الحالتين قبل ما ExcelJS يحمّل حاجة.
+export const rowLimitExceeded = () => new Error('IMPORT_ROW_LIMIT_EXCEEDED');
+const EXCEL_MAX_ROW = 1_048_576;
+
+function boundRow(row: number, bounds: XlsxStructureBounds, overflow = invalid): void {
+  if (row > EXCEL_MAX_ROW) throw invalid();
+  if (row > bounds.maxRows) throw overflow();
+}
 
 function charge(expansion: XlsxExpansion, amount: number): void {
   expansion.used += amount;
@@ -26,22 +35,23 @@ function column(letters: string): number {
   return [...letters].reduce((value, letter) => value * 26 + letter.charCodeAt(0) - 64, 0);
 }
 
-function coordinates(address: string, bounds: XlsxStructureBounds) {
+function coordinates(address: string, bounds: XlsxStructureBounds, overflow = invalid) {
   const match = /^\$?([A-Z]{1,3})\$?([1-9][0-9]{0,6})$/.exec(address);
   if (match?.[1] === undefined || match[2] === undefined) throw invalid();
   const col = column(match[1]);
   const row = Number(match[2]);
-  if (row > bounds.maxRows || col > bounds.maxColumns) throw invalid();
+  if (col > bounds.maxColumns) throw invalid();
+  boundRow(row, bounds, overflow);
   return { row, column: col };
 }
 
-function range(ref: string, bounds: XlsxStructureBounds): number {
+function range(ref: string, bounds: XlsxStructureBounds, overflow = invalid): number {
   if (ref.length > 32) throw invalid();
   const addresses = ref.split(':');
   const firstAddress = addresses[0];
   if (addresses.length > 2 || firstAddress === undefined) throw invalid();
-  const first = coordinates(firstAddress, bounds);
-  const last = coordinates(addresses[1] ?? firstAddress, bounds);
+  const first = coordinates(firstAddress, bounds, overflow);
+  const last = coordinates(addresses[1] ?? firstAddress, bounds, overflow);
   if (first.row > last.row || first.column > last.column) throw invalid();
   return (last.row - first.row + 1) * (last.column - first.column + 1);
 }
@@ -87,18 +97,37 @@ export function guardWorksheetXml(
   content: Buffer,
   bounds: XlsxStructureBounds,
   expansion: XlsxExpansion = createXlsxExpansion(),
+  rowOverflow: () => Error = invalid,
 ): void {
+  let rows = 0;
   scanXml(content, (tag) => {
     if (tag.name === 'col') {
       columns(tag.attributes, bounds, expansion);
       return;
     }
+    // Worksheet._parseRows بيحط الصف في _rows[r - 1] و eachRow بيلف على طول المصفوفة كلها،
+    // فرقم صف ضخم في ملف صغير يعمل مصفوفة طولها مليار؛ نحد الأرقام الفعلية وعدد الصفوف.
+    if (tag.name === 'row') {
+      rows += 1;
+      boundRow(rows, bounds, rowOverflow);
+      const number = tag.attributes['r'];
+      if (number === undefined) return;
+      if (!/^[1-9][0-9]{0,6}$/.test(number)) throw invalid();
+      boundRow(Number(number), bounds, rowOverflow);
+      return;
+    }
+    if (tag.name === 'c') {
+      const address = tag.attributes['r'];
+      if (address !== undefined) coordinates(address, bounds, rowOverflow);
+      return;
+    }
     if (!['dimension', 'mergeCell', 'dataValidation'].includes(tag.name)) return;
     const value = tag.attributes[tag.name === 'dataValidation' ? 'sqref' : 'ref'] ?? '';
     // نحسب مساحة dimension تحفظياً؛ ولا نحذف التكرارات التي يعيد ExcelJS زيارة خلاياها.
+    const overflow = tag.name === 'dimension' ? rowOverflow : invalid;
     let ranges = 0;
     for (const ref of value.matchAll(/\S+/g)) {
-      charge(expansion, range(ref[0], bounds));
+      charge(expansion, range(ref[0], bounds, overflow));
       ranges += 1;
     }
     if (ranges === 0) throw invalid();
@@ -150,6 +179,9 @@ export function guardWorkbookXml(
   scanXml(
     content,
     (tag) => {
+      // DefinedNameXform بيقفل الاسم عند أي closetag، فعنصر جوه definedName بيخلّي ExcelJS والفحص
+      // يشوفوا نطاقات مختلفة؛ أي عنصر جوه الاسم مرفوض قبل ما نفرّق بين sheet و definedName.
+      if (current !== undefined) throw invalid();
       if (tag.name === 'sheet') {
         count += 1;
         if (count > bounds.maxWorksheets) throw invalid();
@@ -159,8 +191,6 @@ export function guardWorkbookXml(
         expansion.sheetBounds.set(name, count === 1 ? bounds : referenceBounds(bounds));
       } else if (tag.name === 'definedName') {
         current = { name: tag.attributes['name'] ?? '', text: [] };
-      } else if (current !== undefined) {
-        throw invalid();
       }
     },
     (text) => {

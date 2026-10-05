@@ -71,7 +71,7 @@ describe('workbook hardening', () => {
     ).rejects.toThrow(new EmployeeImportError('IMPORT_ROW_LIMIT_EXCEEDED'));
   });
 
-  it('refuses a far-row dimension before parsing with bounded memory', async () => {
+  it('refuses a far-row dimension with the row-limit error before parsing with bounded memory', async () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('employees');
     sheet.addRow(HEADERS);
@@ -79,7 +79,9 @@ describe('workbook hardening', () => {
     const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
     const heap = process.memoryUsage().heapUsed;
     const start = performance.now();
-    await expect(readWorkbookMatrix(bytes)).rejects.toThrow('IMPORT_FILE_CONTENT_INVALID');
+    await expect(readWorkbookMatrix(bytes)).rejects.toThrow(
+      new EmployeeImportError('IMPORT_ROW_LIMIT_EXCEEDED'),
+    );
     expect(performance.now() - start).toBeLessThan(1000);
     expect(process.memoryUsage().heapUsed - heap).toBeLessThan(64 * 1024 * 1024);
   });
@@ -113,4 +115,17 @@ describe('workbook hardening', () => {
       });
     },
   );
+});
+
+describe('row limit naming', () => {
+  it('names the row limit for a workbook with 1,000 data rows', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('employees');
+    sheet.addRow(HEADERS);
+    for (let row = 2; row <= 1001; row += 1) sheet.getCell(row, 1).value = `Synthetic ${row}`;
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
+    await expect(readWorkbookMatrix(bytes)).rejects.toThrow(
+      new EmployeeImportError('IMPORT_ROW_LIMIT_EXCEEDED'),
+    );
+  });
 });

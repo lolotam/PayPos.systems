@@ -52,6 +52,8 @@ export async function readWorkbookMatrix(bytes: Uint8Array): Promise<ImportMatri
     return await loadMatrix(bytes);
   } catch (error) {
     if (error instanceof EmployeeImportError) throw error;
+    if (error instanceof Error && error.message === 'IMPORT_ROW_LIMIT_EXCEEDED')
+      throw new EmployeeImportError('IMPORT_ROW_LIMIT_EXCEEDED');
     throw new EmployeeImportError('IMPORT_FILE_CONTENT_INVALID');
   }
 }

@@ -3,6 +3,7 @@ import {
   createXlsxExpansion,
   guardWorkbookXml,
   guardWorksheetXml,
+  rowLimitExceeded,
 } from '../import/xlsx-xml-guard.ts';
 
 const bounds = { maxRows: 502, maxColumns: 8, maxWorksheets: 4 };
@@ -39,4 +40,39 @@ it('rejects malformed XML before loading the workbook', () => {
   expect(() =>
     guardWorksheetXml(Buffer.from('<worksheet><dimension ref="A1"/><broken></worksheet>'), bounds),
   ).toThrow('IMPORT_FILE_CONTENT_INVALID');
+});
+
+it('rejects any element nested inside a defined name before ExcelJS closes it early', () => {
+  const xml = Buffer.from(
+    '<workbook><sheets><sheet name="employees" r:id="rId1"/></sheets><definedNames>' +
+      '<definedName name="x">employees!$A$1:$H$1048576<sheet name="decoy"/>' +
+      '<definedName name="y">employees!$A$1</definedName></definedName></definedNames></workbook>',
+  );
+  expect(() => guardWorkbookXml(xml, bounds)).toThrow('IMPORT_FILE_CONTENT_INVALID');
+});
+
+it.each([
+  '<sheetData><row r="1000000000"><c r="A1"><v>1</v></c></row></sheetData>',
+  '<sheetData><row r="1"><c r="A1000000000"><v>1</v></c></row></sheetData>',
+  '<sheetData><row r="x"/></sheetData>',
+])('rejects row and cell positions past the Excel grid: %s', (xml) => {
+  expect(() => guardWorksheetXml(worksheet(xml), bounds)).toThrow('IMPORT_FILE_CONTENT_INVALID');
+});
+
+it.each([
+  '<sheetData><row r="503"/></sheetData>',
+  '<sheetData><row r="2"><c r="A503"/></row></sheetData>',
+  `<sheetData>${'<row/>'.repeat(503)}</sheetData>`,
+  '<dimension ref="A1:F1000"/>',
+])('reports rows past the import limit with the row-limit error on the data sheet: %s', (xml) => {
+  const dataSheet = () =>
+    guardWorksheetXml(worksheet(xml), bounds, createXlsxExpansion(), rowLimitExceeded);
+  expect(dataSheet).toThrow('IMPORT_ROW_LIMIT_EXCEEDED');
+  expect(() => guardWorksheetXml(worksheet(xml), bounds)).toThrow('IMPORT_FILE_CONTENT_INVALID');
+});
+
+it('keeps a far merge range on the generic content error', () => {
+  expect(() => guardWorksheetXml(worksheet('<mergeCell ref="A1:A600"/>'), bounds)).toThrow(
+    'IMPORT_FILE_CONTENT_INVALID',
+  );
 });

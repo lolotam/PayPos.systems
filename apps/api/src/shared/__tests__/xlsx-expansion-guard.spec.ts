@@ -107,7 +107,7 @@ it('resolves the data sheet through relationships rather than ZIP order or sheet
       ]),
       bounds,
     ),
-  ).toThrow('IMPORT_FILE_CONTENT_INVALID');
+  ).toThrow('IMPORT_ROW_LIMIT_EXCEEDED');
   expect(() =>
     guardXlsxZip(
       archiveParts([
