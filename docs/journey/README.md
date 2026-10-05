@@ -56,5 +56,6 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 26 | [Clock in and out from the personal phone](26-clock-attendance.md) — تسجيل الحضور والانصراف من الهاتف الشخصي | #99 | not yet (POS not deployed); OTP sending OFF pending Meta templates + secrets; tests/local seams only; card clock (PR 23), missed-out job (PR 24) and attendance board (PR 27) not shipped |
 | 27 | [Import employees from Excel](27-employee-import.md) — استيراد الموظفين من Excel | #107 | not yet (admin not deployed, issue #54); needs worker + Redis + private files |
 | 28 | [Document expiry alerts](28-document-expiry.md) — تنبيه انتهاء الوثائق | #110 | not yet (admin not deployed, issue #54); background job only, no recipients until PR 62; existing companies need the one-time replay before the pilot |
+| 29 | [Services](29-services.md) — الخدمات | #114 | not yet (admin not deployed, issue #54); needs the `catalog` feature; no delete yet; used by sessions from PR 35 |
 
 New journeys are added after every merge.
