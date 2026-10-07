@@ -15,7 +15,7 @@ export interface CardScanAttempts {
    * @param deviceId الجهاز المزدوج
    * @param idempotencyKey مفتاح منع التكرار
    * @param fingerprint بصمة الطلب؛ تدخل المفتاح السري ولا تُكتب في Redis كما هي
-   * @returns open تحت السقف، replay لمفتاح مكتمل، limited مع الثواني الباقية في الشباك
+   * @returns open تحت السقف، replay لمفتاح مكتمل، limited مع الثواني الباقية؛ صفر من العدّاد يُرفع إلى ثانية حتى لا يُطلب إعادة فورية
    */
   inspect(
     companyId: string,

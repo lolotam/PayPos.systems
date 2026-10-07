@@ -12,8 +12,9 @@ const rejectionMessages = {
 } as const;
 
 function limitedTitle(locale: Locale, retryAfter: number | undefined): string {
-  const message = t(locale, 'pos.cardLimited');
-  return retryAfter === undefined ? message : `${message} (${retryAfter})`;
+  if (retryAfter === undefined) return t(locale, 'pos.cardLimited');
+  const seconds = new Intl.NumberFormat(locale, { numberingSystem: 'latn' }).format(retryAfter);
+  return t(locale, 'pos.cardLimitedFor').replace('{seconds}', seconds);
 }
 
 /** نتيجة المسح كما تعرضها الاستقبال: قبول أو رفض، بلا تفاصيل عن موظف أو كارت. */

@@ -7,7 +7,10 @@ import { expect, it } from 'vitest';
 
 import { API_LOG_EVENTS } from '../../../shared/log-events.ts';
 import type { RateLimiter } from '../../../shared/ports/rate-limiter.port.ts';
-import { createCardScanAttempts } from '../persistence/card-scan-attempts.ts';
+import {
+  CARD_SCAN_FAILURES_PER_WINDOW,
+  createCardScanAttempts,
+} from '../persistence/card-scan-attempts.ts';
 import { createEmployeeCardHash } from '../persistence/employee-card-hash.ts';
 import { CardScanAttemptsUnavailableError } from '../ports/card-scan-attempts.port.ts';
 
@@ -84,4 +87,22 @@ it('stores a keyed scan-attempt marker and not the raw fingerprint digest', asyn
   await expect(attempts.inspect('company', 'device', idempotencyKey, fingerprint)).resolves.toEqual(
     { outcome: 'replay' },
   );
+});
+
+it('raises a vanished scan window to one second so Retry-After is never zero', async () => {
+  const limiter: RateLimiter = {
+    hit: () => Promise.resolve(false),
+    count: () => Promise.resolve(CARD_SCAN_FAILURES_PER_WINDOW),
+    remembered: () => Promise.resolve(false),
+    remember: () => Promise.resolve(),
+    remaining: () => Promise.resolve(0),
+  };
+  await expect(
+    createCardScanAttempts(limiter, hash, () => undefined).inspect(
+      'company',
+      'device',
+      'key',
+      'fingerprint',
+    ),
+  ).resolves.toEqual({ outcome: 'limited', remaining: 1 });
 });

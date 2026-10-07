@@ -50,7 +50,9 @@ async function readDecision(
   const done = doneKey(hash, companyId, deviceId, idempotencyKey, fingerprint);
   if (await limiter.remembered(done)) return { outcome: 'replay' };
   if ((await limiter.count(attempts)) < CARD_SCAN_FAILURES_PER_WINDOW) return { outcome: 'open' };
-  return { outcome: 'limited', remaining: await limiter.remaining(attempts) };
+  const left = await limiter.remaining(attempts);
+  // Retry-After: 0 يعني أعد حالاً. الثانية الواحدة تمنع الطرق حين تنتهي القراءة بلا TTL.
+  return { outcome: 'limited', remaining: left > 0 ? left : 1 };
 }
 
 export function createCardScanAttempts(

@@ -77,6 +77,33 @@ describe('clock by card reception screen', () => {
   });
 });
 
+it.each(['ar', 'en'] as const)(
+  'names the wait in seconds when a scan is limited in %s',
+  async (locale) => {
+    clock.mockResolvedValue({ kind: 'limited', retryAfter: 42 });
+    show(locale);
+    const input = screen.getByLabelText(t(locale, 'pos.cardLabel'));
+    fireEvent.change(input, { target: { value: 'CARD-9' } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    const seconds = new Intl.NumberFormat(locale, { numberingSystem: 'latn' }).format(42);
+    expect(
+      await screen.findByText(t(locale, 'pos.cardLimitedFor').replace('{seconds}', seconds)),
+    ).not.toBeNull();
+  },
+);
+
+it.each(['ar', 'en'] as const)(
+  'keeps the generic limit message when Retry-After is missing in %s',
+  async (locale) => {
+    clock.mockResolvedValue({ kind: 'limited' });
+    show(locale);
+    const input = screen.getByLabelText(t(locale, 'pos.cardLabel'));
+    fireEvent.change(input, { target: { value: 'CARD-9' } });
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    expect(await screen.findByText(t(locale, 'pos.cardLimited'))).not.toBeNull();
+  },
+);
+
 describe('card credential lifetime and scanner focus', () => {
   it('masks the scan, clears it immediately and ignores a second submit while pending', async () => {
     let finish: ((value: { kind: 'invalid' }) => void) | undefined;
