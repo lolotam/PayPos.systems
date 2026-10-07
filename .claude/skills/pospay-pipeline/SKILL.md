@@ -1,6 +1,6 @@
 ---
 name: pospay-pipeline
-description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (Grok 4.7 medium implements, Codex reviews, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the staging deploy and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo, a docs-only change, or a question."
+description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (Grok 4.7 high implements, Codex reviews, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the staging deploy and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo, a docs-only change, or a question."
 ---
 
 # PosPay delivery pipeline
@@ -25,12 +25,12 @@ Load `pospay-code-rules` for every task, and the layer skills stage by stage as 
 |---|---|---|
 | Orchestrator | Claude Code (this session) | yes — specs, briefs, merges, renumbering, small fixes |
 | Design advisors (risky slices only, §3 step 2) | Codex astra 6 medium (`gpt-6-astra`, effort medium) **and** Claude Fable 5.1 medium (`claude-fable-5-1`) | no — read-only |
-| **Implementer** — code, tests **and migrations** | **Cursor Grok 4.7 medium** (`grok-4.7-medium`, through `cursor-agent`) | yes, in its own worktree |
-| **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, relay `--read-only`) | no |
-| Review layer 1 | Codex Sol 6.1 high (`gpt-6.1-sol`, effort high, relay `--read-only`) | no |
+| **Implementer** — code, tests **and migrations** | **Grok 4.7 high** (`grok-4.7`, `--reasoning-effort high`, through the Grok CLI `grok.exe`) | yes, in its own worktree |
+| **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
+| Review layer 1 | Codex Sol 6.1 high (`gpt-6.1-sol`, effort high, `codex exec -s read-only`) | no |
 | Review layer 2 | a fresh Claude reviewer (new subagent, no prior context); the confirm round uses another fresh one | no |
 | Review layer 3 | the Codex GitHub bot (`@codex review` comment); Codex CLI when the bot is out of quota | no |
-| Fixer | the implementer, in the **same** Grok chat (§4); the orchestrator only for one-line fixes | yes |
+| Fixer | the implementer, in the **same** Grok session (§4); the orchestrator only for one-line fixes | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
 Fallback when Grok is dry or fails twice on one brief: Codex astra 6 high → orchestrator implements. Announce the
@@ -63,7 +63,7 @@ substitution the moment it happens, in the owner report. Never switch to a meter
 | 3 | Brief and dispatch Grok (§4), baseline captured first | orchestrator → Grok | Grok reports done; the delivery is kept as the first commit, as delivered |
 | 4 | Judge the delivery: diff against the baseline, read it against the spec, merge `main`, renumber migrations/ADRs, `pnpm check` | orchestrator | `pnpm check` green |
 | 5 | Database review — **mandatory** when the PR touches `packages/db/**` (schema, migration, RLS, grants, seed) | Codex astra 6 medium | no open P0/P1 (§5 checklist) |
-| 6 | Review layer 1 | Codex Sol 6.1 high | findings fixed by Grok in its chat, or deferred per §2 |
+| 6 | Review layer 1 | Codex Sol 6.1 high | findings fixed by Grok in its session, or deferred per §2 |
 | 7 | Review layer 2, then a confirm round | two fresh Claude reviewers | every earlier finding confirmed fixed |
 | 8 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | layer 3 answered |
 | 9 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
@@ -78,26 +78,30 @@ After **every** push, comment `@codex review` again — the bot reviews automati
 
 ## 4. Dispatching Grok — and keeping its tokens low
 
-Grok 4.7 medium does better work than 4.6 but spends more tokens on the same quota. These rules keep a task's spend
-down. Grok runs through the **Cursor subscription** (`cursor-agent`), not the xAI API, so the API's
-`x-grok-conv-id` / `prompt_cache_key` cannot be set by us. What saves tokens here is reusing one chat and keeping its
-prefix stable:
+Grok runs through the **Grok CLI** (`E:\Dev\Tools_and_Utilities\grok\grok.exe`, signed in with the owner's grok.com
+account), model `grok-4.7` at reasoning effort **high** — never through `cursor-agent`, which bills a different quota.
+Grok 4.7 spends more tokens than 4.6 on the same quota, so these rules keep a task's spend down. The CLI hides the
+xAI API, so `x-grok-conv-id` / `prompt_cache_key` cannot be set by us; what saves tokens is reusing one session and
+keeping its prefix stable:
 
-1. **One chat per task.** Before the first dispatch, create it and record the id in the task's notes:
-
-   ```powershell
-   Set-Location E:\Dev\Worktrees\PosPay\<branch>
-   $chat = cursor-agent create-chat
-   ```
-
-2. **Every later round resumes that chat** instead of starting a new one, so Grok does not re-read the repo:
+1. **One session per task.** Before the first dispatch, create a UUID and record it in the task's notes; the first
+   run names the session with `-s`:
 
    ```powershell
-   Get-Content brief.txt -Raw | cursor-agent --resume $chat --model grok-4.7-medium --trust --print --force --output-format text
+   $sid = [guid]::NewGuid().ToString()
+   & E:\Dev\Tools_and_Utilities\grok\grok.exe --cwd E:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
+       -s $sid --prompt-file brief.txt --always-approve --permission-mode bypassPermissions --output-format plain
    ```
 
-   Drive it from **PowerShell**. On this machine the binary is `E:\Dev\Tools_and_Utilities\cursor-agent\cursor-agent.ps1`
-   (on `PATH` as `cursor-agent`). Use `grok-4.7-medium`, not `-high`, `-fast` or `xhigh`.
+2. **Every later round resumes that session** instead of starting a new one, so Grok does not re-read the repo:
+
+   ```powershell
+   & E:\Dev\Tools_and_Utilities\grok\grok.exe --cwd E:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
+       --resume $sid --prompt-file fix.txt --always-approve --permission-mode bypassPermissions --output-format plain
+   ```
+
+   Drive it from **PowerShell** and pass the brief with `--prompt-file`. `grok "prompt"` without `--prompt-file`/`-p`
+   opens the interactive TUI and looks hung in a background shell.
 3. **A fixed brief header, always in the same order and wording**, then the part that changes last:
    1. Role and fences — "You implement only task N. Do not commit. Do not touch files outside: …"
    2. Required reading — file **paths** only, in this fixed order: `CLAUDE.md`, `CLAUDE.architecture.md`, the
@@ -106,11 +110,13 @@ prefix stable:
    4. **Last:** the task, or the findings to fix.
 4. **Send paths, not file contents.** Grok reads only what it needs.
 5. **A fix brief carries only the new findings**, each as `file:line — what is wrong — what done looks like`. Never
-   resend the spec or the earlier brief into a resumed chat.
-6. **Start a new chat** only when the resumed one fails, or its context grows near 200K tokens (price doubles above
+   resend the spec or the earlier brief into a resumed session.
+6. **Start a new session** only when the resumed one fails, or its context grows near 200K tokens (price doubles above
    it). Hand over with a ten-line summary of the state, not the history.
-7. `cursor-agent` has **no read-only mode**. After every dispatch, diff the worktree against the baseline: a run with
-   no change is a failed candidate, whatever it reports.
+7. The run is writable and auto-approving. After every dispatch, diff the worktree against the baseline: a run with
+   no change is a failed candidate, whatever it reports. `grok usage` shows a session's token spend for the report.
+8. **When Grok is dry or fails**, stop its process, save its partial diff as a patch outside the repo, reset the
+   worktree to the baseline, and only then dispatch the fallback (§1) — never hand a half-edited tree to another model.
 
 ---
 
