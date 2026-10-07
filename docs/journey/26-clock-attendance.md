@@ -4,7 +4,7 @@
 secrets are approved ([22](22-personal-phone-passkey.md)), so the personal session this journey needs exists **only in
 tests and local seams today**; an ordinary local browser cannot sign in to reach the screen, and no real-phone biometric
 run is possible yet. The screen and both API routes are built and covered by tests with a synthetic authenticator.
-**Not shipped yet:** the card clock at reception (PR 23), the missed-clock-out job (PR 24), the attendance board (PR 27)
+**Since shipped:** the card clock at reception (PR 23, #120 and #121 — see [30](30-employee-cards-and-clock-by-card.md)) and the suspected / missed-out job (PR 24, #105). **Not shipped yet:** the attendance board (PR 27)
 and attendance correction. The shared-device installation signal is recorded from follow-up PR 22b, not here
 ([25](25-unbind-passkey.md)). Attendance never changes pay or commission. Your decisions of 2026-10-04 (AT-Q1 to AT-Q7) apply.
 

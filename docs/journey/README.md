@@ -53,9 +53,10 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 23 | [Request leave](23-request-leave.md) — طلب إجازة | #95 | not yet (admin not deployed, issue #54); the employee's own request is API only until PR 57b; personal session needs OTP (OFF pending Meta templates + secrets), tests/local seams only |
 | 24 | [Decide leave](24-decide-leave.md) — اعتماد الإجازات | #98 | not yet (admin not deployed, issue #54); the employee's view is API only until PR 57b; no notification yet |
 | 25 | [Unbind a passkey](25-unbind-passkey.md) — فك ربط مفتاح المرور | #97, #100 | not yet (admin not deployed, issue #54); re-enrolment needs the personal session (OTP sending OFF); shared-device flag recorded from PR 22b, shown in PR 27 |
-| 26 | [Clock in and out from the personal phone](26-clock-attendance.md) — تسجيل الحضور والانصراف من الهاتف الشخصي | #99 | not yet (POS not deployed); OTP sending OFF pending Meta templates + secrets; tests/local seams only; card clock (PR 23), missed-out job (PR 24) and attendance board (PR 27) not shipped |
+| 26 | [Clock in and out from the personal phone](26-clock-attendance.md) — تسجيل الحضور والانصراف من الهاتف الشخصي | #99 | not yet (POS not deployed); OTP sending OFF pending Meta templates + secrets; tests/local seams only; card clock shipped in #120/#121 (see 30) and missed-out job in #105; attendance board (PR 27) not shipped |
 | 27 | [Import employees from Excel](27-employee-import.md) — استيراد الموظفين من Excel | #107 | not yet (admin not deployed, issue #54); needs worker + Redis + private files |
 | 28 | [Document expiry alerts](28-document-expiry.md) — تنبيه انتهاء الوثائق | #110 | not yet (admin not deployed, issue #54); background job only, no recipients until PR 62; existing companies need the one-time replay before the pilot |
 | 29 | [Services](29-services.md) — الخدمات | #114 | not yet (admin not deployed, issue #54); needs the `catalog` feature; no delete yet; used by sessions from PR 35 |
+| 30 | [Employee cards and clock-by-card](30-employee-cards-and-clock-by-card.md) — كروت الموظفين والحضور بالكارت | #120, #121 | not yet (admin not deployed, issue #54; POS not deployed); API on staging at `b01e879` (2026-10-07); needs Redis; exception handling, correction and attendance board (PRs 25–27) not shipped |
 
 New journeys are added after every merge.
