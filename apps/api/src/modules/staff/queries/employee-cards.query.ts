@@ -3,7 +3,7 @@ import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 /** قراءة السلطة على فروع الموظف المحفوظة دون ربط الاستعلام بطبقات الكتابة. */
-interface EmployeeCardReadAccess {
+export interface EmployeeCardReadAccess {
   /** يقيّم الصلاحية عند الفروع المحفوظة، دون كشف وجود الموظف. */
   read(
     tx: Tx,

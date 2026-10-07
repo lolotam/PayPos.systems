@@ -33,10 +33,10 @@ export interface RateLimiter {
    */
   count(key: string): Promise<number>;
   /**
-   * الثواني الباقية من الشباك الثابت لرأس Retry-After.
+   * الثواني الباقية في شباك المفتاح، حتى يضبط المسار إعادة المحاولة على الشباك الحقيقي لا على قيمة ثابتة.
    *
-   * @param key المفتاح
-   * @returns الثواني الباقية، أو صفر إن لم يبدأ الشباك
+   * @param key نفس مفتاح hit
+   * @returns الثواني الباقية، أو 0 لو المفتاح غير موجود
    */
   remaining(key: string): Promise<number>;
 }

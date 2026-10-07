@@ -1,5 +1,6 @@
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import type { Logger } from '@pospay/observability';
 import type { Redis } from 'ioredis';
 import type { AttendancePasskeys } from './ports/clock-attendance.port.ts';
 import { createRedisRateLimiter } from '../../shared/adapters/redis-rate-limiter.ts';
@@ -22,7 +23,8 @@ import { createCardIssueAttempts } from './persistence/card-issue-attempts.ts';
 import { createCardScanAttempts } from './persistence/card-scan-attempts.ts';
 import type { CardScanAttempts } from './ports/card-scan-attempts.port.ts';
 import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
-import { createEmployeeCardHash } from './persistence/employee-card-hash.ts';
+import { createEmployeeCardHash, type EmployeeCardHash } from './persistence/employee-card-hash.ts';
+import type { EmployeeCardsPort } from './ports/employee-cards.port.ts';
 import { createEmployeeCardAccess } from './persistence/employee-card-access.adapter.ts';
 import { EMPLOYEE_CARD_ACCESS } from './ports/employee-card-access.port.ts';
 
@@ -71,11 +73,36 @@ export function attendanceProviders(
   ];
 }
 
+function openIssue(
+  cards: EmployeeCardsPort,
+  redis: Redis,
+  hash: EmployeeCardHash,
+  logger: Logger | undefined,
+): IssueEmployeeCard {
+  const attempts = createCardIssueAttempts(
+    createRedisRateLimiter(redis),
+    hash,
+    (error, companyId, userId) => {
+      logger?.warn(
+        { err: error, company_id: companyId, user_id: userId },
+        'employee card issue attempts unavailable',
+      );
+    },
+  );
+  return new IssueEmployeeCard(cards, attempts, (companyId, userId) => {
+    logger?.warn(
+      { company_id: companyId, user_id: userId },
+      'employee card issue completion unrecorded',
+    );
+  });
+}
+
 export function cardProviders(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
   cardKey: Buffer | null,
   redis: Redis | undefined,
+  logger?: Logger,
 ): Provider[] {
   if (database === undefined || cardKey === null)
     return [
@@ -88,14 +115,12 @@ export function cardProviders(
   const hash = createEmployeeCardHash(cardKey);
   const cards = createEmployeeCards(database, ids, systemClock, access, hash);
   // بلا Redis الإصدار والمسح يفشلان مغلقين؛ الإلغاء ومسارا QR وpasskey خارج هذا الحد.
-  const limiter = redis === undefined ? null : createRedisRateLimiter(redis);
-  const attempts = limiter === null ? null : createCardIssueAttempts(limiter);
-  const scans = limiter === null ? null : createCardScanAttempts(limiter);
+  const scans = redis === undefined ? null : createCardScanAttempts(createRedisRateLimiter(redis));
   return [
     clockByCardProvider(database, ids, hash, scans),
     {
       provide: IssueEmployeeCard,
-      useValue: attempts === null ? null : new IssueEmployeeCard(cards, attempts),
+      useValue: redis === undefined ? null : openIssue(cards, redis, hash, logger),
     },
     { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },
     { provide: EMPLOYEE_CARD_ACCESS, useValue: access },

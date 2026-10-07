@@ -12,7 +12,7 @@ import type { CardScanAttempts } from '../ports/card-scan-attempts.port.ts';
 // كود اصطناعي فقط؛ لا يخص أي بطاقة حقيقية.
 // حد محاولات الإصدار له اختباره في employee-card-issue-limit.spec.ts؛ هنا يقبل الكل.
 const unlimitedIssueAttempts: CardIssueAttempts = {
-  take: () => Promise.resolve('accepted'),
+  take: () => Promise.resolve({ outcome: 'accepted' as const }),
   complete: () => Promise.resolve(),
 };
 export const unlimitedCardScans: CardScanAttempts = {
@@ -94,7 +94,7 @@ export async function clockByCardFixture(): Promise<CardFixture> {
     otherDeviceId,
     cardId,
     clockByCard,
-    issue: new IssueEmployeeCard(admin, unlimitedIssueAttempts),
+    issue: new IssueEmployeeCard(admin, unlimitedIssueAttempts, () => undefined),
     revoke: new RevokeEmployeeCard(admin),
     scope: {
       companyId: f.companyId,

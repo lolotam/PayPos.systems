@@ -112,7 +112,11 @@ class ShutdownHook implements OnApplicationShutdown {
 
 @Module({})
 class AppModule {
-  static forRoot(deps: AppDependencies, controllers: readonly Type<unknown>[]): DynamicModule {
+  static forRoot(
+    deps: AppDependencies,
+    controllers: readonly Type<unknown>[],
+    logger: Logger,
+  ): DynamicModule {
     return {
       module: AppModule,
       controllers: [...controllers],
@@ -142,6 +146,7 @@ class AppModule {
           deps.auth?.service.passkeys ?? null,
           deps.files?.storage ?? null,
           deps.employeeCardKey ?? null,
+          logger,
         ),
         ...filesProviders(deps.database, deps.ids ?? systemUuidV7(), deps.files),
       ],
@@ -297,7 +302,7 @@ export async function createApp(
     logCompleted(request, reply);
   });
   const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule.forRoot(deps, controllers),
+    AppModule.forRoot(deps, controllers, logger),
     adapter,
     // abortOnError: false — an initialisation error is thrown to the caller (main.ts releases resources
     // and exits) instead of Nest exiting the process itself.

@@ -1,6 +1,6 @@
 import type { Tx } from '@pospay/db';
-import type { EmployeeCardAccess } from '../ports/employee-card-access.port.ts';
 import { lockEmployeeManagementAccess, readEmployeeBranchAccess } from '../../identity/index.ts';
+import type { EmployeeCardAccess } from './employee-card-access.ts';
 
 // سماح النشاط لا يلغي منع فرع الموظف؛ السلطة تُحسب على الفروع المحفوظة نفسها.
 async function atBranches(

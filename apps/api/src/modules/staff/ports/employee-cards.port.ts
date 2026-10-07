@@ -13,6 +13,7 @@ export interface EmployeeCardRecord {
   readonly issuedAt: string;
   readonly revokedAt: string | null;
 }
+/** يحمل key و fingerprint حتى يربط المحوّل إعادة المحاولة بالرد المخزّن. */
 export interface EmployeeCardIdempotency {
   readonly key: string;
   readonly fingerprint: string;
@@ -43,4 +44,15 @@ export interface EmployeeCardsPort {
     cardId: string,
     idem: EmployeeCardIdempotency,
   ): Promise<EmployeeCardRecord>;
+  /**
+   * يعيد الكارت المخزّن لمفتاح مكتمل بنفس البصمة عندما يغيب مؤشر Redis، دون كتابة.
+   *
+   * @param scope نطاق الموظف والعامل
+   * @param idem مفتاح منع التكرار وبصمة الطلب
+   * @returns الكارت المخزّن، أو null إن لم تكتمل نفس البصمة
+   */
+  completedIssue(
+    scope: EmployeeCardScope,
+    idem: EmployeeCardIdempotency,
+  ): Promise<EmployeeCardRecord | null>;
 }

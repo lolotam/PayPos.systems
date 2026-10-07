@@ -6,6 +6,8 @@ const labels = {
   issue: 'pospay:employee-card:issue-idempotency:v1',
   revoke: 'pospay:employee-card:revoke-idempotency:v1',
   clock: 'pospay:employee-card:clock-idempotency:v1',
+  // علامة اكتمال المحاولة فقط. البصمة غير المفتاحية فيها الكود، فلا تصل Redis إلا داخل هذا HMAC.
+  'issue-attempt': 'pospay:employee-card:issue-attempt:v1',
 } as const;
 
 // المفتاح الفرعي يصل جاهزاً من جذر التركيب؛ الفصل بين الأغراض يمنع إعادة استخدام بصمة كاعتماد.
