@@ -9,6 +9,9 @@ export const refusingStaffSessions: StaffSessions = {
     throw new Error('SYNTHETIC_STAFF_UNAVAILABLE');
   },
   resolve: async () => null,
+  confirmCurrent: async () => {
+    throw new Error('SYNTHETIC_STAFF_UNAVAILABLE');
+  },
   signOut: async () => '',
   normalPurpose: async () => true,
   close: async () => undefined,

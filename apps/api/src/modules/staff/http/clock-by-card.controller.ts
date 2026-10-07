@@ -28,26 +28,44 @@ export class ClockByCardController {
   ): Promise<ClockAttendanceResult> {
     if (this.origin === null || request.headers.origin !== this.origin)
       throw new ApiError('FORBIDDEN');
-    const device = request.staffDevice;
-    const operator = request.staffSession?.userId;
-    if (device === undefined || operator === undefined || request.principal?.kind !== 'device')
-      throw new ApiError('UNAUTHENTICATED');
+    const scope = cardScope(request);
+    if (scope === null) throw new ApiError('UNAUTHENTICATED');
     if (this.clock === null) throw new ApiError('NOT_READY');
     try {
-      return await this.clock.execute(
-        {
-          companyId: device.companyId,
-          businessId: device.businessId,
-          branchId: device.branchId,
-          deviceId: device.deviceId,
-          operatorId: operator,
-        },
-        input,
-        idem,
-      );
+      return await this.clock.execute(scope, input, idem);
     } catch (error) {
-      if (error instanceof AttendanceError) throw new ApiError(error.code);
-      throw error;
+      throw cardFailure(error);
     }
   }
+}
+
+function cardScope(request: FastifyRequest) {
+  const device = request.staffDevice;
+  const session = request.staffSession;
+  if (device === undefined || session === undefined || request.principal?.kind !== 'device')
+    return null;
+  return {
+    companyId: device.companyId,
+    businessId: device.businessId,
+    branchId: device.branchId,
+    deviceId: device.deviceId,
+    operatorId: session.userId,
+    sessionId: session.sessionId,
+    sessionDeadline: session.deadline,
+  };
+}
+
+function cardFailure(error: unknown): unknown {
+  if (error instanceof AttendanceError) return new ApiError(error.code);
+  if (operatorSessionEnded(error)) return new ApiError('UNAUTHENTICATED');
+  return error;
+}
+
+function operatorSessionEnded(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.name === 'OperatorSessionEnded' &&
+    'code' in error &&
+    error.code === 'UNAUTHENTICATED'
+  );
 }

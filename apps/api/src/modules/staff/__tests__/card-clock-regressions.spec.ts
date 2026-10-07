@@ -83,7 +83,7 @@ it('rolls back movement, state, audit, outbox and idempotency together', async (
       ),
   };
   const clock = new ClockByCard(
-    createCardClockTransactions(wrappers, f.ids, cardHash),
+    createCardClockTransactions(wrappers, f.ids, cardHash, f.auth.staff),
     f.clock,
     f.ids,
   );

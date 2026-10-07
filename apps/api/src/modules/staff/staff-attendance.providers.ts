@@ -12,6 +12,7 @@ import { createRedisAttendanceQrSecrets } from './persistence/redis-attendance-q
 import { createAttendanceBranchReader } from './persistence/tenancy-attendance-branch.adapter.ts';
 import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attendance-qr.ts';
 import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
+import { operatorSessionsToken } from './http/operator-sessions.token.ts';
 import { ClockByCard } from './use-cases/clock-by-card/clock-by-card.ts';
 import { IssueEmployeeCard } from './use-cases/issue-employee-card/issue-employee-card.usecase.ts';
 import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
@@ -84,7 +85,13 @@ export function cardProviders(
   return [
     {
       provide: ClockByCard,
-      useValue: new ClockByCard(createCardClockTransactions(database, ids, hash), systemClock, ids),
+      useFactory: (sessions: Parameters<typeof createCardClockTransactions>[3]) =>
+        new ClockByCard(
+          createCardClockTransactions(database, ids, hash, sessions),
+          systemClock,
+          ids,
+        ),
+      inject: [operatorSessionsToken()],
     },
     { provide: IssueEmployeeCard, useValue: new IssueEmployeeCard(cards) },
     { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },

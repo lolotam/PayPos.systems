@@ -1,7 +1,12 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { makeSignature } from 'better-auth/crypto';
 import { parseCookies } from 'better-auth/cookies/utils';
-import type { StaffOtpDatabase } from '@pospay/db';
+import type { AuthDatabase, StaffOtpDatabase } from '@pospay/db';
+import {
+  retireStaffSession,
+  StaffSessionEnded,
+  type StaffSessionProof,
+} from './staff-session-fence.ts';
 import { sameDevice, staffDeadline } from './staff-otp/policy.ts';
 import type { StaffDeviceContext, StaffSession } from './staff-otp/types.ts';
 
@@ -32,6 +37,8 @@ export interface StaffSessionPrimitive {
   ): Promise<SessionRow | null>;
   /** القراءة لا تجدد جلسة الوردية ولا تنقل موعدها المطلق. */
   find(token: string): Promise<SessionRow | null>;
+  /** يقرأ الجلسة بالمعرّف دون تجديدها أو نقل موعدها. */
+  findById(id: string): Promise<SessionRow | null>;
   /** يلغي النتيجة غير المؤكدة دون استرجاع token أو إعادة الإصدار. */
   remove(token: string): Promise<void>;
 }
@@ -52,7 +59,14 @@ export interface StaffSessions {
   ): Promise<{ session: StaffSession; cookie: string }>;
   /** يشترط cookie منفصلاً وسياق الجهاز نفسه، بلا صلاحيات منصة. */
   resolve(headers: Headers, device: StaffDeviceContext): Promise<StaffSession | null>;
-  /** إلغاء الاعتماد لا يمس pairing ولا cookie الإدارة. */
+  /**
+   * يعيد فحص الجلسة الحية داخل معاملة الكتابة؛ الرفض لا يكتب حضوراً.
+   *
+   * @param proof هوية الجلسة والموعد والجهاز المحمولة من الحارس
+   * @param now اللحظة بعد قفل حالة الحضور
+   */
+  confirmCurrent(proof: StaffSessionProof, now: Date): Promise<void>;
+  /** يلغي الجلسة تحت قفل الجهاز قبل حذفها، ولا يمس pairing ولا cookie الإدارة. */
   signOut(headers: Headers, device: StaffDeviceContext): Promise<string>;
   /** يمنع استبدال اسم cookie للوصول لمسارات Better Auth العادية. */
   normalPurpose(headers: Headers): Promise<boolean>;
@@ -61,6 +75,7 @@ export interface StaffSessions {
 interface SessionOptions {
   primitive: StaffSessionPrimitive;
   database: StaffOtpDatabase;
+  authDatabase: AuthDatabase;
   secret: string;
   normalCookie: string;
   now(): Date;
@@ -89,15 +104,33 @@ export function createStaffSessions(options: SessionOptions): StaffSessions {
         .digest('hex')}`,
     issue: (userId, device, validate) => issueStaffSession(options, { userId, device, validate }),
     resolve,
+    confirmCurrent: (proof, now) => confirmCurrentSession(options, proof, now),
     signOut: async (headers, device) => {
       const token = await verifiedToken(headers, STAFF_COOKIE, options.secret);
       const row = token === null ? null : await options.primitive.find(token);
       if (row !== null && staffRow(row, device, options.now()) !== null)
-        await options.primitive.remove(row.token);
+        await retireStaffSession(options.authDatabase, row.id, device.deviceId);
       return sessionCookie('', new Date(0));
     },
     normalPurpose: (headers) => normalPurpose(options, headers),
   };
+}
+
+async function confirmCurrentSession(
+  options: SessionOptions,
+  proof: StaffSessionProof,
+  now: Date,
+): Promise<void> {
+  const row = await options.primitive.findById(proof.sessionId);
+  const session = row === null ? null : staffRow(row, proof.device, now);
+  if (
+    session === null ||
+    session.userId !== proof.userId ||
+    session.sessionId !== proof.sessionId ||
+    session.deadline.getTime() !== proof.deadline.getTime() ||
+    !(await options.database.bindingValid(session.userId, session.authenticatedAt))
+  )
+    throw new StaffSessionEnded();
 }
 
 const sessionCookie = (value: string, expires: Date) =>

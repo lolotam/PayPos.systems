@@ -1,7 +1,8 @@
 import { deriveEmployeeCardKey } from '@pospay/auth';
 import { randomUUID } from 'node:crypto';
 import { clockAttendanceResult, errorEnvelope } from '@pospay/contracts';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import postgres from 'postgres';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 
 import { createEmployeeCardHash } from '../persistence/employee-card-hash.ts';
 import { startHarness, type Harness } from '../../../../test/harness.ts';
@@ -241,3 +242,89 @@ it('uses identical status, body and eligibility query paths for unknown and inac
     else expect(actual).toEqual(expected);
   }
 });
+
+it('refuses a scan that was waiting on the attendance row when the operator signed out', async () => {
+  // اختبار سابق يترك الكارت ملغى؛ بدونه يُقفل صف موظف وهمي لا ينتظر.
+  await h.owner`UPDATE employee_cards SET revoked_at=NULL, revoked_by=NULL WHERE company_id=${company} AND id=${cardId}`;
+  const before = await attendanceEffects();
+  const held = await holdEmployeeState();
+  const pending = send({
+    authorization: `Device ${deviceToken}`,
+    cookie: staffCookie,
+    key: randomUUID(),
+  });
+  // مجمع المالك اتصال واحد، واستعلام الانتظار يحتاج اتصالاً لا يحمله قفل الصف.
+  const probe = postgres(h.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    await vi.waitFor(
+      async () => {
+        const rows = await probe`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
+          AND wait_event_type='Lock' AND query LIKE '%attendance_states%'`;
+        expect(rows.length).toBeGreaterThan(0);
+      },
+      { timeout: 3000, interval: 20 },
+    );
+    const signedOut = await signOut();
+    expect(signedOut.statusCode).toBe(200);
+  } finally {
+    held.release();
+    await held.done;
+    await probe.end();
+  }
+  const response = await pending;
+  expect([response.statusCode, errorEnvelope.parse(response.json()).code]).toEqual([
+    401,
+    'UNAUTHENTICATED',
+  ]);
+  expect(await attendanceEffects()).toEqual(before);
+});
+
+function signOut() {
+  return h.app.inject({
+    method: 'POST',
+    url: '/v1/devices/me/staff-session/sign-out',
+    headers: {
+      origin: STAFF_ORIGIN,
+      authorization: `Device ${deviceToken}`,
+      cookie: staffCookie,
+    },
+  });
+}
+
+async function holdEmployeeState() {
+  let release!: () => void;
+  let locked!: () => void;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const acquired = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const done = h.owner.begin(async (tx) => {
+    await tx`SELECT id FROM attendance_states WHERE company_id=${company} AND employee_id=${employee} FOR UPDATE`;
+    locked();
+    await released;
+  });
+  await acquired;
+  return { release, done };
+}
+
+async function attendanceEffects() {
+  const data: unknown[] = [];
+  for (const table of [
+    'attendance_sessions',
+    'attendance_states',
+    'attendance_exceptions',
+    'audit_log',
+    'outbox',
+    'idempotency_keys',
+  ]) {
+    const order = table === 'idempotency_keys' ? 'scope_type,scope_id,operation,key' : 'id';
+    data.push(
+      await h.owner.unsafe(`SELECT * FROM ${table} WHERE company_id=$1 ORDER BY ${order}`, [
+        company,
+      ]),
+    );
+  }
+  return data;
+}

@@ -1,12 +1,14 @@
 import type { ClockLocation, ClockResult, OpenAttendance } from '../domain/clock-attendance.ts';
 
-/** نطاق حركة الكارت: الجهاز المثبت والعامل المسجّل، والفرع من الجهاز لا من الطلب. */
+/** نطاق حركة الكارت: الجهاز المثبت والعامل المسجّل، ومعهما هوية جلسته وموعدها المطلق. */
 export interface CardClockScope {
   readonly companyId: string;
   readonly businessId: string;
   readonly branchId: string;
   readonly deviceId: string;
   readonly operatorId: string;
+  readonly sessionId: string;
+  readonly sessionDeadline: Date;
 }
 /** حقائق الجلسة المحمّلة بعد الأقفال؛ لا ربط passkey ولا نافذة QR في مسار الكارت. */
 export interface CardClockContext {
@@ -30,6 +32,13 @@ export interface CardClockWrite {
 /** كل طريقة تستخدم نفس المعاملة والقفل السابق. */
 export interface CardClockTransaction {
   readonly context: CardClockContext;
+  /**
+   * يثبت أن جلسة المشغل ما زالت حية ولم تُستبدل.
+   * يُستدعى داخل أثر المفتاح حتى يعيد التكرار الرد المحفوظ، ويُرفض اختلاف البصمة قبله.
+   *
+   * @param at اللحظة المأخوذة بعد قفل حالة الحضور
+   */
+  confirmOperator(at: Date): Promise<void>;
   /**
    * يسترجع الرد كما حفظ؛ مفتاح مستخدم بجسم مختلف يرفض قبل التأثير.
    *

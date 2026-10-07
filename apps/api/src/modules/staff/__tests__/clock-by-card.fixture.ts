@@ -26,6 +26,8 @@ export interface CardFixture extends Omit<AttendanceFixture, 'scope'> {
     branchId: string;
     deviceId: string;
     operatorId: string;
+    sessionId: string;
+    sessionDeadline: Date;
   };
   idem: () => { key: string; fingerprint: string };
 }
@@ -63,8 +65,9 @@ export async function clockByCardFixture(): Promise<CardFixture> {
   await f.owner`INSERT INTO devices(company_id,id,branch_id,label,status,approved_by,approved_at,token_hash,token_expires_at)
     VALUES(${f.companyId},${otherDeviceId},${otherBranch},'Synthetic other device','ACTIVE',${operatorId},clock_timestamp(),'synthetic-hash','2027-01-01')`;
   const access = createEmployeeCardAccess();
+  const operatorSession = await liveOperatorSession(f, operatorId, deviceId);
   const clockByCard = new ClockByCard(
-    createCardClockTransactions(f.database, f.ids, cardHash),
+    createCardClockTransactions(f.database, f.ids, cardHash, f.auth.staff),
     f.clock,
     f.ids,
   );
@@ -85,9 +88,36 @@ export async function clockByCardFixture(): Promise<CardFixture> {
       branchId: f.branchId,
       deviceId,
       operatorId,
+      sessionId: operatorSession.sessionId,
+      sessionDeadline: operatorSession.deadline,
     },
     idem: () => ({ key: f.ids.newId(), fingerprint: 'synthetic-command-body' }),
   };
+}
+
+// موعد الجلسة يغطي ساعات الاختبار الثابتة حتى 2026-10-07T08:00Z، والربط أسبق من الإثبات.
+async function liveOperatorSession(
+  f: AttendanceFixture,
+  operatorId: string,
+  deviceId: string,
+): Promise<{ sessionId: string; deadline: Date }> {
+  const sessionId = f.ids.newId();
+  const authenticatedAt = new Date('2026-10-07T08:00:00.000Z');
+  const digits = (BigInt(`0x${operatorId.replaceAll('-', '').slice(0, 12)}`) % 100000000n)
+    .toString()
+    .padStart(8, '0');
+  // تغيير الهاتف يمسح الاعتماد في نفس البيان، فالسطر الثاني يعيده قبل إدراج الجلسة.
+  await f.owner`UPDATE "user" SET phone_number=${`+9655${digits}`} WHERE id=${operatorId}`;
+  await f.owner`UPDATE "user" SET phone_binding_approved_at='2026-01-01T00:00:00Z' WHERE id=${operatorId}`;
+  await f.owner`INSERT INTO session(id,expires_at,token,user_id,purpose,staff_device_context,staff_authenticated_at,staff_absolute_deadline)
+    VALUES(${sessionId},${authenticatedAt}::timestamptz + interval '8 hours',${sessionId},${operatorId},'STAFF_POS',
+      ${f.owner.json({ companyId: f.companyId, businessId: f.businessId, branchId: f.branchId, deviceId })},
+      ${authenticatedAt}::timestamptz,${authenticatedAt}::timestamptz + interval '8 hours')`;
+  const [row] = await f.owner<{ staff_absolute_deadline: Date }[]>`
+    SELECT staff_absolute_deadline FROM session WHERE id=${sessionId}`;
+  const deadline = row?.staff_absolute_deadline;
+  if (!(deadline instanceof Date)) throw new Error('SYNTHETIC_STAFF_SESSION_MISSING');
+  return { sessionId, deadline };
 }
 
 async function addMember(

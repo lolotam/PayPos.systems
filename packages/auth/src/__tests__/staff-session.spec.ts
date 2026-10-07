@@ -4,6 +4,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
 import { createAuth, type AuthService } from '../config.ts';
+import { StaffSessionEnded } from '../staff-session-fence.ts';
 import { STAFF_COOKIE } from '../staff-sessions.ts';
 import { approvePhoneBinding } from '../approve-phone-binding.ts';
 import { canonicalStaffPhone } from '../../../contracts/src/identity/staff-otp.ts';
@@ -239,6 +240,33 @@ it.each(['throw', 'changed'])(
     expect(await staff.resolve(cookieHeaders(previous.cookie), device)).not.toBeNull();
   },
 );
+
+it('confirmCurrent accepts only the live device session', async () => {
+  const staff = auth.staff;
+  const issued = await staff.issue(userId, device, async () => true);
+  const during = new Date(now.getTime() + 1000);
+  const current = {
+    sessionId: issued.session.sessionId,
+    userId: issued.session.userId,
+    deadline: issued.session.deadline,
+    device,
+  };
+  await staff.confirmCurrent(current, during);
+  await expect(staff.confirmCurrent(current, issued.session.deadline)).rejects.toBeInstanceOf(
+    StaffSessionEnded,
+  );
+  const replacement = await staff.issue(userId, device, async () => true);
+  await expect(staff.confirmCurrent(current, during)).rejects.toBeInstanceOf(StaffSessionEnded);
+  const next = {
+    sessionId: replacement.session.sessionId,
+    userId: replacement.session.userId,
+    deadline: replacement.session.deadline,
+    device,
+  };
+  await staff.confirmCurrent(next, during);
+  await staff.signOut(cookieHeaders(replacement.cookie), device);
+  await expect(staff.confirmCurrent(next, during)).rejects.toBeInstanceOf(StaffSessionEnded);
+});
 
 it('session resolution rechecks approval even if eligibility remains valid', async () => {
   const issued = await auth.staff.issue(userId, device, async () => true);

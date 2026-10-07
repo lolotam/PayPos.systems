@@ -51,7 +51,16 @@ tests.
 `Idempotency-Key`. It returns the same `ClockAttendanceResult` as the personal route.
 The Device token and the kiosk staff cookie are both required; company/business/branch
 and device come from the verified device context, never from the body, and the operator
-is the verified staff-session user. Unavailable/ineligible employee, branch or card is
+is the verified staff-session user. The command also carries that session's id and absolute
+deadline. After the attendance-state row lock is held, and inside the idempotent effect,
+the same transaction takes the staff-device advisory lock `pospay:staff-session:v1:{deviceId}`
+(the lock ADR-0019 already uses when rotating a device's staff session) and asks
+`packages/auth` to confirm this id is still the live `STAFF_POS` session for that device,
+user, and deadline. Logout and replacement take that same lock before deleting the row, so
+one side waits and the other commits. A session that was logged out, replaced, or is past
+its deadline refuses with `UNAUTHENTICATED` and the transaction rolls back, including the
+idempotency claim. `packages/auth` is the only package that reads or deletes the session row.
+Unavailable/ineligible employee, branch or card is
 NOT_FOUND. The permission `clock:attendance:branch` is evaluated at the device's branch
 through identity's existing access reader. SPEC §7 names it `clock:attendance:device`,
 but the `permissions` catalog CHECK (ADR-0003 §2.2) allows only
@@ -83,7 +92,7 @@ optional passkey binding and the device/operator instead of being duplicated. Is
 revoking a card are audited; no business event is emitted (attendance never changes
 commission).
 
-The POS card screen is available only with an operator session. A 401 has its own bilingual signed-out outcome and refetches staff-session/device status. Scanner and issue fields are text inputs masked with `-webkit-text-security: disc`, with autocomplete, spellchecking and capitalization disabled.
+The POS card screen is available only with an operator session while the device is online. When the device goes offline, reception shows the bilingual `pos.cardOffline` notice and does not mount the scanner; card clocking is online-only and a scan is not queued. A 401 has its own bilingual signed-out outcome and refetches staff-session/device status. Scanner and issue fields are text inputs masked with `-webkit-text-security: disc`, with autocomplete, spellchecking and capitalization disabled.
 
 ### Test plan
 
@@ -93,8 +102,11 @@ tests cover card clock-in and clock-out, the 5-minute dedupe shared with the pas
 the 16 h rule through the card, revoked and unknown cards answering identically, another
 company's card, a branch the employee is not attached to, issue/revoke idempotency and
 audit, the Device-without-permission and non-Device refusals, RLS reads/writes plus the two
-partial-uniqueness rules. POS tests cover the scanner input (type then Enter), the ignored
-second scan while pending, the offline notice, and ar/en results.
+partial-uniqueness rules. One HTTP test holds the attendance-state row lock, signs the operator
+out, releases the lock, and expects `UNAUTHENTICATED` with no attendance, audit, outbox, or
+idempotency effect. POS tests cover the scanner input (type then Enter), the ignored
+second scan while pending, the offline notice rendered by reception when the device disconnects,
+and ar/en results.
 
 Gates: pnpm check without FORCE_COLOR; API/POS/admin builds; production startup smoke with
 all optional settings empty if startup wiring changes.

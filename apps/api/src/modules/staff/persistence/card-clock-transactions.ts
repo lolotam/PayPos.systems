@@ -1,6 +1,6 @@
-import type { EmployeeCardHash } from './employee-card-hash.ts';
 import { runIdempotent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import { fenceOperatorSession } from '../../identity/index.ts';
 import type { ClockResult } from '../domain/clock-attendance.ts';
 import type {
   CardClockContext,
@@ -11,12 +11,14 @@ import type {
 import { lockAttendanceState, lockedCardContext } from './attendance-context.adapter.ts';
 import { persistAttendanceMovement } from './attendance-writes.ts';
 import { ATTENDANCE_TRANSACTION_TIMEOUT_MS } from './attendance-transactions.ts';
+import type { EmployeeCardHash } from './employee-card-hash.ts';
 
 // الكارت الجديد يفتح نفس معاملة الحضور وحدها؛ الكود الخام لا يخرج من الذاكرة.
 export function createCardClockTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
   hash: EmployeeCardHash,
+  sessions: Parameters<typeof fenceOperatorSession>[1],
 ): CardClockTransactions {
   return {
     run: (scope, cardCode, sample, work) =>
@@ -42,7 +44,7 @@ export function createCardClockTransactions(
             state,
             () => confirmCard(tx, scope, card?.id ?? null, codeHash),
           );
-          return work(buildTransaction(tx, scope, employeeId, context, ids, hash), at);
+          return work(buildTransaction(tx, scope, employeeId, context, ids, hash, sessions), at);
         },
         { userId: scope.operatorId, timeoutMs: ATTENDANCE_TRANSACTION_TIMEOUT_MS },
       ),
@@ -65,6 +67,20 @@ async function confirmCard(tx: Tx, scope: CardClockScope, cardId: string | null,
   return rows.length === 1;
 }
 
+function operatorProof(scope: CardClockScope) {
+  return {
+    sessionId: scope.sessionId,
+    userId: scope.operatorId,
+    deadline: scope.sessionDeadline,
+    device: {
+      companyId: scope.companyId,
+      businessId: scope.businessId,
+      branchId: scope.branchId,
+      deviceId: scope.deviceId,
+    },
+  };
+}
+
 function buildTransaction(
   tx: Tx,
   scope: CardClockScope,
@@ -72,9 +88,11 @@ function buildTransaction(
   context: CardClockContext,
   ids: IdGenerator,
   hash: EmployeeCardHash,
+  sessions: Parameters<typeof fenceOperatorSession>[1],
 ): CardClockTransaction {
   return {
     context,
+    confirmOperator: (at) => fenceOperatorSession(tx, sessions, operatorProof(scope), at),
     idempotent: async (key, fingerprint, effect) => {
       const bound = hash(
         scope.companyId,

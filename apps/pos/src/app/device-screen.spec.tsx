@@ -11,7 +11,7 @@ import { DeviceScreen } from './device-screen';
 
 const mockUseDeviceSession = vi.fn();
 vi.mock('@/staff-login/api/use-staff-login', () => ({
-  useStaffLogin: () => ({ authenticatedSession: null }),
+  useStaffLogin: () => ({ online: true, authenticatedSession: null }),
 }));
 vi.mock('@/staff-login/ui/staff-login-screen', () => ({
   StaffLoginScreen: () => <h2>{t('ar', 'staffLogin.title')}</h2>,

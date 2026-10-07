@@ -14,7 +14,7 @@ import type {
 
 export { AttendanceError } from '../../domain/clock-attendance.ts';
 
-/** الحركة بالكارت مدخل ثانٍ لنفس دومين spec 027؛ لا انتقال ولا dedupe ثانٍ. */
+/** الحركة بالكارت مدخل ثانٍ لنفس دومين spec 027، وتعيد فحص جلسة المشغل قبل الأثر. */
 export class ClockByCard {
   constructor(
     private readonly transactions: CardClockTransactions,
@@ -32,6 +32,7 @@ export class ClockByCard {
       () => this.clock.now(),
       (tx, at) =>
         tx.idempotent(idem.key, idem.fingerprint, async () => {
+          await tx.confirmOperator(at);
           const duplicate = attendanceDuplicate(tx.context.lastAt, tx.context.lastResult, at);
           if (duplicate !== null) return duplicate;
           return this.apply(tx, at);
