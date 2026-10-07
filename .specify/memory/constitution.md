@@ -1,6 +1,6 @@
 <!--
 Sync Impact Report
-- 2.3.0 (2026-10-07, MINOR): Principle I allows up to three slices in flight at once when their file paths are
+- 3.0.0 (2026-10-07, MAJOR — Principle I redefined): Principle I allows up to three slices in flight at once when their file paths are
   disjoint (Waleed, 2026-10-07, with the pospay-pipeline skill); each still merges only when green, and migration and
   ADR numbers are assigned at merge. One use case per PR is unchanged.
 - 2.2.0 (2026-10-02, MINOR): add the PR 6 staff-login section from Accepted ADR-0019, including default-disabled activation, global auth storage, scoped sessions and online-only authentication.
@@ -437,7 +437,7 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.3.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-07
+**Version**: 3.0.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-07
 
 ## PR 6 amendment — ADR-0019, 2026-10-02
 
