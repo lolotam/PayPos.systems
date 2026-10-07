@@ -57,8 +57,8 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
     تاريخ النهارده ← **لم يُقبل الكارت. تحقق من الكارت أو اطلب من المدير.** نفس الرد بالظبط (404) في كل الحالات، ومفيش
     حاجة بتتكتب.
 12. **حد المسح الغلط:** 10 مسحات مرفوضة في 10 دقايق لكل جهاز. المسح الناجح مش بيتحسب، ولا الكود اللي شكله غلط من الأساس (أقل من 4 أو أكتر من 64 حرف، أو حروف مش ظاهرة): ده بيترفض 400 قبل العدّ. المسحات بالترتيب (واحد ورا التاني): بعد العاشرة ← **مسحات خاطئة كثيرة.
-    انتظر {seconds} ثانية ثم أعد المحاولة.** بالثواني الباقية (مثلاً **انتظر 420 ثانية**)، وحتى الكارت الصح بيترفض لحد ما
-    الفترة تخلص. لو كذا مسح اتبعتوا في نفس اللحظة، ممكن يعدّوا الحد بواحد أو اتنين (مقصود ومكتوب في المواصفات). جهاز تاني ومسح QR مش بيتأثروا. Redis واقف ← **تعذّر الوصول إلى الخادم. حاول مرة أخرى.**
+    انتظر {seconds} ثانية ثم أعد المحاولة.** بالثواني الباقية (مثلاً **انتظر 420 ثانية**)، وحتى الكارت الصح في مسح جديد بيترفض لحد ما
+    الفترة تخلص (إعادة نفس الطلب اللي نجح قبل كده بنفس المفتاح بترجّع نتيجته المحفوظة 200). لو كذا مسح اتبعتوا في نفس اللحظة، ممكن يعدّوا الحد بواحد أو اتنين (مقصود ومكتوب في المواصفات). جهاز تاني ومسح QR مش بيتأثروا. Redis واقف ← **تعذّر الوصول إلى الخادم. حاول مرة أخرى.**
 13. **أوفلاين:** اقفل الإنترنت ← القسم كله بيتبدل بـ **تسجيل الحضور بالكارت يحتاج اتصالاً بالإنترنت. اتصل وأعد المسح.**
     وأي مسح مستني بيتلغي والحقل يتمسح. مفيش طابور ولا حفظ على الجهاز. رجّع الإنترنت ← الحقل يرجع.
 14. **خروج المشغّل:** المشغّل يخرج أو جلسته تتبدل أو تنتهي ← الحقل والنتيجة يتمسحوا ويظهر سطر الخروج. لو خرج والمسح لسه
@@ -118,7 +118,8 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
     answer (404) in every case, and nothing is written.
 12. **Wrong-scan limit:** 10 refused scans per 10 minutes per device, counting only well-formed codes that are not accepted (unknown, revoked, other branch or company, ineligible employee). Accepted scans do not count, and a malformed code (under 4 or over 64 visible characters) is refused 400 by the contract before the count. Scanned one after another: after the 10th → "Too many
     wrong scans. Wait {seconds} seconds and try again." with the seconds left (for example "Wait 420 seconds"), and even a
-    valid card is refused until the window ends. Scans sent at the same moment can slightly exceed 10 (allowed by the spec:
+    valid card in a new scan is refused until the window ends (a replay of an earlier successful request with the same
+    `Idempotency-Key` and body still returns its stored 200). Scans sent at the same moment can slightly exceed 10 (allowed by the spec:
     the check does not reserve a slot). Another device and QR clocking are unaffected. Redis down → "The server
     could not be reached. Try again."
 13. **Offline:** disconnect → the whole section is replaced by "Card clocking needs an internet connection. Connect and scan
