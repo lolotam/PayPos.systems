@@ -51,6 +51,7 @@ export function useStaffLogin() {
     epoch,
     loading: online && session.isPending,
     session: online && session.isSuccess && !session.isFetching ? session.data : null,
+    authenticatedSession: online && session.isSuccess ? session.data : null,
     changed,
     signOut: async () => {
       await signOutStaff();

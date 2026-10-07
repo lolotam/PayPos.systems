@@ -12,8 +12,10 @@ import { createRedisAttendanceQrSecrets } from './persistence/redis-attendance-q
 import { createAttendanceBranchReader } from './persistence/tenancy-attendance-branch.adapter.ts';
 import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attendance-qr.ts';
 import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
+import { ClockByCard } from './use-cases/clock-by-card/clock-by-card.ts';
 import { IssueEmployeeCard } from './use-cases/issue-employee-card/issue-employee-card.usecase.ts';
 import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
+import { createCardClockTransactions } from './persistence/card-clock-transactions.ts';
 import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
 import { createEmployeeCardHash } from './persistence/employee-card-hash.ts';
 import { createEmployeeCardAccess } from './persistence/employee-card-access.adapter.ts';
@@ -71,6 +73,7 @@ export function cardProviders(
 ): Provider[] {
   if (database === undefined || cardKey === null)
     return [
+      { provide: ClockByCard, useValue: null },
       { provide: IssueEmployeeCard, useValue: null },
       { provide: RevokeEmployeeCard, useValue: null },
       { provide: EMPLOYEE_CARD_ACCESS, useValue: null },
@@ -79,6 +82,10 @@ export function cardProviders(
   const hash = createEmployeeCardHash(cardKey);
   const cards = createEmployeeCards(database, ids, systemClock, access, hash);
   return [
+    {
+      provide: ClockByCard,
+      useValue: new ClockByCard(createCardClockTransactions(database, ids, hash), systemClock, ids),
+    },
     { provide: IssueEmployeeCard, useValue: new IssueEmployeeCard(cards) },
     { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },
     { provide: EMPLOYEE_CARD_ACCESS, useValue: access },

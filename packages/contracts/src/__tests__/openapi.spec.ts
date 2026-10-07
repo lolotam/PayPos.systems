@@ -62,6 +62,7 @@ const expectedSchemas = [
   'ClaimDeviceInput',
   'ClockAttendanceInput',
   'ClockAttendanceResult',
+  'ClockByCardInput',
   'ClockChallenge',
   'ClockChallengeInput',
   'Company',

@@ -1,5 +1,5 @@
 import { attendanceAr } from './attendance-ar.js';
-import { clockCardAdminAr } from './clock-card-catalog.js';
+import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
 import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
@@ -40,6 +40,7 @@ export const ar: Catalog = {
     createCustomersBranch: 'إنشاء عملاء من هذا الفرع',
     manageDiscountLimitsBusiness: 'إدارة حدود الخصم الشخصية',
     loginStaffBranch: 'الدخول إلى تطبيق الموظفين',
+    clockAttendanceBranch: 'تسجيل حضور الموظفين بالكارت على جهاز مثبّت',
     createCompaniesPlatform: 'إنشاء شركات على المنصة',
     readServicesBusiness: 'عرض خدمات النشاط',
     manageServicesBusiness: 'إدارة خدمات النشاط',
@@ -383,6 +384,7 @@ export const ar: Catalog = {
     attendanceLoading: 'جارٍ تحميل رمز حضور جديد…',
     attendanceRefreshLead: 'يتجدد الرمز كل 60 ثانية. امسحه من تطبيق الموظفين.',
     branchLabel: 'الفرع',
+    ...clockCardPosAr,
     unexpected: 'حدث خطأ. حاول مرة أخرى.',
     networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
   },

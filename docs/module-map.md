@@ -6,7 +6,7 @@
 >
 > Adding an arrow means editing this file, which means writing an ADR. That friction is the point.
 >
-> **Version:** M1.4 — 2026-10-05 (PR 23a: staff employee cards reuse identity's employee-management access). M1.3 — 2026-10-04 (ADR-0031: staff reads files for employee documents). M1.2 — 2026-10-02 (ADR-0010). Derived from `06_Tech_Stack_Architecture_EN.md` §3.
+> **Version:** M1.4 — 2026-10-05 (PR 23: staff clock-by-card reads one identity access helper and reuses employee-management access). M1.3 — 2026-10-04 (ADR-0031: staff reads files for employee documents). M1.2 — 2026-10-02 (ADR-0010). Derived from `06_Tech_Stack_Architecture_EN.md` §3.
 
 ---
 
@@ -128,7 +128,9 @@ Identity lists the verified user's membership company ids with `withUser`; staff
 inside each `withTenant` and supplies only opaque passkey ids. Auth reads no tenant table and
 retains inert orphan credentials without excluding them or implicitly activating them.
 
-PR 23a card issue/revoke reuse identity's employee-management read/lock helpers. Staff owns the card domain, persistence, endpoints and audit; no new import arrow and
+PR 23 card clocking reads the operator's `clock:attendance:branch` grant through identity's
+existing access reader, and card issue/revoke reuse identity's employee-management read/lock
+helpers. Staff owns the card domain, persistence, endpoints and audit; no new import arrow and
 no event consumer is added.
 
 ## 4. Event arrows (the default for state changes)
@@ -280,6 +282,8 @@ reads:
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/drizzle-employee-import.ts
   - staff -> tenancy.employeeImportBranches @ apps/worker/src/modules/staff/persistence/employee-import.transactions.ts
+  - staff -> identity.readAttendanceDeviceAccess @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
+  - staff -> identity.lockAttendanceDeviceContext @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
   - staff -> identity.readEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> tenancy.businessTimeZone @ apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts

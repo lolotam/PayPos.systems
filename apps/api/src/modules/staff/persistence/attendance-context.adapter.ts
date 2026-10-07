@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { Tx } from '@pospay/db';
-import { personalMemberships } from '../../identity/index.ts';
+import {
+  personalMemberships,
+  readAttendanceDeviceAccess,
+  lockAttendanceDeviceContext,
+} from '../../identity/index.ts';
 import { attendanceBranch } from '../../tenancy/index.ts';
 import { personalMember } from '../domain/passkey-binding.ts';
 import {
@@ -12,6 +16,7 @@ import {
 } from '../domain/clock-attendance.ts';
 import type { PasskeyScope } from '../ports/passkeys.port.ts';
 import type { AttendanceScan, AttendanceContext } from '../ports/clock-attendance.port.ts';
+import type { CardClockContext, CardClockScope } from '../ports/clock-by-card.port.ts';
 
 export function scanDigest(scan: AttendanceScan): string {
   return createHash('sha256')
@@ -27,14 +32,18 @@ export function scanDigest(scan: AttendanceScan): string {
     )
     .digest('hex');
 }
-export async function lockAttendanceState(tx: Tx, scope: PasskeyScope) {
+export async function lockAttendanceState(
+  tx: Tx,
+  scope: { companyId: string; employeeId: string },
+  required = true,
+) {
   const [state] = await tx.execute<{
     last_accepted_scan_at: Date | null;
     last_result: ClockResult | null;
   }>(sql`
     SELECT last_accepted_scan_at,last_result FROM attendance_states WHERE company_id=${scope.companyId} AND employee_id=${scope.employeeId} FOR UPDATE`);
-  if (state === undefined) throw new AttendanceError('NOT_FOUND');
-  return state;
+  if (state === undefined && required) throw new AttendanceError('NOT_FOUND');
+  return state ?? { last_accepted_scan_at: null, last_result: null };
 }
 export async function lockedAttendanceContext(
   tx: Tx,
@@ -97,7 +106,7 @@ async function lockedEmployee(tx: Tx, scope: PasskeyScope) {
 }
 async function scheduleCandidates(
   tx: Tx,
-  scope: PasskeyScope,
+  scope: { companyId: string; employeeId: string },
   branchId: string,
   at: Date,
   timezone: string,
@@ -110,7 +119,7 @@ async function scheduleCandidates(
       AND (ss.working_date=${date}::date OR (ss.starts_at<=${at.toISOString()}::timestamptz AND ss.ends_at>${at.toISOString()}::timestamptz))
     ORDER BY ss.starts_at`);
 }
-async function openAttendance(tx: Tx, scope: PasskeyScope) {
+async function openAttendance(tx: Tx, scope: { companyId: string; employeeId: string }) {
   const [open] = await tx.execute<{
     id: string;
     clock_in: Date;
@@ -128,4 +137,96 @@ async function openAttendance(tx: Tx, scope: PasskeyScope) {
         lateMinutes: open.late_minutes,
         branchId: open.branch_id,
       };
+}
+/** يحمّل سياق حركة الكارت: كود الكارت حُدِّد سلفاً، ثم القفل والإذن والأهلية قبل تسليم السياق.
+ *
+ * @param tx معاملة الشركة
+ * @param scope نطاق الجهاز والعامل من الجلسة
+ * @param employeeId الموظف صاحب الكارت النشط
+ * @param sample أخذ وقت واحد بعد كل الأقفال
+ * @param state صف AttendanceState المقفول مسبقاً
+ * @param confirmCard إعادة إثبات الكارت تحت القفل بعد أقفال الهوية والموظف
+ * @returns حقائق الحركة والوقت المحقون
+ */
+export async function lockedCardContext(
+  tx: Tx,
+  scope: CardClockScope,
+  employeeId: string,
+  sample: () => Date,
+  state: Awaited<ReturnType<typeof lockAttendanceState>>,
+  confirmCard: () => Promise<boolean>,
+): Promise<{ context: CardClockContext; at: Date }> {
+  const deviceExpiry = await lockAttendanceDeviceContext(
+    tx,
+    scope.companyId,
+    scope.operatorId,
+    scope.branchId,
+    scope.deviceId,
+  );
+  const employee = await lockedCardEmployee(tx, scope, employeeId);
+  const branch = await attendanceBranch(tx, scope.companyId, scope.businessId, scope.branchId);
+  const cardActive = await confirmCard();
+  if (branch === null) throw new AttendanceError('NOT_FOUND');
+  const at = sample();
+  if (deviceExpiry === null || deviceExpiry <= at) throw new AttendanceError('FORBIDDEN');
+  // الإذن رفض مستقل عن وجود الموظف؛ الكارت غير المصرّح يبقى ٤٠٣ حتى لا يتحول لمعرفة بالغير.
+  if (
+    !(await readAttendanceDeviceAccess(
+      tx,
+      scope.companyId,
+      scope.operatorId,
+      scope.businessId,
+      scope.branchId,
+      at,
+    ))
+  )
+    throw new AttendanceError('FORBIDDEN');
+  if (
+    !cardActive ||
+    employee === null ||
+    !attendanceEligible(employee, scope.branchId, attendanceWorkingDate(at, branch.timezone))
+  )
+    throw new AttendanceError('NOT_FOUND');
+  return { context: await cardAttendanceFacts(tx, scope, employeeId, at, state, branch), at };
+}
+
+async function cardAttendanceFacts(
+  tx: Tx,
+  scope: CardClockScope,
+  employeeId: string,
+  at: Date,
+  state: Awaited<ReturnType<typeof lockAttendanceState>>,
+  branch: NonNullable<Awaited<ReturnType<typeof attendanceBranch>>>,
+): Promise<CardClockContext> {
+  const open = await openAttendance(tx, { companyId: scope.companyId, employeeId });
+  const shifts = await scheduleCandidates(
+    tx,
+    { companyId: scope.companyId, employeeId },
+    scope.branchId,
+    at,
+    branch.timezone,
+  );
+  return {
+    timezone: branch.timezone,
+    geo: branch.lat === null || branch.lng === null ? null : { lat: branch.lat, lng: branch.lng },
+    // جهاز الاستقبال ثابت بلا قراءة موقع؛ تُسجَّل NONE كما في غياب موقع الهاتف (CB-Q1).
+    // TODO(spec) CB-Q1: a fixed reception device may deserve OK; the owner has not settled it.
+    location: undefined,
+    lastAt: state.last_accepted_scan_at === null ? null : new Date(state.last_accepted_scan_at),
+    lastResult: state.last_result,
+    open,
+    shifts: shifts.map((s) => ({
+      startsAt: new Date(s.starts_at),
+      endsAt: new Date(s.ends_at),
+      workingDate: s.working_date,
+    })),
+  };
+}
+async function lockedCardEmployee(tx: Tx, scope: CardClockScope, employeeId: string) {
+  const [employee] = await tx.execute<{ hire_date: string; contract_end: string | null }>(sql`
+    SELECT hire_date,contract_end FROM employees WHERE company_id=${scope.companyId} AND business_id=${scope.businessId}
+      AND id=${employeeId} AND deleted_at IS NULL FOR UPDATE`);
+  const attachments = await tx.execute<{ branch_id: string; from: string; to: string | null }>(sql`
+    SELECT branch_id,"from","to" FROM employee_branches WHERE company_id=${scope.companyId} AND employee_id=${employeeId} ORDER BY id FOR SHARE`);
+  return employee === undefined ? null : { ...employee, attachments: Array.from(attachments) };
 }

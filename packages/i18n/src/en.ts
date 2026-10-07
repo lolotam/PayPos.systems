@@ -1,5 +1,5 @@
 import { attendanceEn } from './attendance-en.js';
-import { clockCardAdminEn } from './clock-card-catalog.js';
+import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { employeeDocumentsEn } from './employee-documents-catalog.js';
@@ -38,6 +38,7 @@ export const en = {
     createCustomersBranch: 'Create customers from this branch',
     manageDiscountLimitsBusiness: 'Administer personal discount limits',
     loginStaffBranch: 'Sign in to staff app',
+    clockAttendanceBranch: 'Clock staff in by card on a paired device',
     createCompaniesPlatform: 'Create companies on the platform',
     readServicesBusiness: 'Read business services',
     manageServicesBusiness: 'Manage business services',
@@ -394,6 +395,7 @@ export const en = {
     attendanceLoading: 'Loading a fresh attendance code…',
     attendanceRefreshLead: 'This code refreshes every 60 seconds. Scan it from your staff app.',
     branchLabel: 'Branch',
+    ...clockCardPosEn,
     unexpected: 'Something went wrong. Try again.',
     networkError: 'The server could not be reached. Try again.',
   },

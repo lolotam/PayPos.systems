@@ -98,7 +98,8 @@ export const ROLE_DEFAULTS = {
   'create:customers:company': ['owner', 'general_manager'],
   'create:customers:business': ['owner', 'business_manager'],
   'create:customers:branch': ['owner', 'branch_manager', 'cashier'],
-  // ADR-0019 يمنع دخول الموظفين الضمني للمالك والمدير؛ الكاشير يحتاج ALLOW شخصي.
-  'login:staff:branch': ['staff'],
+  // تصحيح PR 23 بطلب المراجع: كاشير الاستقبال يحتاج الدخول والحضور معاً؛ سلطة المدير وحدها لا تفتح جلسة الموظف.
+  'login:staff:branch': ['staff', 'cashier'],
+  'clock:attendance:branch': [...managers, 'branch_manager', 'shift_supervisor', 'cashier'],
   'create:companies:platform': [],
 } as const satisfies Record<Permission, readonly string[]>;

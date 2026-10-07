@@ -1,3 +1,7 @@
 @import '@pospay/ui/styles.css';
 
 @source '../';
+
+.card-code-mask {
+  -webkit-text-security: disc;
+}
