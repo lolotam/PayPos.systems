@@ -1,5 +1,8 @@
 <!--
 Sync Impact Report
+- 3.0.0 (2026-10-07, MAJOR — Principle I redefined): Principle I allows up to three slices in flight at once when their file paths are
+  disjoint (Waleed, 2026-10-07, with the pospay-pipeline skill); each still merges only when green, and migration and
+  ADR numbers are assigned at merge. One use case per PR is unchanged.
 - 2.2.0 (2026-10-02, MINOR): add the PR 6 staff-login section from Accepted ADR-0019, including default-disabled activation, global auth storage, scoped sessions and online-only authentication.
 - 2.1.4 (2026-10-01, PATCH): ADR-0013 Part A global messaging control exception and privacy.
 - 2.1.3 (2026-10-01, PATCH): narrow application-root auth/notifications wiring clarification (ADR-0018).
@@ -56,8 +59,9 @@ spec at `docs/specs/<module>/<use-case>.md` covering requirements, business rule
 acceptance criteria, schema changes, API contract, permissions and tests. Implementation MUST
 follow this order: Zod contract → migration + RLS policy → domain functions + unit tests →
 use case → adapters (persistence, http) → integration tests → UI. A slice MUST NOT touch
-modules outside its scope without stating why. Slices are serial: the next one does not
-start until the previous one is green. Every architectural decision MUST be recorded as
+modules outside its scope without stating why. At most three slices may be in flight at once,
+and only when their file paths are disjoint; each merges only when it is green on its own head, and migration
+and ADR numbers are assigned at merge (Waleed, 2026-10-07). Every architectural decision MUST be recorded as
 `docs/adr/NNNN-title.md`. A slice is done only when the checklist in
 `CLAUDE.architecture.md` §15 passes and `pnpm check` is green. Unknown business rules are
 marked `TODO(spec)` and work stops there; guessing is forbidden.
@@ -433,7 +437,7 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 2.2.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-02
+**Version**: 3.0.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-07
 
 ## PR 6 amendment — ADR-0019, 2026-10-02
 
