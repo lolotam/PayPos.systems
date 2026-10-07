@@ -10,6 +10,7 @@ import { sql } from 'drizzle-orm';
 import { EmployeeCardError, cardDisplaySuffix } from '../domain/employee-card.ts';
 import type { Clock } from '../../../shared/ports/clock.port.ts';
 import type {
+  EmployeeCardIdempotency,
   EmployeeCardRecord,
   EmployeeCardScope,
   EmployeeCardsPort,
@@ -28,57 +29,83 @@ export function createEmployeeCards(
 ): EmployeeCardsPort {
   return {
     issue: (scope, cardCode, idem) =>
-      database.withTenant(
-        scope.companyId,
-        async (tx) => {
-          await assertManage(tx, access, scope);
-          const at = clock.now();
-          const bound = boundFingerprint(scope, 'issue', idem.fingerprint, hash);
-          const result = await runIdempotent(
-            tx,
-            {
-              scope: 'COMPANY',
-              operation: 'issue-employee-card',
-              key: idem.key,
-              fingerprint: bound,
-            },
-            async () => ({
-              status: 200,
-              body: await issueCard(tx, scope, cardCode, at, ids, hash),
-            }),
-          );
-          return result.body as EmployeeCardRecord;
-        },
-        { userId: scope.operatorId },
+      runCardCommand(
+        database,
+        access,
+        scope,
+        'issue-employee-card',
+        idem,
+        boundFingerprint(scope, 'issue', idem.fingerprint, hash),
+        (tx) => issueCard(tx, scope, cardCode, clock.now(), ids, hash),
       ),
     revoke: (scope, cardId, idem) =>
-      database.withTenant(
-        scope.companyId,
-        async (tx) => {
-          await assertManage(tx, access, scope);
-          const at = clock.now();
-          const bound = boundFingerprint(scope, 'revoke', idem.fingerprint, hash);
-          const result = await runIdempotent(
-            tx,
-            {
-              scope: 'COMPANY',
-              operation: 'revoke-employee-card',
-              key: idem.key,
-              fingerprint: bound,
-            },
-            async () => ({ status: 200, body: await revokeCard(tx, scope, cardId, at, ids) }),
-          );
-          return result.body as EmployeeCardRecord;
-        },
-        { userId: scope.operatorId },
+      runCardCommand(
+        database,
+        access,
+        scope,
+        'revoke-employee-card',
+        idem,
+        boundFingerprint(scope, 'revoke', idem.fingerprint, hash, cardId),
+        (tx) => revokeCard(tx, scope, cardId, clock.now(), ids),
       ),
   };
 }
 
+// الفحص وكتابة التدقيق بعد حجز المفتاح: إعادة نفس الطلب تُعيد الرد المخزّن، والمفتاح الجديد يعيد القرار قبل أي أثر.
+function runCardCommand(
+  database: TenantWrappers,
+  access: EmployeeCardAccess,
+  scope: EmployeeCardScope,
+  operation: 'issue-employee-card' | 'revoke-employee-card',
+  idem: EmployeeCardIdempotency,
+  fingerprint: string,
+  effect: (tx: Tx) => Promise<EmployeeCardRecord>,
+) {
+  return database.withTenant(
+    scope.companyId,
+    async (tx) => {
+      const result = await runIdempotent(
+        tx,
+        { scope: 'COMPANY', operation, key: idem.key, fingerprint },
+        async () => {
+          await assertManage(tx, access, scope);
+          return { status: 200, body: await effect(tx) };
+        },
+      );
+      return result.body as EmployeeCardRecord;
+    },
+    { userId: scope.operatorId },
+  );
+}
+
 async function assertManage(tx: Tx, access: EmployeeCardAccess, scope: EmployeeCardScope) {
-  const decision = await access.lock(tx, scope.companyId, scope.operatorId, scope.businessId);
-  if (!decision.manage) throw new EmployeeCardError('FORBIDDEN');
+  await access.lock(tx, scope.companyId, scope.operatorId, scope.businessId);
+  const branchIds = await lockedEmployeeBranchIds(tx, scope);
+  if (branchIds === null) throw new EmployeeCardError('NOT_FOUND');
+  const decision = await access.read(
+    tx,
+    scope.companyId,
+    scope.operatorId,
+    scope.businessId,
+    branchIds,
+  );
+  if (!decision.manage) throw new EmployeeCardError('NOT_FOUND');
   if (!decision.featureEnabled) throw new EmployeeCardError('FEATURE_DISABLED');
+}
+
+async function lockedEmployeeBranchIds(
+  tx: Tx,
+  scope: EmployeeCardScope,
+): Promise<readonly string[] | null> {
+  const [employee] = await tx.execute<{ primary_branch_id: string }>(sql`
+    SELECT primary_branch_id FROM employees WHERE company_id=${scope.companyId}
+      AND business_id=${scope.businessId} AND id=${scope.employeeId} AND deleted_at IS NULL
+      FOR UPDATE`);
+  if (employee === undefined) return null;
+  const branches = await tx.execute<{ branch_id: string }>(sql`
+    SELECT branch_id FROM employee_branches WHERE company_id=${scope.companyId}
+      AND employee_id=${scope.employeeId} AND "to" IS NULL`);
+  return [employee.primary_branch_id, ...branches.map((branch) => branch.branch_id)];
 }
 
 function boundFingerprint(
@@ -86,20 +113,19 @@ function boundFingerprint(
   operation: 'issue' | 'revoke',
   fingerprint: string,
   hash: EmployeeCardHash,
+  cardId?: string,
 ) {
-  return hash(
+  const parts = [
+    'card-command:v1',
     scope.companyId,
-    JSON.stringify([
-      'card-command:v1',
-      scope.companyId,
-      scope.businessId,
-      scope.employeeId,
-      scope.operatorId,
-      operation,
-      fingerprint,
-    ]),
+    scope.businessId,
+    scope.employeeId,
+    scope.operatorId,
     operation,
-  );
+    fingerprint,
+  ];
+  if (operation === 'revoke' && cardId !== undefined) parts.push(cardId);
+  return hash(scope.companyId, JSON.stringify(parts), operation);
 }
 
 async function issueCard(

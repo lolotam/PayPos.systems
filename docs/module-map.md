@@ -286,7 +286,7 @@ reads:
   - staff -> identity.lockAttendanceDeviceContext @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
   - staff -> identity.fenceOperatorSession @ apps/api/src/modules/staff/persistence/card-clock-transactions.ts
   - staff -> identity.staffSessionBinding @ apps/api/src/modules/staff/http/operator-sessions.token.ts
-  - staff -> identity.readEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
+  - staff -> identity.readEmployeeBranchAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> tenancy.businessTimeZone @ apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts
 ```

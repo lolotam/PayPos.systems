@@ -73,6 +73,10 @@ the device clock and for issue/revoke/list under
 `/v1/businesses/{businessId}/employees/{employeeId}/cards`.
 Revocation has no request body; its card ID is a validated path parameter.
 
+List, issue, and revoke authorize `manage:employees:business` at the employee's persisted primary branch and every open branch attachment. A business-scope ALLOW does not override a branch-scope DENY on any of those branches. On a new idempotency key, issue and revoke claim that key, then hold the existing company and caller-membership locks, lock the employee row, read those branches, and only then decide, so a concurrent branch move or permission change cannot pass the check. The audit row is written in that same callback, before the response is stored. A replay of the stored success returns that body and does not decide again; a new key decides again. The revoke fingerprint includes the card id, so the same key with another card is rejected. A denied caller receives the same NOT_FOUND as a missing employee. The staff feature is reported as disabled only after that branch check allows management.
+
+Card issue is limited to 30 attempts per hour for each company and user (ADR-0036, decided Waleed 2026-10-07). Success, a code already in use, and a validation failure each count. A replay of a completed key with the same fingerprint does not. The same key with a different body counts. The 31st attempt in the hour is 429 `TOO_MANY_REQUESTS`, writes nothing, and is logged without the card code. If Redis is unavailable, issue fails closed with `NOT_READY`. Revoke is not limited. Clock-by-card scan limits remain for PR 23b.
+
 ### Business rules, schema and events
 
 `employee_cards` is a tenant table: `(company_id, id)` primary key, `business_id`,
@@ -101,12 +105,20 @@ reused transition/dedupe boundaries through the card entry point. Real migrated 
 tests cover card clock-in and clock-out, the 5-minute dedupe shared with the passkey path,
 the 16 h rule through the card, revoked and unknown cards answering identically, another
 company's card, a branch the employee is not attached to, issue/revoke idempotency and
-audit, the Device-without-permission and non-Device refusals, RLS reads/writes plus the two
-partial-uniqueness rules. One HTTP test holds the attendance-state row lock, signs the operator
-out, releases the lock, and expects `UNAUTHENTICATED` with no attendance, audit, outbox, or
-idempotency effect. POS tests cover the scanner input (type then Enter), the ignored
-second scan while pending, the offline notice rendered by reception when the device disconnects,
-and ar/en results.
+audit (replay of the same body, 422 on a changed card code, the card id inside the revoke
+fingerprint, one audit row per issue and per revoke, a revoked row when reissue replaces the
+active card, and no card-code fragment beyond the stored suffix), HTTP 409 when another
+employee holds the active code, HTTP 404 for an already-revoked or another employee's card,
+the 31st issue attempt in an hour as HTTP 429 with no card, audit, or idempotency write,
+separate counters per user, a completed-key replay that is not counted, and a 409 or a
+changed body on a completed key that is counted,
+the Device-without-permission and non-Device refusals, RLS reads/writes plus the two
+partial-uniqueness rules. Card list, issue, and revoke with business ALLOW plus a branch DENY
+on the employee's branch match a missing employee; ALLOW on that branch still permits all three.
+One HTTP test holds the attendance-state row lock, signs the operator out, releases the lock,
+and expects `UNAUTHENTICATED` with no attendance, audit, outbox, or idempotency effect. POS
+tests cover the scanner input (type then Enter), the ignored second scan while pending, the
+offline notice rendered by reception when the device disconnects, and ar/en results.
 
 Gates: pnpm check without FORCE_COLOR; API/POS/admin builds; production startup smoke with
 all optional settings empty if startup wiring changes.
@@ -125,7 +137,7 @@ all optional settings empty if startup wiring changes.
   **decided (Waleed, 2026-10-07): split** — PR 23a ships card management first, PR 23b ships
   clock-by-card on top of it.
 - D5 — deferred to the orchestrator issue: expose Cashier staff-login DENY through the permissions screen.
-- D6 — deferred to the orchestrator issue: define and implement rate limits for card clocking and issuance.
+- D6 — card issue is limited to 30 attempts per hour per company and user (ADR-0036, decided Waleed 2026-10-07). Clock-by-card scan limits remain for PR 23b.
 - CB-Q5 — resolved: keep `clock:attendance:branch` at the verified device branch; explicit Device plus operator session, no CHECK change. PR 19 uses explicit Device checks, not a stored `:device` scope (ADR-0036).
 
 ## Success criteria
