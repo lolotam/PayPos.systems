@@ -13,6 +13,7 @@ export interface EmployeeCardRecord {
   readonly issuedAt: string;
   readonly revokedAt: string | null;
 }
+/** يحمل key و fingerprint حتى يربط المحوّل إعادة المحاولة بالرد المخزّن. */
 export interface EmployeeCardIdempotency {
   readonly key: string;
   readonly fingerprint: string;
