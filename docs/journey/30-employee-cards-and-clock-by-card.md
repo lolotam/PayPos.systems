@@ -48,8 +48,8 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
    الحضور على ماسح الاستقبال، أو اكتب الكود واضغط Enter.** وحقل **كود كارت الحضور** وزرار **تسجيل**.
 9. **المسح:** امسح `CARD-TEST-0002` ← الحقل يتمسح فورًا ويتقفل لحد الرد، ومسح تاني وهو مستني بيتجاهل. أثناء الانتظار
    بيظهر نفس سطر المسار الشخصي **افتح مفتاح المرور لتسجيل الحركة…** (مفيش مفتاح مرور فعلًا في الكارت). القبول ←
-   **تم تسجيل الحضور** وتحتها دايمًا **تم التسجيل مع استثناء للموقع: موقع الهاتف أو إحداثيات الفرع غير متاحة.** لأن جهاز
-   الاستقبال ما بيبعتش موقع (CB-Q1). مسح بعدها ← **تم تسجيل الانصراف**. الحركة بتتسجل بالجهاز والمشغّل.
+   **تم تسجيل الحضور** وتحتها (في أي حركة جديدة بالكارت) **تم التسجيل مع استثناء للموقع: موقع الهاتف أو إحداثيات الفرع غير متاحة.** لأن جهاز
+   الاستقبال ما بيبعتش موقع (CB-Q1). لو الكارت اتمسح خلال 5 دقايق من حركة بالموبايل، بترجع نتيجة الموبايل زي ما هي (الخطوة 10). مسح بعدها ← **تم تسجيل الانصراف**. الحركة بتتسجل بالجهاز والمشغّل.
 10. **نفس قواعد [26](26-clock-attendance.md):** مسح تاني خلال أقل من 5 دقايق ← نفس النتيجة الأولى من غير حركة جديدة،
     والقاعدة دي **مشتركة** مع مسح QR من الموبايل (كارت ثم QR أو العكس). قاعدة الـ 16 ساعة ← **أُغلقت الجلسة السابقة
     باعتبار الانصراف مفقودًا.** والتأخير ← **دقائق التأخير للتقرير فقط، دون خصم عمولة:** والرقم. التفاصيل في 26 خطوات 5–8.
@@ -104,8 +104,9 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
    field and the **Clock** button.
 9. **Scan:** scan `CARD-TEST-0002` → the field clears at once and stays disabled until the answer; a second scan while
    waiting is ignored. While waiting the personal-path line "Unlock your passkey to record attendance…" shows (no passkey is
-   actually asked for a card). Accepted → "Clocked in" and always "Recorded with a location exception: no usable location or
-   branch coordinates." because the reception device sends no location (CB-Q1). A later scan → "Clocked out". The movement
+   actually asked for a card). Accepted → "Clocked in" and, on every fresh card movement, "Recorded with a location exception: no usable location or
+   branch coordinates." because the reception device sends no location (CB-Q1). A card scan within 5 minutes of a phone
+   movement returns that phone result unchanged (step 10). A later scan → "Clocked out". The movement
    records the device and the operator.
 10. **Same rules as [26](26-clock-attendance.md):** a second scan under 5 minutes → the first result again, no new movement,
     and this window is **shared** with the phone QR path (card then QR or the reverse). The 16-hour rule → "The previous
@@ -153,7 +154,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
   - `POST .../cards/<CARD_ID>/revoke` with `Idempotency-Key`, no body → 200 with `revoked_at`; already revoked → 404.
 - API, device: `POST /v1/devices/me/clock-by-card` with `Authorization: Device <DEVICE_TOKEN>`, the operator cookie
   `pospay-staff.session_token`, `Origin` equal to the configured POS origin, `Idempotency-Key` and `{ "card_code": "..." }` →
-  200 `{ session_id, operation, working_date, accepted_at, exceptions: ["NONE"], late_minutes, missed_session_id }` with
+  200 `{ session_id, operation, working_date, accepted_at, exceptions, late_minutes, missed_session_id }` (a fresh card movement has `exceptions: ["NONE"]`; a dedupe within 5 minutes of a phone movement returns that movement's result unchanged) with
   `Cache-Control: no-store`. No operator or no Device → 401; missing permission or wrong `Origin` → 403 `FORBIDDEN`; any
   card not accepted → 404 `NOT_FOUND`; 11th failure in 600 s → 429 + `Retry-After`; Redis down → 503 `NOT_READY`.
 - Assertions: the stored row has `card_code_hash` and `card_code_suffix` only; audit rows `employee_card` `issued` /
