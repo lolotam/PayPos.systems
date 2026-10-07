@@ -113,8 +113,9 @@ keeping its prefix stable:
    resend the spec or the earlier brief into a resumed session.
 6. **Start a new session** only when the resumed one fails, or its context grows near 200K tokens (price doubles above
    it). Hand over with a ten-line summary of the state, not the history. Grok CLI auto-compacts a session at 80 %
-   context ("Auto-compacting conversation"), which rewrites the prefix and drops the cache for that round. When a
-   session is past round 3 or `grok usage` input nears that line, start the fresh session yourself before dispatching.
+   context ("Auto-compacting conversation") and replaces the history with its own summary. The cache survived it once
+   (23a round 3: 97.8 %), but the summary is Grok's, not ours: past round 3, or when `grok usage` input nears that
+   line, start the fresh session yourself with the ten-line handover before dispatching.
 7. The run is writable and auto-approving. After every dispatch, diff the worktree against the baseline: a run with
    no change is a failed candidate, whatever it reports. `grok usage` shows a session's token spend for the report.
 8. **Measure the cache after every round** with `grok usage <session-id>` (run in the worktree) and put the numbers in
