@@ -12,10 +12,7 @@ import type {
 
 export { EmployeeCardError } from '../../domain/employee-card.ts';
 export type { EmployeeCardRecord } from '../../ports/employee-cards.port.ts';
-export {
-  EMPLOYEE_CARD_ACCESS,
-  type EmployeeCardAccess,
-} from '../../ports/employee-card-access.port.ts';
+export { EMPLOYEE_CARD_ACCESS } from '../../ports/employee-card-access.port.ts';
 export { CardIssueAttemptsUnavailableError };
 
 /** تجاوز حد محاولات الإصدار؛ طبقة HTTP ترجعه 429 مع الثواني الباقية في الشباك، دون كتابة كارت. */
@@ -44,6 +41,9 @@ export class IssueEmployeeCard {
   ): Promise<EmployeeCardRecord> {
     // التطبيع قبل التحقق يمنع تخزين مسافات طرفية من ماسح لوحة المفاتيح.
     const code = normalizeCardCode(cardCode);
+    // نفس المفتاح والبصمة المخزّنة تُعاد قبل العدّ، حتى لو ضاع مؤشر Redis عند سقف الساعة.
+    const stored = await this.cards.completedIssue(scope, idem);
+    if (stored !== null) return stored;
     const decision = await this.attempts.take(
       scope.companyId,
       scope.operatorId,

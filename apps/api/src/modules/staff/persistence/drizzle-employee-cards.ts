@@ -16,7 +16,7 @@ import type {
   EmployeeCardsPort,
 } from '../ports/employee-cards.port.ts';
 
-import type { EmployeeCardAccess } from '../ports/employee-card-access.port.ts';
+import type { EmployeeCardAccess } from './employee-card-access.ts';
 import type { EmployeeCardHash } from './employee-card-hash.ts';
 
 // الإصدار يستبدل النشط السابق؛ الكود الخام يبقى في باراميتر واحد ولا يدخل التدقيق أو الرد.
@@ -48,6 +48,7 @@ export function createEmployeeCards(
         boundFingerprint(scope, 'revoke', idem.fingerprint, hash, cardId),
         (tx) => revokeCard(tx, scope, cardId, clock.now(), ids),
       ),
+    completedIssue: (scope, idem) => readCompletedIssue(database, hash, scope, idem),
   };
 }
 
@@ -126,6 +127,48 @@ function boundFingerprint(
   ];
   if (operation === 'revoke' && cardId !== undefined) parts.push(cardId);
   return hash(scope.companyId, JSON.stringify(parts), operation);
+}
+
+// قراءة فقط: إعادة المحاولة عند سقف الساعة تجد الرد المكتمل دون claim جديد.
+async function readCompletedIssue(
+  database: TenantWrappers,
+  hash: EmployeeCardHash,
+  scope: EmployeeCardScope,
+  idem: EmployeeCardIdempotency,
+): Promise<EmployeeCardRecord | null> {
+  const fingerprint = boundFingerprint(scope, 'issue', idem.fingerprint, hash);
+  return database.withTenant(
+    scope.companyId,
+    async (tx) => {
+      const [row] = await tx.execute<{ body: unknown }>(sql`
+        SELECT response_body AS body FROM idempotency_keys
+        WHERE scope_type='COMPANY' AND scope_id=app_company_id()
+          AND operation='issue-employee-card' AND key=${idem.key}
+          AND request_fingerprint=${fingerprint} AND response_status=200`);
+      return row === undefined ? null : storedCard(row.body);
+    },
+    { userId: scope.operatorId },
+  );
+}
+
+function storedCard(body: unknown): EmployeeCardRecord | null {
+  if (body === null || typeof body !== 'object') return null;
+  const row = body as Record<string, unknown>;
+  const id = row['id'];
+  const employeeId = row['employeeId'];
+  const cardCodeSuffix = row['cardCodeSuffix'];
+  const issuedAt = row['issuedAt'];
+  const revokedAt = row['revokedAt'];
+  if (
+    typeof id !== 'string' ||
+    typeof employeeId !== 'string' ||
+    typeof cardCodeSuffix !== 'string' ||
+    typeof issuedAt !== 'string' ||
+    !(revokedAt === null || typeof revokedAt === 'string')
+  ) {
+    return null;
+  }
+  return { id, employeeId, cardCodeSuffix, issuedAt, revokedAt };
 }
 
 async function issueCard(

@@ -27,13 +27,15 @@ import { ApiError } from '../../../shared/errors.ts';
 import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.ts';
 import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import { readEmployeeCards } from '../queries/employee-cards.query.ts';
+import {
+  readEmployeeCards,
+  type EmployeeCardReadAccess,
+} from '../queries/employee-cards.query.ts';
 import {
   CardIssueAttemptsUnavailableError,
   CardIssueLimitedError,
   EmployeeCardError,
   EMPLOYEE_CARD_ACCESS,
-  type EmployeeCardAccess,
   IssueEmployeeCard,
   type EmployeeCardRecord,
 } from '../use-cases/issue-employee-card/issue-employee-card.usecase.ts';
@@ -45,7 +47,7 @@ export class EmployeeCardsController {
     @Inject(IssueEmployeeCard) private readonly issue: IssueEmployeeCard | null,
     @Inject(RevokeEmployeeCard) private readonly revoke: RevokeEmployeeCard | null,
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
-    @Inject(EMPLOYEE_CARD_ACCESS) private readonly access: EmployeeCardAccess | null,
+    @Inject(EMPLOYEE_CARD_ACCESS) private readonly access: EmployeeCardReadAccess | null,
   ) {}
   @Get()
   @Authenticated()
