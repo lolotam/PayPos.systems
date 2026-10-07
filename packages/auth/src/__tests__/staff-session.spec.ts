@@ -244,28 +244,31 @@ it.each(['throw', 'changed'])(
 it('confirmCurrent accepts only the live device session', async () => {
   const staff = auth.staff;
   const issued = await staff.issue(userId, device, async () => true);
-  const during = new Date(now.getTime() + 1000);
   const current = {
     sessionId: issued.session.sessionId,
     userId: issued.session.userId,
     deadline: issued.session.deadline,
     device,
   };
-  await staff.confirmCurrent(current, during);
-  await expect(staff.confirmCurrent(current, issued.session.deadline)).rejects.toBeInstanceOf(
-    StaffSessionEnded,
-  );
+  await staff.confirmCurrent(current);
+  const during = now;
+  now = issued.session.deadline;
+  try {
+    await expect(staff.confirmCurrent(current)).rejects.toBeInstanceOf(StaffSessionEnded);
+  } finally {
+    now = during;
+  }
   const replacement = await staff.issue(userId, device, async () => true);
-  await expect(staff.confirmCurrent(current, during)).rejects.toBeInstanceOf(StaffSessionEnded);
+  await expect(staff.confirmCurrent(current)).rejects.toBeInstanceOf(StaffSessionEnded);
   const next = {
     sessionId: replacement.session.sessionId,
     userId: replacement.session.userId,
     deadline: replacement.session.deadline,
     device,
   };
-  await staff.confirmCurrent(next, during);
+  await staff.confirmCurrent(next);
   await staff.signOut(cookieHeaders(replacement.cookie), device);
-  await expect(staff.confirmCurrent(next, during)).rejects.toBeInstanceOf(StaffSessionEnded);
+  await expect(staff.confirmCurrent(next)).rejects.toBeInstanceOf(StaffSessionEnded);
 });
 
 it('session resolution rechecks approval even if eligibility remains valid', async () => {

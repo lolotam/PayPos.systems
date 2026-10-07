@@ -102,14 +102,14 @@ export async function clockByCardFixture(): Promise<CardFixture> {
   };
 }
 
-// موعد الجلسة يغطي ساعات الاختبار الثابتة حتى 2026-10-07T08:00Z، والربط أسبق من الإثبات.
+// انتهاء الجلسة يُقاس بساعة الاعتماد لا بساعة المسح، فالثماني ساعات تبدأ من إنشاء الـ fixture.
 async function liveOperatorSession(
   f: AttendanceFixture,
   operatorId: string,
   deviceId: string,
 ): Promise<{ sessionId: string; deadline: Date }> {
   const sessionId = f.ids.newId();
-  const authenticatedAt = new Date('2026-10-07T08:00:00.000Z');
+  const authenticatedAt = new Date();
   const digits = (BigInt(`0x${operatorId.replaceAll('-', '').slice(0, 12)}`) % 100000000n)
     .toString()
     .padStart(8, '0');

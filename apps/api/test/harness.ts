@@ -172,6 +172,7 @@ interface HarnessOptions {
   files?: FilesRuntime;
   logs?: DestinationStream;
   staffOrigin?: string;
+  clock?: { now(): Date };
   staffOtpFactory?: (
     auth: AuthService,
     authUrl: string,
@@ -290,6 +291,7 @@ function harnessAuth(
 ): Promise<AuthService> {
   return createAuth({
     staffPhoneLockKey: phoneLockKey,
+    ...(options.clock === undefined ? {} : { clock: options.clock }),
     databaseUrl: authUrl,
     secret: 'test-secret-that-is-long-enough-for-hmac',
     baseURL: BASE,

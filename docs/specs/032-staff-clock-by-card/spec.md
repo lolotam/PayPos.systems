@@ -57,7 +57,9 @@ the same transaction takes the staff-device advisory lock `pospay:staff-session:
 (the lock ADR-0019 already uses when rotating a device's staff session) and asks
 `packages/auth` to confirm this id is still the live `STAFF_POS` session for that device,
 user, and deadline. Logout and replacement take that same lock before deleting the row, so
-one side waits and the other commits. A session that was logged out, replaced, or is past
+one side waits and the other commits. The deadline is checked on a fresh auth-clock read
+under that fence, after the session reads, and again as the last step before the card-clock
+transaction commits. A session that was logged out, replaced, or is past
 its deadline refuses with `UNAUTHENTICATED` and the transaction rolls back, including the
 idempotency claim. `packages/auth` is the only package that reads or deletes the session row.
 Unavailable/ineligible employee, branch or card is

@@ -4,10 +4,13 @@ import { clockAttendanceResult, errorEnvelope } from '@pospay/contracts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 
+import { systemClock } from '../../../shared/adapters/system-clock.ts';
 import { createEmployeeCardHash } from '../persistence/employee-card-hash.ts';
 import { startHarness, type Harness } from '../../../../test/harness.ts';
 
 const STAFF_ORIGIN = 'http://localhost:5173';
+const authTime = { at: new Date() };
+const authClock = { now: () => authTime.at };
 const CARD_CODE = 'CARD-HTTP-1';
 const URL = '/v1/devices/me/clock-by-card';
 
@@ -122,7 +125,7 @@ const send = (options: { authorization?: string; cookie?: string; key?: string; 
   });
 
 beforeAll(async () => {
-  h = await startHarness({ staffOrigin: STAFF_ORIGIN });
+  h = await startHarness({ staffOrigin: STAFF_ORIGIN, clock: authClock });
   owner = await h.signedInOperator('clock-card@example.test');
   company = await h.onboard(owner, 'Clock Card Co');
   const created = await h.send('POST', '/v1/businesses', {
@@ -243,6 +246,49 @@ it('uses identical status, body and eligibility query paths for unknown and inac
   }
 });
 
+it('refuses a paused scan when the operator session deadline passes while it waits', async () => {
+  await h.owner`UPDATE employee_cards SET revoked_at=NULL, revoked_by=NULL WHERE company_id=${company} AND id=${cardId}`;
+  const before = await attendanceEffects();
+  const deadline = await operatorDeadline();
+  const scannedAt = new Date(deadline.getTime() - 1000);
+  const saved = authTime.at;
+  vi.spyOn(systemClock, 'now').mockReturnValue(scannedAt);
+  const held = await holdEmployeeState();
+  const pending = send({
+    authorization: `Device ${deviceToken}`,
+    cookie: staffCookie,
+    key: randomUUID(),
+  });
+  const probe = postgres(h.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    try {
+      await vi.waitFor(
+        async () => {
+          const rows = await probe`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
+            AND wait_event_type='Lock' AND query LIKE '%attendance_states%'`;
+          expect(rows.length).toBeGreaterThan(0);
+        },
+        { timeout: 3000, interval: 20 },
+      );
+      authTime.at = deadline;
+    } finally {
+      held.release();
+      await held.done;
+      await probe.end();
+    }
+    const response = await pending;
+    expect([response.statusCode, errorEnvelope.parse(response.json()).code]).toEqual([
+      401,
+      'UNAUTHENTICATED',
+    ]);
+    expect(await attendanceEffects()).toEqual(before);
+  } finally {
+    await pending.catch(() => undefined);
+    authTime.at = saved;
+    vi.restoreAllMocks();
+  }
+});
+
 it('refuses a scan that was waiting on the attendance row when the operator signed out', async () => {
   // اختبار سابق يترك الكارت ملغى؛ بدونه يُقفل صف موظف وهمي لا ينتظر.
   await h.owner`UPDATE employee_cards SET revoked_at=NULL, revoked_by=NULL WHERE company_id=${company} AND id=${cardId}`;
@@ -278,6 +324,15 @@ it('refuses a scan that was waiting on the attendance row when the operator sign
   ]);
   expect(await attendanceEffects()).toEqual(before);
 });
+
+async function operatorDeadline(): Promise<Date> {
+  const [row] = await h.owner<{ staff_absolute_deadline: Date }[]>`
+    SELECT staff_absolute_deadline FROM session
+    WHERE user_id=${operatorId} AND purpose='STAFF_POS'`;
+  const deadline = row?.staff_absolute_deadline;
+  if (!(deadline instanceof Date)) throw new Error('SYNTHETIC_STAFF_SESSION_MISSING');
+  return deadline;
+}
 
 function signOut() {
   return h.app.inject({

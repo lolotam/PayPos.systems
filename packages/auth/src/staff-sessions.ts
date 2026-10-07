@@ -61,11 +61,11 @@ export interface StaffSessions {
   resolve(headers: Headers, device: StaffDeviceContext): Promise<StaffSession | null>;
   /**
    * يعيد فحص الجلسة الحية داخل معاملة الكتابة؛ الرفض لا يكتب حضوراً.
+   * موعد الثماني ساعات يُقرأ من ساعة الاعتماد بعد قراءة الجلسة والربط، لا من المستدعي.
    *
    * @param proof هوية الجلسة والموعد والجهاز المحمولة من الحارس
-   * @param now اللحظة بعد قفل حالة الحضور
    */
-  confirmCurrent(proof: StaffSessionProof, now: Date): Promise<void>;
+  confirmCurrent(proof: StaffSessionProof): Promise<void>;
   /** يلغي الجلسة تحت قفل الجهاز قبل حذفها، ولا يمس pairing ولا cookie الإدارة. */
   signOut(headers: Headers, device: StaffDeviceContext): Promise<string>;
   /** يمنع استبدال اسم cookie للوصول لمسارات Better Auth العادية. */
@@ -104,7 +104,7 @@ export function createStaffSessions(options: SessionOptions): StaffSessions {
         .digest('hex')}`,
     issue: (userId, device, validate) => issueStaffSession(options, { userId, device, validate }),
     resolve,
-    confirmCurrent: (proof, now) => confirmCurrentSession(options, proof, now),
+    confirmCurrent: (proof) => confirmCurrentSession(options, proof),
     signOut: async (headers, device) => {
       const token = await verifiedToken(headers, STAFF_COOKIE, options.secret);
       const row = token === null ? null : await options.primitive.find(token);
@@ -119,10 +119,9 @@ export function createStaffSessions(options: SessionOptions): StaffSessions {
 async function confirmCurrentSession(
   options: SessionOptions,
   proof: StaffSessionProof,
-  now: Date,
 ): Promise<void> {
   const row = await options.primitive.findById(proof.sessionId);
-  const session = row === null ? null : staffRow(row, proof.device, now);
+  const session = row === null ? null : staffIdentity(row, proof.device);
   if (
     session === null ||
     session.userId !== proof.userId ||
@@ -131,6 +130,8 @@ async function confirmCurrentSession(
     !(await options.database.bindingValid(session.userId, session.authenticatedAt))
   )
     throw new StaffSessionEnded();
+  // بعد القراءة والقفل؛ وقت المستدعي لا يمدّد الثماني ساعات.
+  if (options.now() >= session.deadline) throw new StaffSessionEnded();
 }
 
 const sessionCookie = (value: string, expires: Date) =>
@@ -216,6 +217,12 @@ async function normalPurpose(options: SessionOptions, headers: Headers): Promise
 }
 
 function staffRow(row: SessionRow, device: StaffDeviceContext, now: Date): StaffSession | null {
+  const session = staffIdentity(row, device);
+  if (session === null || now >= session.deadline) return null;
+  return session;
+}
+
+function staffIdentity(row: SessionRow, device: StaffDeviceContext): StaffSession | null {
   if (
     row.purpose !== 'STAFF_POS' ||
     row.staffDeviceContext === null ||
@@ -224,7 +231,6 @@ function staffRow(row: SessionRow, device: StaffDeviceContext, now: Date): Staff
     row.staffAuthenticatedAt === undefined ||
     row.staffAbsoluteDeadline === null ||
     row.staffAbsoluteDeadline === undefined ||
-    now >= row.staffAbsoluteDeadline ||
     row.expiresAt.getTime() !== row.staffAbsoluteDeadline.getTime() ||
     !sameDevice(row.staffDeviceContext as StaffDeviceContext, device)
   )

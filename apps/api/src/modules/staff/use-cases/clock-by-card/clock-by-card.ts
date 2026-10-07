@@ -32,7 +32,7 @@ export class ClockByCard {
       () => this.clock.now(),
       (tx, at) =>
         tx.idempotent(idem.key, idem.fingerprint, async () => {
-          await tx.confirmOperator(at);
+          await tx.confirmOperator();
           const duplicate = attendanceDuplicate(tx.context.lastAt, tx.context.lastResult, at);
           if (duplicate !== null) return duplicate;
           return this.apply(tx, at);

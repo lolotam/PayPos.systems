@@ -34,11 +34,10 @@ export interface CardClockTransaction {
   readonly context: CardClockContext;
   /**
    * يثبت أن جلسة المشغل ما زالت حية ولم تُستبدل.
+   * ساعة الاعتماد تُقرأ بعد قفل الجهاز وبعد قراءة الجلسة، لا من وقت المسح.
    * يُستدعى داخل أثر المفتاح حتى يعيد التكرار الرد المحفوظ، ويُرفض اختلاف البصمة قبله.
-   *
-   * @param at اللحظة المأخوذة بعد قفل حالة الحضور
    */
-  confirmOperator(at: Date): Promise<void>;
+  confirmOperator(): Promise<void>;
   /**
    * يسترجع الرد كما حفظ؛ مفتاح مستخدم بجسم مختلف يرفض قبل التأثير.
    *

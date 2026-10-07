@@ -44,7 +44,13 @@ export function createCardClockTransactions(
             state,
             () => confirmCard(tx, scope, card?.id ?? null, codeHash),
           );
-          return work(buildTransaction(tx, scope, employeeId, context, ids, hash, sessions), at);
+          const result = await work(
+            buildTransaction(tx, scope, employeeId, context, ids, hash, sessions),
+            at,
+          );
+          // آخر خطوة قبل الإتمام، فكتابة بعد الفحص الأول لا تتجاوز موعد الجلسة.
+          await fenceOperatorSession(tx, sessions, operatorProof(scope));
+          return result;
         },
         { userId: scope.operatorId, timeoutMs: ATTENDANCE_TRANSACTION_TIMEOUT_MS },
       ),
@@ -92,7 +98,7 @@ function buildTransaction(
 ): CardClockTransaction {
   return {
     context,
-    confirmOperator: (at) => fenceOperatorSession(tx, sessions, operatorProof(scope), at),
+    confirmOperator: () => fenceOperatorSession(tx, sessions, operatorProof(scope)),
     idempotent: async (key, fingerprint, effect) => {
       const bound = hash(
         scope.companyId,
