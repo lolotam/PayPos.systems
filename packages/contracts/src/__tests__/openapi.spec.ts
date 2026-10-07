@@ -88,6 +88,8 @@ const expectedSchemas = [
   'DiscountLimit',
   'DiscountLimitInput',
   'Employee',
+  'EmployeeCard',
+  'EmployeeCardsView',
   'EmployeeDate',
   'EmployeeDetail',
   'EmployeeListItem',
@@ -159,6 +161,7 @@ const expectedSchemas = [
   'EmployeeImportRowError',
   'EmployeeImportTemplate',
   'PreviewEmployeeImportInput',
+  'IssueEmployeeCardInput',
 ].sort();
 
 describe('openapi/openapi.json', () => {

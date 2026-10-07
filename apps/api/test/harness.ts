@@ -1,5 +1,11 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createAuth, createPlatformUser, type AuthService, type StaffOtpApi } from '@pospay/auth';
+import {
+  createAuth,
+  deriveEmployeeCardKey,
+  createPlatformUser,
+  type AuthService,
+  type StaffOtpApi,
+} from '@pospay/auth';
 import {
   createDatabase,
   type Database,
@@ -22,6 +28,7 @@ import { PROVISIONAL_PLAN_ID, seedReferenceData } from '../../../packages/db/src
 import { createTestDatabase, type TestDatabase } from '../../../packages/db/test/test-database.ts';
 import { cleanupStack } from './cleanup-stack.ts';
 import { createApp } from '../src/app.ts';
+import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
 import type { FilesRuntime } from '../src/modules/files/index.ts';
 
 // A real API over a cloned database with real Better Auth sessions. Users are made the way an operator makes them,
@@ -218,6 +225,7 @@ async function prepareHarness(
       {
         readiness: [],
         auth: { service: auth, baseURL: BASE },
+        employeeCardKey: deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
         database: wrappers,
         ...(options.files === undefined ? {} : { files: options.files }),
         ...staffWiring(options, staffOtp, auth),
@@ -272,7 +280,7 @@ function staffWiring(options: HarnessOptions, api: StaffOtpApi | undefined, auth
 function harnessLogger(options: HarnessOptions) {
   return options.logs === undefined
     ? createLogger('silent')
-    : createLogger('info', { destination: options.logs });
+    : createLogger('info', { destination: options.logs, events: API_LOG_EVENTS });
 }
 
 function harnessAuth(

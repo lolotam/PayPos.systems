@@ -24,6 +24,7 @@ export * from './staff-leave.ts';
 export * from './identity-passkey.ts';
 export * from './staff-passkeys.ts';
 export * from './staff-attendance.ts';
+export * from './staff-cards.ts';
 export * from './staff-device-signals.ts';
 export * from './staff-documents.ts';
 export * from './staff-import.ts';

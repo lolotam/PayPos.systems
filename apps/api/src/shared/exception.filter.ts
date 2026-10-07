@@ -17,6 +17,7 @@ export class EnvelopeExceptionFilter implements ExceptionFilter {
     const request = http.getRequest<FastifyRequest>();
 
     const error = toApiError(exception);
+    // المسار الذي يعرف طول شباكه يضبط الترويسة بنفسه. 60 تبقى الافتراضي فقط حين تغيب.
     if (error.code === 'TOO_MANY_REQUESTS' && !reply.hasHeader('retry-after'))
       void reply.header('retry-after', '60');
     if (error.code === 'INTERNAL_ERROR') {

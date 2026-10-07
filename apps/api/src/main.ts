@@ -1,5 +1,6 @@
 import {
   createAuth,
+  deriveEmployeeCardKey,
   createStaffOtpApi,
   readStaffOtpConfiguration,
   type AuthService,
@@ -303,6 +304,7 @@ try {
       ],
       onShutdown: release,
       auth: { service, baseURL: config.BETTER_AUTH_URL },
+      employeeCardKey: deriveEmployeeCardKey(config.BETTER_AUTH_SECRET),
       personal: {
         sessions: service.personal,
         otp: personalOtp ?? null,

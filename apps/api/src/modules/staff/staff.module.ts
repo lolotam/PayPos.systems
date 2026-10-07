@@ -1,3 +1,4 @@
+import { attendanceProviders, cardProviders } from './staff-attendance.providers.ts';
 import { MyScheduleController } from './http/my-schedule.controller.ts';
 import {
   PasskeysController,
@@ -6,10 +7,6 @@ import {
 } from './http/passkeys.controller.ts';
 import type { PasskeyRegistration } from './ports/passkeys.port.ts';
 import { ClockAttendanceController } from './http/clock-attendance.controller.ts';
-import { createAttendanceTransactions } from './persistence/attendance-transactions.ts';
-import { createLockedAttendanceQrVerifier } from './persistence/locked-attendance-qr.ts';
-import { ClockAttendance } from './use-cases/clock-attendance/clock-attendance.ts';
-import { RequestClockChallenge } from './use-cases/request-clock-challenge/request-clock-challenge.ts';
 import type { AttendancePasskeys } from './ports/clock-attendance.port.ts';
 import { EmployeePasskeysController } from './http/employee-passkeys.controller.ts';
 import { EmployeePasskeyUnbindGuard } from './http/employee-passkey-unbind.guard.ts';
@@ -21,6 +18,7 @@ import { EnrolPasskey } from './use-cases/enrol-passkey/enrol-passkey.ts';
 import { createPasskeyTransactions } from './persistence/passkey-transactions.ts';
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import type { Logger } from '@pospay/observability';
 import { EmployeeLeaveController } from './http/employee-leave.controller.ts';
 import { OwnLeaveController } from './http/own-leave.controller.ts';
 import { LeaveInboxController } from './http/leave-inbox.controller.ts';
@@ -82,14 +80,11 @@ import {
 import { PreviewEmployeeImportUseCase } from './use-cases/preview-employee-import/preview-employee-import.usecase.ts';
 import { CommitEmployeeImportUseCase } from './use-cases/commit-employee-import/commit-employee-import.usecase.ts';
 import { GetEmployeeImportTemplateUseCase } from './use-cases/get-employee-import-template/get-employee-import-template.usecase.ts';
-import { hmacAttendanceQr } from './persistence/hmac-attendance-qr.ts';
-import { createRedisAttendanceQrSecrets } from './persistence/redis-attendance-qr-secrets.ts';
-import { createAttendanceBranchReader } from './persistence/tenancy-attendance-branch.adapter.ts';
-import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attendance-qr.ts';
-import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
+import { EmployeeCardsController } from './http/employee-cards.controller.ts';
 
 export const staffControllers = [
   ClockAttendanceController,
+  EmployeeCardsController,
   EmployeePasskeysController,
   EmployeeLeaveController,
   OwnLeaveController,
@@ -224,19 +219,12 @@ function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
-export function staffProviders(
-  database?: TenantWrappers,
-  redis?: Redis,
-  passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null = null,
-  importStorage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null = null,
+function enrolProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null,
 ): Provider[] {
-  const ids = systemUuidV7();
-  const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
-  const branches = database === undefined ? null : createAttendanceBranchReader(database);
   return [
-    ...attendanceProviders(database, secrets, passkeys, ids),
-    { provide: PASSKEY_OPTIONS, useValue: passkeys },
-    ...unbindProviders(database, ids),
     {
       provide: EnrolPasskey,
       useValue:
@@ -244,6 +232,24 @@ export function staffProviders(
           ? null
           : new EnrolPasskey(passkeys, createPasskeyTransactions(database, ids), ids, systemClock),
     },
+  ];
+}
+
+export function staffProviders(
+  database?: TenantWrappers,
+  redis?: Redis,
+  passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null = null,
+  importStorage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null = null,
+  employeeCardKey: Buffer | null = null,
+  logger?: Logger,
+): Provider[] {
+  const ids = systemUuidV7();
+  return [
+    ...attendanceProviders(database, redis, passkeys, ids),
+    ...cardProviders(database, ids, employeeCardKey, redis, logger),
+    { provide: PASSKEY_OPTIONS, useValue: passkeys },
+    ...unbindProviders(database, ids),
+    ...enrolProviders(database, ids, passkeys),
     ...scheduleProviders(database, ids),
     ...leaveProviders(database, ids),
     ...salaryProviders(database, ids),
@@ -266,20 +272,6 @@ export function staffProviders(
         database === undefined
           ? null
           : new CreateEmployeeUseCase(createEmployeeTransactions(database, ids), ids, systemClock),
-    },
-    {
-      provide: IssueAttendanceQr,
-      useValue:
-        branches === null || secrets === null
-          ? null
-          : new IssueAttendanceQr(branches, secrets, hmacAttendanceQr, systemClock),
-    },
-    {
-      provide: VerifyAttendanceQr,
-      useValue:
-        branches === null || secrets === null
-          ? null
-          : new VerifyAttendanceQr(branches, secrets, hmacAttendanceQr, systemClock),
     },
     ...employeeImportProviders(database, ids, importStorage),
   ];
@@ -319,31 +311,6 @@ function employeeImportProviders(
         transactions === null
           ? null
           : new CommitEmployeeImportUseCase(transactions, ids, systemClock),
-    },
-  ];
-}
-
-function attendanceProviders(
-  database: TenantWrappers | undefined,
-  secrets: ReturnType<typeof createRedisAttendanceQrSecrets> | null,
-  passkeys: AttendancePasskeys | null,
-  ids: IdGenerator,
-): Provider[] {
-  if (database === undefined || secrets === null || passkeys === null)
-    return [
-      { provide: ClockAttendance, useValue: null },
-      { provide: RequestClockChallenge, useValue: null },
-    ];
-  const qr = createLockedAttendanceQrVerifier(secrets, hmacAttendanceQr);
-  const transactions = createAttendanceTransactions(database, ids);
-  return [
-    {
-      provide: ClockAttendance,
-      useValue: new ClockAttendance(transactions, passkeys, qr, systemClock, ids),
-    },
-    {
-      provide: RequestClockChallenge,
-      useValue: new RequestClockChallenge(transactions, passkeys, qr, systemClock),
     },
   ];
 }
