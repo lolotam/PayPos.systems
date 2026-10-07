@@ -22,20 +22,24 @@ import {
 export { AttendanceError } from '../../domain/clock-attendance.ts';
 export { CardScanAttemptsUnavailableError };
 
-/** تجاوز حد المسحات الفاشلة؛ طبقة HTTP ترجعه 429 قبل أي بحث، مع الثواني الباقية في الشباك. */
+/** تجاوز حد المسحات الفاشلة؛ طبقة HTTP ترجعه 429 قبل أي بحث عن الكارت، مع الثواني الباقية في الشباك. */
 export class CardScanLimitedError extends Error {
   constructor(readonly remaining: number) {
     super('CARD_SCAN_LIMITED');
   }
 }
 
-/** الحركة بالكارت مدخل ثانٍ لنفس دومين spec 027، وتعيد فحص الجلسة، وتحتسب المسح الفاشل فقط. */
+/** يبلّغ جذر التركيب أن علامة اكتمال المسح لم تُحفظ بعد كتابة الحركة. لا يحمل الكود. */
+export type CardScanCompletionWarning = (companyId: string, deviceId: string) => void;
+
+/** الحركة بالكارت مدخل ثانٍ لنفس دومين spec 027؛ المسح الفاشل فقط يُحتسب، وفقدان علامة الاكتمال لا يُسقط الحركة. */
 export class ClockByCard {
   constructor(
     private readonly transactions: CardClockTransactions,
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
     private readonly attempts: CardScanAttempts,
+    private readonly warn: CardScanCompletionWarning,
   ) {}
   execute(
     scope: CardClockScope,
@@ -49,6 +53,9 @@ export class ClockByCard {
     cardCode: string,
     idem: { key: string; fingerprint: string },
   ): Promise<ClockResult> {
+    // نفس المفتاح والبصمة المربوطة بالجهاز والعامل تُعاد قبل السقف، حتى لو ضاع مؤشر Redis.
+    const stored = await this.transactions.completed(scope, idem);
+    if (stored !== null) return stored;
     const decision = await this.gate(scope, idem);
     const code = normalizeCardCode(cardCode);
     // رفض الشكل يُحتسب قبل أي بحث؛ إعادة المفتاح المكتمل لا تعيد التحقق.
@@ -57,12 +64,13 @@ export class ClockByCard {
       throw new AttendanceError('BAD_REQUEST');
     }
     try {
-      const result = await this.transactions.run(scope, code, () => this.clock.now(), (tx, at) =>
-        this.effect(tx, at, idem),
+      const result = await this.transactions.run(
+        scope,
+        code,
+        () => this.clock.now(),
+        (tx, at) => this.effect(tx, at, idem),
       );
-      if (decision.outcome === 'open') {
-        await this.attempts.complete(scope.companyId, scope.deviceId, idem.key, idem.fingerprint);
-      }
+      if (decision.outcome === 'open') await this.markCompleted(scope, idem);
       return result;
     } catch (error) {
       if (decision.outcome === 'open' && failedCardScan(error)) {
@@ -83,6 +91,18 @@ export class ClockByCard {
     );
     if (decision.outcome === 'limited') throw new CardScanLimitedError(decision.remaining);
     return decision;
+  }
+  private async markCompleted(
+    scope: CardClockScope,
+    idem: { key: string; fingerprint: string },
+  ): Promise<void> {
+    try {
+      await this.attempts.complete(scope.companyId, scope.deviceId, idem.key, idem.fingerprint);
+    } catch (error) {
+      // الحركة مكتوبة. 503 هنا يدفع العميل لمفتاح جديد فيُسجَّل حضور ثانٍ.
+      if (!(error instanceof CardScanAttemptsUnavailableError)) throw error;
+      this.warn(scope.companyId, scope.deviceId);
+    }
   }
   private effect(
     tx: CardClockTransaction,

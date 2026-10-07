@@ -15,6 +15,7 @@ export const API_LOG_EVENTS = [
   'employee card issue completion unrecorded',
   'card scan limited',
   'card scan redis unavailable',
+  'card scan completion unrecorded',
   'whatsapp changes skipped',
   'nest',
   'nest error',

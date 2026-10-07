@@ -30,7 +30,10 @@ it('maps a conflict and an outage away from a bad card, and shows a simple wait'
   post.mockResolvedValue({ response: new Response(null, { status: 503 }), error: {} });
   expect(await clockByCard('SYNTHETIC-CARD', signal)).toEqual({ kind: 'unavailable' });
   post.mockResolvedValue({
-    response: new Response(null, { status: 429, headers: { 'retry-after': 'Wed, 21 Oct 2015 07:28:00 GMT' } }),
+    response: new Response(null, {
+      status: 429,
+      headers: { 'retry-after': 'Wed, 21 Oct 2015 07:28:00 GMT' },
+    }),
     error: {},
   });
   expect(await clockByCard('SYNTHETIC-CARD', signal)).toEqual({ kind: 'limited' });

@@ -84,6 +84,7 @@ export async function clockByCardFixture(): Promise<CardFixture> {
     f.clock,
     f.ids,
     unlimitedCardScans,
+    () => undefined,
   );
   const admin = createEmployeeCards(f.database, f.ids, f.clock, access, cardHash);
   return {

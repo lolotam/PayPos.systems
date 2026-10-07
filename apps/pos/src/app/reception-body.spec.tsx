@@ -23,10 +23,15 @@ vi.mock('@/attendance/ui/attendance-home', () => ({
 
 function show(locale: 'ar' | 'en') {
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
       <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <LocaleProvider locale={locale} setLocale={() => undefined}>
-          <ReceptionBody branchId="01923f66-3d2b-7c00-8000-000000000001" retry={async () => undefined} />
+          <ReceptionBody
+            branchId="01923f66-3d2b-7c00-8000-000000000001"
+            retry={async () => undefined}
+          />
         </LocaleProvider>
       </DirectionProvider>
     </QueryClientProvider>,

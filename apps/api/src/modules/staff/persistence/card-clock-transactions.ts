@@ -21,6 +21,7 @@ export function createCardClockTransactions(
   sessions: Parameters<typeof fenceOperatorSession>[1],
 ): CardClockTransactions {
   return {
+    completed: (scope, idem) => readCompletedClock(database, hash, scope, idem),
     run: (scope, cardCode, sample, work) =>
       database.withTenant(
         scope.companyId,
@@ -100,17 +101,7 @@ function buildTransaction(
     context,
     confirmOperator: () => fenceOperatorSession(tx, sessions, operatorProof(scope)),
     idempotent: async (key, fingerprint, effect) => {
-      const bound = hash(
-        scope.companyId,
-        JSON.stringify([
-          'clock-command:v1',
-          scope.companyId,
-          scope.deviceId,
-          scope.operatorId,
-          fingerprint,
-        ]),
-        'clock',
-      );
+      const bound = boundClockFingerprint(hash, scope, fingerprint);
       const result = await runIdempotent(
         tx,
         { scope: 'COMPANY', operation: 'clock-by-card', key, fingerprint: bound },
@@ -140,4 +131,70 @@ function buildTransaction(
         ids,
       ),
   };
+}
+
+// البصمة المخزّنة تربط الجهاز والعامل؛ قراءة الإعادة تستخدم نفس الربط حتى لا يُعاد رد جهاز آخر.
+function boundClockFingerprint(
+  hash: EmployeeCardHash,
+  scope: CardClockScope,
+  fingerprint: string,
+): string {
+  return hash(
+    scope.companyId,
+    JSON.stringify([
+      'clock-command:v1',
+      scope.companyId,
+      scope.deviceId,
+      scope.operatorId,
+      fingerprint,
+    ]),
+    'clock',
+  );
+}
+
+// قراءة فقط: إعادة المحاولة عند سقف المسح تجد الرد المكتمل دون claim جديد.
+async function readCompletedClock(
+  database: TenantWrappers,
+  hash: EmployeeCardHash,
+  scope: CardClockScope,
+  idem: { readonly key: string; readonly fingerprint: string },
+): Promise<ClockResult | null> {
+  const fingerprint = boundClockFingerprint(hash, scope, idem.fingerprint);
+  return database.withTenant(
+    scope.companyId,
+    async (tx) => {
+      const [row] = await tx.execute<{ body: unknown }>(sql`
+        SELECT response_body AS body FROM idempotency_keys
+        WHERE scope_type='COMPANY' AND scope_id=app_company_id()
+          AND operation='clock-by-card' AND key=${idem.key}
+          AND request_fingerprint=${fingerprint} AND response_status=200`);
+      return row === undefined ? null : storedClock(row.body);
+    },
+    { userId: scope.operatorId },
+  );
+}
+
+function storedClock(body: unknown): ClockResult | null {
+  if (!isClockResult(body)) return null;
+  return body;
+}
+
+function isClockResult(body: unknown): body is ClockResult {
+  if (body === null || typeof body !== 'object') return false;
+  const row = body as Record<string, unknown>;
+  const exceptions = row['exceptions'];
+  return (
+    typeof row['session_id'] === 'string' &&
+    (row['operation'] === 'CLOCK_IN' || row['operation'] === 'CLOCK_OUT') &&
+    typeof row['working_date'] === 'string' &&
+    typeof row['accepted_at'] === 'string' &&
+    Array.isArray(exceptions) &&
+    exceptions.every(clockException) &&
+    typeof row['late_minutes'] === 'number' &&
+    (row['missed_session_id'] === null || typeof row['missed_session_id'] === 'string')
+  );
+}
+
+function clockException(value: unknown): value is 'NONE' | 'OUT_OF_RANGE' {
+  return value === 'NONE' || value === 'OUT_OF_RANGE';
 }

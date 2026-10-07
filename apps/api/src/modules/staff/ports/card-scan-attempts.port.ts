@@ -9,11 +9,12 @@ export interface CardScanAttempts {
   /**
    * يقرأ السقف قبل أي بحث عن الكارت. إعادة مفتاح مكتمل بنفس البصمة لا تُحتسب ولا تُمنع.
    * الفحص لا يحجز الخانة، فدفعة متزامنة قد تتجاوز السقف قليلاً قبل الاحتساب.
+   * علامة الاكتمال HMAC لغرض مستقل، فبصمة الطلب غير المفتاحية لا تُكتب في Redis.
    *
    * @param companyId الشركة
    * @param deviceId الجهاز المزدوج
    * @param idempotencyKey مفتاح منع التكرار
-   * @param fingerprint بصمة الطلب
+   * @param fingerprint بصمة الطلب؛ تدخل المفتاح السري ولا تُكتب في Redis كما هي
    * @returns open تحت السقف، replay لمفتاح مكتمل، limited مع الثواني الباقية في الشباك
    */
   inspect(
@@ -31,11 +32,12 @@ export interface CardScanAttempts {
   recordFailure(companyId: string, deviceId: string): Promise<void>;
   /**
    * يثبت اكتمال المفتاح حتى لا تُحتسب إعادته داخل الشباك.
+   * الفشل يعني أن العلامة لم تُحفظ؛ المستدعي يقرر إن كانت الحركة نفسها قد تمّت.
    *
    * @param companyId الشركة
    * @param deviceId الجهاز الذي أتم المسح
    * @param idempotencyKey مفتاح منع التكرار
-   * @param fingerprint بصمة الطلب المكتمل
+   * @param fingerprint بصمة الطلب المكتمل؛ تدخل HMAC ولا تُكتب في Redis كما هي
    */
   complete(
     companyId: string,

@@ -10,6 +10,11 @@ export interface CardClockScope {
   readonly sessionId: string;
   readonly sessionDeadline: Date;
 }
+/** مفتاح المسح وبصمة جسمه قبل ربطها بالجهاز والعامل داخل HMAC الساعة. */
+export interface CardClockIdempotency {
+  readonly key: string;
+  readonly fingerprint: string;
+}
 /** حقائق الجلسة المحمّلة بعد الأقفال؛ لا ربط passkey ولا نافذة QR في مسار الكارت. */
 export interface CardClockContext {
   readonly timezone: string;
@@ -59,6 +64,14 @@ export interface CardClockTransaction {
 }
 /** المنفذ يحمي قفل الكارت والحالة والأهلية والكتابة داخل معاملة واحدة. */
 export interface CardClockTransactions {
+  /**
+   * يعيد الحركة المخزّنة لمفتاح مكتمل بنفس البصمة المربوطة بالجهاز والعامل عندما يغيب مؤشر Redis، دون كتابة.
+   *
+   * @param scope نطاق الجهاز والعامل
+   * @param idem مفتاح منع التكرار وبصمة الطلب
+   * @returns الحركة المخزّنة، أو null إن لم تكتمل نفس البصمة
+   */
+  completed(scope: CardClockScope, idem: CardClockIdempotency): Promise<ClockResult | null>;
   /**
    * يحدد الموظف بقراءة الكارت ثم يقفل State والشركة والعضويات والجهاز والموظف والفرع، ويثبت الكارت قبل الحركة.
    *

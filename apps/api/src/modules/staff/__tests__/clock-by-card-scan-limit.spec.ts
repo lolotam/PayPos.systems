@@ -4,19 +4,14 @@ import { Writable } from 'node:stream';
 import { deriveEmployeeCardKey } from '@pospay/auth';
 import { errorEnvelope } from '@pospay/contracts';
 import { errorMessages } from '@pospay/i18n';
-import { createLogger } from '@pospay/observability';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { startHarness, type Harness } from '../../../../test/harness.ts';
-import { API_LOG_EVENTS } from '../../../shared/log-events.ts';
-import type { RateLimiter } from '../../../shared/ports/rate-limiter.port.ts';
 import { createEmployeeCardHash } from '../persistence/employee-card-hash.ts';
 import {
   CARD_SCAN_FAILURES_PER_WINDOW,
   CARD_SCAN_WINDOW_SECONDS,
-  createCardScanAttempts,
 } from '../persistence/card-scan-attempts.ts';
-import { CardScanAttemptsUnavailableError } from '../ports/card-scan-attempts.port.ts';
 
 const STAFF_ORIGIN = 'http://localhost:5173';
 const CARD = 'CARD-LIMIT-1';
@@ -235,44 +230,15 @@ async function expectBlocked(token: string, cookie: string, deviceId: string, co
   expect(Math.abs(header - ttl)).toBeLessThanOrEqual(2);
   expect(sqlText).not.toContain('employee_cards');
   expect(sqlText).not.toContain('INSERT INTO');
+  expect(sqlText).not.toContain('UPDATE idempotency_keys');
   expect(sqlText).not.toContain('audit_log');
-  expect(sqlText).not.toContain('idempotency_keys');
+  expect(sqlText).not.toContain('attendance_sessions');
   expect(sqlText).not.toContain('outbox');
   expect(await attendanceEffects()).toEqual(before);
   const line = logs.slice(from);
   expect(line).toContain('card scan limited');
   expect(line).not.toContain(code);
 }
-
-it('logs the redis error and fails the scan closed', async () => {
-  let line = '';
-  const logger = createLogger('warn', {
-    destination: new Writable({
-      write(chunk, _encoding, done) {
-        line += String(chunk);
-        done();
-      },
-    }),
-    events: API_LOG_EVENTS,
-  });
-  const cause = Object.assign(new Error('redis://:secret@host NO-SUCH-CARD'), {
-    code: 'ECONNREFUSED',
-  });
-  const broken: RateLimiter = {
-    hit: () => Promise.reject(cause),
-    remember: () => Promise.reject(cause),
-    remembered: () => Promise.reject(cause),
-    count: () => Promise.reject(cause),
-    remaining: () => Promise.reject(cause),
-  };
-  await expect(
-    createCardScanAttempts(broken, logger).inspect('company', 'device', 'key', 'fingerprint'),
-  ).rejects.toBeInstanceOf(CardScanAttemptsUnavailableError);
-  expect(line).toContain('card scan redis unavailable');
-  expect(line).toContain('ECONNREFUSED');
-  expect(line).not.toContain('NO-SUCH-CARD');
-  expect(line).not.toContain('secret');
-});
 
 it('rejects the 11th failed scan in the window and writes nothing', async () => {
   expect(CARD_SCAN_FAILURES_PER_WINDOW).toBe(10);
@@ -321,6 +287,52 @@ it('counts another device separately', async () => {
   expect(other.statusCode).toBe(200);
 });
 
+it('returns the movement when the completion marker cannot be stored', async () => {
+  await resetScans(deviceA);
+  const key = randomUUID();
+  await whenScanMarkerFails(async () => {
+    const from = logs.length;
+    const before = await attendanceEffects();
+    const first = await send({ authorization: `Device ${tokenA}`, cookie: cookieA, key });
+    expect(first.statusCode).toBe(200);
+    const issued = await attendanceEffects();
+    expect(issued).not.toEqual(before);
+    const warned = logs.slice(from);
+    expect(occurrences(warned, 'card scan completion unrecorded')).toBe(1);
+    expect(occurrences(warned, 'card scan redis unavailable')).toBe(1);
+    expect(warned).not.toContain(CARD);
+    const replay = await send({ authorization: `Device ${tokenA}`, cookie: cookieA, key });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(first.json());
+    expect(await attendanceEffects()).toEqual(issued);
+    expect(occurrences(logs.slice(from), 'card scan completion unrecorded')).toBe(1);
+  });
+});
+
+it('replays the stored scan at the limit when the marker is missing', async () => {
+  await resetScans(deviceA);
+  const key = randomUUID();
+  await whenScanMarkerFails(async () => {
+    const first = await send({ authorization: `Device ${tokenA}`, cookie: cookieA, key });
+    expect(first.statusCode).toBe(200);
+    await burn(tokenA, cookieA);
+    const issued = await attendanceEffects();
+    const replay = await send({ authorization: `Device ${tokenA}`, cookie: cookieA, key });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(first.json());
+    expect(await attendanceEffects()).toEqual(issued);
+    const changed = await send({
+      authorization: `Device ${tokenA}`,
+      cookie: cookieA,
+      key,
+      code: 'OTHER-CARD-99',
+    });
+    expect(changed.statusCode).toBe(429);
+    expect(await attendanceEffects()).toEqual(issued);
+    await expectBlocked(tokenA, cookieA, deviceA, 'NOT-REAL-CARD');
+  });
+});
+
 it('fails a scan closed when redis is unavailable', async () => {
   const before = await attendanceEffects();
   const start = h.calls.statements.length;
@@ -347,3 +359,27 @@ it('fails a scan closed when redis is unavailable', async () => {
     await h.redis.connect();
   }
 });
+
+/** أول حفظ لعلامة اكتمال المسح يفشل مرة واحدة، ثم Redis يرجع لسلوكه. */
+async function whenScanMarkerFails<T>(run: () => Promise<T>): Promise<T> {
+  const redis = h.redis;
+  const original = redis.set;
+  let failed = false;
+  redis.set = function patched(this: typeof redis, ...args: unknown[]) {
+    const name = String(args[0]);
+    if (!failed && name.includes('rate:done:card-scan:')) {
+      failed = true;
+      return Promise.reject(new Error('redis down'));
+    }
+    return original.apply(this, args as never);
+  } as typeof redis.set;
+  try {
+    return await run();
+  } finally {
+    redis.set = original;
+  }
+}
+
+function occurrences(text: string, needle: string): number {
+  return text.split(needle).length - 1;
+}

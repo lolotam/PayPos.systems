@@ -21,7 +21,6 @@ import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-empl
 import { createCardClockTransactions } from './persistence/card-clock-transactions.ts';
 import { createCardIssueAttempts } from './persistence/card-issue-attempts.ts';
 import { createCardScanAttempts } from './persistence/card-scan-attempts.ts';
-import type { CardScanAttempts } from './ports/card-scan-attempts.port.ts';
 import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
 import { createEmployeeCardHash, type EmployeeCardHash } from './persistence/employee-card-hash.ts';
 import type { EmployeeCardsPort } from './ports/employee-cards.port.ts';
@@ -115,9 +114,10 @@ export function cardProviders(
   const hash = createEmployeeCardHash(cardKey);
   const cards = createEmployeeCards(database, ids, systemClock, access, hash);
   // بلا Redis الإصدار والمسح يفشلان مغلقين؛ الإلغاء ومسارا QR وpasskey خارج هذا الحد.
-  const scans = redis === undefined ? null : createCardScanAttempts(createRedisRateLimiter(redis));
   return [
-    clockByCardProvider(database, ids, hash, scans),
+    redis === undefined
+      ? { provide: ClockByCard, useValue: null }
+      : openClock(database, ids, hash, redis, logger),
     {
       provide: IssueEmployeeCard,
       useValue: redis === undefined ? null : openIssue(cards, redis, hash, logger),
@@ -127,13 +127,23 @@ export function cardProviders(
   ];
 }
 
-function clockByCardProvider(
+function openClock(
   database: Parameters<typeof createCardClockTransactions>[0],
   ids: Parameters<typeof createCardClockTransactions>[1],
-  hash: Parameters<typeof createCardClockTransactions>[2],
-  scans: CardScanAttempts | null,
+  hash: EmployeeCardHash,
+  redis: Redis,
+  logger: Logger | undefined,
 ): Provider {
-  if (scans === null) return { provide: ClockByCard, useValue: null };
+  const attempts = createCardScanAttempts(
+    createRedisRateLimiter(redis),
+    hash,
+    (error, companyId, deviceId) => {
+      logger?.warn(
+        { err: error, company_id: companyId, device_id: deviceId },
+        'card scan redis unavailable',
+      );
+    },
+  );
   return {
     provide: ClockByCard,
     useFactory: (sessions: Parameters<typeof createCardClockTransactions>[3]) =>
@@ -141,7 +151,13 @@ function clockByCardProvider(
         createCardClockTransactions(database, ids, hash, sessions),
         systemClock,
         ids,
-        scans,
+        attempts,
+        (companyId, deviceId) => {
+          logger?.warn(
+            { company_id: companyId, device_id: deviceId },
+            'card scan completion unrecorded',
+          );
+        },
       ),
     inject: [operatorSessionsToken()],
   };

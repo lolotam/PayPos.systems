@@ -71,14 +71,18 @@ it('serializes simultaneous QR and card scans and shares dedupe in both directio
 it('rolls back movement, state, audit, outbox and idempotency together', async () => {
   f.setNow(new Date('2026-10-06T05:00:00Z'));
   const before = await snapshot();
+  let calls = 0;
   const wrappers: TenantWrappers = {
     ...f.database,
     withTenant: (company, work, options) =>
       f.database.withTenant(
         company,
         async (tx) => {
-          await work(tx);
-          throw new Error('SYNTHETIC_ROLLBACK');
+          const result = await work(tx);
+          calls += 1;
+          // القراءة الأولى بلا كتابة. فشل المعاملة التالية يرجع الحركة والتدقيق والحدث والمفتاح معاً.
+          if (calls > 1) throw new Error('SYNTHETIC_ROLLBACK');
+          return result;
         },
         options,
       ),
@@ -88,6 +92,7 @@ it('rolls back movement, state, audit, outbox and idempotency together', async (
     f.clock,
     f.ids,
     unlimitedCardScans,
+    () => undefined,
   );
   await expect(clock.execute(f.scope, { card_code: CARD_CODE }, f.idem())).rejects.toThrow(
     'SYNTHETIC_ROLLBACK',
