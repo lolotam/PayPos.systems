@@ -210,7 +210,6 @@ async function cardAttendanceFacts(
     timezone: branch.timezone,
     geo: branch.lat === null || branch.lng === null ? null : { lat: branch.lat, lng: branch.lng },
     // جهاز الاستقبال ثابت بلا قراءة موقع؛ تُسجَّل NONE كما في غياب موقع الهاتف (CB-Q1).
-    // TODO(spec) CB-Q1: a fixed reception device may deserve OK; the owner has not settled it.
     location: undefined,
     lastAt: state.last_accepted_scan_at === null ? null : new Date(state.last_accepted_scan_at),
     lastResult: state.last_result,

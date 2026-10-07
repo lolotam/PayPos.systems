@@ -1,10 +1,7 @@
-import { t } from '@pospay/i18n';
-import { CircleAlert, EmptyState, WifiOff } from '@pospay/ui';
 import { StaffLoginScreen } from '@/staff-login/ui/staff-login-screen';
 import { useStaffLogin } from '@/staff-login/api/use-staff-login';
 import { AttendanceHome } from '@/attendance/ui/attendance-home';
-import { ClockByCardScreen } from '@/attendance/ui/clock-by-card-screen';
-import { useLocale } from '@/shared/locale/locale-context';
+import { CardClockAvailability } from '@/attendance/ui/card-clock-availability';
 
 export function ReceptionBody({
   branchId,
@@ -25,37 +22,4 @@ export function ReceptionBody({
       />
     </div>
   );
-}
-
-function CardClockAvailability({
-  online,
-  signedIn,
-  retry,
-}: {
-  online: boolean;
-  signedIn: boolean;
-  retry: () => Promise<void>;
-}) {
-  const locale = useLocale();
-  if (!online) {
-    return (
-      <EmptyState
-        role="status"
-        tone="warning"
-        icon={<WifiOff />}
-        title={t(locale, 'pos.cardOffline')}
-      />
-    );
-  }
-  if (!signedIn) {
-    return (
-      <EmptyState
-        role="status"
-        tone="warning"
-        icon={<CircleAlert />}
-        title={t(locale, 'pos.cardSignedOut')}
-      />
-    );
-  }
-  return <ClockByCardScreen onRejected={retry} />;
 }

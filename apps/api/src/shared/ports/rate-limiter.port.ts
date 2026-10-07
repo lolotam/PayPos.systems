@@ -25,4 +25,18 @@ export interface RateLimiter {
    * @returns true لو العلامة موجودة
    */
   remembered(key: string): Promise<boolean>;
+  /**
+   * يقرأ العدد الحالي بلا زيادة حتى يُحتسب الفشل بعد معرفة النتيجة.
+   *
+   * @param key المفتاح
+   * @returns العدد في الشباك، أو صفر إن لم يبدأ
+   */
+  count(key: string): Promise<number>;
+  /**
+   * الثواني الباقية من الشباك الثابت لرأس Retry-After.
+   *
+   * @param key المفتاح
+   * @returns الثواني الباقية، أو صفر إن لم يبدأ الشباك
+   */
+  remaining(key: string): Promise<number>;
 }

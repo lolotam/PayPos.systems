@@ -6,7 +6,7 @@ export interface ErrorEnvelope {
 
 export type Failure =
   | { kind: 'network' }
-  | { kind: 'http'; status: number; envelope: ErrorEnvelope | null };
+  | { kind: 'http'; status: number; envelope: ErrorEnvelope | null; retryAfter?: number };
 
 export type CallResult<T> = { ok: true; data: T } | { ok: false; failure: Failure };
 
@@ -22,14 +22,26 @@ export async function call<T>(run: () => Promise<Raw<T>>): Promise<CallResult<T>
     if (result.response.ok && result.data !== undefined) {
       return { ok: true, data: result.data };
     }
-    return { ok: false, failure: httpFailure(result.response.status, result.error) };
+    return { ok: false, failure: httpFailure(result.response, result.error) };
   } catch {
     return { ok: false, failure: { kind: 'network' } };
   }
 }
 
-function httpFailure(status: number, error: unknown): Failure {
-  return { kind: 'http', status, envelope: readEnvelope(error) };
+function httpFailure(response: Response, error: unknown): Failure {
+  const retryAfter = retryAfterSeconds(response);
+  return {
+    kind: 'http',
+    status: response.status,
+    envelope: readEnvelope(error),
+    ...(retryAfter === undefined ? {} : { retryAfter }),
+  };
+}
+
+function retryAfterSeconds(response: Response): number | undefined {
+  const header = response.headers.get('retry-after');
+  if (header === null || !/^\d+$/.test(header)) return undefined;
+  return Number(header);
 }
 
 function readEnvelope(value: unknown): ErrorEnvelope | null {

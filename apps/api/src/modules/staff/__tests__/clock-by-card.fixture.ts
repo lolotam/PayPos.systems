@@ -7,11 +7,17 @@ import { ClockByCard } from '../use-cases/clock-by-card/clock-by-card.ts';
 import { IssueEmployeeCard } from '../use-cases/issue-employee-card/issue-employee-card.usecase.ts';
 import { RevokeEmployeeCard } from '../use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
 import type { CardIssueAttempts } from '../ports/card-issue-attempts.port.ts';
+import type { CardScanAttempts } from '../ports/card-scan-attempts.port.ts';
 
 // كود اصطناعي فقط؛ لا يخص أي بطاقة حقيقية.
 // حد محاولات الإصدار له اختباره في employee-card-issue-limit.spec.ts؛ هنا يقبل الكل.
 const unlimitedIssueAttempts: CardIssueAttempts = {
   take: () => Promise.resolve('accepted'),
+  complete: () => Promise.resolve(),
+};
+export const unlimitedCardScans: CardScanAttempts = {
+  inspect: () => Promise.resolve({ outcome: 'open' }),
+  recordFailure: () => Promise.resolve(),
   complete: () => Promise.resolve(),
 };
 
@@ -77,6 +83,7 @@ export async function clockByCardFixture(): Promise<CardFixture> {
     createCardClockTransactions(f.database, f.ids, cardHash, f.auth.staff),
     f.clock,
     f.ids,
+    unlimitedCardScans,
   );
   const admin = createEmployeeCards(f.database, f.ids, f.clock, access, cardHash);
   return {

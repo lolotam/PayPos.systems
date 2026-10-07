@@ -1,6 +1,16 @@
-import { Body, Controller, Header, HttpCode, Inject, Post, Req, SetMetadata } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Header,
+  HttpCode,
+  Inject,
+  Post,
+  Req,
+  Res,
+  SetMetadata,
+} from '@nestjs/common';
 import { clockByCardInput, type ClockByCardInput, type ClockAttendanceResult } from '@pospay/contracts';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { Authenticated } from '../../../shared/access.decorators.ts';
 import { ApiError } from '../../../shared/errors.ts';
@@ -8,7 +18,12 @@ import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.
 import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import { STAFF_POS_ORIGIN } from '../../../shared/staff-origin.token.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import { ClockByCard, AttendanceError } from '../use-cases/clock-by-card/clock-by-card.ts';
+import {
+  AttendanceError,
+  CardScanAttemptsUnavailableError,
+  CardScanLimitedError,
+  ClockByCard,
+} from '../use-cases/clock-by-card/clock-by-card.ts';
 
 @Controller('devices/me')
 export class ClockByCardController {
@@ -24,6 +39,7 @@ export class ClockByCardController {
   async submit(
     @Body(new ZodValidationPipe(clockByCardInput)) input: ClockByCardInput,
     @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
     @Idempotency() idem: IdempotencyInput,
   ): Promise<ClockAttendanceResult> {
     if (this.origin === null || request.headers.origin !== this.origin)
@@ -34,7 +50,7 @@ export class ClockByCardController {
     try {
       return await this.clock.execute(scope, input, idem);
     } catch (error) {
-      throw cardFailure(error);
+      throw cardFailure(error, request, reply);
     }
   }
 }
@@ -55,7 +71,13 @@ function cardScope(request: FastifyRequest) {
   };
 }
 
-function cardFailure(error: unknown): unknown {
+function cardFailure(error: unknown, request: FastifyRequest, reply: FastifyReply): unknown {
+  if (error instanceof CardScanLimitedError) {
+    request.log.warn({ outcome: 'limited' }, 'card scan limited');
+    void reply.header('retry-after', String(error.remaining));
+    return new ApiError('TOO_MANY_REQUESTS');
+  }
+  if (error instanceof CardScanAttemptsUnavailableError) return new ApiError('NOT_READY');
   if (error instanceof AttendanceError) return new ApiError(error.code);
   if (operatorSessionEnded(error)) return new ApiError('UNAUTHENTICATED');
   return error;

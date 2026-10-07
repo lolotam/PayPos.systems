@@ -19,6 +19,8 @@ import { IssueEmployeeCard } from './use-cases/issue-employee-card/issue-employe
 import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
 import { createCardClockTransactions } from './persistence/card-clock-transactions.ts';
 import { createCardIssueAttempts } from './persistence/card-issue-attempts.ts';
+import { createCardScanAttempts } from './persistence/card-scan-attempts.ts';
+import type { CardScanAttempts } from './ports/card-scan-attempts.port.ts';
 import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
 import { createEmployeeCardHash } from './persistence/employee-card-hash.ts';
 import { createEmployeeCardAccess } from './persistence/employee-card-access.adapter.ts';
@@ -85,20 +87,12 @@ export function cardProviders(
   const access = createEmployeeCardAccess();
   const hash = createEmployeeCardHash(cardKey);
   const cards = createEmployeeCards(database, ids, systemClock, access, hash);
-  // بلا Redis الإصدار يفشل مغلقاً؛ الإلغاء لا يعتمد على الحد.
-  const attempts =
-    redis === undefined ? null : createCardIssueAttempts(createRedisRateLimiter(redis));
+  // بلا Redis الإصدار والمسح يفشلان مغلقين؛ الإلغاء ومسارا QR وpasskey خارج هذا الحد.
+  const limiter = redis === undefined ? null : createRedisRateLimiter(redis);
+  const attempts = limiter === null ? null : createCardIssueAttempts(limiter);
+  const scans = limiter === null ? null : createCardScanAttempts(limiter);
   return [
-    {
-      provide: ClockByCard,
-      useFactory: (sessions: Parameters<typeof createCardClockTransactions>[3]) =>
-        new ClockByCard(
-          createCardClockTransactions(database, ids, hash, sessions),
-          systemClock,
-          ids,
-        ),
-      inject: [operatorSessionsToken()],
-    },
+    clockByCardProvider(database, ids, hash, scans),
     {
       provide: IssueEmployeeCard,
       useValue: attempts === null ? null : new IssueEmployeeCard(cards, attempts),
@@ -106,4 +100,24 @@ export function cardProviders(
     { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },
     { provide: EMPLOYEE_CARD_ACCESS, useValue: access },
   ];
+}
+
+function clockByCardProvider(
+  database: Parameters<typeof createCardClockTransactions>[0],
+  ids: Parameters<typeof createCardClockTransactions>[1],
+  hash: Parameters<typeof createCardClockTransactions>[2],
+  scans: CardScanAttempts | null,
+): Provider {
+  if (scans === null) return { provide: ClockByCard, useValue: null };
+  return {
+    provide: ClockByCard,
+    useFactory: (sessions: Parameters<typeof createCardClockTransactions>[3]) =>
+      new ClockByCard(
+        createCardClockTransactions(database, ids, hash, sessions),
+        systemClock,
+        ids,
+        scans,
+      ),
+    inject: [operatorSessionsToken()],
+  };
 }

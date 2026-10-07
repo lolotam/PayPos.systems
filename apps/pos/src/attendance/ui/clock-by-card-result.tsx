@@ -1,4 +1,4 @@
-import { t } from '@pospay/i18n';
+import { t, type Locale } from '@pospay/i18n';
 import { CircleAlert, EmptyState } from '@pospay/ui';
 
 import { useLocale } from '@/shared/locale/locale-context';
@@ -11,17 +11,26 @@ const rejectionMessages = {
   unavailable: 'pos.networkError',
 } as const;
 
+function limitedTitle(locale: Locale, retryAfter: number | undefined): string {
+  const message = t(locale, 'pos.cardLimited');
+  return retryAfter === undefined ? message : `${message} (${retryAfter})`;
+}
+
 /** نتيجة المسح كما تعرضها الاستقبال: قبول أو رفض، بلا تفاصيل عن موظف أو كارت. */
 export function ClockByCardResult({ outcome }: { outcome: CardClockOutcome }) {
   const locale = useLocale();
   if (outcome.kind !== 'accepted') {
     if (outcome.kind === 'offline') return null;
+    const title =
+      outcome.kind === 'limited'
+        ? limitedTitle(locale, outcome.retryAfter)
+        : t(locale, rejectionMessages[outcome.kind]);
     return (
       <EmptyState
         role="alert"
         tone={outcome.kind === 'signed-out' ? 'warning' : 'danger'}
         icon={<CircleAlert />}
-        title={t(locale, rejectionMessages[outcome.kind])}
+        title={title}
       />
     );
   }

@@ -11,6 +11,7 @@ import { createRedisRateLimiter } from '../../../shared/adapters/redis-rate-limi
 import { ApiError } from '../../../shared/errors.ts';
 import type { RateLimiter } from '../../../shared/ports/rate-limiter.port.ts';
 import { EmployeeCardsController } from '../http/employee-cards.controller.ts';
+import { ClockByCard } from '../use-cases/clock-by-card/clock-by-card.ts';
 import {
   CARD_ISSUE_ATTEMPTS_PER_HOUR,
   createCardIssueAttempts,
@@ -165,6 +166,7 @@ it('closes issue without Redis and keeps revoke', () => {
   const database = {} as TenantWrappers;
   const closed = cardProviders(database, ids, cardKey, undefined);
   expect(provided(closed, IssueEmployeeCard)).toBeNull();
+  expect(provided(closed, ClockByCard)).toBeNull();
   expect(provided(closed, RevokeEmployeeCard)).toBeInstanceOf(RevokeEmployeeCard);
   expect(provided(closed, EMPLOYEE_CARD_ACCESS)).not.toBeNull();
   const open = cardProviders(database, ids, cardKey, f.h.redis);
@@ -230,6 +232,8 @@ it('fails closed when the limiter is unavailable', async () => {
     hit: () => Promise.reject(new Error('redis down')),
     remember: () => Promise.reject(new Error('redis down')),
     remembered: () => Promise.reject(new Error('redis down')),
+    count: () => Promise.reject(new Error('redis down')),
+    remaining: () => Promise.reject(new Error('redis down')),
   };
   const controller = new EmployeeCardsController(
     new IssueEmployeeCard(unusedCards(), createCardIssueAttempts(broken)),

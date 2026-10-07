@@ -1,6 +1,6 @@
 import { clockAttendanceResult, type ClockAttendanceResult } from '@pospay/contracts';
 
-import { call } from '@/shared/api/call';
+import { call, type Failure } from '@/shared/api/call';
 import { staffApiClient } from '@/shared/api/client';
 
 /** نتيجة مسح الكارت كما تعرضها شاشة الاستقبال؛ الرفض لا يحمل تفاصيل عن موظف. */
@@ -9,6 +9,7 @@ export type CardClockOutcome =
   | { kind: 'refused' }
   | { kind: 'signed-out' }
   | { kind: 'invalid' }
+  | { kind: 'limited'; retryAfter?: number }
   | { kind: 'offline' }
   | { kind: 'unavailable' };
 
@@ -28,8 +29,19 @@ export async function clockByCard(
   );
   if (!outcome.ok) {
     if (outcome.failure.kind === 'network') return { kind: 'unavailable' };
-    if (outcome.failure.status === 401) return { kind: 'signed-out' };
-    return outcome.failure.status === 403 ? { kind: 'refused' } : { kind: 'invalid' };
+    return mapped(outcome.failure);
   }
   return { kind: 'accepted', result: clockAttendanceResult.parse(outcome.data) };
+}
+
+function mapped(failure: Extract<Failure, { kind: 'http' }>): CardClockOutcome {
+  if (failure.status === 401) return { kind: 'signed-out' };
+  if (failure.status === 403) return { kind: 'refused' };
+  if (failure.status === 400 || failure.status === 404 || failure.status === 422) {
+    return { kind: 'invalid' };
+  }
+  if (failure.status !== 429) return { kind: 'unavailable' };
+  return failure.retryAfter === undefined
+    ? { kind: 'limited' }
+    : { kind: 'limited', retryAfter: failure.retryAfter };
 }

@@ -5,6 +5,7 @@ import {
   CARD_CODE,
   cardHash,
   clockByCardFixture,
+  unlimitedCardScans,
   type CardFixture,
 } from './clock-by-card.fixture.ts';
 import { createCardClockTransactions } from '../persistence/card-clock-transactions.ts';
@@ -86,6 +87,7 @@ it('rolls back movement, state, audit, outbox and idempotency together', async (
     createCardClockTransactions(wrappers, f.ids, cardHash, f.auth.staff),
     f.clock,
     f.ids,
+    unlimitedCardScans,
   );
   await expect(clock.execute(f.scope, { card_code: CARD_CODE }, f.idem())).rejects.toThrow(
     'SYNTHETIC_ROLLBACK',

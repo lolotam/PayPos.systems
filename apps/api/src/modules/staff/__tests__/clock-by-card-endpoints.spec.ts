@@ -166,6 +166,16 @@ afterAll(async () => {
   await h?.close();
 });
 
+it('refuses a pure device with no operator and writes nothing', async () => {
+  const before = await attendanceEffects();
+  const response = await send({ authorization: `Device ${deviceToken}` });
+  expect([response.statusCode, errorEnvelope.parse(response.json()).code]).toEqual([
+    401,
+    'UNAUTHENTICATED',
+  ]);
+  expect(await attendanceEffects()).toEqual(before);
+});
+
 it('clocks by card on the paired device with a signed-in permitted operator', async () => {
   const response = await send({
     authorization: `Device ${deviceToken}`,
