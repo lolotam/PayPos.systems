@@ -62,7 +62,8 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
 13. **أوفلاين:** اقفل الإنترنت ← القسم كله بيتبدل بـ **تسجيل الحضور بالكارت يحتاج اتصالاً بالإنترنت. اتصل وأعد المسح.**
     وأي مسح مستني بيتلغي والحقل يتمسح. مفيش طابور ولا حفظ على الجهاز. رجّع الإنترنت ← الحقل يرجع.
 14. **خروج المشغّل:** المشغّل يخرج أو جلسته تتبدل أو تنتهي ← الحقل والنتيجة يتمسحوا ويظهر سطر الخروج. لو خرج والمسح لسه
-    بيتنفذ ← السيرفر بيرفض (401) ومفيش حضور ولا تدقيق، والشاشة **تم تسجيل خروج المشغّل…** وتعيد فحص الجلسة.
+    بيتنفذ، الأسبق على القفل هو اللي بيكسب: لو الخروج سبق ← السيرفر بيرفض المسح (401) ومفيش حضور ولا تدقيق، والشاشة
+    **تم تسجيل خروج المشغّل…** وتعيد فحص الجلسة. لو المسح سبق ← الخروج بيستنى لحد ما الحضور يتحفظ، والمسح ينجح عادي.
 15. **الصلاحية:** مشغّل مالوش `clock:attendance:branch` على فرع الجهاز ← **لا تملك صلاحية تسجيل حضور الموظفين بالكارت
     على هذا الجهاز.** (403). متصفح عادي من غير جهاز مربوط، أو جهاز من غير مشغّل ← 401.
 
@@ -123,8 +124,9 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
     again."; a pending scan is cancelled and the field cleared. Nothing is queued or stored on the device. Back online → the
     field returns.
 14. **Operator sign-out:** the operator signs out, is replaced or expires → the field and result clear and the signed-out line
-    shows. Signing out while a scan is still running → the server refuses (401), no attendance and no audit, and the screen
-    shows "The operator is signed out…" and rechecks the session.
+    shows. Signing out while a scan is still running: whichever takes the shared session lock first wins. Sign-out
+    first → the scan is refused (401), no attendance and no audit, and the screen shows "The operator is signed out…" and
+    rechecks the session. Scan first → the sign-out waits for the attendance to commit, and the scan succeeds (200).
 15. **Permission:** an operator without `clock:attendance:branch` at the device's branch → "You do not have permission to clock
     staff by card on this device." (403). An ordinary browser without a paired device, or a device with no operator → 401.
 
