@@ -64,7 +64,7 @@ the device clock and for issue/revoke/list under
 `/v1/businesses/{businessId}/employees/{employeeId}/cards`.
 Revocation has no request body; its card ID is a validated path parameter.
 
-List, issue, and revoke authorize `manage:employees:business` at the employee's persisted primary branch and every open branch attachment. A business-scope ALLOW does not override a branch-scope DENY on any of those branches. Issue and revoke hold the existing company and caller-membership locks, lock the employee row, read those branches, and only then decide, so a concurrent branch move or permission change cannot pass the check. A denied caller receives the same NOT_FOUND as a missing employee. The staff feature is reported as disabled only after that branch check allows management.
+List, issue, and revoke authorize `manage:employees:business` at the employee's persisted primary branch and every open branch attachment. A business-scope ALLOW does not override a branch-scope DENY on any of those branches. On a new idempotency key, issue and revoke claim that key, then hold the existing company and caller-membership locks, lock the employee row, read those branches, and only then decide, so a concurrent branch move or permission change cannot pass the check. The audit row is written in that same callback, before the response is stored. A replay of the stored success returns that body and does not decide again; a new key decides again. The revoke fingerprint includes the card id, so the same key with another card is rejected. A denied caller receives the same NOT_FOUND as a missing employee. The staff feature is reported as disabled only after that branch check allows management.
 
 ### Business rules, schema and events
 
@@ -94,7 +94,11 @@ reused transition/dedupe boundaries through the card entry point. Real migrated 
 tests cover card clock-in and clock-out, the 5-minute dedupe shared with the passkey path,
 the 16 h rule through the card, revoked and unknown cards answering identically, another
 company's card, a branch the employee is not attached to, issue/revoke idempotency and
-audit, the Device-without-permission and non-Device refusals, RLS reads/writes plus the two
+audit (replay of the same body, 422 on a changed card code, the card id inside the revoke
+fingerprint, one audit row per issue and per revoke, a revoked row when reissue replaces the
+active card, and no card-code fragment beyond the stored suffix), HTTP 409 when another
+employee holds the active code, HTTP 404 for an already-revoked or another employee's card,
+the Device-without-permission and non-Device refusals, RLS reads/writes plus the two
 partial-uniqueness rules. Card list, issue, and revoke with business ALLOW plus a branch DENY
 on the employee's branch match a missing employee; ALLOW on that branch still permits all three. POS tests cover the scanner input (type then Enter), the ignored
 second scan while pending, the offline notice, and ar/en results.

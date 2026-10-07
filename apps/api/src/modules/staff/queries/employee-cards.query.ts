@@ -49,6 +49,17 @@ async function persistedBranches(
   return employee === undefined ? null : employee.branch_ids;
 }
 
+/** شاشة كارت الموظف: الكارت النشط فقط، بلا الكود الخام. */
+export function activeEmployeeCardStatement(
+  companyId: string,
+  businessId: string,
+  employeeId: string,
+) {
+  return sql`SELECT id,employee_id,card_code_suffix,issued_at,revoked_at FROM employee_cards
+    WHERE company_id=${companyId} AND business_id=${businessId} AND employee_id=${employeeId}
+      AND revoked_at IS NULL`;
+}
+
 async function activeCard(tx: Tx, companyId: string, businessId: string, employeeId: string) {
   const [row] = await tx.execute<{
     id: string;
@@ -56,10 +67,7 @@ async function activeCard(tx: Tx, companyId: string, businessId: string, employe
     card_code_suffix: string;
     issued_at: Date;
     revoked_at: Date | null;
-  }>(sql`
-    SELECT id,employee_id,card_code_suffix,issued_at,revoked_at FROM employee_cards
-    WHERE company_id=${companyId} AND business_id=${businessId} AND employee_id=${employeeId}
-      AND revoked_at IS NULL`);
+  }>(activeEmployeeCardStatement(companyId, businessId, employeeId));
   if (row === undefined) return null;
   return {
     id: row.id,
