@@ -76,9 +76,33 @@ export function createEmployeeCards(
 }
 
 async function assertManage(tx: Tx, access: EmployeeCardAccess, scope: EmployeeCardScope) {
-  const decision = await access.lock(tx, scope.companyId, scope.operatorId, scope.businessId);
-  if (!decision.manage) throw new EmployeeCardError('FORBIDDEN');
+  await access.lock(tx, scope.companyId, scope.operatorId, scope.businessId);
+  const branchIds = await lockedEmployeeBranchIds(tx, scope);
+  if (branchIds === null) throw new EmployeeCardError('NOT_FOUND');
+  const decision = await access.read(
+    tx,
+    scope.companyId,
+    scope.operatorId,
+    scope.businessId,
+    branchIds,
+  );
+  if (!decision.manage) throw new EmployeeCardError('NOT_FOUND');
   if (!decision.featureEnabled) throw new EmployeeCardError('FEATURE_DISABLED');
+}
+
+async function lockedEmployeeBranchIds(
+  tx: Tx,
+  scope: EmployeeCardScope,
+): Promise<readonly string[] | null> {
+  const [employee] = await tx.execute<{ primary_branch_id: string }>(sql`
+    SELECT primary_branch_id FROM employees WHERE company_id=${scope.companyId}
+      AND business_id=${scope.businessId} AND id=${scope.employeeId} AND deleted_at IS NULL
+      FOR UPDATE`);
+  if (employee === undefined) return null;
+  const branches = await tx.execute<{ branch_id: string }>(sql`
+    SELECT branch_id FROM employee_branches WHERE company_id=${scope.companyId}
+      AND employee_id=${scope.employeeId} AND "to" IS NULL`);
+  return [employee.primary_branch_id, ...branches.map((branch) => branch.branch_id)];
 }
 
 function boundFingerprint(

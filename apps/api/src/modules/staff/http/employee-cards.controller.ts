@@ -57,12 +57,11 @@ export class EmployeeCardsController {
     const access = this.access;
     const view = await this.database.withTenant(
       actor.companyId,
-      async (tx) => {
-        const decision = await access.read(tx, actor.companyId, actor.userId, businessId);
-        return readEmployeeCards(tx, actor.companyId, businessId, employeeId, decision);
-      },
+      (tx) =>
+        readEmployeeCards(tx, actor.companyId, actor.userId, businessId, employeeId, access),
       { userId: actor.userId },
     );
+    if (view === null) throw new ApiError('NOT_FOUND');
     if (view === 'FEATURE_DISABLED') throw new ApiError('FEATURE_DISABLED');
     return view;
   }

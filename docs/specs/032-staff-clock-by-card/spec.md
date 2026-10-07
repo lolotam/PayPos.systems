@@ -64,6 +64,8 @@ the device clock and for issue/revoke/list under
 `/v1/businesses/{businessId}/employees/{employeeId}/cards`.
 Revocation has no request body; its card ID is a validated path parameter.
 
+List, issue, and revoke authorize `manage:employees:business` at the employee's persisted primary branch and every open branch attachment. A business-scope ALLOW does not override a branch-scope DENY on any of those branches. Issue and revoke hold the existing company and caller-membership locks, lock the employee row, read those branches, and only then decide, so a concurrent branch move or permission change cannot pass the check. A denied caller receives the same NOT_FOUND as a missing employee. The staff feature is reported as disabled only after that branch check allows management.
+
 ### Business rules, schema and events
 
 `employee_cards` is a tenant table: `(company_id, id)` primary key, `business_id`,
@@ -93,7 +95,8 @@ tests cover card clock-in and clock-out, the 5-minute dedupe shared with the pas
 the 16 h rule through the card, revoked and unknown cards answering identically, another
 company's card, a branch the employee is not attached to, issue/revoke idempotency and
 audit, the Device-without-permission and non-Device refusals, RLS reads/writes plus the two
-partial-uniqueness rules. POS tests cover the scanner input (type then Enter), the ignored
+partial-uniqueness rules. Card list, issue, and revoke with business ALLOW plus a branch DENY
+on the employee's branch match a missing employee; ALLOW on that branch still permits all three. POS tests cover the scanner input (type then Enter), the ignored
 second scan while pending, the offline notice, and ar/en results.
 
 Gates: pnpm check without FORCE_COLOR; API/POS/admin builds; production startup smoke with
