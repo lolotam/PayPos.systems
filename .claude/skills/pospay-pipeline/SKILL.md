@@ -47,7 +47,8 @@ substitution the moment it happens, in the owner report. Never switch to a meter
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
 - **Parallel work: at most 3 tasks at once**, and only when their file paths are **disjoint**. Two tasks that touch the
   same file wait for each other. Each task has its own branch, worktree (`E:\Dev\Worktrees\PosPay\<branch>`) and PR.
-  Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands.
+  Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
+  slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
 - **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
 
 ---
@@ -134,13 +135,18 @@ prefix stable:
 
 On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
 
-1. Confirm the main CI run for the merged SHA is green (it pushes the images to GHCR).
+1. Confirm the main CI run for the merged SHA is green (it pushes the images to GHCR). The server pulled GHCR images
+   without a registry login on 2026-10-07; if a pull ever fails with an auth error, stop and ask the owner for a
+   read-only package token (`docker login ghcr.io`) — never copy images by hand.
 2. Take a backup: `docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env ghcr.io/lolotam/pospay-backup:<sha>`.
 3. If `deploy/` changed, fetch the new `docker-compose.staging-shared.yml` from GitHub raw at that SHA and compare its
    sha256 with the repo before replacing the server copy.
 4. `./staging-deploy.sh <full-sha>`; it migrates, starts, and proves `/ready`.
-5. On failure, redeploy the previous SHA at once, then diagnose. Never leave staging down while diagnosing.
-6. Point `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
+5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): run
+   `./staging-deploy.sh <previous-sha>` against the new schema, confirm `/ready`, then `./staging-deploy.sh <full-sha>`
+   again. A previous image that does not start on the new schema is a P1 against the migration.
+6. On failure, redeploy the previous SHA at once, then diagnose. Never leave staging down while diagnosing.
+7. Point `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
    local image is removed by the server's cleanup and the nightly backup then fails silently).
 
 The server is shared: never touch another project's containers, databases or files.

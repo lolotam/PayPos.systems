@@ -20,7 +20,8 @@
 
 **Named exceptions to the template:** PRs 1–3 are shells (no domain). PRs 29–31 are domain-only (pure functions,
 fixtures, no database or screen) and are the **one parallel track**: they touch no shared file and may run beside
-M1–M3. Everything else is serial.
+M1–M3. Everything else is serial by default; since 2026-10-07 (Waleed, constitution 2.3.0) up to three PRs may be in
+flight when their file paths are disjoint, each merged only when green.
 
 ---
 
