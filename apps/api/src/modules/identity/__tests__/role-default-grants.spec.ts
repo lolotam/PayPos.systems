@@ -80,6 +80,7 @@ async function applyReferenceMigrations() {
     '0059_2026-10-03_identity-role-followups.sql',
     '0064_2026-10-04_leave-default-bundles.sql',
     '0070_2026-10-04_leave-decision-access.sql',
+    '0087_2026-10-07_clock-by-card-defaults.sql',
   ].map((name) =>
     readFileSync(
       new URL(`../../../../../../packages/db/migrations/${name}`, import.meta.url),

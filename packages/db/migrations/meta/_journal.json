@@ -610,6 +610,13 @@
       "when": 1791225181660,
       "tag": "0086_2026-10-05_employee-cards-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1791343680676,
+      "tag": "0087_2026-10-07_clock-by-card-defaults",
+      "breakpoints": true
     }
   ]
 }

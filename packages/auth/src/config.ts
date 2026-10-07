@@ -7,6 +7,7 @@ import { twoFactor } from 'better-auth/plugins';
 import { createPersonalSessions, type PersonalSessions } from './personal-sessions.ts';
 import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-policy.ts';
 import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
+import { sessionFromRecord } from './staff-session-fence.ts';
 import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
 
 /**
@@ -115,7 +116,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
     throw error;
   }
   const auth = buildBetterAuth(options, database);
-  const staff = staffSessions(options, auth);
+  const staff = staffSessions(options, auth, database);
   const personal = personalSessions(options, auth);
   const passkeys = configuredPasskeys(options, auth, database);
   return {
@@ -284,12 +285,14 @@ function toLogEntry(
 function staffSessions(
   options: AuthOptions,
   auth: ReturnType<typeof buildBetterAuth>,
+  authDatabase: ReturnType<typeof createAuthDatabase>,
 ): StaffSessions {
   return createStaffSessions({
     database: createStaffOtpDatabase({
       url: options.databaseUrl,
       phoneLockKey: options.staffPhoneLockKey,
     }),
+    authDatabase,
     secret: options.secret,
     normalCookie: `${options.secureCookies ? '__Secure-' : ''}pospay.session_token`,
     now: () => options.clock?.now() ?? new Date(),
@@ -311,6 +314,12 @@ function staffSessions(
         ),
       find: async (token) =>
         (await (await auth.$context).internalAdapter.findSession(token))?.session ?? null,
+      findById: async (id) =>
+        sessionFromRecord(
+          await (
+            await auth.$context
+          ).adapter.findOne({ model: 'session', where: [{ field: 'id', value: id }] }),
+        ),
       remove: async (token) => {
         await (await auth.$context).internalAdapter.deleteSession(token);
       },

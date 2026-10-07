@@ -8,6 +8,8 @@ const labels = {
   clock: 'pospay:employee-card:clock-idempotency:v1',
   // علامة اكتمال المحاولة فقط. البصمة غير المفتاحية فيها الكود، فلا تصل Redis إلا داخل هذا HMAC.
   'issue-attempt': 'pospay:employee-card:issue-attempt:v1',
+  // علامة اكتمال المسح فقط. نفس السبب: بصمة الطلب تحمل الكود، وهاش بلا مفتاح يُخمَّن من Redis.
+  'scan-attempt': 'pospay:employee-card:scan-attempt:v1',
 } as const;
 
 // المفتاح الفرعي يصل جاهزاً من جذر التركيب؛ الفصل بين الأغراض يمنع إعادة استخدام بصمة كاعتماد.

@@ -1,10 +1,11 @@
 import { attendanceEn } from './attendance-en.js';
-import { clockCardAdminEn } from './clock-card-catalog.js';
+import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { employeeDocumentsEn } from './employee-documents-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
+import { salaryEn } from './salary-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
@@ -38,6 +39,7 @@ export const en = {
     createCustomersBranch: 'Create customers from this branch',
     manageDiscountLimitsBusiness: 'Administer personal discount limits',
     loginStaffBranch: 'Sign in to staff app',
+    clockAttendanceBranch: 'Clock staff in by card on a paired device',
     createCompaniesPlatform: 'Create companies on the platform',
     readServicesBusiness: 'Read business services',
     manageServicesBusiness: 'Manage business services',
@@ -47,22 +49,7 @@ export const en = {
     latinName: 'PosPay',
     arabicName: 'بوس باي',
   },
-  salary: {
-    title: 'Monthly basic salary',
-    lead: 'Basic salary only, without allowances or overtime. Setting the same date replaces its entry.',
-    date: 'Effective from',
-    amount: 'Monthly basic salary (KWD, 3 decimals)',
-    reason: 'Reason',
-    revision: 'Revision',
-    set: 'Set salary',
-    saved: 'Salary saved.',
-    invalid:
-      'Enter a valid date, a nonnegative KWD amount with 3 decimals and a reason (1–500 characters).',
-    readPermission: 'Read salary history',
-    managePermission: 'Set salary',
-    employeeAccessHint:
-      'Salaries are managed from the employee screen and also require employee-management access.',
-  },
+  salary: salaryEn,
   employeeCard: clockCardAdminEn,
   personalAttendance: attendanceEn,
   personalStaff: personalStaffEn,
@@ -394,6 +381,7 @@ export const en = {
     attendanceLoading: 'Loading a fresh attendance code…',
     attendanceRefreshLead: 'This code refreshes every 60 seconds. Scan it from your staff app.',
     branchLabel: 'Branch',
+    ...clockCardPosEn,
     unexpected: 'Something went wrong. Try again.',
     networkError: 'The server could not be reached. Try again.',
   },

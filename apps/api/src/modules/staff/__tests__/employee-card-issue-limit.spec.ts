@@ -11,6 +11,7 @@ import { createRedisRateLimiter } from '../../../shared/adapters/redis-rate-limi
 import { ApiError } from '../../../shared/errors.ts';
 import type { RateLimiter } from '../../../shared/ports/rate-limiter.port.ts';
 import { EmployeeCardsController } from '../http/employee-cards.controller.ts';
+import { ClockByCard } from '../use-cases/clock-by-card/clock-by-card.ts';
 import {
   CARD_ISSUE_ATTEMPTS_PER_HOUR,
   createCardIssueAttempts,
@@ -135,6 +136,7 @@ it('closes issue without Redis and keeps revoke', () => {
   const database = {} as TenantWrappers;
   const closed = cardProviders(database, ids, cardKey, undefined);
   expect(provided(closed, IssueEmployeeCard)).toBeNull();
+  expect(provided(closed, ClockByCard)).toBeNull();
   expect(provided(closed, RevokeEmployeeCard)).toBeInstanceOf(RevokeEmployeeCard);
   expect(provided(closed, EMPLOYEE_CARD_ACCESS)).not.toBeNull();
   const open = cardProviders(database, ids, cardKey, f.h.redis);
@@ -200,6 +202,7 @@ it('fails closed when the limiter is unavailable', async () => {
     hit: () => Promise.reject(new Error('redis down')),
     remember: () => Promise.reject(new Error('redis down')),
     remembered: () => Promise.reject(new Error('redis down')),
+    count: () => Promise.reject(new Error('redis down')),
     remaining: () => Promise.reject(new Error('redis down')),
   };
   const reported: unknown[] = [];
@@ -247,6 +250,7 @@ it('stores a keyed issue-attempt marker and the seconds left in the window', asy
   const seen: string[] = [];
   const limiter: RateLimiter = {
     hit: () => Promise.resolve(seen.length === 0),
+    count: () => Promise.resolve(0),
     remembered: (key) => Promise.resolve(seen.includes(key)),
     remember: (key) => {
       seen.push(key);
@@ -305,6 +309,7 @@ it('returns the card when completion marking fails and a same-key replay stays s
   let remembers = 0;
   const limiter: RateLimiter = {
     hit: () => Promise.resolve(true),
+    count: () => Promise.resolve(0),
     remembered: () => Promise.resolve(false),
     remember: () => {
       remembers += 1;

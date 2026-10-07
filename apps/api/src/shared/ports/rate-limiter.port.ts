@@ -26,6 +26,13 @@ export interface RateLimiter {
    */
   remembered(key: string): Promise<boolean>;
   /**
+   * يقرأ العدد الحالي بلا زيادة حتى يُحتسب الفشل بعد معرفة النتيجة.
+   *
+   * @param key المفتاح
+   * @returns العدد في الشباك، أو صفر إن لم يبدأ
+   */
+  count(key: string): Promise<number>;
+  /**
    * الثواني الباقية في شباك المفتاح، حتى يضبط المسار إعادة المحاولة على الشباك الحقيقي لا على قيمة ثابتة.
    *
    * @param key نفس مفتاح hit

@@ -319,6 +319,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/devices/me/clock-by-card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Clock a staff member by their attendance card on the paired device; requires the Device credential and a signed-in operator holding clock:attendance:branch. */
+        post: operations["clockByCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/cards": {
         parameters: {
             query?: never;
@@ -1441,6 +1458,9 @@ export interface components {
             late_minutes: number;
             /** Format: uuid */
             missed_session_id: string | null;
+        };
+        ClockByCardInput: {
+            card_code: string;
         };
         IssueEmployeeCardInput: {
             card_code: string;
@@ -3548,6 +3568,41 @@ export interface operations {
         };
         responses: {
             /** @description clockPersonalAttendance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockAttendanceResult"];
+                };
+            };
+            /** @description Error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    clockByCard: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockByCardInput"];
+            };
+        };
+        responses: {
+            /** @description Accepted attendance movement */
             200: {
                 headers: {
                     [name: string]: unknown;

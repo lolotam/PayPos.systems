@@ -17,8 +17,8 @@ it('uses a domain-separated keyed digest, trims scan edges and separates tenants
 
 it('separates lookup and every command even for identical input', () => {
   const hash = createEmployeeCardHash(Buffer.alloc(32, 7));
-  const purposes = ['lookup', 'issue', 'revoke', 'clock', 'issue-attempt'] as const;
+  const purposes = ['lookup', 'issue', 'revoke', 'clock', 'issue-attempt', 'scan-attempt'] as const;
   const digests = purposes.map((purpose) => hash('company-a', 'SYNTHETIC-COMMAND', purpose));
-  expect(new Set(digests).size).toBe(5);
+  expect(new Set(digests).size).toBe(6);
   expect(hash('company-a', 'SYNTHETIC-COMMAND', 'clock')).toBe(digests[3]);
 });

@@ -9,6 +9,7 @@ import {
   attendanceMissedDeadline,
   attendanceSchedule,
   attendanceEligible,
+  planAttendance,
   type ClockResult,
 } from '../clock-attendance.ts';
 
@@ -30,6 +31,49 @@ const result: ClockResult = {
   late_minutes: 0,
   missed_session_id: null,
 };
+
+describe('shared attendance plan', () => {
+  const shift = { startsAt: start, endsAt: after(8 * 3600000), workingDate: '2026-10-04' };
+  const input = {
+    open: null,
+    timezone: 'Asia/Kuwait',
+    shifts: [shift],
+    location: undefined,
+    geo: null,
+  };
+  it('snapshots the scheduled opening and complete lateness after grace', () => {
+    const plan = planAttendance(input, after(660000), 'new');
+    expect(plan).toMatchObject({
+      closeAt: null,
+      geo: 'NONE',
+      schedule: shift,
+      result: { session_id: 'new', operation: 'CLOCK_IN', late_minutes: 11, exceptions: ['NONE'] },
+    });
+  });
+  it('closing after midnight preserves the opening date and lateness snapshot', () => {
+    const at = after(7 * 3600000);
+    const plan = planAttendance({ ...input, open: { ...open, lateMinutes: 23 } }, at, 'unused');
+    expect(plan.closeAt).toEqual(at);
+    expect(plan.result).toEqual({
+      ...result,
+      operation: 'CLOCK_OUT',
+      accepted_at: at.toISOString(),
+      late_minutes: 23,
+    });
+  });
+  it('exactly sixteen hours closes at the deadline and opens on the new branch date', () => {
+    const at = after(16 * 3600000);
+    const plan = planAttendance({ ...input, open }, at, 'new');
+    expect(plan.closeAt).toEqual(at);
+    expect(plan.result).toMatchObject({
+      session_id: 'new',
+      operation: 'CLOCK_IN',
+      working_date: '2026-10-05',
+      late_minutes: 0,
+      missed_session_id: open.id,
+    });
+  });
+});
 
 describe('attendance transition and unchanged dedupe', () => {
   it('opens without an existing session', () =>

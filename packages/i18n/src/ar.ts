@@ -1,11 +1,12 @@
 import { attendanceAr } from './attendance-ar.js';
-import { clockCardAdminAr } from './clock-card-catalog.js';
+import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
 import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
 import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
 import { employeeDocumentsAr } from './employee-documents-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
+import { salaryAr } from './salary-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
 import { catalogServicesAr, serviceErrorsAr } from './catalog-services.js';
 
@@ -40,6 +41,7 @@ export const ar: Catalog = {
     createCustomersBranch: 'إنشاء عملاء من هذا الفرع',
     manageDiscountLimitsBusiness: 'إدارة حدود الخصم الشخصية',
     loginStaffBranch: 'الدخول إلى تطبيق الموظفين',
+    clockAttendanceBranch: 'تسجيل حضور الموظفين بالكارت على جهاز مثبّت',
     createCompaniesPlatform: 'إنشاء شركات على المنصة',
     readServicesBusiness: 'عرض خدمات النشاط',
     manageServicesBusiness: 'إدارة خدمات النشاط',
@@ -49,20 +51,7 @@ export const ar: Catalog = {
     latinName: 'PosPay',
     arabicName: 'بوس باي',
   },
-  salary: {
-    title: 'الراتب الأساسي الشهري',
-    lead: 'الراتب الأساسي فقط، بدون بدلات أو عمل إضافي. تعيين نفس التاريخ يستبدل سجله.',
-    date: 'يسري من',
-    amount: 'الراتب الأساسي الشهري (د.ك، ٣ خانات)',
-    reason: 'السبب',
-    revision: 'النسخة',
-    set: 'تعيين الراتب',
-    saved: 'تم حفظ الراتب.',
-    invalid: 'أدخل تاريخًا صحيحًا ومبلغًا غير سالب بثلاث خانات عشرية وسببًا من ١ إلى ٥٠٠ حرف.',
-    readPermission: 'قراءة سجل الرواتب',
-    managePermission: 'تعيين الراتب',
-    employeeAccessHint: 'تُدار الرواتب من شاشة الموظفين، وتحتاج أيضًا إلى صلاحية إدارة الموظفين.',
-  },
+  salary: salaryAr,
   employeeCard: clockCardAdminAr,
   personalAttendance: attendanceAr,
   personalStaff: personalStaffAr,
@@ -383,6 +372,7 @@ export const ar: Catalog = {
     attendanceLoading: 'جارٍ تحميل رمز حضور جديد…',
     attendanceRefreshLead: 'يتجدد الرمز كل 60 ثانية. امسحه من تطبيق الموظفين.',
     branchLabel: 'الفرع',
+    ...clockCardPosAr,
     unexpected: 'حدث خطأ. حاول مرة أخرى.',
     networkError: 'تعذّر الوصول إلى الخادم. حاول مرة أخرى.',
   },

@@ -80,10 +80,12 @@ import {
 import { PreviewEmployeeImportUseCase } from './use-cases/preview-employee-import/preview-employee-import.usecase.ts';
 import { CommitEmployeeImportUseCase } from './use-cases/commit-employee-import/commit-employee-import.usecase.ts';
 import { GetEmployeeImportTemplateUseCase } from './use-cases/get-employee-import-template/get-employee-import-template.usecase.ts';
+import { ClockByCardController } from './http/clock-by-card.controller.ts';
 import { EmployeeCardsController } from './http/employee-cards.controller.ts';
 
 export const staffControllers = [
   ClockAttendanceController,
+  ClockByCardController,
   EmployeeCardsController,
   EmployeePasskeysController,
   EmployeeLeaveController,

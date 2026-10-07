@@ -35,4 +35,14 @@ export {
 export { personalMemberships } from './persistence/personal-membership.ts';
 export { membershipCompanies } from './queries/membership-companies.query.ts';
 export { lockPasskeyAccess, readPasskeyAccess } from './persistence/passkey-access.ts';
+export {
+  readAttendanceDeviceAccess,
+  lockAttendanceDeviceContext,
+} from './persistence/attendance-device-access.ts';
+export {
+  fenceOperatorSession,
+  OperatorSessionEnded,
+  type OperatorSessionCheck,
+} from './persistence/fence-operator-session.ts';
+export { staffSessionBinding } from './http/staff-session-binding.ts';
 export { lockDocumentAccess, readDocumentAccess } from './persistence/document-access.ts';

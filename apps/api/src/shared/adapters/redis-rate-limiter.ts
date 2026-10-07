@@ -24,6 +24,12 @@ export function createRedisRateLimiter(redis: Redis): RateLimiter {
     remember: (key, windowSeconds) =>
       redis.set(rateName('done', key), '1', 'EX', windowSeconds).then(() => undefined),
     remembered: async (key) => (await redis.get(rateName('done', key))) === '1',
+    count: async (key) => {
+      const raw = await redis.get(rateName('count', key));
+      if (raw === null) return 0;
+      if (!/^\d+$/.test(raw)) throw new Error('RATE_COUNT_UNREADABLE');
+      return Number(raw);
+    },
     remaining: async (key) => {
       const ttl = await redis.ttl(rateName('count', key));
       return ttl > 0 ? ttl : 0;

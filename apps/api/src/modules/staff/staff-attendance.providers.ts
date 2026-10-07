@@ -14,9 +14,13 @@ import { createRedisAttendanceQrSecrets } from './persistence/redis-attendance-q
 import { createAttendanceBranchReader } from './persistence/tenancy-attendance-branch.adapter.ts';
 import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attendance-qr.ts';
 import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
+import { operatorSessionsToken } from './http/operator-sessions.token.ts';
+import { ClockByCard } from './use-cases/clock-by-card/clock-by-card.ts';
 import { IssueEmployeeCard } from './use-cases/issue-employee-card/issue-employee-card.usecase.ts';
 import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
+import { createCardClockTransactions } from './persistence/card-clock-transactions.ts';
 import { createCardIssueAttempts } from './persistence/card-issue-attempts.ts';
+import { createCardScanAttempts } from './persistence/card-scan-attempts.ts';
 import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
 import { createEmployeeCardHash, type EmployeeCardHash } from './persistence/employee-card-hash.ts';
 import type { EmployeeCardsPort } from './ports/employee-cards.port.ts';
@@ -101,6 +105,7 @@ export function cardProviders(
 ): Provider[] {
   if (database === undefined || cardKey === null)
     return [
+      { provide: ClockByCard, useValue: null },
       { provide: IssueEmployeeCard, useValue: null },
       { provide: RevokeEmployeeCard, useValue: null },
       { provide: EMPLOYEE_CARD_ACCESS, useValue: null },
@@ -108,8 +113,11 @@ export function cardProviders(
   const access = createEmployeeCardAccess();
   const hash = createEmployeeCardHash(cardKey);
   const cards = createEmployeeCards(database, ids, systemClock, access, hash);
-  // بلا Redis الإصدار يفشل مغلقاً؛ الإلغاء لا يعتمد على الحد.
+  // بلا Redis الإصدار والمسح يفشلان مغلقين؛ الإلغاء ومسارا QR وpasskey خارج هذا الحد.
   return [
+    redis === undefined
+      ? { provide: ClockByCard, useValue: null }
+      : openClock(database, ids, hash, redis, logger),
     {
       provide: IssueEmployeeCard,
       useValue: redis === undefined ? null : openIssue(cards, redis, hash, logger),
@@ -117,4 +125,40 @@ export function cardProviders(
     { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },
     { provide: EMPLOYEE_CARD_ACCESS, useValue: access },
   ];
+}
+
+function openClock(
+  database: Parameters<typeof createCardClockTransactions>[0],
+  ids: Parameters<typeof createCardClockTransactions>[1],
+  hash: EmployeeCardHash,
+  redis: Redis,
+  logger: Logger | undefined,
+): Provider {
+  const attempts = createCardScanAttempts(
+    createRedisRateLimiter(redis),
+    hash,
+    (error, companyId, deviceId) => {
+      logger?.warn(
+        { err: error, company_id: companyId, device_id: deviceId },
+        'card scan redis unavailable',
+      );
+    },
+  );
+  return {
+    provide: ClockByCard,
+    useFactory: (sessions: Parameters<typeof createCardClockTransactions>[3]) =>
+      new ClockByCard(
+        createCardClockTransactions(database, ids, hash, sessions),
+        systemClock,
+        ids,
+        attempts,
+        (companyId, deviceId) => {
+          logger?.warn(
+            { company_id: companyId, device_id: deviceId },
+            'card scan completion unrecorded',
+          );
+        },
+      ),
+    inject: [operatorSessionsToken()],
+  };
 }
