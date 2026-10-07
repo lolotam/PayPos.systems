@@ -26,7 +26,7 @@ and attendance correction. The shared-device installation signal is recorded fro
    **تم تسجيل مفتاح المرور. لتغييره اطلب من المدير فك الربط أولاً.** وتحتها قسم **تسجيل الحضور والانصراف** وفيه زرار
    **مسح رمز QR للفرع**. موظف لسه ما سجّلش مفتاح المرور ما يظهرلوش القسم ده. الحضور **أونلاين بس**: لو الإنترنت
    مفصول المسح ما بيكملش وتظهر **تعذر تسجيل الحركة. تأكد من الاتصال وامسح رمزًا جديدًا وافتح مفتاح المرور، أو استخدم بطاقة
-   الحضور عند الاستقبال أو اطلب المساعدة من مديرك.** (بطاقة الحضور لسه ما اتشحنتش، PR 23).
+   الحضور عند الاستقبال أو اطلب المساعدة من مديرك.** (بطاقة الحضور عند الاستقبال: [30](30-employee-cards-and-clock-by-card.md)).
 2. دوس **مسح رمز QR للفرع** ← تفتح الكاميرا مع **وجّه الكاميرا إلى رمز الحضور المعروض في الفرع.** ووصف الكاميرا
    **كاميرا رمز الحضور**. وجّهها على الباركود المعروض على جهاز الفرع ([09](09-attendance-qr.md)). الصورة بتتفك جوه
    المتصفح ومش بتتبعت لأي مكان، والكاميرا بتقف قبل ما يظهر طلب مفتاح المرور. **إلغاء المسح** يقفلها ويرجّعك للزرار.
@@ -75,8 +75,7 @@ and attendance correction. The shared-device installation signal is recorded fro
 - مسح خلال أقل من 5 دقايق يعمل حركة جديدة أو يغيّر النتيجة الأولى.
 - باركود قديم أو لفرع تاني يتقبل، أو موظف يسجل على فرع مش مربوط بيه بتاريخ اليوم.
 - الكاميرا تفضل شغالة بعد الإلغاء/الخروج، أو صورة الكاميرا تتبعت للسيرفر، أو تسجيل أوفلاين في طابور.
-- الإعلان إن OTP شغال دلوقتي، أو إن بطاقة الحضور (PR 23) أو وظيفة الانصراف المفقود (PR 24) أو لوحة الحضور (PR 27)
-  موجودين.
+- الإعلان إن OTP شغال دلوقتي، أو إن لوحة الحضور (PR 27) موجودة.
 
 ## English
 
@@ -85,7 +84,7 @@ and attendance correction. The shared-device installation signal is recorded fro
    a **Clock attendance** section with a **Scan the branch QR** button. An employee who has not registered a passkey does
    not see this section. Attendance is **online only**: with no connection the scan does not proceed and "Attendance could
    not be recorded. Check your connection, scan a fresh QR and unlock your passkey, or use your attendance card at reception
-   or ask your manager." appears (the attendance card is not shipped yet, PR 23).
+   or ask your manager." appears (the attendance card at reception: [30](30-employee-cards-and-clock-by-card.md)).
 2. Press **Scan the branch QR** → the camera opens with "Point your camera at the branch attendance QR." and the label
    **Attendance QR camera**. Aim it at the code on the branch device ([09](09-attendance-qr.md)). Frames are decoded in
    the browser and never leave it, and the camera stops before the passkey prompt appears. **Cancel scan** closes it and
@@ -140,8 +139,7 @@ and attendance correction. The shared-device installation signal is recorded fro
 - A scan under 5 minutes creating a new movement or changing the first result.
 - An old or other-branch QR accepted, or clocking at a branch the employee is not attached to on that date.
 - The camera staying on after cancel or sign-out, camera images reaching the server, or an offline scan queued.
-- Claiming OTP sign-in works today, or that the attendance card (PR 23), the missed-clock-out job (PR 24) or the attendance board
-  (PR 27) exist.
+- Claiming OTP sign-in works today, or that the attendance board (PR 27) exists.
 
 ## For an agent
 
