@@ -1,7 +1,17 @@
 import { computeCalcNumerator } from './commission-calc.ts';
 import type { AmountTierStep, CommissionPricingLine } from './commission-types.ts';
 
-function activeStep(steps: readonly AmountTierStep[], x: bigint): AmountTierStep | undefined {
+/**
+ * يختار آخر حد لا يتجاوز المجمّع؛ تعريف الحد النشط مشترك بين MARGINAL وWHOLE والجلسات.
+ *
+ * @param steps حدود محلولة مرتبة تصاعدياً على نفس مقياس المجمّع
+ * @param x قيمة المجمّع على مقياس الخطة
+ * @returns الشريحة النشطة أو undefined تحت أول حد
+ */
+export function findActiveTierStep(
+  steps: readonly AmountTierStep[],
+  x: bigint,
+): AmountTierStep | undefined {
   let active: AmountTierStep | undefined;
   for (const step of steps) {
     if (step.from > x) break;
@@ -24,7 +34,7 @@ export function computeMarginalTierNumerator(
   steps: readonly AmountTierStep[],
   before: bigint,
 ): bigint {
-  const previous = activeStep(steps, before);
+  const previous = findActiveTierStep(steps, before);
   const whole = (): bigint =>
     previous === undefined ? 0n : computeCalcNumerator(previous.calc, line);
   if (!line.counts || line.netShare === 0n) return whole();
@@ -36,7 +46,7 @@ export function computeMarginalTierNumerator(
   let start = before;
   for (const endpoint of [...boundaries, end]) {
     const length = endpoint - start;
-    const step = activeStep(steps, start);
+    const step = findActiveTierStep(steps, start);
     if (step?.calc.kind === 'FIXED') return whole();
     if (step !== undefined)
       numerator += computeCalcNumerator(step.calc, { ...line, netShare: length });
