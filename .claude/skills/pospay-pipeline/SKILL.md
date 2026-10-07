@@ -112,7 +112,9 @@ keeping its prefix stable:
 5. **A fix brief carries only the new findings**, each as `file:line — what is wrong — what done looks like`. Never
    resend the spec or the earlier brief into a resumed session.
 6. **Start a new session** only when the resumed one fails, or its context grows near 200K tokens (price doubles above
-   it). Hand over with a ten-line summary of the state, not the history.
+   it). Hand over with a ten-line summary of the state, not the history. Grok CLI auto-compacts a session at 80 %
+   context ("Auto-compacting conversation"), which rewrites the prefix and drops the cache for that round. When a
+   session is past round 3 or `grok usage` input nears that line, start the fresh session yourself before dispatching.
 7. The run is writable and auto-approving. After every dispatch, diff the worktree against the baseline: a run with
    no change is a failed candidate, whatever it reports. `grok usage` shows a session's token spend for the report.
 8. **Measure the cache after every round** with `grok usage <session-id>` (run in the worktree) and put the numbers in
@@ -120,8 +122,10 @@ keeping its prefix stable:
    or more** of input served from cache — the first 23a fix on 2026-10-07 reached 95 % (4.85 M of 5.1 M). A share
    below that means the prefix moved: check that the session was resumed (not a new `-s`), that the brief header was
    byte-identical, and that no file content was pasted into the brief.
-9. **When Grok is dry or fails**, stop its process, save its partial diff as a patch outside the repo, reset the
-   worktree to the baseline, and only then dispatch the fallback (§1) — never hand a half-edited tree to another model.
+9. **When a Grok run is dry or fails**, stop its process, save its partial diff as a patch outside the repo and reset
+   the worktree to the baseline — never hand a half-edited tree to the next run. Then count failures on that brief:
+   - **First failure:** retry Grok once in a new session (rule 6) with the same brief plus one line on what went wrong.
+   - **Second failure on the same brief:** dispatch the fallback (§1) and announce the switch in the owner report.
 
 ---
 
@@ -150,13 +154,16 @@ On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
    without a registry login on 2026-10-07; if a pull ever fails with an auth error, stop and ask the owner for a
    read-only package token (`docker login ghcr.io`) — never copy images by hand.
 2. Take a backup: `docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env ghcr.io/lolotam/pospay-backup:<sha>`.
-3. If `deploy/` changed, fetch the new `docker-compose.staging-shared.yml` from GitHub raw at that SHA and compare its
-   sha256 with the repo before replacing the server copy.
+3. If `deploy/` changed, fetch **both** `docker-compose.staging-shared.yml` and `staging-deploy.sh` from GitHub raw at
+   that SHA, compare each sha256 with the repo, then replace the server copies (keep the script executable). Step 4
+   runs the server copy, so a stale script silently skips new migrate, readiness or failure logic.
 4. `./staging-deploy.sh <full-sha>`; it migrates, starts, and proves `/ready`.
 5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): run
    `./staging-deploy.sh <previous-sha>` against the new schema, confirm `/ready`, then `./staging-deploy.sh <full-sha>`
-   again. A previous image that does not start on the new schema is a P1 against the migration.
-6. On failure, redeploy the previous SHA at once, then diagnose. Never leave staging down while diagnosing.
+   again. A previous image that does not start on the new schema is a P1 against the migration: redeploy
+   `<full-sha>` at once (it is the one that was ready on this schema), keep the release blocked, and open the P1.
+6. On a failure of step 4, redeploy the previous SHA at once, then diagnose. Never leave staging down while
+   diagnosing — in either step, the SHA to restore is the last one that proved `/ready` on the current schema.
 7. Point `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
    local image is removed by the server's cleanup and the nightly backup then fails silently).
 
