@@ -244,7 +244,7 @@ export function staffProviders(
   const ids = systemUuidV7();
   return [
     ...attendanceProviders(database, redis, passkeys, ids),
-    ...cardProviders(database, ids, employeeCardKey),
+    ...cardProviders(database, ids, employeeCardKey, redis),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
     ...unbindProviders(database, ids),
     ...enrolProviders(database, ids, passkeys),

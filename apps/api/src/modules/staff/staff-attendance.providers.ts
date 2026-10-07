@@ -2,6 +2,7 @@ import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Redis } from 'ioredis';
 import type { AttendancePasskeys } from './ports/clock-attendance.port.ts';
+import { createRedisRateLimiter } from '../../shared/adapters/redis-rate-limiter.ts';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { createAttendanceTransactions } from './persistence/attendance-transactions.ts';
 import { createLockedAttendanceQrVerifier } from './persistence/locked-attendance-qr.ts';
@@ -14,6 +15,7 @@ import { IssueAttendanceQr } from './use-cases/issue-attendance-qr/issue-attenda
 import { VerifyAttendanceQr } from './use-cases/verify-attendance-qr/verify-attendance-qr.ts';
 import { IssueEmployeeCard } from './use-cases/issue-employee-card/issue-employee-card.usecase.ts';
 import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
+import { createCardIssueAttempts } from './persistence/card-issue-attempts.ts';
 import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
 import { createEmployeeCardHash } from './persistence/employee-card-hash.ts';
 import { createEmployeeCardAccess } from './persistence/employee-card-access.adapter.ts';
@@ -68,6 +70,7 @@ export function cardProviders(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
   cardKey: Buffer | null,
+  redis: Redis | undefined,
 ): Provider[] {
   if (database === undefined || cardKey === null)
     return [
@@ -78,8 +81,14 @@ export function cardProviders(
   const access = createEmployeeCardAccess();
   const hash = createEmployeeCardHash(cardKey);
   const cards = createEmployeeCards(database, ids, systemClock, access, hash);
+  // بلا Redis الإصدار يفشل مغلقاً؛ الإلغاء لا يعتمد على الحد.
+  const attempts =
+    redis === undefined ? null : createCardIssueAttempts(createRedisRateLimiter(redis));
   return [
-    { provide: IssueEmployeeCard, useValue: new IssueEmployeeCard(cards) },
+    {
+      provide: IssueEmployeeCard,
+      useValue: attempts === null ? null : new IssueEmployeeCard(cards, attempts),
+    },
     { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },
     { provide: EMPLOYEE_CARD_ACCESS, useValue: access },
   ];

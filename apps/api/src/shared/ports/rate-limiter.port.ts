@@ -11,4 +11,18 @@ export interface RateLimiter {
    * @returns true لو لسه في الحد، false لو عدّاه
    */
   hit(key: string, limit: number, windowSeconds: number): Promise<boolean>;
+  /**
+   * يثبت اكتمال المفتاح حتى لا تُحتسب إعادته داخل الشباك.
+   *
+   * @param key المفتاح المكتمل
+   * @param windowSeconds مدة بقاء العلامة
+   */
+  remember(key: string, windowSeconds: number): Promise<void>;
+  /**
+   * يميّز مفتاحاً اكتمل داخل الشباك الحالي.
+   *
+   * @param key المفتاح المطلوب تمييزه
+   * @returns true لو العلامة موجودة
+   */
+  remembered(key: string): Promise<boolean>;
 }

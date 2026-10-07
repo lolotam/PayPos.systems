@@ -28,6 +28,8 @@ import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts'
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { readEmployeeCards } from '../queries/employee-cards.query.ts';
 import {
+  CardIssueAttemptsUnavailableError,
+  CardIssueLimitedError,
   EmployeeCardError,
   EMPLOYEE_CARD_ACCESS,
   type EmployeeCardAccess,
@@ -87,7 +89,7 @@ export class EmployeeCardsController {
         ),
       );
     } catch (error) {
-      throw cardFailure(error);
+      throw cardFailure(error, request);
     }
   }
   @Post(':cardId/revoke')
@@ -126,7 +128,12 @@ function cardView(record: EmployeeCardRecord): EmployeeCard {
     revoked_at: record.revokedAt,
   };
 }
-function cardFailure(error: unknown): unknown {
+function cardFailure(error: unknown, request?: FastifyRequest): unknown {
+  if (error instanceof CardIssueLimitedError) {
+    request?.log.warn({ outcome: 'limited' }, 'employee card issue limited');
+    return new ApiError('TOO_MANY_REQUESTS');
+  }
+  if (error instanceof CardIssueAttemptsUnavailableError) return new ApiError('NOT_READY');
   if (error instanceof EmployeeCardError) return new ApiError(error.code);
   return error;
 }
