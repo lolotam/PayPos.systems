@@ -67,7 +67,7 @@ substitution the moment it happens, in the owner report. Never switch to a meter
 | 7 | Review layer 2, then a confirm round | two fresh Claude reviewers | every earlier finding confirmed fixed |
 | 8 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | layer 3 answered |
 | 9 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
-| 10 | Merge: `gh pr merge <n> --squash --delete-branch` | orchestrator | merged |
+| 10 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
 | 11 | Deploy to staging (§6) | orchestrator | `/ready` answers ready on the new SHA |
 | 12 | Journey doc `docs/journey/NN-<name>.md` (Arabic + English) in its own docs PR | orchestrator | merged after Codex review |
 | 13 | Owner report (§7) | orchestrator | sent |
@@ -157,13 +157,15 @@ On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
 2. Take a backup: `docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env ghcr.io/lolotam/pospay-backup:<sha>`.
 3. If `deploy/` changed, fetch **both** `docker-compose.staging-shared.yml` and `staging-deploy.sh` from GitHub raw at
    that SHA, compare each sha256 with the repo, then replace the server copies (keep the script executable). Step 4
-   runs the server copy, so a stale script silently skips new migrate, readiness or failure logic.
+   runs the server copy, so a stale script silently skips new migrate, readiness or failure logic. **Before** replacing
+   them, copy the current pair to `known-good/<previous-sha>/`; every rollback in steps 5–6 runs from the pair that
+   belongs to the SHA being restored, so a broken new file can never block the way back.
 4. `./staging-deploy.sh <full-sha>`; it migrates, starts, and proves `/ready`.
 5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): run
-   `./staging-deploy.sh <previous-sha>` against the new schema, confirm `/ready`, then `./staging-deploy.sh <full-sha>`
+   `known-good/<previous-sha>/staging-deploy.sh <previous-sha>` against the new schema, confirm `/ready`, then `./staging-deploy.sh <full-sha>`
    again. A previous image that does not start on the new schema is a P1 against the migration: redeploy
    `<full-sha>` at once (it is the one that was ready on this schema), keep the release blocked, and open the P1.
-6. On a failure of step 4, redeploy the previous SHA at once, then diagnose. Never leave staging down while
+6. On a failure of step 4, redeploy the previous SHA at once with its saved pair from `known-good/`, then diagnose. Never leave staging down while
    diagnosing — in either step, the SHA to restore is the last one that proved `/ready` on the current schema.
 7. Point `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
    local image is removed by the server's cleanup and the nightly backup then fails silently).
