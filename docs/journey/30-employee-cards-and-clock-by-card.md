@@ -9,7 +9,7 @@ default roles, D6 limits). **Not shipped yet:** attendance exception handling, c
 and showing a Cashier staff-login DENY on the permissions screen (D5).
 
 **Before you start / قبل ما تبدأ:**
-- [00 Local setup](00-local-setup.md) **with Redis running** (both limits fail closed without it), then `pnpm db:migrate`
+- [00 Local setup](00-local-setup.md) **with Redis running** (without it both limits fail closed for new requests; a completed replay still returns its stored answer), then `pnpm db:migrate`
   (`0085` the `employee_cards` table, `0086` its RLS, `0087` the permission defaults) and `pnpm db:seed`. API, admin and
   POS running; the company's `staff` feature enabled.
 - **Admin side:** a manager with effective `manage:employees:business` over the employee's primary branch **and** every
@@ -147,6 +147,9 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
 
 ## For an agent
 
+- **Replays first:** a request repeated with the same `Idempotency-Key` and the same body returns its stored status and
+  body, whatever the limits, Redis or a later revoke say. Every other outcome below is for a fresh key or a changed body.
+
 - Admin: `http://localhost:3001/staff` → **Edit** → the **Attendance card** section; code input `#employee-card-code`
   (class `card-code-mask`); buttons and status by exact text; errors are `role=alert`, "Card issued." is `role=status`.
 - POS: `http://localhost:5173` on a paired device with an operator signed in. Input `#card-code`, labelled **Attendance card
@@ -154,8 +157,8 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
   offline notice replaces the form and no request is sent.
 - API, admin (session cookie + `x-company-id`; feature `staff`):
   - `GET /v1/businesses/<BUSINESS_ID>/employees/<EMPLOYEE_ID>/cards` → `{ active: { id, employee_id, card_code_suffix, issued_at, revoked_at } | null, can_manage: true }`, or 404 `NOT_FOUND` for a missing employee or a caller without management on every employee branch.
-  - `POST .../cards` with `Idempotency-Key` and `{ "card_code": "CARD-TEST-0001" }` → 200 card; 409 `EMPLOYEE_CARD_CODE_IN_USE`; 429 `TOO_MANY_REQUESTS` + `Retry-After`; 503 `NOT_READY` without Redis; same key with another code → 422 `IDEMPOTENCY_KEY_REUSED`.
-  - `POST .../cards/<CARD_ID>/revoke` with `Idempotency-Key`, no body → 200 with `revoked_at`; already revoked → 404.
+  - `POST .../cards` with `Idempotency-Key` and `{ "card_code": "CARD-TEST-0001" }` → 200 card; 409 `EMPLOYEE_CARD_CODE_IN_USE`; 429 `TOO_MANY_REQUESTS` + `Retry-After`; 503 `NOT_READY` without Redis; same key with another code → 422 `IDEMPOTENCY_KEY_REUSED` while the limiter admits it (a changed body counts as an attempt, so at the limit it is 429).
+  - `POST .../cards/<CARD_ID>/revoke` with `Idempotency-Key`, no body → 200 with `revoked_at`; a fresh key on a card already revoked → 404.
 - API, device: `POST /v1/devices/me/clock-by-card` with `Authorization: Device <DEVICE_TOKEN>`, the operator cookie
   `pospay-staff.session_token`, `Origin` equal to the configured POS origin, `Idempotency-Key` and `{ "card_code": "..." }` →
   200 `{ session_id, operation, working_date, accepted_at, exceptions, late_minutes, missed_session_id }` (a fresh card movement has `exceptions: ["NONE"]`; a dedupe within 5 minutes of a phone movement returns that movement's result unchanged) with
