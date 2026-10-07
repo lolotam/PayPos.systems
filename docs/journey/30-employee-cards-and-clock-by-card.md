@@ -56,7 +56,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
 11. **كارت مش مقبول:** `CARD-TEST-9999`، أو كارت ملغي أو اتستبدل، أو كارت شركة تانية، أو موظف مش مربوط بفرع الجهاز في
     تاريخ النهارده ← **لم يُقبل الكارت. تحقق من الكارت أو اطلب من المدير.** نفس الرد بالظبط (404) في كل الحالات، ومفيش
     حاجة بتتكتب.
-12. **حد المسح الغلط:** 10 مسحات مرفوضة في 10 دقايق لكل جهاز. المسح الناجح مش بيتحسب. بعد العاشرة ← **مسحات خاطئة كثيرة.
+12. **حد المسح الغلط:** 10 مسحات مرفوضة في 10 دقايق لكل جهاز. المسح الناجح مش بيتحسب، ولا الكود اللي شكله غلط من الأساس (أقل من 4 أو أكتر من 64 حرف، أو حروف مش ظاهرة): ده بيترفض 400 قبل العدّ. بعد العاشرة ← **مسحات خاطئة كثيرة.
     انتظر {seconds} ثانية ثم أعد المحاولة.** بالثواني الباقية (مثلاً **انتظر 420 ثانية**)، وحتى الكارت الصح بيترفض لحد ما
     الفترة تخلص. جهاز تاني ومسح QR مش بيتأثروا. Redis واقف ← **تعذّر الوصول إلى الخادم. حاول مرة أخرى.**
 13. **أوفلاين:** اقفل الإنترنت ← القسم كله بيتبدل بـ **تسجيل الحضور بالكارت يحتاج اتصالاً بالإنترنت. اتصل وأعد المسح.**
@@ -115,7 +115,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
 11. **A card that is not accepted:** `CARD-TEST-9999`, a revoked or replaced card, another company's card, or an employee not
     attached to the device's branch on today's date → "The card was not accepted. Check the card or ask a manager." The same
     answer (404) in every case, and nothing is written.
-12. **Wrong-scan limit:** 10 refused scans per 10 minutes per device. Accepted scans do not count. After the 10th → "Too many
+12. **Wrong-scan limit:** 10 refused scans per 10 minutes per device, counting only well-formed codes that are not accepted (unknown, revoked, other branch or company, ineligible employee). Accepted scans do not count, and a malformed code (under 4 or over 64 visible characters) is refused 400 by the contract before the count. After the 10th → "Too many
     wrong scans. Wait {seconds} seconds and try again." with the seconds left (for example "Wait 420 seconds"), and even a
     valid card is refused until the window ends. Another device and QR clocking are unaffected. Redis down → "The server
     could not be reached. Try again."
@@ -155,8 +155,8 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
 - API, device: `POST /v1/devices/me/clock-by-card` with `Authorization: Device <DEVICE_TOKEN>`, the operator cookie
   `pospay-staff.session_token`, `Origin` equal to the configured POS origin, `Idempotency-Key` and `{ "card_code": "..." }` →
   200 `{ session_id, operation, working_date, accepted_at, exceptions, late_minutes, missed_session_id }` (a fresh card movement has `exceptions: ["NONE"]`; a dedupe within 5 minutes of a phone movement returns that movement's result unchanged) with
-  `Cache-Control: no-store`. No operator or no Device → 401; missing permission or wrong `Origin` → 403 `FORBIDDEN`; any
-  card not accepted → 404 `NOT_FOUND`; 11th failure in 600 s → 429 + `Retry-After`; Redis down → 503 `NOT_READY`.
+  `Cache-Control: no-store`. No operator or no Device → 401; missing permission or wrong `Origin` → 403 `FORBIDDEN`; a
+  malformed code → 400 `VALIDATION_FAILED` (not counted); a well-formed card not accepted → 404 `NOT_FOUND`; 11th failure in 600 s → 429 + `Retry-After`; Redis down → 503 `NOT_READY`.
 - Assertions: the stored row has `card_code_hash` and `card_code_suffix` only; audit rows `employee_card` `issued` /
   `revoked` carry `employee_id`, never the code; the movement has `source='BARCODE'`, `device_id`, `operator_id`, one audit
   row and one `AttendanceClocked*` event in the same transaction; unknown, revoked, other-branch and other-company cards give
