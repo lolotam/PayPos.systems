@@ -6,8 +6,15 @@ import { createEmployeeCards } from '../persistence/drizzle-employee-cards.ts';
 import { ClockByCard } from '../use-cases/clock-by-card/clock-by-card.ts';
 import { IssueEmployeeCard } from '../use-cases/issue-employee-card/issue-employee-card.usecase.ts';
 import { RevokeEmployeeCard } from '../use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
+import type { CardIssueAttempts } from '../ports/card-issue-attempts.port.ts';
 
 // كود اصطناعي فقط؛ لا يخص أي بطاقة حقيقية.
+// حد محاولات الإصدار له اختباره في employee-card-issue-limit.spec.ts؛ هنا يقبل الكل.
+const unlimitedIssueAttempts: CardIssueAttempts = {
+  take: () => Promise.resolve('accepted'),
+  complete: () => Promise.resolve(),
+};
+
 export const CARD_CODE = 'CARD-0001';
 export const cardHash = createEmployeeCardHash(Buffer.alloc(32, 7));
 
@@ -80,7 +87,7 @@ export async function clockByCardFixture(): Promise<CardFixture> {
     otherDeviceId,
     cardId,
     clockByCard,
-    issue: new IssueEmployeeCard(admin),
+    issue: new IssueEmployeeCard(admin, unlimitedIssueAttempts),
     revoke: new RevokeEmployeeCard(admin),
     scope: {
       companyId: f.companyId,
