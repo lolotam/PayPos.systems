@@ -16,7 +16,7 @@
 | G3   | ADR-0011 + `CLAUDE.md` §5: the public rating link                                 | S    | PR 58        |
 | G4   | ADR-0013: Better Auth `passkey` plugin + platform WhatsApp suppression            | S    | PRs 5, 20    |
 | G5   | ADR-0014: email provider                                                          | S    | PR 14        |
-| D-55 | The salon's real plan rules (input from the client, no build days)                | —    | ✅ supplied 2026-10-05 |
+| D-55 | The salon's real plan rules (input from the client, no build days)                | —    | ✅ supplied 2026-10-05, completed 2026-10-07 |
 
 **Named exceptions to the template:** PRs 1–3 are shells (no domain). PRs 29–31 are domain-only (pure functions,
 fixtures, no database or screen) and are the **one parallel track**: they touch no shared file and may run beside

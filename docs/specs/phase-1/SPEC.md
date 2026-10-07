@@ -502,7 +502,7 @@ each open audited.
 
 ## 13. Open items
 
-1. ~~**The salon's real plan rules** (D-55)~~ — supplied 2026-10-05 (PRD D-55); fixtures in PR 30.
+1. ~~**The salon's real plan rules** (D-55)~~ — supplied 2026-10-05 (hair) and 2026-10-07 (all four specialists, PRD D-55); fixtures in PR 30 and #124.
 2. **Client data** before the pilot: services and prices, staff and their plans, shifts, branches, open packages,
    contact person, meeting day.
 3. The §9 ADRs, each before its slice.
