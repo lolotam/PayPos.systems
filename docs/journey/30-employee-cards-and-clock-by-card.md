@@ -18,8 +18,8 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
 - **POS side:** a paired device ([03](03-pos-device-pairing.md)) and an operator signed in on it with their own PIN
   ([08](08-staff-login-pos.md), `STAFF_OTP_POS_ORIGIN` set). `clock:attendance:branch` is held by default by **Owner**,
   **General Manager**, **Business Manager**, **Branch Manager**, **Shift Supervisor** and **Cashier**; signing in on the
-  device also needs `login:staff:branch`, which is now a default for **Cashier only** (`0087`). Other roles need a
-  separate Cashier membership or an explicit custom role. A keyboard-wedge scanner is optional: typing the code and
+  device also needs `login:staff:branch`, a default of **Staff** and, since `0087`, **Cashier**. Other roles need an
+  additional branch-scoped Staff or Cashier membership (grants add up across memberships) or an explicit custom role. A keyboard-wedge scanner is optional: typing the code and
   pressing Enter is the same thing.
 - Synthetic codes only: `CARD-TEST-0001`, `CARD-TEST-0002`, and `CARD-TEST-9999` (never issued).
 
