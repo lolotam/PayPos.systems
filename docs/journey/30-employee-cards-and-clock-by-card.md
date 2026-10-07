@@ -147,8 +147,10 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
 
 ## For an agent
 
-- **Replays first:** a request repeated with the same `Idempotency-Key` and the same body returns its stored status and
-  body, whatever the limits, Redis or a later revoke say. Every other outcome below is for a fresh key or a changed body.
+- **Replays first:** a *successfully completed* request repeated with the same `Idempotency-Key` and the same body
+  returns its stored status and body, whatever the limits, Redis or a later revoke say. A refused request (unknown card
+  404, code-in-use 409) stores nothing, so repeating it runs again and counts again. Every other outcome below is for a
+  fresh key, a changed body, or a request that was refused before.
 
 - Admin: `http://localhost:3001/staff` → **Edit** → the **Attendance card** section; code input `#employee-card-code`
   (class `card-code-mask`); buttons and status by exact text; errors are `role=alert`, "Card issued." is `role=status`.
@@ -165,7 +167,8 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
   `Cache-Control: no-store`. No operator or no Device → 401; missing permission or wrong `Origin` → 403 `FORBIDDEN`; a
   malformed code → 400 `VALIDATION_FAILED` (not counted); a well-formed card not accepted → 404 `NOT_FOUND`; the 11th sequential failure in 600 s → 429 + `Retry-After` (concurrent failures may slightly exceed 10, spec 032); Redis down → 503 `NOT_READY`.
 - Assertions: the stored row has `card_code_hash` and `card_code_suffix` only; audit rows `employee_card` `issued` /
-  `revoked` carry `employee_id`, never the code; the movement has `source='BARCODE'`, `device_id`, `operator_id`; an ordinary
+  `revoked` carry `employee_id`, never the code; a card clock-in opens a session with `source='BARCODE'`, `device_id`, `operator_id`, and a card clock-out (also of a
+  session opened by phone QR, which keeps `source='QR'`) is recorded in `out_device_id`, `out_operator_id`; an ordinary
   clock-in or clock-out writes one audit row and one `AttendanceClocked*` event in the same transaction, while a scan that
   meets a session 16 hours or older writes two of each (`AttendanceMissedOut` for the old session, then
   `AttendanceClockedIn`), also in one transaction; unknown, revoked, other-branch and other-company cards give
