@@ -2,3 +2,7 @@
 
 @source '../';
 @source '../../app';
+
+.card-code-mask {
+  -webkit-text-security: disc;
+}

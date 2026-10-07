@@ -240,6 +240,9 @@ describe('round 6 — child options and key spellings', () => {
     'sessionToken',
     'otp',
     'card_cvv',
+    'card_code',
+    'cardCode',
+    'CARD-CODE',
   ])('the key %s is redacted', (key) => {
     expect(capture((log) => log.info({ [key]: SECRET }, 'event'))).not.toContain(SECRET);
   });

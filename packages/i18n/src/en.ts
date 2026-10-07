@@ -1,4 +1,5 @@
 import { attendanceEn } from './attendance-en.js';
+import { clockCardAdminEn } from './clock-card-catalog.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
 import { employeeDocumentsEn } from './employee-documents-catalog.js';
@@ -62,6 +63,7 @@ export const en = {
     employeeAccessHint:
       'Salaries are managed from the employee screen and also require employee-management access.',
   },
+  employeeCard: clockCardAdminEn,
   personalAttendance: attendanceEn,
   personalStaff: personalStaffEn,
   shell: {
@@ -229,6 +231,8 @@ export const en = {
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:
       'This user already has an active employee record in this business.',
+    EMPLOYEE_CARD_CODE_IN_USE:
+      'This card code is already active for another employee in the company.',
     ...employeeImportErrorsEn,
     ...serviceErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',

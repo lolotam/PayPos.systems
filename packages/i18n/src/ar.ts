@@ -1,4 +1,5 @@
 import { attendanceAr } from './attendance-ar.js';
+import { clockCardAdminAr } from './clock-card-catalog.js';
 import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
@@ -62,6 +63,7 @@ export const ar: Catalog = {
     managePermission: 'تعيين الراتب',
     employeeAccessHint: 'تُدار الرواتب من شاشة الموظفين، وتحتاج أيضًا إلى صلاحية إدارة الموظفين.',
   },
+  employeeCard: clockCardAdminAr,
   personalAttendance: attendanceAr,
   personalStaff: personalStaffAr,
   shell: {
@@ -225,6 +227,7 @@ export const ar: Catalog = {
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
+    EMPLOYEE_CARD_CODE_IN_USE: 'كود الكارت مستخدم بالفعل لموظف نشط آخر في الشركة.',
     ...employeeImportErrorsAr,
     ...serviceErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',

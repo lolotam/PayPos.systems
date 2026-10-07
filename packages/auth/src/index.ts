@@ -59,3 +59,4 @@ export type {
   ActivePasskeyBindings,
 } from './passkeys.ts';
 export type { StaffOtpApiOptions } from './staff-otp/api.ts';
+export { deriveEmployeeCardKey } from './employee-card-key.ts';
