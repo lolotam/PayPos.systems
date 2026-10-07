@@ -1,6 +1,6 @@
 # Commission engine II — Phase 1 PR 30
 
-**Branch:** `feat/p1-30-engine-ii` · **Created:** 2026-10-03 · **Status:** Implemented; D-55 fixtures added (2026-10-05)
+**Branch:** `feat/p1-30-engine-ii` · **Created:** 2026-10-03 · **Status:** Implemented; D-55 real plans recorded (2026-10-07)
 
 Sources: Phase 1 SPEC §4, §5.1–5.8 and §6 input constraints; implementation-plan row 30;
 PRD D-14, D-35 (superseded by D-50), D-37, D-45, D-49, D-50, D-51, D-55, D-57;
@@ -75,14 +75,23 @@ combination product and invalid values without a database.
 Gates: `pnpm --filter @pospay/api exec vitest run --config vitest.unit.config.ts`,
 `pnpm check` with FORCE_COLOR unset, `pnpm --filter @pospay/api build`.
 
-## Open questions for the owner
+## D-55 — salon plans
 
-- **D-55 — supplied 2026-10-05 by the salon owner via Waleed:** the pilot salon has one plan: no base, one MARGINAL AMOUNT
-  tier from `SALARY_MULTIPLE` 2 (twice the last-day salary) at 5 % on the part above it. Owner example:
-  salary 500.000, sales 2,000.000 → 50.000. Fixtures: `domain/__tests__/d55-salon-plan.spec.ts`
-  (example, at-threshold, starting at the threshold, validator, fractional and exact half-mill rounding,
-  raise mid-month, no salary).
-  This is one salon's configuration, not engine logic; other businesses configure their own plans.
-  Assumed, to confirm with the salon before onboarding (configuration, not a merge gate): "sales" means the
-  net, after-discount share of `counts = true` service lines; package sales do not move the threshold (D-51)
-  and earn nothing unless `package_sale` is enabled; product sales are out of Phase 1 (SPEC scope: Phase 2).
+Recorded from the salon owner (hair specialist 2026-10-05; the four plans 2026-10-07).
+Configuration for this salon, not engine logic. Other businesses configure their own plans.
+
+| Role | Salary (KWD) | Rule | Mode |
+| --- | --- | --- | --- |
+| Hair specialist | 500.000 | 5% only on the part above 2× salary; no base | MARGINAL, AMOUNT, `SALARY_MULTIPLE` 2.00 |
+| Nails specialist | 600.000 | 10% on all sales once the month reaches 3× salary; nothing below; no base | WHOLE, AMOUNT, `SALARY_MULTIPLE` 3.00 |
+| Lash specialist | 400.000 (unused) | 20% only on the part above 5,000.000; no base | MARGINAL, AMOUNT, literal 5,000.000 |
+| Massage therapist | 200.000 (unused) | 1% of every session; tiers off | base PCT 100 bps |
+
+Owner decisions, every real plan:
+
+- Commission is on sales after discount. A line's `netShare` is already net of discount.
+- A salary threshold uses the salary on the period's last day.
+- A package session counts like a service line at its slot value (`counts = true`). Selling the package pays no commission (`packageSale` disabled → 0).
+
+Fixtures: `domain/__tests__/d55-salon-plan.spec.ts` (hair specialist), `domain/__tests__/d55-salon-staff-plans.spec.ts` (nails, lash, massage).
+Suggestions the owner has not chosen: `domain/__tests__/d55-showcase-plans.spec.ts`.

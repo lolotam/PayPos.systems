@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { computePeriod } from '../period-commission.ts';
 import { validateCommissionPlan } from '../plan-validation.ts';
 import type { CommissionPlanVersion, CommissionSalary } from '../plan-types.ts';
-import { line, pct, period, version } from './engine-ii-fixtures.ts';
+import { line, pct, period, sale, version } from './engine-ii-fixtures.ts';
 
-// D-55 — خطة الصالون الفعلية (2026-10-05): لما الموظفة تعدّي ضعف راتبها
+// D-55 — خطة أخصائية الشعر الفعلية (2026-10-05): لما المبيعات تعدّي ضعف الراتب
 // تاخد 5% على اللي فوق الحد بس، ومفيش نسبة أساسية. الأرقام محسوبة باليد.
 const salonPlan: CommissionPlanVersion = version({
   base: { enabled: false },
@@ -86,5 +86,30 @@ describe('D-55 real salon plan — 5% above twice the salary', () => {
   it('no salary on record stops the statement instead of paying zero', () => {
     const result = computePeriod(period({ lines: lines([2000000n]), versions: [salonPlan] }));
     expect(result).toMatchObject({ ok: false, code: 'NO_SALARY' });
+  });
+
+  it('a package session counts toward the threshold and a package sale pays nothing', () => {
+    // جلسة الباقة بقيمة الخانة 300 وcounts = true: 0→900 تحت 1,000 بصفر،
+    // و900→1,200 بيعدّي الحد: 200 × 5% = 10.000. بيع الباقة معطّل فيدفع صفر.
+    const result = computePeriod(
+      period({
+        lines: [
+          line({ netShare: 900000n }),
+          line({ lineId: 'b', occurredAt: 2n, netShare: 300000n, counts: true }),
+        ],
+        sales: [sale({ pricePaid: 300000n })],
+        versions: [salonPlan],
+        salaries: [salary500],
+      }),
+    );
+    expect(result).toEqual({
+      ok: true,
+      perSource: new Map([
+        ['line:a', 0n],
+        ['line:b', 10000n],
+        ['sale:sale-a', 0n],
+      ]),
+      total: 10000n,
+    });
   });
 });
