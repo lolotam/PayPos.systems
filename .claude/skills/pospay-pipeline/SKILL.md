@@ -158,15 +158,19 @@ On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
 3. If `deploy/` changed, fetch **both** `docker-compose.staging-shared.yml` and `staging-deploy.sh` from GitHub raw at
    that SHA, compare each sha256 with the repo, then replace the server copies (keep the script executable). Step 4
    runs the server copy, so a stale script silently skips new migrate, readiness or failure logic. **Before** replacing
-   them, copy the current pair to `known-good/<previous-sha>/`; every rollback in steps 5–6 runs from the pair that
-   belongs to the SHA being restored, so a broken new file can never block the way back.
-4. `./staging-deploy.sh <full-sha>`; it migrates, starts, and proves `/ready`.
-5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): run
-   `known-good/<previous-sha>/staging-deploy.sh <previous-sha>` against the new schema, confirm `/ready`, then `./staging-deploy.sh <full-sha>`
-   again. A previous image that does not start on the new schema is a P1 against the migration: redeploy
-   `<full-sha>` at once (it is the one that was ready on this schema), keep the release blocked, and open the P1.
-6. On a failure of step 4, redeploy the previous SHA at once with its saved pair from `known-good/`, then diagnose. Never leave staging down while
+   them, make sure `known-good/<previous-sha>/` holds the current pair (copy it there if it is missing).
+4. `./staging-deploy.sh <full-sha>`; it migrates, starts, and proves `/ready`. Once ready, copy the active pair to
+   `known-good/<full-sha>/` — **every** ready SHA gets its pair, code-only releases too, so any later rollback finds one.
+5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): restore `<previous-sha>`
+   (below) against the new schema, confirm `/ready`, then restore `<full-sha>` the same way. A previous image that does
+   not start on the new schema is a P1 against the migration: restore `<full-sha>` at once (it is the one that was ready
+   on this schema), keep the release blocked, and open the P1.
+6. On a failure of step 4, restore the previous SHA at once, then diagnose. Never leave staging down while
    diagnosing — in either step, the SHA to restore is the last one that proved `/ready` on the current schema.
+
+**Restore `<sha>`:** copy `known-good/<sha>/docker-compose.staging-shared.yml` and `staging-deploy.sh` back into
+`/opt/pospay-staging/` (keep the script executable), then run `./staging-deploy.sh <sha>` from there. The script reads
+the `.env` next to itself, so it must always run from `/opt/pospay-staging/`, never from inside `known-good/`.
 7. Point `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
    local image is removed by the server's cleanup and the nightly backup then fails silently).
 
