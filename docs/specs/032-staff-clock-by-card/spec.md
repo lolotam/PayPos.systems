@@ -66,7 +66,7 @@ Revocation has no request body; its card ID is a validated path parameter.
 
 List, issue, and revoke authorize `manage:employees:business` at the employee's persisted primary branch and every open branch attachment. A business-scope ALLOW does not override a branch-scope DENY on any of those branches. On a new idempotency key, issue and revoke claim that key, then hold the existing company and caller-membership locks, lock the employee row, read those branches, and only then decide, so a concurrent branch move or permission change cannot pass the check. The audit row is written in that same callback, before the response is stored. A replay of the stored success returns that body and does not decide again; a new key decides again. The revoke fingerprint includes the card id, so the same key with another card is rejected. A denied caller receives the same NOT_FOUND as a missing employee. The staff feature is reported as disabled only after that branch check allows management.
 
-Card issue is limited to 30 attempts per hour for each company and user (ADR-0036, decided Waleed 2026-10-07). Success, a code already in use, and a validation failure each count. A replay of a completed key with the same fingerprint does not. The same key with a different body counts. The 31st attempt in the hour is 429 `TOO_MANY_REQUESTS`, writes nothing, and is logged without the card code. If Redis is unavailable, issue fails closed with `NOT_READY`. Revoke is not limited. Clock-by-card scan limits remain for PR 23b.
+Card issue is limited to 30 attempts per hour for each company and user (ADR-0036, decided Waleed 2026-10-07). Success, a code already in use, and a validation failure each count. A replay of a completed key with the same fingerprint does not. The same key with a different body counts. The completion marker in Redis is an HMAC with purpose `pospay:employee-card:issue-attempt:v1`; an unkeyed digest of the code is not stored. The 31st attempt in the hour is 429 `TOO_MANY_REQUESTS` with `Retry-After` set to the seconds left in that window, writes nothing, and is logged without the card code. If Redis is unavailable before the card is stored, issue fails closed with `NOT_READY`. If saving the completion marker fails after the card is stored, the route still returns the card and logs a warning without the code. A retry of that same key replays the stored card; until the marker is stored, that retry counts as another attempt. Revoke is not limited. Clock-by-card scan limits remain for PR 23b.
 
 ### Business rules, schema and events
 
@@ -75,7 +75,7 @@ Card issue is limited to 30 attempts per hour for each company and user (ADR-003
 partial unique indexes hold one active card per employee and one active company-scoped HMAC per company. The composition root calls `packages/auth`'s `deriveEmployeeCardKey` (HKDF-SHA256 with salt `pospay:employee-card:hkdf-salt:v1` and info `pospay:employee-card:key:v1`). Staff receives only the derived 32-byte Buffer, never BETTER_AUTH_SECRET; rotating that root requires reissuing cards (ADR-0036). Daily QR secrets are unsuitable because they expire. `issued_by`/`revoked_by` reference the operator user and the revocation pair is
 CHECKed together. RLS is FORCE + command-specific tenant policies for `pospay_app` with
 SELECT/INSERT and column-limited UPDATE. The card code is card-like secret material:
-never logged, never in audit/events, and never returned in full. Only normalized codes of length >= 8 expose their last four characters; shorter codes store/return an empty suffix. The allowed 4–64 range remains unchanged. Lookup, issue, revoke and clock fingerprints each use a distinct HMAC payload label (ADR-0036).
+never logged, never in audit/events, and never returned in full. Only normalized codes of length >= 8 expose their last four characters; shorter codes store/return an empty suffix. The allowed 4–64 range remains unchanged. Lookup, issue, revoke, clock and issue-attempt fingerprints each use a distinct HMAC payload label (ADR-0036).
 
 A nonlocking hash lookup identifies the employee; AttendanceState is the first lock, followed by company, ordered memberships, device, employee/attachments, branch, and finally a locked card recheck. Unknown/revoked/foreign cards use an empty candidate through the same eligibility query sequence as unattached cards, with no explicit timing delay or case-specific response. Permission and device eligibility are checked independently of card existence.
 
@@ -100,9 +100,11 @@ audit (replay of the same body, 422 on a changed card code, the card id inside t
 fingerprint, one audit row per issue and per revoke, a revoked row when reissue replaces the
 active card, and no card-code fragment beyond the stored suffix), HTTP 409 when another
 employee holds the active code, HTTP 404 for an already-revoked or another employee's card,
-the 31st issue attempt in an hour as HTTP 429 with no card, audit, or idempotency write,
-separate counters per user, a completed-key replay that is not counted, and a 409 or a
-changed body on a completed key that is counted,
+the 31st issue attempt in an hour as HTTP 429 with `Retry-After` equal to the seconds left
+in the window and no card, audit, or idempotency write,
+separate counters per user, a completed-key replay that is not counted, a completion-marker
+failure that still returns the stored card and whose same-key replay does not issue another,
+and a 409 or a changed body on a completed key that is counted,
 the Device-without-permission and non-Device refusals, RLS reads/writes plus the two
 partial-uniqueness rules. Card list, issue, and revoke with business ALLOW plus a branch DENY
 on the employee's branch match a missing employee; ALLOW on that branch still permits all three. POS tests cover the scanner input (type then Enter), the ignored
@@ -125,7 +127,7 @@ all optional settings empty if startup wiring changes.
   **decided (Waleed, 2026-10-07): split** — PR 23a ships card management first, PR 23b ships
   clock-by-card on top of it.
 - D5 — deferred to the orchestrator issue: expose Cashier staff-login DENY through the permissions screen.
-- D6 — card issue is limited to 30 attempts per hour per company and user (ADR-0036, decided Waleed 2026-10-07). Clock-by-card scan limits remain for PR 23b.
+- D6 — card issue is limited to 30 attempts per hour per company and user (ADR-0036, decided Waleed 2026-10-07). The 429 `Retry-After` is the seconds left in that hour. A completion-marker failure after the card is stored still returns the card. Clock-by-card scan limits remain for PR 23b.
 - CB-Q5 — resolved: keep `clock:attendance:branch` at the verified device branch; explicit Device plus operator session, no CHECK change. PR 19 uses explicit Device checks, not a stored `:device` scope (ADR-0036).
 
 ## Success criteria

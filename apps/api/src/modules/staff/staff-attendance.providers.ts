@@ -1,5 +1,6 @@
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import type { Logger } from '@pospay/observability';
 import type { Redis } from 'ioredis';
 import type { AttendancePasskeys } from './ports/clock-attendance.port.ts';
 import { createRedisRateLimiter } from '../../shared/adapters/redis-rate-limiter.ts';
@@ -17,7 +18,8 @@ import { IssueEmployeeCard } from './use-cases/issue-employee-card/issue-employe
 import { RevokeEmployeeCard } from './use-cases/revoke-employee-card/revoke-employee-card.usecase.ts';
 import { createCardIssueAttempts } from './persistence/card-issue-attempts.ts';
 import { createEmployeeCards } from './persistence/drizzle-employee-cards.ts';
-import { createEmployeeCardHash } from './persistence/employee-card-hash.ts';
+import { createEmployeeCardHash, type EmployeeCardHash } from './persistence/employee-card-hash.ts';
+import type { EmployeeCardsPort } from './ports/employee-cards.port.ts';
 import { createEmployeeCardAccess } from './persistence/employee-card-access.adapter.ts';
 import { EMPLOYEE_CARD_ACCESS } from './ports/employee-card-access.port.ts';
 
@@ -66,11 +68,36 @@ export function attendanceProviders(
   ];
 }
 
+function openIssue(
+  cards: EmployeeCardsPort,
+  redis: Redis,
+  hash: EmployeeCardHash,
+  logger: Logger | undefined,
+): IssueEmployeeCard {
+  const attempts = createCardIssueAttempts(
+    createRedisRateLimiter(redis),
+    hash,
+    (error, companyId, userId) => {
+      logger?.warn(
+        { err: error, company_id: companyId, user_id: userId },
+        'employee card issue attempts unavailable',
+      );
+    },
+  );
+  return new IssueEmployeeCard(cards, attempts, (companyId, userId) => {
+    logger?.warn(
+      { company_id: companyId, user_id: userId },
+      'employee card issue completion unrecorded',
+    );
+  });
+}
+
 export function cardProviders(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
   cardKey: Buffer | null,
   redis: Redis | undefined,
+  logger?: Logger,
 ): Provider[] {
   if (database === undefined || cardKey === null)
     return [
@@ -82,12 +109,10 @@ export function cardProviders(
   const hash = createEmployeeCardHash(cardKey);
   const cards = createEmployeeCards(database, ids, systemClock, access, hash);
   // بلا Redis الإصدار يفشل مغلقاً؛ الإلغاء لا يعتمد على الحد.
-  const attempts =
-    redis === undefined ? null : createCardIssueAttempts(createRedisRateLimiter(redis));
   return [
     {
       provide: IssueEmployeeCard,
-      useValue: attempts === null ? null : new IssueEmployeeCard(cards, attempts),
+      useValue: redis === undefined ? null : openIssue(cards, redis, hash, logger),
     },
     { provide: RevokeEmployeeCard, useValue: new RevokeEmployeeCard(cards) },
     { provide: EMPLOYEE_CARD_ACCESS, useValue: access },

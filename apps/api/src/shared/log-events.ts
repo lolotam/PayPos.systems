@@ -11,6 +11,8 @@ export const API_LOG_EVENTS = [
   'whatsapp intake failed',
   'whatsapp redis unavailable',
   'employee card issue limited',
+  'employee card issue attempts unavailable',
+  'employee card issue completion unrecorded',
   'whatsapp changes skipped',
   'nest',
   'nest error',

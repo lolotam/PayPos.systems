@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -17,7 +18,7 @@ import {
   type IssueEmployeeCardInput,
 } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { Authenticated } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
@@ -76,6 +77,7 @@ export class EmployeeCardsController {
     @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
     @Body(new ZodValidationPipe(issueEmployeeCardInput)) input: IssueEmployeeCardInput,
     @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
     @Idempotency() idem: IdempotencyInput,
   ): Promise<EmployeeCard> {
     if (this.issue === null) throw new ApiError('NOT_READY');
@@ -89,7 +91,7 @@ export class EmployeeCardsController {
         ),
       );
     } catch (error) {
-      throw cardFailure(error, request);
+      throw cardFailure(error, request, reply);
     }
   }
   @Post(':cardId/revoke')
@@ -128,9 +130,14 @@ function cardView(record: EmployeeCardRecord): EmployeeCard {
     revoked_at: record.revokedAt,
   };
 }
-function cardFailure(error: unknown, request?: FastifyRequest): unknown {
+function cardFailure(
+  error: unknown,
+  request?: FastifyRequest,
+  reply?: FastifyReply,
+): unknown {
   if (error instanceof CardIssueLimitedError) {
     request?.log.warn({ outcome: 'limited' }, 'employee card issue limited');
+    if (reply !== undefined) void reply.header('retry-after', String(error.retryAfterSeconds));
     return new ApiError('TOO_MANY_REQUESTS');
   }
   if (error instanceof CardIssueAttemptsUnavailableError) return new ApiError('NOT_READY');

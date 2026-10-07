@@ -18,6 +18,7 @@ import { EnrolPasskey } from './use-cases/enrol-passkey/enrol-passkey.ts';
 import { createPasskeyTransactions } from './persistence/passkey-transactions.ts';
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import type { Logger } from '@pospay/observability';
 import { EmployeeLeaveController } from './http/employee-leave.controller.ts';
 import { OwnLeaveController } from './http/own-leave.controller.ts';
 import { LeaveInboxController } from './http/leave-inbox.controller.ts';
@@ -240,11 +241,12 @@ export function staffProviders(
   passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null = null,
   importStorage: { read(key: string, maxBytes: number): Promise<Uint8Array> } | null = null,
   employeeCardKey: Buffer | null = null,
+  logger?: Logger,
 ): Provider[] {
   const ids = systemUuidV7();
   return [
     ...attendanceProviders(database, redis, passkeys, ids),
-    ...cardProviders(database, ids, employeeCardKey, redis),
+    ...cardProviders(database, ids, employeeCardKey, redis, logger),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
     ...unbindProviders(database, ids),
     ...enrolProviders(database, ids, passkeys),

@@ -1,10 +1,11 @@
+import { createHash } from 'node:crypto';
 import { Writable } from 'node:stream';
 
 import type { Provider } from '@nestjs/common';
 import type { TenantWrappers } from '@pospay/db';
 import { errorMessages } from '@pospay/i18n';
 import { systemUuidV7 } from '@pospay/ids';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { createRedisRateLimiter } from '../../../shared/adapters/redis-rate-limiter.ts';
@@ -15,7 +16,8 @@ import {
   CARD_ISSUE_ATTEMPTS_PER_HOUR,
   createCardIssueAttempts,
 } from '../persistence/card-issue-attempts.ts';
-import type { EmployeeCardsPort } from '../ports/employee-cards.port.ts';
+import { createEmployeeCardHash } from '../persistence/employee-card-hash.ts';
+import type { EmployeeCardRecord, EmployeeCardsPort } from '../ports/employee-cards.port.ts';
 import { cardProviders } from '../staff-attendance.providers.ts';
 import {
   EMPLOYEE_CARD_ACCESS,
@@ -58,7 +60,7 @@ beforeAll(async () => {
     });
   employeeId = (await hire('Limit employee')).id;
   colleagueId = (await hire('Limit colleague')).id;
-  issuer = new IssueEmployeeCard(unusedCards(), attemptsFor(f.h.redis));
+  issuer = new IssueEmployeeCard(unusedCards(), attemptsFor(f.h.redis), () => undefined);
   ({ cookie: peerCookie, userId: peerId } = await peerOperator());
 });
 afterAll(async () => {
@@ -71,7 +73,11 @@ function unusedCards(): EmployeeCardsPort {
   return { issue: fail, revoke: fail };
 }
 function attemptsFor(redis: EmployeeFixture['h']['redis']) {
-  return createCardIssueAttempts(createRedisRateLimiter(redis));
+  return createCardIssueAttempts(
+    createRedisRateLimiter(redis),
+    createEmployeeCardHash(cardKey),
+    () => undefined,
+  );
 }
 function scope(userId: string) {
   return {
@@ -136,7 +142,10 @@ async function expectLimited(code: string, cookie = f.cookie) {
     code: 'TOO_MANY_REQUESTS',
     ...errorMessages('TOO_MANY_REQUESTS'),
   });
-  expect(response.headers['retry-after']).toBe('60');
+  const retryAfter = Number(response.headers['retry-after']);
+  const ttl = await f.h.redis.ttl(`rate:card-issue:${f.company}:${f.userId}`);
+  expect(retryAfter).toBeGreaterThan(60);
+  expect(Math.abs(retryAfter - ttl)).toBeLessThanOrEqual(2);
   expect(sqlText).not.toContain('INSERT INTO');
   expect(sqlText).not.toContain('UPDATE employee_cards');
   expect(sqlText).not.toContain('UPDATE idempotency_keys');
@@ -230,9 +239,17 @@ it('fails closed when the limiter is unavailable', async () => {
     hit: () => Promise.reject(new Error('redis down')),
     remember: () => Promise.reject(new Error('redis down')),
     remembered: () => Promise.reject(new Error('redis down')),
+    remaining: () => Promise.reject(new Error('redis down')),
   };
+  const reported: unknown[] = [];
   const controller = new EmployeeCardsController(
-    new IssueEmployeeCard(unusedCards(), createCardIssueAttempts(broken)),
+    new IssueEmployeeCard(
+      unusedCards(),
+      createCardIssueAttempts(broken, createEmployeeCardHash(cardKey), (error) => {
+        reported.push(error);
+      }),
+      () => undefined,
+    ),
     null,
     null,
     null,
@@ -245,6 +262,7 @@ it('fails closed when the limiter is unavailable', async () => {
       },
     },
   } as unknown as FastifyRequest;
+  const reply = { header() { return reply; } } as unknown as FastifyReply;
   let caught: unknown;
   try {
     await controller.issueCard(
@@ -252,11 +270,146 @@ it('fails closed when the limiter is unavailable', async () => {
       employeeId,
       { card_code: 'WmDown!1rUv' },
       request,
+      reply,
       { key: ids.newId(), fingerprint: 'cd'.repeat(32) },
     );
   } catch (error) {
     caught = error;
   }
+  expect(reported).toHaveLength(1);
+  expect(reported[0]).toMatchObject({ message: 'redis down' });
   expect(caught).toBeInstanceOf(ApiError);
   expect(caught).toMatchObject({ code: 'NOT_READY', status: 503 });
 });
+
+it('stores a keyed issue-attempt marker and the seconds left in the window', async () => {
+  const seen: string[] = [];
+  const limiter: RateLimiter = {
+    hit: () => Promise.resolve(seen.length === 0),
+    remembered: (key) => Promise.resolve(seen.includes(key)),
+    remember: (key) => {
+      seen.push(key);
+      return Promise.resolve();
+    },
+    remaining: () => Promise.resolve(2400),
+  };
+  const hash = createEmployeeCardHash(cardKey);
+  const attempts = createCardIssueAttempts(limiter, hash, () => undefined);
+  const fingerprint = createHash('sha256').update('{"card_code":"WmSecret!9zCd"}').digest('hex');
+  const idempotencyKey = 'idem-key-1';
+  const unkeyed = createHash('sha256')
+    .update(idempotencyKey)
+    .update('\0')
+    .update(fingerprint)
+    .digest('hex');
+  const marker = hash('company', JSON.stringify([idempotencyKey, fingerprint]), 'issue-attempt');
+  await expect(attempts.take('company', 'user', idempotencyKey, fingerprint)).resolves.toEqual({
+    outcome: 'accepted',
+  });
+  await attempts.complete('company', 'user', idempotencyKey, fingerprint);
+  expect(seen).toEqual([`card-issue:company:user:${marker}`]);
+  expect(seen.join(' ')).not.toContain(fingerprint);
+  expect(seen.join(' ')).not.toContain(unkeyed);
+  await expect(attempts.take('company', 'user', idempotencyKey, fingerprint)).resolves.toEqual({
+    outcome: 'replay',
+  });
+  await expect(attempts.take('company', 'user', idempotencyKey, 'ff'.repeat(32))).resolves.toEqual({
+    outcome: 'limited',
+    retryAfterSeconds: 2400,
+  });
+});
+
+it('returns the card when completion marking fails and a same-key replay stays safe', async () => {
+  const records = new Map<string, EmployeeCardRecord>();
+  let writes = 0;
+  const cards: EmployeeCardsPort = {
+    issue: (_scope, _code, idem) => {
+      const existing = records.get(`${idem.key}:${idem.fingerprint}`);
+      if (existing !== undefined) return Promise.resolve(existing);
+      writes += 1;
+      const record: EmployeeCardRecord = {
+        id: `card-${writes}`,
+        employeeId,
+        cardCodeSuffix: '9qRs',
+        issuedAt: '2026-10-07T00:00:00.000Z',
+        revokedAt: null,
+      };
+      records.set(`${idem.key}:${idem.fingerprint}`, record);
+      return Promise.resolve(record);
+    },
+    revoke: () => Promise.reject(new Error('SYNTHETIC_CARD_REVOKE')),
+  };
+  let remembers = 0;
+  const limiter: RateLimiter = {
+    hit: () => Promise.resolve(true),
+    remembered: () => Promise.resolve(false),
+    remember: () => {
+      remembers += 1;
+      return remembers === 1 ? Promise.reject(new Error('redis down')) : Promise.resolve();
+    },
+    remaining: () => Promise.resolve(3600),
+  };
+  const warnings: string[] = [];
+  const reported: unknown[] = [];
+  const issue = new IssueEmployeeCard(
+    cards,
+    createCardIssueAttempts(limiter, createEmployeeCardHash(cardKey), (error) => {
+      reported.push(error);
+    }),
+    (companyId) => warnings.push(companyId),
+  );
+  const idem = { key: ids.newId(), fingerprint: 'cd'.repeat(32) };
+  const cardScope = scope(f.userId);
+  const code = 'WmMark!9qRs';
+  const first = await issue.execute(cardScope, code, idem);
+  expect(first).toMatchObject({ id: 'card-1', cardCodeSuffix: '9qRs' });
+  expect(warnings).toEqual([f.company]);
+  expect(reported).toHaveLength(1);
+  expect(reported[0]).toMatchObject({ message: 'redis down' });
+  const replay = await issue.execute(cardScope, code, idem);
+  expect(replay).toEqual(first);
+  expect(writes).toBe(1);
+  expect(warnings).toEqual([f.company]);
+});
+
+it('keeps the issued card when Redis cannot store the completion marker', async () => {
+  await reset(f.userId);
+  const key = ids.newId();
+  const code = 'WmKeep!8pQr';
+  const redis = f.h.redis;
+  const original = redis.set;
+  let failed = false;
+  redis.set = function patched(this: typeof redis, ...args: unknown[]) {
+    const name = String(args[0]);
+    if (!failed && name.includes('rate:done:card-issue:')) {
+      failed = true;
+      return Promise.reject(new Error('redis down'));
+    }
+    return original.apply(this, args as never);
+  } as typeof redis.set;
+  try {
+    const from = logs.length;
+    const before = await snapshot();
+    const first = await issueHttp(code, key);
+    expect(first.status).toBe(200);
+    expect(first.body['card_code_suffix']).toBe('8pQr');
+    const issued = await snapshot();
+    expect(issued.cards).toBe(before.cards + 1);
+    expect(issued.idem).toBe(before.idem + 1);
+    const warned = logs.slice(from);
+    expect(occurrences(warned, 'employee card issue completion unrecorded')).toBe(1);
+    expect(occurrences(warned, 'employee card issue attempts unavailable')).toBe(1);
+    expect(warned).not.toContain(code);
+    const replay = await issueHttp(code, key);
+    expect(replay.status).toBe(200);
+    expect(replay.body).toEqual(first.body);
+    expect(await snapshot()).toEqual(issued);
+    expect(occurrences(logs.slice(from), 'employee card issue completion unrecorded')).toBe(1);
+  } finally {
+    redis.set = original;
+  }
+});
+
+function occurrences(text: string, needle: string): number {
+  return text.split(needle).length - 1;
+}
