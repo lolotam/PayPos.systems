@@ -115,7 +115,12 @@ keeping its prefix stable:
    it). Hand over with a ten-line summary of the state, not the history.
 7. The run is writable and auto-approving. After every dispatch, diff the worktree against the baseline: a run with
    no change is a failed candidate, whatever it reports. `grok usage` shows a session's token spend for the report.
-8. **When Grok is dry or fails**, stop its process, save its partial diff as a patch outside the repo, reset the
+8. **Measure the cache after every round** with `grok usage <session-id>` (run in the worktree) and put the numbers in
+   the owner report: input tokens, `cachedReadTokens` and their share, output tokens, model calls, cost. Target **90 %
+   or more** of input served from cache — the first 23a fix on 2026-10-07 reached 95 % (4.85 M of 5.1 M). A share
+   below that means the prefix moved: check that the session was resumed (not a new `-s`), that the brief header was
+   byte-identical, and that no file content was pasted into the brief.
+9. **When Grok is dry or fails**, stop its process, save its partial diff as a patch outside the repo, reset the
    worktree to the baseline, and only then dispatch the fallback (§1) — never hand a half-edited tree to another model.
 
 ---
