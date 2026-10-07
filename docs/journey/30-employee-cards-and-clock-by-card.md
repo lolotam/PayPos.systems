@@ -73,7 +73,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
 - كارت يسجل حضور موظف غير صاحبه، أو كارت ملغي/مستبدل يسجل.
 - رد يختلف بين كارت مش موجود وملغي وبتاع شركة تانية وموظف مش مربوط بالفرع (يكشف إن الكارت موجود).
 - تسجيل بالكارت من غير جهاز مربوط ومشغّل داخل، أو بعد ما المشغّل خرج، أو من مشغّل من غير الصلاحية.
-- تخمين من غير حد: المحاولة 31 في الساعة أو المسح الغلط رقم 11 في 10 دقايق يعدّي، أو المسح الناجح يتحسب.
+- تخمين من غير حد: المحاولة 31 في الساعة أو المسح الغلط رقم 11 في 10 دقايق يعدّي لما المسحات تيجي واحد ورا التاني، أو المسح الناجح يتحسب.
 - مسح أوفلاين يتحفظ أو يدخل طابور.
 - إصدار أو إلغاء من غير تدقيق، أو الحضور بالكارت يأثر على عمولة، أو حركة جديدة بالكارت تتسجل بموقع سليم بدل `NONE`.
 
@@ -140,7 +140,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
   (revealing that a card exists).
 - Clocking by card without a paired device and a signed-in operator, after the operator signed out, or by an operator
   without the permission.
-- Unlimited guessing: a 31st issue attempt in the hour or an 11th wrong scan in 10 minutes accepted, or accepted scans counted.
+- Unlimited guessing: a 31st issue attempt in the hour or an 11th sequential wrong scan in 10 minutes accepted, or accepted scans counted.
 - An offline scan stored or queued.
 - Issue or revoke without audit, card clocking affecting commission, or a fresh card movement recorded with a usable location instead of `NONE`.
 
@@ -159,7 +159,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
   `pospay-staff.session_token`, `Origin` equal to the configured POS origin, `Idempotency-Key` and `{ "card_code": "..." }` →
   200 `{ session_id, operation, working_date, accepted_at, exceptions, late_minutes, missed_session_id }` (a fresh card movement has `exceptions: ["NONE"]`; a dedupe within 5 minutes of a phone movement returns that movement's result unchanged) with
   `Cache-Control: no-store`. No operator or no Device → 401; missing permission or wrong `Origin` → 403 `FORBIDDEN`; a
-  malformed code → 400 `VALIDATION_FAILED` (not counted); a well-formed card not accepted → 404 `NOT_FOUND`; 11th failure in 600 s → 429 + `Retry-After`; Redis down → 503 `NOT_READY`.
+  malformed code → 400 `VALIDATION_FAILED` (not counted); a well-formed card not accepted → 404 `NOT_FOUND`; the 11th sequential failure in 600 s → 429 + `Retry-After` (concurrent failures may slightly exceed 10, spec 032); Redis down → 503 `NOT_READY`.
 - Assertions: the stored row has `card_code_hash` and `card_code_suffix` only; audit rows `employee_card` `issued` /
   `revoked` carry `employee_id`, never the code; the movement has `source='BARCODE'`, `device_id`, `operator_id`, one audit
   row and one `AttendanceClocked*` event in the same transaction; unknown, revoked, other-branch and other-company cards give
