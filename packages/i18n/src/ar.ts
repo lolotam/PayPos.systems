@@ -168,6 +168,8 @@ export const ar: Catalog = {
     loading: 'جارٍ تحميل الإشعارات…',
     error: 'تعذّر تحديث الإشعارات. حاول مرة أخرى.',
     generic_notice: 'تحديث بخصوص {{subject}}',
+    shift_not_clocked_in:
+      'لم يُسجَّل حضور {{employee_name}} لشفت الساعة {{shift_start}} في {{branch_name}}',
   },
   errors: {
     DOCUMENT_TYPE_UNAVAILABLE: 'نوع الوثيقة غير موجود أو موقوف.',

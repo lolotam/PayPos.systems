@@ -166,6 +166,8 @@ export const en = {
     loading: 'Loading notifications…',
     error: 'Notifications could not be updated. Try again.',
     generic_notice: 'Update for {{subject}}',
+    shift_not_clocked_in:
+      '{{employee_name}} has not clocked in for the {{shift_start}} shift at {{branch_name}}',
   },
   errors: {
     DOCUMENT_TYPE_UNAVAILABLE: 'This document type does not exist or is inactive.',

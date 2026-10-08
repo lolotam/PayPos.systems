@@ -104,6 +104,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
 | `staff` | `EmployeeDocumentReadAccess`, document-type authority | `identity`, `tenancy` | locked read/manage files and manage:document-types:company; business timezone for the expiry badge (ADR-0031) |
 | worker `staff` | `DocumentExpiryTransactions.timeZone` | worker `tenancy` | business timezone for the expiry window, reusing ADR-0031's staff-to-tenancy read; discovery stays on outbox delivery (ADR-0032) |
+| worker `staff` | `BranchManagerRecipients` | worker `identity` | active system-role managers whose scope covers the shift branch, at the injected instant (ADR-0037); PR 62 does not remove this read |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
@@ -164,14 +165,14 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
-| `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031) |
+| `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
 | `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`                                                                        |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `RatingRequestReady`                                                        | `customers`     | `notifications`                                                                                   |
 | `LowRatingReceived`                                                         | `customers`     | `notifications`                                                                                   |
 | `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (no recipients until alert rules ship)                                            |
-| `ShiftNotClockedIn`                                                         | `staff`         | `notifications`                                                                                   |
+| `ShiftNotClockedIn` | `staff` (worker not-clocked-in job, ADR-0037) | `notifications` (in-app managers by the interim rule; PR 62 replaces the rule) |
 | `DocumentExpiring`                                                          | `staff`         | `notifications`                                                                                   |
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |
 | `StatementAwaitingApproval`                                                 | `commissions`   | `notifications`                                                                                   |
@@ -289,6 +290,8 @@ reads:
   - staff -> identity.readEmployeeBranchAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> tenancy.businessTimeZone @ apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts
+  - staff -> identity.branchManagerRecipients @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
+  - staff -> identity.branchManagerRecipientsStatement @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be

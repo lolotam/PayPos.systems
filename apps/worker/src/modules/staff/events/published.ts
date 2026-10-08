@@ -22,6 +22,18 @@ export interface AttendanceMissedOut {
   readonly recorded_at: string;
 }
 
+/** يصدر مرة واحدة لكل موظف وبداية وردية عند تجاوز لحظة التنبيه بلا حضور محسوب، في نفس معاملة الدفتر والتدقيق. */
+export interface ShiftNotClockedIn {
+  readonly notice_id: string;
+  readonly employee_id: string;
+  readonly business_id: string;
+  readonly branch_id: string;
+  readonly shift_starts_at: string;
+  readonly shift_ends_at: string;
+  readonly alert_due_at: string;
+  readonly detected_at: string;
+}
+
 // TODO(spec) MO-Q1: لا notification_recipients قبل وصول AlertRulesPort (PR 62)؛ مستهلك الإشعارات يقبل الحدث بلا إرسال (موصى به).
 /** يصدر مرة واحدة لكل وثيقة لكل تاريخ انتهاء عند دخولها نافذة التنبيه، داخل نفس معاملة دفتر المنع والتدقيق. */
 export interface DocumentExpiring {

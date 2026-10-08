@@ -617,6 +617,27 @@
       "when": 1791343680676,
       "tag": "0087_2026-10-07_clock-by-card-defaults",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1791425285946,
+      "tag": "0089_2026-10-08_staff-schedule-shifts-company-starts",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1791425331367,
+      "tag": "0090_2026-10-08_attendance-not-clocked-in-notices",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1791425337422,
+      "tag": "0091_2026-10-08_attendance-not-clocked-in-notices-rls",
+      "breakpoints": true
     }
   ]
 }

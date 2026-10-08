@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY "staff_schedule_shifts_company_starts_idx" ON "staff_schedule_shifts" USING btree ("company_id","starts_at");

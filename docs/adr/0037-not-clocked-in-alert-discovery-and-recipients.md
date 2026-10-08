@@ -33,8 +33,12 @@ Two things are not covered by an existing decision:
    employee's own user. The adapter in
    `apps/worker/src/modules/staff/persistence/` calls a read-only function exported from a new minimal worker
    `identity` module's `index.ts` (the same shape as the worker `tenancy` module's `businessTimeZone`), on the
-   caller's `withTenant` transaction. It adds **no import arrow** — `staff → identity` already exists
-   (`module-map.md` §2) — and one §3 port row plus one `module-map.yaml` port entry.
+   caller's `withTenant` transaction. The method is `forBranch(tx, companyId, businessId, branchId, at, roles)`:
+   `companyId` keeps the membership predicate a constant for the scope indexes, `at` is the clock sampled after
+   the attendance lock, and `roles` come only from `interimNotClockedInRule`. Each scope arm is fenced with
+   `OFFSET 0` so the planner uses the company/scope indexes instead of the global role index. It adds **no import arrow** —
+   `staff → identity` already exists (`module-map.md` §2) — and one §3 port row. The machine-readable map records
+   the read under `reads:` (the generated YAML has no `ports:` key).
 3. **Interim fixed rule, replaced by PR 62.** Until PR 62, the alert is always on, its delay is 20 minutes, its
    recipients are the step-2 managers and its only channel is IN_APP. No email (NC-Q4); no WhatsApp; no employee
    notice (NC-Q3 — the employee's own push notice ships with PR 28b). The rule is one function in the worker

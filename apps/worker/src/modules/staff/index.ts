@@ -3,4 +3,5 @@ export type {
   AttendanceExceptionRaised,
   AttendanceMissedOut,
   DocumentExpiring,
+  ShiftNotClockedIn,
 } from './events/published.ts';

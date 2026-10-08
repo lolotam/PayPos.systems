@@ -15,6 +15,9 @@ import { startEmployeeImportRecoveryProcessor } from './jobs/employee-import-rec
 import { DetectDocumentExpiries } from './use-cases/detect-document-expiries/detect-document-expiries.ts';
 import { documentExpiryTransactions } from './persistence/document-expiry.transactions.ts';
 import { startDocumentExpiryProcessor } from './jobs/document-expiry.processor.ts';
+import { DetectNotClockedIns } from './use-cases/detect-not-clocked-in/detect-not-clocked-in.ts';
+import { notClockedInTransactions } from './persistence/not-clocked-in.transactions.ts';
+import { startNotClockedInProcessor } from './jobs/not-clocked-in.processor.ts';
 
 // أحداث الحضور التي يعرفها هذا الإصدار؛ AttendanceClockedIn وحده يسجل جدول الشركة ولا مستهلك أعمال لأي منها.
 const ATTENDANCE_EVENT_TYPES = [
@@ -41,6 +44,11 @@ export function startStaffWorker(
     redisUrl,
     prefix,
   );
+  const notClockedIn = startNotClockedInProcessor(
+    new DetectNotClockedIns(notClockedInTransactions(database, ids), clock),
+    redisUrl,
+    prefix,
+  );
   const imports = startEmployeeImportProcessor(
     new CommitEmployeeImport(employeeImportTransactions(database, ids), ids, clock),
     redisUrl,
@@ -59,15 +67,17 @@ export function startStaffWorker(
     ) =>
       event.eventType === 'EmployeeImportCommitRequested'
         ? recovery.deliver(event, () => imports.deliver(event))
-        : expiry.deliver(event, () => processor.deliver(event, next)),
+        : expiry.deliver(event, () => notClockedIn.deliver(event, () => processor.deliver(event, next))),
     ready: async () => {
       await processor.ready();
       await imports.ready();
       await recovery.ready();
       await expiry.ready();
+      await notClockedIn.ready();
     },
     close: async () => {
       await expiry.close();
+      await notClockedIn.close();
       await imports.close();
       await recovery.close();
       await processor.close();
