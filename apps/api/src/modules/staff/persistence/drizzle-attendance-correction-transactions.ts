@@ -1,3 +1,4 @@
+import type { CorrectAttendanceResult } from '@pospay/contracts';
 import {
   IdempotencyKeyBusyError,
   IdempotencyKeyReusedError,
@@ -11,7 +12,6 @@ import { AttendanceCorrectionError } from '../domain/attendance-correction.ts';
 import type {
   AttendanceCorrectionActor,
   AttendanceCorrectionClock,
-  AttendanceCorrectionResult,
   AttendanceCorrectionScope,
   AttendanceCorrectionTransactions,
 } from '../ports/attendance-correction-transactions.port.ts';
@@ -22,7 +22,7 @@ import {
 import {
   lockCorrectionState,
   lockedCorrectionEmployeeUser,
-  lockedCorrectionNeighbours,
+  correctionNeighbours,
   lockedCorrectionSession,
   peekCorrectionSession,
 } from './attendance-correction-records.ts';
@@ -47,13 +47,12 @@ async function load(tx: Tx, actor: AttendanceCorrectionActor, clock: AttendanceC
     throw new AttendanceCorrectionError('NOT_FOUND');
   const session = await lockedCorrectionSession(tx, actor);
   if (session.employee_id !== employeeId) throw new AttendanceCorrectionError('NOT_FOUND');
-  const employeeUserId = await lockedCorrectionEmployeeUser(tx, actor.companyId, session.employee_id);
-  const neighbours = await lockedCorrectionNeighbours(
+  const employeeUserId = await lockedCorrectionEmployeeUser(
     tx,
     actor.companyId,
     session.employee_id,
-    session.id,
   );
+  const neighbours = await correctionNeighbours(tx, actor.companyId, session.employee_id, session);
   const now = clock.now();
   const access = await attendanceCorrectionAuthority(
     tx,
@@ -105,8 +104,8 @@ async function correctOnce(
   ids: IdGenerator,
   actor: AttendanceCorrectionActor,
   clock: AttendanceCorrectionClock,
-  work: (scope: AttendanceCorrectionScope) => Promise<AttendanceCorrectionResult>,
-): Promise<AttendanceCorrectionResult> {
+  work: (scope: AttendanceCorrectionScope) => Promise<CorrectAttendanceResult>,
+): Promise<CorrectAttendanceResult> {
   try {
     return await database.withTenant(
       actor.companyId,
@@ -124,11 +123,12 @@ async function correctOnce(
             status: 200,
             body: await work({
               ...context,
-              save: (plan) => saveAttendanceCorrection(tx, actor, ids, context.session, plan, context.now),
+              save: (plan) =>
+                saveAttendanceCorrection(tx, actor, ids, context.session, plan, context.now),
             }),
           }),
         );
-        return result.body as AttendanceCorrectionResult;
+        return result.body as CorrectAttendanceResult;
       },
       { userId: actor.userId },
     );

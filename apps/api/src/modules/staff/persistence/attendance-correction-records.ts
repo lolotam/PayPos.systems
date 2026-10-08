@@ -59,17 +59,37 @@ export async function lockedCorrectionEmployeeUser(
   return row.user_id;
 }
 
-export async function lockedCorrectionNeighbours(
-  tx: Tx,
+export function correctionNeighboursStatement(
   companyId: string,
   employeeId: string,
-  sessionId: string,
-): Promise<AttendanceCorrectionNeighbour[]> {
-  return tx.execute<AttendanceCorrectionNeighbour & Record<string, unknown>>(sql`
+  session: Pick<AttendanceCorrectionSession, 'id' | 'working_date'>,
+) {
+  // قفل الحالة يحمي القراءة؛ يومان يغطيان مدة ١٦ ساعة واختلاف توقيت الفروع.
+  // المفتوحة القديمة قد تتداخل رغم خروج يومها من النافذة، ولها فهرس جزئي بصف واحد للموظف.
+  return sql`
     SELECT id, status,
       ${sql.raw(stamp('clock_in'))} AS clock_in,
       ${sql.raw(stamp('clock_out'))} AS clock_out
     FROM attendance_sessions
-    WHERE company_id=${companyId} AND employee_id=${employeeId} AND id<>${sessionId}
-    FOR SHARE`);
+    WHERE company_id=${companyId} AND employee_id=${employeeId} AND id<>${session.id}
+      AND status<>'OPEN'
+      AND working_date BETWEEN ${session.working_date}::date - 2 AND ${session.working_date}::date + 2
+    UNION ALL
+    SELECT id, status,
+      ${sql.raw(stamp('clock_in'))} AS clock_in,
+      ${sql.raw(stamp('clock_out'))} AS clock_out
+    FROM attendance_sessions
+    WHERE company_id=${companyId} AND employee_id=${employeeId} AND id<>${session.id}
+      AND status='OPEN'`;
+}
+
+export async function correctionNeighbours(
+  tx: Tx,
+  companyId: string,
+  employeeId: string,
+  session: Pick<AttendanceCorrectionSession, 'id' | 'working_date'>,
+): Promise<AttendanceCorrectionNeighbour[]> {
+  return tx.execute<AttendanceCorrectionNeighbour & Record<string, unknown>>(
+    correctionNeighboursStatement(companyId, employeeId, session),
+  );
 }

@@ -1,3 +1,4 @@
+import type { CorrectAttendanceResult } from '@pospay/contracts';
 import { appendAuditLog, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import {
@@ -5,10 +6,7 @@ import {
   type AttendanceCorrectionPlan,
   type AttendanceCorrectionSession,
 } from '../domain/attendance-correction.ts';
-import type {
-  AttendanceCorrectionActor,
-  AttendanceCorrectionResult,
-} from '../ports/attendance-correction-transactions.port.ts';
+import type { AttendanceCorrectionActor } from '../ports/attendance-correction-transactions.port.ts';
 
 export async function saveAttendanceCorrection(
   tx: Tx,
@@ -17,7 +15,7 @@ export async function saveAttendanceCorrection(
   before: AttendanceCorrectionSession,
   plan: AttendanceCorrectionPlan,
   correctedAt: Date,
-): Promise<AttendanceCorrectionResult> {
+): Promise<CorrectAttendanceResult> {
   const updated = await tx.execute(sql`
     UPDATE attendance_sessions
     SET clock_in=${plan.clock_in}, clock_out=${plan.clock_out}, late_minutes=${plan.late_minutes},
@@ -29,7 +27,7 @@ export async function saveAttendanceCorrection(
     throw new AttendanceCorrectionError('ATTENDANCE_SESSION_REVISION_CONFLICT');
   const requestId = ids.newId();
   const at = correctedAt.toISOString();
-  const corrections: AttendanceCorrectionResult['corrections'][number][] = [];
+  const corrections: CorrectAttendanceResult['corrections'][number][] = [];
   for (const change of plan.corrections) {
     const id = ids.newId();
     await tx.execute(sql`
