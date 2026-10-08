@@ -1,7 +1,12 @@
 import { packageTypeSchemas } from './package-type.js';
+import { packageServiceOptionSchemas } from './package-service-option.js';
 import { serviceSchemas } from './service.js';
 
-export const catalogSchemas = [...serviceSchemas, ...packageTypeSchemas];
+export const catalogSchemas = [
+  ...serviceSchemas,
+  ...packageTypeSchemas,
+  ...packageServiceOptionSchemas,
+];
 
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
@@ -115,6 +120,30 @@ export const catalogPaths = {
         '400': errors,
         '404': errors,
         '409': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/package-types/service-options': {
+    get: {
+      operationId: 'listPackageServiceOptions',
+      description:
+        'Cursor-paginated service options for package components: id, names, KWD price and active only. Requires read:package-types:business and the catalog feature, independently of service permissions. A role that manages package types also needs read:package-types:business, as the list screen does. Services cannot currently be retired, so active is true. A missing, foreign or unauthorized business returns the same FORBIDDEN response. Never writes.',
+      parameters: [
+        ...parameters,
+        { in: 'query', name: 'cursor', schema: { type: 'string', format: 'uuid' } },
+        {
+          in: 'query',
+          name: 'limit',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Package service options page',
+          content: json('PackageServiceOptionPage'),
+        },
+        '403': errors,
         default: errors,
       },
     },

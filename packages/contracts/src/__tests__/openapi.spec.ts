@@ -190,6 +190,8 @@ describe('openapi/openapi.json', () => {
         'PackageTypeListItem',
         'PackageTypePage',
         'PackageTypeListQuery',
+        'PackageServiceOption',
+        'PackageServiceOptionPage',
       ].sort(),
     );
     for (const schema of Object.values(schemas)) {

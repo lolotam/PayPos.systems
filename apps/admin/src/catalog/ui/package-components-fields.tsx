@@ -1,5 +1,9 @@
 'use client';
-import type { CreatePackageTypeInput, PackageTypeDetail } from '@pospay/contracts';
+import {
+  errorEnvelope,
+  type CreatePackageTypeInput,
+  type PackageTypeDetail,
+} from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useFieldArray, useFormContext } from 'react-hook-form';
@@ -25,6 +29,15 @@ export function PackageComponentsFields({ companyId, businessId, userId, initial
   const { fields, append, remove } = useFieldArray({ control, name: 'components' });
   const query = usePackageServices(companyId, businessId, userId);
   const services = serviceOptions(initial, query.data);
+  const error = errorEnvelope.safeParse(query.error);
+  if (query.isError && error.success && error.data.code === 'FORBIDDEN') {
+    return (
+      <fieldset>
+        <legend>{t(locale, 'catalogPackageTypes.components')}</legend>
+        <p role="alert">{t(locale, 'catalogPackageTypes.serviceOptionsForbidden')}</p>
+      </fieldset>
+    );
+  }
   return (
     <fieldset
       className="flex flex-col gap-3"

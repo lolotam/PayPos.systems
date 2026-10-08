@@ -81,6 +81,7 @@ it('PT-08 feature disabled and Device close every route including historical per
   const all = () =>
     Promise.all([
       request('GET'),
+      request('GET', '/service-options'),
       request('GET', `/${made.id}`),
       request('POST', '', packageTerms(f)),
       request('PATCH', `/${made.id}`, { ...packageTerms(f), expected_revision: 1 }),

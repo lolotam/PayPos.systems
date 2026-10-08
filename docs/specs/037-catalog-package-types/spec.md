@@ -324,4 +324,4 @@ cursor pages. Synchronous in `api`.
 
 - `package_type_components` has `PRIMARY KEY (company_id, id)`, as CLAUDE.md §5 and ADR-0007 require. The natural key is kept as `UNIQUE (company_id, package_type_id, service_id)`. The composite FKs stay tenant-qualified.
 - New error `PACKAGE_TYPE_NAME_INVALID` (400, Arabic and English) for a name that is blank or too long.
-- The admin service picker needs `read:services:business`. The three default managers hold it together with the package-type permissions.
+- The picker uses the package-scoped service-options endpoint, authorized by `read:package-types:business`; a role that manages package types also needs `read:package-types:business`, as the list screen does.

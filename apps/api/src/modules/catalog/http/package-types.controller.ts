@@ -15,6 +15,7 @@ import {
   id,
   packageTypeListQuery,
   type CreatePackageTypeInput,
+  type PackageServiceOptionPage,
   type PackageTypeDetail,
   type PackageTypeListQuery,
   type PackageTypePage,
@@ -30,6 +31,7 @@ import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { listPackageTypes } from '../queries/list-package-types.query.ts';
 import { getPackageTypeDetail } from '../queries/package-type-detail.query.ts';
+import { listPackageServiceOptions } from '../queries/package-service-options.query.ts';
 import {
   CreatePackageTypeUseCase,
   PackageTypeError,
@@ -77,6 +79,23 @@ export class PackageTypesController {
     return this.database.withTenant(
       actor.companyId,
       (tx) => listPackageTypes(tx, actor.companyId, businessId, query),
+      { userId: actor.userId },
+    );
+  }
+
+  @Get('service-options')
+  @Require('read:package-types:business', { business: 'businessId' })
+  @RequiresFeature('catalog')
+  async serviceOptions(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Query(new ZodValidationPipe(packageTypeListQuery)) query: PackageTypeListQuery,
+    @Req() request: FastifyRequest,
+  ): Promise<PackageServiceOptionPage> {
+    if (this.database === null) throw new ApiError('NOT_READY');
+    const actor = actorOf(request);
+    return this.database.withTenant(
+      actor.companyId,
+      (tx) => listPackageServiceOptions(tx, actor.companyId, businessId, query),
       { userId: actor.userId },
     );
   }

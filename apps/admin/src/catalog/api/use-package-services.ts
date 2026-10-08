@@ -1,5 +1,5 @@
 'use client';
-import { servicePage } from '@pospay/contracts';
+import { packageServiceOptionPage } from '@pospay/contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 
@@ -8,16 +8,19 @@ export function usePackageServices(companyId: string, businessId: string, userId
     queryKey: ['package-services', companyId, businessId, userId],
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
-      const response = await apiClient().GET('/v1/businesses/{businessId}/services', {
-        params: {
-          header: { 'x-company-id': companyId },
-          path: { businessId },
-          query: { limit: 100, ...(pageParam ? { cursor: pageParam } : {}) },
+      const response = await apiClient().GET(
+        '/v1/businesses/{businessId}/package-types/service-options',
+        {
+          params: {
+            header: { 'x-company-id': companyId },
+            path: { businessId },
+            query: { limit: 100, ...(pageParam ? { cursor: pageParam } : {}) },
+          },
+          signal,
         },
-        signal,
-      });
+      );
       if (response.error) throw response.error;
-      return servicePage.parse(response.data);
+      return packageServiceOptionPage.parse(response.data);
     },
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   });

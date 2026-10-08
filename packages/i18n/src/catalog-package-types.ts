@@ -28,6 +28,8 @@ export const catalogPackageTypesEn = {
   removeComponentRow: 'Remove service {row}',
   selectService: 'Choose a service',
   nextServices: 'Load more services',
+  serviceOptionsForbidden:
+    'To choose package services, your role needs read:package-types:business. Ask an administrator to grant it.',
   next: 'Next page',
   first: 'First page',
   reload: 'Reload package type',
@@ -36,6 +38,8 @@ export const catalogPackageTypesEn = {
     'Check names, price (3 decimals), validity (1–730 days), and 1–20 distinct services with 1–365 sessions each.',
 };
 export const catalogPackageTypesAr = {
+  serviceOptionsForbidden:
+    'لاختيار خدمات الباقة، يحتاج دورك إلى الصلاحية read:package-types:business. اطلب من مسؤول الصلاحيات إضافتها.',
   listTitle: 'أنواع الباقات',
   listLead: 'الباقات المتاحة في جميع فروع هذا النشاط.',
   empty: 'لا توجد أنواع باقات في هذه الصفحة.',

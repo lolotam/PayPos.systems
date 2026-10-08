@@ -293,3 +293,9 @@ export {
   type PackageTypePage,
   type PackageTypeListQuery,
 } from './catalog/package-type.js';
+export {
+  packageServiceOption,
+  packageServiceOptionPage,
+  type PackageServiceOption,
+  type PackageServiceOptionPage,
+} from './catalog/package-service-option.js';
