@@ -136,6 +136,7 @@ interface EmployeeOptions {
   readonly deletedAt?: Date | null;
 }
 interface LeaveInput {
+  readonly timezone?: string;
   readonly kind: 'FULL_DAY' | 'PARTIAL';
   readonly status: 'APPROVED' | 'PENDING';
   readonly from: string;
@@ -237,7 +238,7 @@ async function addLeave(
   const approved = input.status === 'APPROVED';
   await owner`INSERT INTO leave_requests(company_id,id,business_id,branch_id,employee_id,kind,"from","to",start,"end",timezone,starts_at,ends_at,type,status,requested_by,requested_at,decided_by,decided_at)
     VALUES(${tenant.company},${ids.newId()},${tenant.business},${tenant.branch},${employeeId},${input.kind},${input.from},${input.to},
-      ${input.start},${input.end},'Asia/Kuwait',${input.startsAt},${input.endsAt},'ANNUAL',${input.status},${userId},${input.startsAt},
+      ${input.start},${input.end},${input.timezone ?? 'Asia/Kuwait'},${input.startsAt},${input.endsAt},'ANNUAL',${input.status},${userId},${input.startsAt},
       ${approved ? userId : null},${approved ? input.startsAt : null})`;
 }
 

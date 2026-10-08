@@ -1,6 +1,6 @@
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { LeaveInterval } from '../domain/not-clocked-in.ts';
+import type { LeaveInterval, PresenceSession } from '../domain/not-clocked-in.ts';
 import type { BranchPlace, BranchPlaceReader } from '../ports/branch-place.port.ts';
 import type {
   DueShift,
@@ -70,7 +70,7 @@ export function approvedLeavesStatement(
   return sql`SELECT starts_at, ends_at, status, kind, "from", "to" FROM leave_requests
     WHERE company_id = ${companyId} AND employee_id = ${employeeId} AND status = 'APPROVED'
       AND ((kind = 'FULL_DAY' AND "from" <= ${workingDate}::date AND "to" >= ${workingDate}::date)
-        OR (kind = 'PARTIAL' AND starts_at < ${endsAt.toISOString()}::timestamptz
+        OR (starts_at < ${endsAt.toISOString()}::timestamptz
           AND ends_at > ${startsAt.toISOString()}::timestamptz))
     ORDER BY starts_at, ends_at`;
 }
@@ -132,7 +132,7 @@ function locked(
     shift: (shiftId) => readShift(tx, companyId, employeeId, shiftId, places),
     approvedLeaves: (id, startsAt, endsAt, workingDate) =>
       readLeaves(tx, companyId, id, startsAt, endsAt, workingDate),
-    openClockIn: (id) => readOpenClockIn(tx, companyId, id),
+    presenceSession: (id, alertAt) => readPresenceSession(tx, companyId, id, alertAt),
     clockIns: (id, from, to) => readClockIns(tx, companyId, id, from, to),
     managers: (businessId, branchId, roles) =>
       branchManagerRecipientsAdapter.forBranch(tx, companyId, businessId, branchId, at, roles),
@@ -192,17 +192,31 @@ async function readLeaves(
   }));
 }
 
-export function openClockInStatement(companyId: string, employeeId: string) {
-  return sql`SELECT clock_in
+export function presenceSessionStatement(companyId: string, employeeId: string, alertAt: Date) {
+  return sql`SELECT clock_in, clock_out, status
     FROM attendance_sessions WHERE company_id = ${companyId} AND employee_id = ${employeeId}
-      AND status = 'OPEN'`;
+      AND status = 'OPEN' AND clock_in <= ${alertAt.toISOString()}::timestamptz
+    UNION ALL
+    SELECT clock_in, clock_out, status
+    FROM attendance_sessions WHERE company_id = ${companyId} AND employee_id = ${employeeId}
+      AND status <> 'OPEN' AND clock_in <= ${alertAt.toISOString()}::timestamptz
+      AND clock_out > ${alertAt.toISOString()}::timestamptz
+    LIMIT 1`;
 }
 
-async function readOpenClockIn(tx: Tx, companyId: string, employeeId: string): Promise<Date | null> {
-  const [row] = await tx.execute<{ clock_in: Date | string }>(
-    openClockInStatement(companyId, employeeId),
+async function readPresenceSession(
+  tx: Tx, companyId: string, employeeId: string, alertAt: Date,
+): Promise<PresenceSession | null> {
+  const [row] = await tx.execute<{
+    clock_in: Date | string; clock_out: Date | string | null; status: string;
+  }>(
+    presenceSessionStatement(companyId, employeeId, alertAt),
   );
-  return row === undefined ? null : instant(row.clock_in);
+  return row === undefined ? null : {
+    clockIn: instant(row.clock_in),
+    clockOut: row.clock_out === null ? null : instant(row.clock_out),
+    status: row.status,
+  };
 }
 
 async function readClockIns(

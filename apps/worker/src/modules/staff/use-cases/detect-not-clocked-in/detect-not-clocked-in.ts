@@ -104,7 +104,7 @@ export class DetectNotClockedIns {
       contractEnd: shift.contractEnd,
       workingDate: shift.workingDate,
       clockIns,
-      openClockIn: await tx.openClockIn(shift.employeeId),
+      presenceSession: await tx.presenceSession(shift.employeeId, applied.alertAt),
     });
     if (decision !== 'ALERT') return false;
     return this.record(tx, shift, applied.alertAt, at, rule.roles);

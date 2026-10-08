@@ -42,6 +42,13 @@ export interface AppliedLeave {
   readonly alertAt: Date;
 }
 
+/** حقائق جلسة الحضور لتحديد هل كانت مفتوحة لحظة التنبيه، حتى لو أُغلقت قبل تشغيل الوظيفة. */
+export interface PresenceSession {
+  readonly clockIn: Date;
+  readonly clockOut: Date | null;
+  readonly status: string;
+}
+
 /** الحقائق التي يقرر بها domain بعد إعادة القراءة تحت القفل. */
 export interface NotClockedInFacts {
   readonly now: Date;
@@ -53,7 +60,7 @@ export interface NotClockedInFacts {
   readonly contractEnd: string | null;
   readonly workingDate: string;
   readonly clockIns: readonly Date[];
-  readonly openClockIn: Date | null;
+  readonly presenceSession: PresenceSession | null;
 }
 
 /** حصيلة الدورة؛ null يعني فشل معاملة وتُعاد المحاولة، وfalse لا يغيّر شيئاً. */
@@ -151,7 +158,7 @@ export function dueShiftCutoff(now: Date, delayMs: number): Date {
 
 /**
  * الإجازة اليومية المعتمدة تُعفي يوم العمل كله، حتى لو امتدت الوردية لليوم التالي.
- * يطبّق الإجازات الجزئية المعتمدة المتصلة على بداية الوردية.
+ * يطبّق كل الإجازات المعتمدة المتصلة على بداية الوردية، بما فيها اليومية لليوم التالي.
  * الفترة نصف مفتوحة. إجازة تتجاوز نهاية الوردية تُعفي، والتي تنتهي عند النهاية تماماً
  * تؤخر التنبيه إلى نهايتها زائد المهلة فيصبح القرار STALE. المعلّقة والمرفوضة والملغاة تُهمل.
  *
@@ -169,7 +176,7 @@ export function applyApprovedLeave(
     leave.from <= shift.workingDate && shift.workingDate <= leave.to))
     return { excused: true, alertAt: alertMoment(shift.startsAt, delayMs) };
   const approved = leaves
-    .filter((leave) => leave.status === 'APPROVED' && leave.kind === 'PARTIAL')
+    .filter((leave) => leave.status === 'APPROVED')
     .slice()
     .sort(byLeaveStart);
   let cursor = shift.startsAt.getTime();
@@ -190,7 +197,7 @@ export function applyApprovedLeave(
 /**
  * يقرر مصير الوردية بالترتيب الملزم: منتهية، ثم غير مؤهل، ثم إجازة، ثم حضور، ثم انتظار، وإلا تنبيه.
  * العقد المنتهي في يوم الوردية نفسه ما زال مؤهلاً؛ الحذف أو نهاية العقد قبل يوم العمل يُسقط الوردية.
- * الجلسة المفتوحة التي بدأت قبل الموعد تُثبت الحضور ولو سبقت نافذة الساعتين (NC-Q13).
+ * الجلسة المفتوحة لحظة التنبيه تُثبت الحضور ولو سبقت نافذة الساعتين أو أُغلقت بعدها وقبل التشغيل (NC-Q13).
  *
  * @param facts اللحظة والوردية والإجازة والحضور بعد القفل
  * @returns القرار
@@ -358,6 +365,9 @@ function coveringLeave(
 function clockedIn(facts: NotClockedInFacts): boolean {
   const start = facts.windowStart.getTime();
   const end = facts.alertAt.getTime();
-  if (facts.openClockIn !== null && facts.openClockIn.getTime() <= end) return true;
+  const session = facts.presenceSession;
+  if (session !== null && session.clockIn.getTime() <= end &&
+    (session.status === 'OPEN' || (session.clockOut !== null && session.clockOut.getTime() > end)))
+    return true;
   return facts.clockIns.some((clockIn) => clockIn.getTime() >= start && clockIn.getTime() <= end);
 }

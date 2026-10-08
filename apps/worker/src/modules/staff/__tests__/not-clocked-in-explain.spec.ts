@@ -5,7 +5,7 @@ import {
   approvedLeavesStatement,
   countingClockInsStatement,
   dueShiftsStatement,
-  openClockInStatement,
+  presenceSessionStatement,
 } from '../persistence/not-clocked-in.transactions.ts';
 import { NOT_CLOCKED_IN_PAGE_SIZE } from '../use-cases/detect-not-clocked-in/detect-not-clocked-in.ts';
 import {
@@ -143,7 +143,7 @@ async function expectIndexes(
   expect(await f.db.withTenant(tenant.company, (tx) => tx.execute(idle))).toHaveLength(0);
   const text = JSON.stringify({
     due,
-    open: await plan(tenant.company, openClockInStatement(tenant.company, employeeId)),
+    presence: await plan(tenant.company, presenceSessionStatement(tenant.company, employeeId, ALERT_AT)),
     clocks: await plan(
       tenant.company,
       countingClockInsStatement(tenant.company, employeeId, from, ALERT_AT),

@@ -42,7 +42,7 @@ function facts(patch: Partial<NotClockedInFacts> = {}): NotClockedInFacts {
     contractEnd: null,
     workingDate: '2026-10-04',
     clockIns: [],
-    openClockIn: null,
+    presenceSession: null,
     ...patch,
   };
 }

@@ -1,4 +1,4 @@
-import type { LeaveInterval, NoticeParameter } from '../domain/not-clocked-in.ts';
+import type { LeaveInterval, NoticeParameter, PresenceSession } from '../domain/not-clocked-in.ts';
 
 /** موضع الصفحة التالية بترتيب (starts_at ثم id) حتى لا تتكرر وردية أو تسقط بين الصفحات. */
 export interface NotClockedInCursor {
@@ -52,7 +52,7 @@ export interface LockedNotClockedIn {
    */
   shift(shiftId: string): Promise<LockedShift | null>;
   /**
-   * إجازات الموظف المعتمدة: يومية تغطي يوم العمل أو جزئية تتداخل مع الوردية.
+   * إجازات الموظف المعتمدة: يومية تغطي يوم العمل أو أي إجازة تتداخل لحظياً مع الوردية لتكملة السلسلة.
    *
    * @param employeeId الموظف
    * @param startsAt بداية الوردية
@@ -67,12 +67,13 @@ export interface LockedNotClockedIn {
     workingDate: string,
   ): Promise<readonly LeaveInterval[]>;
   /**
-   * بداية الجلسة المفتوحة من أي فرع؛ تمنع تنبيه الوردية الثانية حتى خارج نافذة الساعتين.
+   * جلسة من أي فرع كانت مفتوحة لحظة التنبيه؛ الإغلاق اللاحق لا يمحو حضور الوردية الثانية.
    *
    * @param employeeId الموظف
-   * @returns بداية الجلسة المفتوحة أو null
+   * @param alertAt لحظة التنبيه بعد تطبيق الإجازات
+   * @returns حقائق جلسة تغطي لحظة التنبيه أو null
    */
-  openClockIn(employeeId: string): Promise<Date | null>;
+  presenceSession(employeeId: string, alertAt: Date): Promise<PresenceSession | null>;
   /**
    * لحظات الحضور داخل النافذة، من أي فرع.
    *

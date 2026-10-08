@@ -75,9 +75,12 @@ Two things are not covered by an existing decision:
    dedupe key (shift rows are replaced on re-save, ADR-0024), and each decision runs after locking the employee's
    `attendance_states` row, the same first lock as scans and the missed-out job (ADR-0028/0032).
 8. **Leave and presence.** An approved `FULL_DAY` leave excuses any shift with `from ≤ working_date ≤ to`,
-   including overnight shifts. Only partial leaves use instant overlap and the existing deferral rule. An OPEN
-   session whose clock-in is at or before the alert deadline counts even before the two-hour window (NC-Q13);
-   the separate OPEN probe uses `attendance_sessions_one_open`, without an artificial working-date cutoff.
+   including overnight shifts. All approved leaves are also fetched by instant overlap and participate in the
+   contiguous-leave chain: partial leave until midnight followed by FULL_DAY leave on the next day excuses an
+   overnight shift. Presence is evaluated at the alert deadline (NC-Q13): `clock_in <= alertAt` and either
+   `status = 'OPEN'` or `clock_out > alertAt`, even before the two-hour window and even if closed before the run.
+   The OPEN probe uses `attendance_sessions_one_open`; the historical probe uses the company/employee prefix
+   of `attendance_sessions_employee_date_idx`, without an artificial working-date cutoff.
 9. **Failure visibility.** Each failed candidate reports the safe error type/code and immediate cause type/code
    through the diagnostics port, without messages, stack, query parameters or employee data. Other candidates
    continue and any failure still makes the run retryable; repeated failures remain visible in worker logs.
