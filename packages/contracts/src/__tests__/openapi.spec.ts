@@ -184,6 +184,16 @@ describe('openapi/openapi.json', () => {
         'SalaryHistoryPage',
         'SalaryHistoryQuery',
         'SetSalaryInput',
+        'PackageTypeComponentInput',
+        'CreatePackageTypeInput',
+        'UpdatePackageTypeInput',
+        'PackageTypeComponent',
+        'PackageTypeDetail',
+        'PackageTypeListItem',
+        'PackageTypePage',
+        'PackageTypeListQuery',
+        'PackageServiceOption',
+        'PackageServiceOptionPage',
       ].sort(),
     );
     for (const schema of Object.values(schemas)) {

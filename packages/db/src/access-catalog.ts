@@ -30,6 +30,8 @@ export const PERMISSIONS = [
   'login:staff:branch',
   'manage:employees:business',
   'read:services:business',
+  'read:package-types:business',
+  'manage:package-types:business',
   'manage:services:business',
   'read:memberships:company',
   'read:memberships:business',

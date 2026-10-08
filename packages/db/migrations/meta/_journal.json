@@ -659,6 +659,20 @@
       "when": 1791456715219,
       "tag": "0093_2026-10-08_attendance-not-clocked-in-notices-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1791456716219,
+      "tag": "0094_2026-10-08_catalog-package-types",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1791456717219,
+      "tag": "0095_2026-10-08_catalog-package-types-rls",
+      "breakpoints": true
     }
   ]
 }

@@ -5172,6 +5172,396 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/package-types": {
+      "get": {
+        "operationId": "listPackageTypes",
+        "description": "Cursor-paginated package-types of one business. Missing, foreign and other-business ids answer like unknown. Requires read:package-types:business and the catalog feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Package type page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageTypePage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPackageType",
+        "description": "Creates a package type with a KWD price, validity and ordered service components. Requires manage:package-types:business and the catalog feature. Names are unique within the business ignoring case and surrounding spaces; duplicates return PACKAGE_TYPE_NAME_TAKEN (409). A zero price and zero-price services are allowed. The write and its audit row commit in one transaction.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePackageTypeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created package type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageTypeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/package-types/service-options": {
+      "get": {
+        "operationId": "listPackageServiceOptions",
+        "description": "Cursor-paginated service options for package components: id, names, KWD price and active only. Requires read:package-types:business and the catalog feature, independently of service permissions. A role that manages package types also needs read:package-types:business, as the list screen does. Services cannot currently be retired, so active is true. A missing, foreign or unauthorized business returns the same FORBIDDEN response. Never writes.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Package service options page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageServiceOptionPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/package-types/{packageTypeId}": {
+      "get": {
+        "operationId": "getPackageType",
+        "description": "One package type with ordered components and current service names and prices. Missing, foreign and other-business ids share PACKAGE_TYPE_NOT_FOUND (404). Requires read:package-types:business and the catalog feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "packageTypeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Persisted package type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageTypeDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updatePackageType",
+        "description": "Full replacement of names, price, validity and ordered components against expected_revision. Requires manage:package-types:business and the catalog feature. Effective changes are audited; a no-op preserves the revision and writes no audit entry. A stale revision returns PACKAGE_TYPE_REVISION_CONFLICT (409); duplicate names return PACKAGE_TYPE_NAME_TAKEN (409). Existing sold entitlements are unaffected.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "packageTypeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePackageTypeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated package type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageTypeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/devices/me/attendance-qr": {
       "post": {
         "operationId": "issueAttendanceQr",
@@ -10653,6 +11043,371 @@
           }
         },
         "additionalProperties": false
+      },
+      "PackageTypeComponentInput": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          }
+        },
+        "required": [
+          "service_id",
+          "sessions"
+        ],
+        "additionalProperties": false
+      },
+      "CreatePackageTypeInput": {
+        "type": "object",
+        "properties": {
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          },
+          "validity_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 730
+          },
+          "components": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageTypeComponentInput"
+            }
+          }
+        },
+        "required": [
+          "name_en",
+          "price",
+          "validity_days",
+          "components"
+        ],
+        "additionalProperties": false
+      },
+      "UpdatePackageTypeInput": {
+        "type": "object",
+        "properties": {
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          },
+          "validity_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 730
+          },
+          "components": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageTypeComponentInput"
+            }
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
+          "name_en",
+          "name_ar",
+          "price",
+          "validity_days",
+          "components",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "PackageTypeComponent": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          }
+        },
+        "required": [
+          "service_id",
+          "sessions",
+          "name_en",
+          "name_ar",
+          "price"
+        ],
+        "additionalProperties": false
+      },
+      "PackageTypeDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          },
+          "validity_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 730
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "components": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageTypeComponent"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "business_id",
+          "name_en",
+          "name_ar",
+          "price",
+          "validity_days",
+          "revision",
+          "components",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "PackageTypeListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          },
+          "validity_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 730
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "component_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          }
+        },
+        "required": [
+          "id",
+          "name_en",
+          "name_ar",
+          "price",
+          "validity_days",
+          "revision",
+          "component_count"
+        ]
+      },
+      "PackageTypePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageTypeListItem"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "PackageTypeListQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "PackageServiceOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^\\P{Cc}*$"
+          },
+          "price": {
+            "$ref": "#/components/schemas/ServicePrice"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name_ar",
+          "name_en",
+          "price",
+          "active"
+        ]
+      },
+      "PackageServiceOptionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageServiceOption"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
       },
       "AttendanceQrToken": {
         "type": "object",

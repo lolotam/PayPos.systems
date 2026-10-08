@@ -280,3 +280,24 @@ export {
   type EmployeeImportCommitAccepted,
   type EmployeeImportStatus,
 } from './staff/employee-import.js';
+
+export {
+  createPackageTypeInput,
+  updatePackageTypeInput,
+  packageTypeDetail,
+  packageTypeListItem,
+  packageTypePage,
+  packageTypeListQuery,
+  type CreatePackageTypeInput,
+  type UpdatePackageTypeInput,
+  type PackageTypeDetail,
+  type PackageTypeListItem,
+  type PackageTypePage,
+  type PackageTypeListQuery,
+} from './catalog/package-type.js';
+export {
+  packageServiceOption,
+  packageServiceOptionPage,
+  type PackageServiceOption,
+  type PackageServiceOptionPage,
+} from './catalog/package-service-option.js';

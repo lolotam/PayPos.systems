@@ -1074,6 +1074,59 @@ export interface paths {
         patch: operations["updateService"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/package-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cursor-paginated package-types of one business. Missing, foreign and other-business ids answer like unknown. Requires read:package-types:business and the catalog feature. */
+        get: operations["listPackageTypes"];
+        put?: never;
+        /** @description Creates a package type with a KWD price, validity and ordered service components. Requires manage:package-types:business and the catalog feature. Names are unique within the business ignoring case and surrounding spaces; duplicates return PACKAGE_TYPE_NAME_TAKEN (409). A zero price and zero-price services are allowed. The write and its audit row commit in one transaction. */
+        post: operations["createPackageType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/package-types/service-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cursor-paginated service options for package components: id, names, KWD price and active only. Requires read:package-types:business and the catalog feature, independently of service permissions. A role that manages package types also needs read:package-types:business, as the list screen does. Services cannot currently be retired, so active is true. A missing, foreign or unauthorized business returns the same FORBIDDEN response. Never writes. */
+        get: operations["listPackageServiceOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/package-types/{packageTypeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One package type with ordered components and current service names and prices. Missing, foreign and other-business ids share PACKAGE_TYPE_NOT_FOUND (404). Requires read:package-types:business and the catalog feature. */
+        get: operations["getPackageType"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Full replacement of names, price, validity and ordered components against expected_revision. Requires manage:package-types:business and the catalog feature. Effective changes are audited; a no-op preserves the revision and writes no audit entry. A stale revision returns PACKAGE_TYPE_REVISION_CONFLICT (409); duplicate names return PACKAGE_TYPE_NAME_TAKEN (409). Existing sold entitlements are unaffected. */
+        patch: operations["updatePackageType"];
+        trace?: never;
+    };
     "/v1/devices/me/attendance-qr": {
         parameters: {
             query?: never;
@@ -2464,6 +2517,82 @@ export interface components {
             cursor?: string;
             /** @default 20 */
             limit: number;
+        };
+        PackageTypeComponentInput: {
+            /** Format: uuid */
+            service_id: string;
+            sessions: number;
+        };
+        CreatePackageTypeInput: {
+            name_en: string;
+            name_ar?: string | null;
+            price: string;
+            validity_days: number;
+            components: components["schemas"]["PackageTypeComponentInput"][];
+        };
+        UpdatePackageTypeInput: {
+            name_en: string;
+            name_ar: string | null;
+            price: string;
+            validity_days: number;
+            components: components["schemas"]["PackageTypeComponentInput"][];
+            expected_revision: number;
+        };
+        PackageTypeComponent: {
+            /** Format: uuid */
+            service_id: string;
+            sessions: number;
+            name_en: string;
+            name_ar: string | null;
+            price: string;
+        };
+        PackageTypeDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            name_en: string;
+            name_ar: string | null;
+            price: string;
+            validity_days: number;
+            revision: number;
+            components: components["schemas"]["PackageTypeComponent"][];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        PackageTypeListItem: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string | null;
+            price: string;
+            validity_days: number;
+            revision: number;
+            component_count: number;
+        };
+        PackageTypePage: {
+            items: components["schemas"]["PackageTypeListItem"][];
+            next_cursor: string | null;
+        };
+        PackageTypeListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        PackageServiceOption: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            price: components["schemas"]["ServicePrice"];
+            active: boolean;
+        };
+        PackageServiceOptionPage: {
+            items: components["schemas"]["PackageServiceOption"][];
+            next_cursor: string | null;
         };
         AttendanceQrToken: {
             /** Format: uuid */
@@ -6011,6 +6140,259 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Service"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listPackageTypes: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Package type page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageTypePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createPackageType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePackageTypeInput"];
+            };
+        };
+        responses: {
+            /** @description Created package type */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageTypeDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listPackageServiceOptions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Package service options page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageServiceOptionPage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPackageType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                packageTypeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Persisted package type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageTypeDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updatePackageType: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                packageTypeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePackageTypeInput"];
+            };
+        };
+        responses: {
+            /** @description Updated package type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageTypeDetail"];
                 };
             };
             /** @description Bilingual refusal */

@@ -8,7 +8,7 @@ import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
 import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
 import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
 import { CARD_COLUMN_GRANTS } from '../../test/card-grants.ts';
-import { SERVICE_COLUMN_GRANTS } from '../../test/catalog-grants.ts';
+import { SERVICE_COLUMN_GRANTS, PACKAGE_TYPE_COLUMN_GRANTS } from '../../test/catalog-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -93,6 +93,11 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'notification_attempts:SELECT',
     'notification_attempts:UPDATE',
     'outbox:INSERT',
+    'package_type_components:DELETE',
+    'package_type_components:INSERT',
+    'package_type_components:SELECT',
+    'package_types:INSERT',
+    'package_types:SELECT',
     'permission_overrides:DELETE',
     'permission_overrides:INSERT',
     'permission_overrides:SELECT',
@@ -178,6 +183,8 @@ const TENANT_TABLES = [
   'file_cleanup_objects',
   'import_previews',
   'services',
+  'package_types',
+  'package_type_components',
   'employees',
   'employee_branches',
   'employee_cards',
@@ -277,6 +284,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...IMPORT_COLUMN_GRANTS,
         ...CARD_COLUMN_GRANTS,
         ...SERVICE_COLUMN_GRANTS,
+        ...PACKAGE_TYPE_COLUMN_GRANTS,
       ].sort(),
     );
   });

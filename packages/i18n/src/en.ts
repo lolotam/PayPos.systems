@@ -1,3 +1,5 @@
+import { permissionCodesEn } from './permission-codes-catalog.js';
+import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
 import { attendanceEn } from './attendance-en.js';
 import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
@@ -15,39 +17,7 @@ export const en = {
   employeeDocuments: employeeDocumentsEn,
   passkeyAdmin: enPasskeyAdmin,
   leave: leaveEn,
-  permissionCodes: {
-    readSchedulesBranch: 'Read branch schedules',
-    manageSchedulesBranch: 'Manage branch schedules',
-    readSchedulesBusiness: 'Read business shift templates',
-    manageSchedulesBusiness: 'Manage business shift templates',
-    readMembershipsCompany: 'Read company memberships',
-    manageMembershipsCompany: 'Manage company permissions',
-    readMembershipsBusiness: 'Read business memberships',
-    manageMembershipsBusiness: 'Manage business permissions',
-    readBusinessesCompany: 'Read businesses',
-    createBusinessesCompany: 'Create businesses',
-    createBranchesBusiness: 'Create business branches',
-    readBranchesBranch: 'Read branches',
-    manageDevicesBranch: 'Manage branch devices',
-    readSettingsBusiness: 'Read business settings',
-    manageSettingsBusiness: 'Manage business settings',
-    viewNotificationsBusiness: 'Read notification delivery log',
-    manageFilesBusiness: 'Upload business files',
-    readFilesBusiness: 'Read business files',
-    manageEmployeesBusiness: 'Manage business employees',
-    manageDiscountsCompany: 'Manage company discounts',
-    createCustomersCompany: 'Create company customers',
-    createCustomersBusiness: 'Create customers from this business',
-    createCustomersBranch: 'Create customers from this branch',
-    manageDiscountLimitsBusiness: 'Administer personal discount limits',
-    loginStaffBranch: 'Sign in to staff app',
-    clockAttendanceBranch: 'Clock staff in by card on a paired device',
-    resolveAttendanceBranch: 'Resolve branch attendance exceptions',
-    correctAttendanceBranch: 'Correct branch attendance times',
-    createCompaniesPlatform: 'Create companies on the platform',
-    readServicesBusiness: 'Read business services',
-    manageServicesBusiness: 'Manage business services',
-  },
+  permissionCodes: permissionCodesEn,
   brand: {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',
@@ -232,6 +202,7 @@ export const en = {
       'This card code is already active for another employee in the company.',
     ...employeeImportErrorsEn,
     ...serviceErrorsEn,
+    ...packageTypeErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
@@ -305,6 +276,7 @@ export const en = {
     invalid: 'Check the employee details, dates and user ID.',
   },
   catalogServices: catalogServicesEn,
+  catalogPackageTypes: catalogPackageTypesEn,
   admin: {
     appName: 'PosPay',
     signInTitle: 'Sign in',
