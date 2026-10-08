@@ -25,10 +25,22 @@ import {
 import {
   lockedAttendanceException,
   lockedEmployeeUser,
+  peekAttendanceExceptionBranch,
 } from './attendance-exception-records.ts';
 import { saveAttendanceException } from './attendance-exception-writes.ts';
 
 async function load(tx: Tx, actor: AttendanceExceptionActor, clock: AttendanceExceptionClock) {
+  const branchId = await peekAttendanceExceptionBranch(tx, actor);
+  // رفض الفرع غير المسموح قبل أي قفل يمنع كشف وجود الاستثناء بمهلة انتظار القفل.
+  const precheck = await attendanceExceptionAuthority(
+    tx,
+    actor.companyId,
+    actor.userId,
+    actor.businessId,
+    branchId,
+    clock.now(),
+  );
+  if (!precheck) throw new AttendanceExceptionError('NOT_FOUND');
   if (!(await attendanceExceptionAuthorityLock(tx, actor.companyId)))
     throw new AttendanceExceptionError('NOT_FOUND');
   const before = await lockedAttendanceException(tx, actor);

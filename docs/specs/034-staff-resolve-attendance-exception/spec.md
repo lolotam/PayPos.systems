@@ -114,6 +114,7 @@ are `NONE`, and the scan result lists no exceptions.
 
 ### Edge Cases
 
+- A non-locking, company/business-filtered branch precheck returns the same prompt `NOT_FOUND` for missing or unauthorised exceptions before any row lock, even under contention; authority is rechecked after the locks and before replay.
 - Resolving a `SUSPECTED_MISSED_OUT` exception → refused (`ATTENDANCE_EXCEPTION_NOT_MANUAL`, 409); nothing changes. Reopening one
   is refused the same way.
 - Resolving an exception that is already resolved, or reopening one that is open → `ATTENDANCE_EXCEPTION_REVISION_CONFLICT` (409).

@@ -41,17 +41,17 @@ export const whatsappRecipient = z.strictObject({
   safe_parameters: z.array(notificationParameter).max(20),
   send_deadline: timestamp.nullish(),
 });
-export const notificationRecipient = z.discriminatedUnion('channel', [
-  whatsappRecipient,
-  z.strictObject({
-    email: z.string().max(254),
-    locale: z.string().max(32).nullish(),
-    channel: z.literal('email'),
-    template_key: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
-    template_revision: z.number().int().positive(),
-    safe_parameters: z.array(notificationParameter).max(20),
-    send_deadline: timestamp.nullish(),
-  }),
+const emailRecipient = z.strictObject({
+  email: z.string().max(254),
+  locale: z.string().max(32).nullish(),
+  channel: z.literal('email'),
+  template_key: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+  template_revision: z.number().int().positive(),
+  safe_parameters: z.array(notificationParameter).max(20),
+  send_deadline: timestamp.nullish(),
+});
+export const notificationRecipient = z.union([
+  z.discriminatedUnion('channel', [whatsappRecipient, emailRecipient]),
   inAppRecipient,
 ]);
 export const notificationRequest = z

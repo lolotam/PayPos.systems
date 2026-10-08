@@ -124,6 +124,7 @@ async function openSession(tx: Tx, ref: AttendanceMovementRef, write: Attendance
 async function closeSession(tx: Tx, ref: AttendanceMovementRef, write: AttendanceMovementWrite) {
   const missed = write.result.missed_session_id !== null;
   await tx.execute(sql`UPDATE attendance_sessions SET clock_out=${write.closeAt?.toISOString() ?? null},status=${missed ? 'MISSED_OUT' : 'CLOSED'},closed_by=${missed ? 'MISSED_OUT' : 'EMPLOYEE'},
+    revision=revision+1,
     out_binding_id=${missed ? null : (ref.binding?.id ?? null)},out_binding_revision=${missed ? null : (ref.binding?.revision ?? null)},out_qr_window=${missed ? null : ref.qrWindow},out_geo=${missed ? null : write.geo},
     out_latitude=${missed ? null : (ref.location?.lat ?? null)},out_longitude=${missed ? null : (ref.location?.lng ?? null)},out_accuracy=${missed ? null : (ref.location?.accuracy ?? null)},
     out_device_id=${missed ? null : ref.deviceId},out_operator_id=${missed ? null : ref.operatorId}

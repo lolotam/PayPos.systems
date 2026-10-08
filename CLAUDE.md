@@ -15,6 +15,7 @@
 >
 > **Changelog**
 >
+> - **V3.8 (2026-10-08)** — §1: owner questions are recorded in the slice's `owner-questions.ar.md` and posted as a numbered batch on the shared "قرارات PosPay" decisions page (Waleed, 2026-10-08).
 > - **V3.7 (2026-10-02)** — §5: public rating links are the fourth session-less entry point, with tenant-local token validation and limited rating/opt-out capabilities (ADR-0011, Proposed; Phase 1 G3).
 > - **V3.6 (2026-10-01)** — §10: the reverse proxy is Dokploy's shared Traefik, not a container we deploy; `06` is V1.3 (after Eng. Khaled's audit).
 > - **V3.5 (2026-09-23)** — §5: the dispatcher exception includes the idempotency sweep (ADR-0003, T7b).
@@ -37,6 +38,15 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
 3. Then, in this order: **contract (Zod) → migration + RLS policy → domain functions + their tests → use case → adapters (persistence, http) → integration tests → UI.** Run `pnpm check` before declaring done.
 4. Do not touch modules outside the slice. If you must, say so and explain why.
 5. Every architectural decision → `docs/adr/NNNN-title.md` (context, decision, consequences).
+5b. **Every owner question goes to two places.**
+    - First, the slice's `docs/specs/NNN-…/owner-questions.ar.md`. It holds the question, the options, the recommended option, and Waleed's answer verbatim, all in Arabic.
+    - Second, the shared decisions page https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF, as a **new numbered batch**. Batch 1 is the decisions made up to 2026-10-08.
+    - Waleed and his partner pick there. Waleed's pick is final.
+    - Never create a second page. Publish to that same URL.
+    - **Who writes where:** only the Claude Code orchestrator session can publish to that page. Any other agent (Codex,
+      Grok, a subagent) writes the question into the slice's `owner-questions.ar.md` with the answer marked
+      `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then posts the batch to the page and writes
+      the owner's answer back into the file.
 6. **A slice is not done until the checklist in `CLAUDE.architecture.md` §15 passes.**
 
 > **A doc comment is written with its function, not afterwards** (§3.1). "I'll document it later" means it never gets documented, and by then the author has forgotten the _why_ — which is the only part worth writing down.

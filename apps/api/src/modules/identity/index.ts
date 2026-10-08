@@ -4,6 +4,7 @@ export {
   lockAttendanceExceptionAccess,
   readAttendanceExceptionAccess,
 } from './persistence/attendance-exception-access.ts';
+export { readAttendanceCorrectionAccess } from './persistence/attendance-correction-access.ts';
 export {
   lockBusinessDiscountAccess,
   readBusinessDiscountAccess,

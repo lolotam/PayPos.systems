@@ -82,6 +82,7 @@ it.each([
   'manage:discounts:company',
   'manage:discount-limits:business',
   'manage:document-types:company',
+  'correct:attendance:branch',
 ])('Device cannot acquire spec 009 forbidden %s', (permission) => {
   expect(
     systemRolePolicy(role('device'), 'global')?.permissions.some((code) => code === permission),

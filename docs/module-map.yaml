@@ -44,6 +44,8 @@ reads:
   - { from: staff, to: identity, symbol: readLeaveAccess, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
   - { from: staff, to: identity, symbol: lockAttendanceExceptionAccess, file: apps/api/src/modules/staff/persistence/attendance-exception-context.adapter.ts }
   - { from: staff, to: identity, symbol: readAttendanceExceptionAccess, file: apps/api/src/modules/staff/persistence/attendance-exception-context.adapter.ts }
+  - { from: staff, to: identity, symbol: lockAttendanceExceptionAccess, file: apps/api/src/modules/staff/persistence/attendance-correction-context.adapter.ts }
+  - { from: staff, to: identity, symbol: readAttendanceCorrectionAccess, file: apps/api/src/modules/staff/persistence/attendance-correction-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
   - { from: staff, to: identity, symbol: personalMemberships, file: apps/api/src/modules/staff/persistence/personal-employee.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/personal-employee.ts }
@@ -81,3 +83,7 @@ reads:
   - { from: staff, to: identity, symbol: readEmployeeBranchAccess, file: apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts }
   - { from: staff, to: identity, symbol: lockEmployeeManagementAccess, file: apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts }
   - { from: staff, to: tenancy, symbol: businessTimeZone, file: apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts }
+  - { from: staff, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/staff/persistence/branch-place.adapter.ts }
+  - { from: staff, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts }
+  - { from: staff, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts }
+  - { from: staff, to: identity, symbol: branchManagerRecipientsStatement, file: apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts }

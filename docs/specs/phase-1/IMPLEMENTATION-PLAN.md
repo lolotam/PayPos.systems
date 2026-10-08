@@ -64,8 +64,12 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 24  | suspected / missed-out job                                                                                          | S            | 22                 |
 | 25  | `resolve-attendance-exception`                                                                                      | S            | 24                 |
 | 26  | `correct-attendance`                                                                                                | S            | 22                 |
+| 26b | `add-manual-session` (source MANUAL, reason, actor recorded — spec 035 CA-Q6)                                       | S            | 26                 |
+| 26c | `void-attendance-session` (kept, marked voided with who/when/why, out of reports — spec 035 CA-Q6)                  | S            | 26                 |
 | 27  | attendance board + monthly report + CSV                                                                             | M            | 25, 26             |
-| 28  | not-clocked-in alert                                                                                                | S            | 22, 15             |
+| 28  | not-clocked-in alert: detection + once-only notice + `ShiftNotClockedIn`, in-app to the branch's managers by a fixed interim rule (spec 036, ADR-0037; owner 2026-10-08) | S            | 22, 15, 4b         |
+| 28b | staff web push: subscriptions table + RLS, staff-session subscribe/unsubscribe, custom service-worker push handler, `push` channel adapter; delivers the employee's own not-clocked-in notice (spec 036 NC-Q3). ADR first: `web-push` library, VAPID key custody (`CLAUDE.md` §8), the staff-session route exception. iOS delivers web push only to the PWA added to the home screen Push text is rendered in a stored per-user language preference (added here), per the owner, 2026-10-08. | M            | 3, 57b, 28         |
+| 28c | "your shift ends soon" reminder to the employee by push, default 30 min before shift end, lead time editable from the dashboard (row 62); new SPEC §3 event + module-map row through the ADR-0010 process (owner 2026-10-08) | S            | 28b, 62            |
 |     | **M4 · engine (parallel track, domain only)**                                                                       |              |                    |
 | 29  | engine I: order, shares, overrides, base, MARGINAL (SPEC §5.1–5.5)                                                  | M            | —                  |
 | 30  | engine II: WHOLE, SESSIONS, salary multiple, versions, package sale, §5.7 validation, §5.8 hand-calculated fixtures | M            | 29, D-55           |
@@ -114,7 +118,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 59b | at-most-once rating send: authoritative claim through `DaySessionsPort`, attempt row under the phone lock           | S            | 59, 4, 5           |
 | 60  | rating page + `submit-rating`                                                                                       | S            | 59b                |
 | 61  | low-rating alert + averages                                                                                         | S            | 60                 |
-| 62  | alert-rules screen + master switch                                                                                  | S            | 4b, 15, 28, 61     |
+| 62  | alert-rules screen + master switch; replaces row 28's interim fixed rule (on, 20 min, managers, in-app) and owns row 28c's lead-time setting | S            | 4b, 15, 28, 61     |
 |     | **M9 · pilot**                                                                                                      |              |                    |
 | 63  | real data by import, dry-run week, parallel month, comparison (D-45)                                                | S + calendar | all                |
 

@@ -628,15 +628,50 @@
     {
       "idx": 89,
       "version": "7",
-      "when": 1791450870578,
-      "tag": "0089_2026-10-08_catalog-package-types",
+      "when": 1791456711219,
+      "tag": "0089_2026-10-08_recover-known-outbox-events",
       "breakpoints": true
     },
     {
       "idx": 90,
       "version": "7",
-      "when": 1791459706178,
-      "tag": "0090_2026-10-08_catalog-package-types-rls",
+      "when": 1791456712219,
+      "tag": "0090_2026-10-08_correct-attendance",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1791456713219,
+      "tag": "0091_2026-10-08_staff-schedule-shifts-company-starts",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1791456714219,
+      "tag": "0092_2026-10-08_attendance-not-clocked-in-notices",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1791456715219,
+      "tag": "0093_2026-10-08_attendance-not-clocked-in-notices-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1791456716219,
+      "tag": "0094_2026-10-08_catalog-package-types",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1791456717219,
+      "tag": "0095_2026-10-08_catalog-package-types-rls",
       "breakpoints": true
     }
   ]

@@ -1,3 +1,7 @@
+import { t } from '@pospay/i18n';
+import { createLogger } from '@pospay/observability';
+import { notClockedInDiagnostics } from './persistence/not-clocked-in-diagnostics.ts';
+import { branchPlaceAdapter } from './persistence/branch-place.adapter.ts';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Clock } from './ports/clock.port.ts';
 import { companyCreatedConsumer } from './events/handlers/on-company-created.handler.ts';
@@ -15,6 +19,9 @@ import { startEmployeeImportRecoveryProcessor } from './jobs/employee-import-rec
 import { DetectDocumentExpiries } from './use-cases/detect-document-expiries/detect-document-expiries.ts';
 import { documentExpiryTransactions } from './persistence/document-expiry.transactions.ts';
 import { startDocumentExpiryProcessor } from './jobs/document-expiry.processor.ts';
+import { DetectNotClockedIns } from './use-cases/detect-not-clocked-in/detect-not-clocked-in.ts';
+import { notClockedInTransactions } from './persistence/not-clocked-in.transactions.ts';
+import { startNotClockedInProcessor } from './jobs/not-clocked-in.processor.ts';
 
 // أحداث الحضور التي يعرفها هذا الإصدار؛ AttendanceClockedIn وحده يسجل جدول الشركة ولا مستهلك أعمال لأي منها.
 const ATTENDANCE_EVENT_TYPES = [
@@ -22,6 +29,13 @@ const ATTENDANCE_EVENT_TYPES = [
   'AttendanceClockedOut',
   'AttendanceMissedOut',
 ] as const;
+
+const NOT_CLOCKED_IN_NAME_FALLBACK = {
+  employeeAr: t('ar', 'inApp.generic_employee'),
+  employeeEn: t('en', 'inApp.generic_employee'),
+  branchAr: t('ar', 'inApp.generic_branch'),
+  branchEn: t('en', 'inApp.generic_branch'),
+};
 
 export function createStaffDocumentDefaults(ids: IdGenerator) {
   return companyCreatedConsumer((tx) => new SeedDocumentTypes(createDocumentTypeSeeds(tx), ids));
@@ -41,6 +55,11 @@ export function startStaffWorker(
     redisUrl,
     prefix,
   );
+  const notClockedIn = startNotClockedInProcessor(
+    createNotClockedInDetector(database, ids, clock),
+    redisUrl,
+    prefix,
+  );
   const imports = startEmployeeImportProcessor(
     new CommitEmployeeImport(employeeImportTransactions(database, ids), ids, clock),
     redisUrl,
@@ -52,25 +71,46 @@ export function startStaffWorker(
     prefix,
   );
   return {
-    eventTypes: [...ATTENDANCE_EVENT_TYPES, 'EmployeeImportCommitRequested', 'EmployeeDocumentRecorded'],
+    eventTypes: [
+      ...ATTENDANCE_EVENT_TYPES,
+      'EmployeeImportCommitRequested',
+      'EmployeeDocumentRecorded',
+    ],
     deliver: (
       event: Parameters<typeof processor.deliver>[0],
       next: Parameters<typeof processor.deliver>[1],
     ) =>
       event.eventType === 'EmployeeImportCommitRequested'
         ? recovery.deliver(event, () => imports.deliver(event))
-        : expiry.deliver(event, () => processor.deliver(event, next)),
+        : expiry.deliver(event, () =>
+            notClockedIn.deliver(event, () => processor.deliver(event, next)),
+          ),
     ready: async () => {
       await processor.ready();
       await imports.ready();
       await recovery.ready();
       await expiry.ready();
+      await notClockedIn.ready();
     },
     close: async () => {
       await expiry.close();
+      await notClockedIn.close();
       await imports.close();
       await recovery.close();
       await processor.close();
     },
   };
+}
+
+function createNotClockedInDetector(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  ids: IdGenerator,
+  clock: Clock,
+) {
+  return new DetectNotClockedIns(
+    notClockedInTransactions(database, ids, branchPlaceAdapter),
+    clock,
+    NOT_CLOCKED_IN_NAME_FALLBACK,
+    notClockedInDiagnostics(createLogger('error')),
+  );
 }

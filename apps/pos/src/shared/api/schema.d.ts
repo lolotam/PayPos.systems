@@ -826,6 +826,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/attendance-sessions/{sessionId}/correct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["correctAttendanceSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/permissions/memberships/{membershipId}/discount-limit": {
         parameters: {
             query?: never;
@@ -1772,6 +1788,51 @@ export interface components {
             raised_at: string;
             revision: number;
         };
+        CorrectAttendanceInput: {
+            revision: number;
+            /** Format: date-time */
+            clock_in?: string;
+            /** Format: date-time */
+            clock_out?: string;
+            reason: string;
+        };
+        CorrectAttendanceResult: {
+            session: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                employee_id: string;
+                /** Format: uuid */
+                branch_id: string;
+                /** Format: date */
+                working_date: string;
+                /** Format: date-time */
+                clock_in: string;
+                /** Format: date-time */
+                clock_out: string;
+                /** @enum {string} */
+                status: "CLOSED" | "MISSED_OUT";
+                /** @enum {string} */
+                closed_by: "EMPLOYEE" | "MISSED_OUT";
+                late_minutes: number;
+                revision: number;
+            };
+            corrections: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                field: "CLOCK_IN" | "CLOCK_OUT";
+                /** Format: date-time */
+                before: string;
+                /** Format: date-time */
+                after: string;
+                reason: string;
+                /** Format: uuid */
+                corrected_by: string;
+                /** Format: date-time */
+                corrected_at: string;
+            }[];
+        };
         PersonalOtpRequestInput: {
             phone: string;
             /** @enum {string} */
@@ -2627,12 +2688,16 @@ export interface components {
             branch_id: string | null;
             /** Format: uuid */
             source_event_id: string;
-            /** @enum {string} */
-            template_key: "generic_notice";
             /** @enum {number} */
             template_revision: 1;
             /** @enum {string} */
             locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "generic_notice";
             safe_parameters: {
                 /** @enum {string} */
                 name: "subject";
@@ -2640,10 +2705,58 @@ export interface components {
                 type: "text";
                 value: string;
             }[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             read_at: string | null;
+            /** @enum {string} */
+            template_key: "shift_not_clocked_in";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "employee_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "shift_start";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            })[];
         };
         InAppNotificationPage: {
             items: components["schemas"]["InAppNotification"][];
@@ -5373,6 +5486,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttendanceExceptionRecord"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    correctAttendanceSession: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectAttendanceInput"];
+            };
+        };
+        responses: {
+            /** @description CorrectAttendanceResult */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectAttendanceResult"];
                 };
             };
             /** @description Bilingual refusal */

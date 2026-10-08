@@ -14,10 +14,11 @@ export function NotificationItem({
   pending: boolean;
   onRead: (id: string) => void;
 }) {
+  const textLocale = item.template_key === 'shift_not_clocked_in' ? locale : item.locale;
   return (
     <li className="flex flex-col gap-2 border-b border-border py-4 text-start last:border-b-0">
-      <p lang={item.locale} dir={item.locale === 'ar' ? 'rtl' : 'ltr'}>
-        {renderNotification(item)}
+      <p lang={textLocale} dir={textLocale === 'ar' ? 'rtl' : 'ltr'}>
+        {renderNotification(item, locale)}
       </p>
       <div className="flex items-center gap-2">
         <Badge variant={item.read_at === null ? 'brand' : 'neutral'}>

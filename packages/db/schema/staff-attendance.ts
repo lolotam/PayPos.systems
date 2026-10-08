@@ -89,6 +89,8 @@ export const attendanceSessions = pgTable(
     operatorId: uuid('operator_id').references(() => user.id),
     outDeviceId: uuid('out_device_id'),
     outOperatorId: uuid('out_operator_id').references(() => user.id),
+    // عدّاد عادي يزيد مع كل كتابة تغيّر الجلسة حتى يتعارض الطلب القديم. إلغاء 26c يزيده أيضاً.
+    revision: integer('revision').notNull().default(0),
   },
   (t) => [
     primaryKey({ columns: [t.companyId, t.id] }),
@@ -211,6 +213,60 @@ export const attendanceExceptions = pgTable(
   ],
 );
 
+export const attendanceCorrections = pgTable(
+  'attendance_corrections',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    branchId: uuid('branch_id').notNull(),
+    employeeId: uuid('employee_id').notNull(),
+    sessionId: uuid('session_id').notNull(),
+    // يربط الحقول المتغيرة بسجل التدقيق الواحد للطلب حتى يمكن تتبع التصحيح كاملاً.
+    requestId: uuid('request_id').notNull(),
+    field: text('field').notNull(),
+    beforeAt: timestamp('before_at', { withTimezone: true }).notNull(),
+    afterAt: timestamp('after_at', { withTimezone: true }).notNull(),
+    reason: text('reason').notNull(),
+    correctedBy: uuid('corrected_by')
+      .notNull()
+      .references(() => user.id),
+    correctedAt: timestamp('corrected_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.companyId, t.id] }),
+    foreignKey({
+      columns: [t.companyId, t.sessionId],
+      foreignColumns: [attendanceSessions.companyId, attendanceSessions.id],
+    }),
+    foreignKey({
+      columns: [t.companyId, t.businessId, t.employeeId],
+      foreignColumns: [employees.companyId, employees.businessId, employees.id],
+    }),
+    foreignKey({
+      columns: [t.companyId, t.businessId, t.branchId],
+      foreignColumns: [branches.companyId, branches.businessId, branches.id],
+    }),
+    index('attendance_corrections_session_idx').on(t.companyId, t.sessionId, t.correctedAt),
+    index('attendance_corrections_board_idx').on(
+      t.companyId,
+      t.businessId,
+      t.branchId,
+      t.correctedAt,
+    ),
+    index('attendance_corrections_employee_idx').on(t.companyId, t.employeeId, t.correctedAt),
+    index('attendance_corrections_actor_idx').on(t.companyId, t.correctedBy),
+    check('attendance_corrections_field', sql`${t.field} IN ('CLOCK_IN','CLOCK_OUT')`),
+    check('attendance_corrections_changed', sql`${t.beforeAt} <> ${t.afterAt}`),
+    check(
+      'attendance_corrections_reason_bounds',
+      sql`${t.reason} = btrim(${t.reason}) AND char_length(${t.reason}) BETWEEN 1 AND 500`,
+    ),
+  ],
+);
+
 export const attendanceClockChallenges = pgTable(
   'attendance_clock_challenges',
   {
@@ -296,7 +352,8 @@ function attendanceSessionChecks(
     | 'accuracy'
     | 'outLatitude'
     | 'outLongitude'
-    | 'outAccuracy',
+    | 'outAccuracy'
+    | 'revision',
     AnyPgColumn
   >,
 ) {
@@ -308,6 +365,7 @@ function attendanceSessionChecks(
       sql`(${t.status} = 'OPEN' AND ${t.clockOut} IS NULL AND ${t.closedBy} IS NULL) OR (${t.status} <> 'OPEN' AND ${t.clockOut} >= ${t.clockIn} AND ${t.closedBy} IN ('EMPLOYEE','MISSED_OUT'))`,
     ),
     check('attendance_sessions_lateness', sql`${t.lateMinutes} >= 0`),
+    check('attendance_sessions_revision', sql`${t.revision} >= 0`),
     check(
       'attendance_sessions_geo',
       sql`${t.geo} IN ('OK','NONE','OUT_OF_RANGE') AND (${t.outGeo} IS NULL OR ${t.outGeo} IN ('OK','NONE','OUT_OF_RANGE'))`,

@@ -8,6 +8,8 @@ import { leaveDecisionSchemas } from './staff/leave-decision.js';
 import { leavePaths } from './staff/leave-openapi.js';
 import { attendanceExceptionSchemas } from './staff/attendance-exception.js';
 import { attendanceExceptionPaths } from './staff/attendance-exception-openapi.js';
+import { attendanceCorrectionSchemas } from './staff/attendance-correction.js';
+import { attendanceCorrectionPaths } from './staff/attendance-correction-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
 import { clockAttendanceSchemas } from './staff/clock-attendance.js';
 import { clockAttendancePaths } from './staff/clock-attendance-openapi.js';
@@ -116,6 +118,7 @@ const SCHEMAS = [
   ...leaveSchemas,
   ...leaveDecisionSchemas,
   ...attendanceExceptionSchemas,
+  ...attendanceCorrectionSchemas,
   ...passkeySchemas,
   ...unbindPasskeySchemas,
   ...scheduleSchemas,
@@ -236,6 +239,7 @@ const PATHS = {
   ...staffPaths,
   ...leavePaths,
   ...attendanceExceptionPaths,
+  ...attendanceCorrectionPaths,
   ...permissionPaths,
   ...customerPaths,
   ...catalogPaths,

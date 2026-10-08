@@ -26,6 +26,7 @@ it.each(['ar', 'en'] as const)(
       'manage:settings:business',
       'read:package-types:business',
       'manage:package-types:business',
+      'correct:attendance:branch',
     ])
       expect(permissionName(locale, code)).not.toBe(code);
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');

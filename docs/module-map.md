@@ -104,6 +104,9 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
 | `staff` | `EmployeeDocumentReadAccess`, document-type authority | `identity`, `tenancy` | locked read/manage files and manage:document-types:company; business timezone for the expiry badge (ADR-0031) |
 | worker `staff` | `DocumentExpiryTransactions.timeZone` | worker `tenancy` | business timezone for the expiry window, reusing ADR-0031's staff-to-tenancy read; discovery stays on outbox delivery (ADR-0032) |
+| worker `staff` | `BranchManagerRecipients.forBranch` | worker `identity` | active system-role managers whose scope covers the shift branch, at the injected instant; caller checks company eligibility through tenancy (ADR-0037); PR 62 does not remove this read |
+| worker `staff` | `BranchManagerRecipients.companyOpen` | worker `tenancy` | company eligibility before candidate paging and again under the employee lock, on the caller's tenant transaction (ADR-0037) |
+| worker `staff` | `BranchPlaceReader` | worker `tenancy` | both branch names and the effective timezone (branch, otherwise business) on the caller's tenant transaction; adapter bound at the staff composition root (ADR-0037) |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
@@ -153,7 +156,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `PaymentRefunded`                                                           | `payments`      | `orders`, `cash`, `commissions`                                                                   |
 | `PaymentFailed`                                                             | `payments`      | `orders`, `realtime`, `notifications`                                                             |
 | `CashShiftClosed`                                                           | `cash`          | `reporting`, `notifications` (manager summary)                                                    |
-| `AttendanceClockedIn` / `AttendanceClockedOut` / `AttendanceMissedOut` (ADR-0028) | `staff` (API scan; worker missed-out job also emits `AttendanceMissedOut`, ADR-0032) | No business consumer; attendance never changes commission. Worker `staff` registers the company's missed-out schedule on `AttendanceClockedIn` delivery (ADR-0032) |
+| `AttendanceClockedIn` / `AttendanceClockedOut` / `AttendanceMissedOut` (ADR-0028) | `staff` (API scan; worker missed-out job also emits `AttendanceMissedOut`, ADR-0032) | No business consumer; attendance never changes commission. Worker `staff` upserts the company's missed-out and not-clocked-in schedules on `AttendanceClockedIn` delivery (ADR-0032/0037) |
 | `AppointmentBooked`                                                         | `appointments`  | `notifications` (reminder schedule), `realtime`                                                   |
 | `AppointmentCompleted`                                                      | `appointments`  | `orders`, `commissions`                                                                           |
 | `StockPosted`                                                               | `inventory`     | `reporting`, `notifications` (low-stock alert), `realtime`                                        |
@@ -162,21 +165,22 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `NotificationDelivered` / `NotificationFailed`                              | `notifications` | `reporting`                                                                                       |
 | `NotificationSendAuthorized` (internal, ADR-0018)                           | `notifications` | worker transport publisher → `notifications-send` BullMQ queue, outside database-effect consumers |
 | `DocumentReady`                                                             | `reporting`     | `notifications`, `realtime`                                                                       |
-| `SalaryChanged`                                                             | `staff`         | `commissions`                                                                                     |
-| `LeaveRequested` / `LeaveCancelled` / `LeaveApproved` / `LeaveRejected` / `LeaveRevoked` | `staff` | no consumer yet; Phase 1 leave screens poll, attendance PR 26 will read approved intervals; staff in-app delivery is DL-Q3 in spec 025 |
+| `SalaryChanged` | `staff` | No consumer yet; known to the dispatcher. PR 50 will register `commissions.project-inputs` and backfill previously published rows (ADR-0012 amendment, Waleed 2026-10-08); publication alone never satisfies commission approval |
+| `LeaveRequested` / `LeaveCancelled` / `LeaveApproved` / `LeaveRejected` / `LeaveRevoked` | `staff` | No consumer yet; known to the dispatcher. Phase 1 leave screens poll; PR 26 does not read leave (CA-Q13); staff in-app delivery remains deferred by DL-Q3 in spec 025 |
+| `EmployeePasskeyBound` | `staff` | None in Phase 1; known to the dispatcher, binding history is read directly under the polling exception (ADR-0029) |
 | `EmployeePasskeyUnbound`                                                    | `staff`         | None in Phase 1; known to the dispatcher, admin polls binding history (ADR-0029)                     |
 | `EmployeeDocumentRecorded` | `staff` | No business consumer. Worker `staff` registers the company's document-expiry schedule on delivery (PR 15, ADR-0032 pattern); the job reads `expires_on` and `alert_days` from the tables (ADR-0031) |
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
-| `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031) |
+| `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
 | `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`                                                                        |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `RatingRequestReady`                                                        | `customers`     | `notifications`                                                                                   |
 | `LowRatingReceived`                                                         | `customers`     | `notifications`                                                                                   |
 | `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (no recipients until alert rules ship)                                            |
-| `ShiftNotClockedIn`                                                         | `staff`         | `notifications`                                                                                   |
+| `ShiftNotClockedIn` | `staff` (worker not-clocked-in job, ADR-0037) | `notifications` (in-app managers by the interim rule; PR 62 replaces the rule) |
 | `DocumentExpiring`                                                          | `staff`         | `notifications`                                                                                   |
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |
 | `StatementAwaitingApproval`                                                 | `commissions`   | `notifications`                                                                                   |
@@ -184,6 +188,8 @@ The producer appends to the outbox inside its own transaction and knows **none**
 **Two consumers by default.** Every event has its business handler **and** the `realtime` publisher (`06` §5.10). That is what guarantees a screen never shows something that didn't actually commit.
 
 > The Phase 1 rows (ADR-0010) are the exception: realtime is out of scope this phase — screens poll (the PRD's Phase 1 exception, closed by P2-T8) — so they list their business consumers only, and the `realtime` publisher joins them when it ships. Payload identities and per-row `revision` convergence live in ADR-0010 and SPEC §3.
+
+PR #128 recovery migration re-queues only unpublished `SalaryChanged`, `LeaveRequested`, `LeaveCancelled`, `LeaveApproved`, `LeaveRejected`, `LeaveRevoked` and `EmployeePasskeyBound` rows that are parked or have attempts >= 10 (the dispatcher's default maximum), including rows whose final claim lease is still held. It resets retries and the lease so known events publish without effects and release later events for the same aggregate.
 
 **Consumers are idempotent**, deduped by `event_id`. Redelivery is harmless, and replay is a supported recovery tool.
 
@@ -259,6 +265,8 @@ reads:
   - staff -> identity.readLeaveAccess @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
   - staff -> identity.lockAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-exception-context.adapter.ts
   - staff -> identity.readAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-exception-context.adapter.ts
+  - staff -> identity.lockAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-correction-context.adapter.ts
+  - staff -> identity.readAttendanceCorrectionAccess @ apps/api/src/modules/staff/persistence/attendance-correction-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-employee.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/personal-employee.ts
@@ -296,6 +304,10 @@ reads:
   - staff -> identity.readEmployeeBranchAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> tenancy.businessTimeZone @ apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts
+  - staff -> tenancy.branchPlace @ apps/worker/src/modules/staff/persistence/branch-place.adapter.ts
+  - staff -> identity.branchManagerRecipients @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
+  - staff -> tenancy.companyOpen @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
+  - staff -> identity.branchManagerRecipientsStatement @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be
