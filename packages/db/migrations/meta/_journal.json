@@ -631,6 +631,13 @@
       "when": 1791456711219,
       "tag": "0089_2026-10-08_recover-known-outbox-events",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1791456712219,
+      "tag": "0090_2026-10-08_correct-attendance",
+      "breakpoints": true
     }
   ]
 }

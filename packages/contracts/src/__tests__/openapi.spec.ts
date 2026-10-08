@@ -165,6 +165,8 @@ const expectedSchemas = [
   'IssueEmployeeCardInput',
   'AttendanceExceptionDecisionInput',
   'AttendanceExceptionRecord',
+  'CorrectAttendanceInput',
+  'CorrectAttendanceResult',
 ].sort();
 
 describe('openapi/openapi.json', () => {

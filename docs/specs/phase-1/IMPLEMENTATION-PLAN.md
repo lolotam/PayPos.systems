@@ -64,6 +64,8 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 24  | suspected / missed-out job                                                                                          | S            | 22                 |
 | 25  | `resolve-attendance-exception`                                                                                      | S            | 24                 |
 | 26  | `correct-attendance`                                                                                                | S            | 22                 |
+| 26b | `add-manual-session` (source MANUAL, reason, actor recorded — spec 035 CA-Q6)                                       | S            | 26                 |
+| 26c | `void-attendance-session` (kept, marked voided with who/when/why, out of reports — spec 035 CA-Q6)                  | S            | 26                 |
 | 27  | attendance board + monthly report + CSV                                                                             | M            | 25, 26             |
 | 28  | not-clocked-in alert                                                                                                | S            | 22, 15             |
 |     | **M4 · engine (parallel track, domain only)**                                                                       |              |                    |

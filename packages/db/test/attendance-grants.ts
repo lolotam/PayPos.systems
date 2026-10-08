@@ -11,4 +11,6 @@ export const ATTENDANCE_TABLE_GRANTS = [
   'attendance_exceptions:UPDATE',
   'attendance_clock_challenges:SELECT',
   'attendance_clock_challenges:INSERT',
+  'attendance_corrections:SELECT',
+  'attendance_corrections:INSERT',
 ].sort();

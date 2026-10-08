@@ -76,8 +76,8 @@ it('closes MISSED_OUT at the 16-hour instant, resolves the suspected exception a
   expect(await f.detect().execute(A.company)).toEqual({ suspected: 0, missedOut: 1 });
   const deadline = new Date(clockIn.getTime() + 16 * H);
   expect(
-    await f.owner`SELECT status,closed_by,clock_out FROM attendance_sessions WHERE id=${session}`,
-  ).toEqual([{ status: 'MISSED_OUT', closed_by: 'MISSED_OUT', clock_out: deadline }]);
+    await f.owner`SELECT status,closed_by,clock_out,revision FROM attendance_sessions WHERE id=${session}`,
+  ).toEqual([{ status: 'MISSED_OUT', closed_by: 'MISSED_OUT', clock_out: deadline, revision: 1 }]);
   expect(await exceptions(session)).toMatchObject([
     { status: 'RESOLVED', resolution: 'MISSED_OUT', resolved_by: null, resolved_at: detected },
   ]);

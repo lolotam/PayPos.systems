@@ -103,5 +103,7 @@ export const ROLE_DEFAULTS = {
   'clock:attendance:branch': [...managers, 'branch_manager', 'shift_supervisor', 'cashier'],
   // قرار المالك 2026-10-08 (RE-Q3): نفس حائزي decide:leave:branch، والجهاز ممنوع.
   'resolve:attendance:branch': [...managers, 'branch_manager'],
+  // قرار المالك 2026-10-08 (CA-Q1): نفس الحائزين، صلاحية مستقلة، والجهاز ممنوع.
+  'correct:attendance:branch': [...managers, 'branch_manager'],
   'create:companies:platform': [],
 } as const satisfies Record<Permission, readonly string[]>;
