@@ -33,7 +33,7 @@ export function PermissionsPage(props: Props) {
       ) : null}
       {business ? (
         <BusinessDiscountDefault
-          key={business.id}
+          key={`discount:${business.id}`}
           companyId={companyId}
           userId={userId}
           businessId={business.id}
@@ -41,7 +41,7 @@ export function PermissionsPage(props: Props) {
         />
       ) : null}
       <PermissionMembershipBrowser
-        key={businessId ?? companyId}
+        key={`members:${businessId ?? companyId}`}
         companyId={companyId}
         userId={userId}
         businessId={businessId}
