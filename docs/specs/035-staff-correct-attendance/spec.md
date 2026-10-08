@@ -167,7 +167,7 @@ own session (403).
   own session is allowed (CA-Q2, differs from RE-Q3 on purpose).
 - A caller without the permission on the session's branch, or a session of another business or company →
   `NOT_FOUND`. The response never confirms that the session exists.
-- The paired device or a personal staff session → `FORBIDDEN`.
+- The paired device → `FORBIDDEN` (403). A personal staff session is refused earlier by the shared session guard with `UNAUTHENTICATED` (401), the same as every other management route; this slice does not change that guard.
 - A correction on a day of approved leave is accepted; leave is not read (CA-Q13).
 - A correction on a very old date is accepted (CA-Q9).
 - An employee scans within 5 minutes after a correction to her latest session. The 5-minute repeat-scan rule replays
@@ -380,3 +380,9 @@ Also touched: `apps/worker/src/modules/staff/persistence/missed-out-writes.ts` (
 - "The actor is the employee" uses `employees.user_id`, as in spec 034.
 - PRD P1-T10.4 (approval blocked by open attendance exceptions) stays dropped (spec 034 RE-Q5). SPEC §6 "blocked
   correction" concerns commission periods, not attendance.
+
+
+## Implementation notes (orchestrator, 2026-10-08)
+
+- A request succeeds when at least one field differs from the current value. Only the fields that changed get a correction row. A request in which nothing changes is a validation error.
+- "Nothing consumes attendance" is out of date: the worker's missed-out and not-clocked-in jobs schedule themselves from attendance events. Corrections still publish no event, so those jobs are unaffected.
