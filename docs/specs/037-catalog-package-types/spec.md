@@ -318,3 +318,9 @@ cursor pages. Synchronous in `api`.
 - The package's discount limit is checked on its sale line in PR 42 (SPEC §4), not here.
 - Package-sale commission is per plan (PT-Q12, SPEC §5.6) and belongs to PRs 42/50; nothing here stores a commission
   rule.
+
+## Implementation notes (orchestrator, 2026-10-08)
+
+- `package_type_components` has `PRIMARY KEY (company_id, id)`, as CLAUDE.md §5 and ADR-0007 require. The natural key is kept as `UNIQUE (company_id, package_type_id, service_id)`. The composite FKs stay tenant-qualified.
+- New error `PACKAGE_TYPE_NAME_INVALID` (400, Arabic and English) for a name that is blank or too long.
+- The admin service picker needs `read:services:business`. The three default managers hold it together with the package-type permissions.
