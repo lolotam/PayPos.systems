@@ -260,6 +260,9 @@ are `NONE`, and the scan result lists no exceptions.
 
 - The manager's list and screen arrive with PR 27; until then the API is exercised by tests only.
 - There is no production data; card-raised exceptions exist only on staging and are closed by the migration.
+- The BR-007 cleanup runs once, in the migrate step. A card scan in the short gap before the new `api` container takes
+  traffic can still leave an `OPEN` `NONE` row on staging; a manager closes it through this slice's own resolve route.
+  No hand-run statement on the staging database is planned (that would need the owner's explicit approval).
 - Resolution `ACKNOWLEDGED` is the only manual outcome; a manager who thinks the time is wrong uses PR 26.
 - "Linked to the actor's own user" uses the existing `employees.user_id` link; an employee without a user link cannot
   be the actor.
