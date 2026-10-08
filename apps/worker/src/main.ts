@@ -20,6 +20,7 @@ import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
 import { createDeliverer } from './outbox/deliver.ts';
+import { knownEventTypes } from './outbox/known-event-types.ts';
 import {
   createNotificationModule,
   createInAppNotificationModule,
@@ -98,21 +99,6 @@ let stopping = false;
 let maintenance: ReturnType<typeof createStaffOtpMaintenance> | undefined;
 const otpConfiguration = () =>
   readStaffOtpConfiguration(process.env, 'worker', readOtpTemplateApproval(process.env));
-const KNOWN_EVENT_TYPES = [
-  // PR21 بلا مستهلك أعمال في هذه المرحلة؛ الشاشة تقرأ التاريخ ولا يحتاج الحدث إعادة محاولة.
-  'EmployeePasskeyUnbound',
-  ...staff.eventTypes,
-  // PR 11: لا مستهلك بعد؛ سجل الاستيراد التدقيق والأحداث في نفس المعاملة ولا يحتاج إعادة محاولة (ADR-0034).
-  'EmployeeImported',
-  'ImportCommitted',
-  ...(notifications?.eventTypes ?? []),
-  ...(inApp?.eventTypes ?? []),
-  'FileUploadRequested',
-  'CompanyCreated',
-  'BusinessCreated',
-  'BranchCreated',
-  'BusinessSettingsUpdated',
-];
 const businessDeliver = createDeliverer(
   app,
   [
@@ -124,7 +110,7 @@ const businessDeliver = createDeliverer(
     createStaffDocumentDefaults(systemUuidV7()),
   ],
   logger,
-  { knownEventTypes: KNOWN_EVENT_TYPES },
+  { knownEventTypes: knownEventTypes(staff, notifications, inApp) },
 );
 let queue: ReturnType<typeof startNotificationQueue> | undefined;
 const deliver: typeof businessDeliver = (event) =>

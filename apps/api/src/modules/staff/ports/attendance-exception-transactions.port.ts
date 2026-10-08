@@ -14,7 +14,7 @@ export interface AttendanceExceptionActor {
 }
 /** الساعة المشتركة لسلطة العضوية ووقت الإغلاق المسجل. */
 export interface AttendanceExceptionClock {
-  /** يثبت لحظة واحدة بعد الأقفال. */ now(): Date;
+  /** لحظة للفحص الأولي ثم لحظة جديدة بعد الأقفال لتثبيت السلطة ووقت القرار. */ now(): Date;
 }
 /** نطاق المعاملة بعد قفل الصف والتحقق من سلطة فرعه. */
 export interface AttendanceExceptionScope {
@@ -31,11 +31,11 @@ export interface AttendanceExceptionScope {
 /** حد المعاملة يثبت السلطة قبل إعادة الرد ويمنع تكرار التأثير. */
 export interface AttendanceExceptionTransactions {
   /**
-   * يقفل الشركة والعضويات والاستثناء ثم ينفذ الأثر مرة واحدة.
+   * يفحص سلطة الفرع بلا أقفال، ثم يقفل الشركة والعضويات والاستثناء والموظف ويعيد التحقق قبل الأثر.
    *
    * @param actor الفاعل المتحقق منه
    * @param action الإغلاق أو إعادة الفتح
-   * @param clock الساعة المحقونة التي تُقرأ بعد الأقفال
+   * @param clock الساعة المحقونة للفحص الأولي ثم القرار النهائي بعد الأقفال
    * @param work العمل داخل حد المعاملة
    */
   run(

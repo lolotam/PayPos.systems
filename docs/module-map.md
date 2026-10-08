@@ -157,8 +157,9 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `NotificationDelivered` / `NotificationFailed`                              | `notifications` | `reporting`                                                                                       |
 | `NotificationSendAuthorized` (internal, ADR-0018)                           | `notifications` | worker transport publisher → `notifications-send` BullMQ queue, outside database-effect consumers |
 | `DocumentReady`                                                             | `reporting`     | `notifications`, `realtime`                                                                       |
-| `SalaryChanged`                                                             | `staff`         | `commissions`                                                                                     |
-| `LeaveRequested` / `LeaveCancelled` / `LeaveApproved` / `LeaveRejected` / `LeaveRevoked` | `staff` | no consumer yet; Phase 1 leave screens poll; PR 26 does not read leave; staff in-app delivery is DL-Q3 in spec 025 |
+| `SalaryChanged` | `staff` | No consumer yet; known to the dispatcher. PR 50 will register `commissions.project-inputs` and backfill previously published rows (ADR-0012 amendment, Waleed 2026-10-08); publication alone never satisfies commission approval |
+| `LeaveRequested` / `LeaveCancelled` / `LeaveApproved` / `LeaveRejected` / `LeaveRevoked` | `staff` | No consumer yet; known to the dispatcher. Phase 1 leave screens poll; PR 26 does not read leave (CA-Q13); staff in-app delivery remains deferred by DL-Q3 in spec 025 |
+| `EmployeePasskeyBound` | `staff` | None in Phase 1; known to the dispatcher, binding history is read directly under the polling exception (ADR-0029) |
 | `EmployeePasskeyUnbound`                                                    | `staff`         | None in Phase 1; known to the dispatcher, admin polls binding history (ADR-0029)                     |
 | `EmployeeDocumentRecorded` | `staff` | No business consumer. Worker `staff` registers the company's document-expiry schedule on delivery (PR 15, ADR-0032 pattern); the job reads `expires_on` and `alert_days` from the tables (ADR-0031) |
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
@@ -179,6 +180,8 @@ The producer appends to the outbox inside its own transaction and knows **none**
 **Two consumers by default.** Every event has its business handler **and** the `realtime` publisher (`06` §5.10). That is what guarantees a screen never shows something that didn't actually commit.
 
 > The Phase 1 rows (ADR-0010) are the exception: realtime is out of scope this phase — screens poll (the PRD's Phase 1 exception, closed by P2-T8) — so they list their business consumers only, and the `realtime` publisher joins them when it ships. Payload identities and per-row `revision` convergence live in ADR-0010 and SPEC §3.
+
+PR #128 recovery migration re-queues only unpublished `SalaryChanged`, `LeaveRequested`, `LeaveCancelled`, `LeaveApproved`, `LeaveRejected`, `LeaveRevoked` and `EmployeePasskeyBound` rows that are parked or have attempts >= 10 (the dispatcher's default maximum), including rows whose final claim lease is still held. It resets retries and the lease so known events publish without effects and release later events for the same aggregate.
 
 **Consumers are idempotent**, deduped by `event_id`. Redelivery is harmless, and replay is a supported recovery tool.
 
