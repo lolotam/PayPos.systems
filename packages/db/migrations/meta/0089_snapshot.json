@@ -1,6 +1,6 @@
 {
   "id": "11a4c316-68ad-4c96-a09d-f663ad6fca6c",
-  "prevId": "19fae90f-304a-43ff-baa6-939243db5a1a",
+  "prevId": "fde0710c-63f7-4da4-9d05-53f7b7c9dfac",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8556,6 +8556,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {
@@ -8786,6 +8793,22 @@
         "attendance_exceptions_status": {
           "name": "attendance_exceptions_status",
           "value": "\"attendance_exceptions\".\"status\" IN ('OPEN','RESOLVED')"
+        },
+        "attendance_exceptions_resolution": {
+          "name": "attendance_exceptions_resolution",
+          "value": "\"attendance_exceptions\".\"resolution\" IS NULL OR \"attendance_exceptions\".\"resolution\" IN ('CLOSED_LATE','MISSED_OUT','ACKNOWLEDGED','CARD_SCAN')"
+        },
+        "attendance_exceptions_open_clear": {
+          "name": "attendance_exceptions_open_clear",
+          "value": "\"attendance_exceptions\".\"status\" <> 'OPEN' OR (\"attendance_exceptions\".\"resolution\" IS NULL AND \"attendance_exceptions\".\"resolved_by\" IS NULL AND \"attendance_exceptions\".\"resolved_at\" IS NULL AND \"attendance_exceptions\".\"reason\" IS NULL)"
+        },
+        "attendance_exceptions_resolved_set": {
+          "name": "attendance_exceptions_resolved_set",
+          "value": "\"attendance_exceptions\".\"status\" <> 'RESOLVED' OR (\"attendance_exceptions\".\"resolution\" IS NOT NULL AND \"attendance_exceptions\".\"resolved_at\" IS NOT NULL)"
+        },
+        "attendance_exceptions_reason_bounds": {
+          "name": "attendance_exceptions_reason_bounds",
+          "value": "\"attendance_exceptions\".\"reason\" IS NULL OR (\"attendance_exceptions\".\"reason\" = btrim(\"attendance_exceptions\".\"reason\") AND char_length(\"attendance_exceptions\".\"reason\") BETWEEN 1 AND 500)"
         }
       },
       "isRLSEnabled": false

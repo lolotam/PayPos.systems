@@ -8556,6 +8556,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {
@@ -8576,9 +8583,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_exceptions_board_idx": {
           "name": "attendance_exceptions_board_idx",
@@ -8615,9 +8622,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_exceptions_employee_idx": {
           "name": "attendance_exceptions_employee_idx",
@@ -8642,9 +8649,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_exceptions_actor_idx": {
           "name": "attendance_exceptions_actor_idx",
@@ -8663,9 +8670,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_exceptions_one_suspected": {
           "name": "attendance_exceptions_one_suspected",
@@ -8684,87 +8691,87 @@
             }
           ],
           "isUnique": true,
-          "with": {},
-          "method": "btree",
           "where": "\"attendance_exceptions\".\"kind\" = 'SUSPECTED_MISSED_OUT'",
-          "concurrently": false
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
         "attendance_exceptions_company_id_companies_id_fk": {
           "name": "attendance_exceptions_company_id_companies_id_fk",
           "tableFrom": "attendance_exceptions",
+          "tableTo": "companies",
           "columnsFrom": [
             "company_id"
           ],
-          "tableTo": "companies",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_exceptions_resolved_by_user_id_fk": {
           "name": "attendance_exceptions_resolved_by_user_id_fk",
           "tableFrom": "attendance_exceptions",
+          "tableTo": "user",
           "columnsFrom": [
             "resolved_by"
           ],
-          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_exceptions_company_id_session_id_attendance_sessions_company_id_id_fk": {
           "name": "attendance_exceptions_company_id_session_id_attendance_sessions_company_id_id_fk",
           "tableFrom": "attendance_exceptions",
+          "tableTo": "attendance_sessions",
           "columnsFrom": [
             "company_id",
             "session_id"
           ],
-          "tableTo": "attendance_sessions",
           "columnsTo": [
             "company_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_exceptions_company_id_business_id_employee_id_employees_company_id_business_id_id_fk": {
           "name": "attendance_exceptions_company_id_business_id_employee_id_employees_company_id_business_id_id_fk",
           "tableFrom": "attendance_exceptions",
+          "tableTo": "employees",
           "columnsFrom": [
             "company_id",
             "business_id",
             "employee_id"
           ],
-          "tableTo": "employees",
           "columnsTo": [
             "company_id",
             "business_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_exceptions_company_id_business_id_branch_id_branches_company_id_business_id_id_fk": {
           "name": "attendance_exceptions_company_id_business_id_branch_id_branches_company_id_business_id_id_fk",
           "tableFrom": "attendance_exceptions",
+          "tableTo": "branches",
           "columnsFrom": [
             "company_id",
             "business_id",
             "branch_id"
           ],
-          "tableTo": "branches",
           "columnsTo": [
             "company_id",
             "business_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -8786,6 +8793,22 @@
         "attendance_exceptions_status": {
           "name": "attendance_exceptions_status",
           "value": "\"attendance_exceptions\".\"status\" IN ('OPEN','RESOLVED')"
+        },
+        "attendance_exceptions_resolution": {
+          "name": "attendance_exceptions_resolution",
+          "value": "\"attendance_exceptions\".\"resolution\" IS NULL OR \"attendance_exceptions\".\"resolution\" IN ('CLOSED_LATE','MISSED_OUT','ACKNOWLEDGED','CARD_SCAN')"
+        },
+        "attendance_exceptions_open_clear": {
+          "name": "attendance_exceptions_open_clear",
+          "value": "\"attendance_exceptions\".\"status\" <> 'OPEN' OR (\"attendance_exceptions\".\"resolution\" IS NULL AND \"attendance_exceptions\".\"resolved_by\" IS NULL AND \"attendance_exceptions\".\"resolved_at\" IS NULL AND \"attendance_exceptions\".\"reason\" IS NULL)"
+        },
+        "attendance_exceptions_resolved_set": {
+          "name": "attendance_exceptions_resolved_set",
+          "value": "\"attendance_exceptions\".\"status\" <> 'RESOLVED' OR (\"attendance_exceptions\".\"resolution\" IS NOT NULL AND \"attendance_exceptions\".\"resolved_at\" IS NOT NULL)"
+        },
+        "attendance_exceptions_reason_bounds": {
+          "name": "attendance_exceptions_reason_bounds",
+          "value": "\"attendance_exceptions\".\"reason\" IS NULL OR (\"attendance_exceptions\".\"reason\" = btrim(\"attendance_exceptions\".\"reason\") AND char_length(\"attendance_exceptions\".\"reason\") BETWEEN 1 AND 500)"
         }
       },
       "isRLSEnabled": false
