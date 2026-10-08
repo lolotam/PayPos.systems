@@ -231,7 +231,7 @@ own session (403).
 
   Lateness reuses `attendanceLateMinutes(scheduled_start, newClockIn)` (CA-Q10).
 - **BR-002**: Lock order follows ADR-0028: the employee's `AttendanceState` first, then identity's company and ordered
-  membership locks (the PR 25 access pattern), then the session row and the employee's neighbouring sessions. The
+  membership locks (the PR 25 access pattern), then the session row. Neighbouring sessions are read without row locks inside an indexed ±2-day window plus the employee's single OPEN session; the `AttendanceState` lock already serialises every writer for that employee (layer-2 review, round 3). The
   injected Clock is sampled for a non-locking branch-permission precheck before any target lock (so an unauthorised caller always gets the same `NOT_FOUND`, never a lock timeout), and again after the locks; the post-lock sample is the authoritative one for every rule. This serialises a correction with scans and the missed-out job.
 - **BR-003**: `revision` on `attendance_sessions` increases with every write: the scan close, the card close, the job
   close and the correction. A request carries the revision it saw.
