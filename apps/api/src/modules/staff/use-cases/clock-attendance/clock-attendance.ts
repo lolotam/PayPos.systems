@@ -84,6 +84,7 @@ export class ClockAttendance {
         shifts: context.shifts,
         location: context.location,
         geo: context.geo,
+        source: 'QR',
       },
       at,
       attendanceTransition(context.open, at) === 'OUT' && context.open !== null

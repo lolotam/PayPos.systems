@@ -355,7 +355,7 @@ posted)` when non-zero, keyed `(source_period, employee, source_ref, generation)
   `SUSPECTED_MISSED_OUT` exception; a later scan before 16 h still closes the session normally and resolves the
   exception as "closed late" (kept for the manager to see); at 16 h it becomes `MISSED_OUT`. Never hours, never a
   deduction (D-32).
-- **Geofence 150 m** (D-12): out of range → recorded with an `OUT_OF_RANGE` exception; no location → `NONE` exception.
+- **Geofence 150 m** (D-12): out of range → recorded with an `OUT_OF_RANGE` exception; no location → a `NONE` exception for QR / phone clocking. A card movement raises no exception (spec 034 RE-Q4); the session still records `geo` / `out_geo` = `NONE`.
 - **Barcode card:** scanned by the paired reception device (Phase 0 device scheme), permission
   `clock:attendance:device`; the device and the operator are recorded.
 - **Lateness:** grace 10 minutes, reported only. Attendance never touches commission.

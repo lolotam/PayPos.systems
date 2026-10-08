@@ -125,6 +125,7 @@ export class ClockByCard {
         shifts: context.shifts,
         location: context.location,
         geo: context.geo,
+        source: 'BARCODE',
       },
       at,
       this.ids.newId(),

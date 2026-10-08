@@ -43,7 +43,7 @@ recipients and channels **in the event**, so `notifications` never learns an ale
 | `SessionTipsChanged` | `orders` | `commissions` | a session's tips changed; commissions projects tips as statement inputs (`TIP_CARD`, `TIP_CASH`) |
 | `RatingRequestReady` | `customers` | `notifications` | a request was claimed (`SCHEDULED → SENDING`); notifications dispatches it and enforces `send_deadline` |
 | `LowRatingReceived` | `customers` | `notifications` | a rating of ≤ 2 stars arrived; notifications sends the alert when the rule is on |
-| `AttendanceExceptionRaised` | `staff` | `notifications` | a geofence or missed-out exception was raised in `staff`; notifications alerts |
+| `AttendanceExceptionRaised` | `staff` | `notifications` | geofence exceptions are raised without an event today; this event remains the missed-out job's (module-map row 173) |
 | `ShiftNotClockedIn` | `staff` | `notifications` | the job found a scheduled shift never clocked in; notifications alerts |
 | `DocumentExpiring` | `staff` | `notifications` | an employee document approaches its expiry; notifications alerts |
 | `StatementAwaitingReview` | `commissions` | `notifications` | a statement needs the manager's review — a reminder, not a lock |

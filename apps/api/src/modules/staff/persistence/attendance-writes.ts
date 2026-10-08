@@ -97,10 +97,10 @@ export async function persistAttendanceMovement(
     });
   }
   if (accepted === null) throw new Error('ATTENDANCE_MOVEMENT_MISSING');
-  if (write.geo !== 'OK')
+  for (const kind of write.result.exceptions)
     await tx.execute(sql`
     INSERT INTO attendance_exceptions(company_id,id,business_id,employee_id,branch_id,session_id,kind,raised_at)
-    VALUES(${ref.companyId},${ids.newId()},${ref.businessId},${ref.employeeId},${ref.branchId},${write.result.session_id},${write.geo},${write.at.toISOString()})`);
+    VALUES(${ref.companyId},${ids.newId()},${ref.businessId},${ref.employeeId},${ref.branchId},${write.result.session_id},${kind},${write.at.toISOString()})`);
   await tx.execute(sql`UPDATE attendance_states SET last_accepted_scan_at=${write.at.toISOString()},last_result=${JSON.stringify(write.result)}::jsonb
     WHERE company_id=${ref.companyId} AND employee_id=${ref.employeeId}`);
   // MISSED_OUT إغلاق نظامي لا مسح؛ الإشارة تربط بصف audit لحركة المسح نفسها، وهو يبقى دائماً ويسمي الجلسة.

@@ -10,6 +10,7 @@ import {
   attendanceSchedule,
   attendanceEligible,
   planAttendance,
+  attendanceRaisedExceptions,
   type ClockResult,
 } from '../clock-attendance.ts';
 
@@ -40,6 +41,7 @@ describe('shared attendance plan', () => {
     shifts: [shift],
     location: undefined,
     geo: null,
+    source: 'QR' as const,
   };
   it('snapshots the scheduled opening and complete lateness after grace', () => {
     const plan = planAttendance(input, after(660000), 'new');
@@ -72,6 +74,20 @@ describe('shared attendance plan', () => {
       late_minutes: 0,
       missed_session_id: open.id,
     });
+  });
+  it('a card movement keeps the location fact and raises no exception', () => {
+    const missing = planAttendance({ ...input, source: 'BARCODE' }, start, 'card');
+    expect(missing.geo).toBe('NONE');
+    expect(missing.result.exceptions).toEqual([]);
+    const far = { lat: 29.3, lng: 47.9, accuracy: 5 };
+    const outside = planAttendance(
+      { ...input, source: 'BARCODE', location: far, geo: { lat: 0, lng: 0 } },
+      start,
+      'card',
+    );
+    expect(outside.geo).toBe('OUT_OF_RANGE');
+    expect(outside.result.exceptions).toEqual([]);
+    expect(attendanceRaisedExceptions('QR', 'OUT_OF_RANGE')).toEqual(['OUT_OF_RANGE']);
   });
 });
 
