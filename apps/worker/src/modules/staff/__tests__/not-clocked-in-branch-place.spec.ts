@@ -17,12 +17,10 @@ afterAll(async () => {
 });
 
 it.each([null, 'Asia/Dubai'])(
-  'keeps both names and uses the effective timezone (%s)',
+  'keeps both names and the saved schedule timezone after the branch changes to %s',
   async (branchZone) => {
     const tenant = await f.tenant();
     await f.owner`UPDATE businesses SET timezone='Asia/Riyadh' WHERE company_id=${tenant.company} AND id=${tenant.business}`;
-    await f.owner`UPDATE branches SET name_ar='استوديو', name_en='Studio 2026', timezone=${branchZone}
-    WHERE company_id=${tenant.company} AND id=${tenant.branch}`;
     const userId = await f.user('manager');
     await f.member({
       tenant,
@@ -33,6 +31,8 @@ it.each([null, 'Asia/Dubai'])(
     });
     const employee = await f.employee(tenant, { nameAr: 'ليلى', nameEn: 'Laila' });
     await f.shift(tenant, employee);
+    await f.owner`UPDATE branches SET name_ar='استوديو', name_en='Studio 2026', timezone=${branchZone}
+    WHERE company_id=${tenant.company} AND id=${tenant.branch}`;
     f.setNow(ALERT_AT);
     expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
     await notClockedInInbox(f.ids, f.db).deliver(f.owner, tenant.company);
@@ -44,7 +44,7 @@ it.each([null, 'Asia/Dubai'])(
       { name: 'employee_name_en', type: 'text', value: 'Laila' },
       { name: 'branch_name_ar', type: 'text', value: 'استوديو' },
       { name: 'branch_name_en', type: 'text', value: 'Studio 2026' },
-      { name: 'shift_start', type: 'text', value: branchZone === null ? '10:00' : '11:00' },
+      { name: 'shift_start', type: 'text', value: '10:00' },
     ]);
   },
 );

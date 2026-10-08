@@ -6,6 +6,14 @@ import type { Tx } from '@pospay/db';
  */
 export interface BranchManagerRecipients {
   /**
+   * أهلية الشركة الحالية؛ الشركة المحذوفة لا تسجل إشعاراً حتى لو بقي جدولها في Redis.
+   *
+   * @param tx معاملة المستأجر
+   * @param companyId الشركة المجدولة
+   * @returns هل الشركة موجودة وغير محذوفة
+   */
+  companyOpen(tx: Tx, companyId: string): Promise<boolean>;
+  /**
    * مستخدمو العضويات النشطة التي تغطي الفرع بأحد الأدوار المعطاة.
    *
    * @param tx معاملة الشركة بعد قفل State

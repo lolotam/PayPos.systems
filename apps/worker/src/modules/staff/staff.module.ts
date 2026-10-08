@@ -1,4 +1,6 @@
 import { t } from '@pospay/i18n';
+import { createLogger } from '@pospay/observability';
+import { notClockedInDiagnostics } from './persistence/not-clocked-in-diagnostics.ts';
 import { branchPlaceAdapter } from './persistence/branch-place.adapter.ts';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Clock } from './ports/clock.port.ts';
@@ -109,5 +111,6 @@ function createNotClockedInDetector(
     notClockedInTransactions(database, ids, branchPlaceAdapter),
     clock,
     NOT_CLOCKED_IN_NAME_FALLBACK,
+    notClockedInDiagnostics(createLogger('error')),
   );
 }

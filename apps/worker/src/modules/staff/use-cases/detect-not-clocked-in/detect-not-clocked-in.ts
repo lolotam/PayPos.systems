@@ -19,6 +19,7 @@ import type {
   LockedShift,
   NotClockedInCursor,
   NotClockedInTransactions,
+  NotClockedInDiagnostics,
 } from '../../ports/not-clocked-in.port.ts';
 
 export const NOT_CLOCKED_IN_PAGE_SIZE = 100;
@@ -34,6 +35,7 @@ export class DetectNotClockedIns {
     private readonly transactions: NotClockedInTransactions,
     private readonly clock: Clock,
     private readonly nameFallback: NameFallback,
+    private readonly diagnostics: NotClockedInDiagnostics,
   ) {}
 
   async execute(companyId: string): Promise<NotClockedInRun> {
@@ -51,7 +53,10 @@ export class DetectNotClockedIns {
         NOT_CLOCKED_IN_PAGE_SIZE,
       );
       for (const candidate of page) {
-        const saved = await this.settle(companyId, candidate, rule).catch(() => null);
+        const saved = await this.settle(companyId, candidate, rule).catch((error: unknown) => {
+          this.diagnostics.failed(companyId, error);
+          return null;
+        });
         progress = recordNotClockedInOutcome(progress, saved);
       }
       const last = page.at(-1);
@@ -83,7 +88,9 @@ export class DetectNotClockedIns {
   ): Promise<boolean> {
     const shift = await tx.shift(candidate.id);
     if (shift === null || shift.startsAt.getTime() !== candidate.startsAt.getTime()) return false;
-    const leaves = await tx.approvedLeaves(shift.employeeId, shift.startsAt, shift.endsAt);
+    const leaves = await tx.approvedLeaves(
+      shift.employeeId, shift.startsAt, shift.endsAt, shift.workingDate,
+    );
     const applied = applyApprovedLeave(shift, leaves, rule.delayMs);
     const window = countingWindow(shift.startsAt, applied.alertAt, rule.windowBeforeMs);
     const clockIns = await tx.clockIns(shift.employeeId, window.start, window.end);
@@ -97,6 +104,7 @@ export class DetectNotClockedIns {
       contractEnd: shift.contractEnd,
       workingDate: shift.workingDate,
       clockIns,
+      openClockIn: await tx.openClockIn(shift.employeeId),
     });
     if (decision !== 'ALERT') return false;
     return this.record(tx, shift, applied.alertAt, at, rule.roles);

@@ -23,6 +23,9 @@ const WINDOW = 2 * 60 * MINUTE;
 const at = (base: Date, ms: number) => new Date(base.getTime() + ms);
 const leave = (status: string, startsAt: Date, endsAt: Date): LeaveInterval => ({
   status,
+  kind: 'PARTIAL',
+  from: '2026-10-04',
+  to: '2026-10-04',
   startsAt,
   endsAt,
 });
@@ -39,6 +42,7 @@ function facts(patch: Partial<NotClockedInFacts> = {}): NotClockedInFacts {
     contractEnd: null,
     workingDate: '2026-10-04',
     clockIns: [],
+    openClockIn: null,
     ...patch,
   };
 }
@@ -114,7 +118,7 @@ describe('notClockedInDecision', () => {
 });
 
 describe('applyApprovedLeave', () => {
-  const shift = { startsAt: START, endsAt: END };
+  const shift = { startsAt: START, endsAt: END, workingDate: '2026-10-04' };
 
   it('ignores pending, rejected and cancelled leave', () => {
     for (const status of ['PENDING', 'REJECTED', 'CANCELLED']) {

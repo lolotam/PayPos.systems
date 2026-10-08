@@ -5,6 +5,7 @@ import {
   approvedLeavesStatement,
   countingClockInsStatement,
   dueShiftsStatement,
+  openClockInStatement,
 } from '../persistence/not-clocked-in.transactions.ts';
 import { NOT_CLOCKED_IN_PAGE_SIZE } from '../use-cases/detect-not-clocked-in/detect-not-clocked-in.ts';
 import {
@@ -81,6 +82,8 @@ async function seedProbes(company: string) {
   await f.owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,clock_in,status,source,geo,late_minutes)
     SELECT company_id, gen_random_uuid(), business_id, primary_branch_id, id, '2026-10-04', 'Asia/Kuwait', ${early}, 'OPEN', 'QR', 'OK', 0
     FROM employees WHERE company_id=${company} AND name_en='Synthetic bulk'`;
+  await f.owner`UPDATE attendance_sessions SET status='CLOSED', closed_by='EMPLOYEE', clock_out=${leaveStart}
+    WHERE company_id=${company}`;
   await f.owner`INSERT INTO leave_requests(company_id,id,business_id,branch_id,employee_id,kind,"from","to",start,"end",timezone,starts_at,ends_at,type,status,requested_by,requested_at,decided_by,decided_at)
     SELECT company_id, gen_random_uuid(), business_id, primary_branch_id, id, 'PARTIAL', ${WORKING}, ${WORKING}, '08:00', '09:00', 'Asia/Kuwait',
       ${leaveStart}, ${leaveEnd}, 'ANNUAL', 'APPROVED', ${decider}, ${leaveStart}, ${decider}, ${leaveStart}
@@ -130,19 +133,24 @@ async function expectIndexes(
     false,
   );
   assertStartRange(due);
+  expect(planNodes(due).some((node) => node['Join Type'] === 'Anti')).toBe(true);
+  expect(await f.db.withTenant(tenant.company, (tx) =>
+    tx.execute(dueShiftsStatement(tenant.company, SHIFT_START, ALERT_AT, null, 100)),
+  )).toHaveLength(0);
   const idleAt = new Date('2026-10-06T07:20:00Z');
   const idle = dueShiftsStatement(tenant.company, idleAt, idleAt, null, 100);
   assertStartRange(await plan(tenant.company, idle, false));
   expect(await f.db.withTenant(tenant.company, (tx) => tx.execute(idle))).toHaveLength(0);
   const text = JSON.stringify({
     due,
+    open: await plan(tenant.company, openClockInStatement(tenant.company, employeeId)),
     clocks: await plan(
       tenant.company,
       countingClockInsStatement(tenant.company, employeeId, from, ALERT_AT),
     ),
     leaves: await plan(
       tenant.company,
-      approvedLeavesStatement(tenant.company, employeeId, SHIFT_START, SHIFT_END),
+      approvedLeavesStatement(tenant.company, employeeId, SHIFT_START, SHIFT_END, WORKING),
     ),
     recipients: await plan(
       tenant.company,
@@ -156,6 +164,7 @@ async function expectIndexes(
   });
   expect(text).toContain('staff_schedule_shifts_company_starts_idx');
   expect(text).toContain('attendance_sessions_employee_date_idx');
+  expect(text).toContain('attendance_sessions_one_open');
   expect(text).toContain('leave_requests_company_employee_period_idx');
   expect(text).toContain('memberships_scope_branch_idx');
   expect(text).toContain('memberships_scope_business_idx');

@@ -142,7 +142,7 @@ it('NCI-11 no managers still publishes the event, and the consumer stores nothin
   expect(await f.attempts(String(events[0]?.['id']))).toHaveLength(0);
 });
 
-it('a closed company publishes the event with no recipients', async () => {
+it('a closed company records no notice or event', async () => {
   const tenant = await f.tenant();
   const manager = await f.user('closed');
   await f.member({
@@ -156,10 +156,9 @@ it('a closed company publishes the event with no recipients', async () => {
   await f.shift(tenant, employee);
   await f.closeCompany(tenant.company, new Date('2026-10-04T00:00:00.000Z'));
   f.setNow(ALERT_AT);
-  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
-  const [event] = await f.events(tenant.company);
-  expect(event?.['payload']).not.toHaveProperty('notification_recipients');
-  expect((await f.notices(tenant.company, employee))[0]).toMatchObject({ recipient_count: 0 });
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 0 });
+  expect(await f.events(tenant.company)).toHaveLength(0);
+  expect(await f.notices(tenant.company, employee)).toHaveLength(0);
 });
 
 async function seedManagers(tenant: Tenant) {

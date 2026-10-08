@@ -30,6 +30,7 @@ type ShiftRow = DueRow & {
   user_id: string | null;
   name_ar: string | null;
   name_en: string;
+  timezone: string;
 };
 
 // قيد staff_schedule_shifts_duration يمنع وردية أطول من ١٦ ساعة (ends_at <= starts_at + interval '16 hours')،
@@ -51,6 +52,9 @@ export function dueShiftsStatement(
       AND sh.starts_at <= ${startsAtOrBefore.toISOString()}::timestamptz
       AND sh.starts_at > (${endsAfter.toISOString()}::timestamptz - interval '16 hours')
       AND sh.ends_at > ${endsAfter.toISOString()}::timestamptz
+      AND NOT EXISTS (SELECT 1 FROM attendance_not_clocked_in_notices n
+        WHERE n.company_id = sh.company_id AND n.employee_id = sh.employee_id
+          AND n.shift_starts_at = sh.starts_at)
       ${page}
     ORDER BY sh.starts_at, sh.id
     LIMIT ${limit}`;
@@ -61,11 +65,13 @@ export function approvedLeavesStatement(
   employeeId: string,
   startsAt: Date,
   endsAt: Date,
+  workingDate: string,
 ) {
-  return sql`SELECT starts_at, ends_at, status FROM leave_requests
+  return sql`SELECT starts_at, ends_at, status, kind, "from", "to" FROM leave_requests
     WHERE company_id = ${companyId} AND employee_id = ${employeeId} AND status = 'APPROVED'
-      AND starts_at < ${endsAt.toISOString()}::timestamptz
-      AND ends_at > ${startsAt.toISOString()}::timestamptz
+      AND ((kind = 'FULL_DAY' AND "from" <= ${workingDate}::date AND "to" >= ${workingDate}::date)
+        OR (kind = 'PARTIAL' AND starts_at < ${endsAt.toISOString()}::timestamptz
+          AND ends_at > ${startsAt.toISOString()}::timestamptz))
     ORDER BY starts_at, ends_at`;
 }
 
@@ -93,6 +99,7 @@ export function notClockedInTransactions(
       database.withTenant(
         companyId,
         async (tx) => {
+          if (!(await branchManagerRecipientsAdapter.companyOpen(tx, companyId))) return [];
           const rows = await tx.execute<DueRow>(
             dueShiftsStatement(companyId, startsAtOrBefore, endsAfter, after, limit),
           );
@@ -123,7 +130,9 @@ function locked(
 ): LockedNotClockedIn {
   return {
     shift: (shiftId) => readShift(tx, companyId, employeeId, shiftId, places),
-    approvedLeaves: (id, startsAt, endsAt) => readLeaves(tx, companyId, id, startsAt, endsAt),
+    approvedLeaves: (id, startsAt, endsAt, workingDate) =>
+      readLeaves(tx, companyId, id, startsAt, endsAt, workingDate),
+    openClockIn: (id) => readOpenClockIn(tx, companyId, id),
     clockIns: (id, from, to) => readClockIns(tx, companyId, id, from, to),
     managers: (businessId, branchId, roles) =>
       branchManagerRecipientsAdapter.forBranch(tx, companyId, businessId, branchId, at, roles),
@@ -144,9 +153,10 @@ async function readShift(
   shiftId: string,
   places: BranchPlaceReader<Tx>,
 ): Promise<LockedShift | null> {
+  if (!(await branchManagerRecipientsAdapter.companyOpen(tx, companyId))) return null;
   const [row] = await tx.execute<ShiftRow>(sql`
     SELECT sh.id, sh.employee_id, sh.working_date, sh.starts_at, sh.ends_at,
-      sc.business_id, sc.branch_id, e.deleted_at, e.contract_end, e.user_id, e.name_ar, e.name_en
+      sc.business_id, sc.branch_id, sc.timezone, e.deleted_at, e.contract_end, e.user_id, e.name_ar, e.name_en
     FROM staff_schedule_shifts sh
     JOIN staff_schedules sc ON sc.company_id = sh.company_id AND sc.id = sh.schedule_id AND sc.employee_id = sh.employee_id
     JOIN employees e ON e.company_id = sh.company_id AND e.business_id = sc.business_id AND e.id = sh.employee_id
@@ -162,17 +172,37 @@ async function readLeaves(
   employeeId: string,
   startsAt: Date,
   endsAt: Date,
+  workingDate: string,
 ): Promise<readonly LeaveInterval[]> {
   const rows = await tx.execute<{
     starts_at: Date | string;
     ends_at: Date | string;
     status: string;
-  }>(approvedLeavesStatement(companyId, employeeId, startsAt, endsAt));
+    kind: LeaveInterval['kind'];
+    from: string | Date;
+    to: string | Date;
+  }>(approvedLeavesStatement(companyId, employeeId, startsAt, endsAt, workingDate));
   return rows.map((row) => ({
     status: row.status,
+    kind: row.kind,
+    from: day(row.from),
+    to: day(row.to),
     startsAt: instant(row.starts_at),
     endsAt: instant(row.ends_at),
   }));
+}
+
+export function openClockInStatement(companyId: string, employeeId: string) {
+  return sql`SELECT clock_in
+    FROM attendance_sessions WHERE company_id = ${companyId} AND employee_id = ${employeeId}
+      AND status = 'OPEN'`;
+}
+
+async function readOpenClockIn(tx: Tx, companyId: string, employeeId: string): Promise<Date | null> {
+  const [row] = await tx.execute<{ clock_in: Date | string }>(
+    openClockInStatement(companyId, employeeId),
+  );
+  return row === undefined ? null : instant(row.clock_in);
 }
 
 async function readClockIns(
@@ -210,7 +240,7 @@ function toLockedShift(row: ShiftRow, place: BranchPlace): LockedShift {
     nameEn: row.name_en,
     branchNameAr: place.nameAr,
     branchNameEn: place.nameEn,
-    timeZone: place.timeZone,
+    timeZone: row.timezone,
   };
 }
 

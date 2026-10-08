@@ -1,7 +1,7 @@
 # ADR-0037 — Not-clocked-in alert: tenant discovery and manager recipients
 
 Status: Proposed (draft for PR 28; number provisional, renumbered at merge).
-Date: 2026-10-08. Scope: spec 036, Phase 1 PR 28. Owner decisions: spec 036 NC-Q1–NC-Q12 (Waleed, 2026-10-08).
+Date: 2026-10-08. Scope: spec 036, Phase 1 PR 28. Owner decisions: spec 036 NC-Q1–NC-Q13 (Waleed, 2026-10-08).
 
 ## Context
 
@@ -20,12 +20,15 @@ Two things are not covered by an existing decision:
 
 ## Decision
 
-1. **Discovery on `CompanyCreated`.** The worker `staff` module already consumes `CompanyCreated` (ADR-0031, document
+1. **Discovery on `CompanyCreated`, repair on `AttendanceClockedIn`.** The worker `staff` module already consumes `CompanyCreated` (ADR-0031, document
    type seeding). On that delivery it also upserts the BullMQ job scheduler `attendance-not-clocked-in-<companyId>`,
    every 5 minutes, job data `{ companyId }` only, outside any database transaction; a Redis failure is a retryable
-   delivery outcome (ADR-0022/0032). No new event, role, grant or cross-tenant query.
+   delivery outcome (ADR-0022/0032). Delivery of `AttendanceClockedIn` also upserts the same scheduler, repairing
+   lost Redis schedules or a missed replay without a second scheduler identity. Registration stays outside
+   transactions and before database consumer dedupe. No new event, role, grant or cross-tenant query.
    **Existing companies** get a one-time, controlled operator replay of their `CompanyCreated` event before the
-   release is relied on (the spec 033 MO-Q4 precedent of 2026-10-05). Schedules are never removed automatically.
+   release is relied on, only after every worker has fully rolled out (the spec 033 MO-Q4 precedent of 2026-10-05).
+   The operator procedure is in [the runbook](../runbook.md). Schedules are never removed automatically.
 2. **Recipients through a read port.** Worker `staff` defines `BranchManagerRecipients` in its own `ports/`:
    for one branch, the user ids holding an **active** membership of the company (not removed, not expired, company
    not closed) whose system role is `owner`, `general_manager`, `business_manager` or `branch_manager` and whose
@@ -38,14 +41,17 @@ Two things are not covered by an existing decision:
    the attendance lock, and `roles` come only from `interimNotClockedInRule`. Each scope arm is fenced with
    `OFFSET 0` so the planner uses the company/scope indexes instead of the global role index. It adds **no import arrow** —
    `staff → identity` already exists (`module-map.md` §2) — and one §3 port row. The machine-readable map records
-   the read under `reads:` (the generated YAML has no `ports:` key). Branch names use a second port, decision 6.
+   the reads under `reads:` (the generated YAML has no `ports:` key). The same port also calls identity's
+   `companyOpen` read before candidate paging and again under the employee lock: a company with `deleted_at`
+   set is skipped entirely, including recipient-free notices. Branch names use a second port, decision 6.
 3. **Interim fixed rule, replaced by PR 62.** Until PR 62, the alert is always on, its delay is 20 minutes, its
    recipients are the step-2 managers and its only channel is IN_APP. No email (NC-Q4); no WhatsApp; no employee
    notice (NC-Q3 — the employee's own push notice ships with PR 28b). The rule is one function in the worker
    `staff` module, the single place PR 62 replaces with `AlertRulesPort`.
 4. **A dedicated in-app template.** `packages/notifications` gains the `shift_not_clocked_in` template (ar/en).
    Safe parameters carry `employee_name_ar` / `employee_name_en`, `branch_name_ar` / `branch_name_en`, and the
-   local shift start `HH:MM`. Display names reject a URL, a phone number and a bare 4–8 digit code, and allow a
+   local shift start `HH:MM`, formatted with `staff_schedules.timezone` as saved by ADR-0024; a later change to
+   the branch timezone cannot relabel the stored start. Display names reject a URL, a phone number and a bare 4–8 digit code, and allow a
    year inside a name. Phone detection also covers local numbers, separated digits and Arabic digits. Missing or
    rejected Arabic falls back to safe English; rejected English uses a generic label. The translated generic
    labels are injected at the staff composition root, so managers are still alerted without an i18n dependency
@@ -61,13 +67,29 @@ Two things are not covered by an existing decision:
    shift, so a shift still open cannot have started earlier. The locked read does not join `branches` or
    `businesses`. Worker `staff` defines `BranchPlaceReader`; its adapter calls `branchPlace` from the worker
    `tenancy` module's `index.ts` for both names and the effective timezone. `staff → tenancy` already exists.
+   Only the names are used for the notice; its display timezone comes from the schedule. The due page excludes
+   existing notices through `NOT EXISTS` on `(company_id, employee_id, shift_starts_at)`, supported by the ledger's
+   unique index, before any attendance lock. The planner may choose a tenant-indexed hash anti-join for small
+   ledgers. The insert conflict guard still handles concurrent workers.
 7. **Once-only key and lock order.** The notice table's UNIQUE `(company_id, employee_id, shift_starts_at)` is the
    dedupe key (shift rows are replaced on re-save, ADR-0024), and each decision runs after locking the employee's
    `attendance_states` row, the same first lock as scans and the missed-out job (ADR-0028/0032).
+8. **Leave and presence.** An approved `FULL_DAY` leave excuses any shift with `from ≤ working_date ≤ to`,
+   including overnight shifts. Only partial leaves use instant overlap and the existing deferral rule. An OPEN
+   session whose clock-in is at or before the alert deadline counts even before the two-hour window (NC-Q13);
+   the separate OPEN probe uses `attendance_sessions_one_open`, without an artificial working-date cutoff.
+9. **Failure visibility.** Each failed candidate reports the safe error type/code and immediate cause type/code
+   through the diagnostics port, without messages, stack, query parameters or employee data. Other candidates
+   continue and any failure still makes the run retryable; repeated failures remain visible in worker logs.
 
 ## Consequences
 
-Every company keeps a 5-minute schedule and one cheap indexed query per run, even with no shifts. A company created
-before this release alerts only after its replay. Recipients are resolved at detection time, so a manager added
+Every company keeps a 5-minute schedule. An idle run performs a company-eligibility read and one bounded indexed
+candidate-page read; it takes no employee locks when there are no due unnotified shifts. Each remaining candidate
+needs a separate locked transaction and fresh eligibility, leave and attendance reads; ALERT additionally reads
+recipients and writes notice/audit/outbox. Already-noticed shifts still incur ledger anti-join work, but no
+per-candidate lock or transaction. Closed companies retain their schedules: deleted companies stop at the
+eligibility read; otherwise inactive (deleted or contract-ended) employees record nothing. A company created
+before this release needs its replay for day-one coverage; a later clock-in also repairs registration. Recipients are resolved at detection time, so a manager added
 after the alert does not receive it. PR 62 must replace the interim rule (decision 3) and keep decisions 1, 2 and 7.
 Staff push (PR 28b) and the shift-ending reminder (PR 28c) are separate decisions with their own ADRs.

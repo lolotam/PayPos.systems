@@ -104,7 +104,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
 | `staff` | `EmployeeDocumentReadAccess`, document-type authority | `identity`, `tenancy` | locked read/manage files and manage:document-types:company; business timezone for the expiry badge (ADR-0031) |
 | worker `staff` | `DocumentExpiryTransactions.timeZone` | worker `tenancy` | business timezone for the expiry window, reusing ADR-0031's staff-to-tenancy read; discovery stays on outbox delivery (ADR-0032) |
-| worker `staff` | `BranchManagerRecipients` | worker `identity` | active system-role managers whose scope covers the shift branch, at the injected instant (ADR-0037); PR 62 does not remove this read |
+| worker `staff` | `BranchManagerRecipients` | worker `identity` | company eligibility and active system-role managers whose scope covers the shift branch, at the injected instant (ADR-0037); PR 62 does not remove this read |
 | worker `staff` | `BranchPlaceReader` | worker `tenancy` | both branch names and the effective timezone (branch, otherwise business) on the caller's tenant transaction; adapter bound at the staff composition root (ADR-0037) |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
 
@@ -150,7 +150,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `PaymentRefunded`                                                           | `payments`      | `orders`, `cash`, `commissions`                                                                   |
 | `PaymentFailed`                                                             | `payments`      | `orders`, `realtime`, `notifications`                                                             |
 | `CashShiftClosed`                                                           | `cash`          | `reporting`, `notifications` (manager summary)                                                    |
-| `AttendanceClockedIn` / `AttendanceClockedOut` / `AttendanceMissedOut` (ADR-0028) | `staff` (API scan; worker missed-out job also emits `AttendanceMissedOut`, ADR-0032) | No business consumer; attendance never changes commission. Worker `staff` registers the company's missed-out schedule on `AttendanceClockedIn` delivery (ADR-0032) |
+| `AttendanceClockedIn` / `AttendanceClockedOut` / `AttendanceMissedOut` (ADR-0028) | `staff` (API scan; worker missed-out job also emits `AttendanceMissedOut`, ADR-0032) | No business consumer; attendance never changes commission. Worker `staff` upserts the company's missed-out and not-clocked-in schedules on `AttendanceClockedIn` delivery (ADR-0032/0037) |
 | `AppointmentBooked`                                                         | `appointments`  | `notifications` (reminder schedule), `realtime`                                                   |
 | `AppointmentCompleted`                                                      | `appointments`  | `orders`, `commissions`                                                                           |
 | `StockPosted`                                                               | `inventory`     | `reporting`, `notifications` (low-stock alert), `realtime`                                        |
@@ -295,6 +295,7 @@ reads:
   - staff -> tenancy.businessTimeZone @ apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts
   - staff -> tenancy.branchPlace @ apps/worker/src/modules/staff/persistence/branch-place.adapter.ts
   - staff -> identity.branchManagerRecipients @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
+  - staff -> identity.companyOpen @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
   - staff -> identity.branchManagerRecipientsStatement @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
 ```
 

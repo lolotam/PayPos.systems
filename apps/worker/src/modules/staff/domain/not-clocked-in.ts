@@ -22,12 +22,16 @@ export interface InterimNotClockedInRule {
 /** إجازة قد تغطي بداية الوردية؛ الحالة غير المعتمدة لا تُعذر حتى لو تداخلت. */
 export interface LeaveInterval {
   readonly status: string;
+  readonly kind: 'FULL_DAY' | 'PARTIAL';
+  readonly from: string;
+  readonly to: string;
   readonly startsAt: Date;
   readonly endsAt: Date;
 }
 
 /** بداية الوردية ونهايتها كما خُزّنتا لحظتين UTC. */
 export interface ShiftSpan {
+  readonly workingDate: string;
   readonly startsAt: Date;
   readonly endsAt: Date;
 }
@@ -49,6 +53,7 @@ export interface NotClockedInFacts {
   readonly contractEnd: string | null;
   readonly workingDate: string;
   readonly clockIns: readonly Date[];
+  readonly openClockIn: Date | null;
 }
 
 /** حصيلة الدورة؛ null يعني فشل معاملة وتُعاد المحاولة، وfalse لا يغيّر شيئاً. */
@@ -145,11 +150,12 @@ export function dueShiftCutoff(now: Date, delayMs: number): Date {
 }
 
 /**
- * يطبّق الإجازات المعتمدة المتصلة على بداية الوردية.
+ * الإجازة اليومية المعتمدة تُعفي يوم العمل كله، حتى لو امتدت الوردية لليوم التالي.
+ * يطبّق الإجازات الجزئية المعتمدة المتصلة على بداية الوردية.
  * الفترة نصف مفتوحة. إجازة تتجاوز نهاية الوردية تُعفي، والتي تنتهي عند النهاية تماماً
  * تؤخر التنبيه إلى نهايتها زائد المهلة فيصبح القرار STALE. المعلّقة والمرفوضة والملغاة تُهمل.
  *
- * @param shift بداية الوردية ونهايتها
+ * @param shift يوم العمل وبداية الوردية ونهايتها
  * @param leaves إجازات الموظف المرشحة
  * @param delayMs مهلة التنبيه
  * @returns الإعفاء أو لحظة التنبيه بعد آخر إجازة تغطي المؤشر
@@ -159,8 +165,11 @@ export function applyApprovedLeave(
   leaves: readonly LeaveInterval[],
   delayMs: number,
 ): AppliedLeave {
+  if (leaves.some((leave) => leave.status === 'APPROVED' && leave.kind === 'FULL_DAY' &&
+    leave.from <= shift.workingDate && shift.workingDate <= leave.to))
+    return { excused: true, alertAt: alertMoment(shift.startsAt, delayMs) };
   const approved = leaves
-    .filter((leave) => leave.status === 'APPROVED')
+    .filter((leave) => leave.status === 'APPROVED' && leave.kind === 'PARTIAL')
     .slice()
     .sort(byLeaveStart);
   let cursor = shift.startsAt.getTime();
@@ -181,6 +190,7 @@ export function applyApprovedLeave(
 /**
  * يقرر مصير الوردية بالترتيب الملزم: منتهية، ثم غير مؤهل، ثم إجازة، ثم حضور، ثم انتظار، وإلا تنبيه.
  * العقد المنتهي في يوم الوردية نفسه ما زال مؤهلاً؛ الحذف أو نهاية العقد قبل يوم العمل يُسقط الوردية.
+ * الجلسة المفتوحة التي بدأت قبل الموعد تُثبت الحضور ولو سبقت نافذة الساعتين (NC-Q13).
  *
  * @param facts اللحظة والوردية والإجازة والحضور بعد القفل
  * @returns القرار
@@ -200,10 +210,10 @@ export function notClockedInDecision(facts: NotClockedInFacts): NotClockedInDeci
 }
 
 /**
- * ساعة بداية الوردية بتوقيت الفرع بصيغة HH:MM، من اللحظة المخزّنة لا من إعادة حساب الجدار.
+ * ساعة بداية الوردية بتوقيت الجدول المحفوظ بصيغة HH:MM؛ تغيير توقيت الفرع لاحقاً لا يغيّرها.
  *
  * @param startsAt بداية الوردية UTC
- * @param timeZone منطقة الفرع الفعّالة
+ * @param timeZone منطقة الجدول وقت الحفظ
  * @returns الساعة المحلية من 00:00 إلى 23:59
  */
 export function formatLocalShiftStart(startsAt: Date, timeZone: string): string {
@@ -348,5 +358,6 @@ function coveringLeave(
 function clockedIn(facts: NotClockedInFacts): boolean {
   const start = facts.windowStart.getTime();
   const end = facts.alertAt.getTime();
+  if (facts.openClockIn !== null && facts.openClockIn.getTime() <= end) return true;
   return facts.clockIns.some((clockIn) => clockIn.getTime() >= start && clockIn.getTime() <= end);
 }

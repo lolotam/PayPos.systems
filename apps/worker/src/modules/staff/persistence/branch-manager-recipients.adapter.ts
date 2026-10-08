@@ -1,4 +1,5 @@
 import {
+  companyOpen,
   branchManagerRecipients,
   branchManagerRecipientsStatement as recipientStatement,
 } from '../../identity/index.ts';
@@ -16,6 +17,7 @@ export function branchManagerRecipientsStatement(
 }
 
 export const branchManagerRecipientsAdapter: BranchManagerRecipients = {
+  companyOpen: (tx, companyId) => companyOpen(tx, companyId),
   forBranch: (tx, companyId, businessId, branchId, at, roles) =>
     branchManagerRecipients(tx, companyId, businessId, branchId, at, roles),
 };

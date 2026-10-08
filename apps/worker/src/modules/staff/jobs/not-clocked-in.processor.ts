@@ -31,9 +31,10 @@ export function startNotClockedInProcessor(
   );
   worker.on('error', () => undefined);
   return {
-    // اكتشاف الشركة من CompanyCreated خارج أي معاملة؛ فشل Redis يعيد التوصيل ولا يستدعي التالي.
+    // CompanyCreated يبدأ اليوم الأول وAttendanceClockedIn يصلح فقد الجدولة؛ Redis خارج المعاملة.
     deliver: async (event: ClaimedEvent, next: Deliver): Promise<DeliveryOutcome> => {
-      if (event.eventType !== 'CompanyCreated') return next(event);
+      if (event.eventType !== 'CompanyCreated' && event.eventType !== 'AttendanceClockedIn')
+        return next(event);
       const registered = await registerSchedule(queue, event);
       return registered.delivered ? next(event) : registered;
     },

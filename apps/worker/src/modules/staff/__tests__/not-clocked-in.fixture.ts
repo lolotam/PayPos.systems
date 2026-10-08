@@ -63,8 +63,7 @@ export async function notClockedInFixture() {
   await seedTwoTenants(testDb.ownerUrl);
   const owner = postgres(testDb.ownerUrl, { max: 4, onnotice: () => undefined });
   const db: Database = createDatabase({ url: testDb.appUrl, ids });
-  let instant = ALERT_AT;
-  const clock = { now: () => new Date(instant) };
+  const runtime = testRuntime();
   const userId = await addUser(owner, ids, 'owner');
   const transactions = notClockedInTransactions(db, ids, branchPlaceAdapter);
   return {
@@ -73,11 +72,10 @@ export async function notClockedInFixture() {
     db,
     testDb,
     transactions,
-    setNow: (at: Date) => {
-      instant = at;
-    },
+    failures: runtime.failures,
+    setNow: runtime.setNow,
     detect: (port: NotClockedInTransactions = transactions) =>
-      new DetectNotClockedIns(port, clock, NAME_FALLBACK),
+      new DetectNotClockedIns(port, runtime.clock, NAME_FALLBACK, runtime.diagnostics),
     tenant: () => addTenant(owner, ids, userId),
     business: (company: string) => addBusiness(owner, ids, company),
     branch: (tenant: Tenant, business = tenant.business) => addBranch(owner, ids, tenant, business),
@@ -118,6 +116,17 @@ export async function notClockedInFixture() {
   };
 }
 export type NotClockedInFixture = Awaited<ReturnType<typeof notClockedInFixture>>;
+
+function testRuntime() {
+  let instant = ALERT_AT;
+  const failures: unknown[] = [];
+  return {
+    failures,
+    clock: { now: () => new Date(instant) },
+    setNow: (at: Date) => { instant = at; },
+    diagnostics: { failed: (_companyId: string, error: unknown) => { failures.push(error); } },
+  };
+}
 
 interface EmployeeOptions {
   readonly nameEn?: string;

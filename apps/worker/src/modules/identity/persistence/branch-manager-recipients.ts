@@ -1,6 +1,13 @@
 import type { Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
+/** قراءة أهلية الشركة على معاملة المستأجر حتى لا تسجل الوظيفة إشعاراً لشركة محذوفة. */
+export async function companyOpen(tx: Tx, companyId: string): Promise<boolean> {
+  const rows = await tx.execute(sql`SELECT id FROM companies
+    WHERE id = ${companyId} AND deleted_at IS NULL`);
+  return rows.length > 0;
+}
+
 /**
  * مستخدمو العضويات النشطة التي تغطي الفرع بدور نظام من القائمة، بلا مسح عابر للشركات.
  *

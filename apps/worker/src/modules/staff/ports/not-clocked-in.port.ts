@@ -52,18 +52,27 @@ export interface LockedNotClockedIn {
    */
   shift(shiftId: string): Promise<LockedShift | null>;
   /**
-   * إجازات الموظف المعتمدة التي تتداخل مع الوردية.
+   * إجازات الموظف المعتمدة: يومية تغطي يوم العمل أو جزئية تتداخل مع الوردية.
    *
    * @param employeeId الموظف
    * @param startsAt بداية الوردية
    * @param endsAt نهاية الوردية
+   * @param workingDate يوم بداية الوردية، لإعفاء الليلي بالإجازة اليومية
    * @returns الإجازات المعتمدة فقط
    */
   approvedLeaves(
     employeeId: string,
     startsAt: Date,
     endsAt: Date,
+    workingDate: string,
   ): Promise<readonly LeaveInterval[]>;
+  /**
+   * بداية الجلسة المفتوحة من أي فرع؛ تمنع تنبيه الوردية الثانية حتى خارج نافذة الساعتين.
+   *
+   * @param employeeId الموظف
+   * @returns بداية الجلسة المفتوحة أو null
+   */
+  openClockIn(employeeId: string): Promise<Date | null>;
   /**
    * لحظات الحضور داخل النافذة، من أي فرع.
    *
@@ -98,7 +107,7 @@ export interface LockedNotClockedIn {
 /** حدود شركة واحدة؛ لا قراءة عابرة للشركات. */
 export interface NotClockedInTransactions {
   /**
-   * صفحة الورديات التي بدأت بما يكفي وما زالت جارية، بلا أقفال.
+   * صفحة الورديات الجارية بلا إشعار سابق لشركة غير محذوفة، بلا أقفال.
    * البداية أيضاً بعد endsAfter ناقص ١٦ ساعة، لأن قيد مدة الوردية يمنع أطول من ذلك.
    *
    * @param companyId الشركة المجدولة
@@ -130,4 +139,15 @@ export interface NotClockedInTransactions {
     sample: () => Date,
     work: (tx: LockedNotClockedIn, at: Date) => Promise<T>,
   ): Promise<T>;
+}
+
+/** تشخيص فشل الوردية مع استمرار باقي المرشحين وإعادة المحاولة لاحقاً. */
+export interface NotClockedInDiagnostics {
+  /**
+   * يسجل نوع السبب ورمزه الآمنين فقط؛ الرسالة والبيانات الشخصية لا تُطبع.
+   *
+   * @param companyId الشركة المجدولة
+   * @param error سبب فشل المعاملة قبل تنقيحه في المحول
+   */
+  failed(companyId: string, error: unknown): void;
 }
