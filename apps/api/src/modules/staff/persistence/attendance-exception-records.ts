@@ -6,6 +6,17 @@ import {
 } from '../domain/attendance-exception.ts';
 import type { AttendanceExceptionActor } from '../ports/attendance-exception-transactions.port.ts';
 
+export async function peekAttendanceExceptionBranch(
+  tx: Tx,
+  actor: AttendanceExceptionActor,
+): Promise<string> {
+  const [row] = await tx.execute<{ branch_id: string }>(sql`
+    SELECT branch_id FROM attendance_exceptions
+    WHERE company_id=${actor.companyId} AND id=${actor.exceptionId} AND business_id=${actor.businessId}`);
+  if (!row) throw new AttendanceExceptionError('NOT_FOUND');
+  return row.branch_id;
+}
+
 export async function lockedAttendanceException(
   tx: Tx,
   actor: AttendanceExceptionActor,
