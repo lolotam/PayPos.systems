@@ -157,8 +157,9 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `NotificationDelivered` / `NotificationFailed`                              | `notifications` | `reporting`                                                                                       |
 | `NotificationSendAuthorized` (internal, ADR-0018)                           | `notifications` | worker transport publisher → `notifications-send` BullMQ queue, outside database-effect consumers |
 | `DocumentReady`                                                             | `reporting`     | `notifications`, `realtime`                                                                       |
-| `SalaryChanged`                                                             | `staff`         | `commissions`                                                                                     |
-| `LeaveRequested` / `LeaveCancelled` / `LeaveApproved` / `LeaveRejected` / `LeaveRevoked` | `staff` | no consumer yet; Phase 1 leave screens poll, attendance PR 26 will read approved intervals; staff in-app delivery is DL-Q3 in spec 025 |
+| `SalaryChanged` | `staff` | No consumer yet; known to the dispatcher. PR 50 will register `commissions.project-inputs` and backfill previously published rows (ADR-0012 amendment, Waleed 2026-10-08); publication alone never satisfies commission approval |
+| `LeaveRequested` / `LeaveCancelled` / `LeaveApproved` / `LeaveRejected` / `LeaveRevoked` | `staff` | No consumer yet; known to the dispatcher. Phase 1 leave screens poll; attendance PR 26 will read approved intervals directly; staff in-app delivery remains deferred by DL-Q3 in spec 025 |
+| `EmployeePasskeyBound` | `staff` | None in Phase 1; known to the dispatcher, binding history is read directly under the polling exception (ADR-0029) |
 | `EmployeePasskeyUnbound`                                                    | `staff`         | None in Phase 1; known to the dispatcher, admin polls binding history (ADR-0029)                     |
 | `EmployeeDocumentRecorded` | `staff` | No business consumer. Worker `staff` registers the company's document-expiry schedule on delivery (PR 15, ADR-0032 pattern); the job reads `expires_on` and `alert_days` from the tables (ADR-0031) |
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |

@@ -157,3 +157,22 @@ Run against real PostgreSQL as the restricted roles (ADR-0006), with two synthet
 
 None for G2: the backlog UX is settled by the owner decision above. The company-wide scope and strict cutoff
 remain fixed by SPEC §6; PR 53 must implement and verify the accepted contract.
+
+## Amendment — 2026-10-08: SalaryChanged recognition and PR 50 backfill
+
+**Owner decision (Waleed):** recognize `SalaryChanged` in the worker now without a consumer.
+The dispatcher may mark it published so that a salary change does not retry, park and block
+later events on the same `employee` aggregate, including attendance, documents and alerts.
+
+**PR 50 obligation:** when `commissions.project-inputs` ships, it must backfill `SalaryChanged`
+outbox rows published before that consumer existed, across all affected tenants. Select rows
+missing that consumer's committed mark, including rows with non-null `published_at`, and apply
+the normal tenant-scoped, idempotent projection/correction path with the statement locks and
+atomic effect/mark required by §1. Normal dispatch of unpublished rows alone is insufficient.
+PR 50 must test a previously published salary event, repeat backfill without duplicate effects,
+and prove that a failed projection leaves its consumer mark absent.
+
+ADR-0012's approval contract remains fail closed: publication is not commission processing.
+Until the `commissions.project-inputs` mark commits, a salary event before the approval cutoff
+remains pending and refuses approval. Retain those outbox rows for the backfill; do not add a
+placeholder consumer mark or weaken the pending count to treat publication as completion.
