@@ -121,7 +121,7 @@ Schedule          employee_id · branch_id · week_start · shifts [{day, start,
 LeaveRequest      employee_id · from · to · type · status · decided_by?
 AttendanceState   employee_id · last_accepted_scan_at — one row per employee, locked by every scan and job (§7)
 AttendanceSession employee_id · branch_id · clock_in · clock_out? · source (QR|BARCODE) · geo (OK|OUT_OF_RANGE|NONE)
-                  working_date · closed_by (EMPLOYEE|MISSED_OUT)
+                  working_date · closed_by (EMPLOYEE|MISSED_OUT) · revision
 AttendanceException session_id · kind · status (OPEN|RESOLVED) · resolution? · resolved_by? · reason?
 AttendanceCorrection session_id · field · before · after · reason · by · at
 EmployeeDocument  employee_id · type_code · object_key · expires_on? · uploaded_by       DocumentType (editable, alert_days)
@@ -359,6 +359,7 @@ posted)` when non-zero, keyed `(source_period, employee, source_ref, generation)
 - **Barcode card:** scanned by the paired reception device (Phase 0 device scheme), permission
   `clock:attendance:device`; the device and the operator are recorded.
 - **Lateness:** grace 10 minutes, reported only. Attendance never touches commission.
+- **Correcting a closed session** (spec 035): a holder of `correct:attendance:branch` changes clock-in and/or clock-out of a CLOSED or MISSED_OUT session, with a reason. Each changed field keeps its previous value in append-only `AttendanceCorrection`, plus one audit entry. `revision` increases on that write and on every scan, card and missed-out close. A correction cannot move the clock-in working date, cannot overlap another session of the employee, and does not change commission, exceptions or scan facts. Only the owner may correct their own attendance.
 
 ---
 
