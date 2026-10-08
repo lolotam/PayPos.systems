@@ -45,3 +45,21 @@ it.each(['ar', 'en'] as const)(
     );
   },
 );
+
+it('gives the discount default and the membership browser different keys in business scope', () => {
+  state.locale = 'en';
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  const businessId = '01920000-0000-7000-8000-0000000000b0';
+  render(
+    <PermissionsPage
+      companyId="01920000-0000-7000-8000-0000000000a0"
+      userId="01920000-0000-7000-8000-0000000000a0"
+      branchTimeZones={{}}
+      scopeNames={{}}
+      business={{ id: businessId, name: 'Synthetic business' }}
+    />,
+  );
+  const duplicate = errors.mock.calls.some((call) => String(call[0]).includes('same key'));
+  errors.mockRestore();
+  expect(duplicate).toBe(false);
+});
