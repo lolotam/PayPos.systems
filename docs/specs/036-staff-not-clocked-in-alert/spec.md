@@ -53,6 +53,12 @@ clocking in at 10:15 for a 10:00 shift is reported late but not alerted.
 - **NC-Q11 — Night shifts.** No quiet hours in Phase 1 (revisit when WhatsApp or push channels become selectable).
 - **NC-Q12 — Deleted employee or ended contract.** No alert.
 
+### Owner addition — notification language (Waleed, 2026-10-08)
+
+"زود ان لغة الاشعارات بتروح علي حسب لغة المستخدم" — notifications follow the user's language.
+- **In-app (this PR):** the admin bell renders `shift_not_clocked_in` in the **viewer's current UI locale** at read time, not the `locale` stored on the row. The stored safe parameters carry both languages: `employee_name_ar` / `employee_name_en` and `branch_name_ar` / `branch_name_en`. The Arabic value falls back to English when missing (names: English required, Arabic optional — CLAUDE.md §5). The stored `locale` stays as the row's default for consumers without a UI, such as exports.
+- **Push (row 28b):** text is rendered before it is sent, so 28b must add a stored per-user language preference and render push in it.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - The manager learns an employee has not arrived (Priority: P1)
