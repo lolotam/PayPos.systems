@@ -10,15 +10,15 @@ import type { AttendanceCorrectionActor } from '../ports/attendance-correction-t
 const stamp = (column: string) =>
   `to_char(${column} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
-export async function peekCorrectionEmployee(
+export async function peekCorrectionSession(
   tx: Tx,
   actor: AttendanceCorrectionActor,
-): Promise<string> {
-  const [row] = await tx.execute<{ employee_id: string }>(sql`
-    SELECT employee_id FROM attendance_sessions
+): Promise<{ employee_id: string; branch_id: string }> {
+  const [row] = await tx.execute<{ employee_id: string; branch_id: string }>(sql`
+    SELECT employee_id, branch_id FROM attendance_sessions
     WHERE company_id=${actor.companyId} AND id=${actor.sessionId} AND business_id=${actor.businessId}`);
   if (!row) throw new AttendanceCorrectionError('NOT_FOUND');
-  return row.employee_id;
+  return row;
 }
 
 export async function lockCorrectionState(

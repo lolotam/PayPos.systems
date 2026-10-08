@@ -24,13 +24,24 @@ import {
   lockedCorrectionEmployeeUser,
   lockedCorrectionNeighbours,
   lockedCorrectionSession,
-  peekCorrectionEmployee,
+  peekCorrectionSession,
 } from './attendance-correction-records.ts';
 import { saveAttendanceCorrection } from './attendance-correction-writes.ts';
 
 async function load(tx: Tx, actor: AttendanceCorrectionActor, clock: AttendanceCorrectionClock) {
+  const candidate = await peekCorrectionSession(tx, actor);
+  // رفض الفرع غير المسموح قبل أي قفل يمنع كشف وجود الجلسة بمهلة انتظار القفل.
+  const precheck = await attendanceCorrectionAuthority(
+    tx,
+    actor.companyId,
+    actor.userId,
+    actor.businessId,
+    candidate.branch_id,
+    clock.now(),
+  );
+  if (!precheck.allowed) throw new AttendanceCorrectionError('NOT_FOUND');
   // قفل الحالة قبل الجلسة (ADR-0028) حتى يتسلسل التصحيح مع المسح ومهمة الخروج الفائت.
-  const employeeId = await peekCorrectionEmployee(tx, actor);
+  const employeeId = candidate.employee_id;
   await lockCorrectionState(tx, actor.companyId, employeeId);
   if (!(await attendanceCorrectionAuthorityLock(tx, actor.companyId)))
     throw new AttendanceCorrectionError('NOT_FOUND');

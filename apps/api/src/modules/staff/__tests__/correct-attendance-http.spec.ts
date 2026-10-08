@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { correctAttendanceResult } from '@pospay/contracts';
 import { origin, paired } from '../../../../test/staff-otp-harness.ts';
 import { asRole } from './attendance-exception.fixture.ts';
@@ -138,6 +138,39 @@ it('CA-06 hides out-of-scope resources behind the same 404', async () => {
   }
   expect(results.every((row) => JSON.stringify(row) === JSON.stringify(results[0]))).toBe(true);
   await asRole(f, 'business_manager');
+});
+
+it('CA-06 returns the missing-session 404 promptly while another branch has its State locked', async () => {
+  await asRole(f, 'branch_manager');
+  const employeeId = await linkEmployee(f, null);
+  const session = await seedSession(f, { employeeId, branchId: f.secondBranch });
+  const request = { method: 'POST' as const, headers: headers(), payload: correctionInput() };
+  const missing = await f.h.app.inject({ ...request, url: route(leaveIds.newId()) });
+  expect(missing.statusCode).toBe(404);
+  const holder = await f.h.owner.reserve();
+  let pending: Promise<void> | undefined;
+  let response: { statusCode: number; json(): unknown } | undefined;
+  try {
+    await holder`BEGIN`;
+    const locked = await holder`SELECT id FROM attendance_states
+      WHERE company_id=${f.company} AND id=${employeeId} FOR UPDATE`;
+    expect(locked).toHaveLength(1);
+    pending = f.h.app.inject({ ...request, url: route(session) }).then((result) => {
+      response = result;
+    });
+    await vi.waitFor(() => expect(response).toBeDefined(), { timeout: 1000, interval: 10 });
+    expect(response?.statusCode).toBe(404);
+    expect(response?.json()).toEqual(missing.json());
+  } finally {
+    await holder`ROLLBACK`;
+    holder.release();
+    await pending;
+    await asRole(f, 'business_manager');
+  }
+  expect(await correctionRows(f, session)).toHaveLength(0);
+  expect(
+    await f.h.owner`SELECT key FROM idempotency_keys WHERE key=${request.headers['idempotency-key']}`,
+  ).toHaveLength(0);
 });
 
 it('CA-07 refuses the paired device before any correction', async () => {

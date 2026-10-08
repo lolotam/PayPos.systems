@@ -160,7 +160,7 @@ it('CA-08 two real correction transactions contend on State and only the first c
   const observed = Promise.allSettled([first, second]);
   try {
     await waitForStateWaiter();
-    expect(clock.now).not.toHaveBeenCalled();
+    expect(clock.now).toHaveBeenCalledTimes(1);
   } finally {
     release.resolve();
   }
@@ -170,7 +170,7 @@ it('CA-08 two real correction transactions contend on State and only the first c
     status: 'rejected',
     reason: { code: 'ATTENDANCE_SESSION_REVISION_CONFLICT' },
   });
-  expect(clock.now).toHaveBeenCalledTimes(1);
+  expect(clock.now).toHaveBeenCalledTimes(2);
   expect(
     await f.owner`SELECT id FROM attendance_corrections WHERE session_id=${opened.session_id}`,
   ).toHaveLength(1);
