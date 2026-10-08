@@ -197,6 +197,10 @@ processor, a new in-app template, and a minimal worker identity read. **No HTTP 
 - **BR-002**: approved leave whose `[starts_at, ends_at)` contains the shift start: if it reaches or passes the shift
   end → `EXCUSED`; otherwise the alert moment becomes `leave.ends_at + 20 min` (window start unchanged). Several
   contiguous approved leaves are applied in order. Only `status = 'APPROVED'` counts.
+  An approved **FULL_DAY** leave with `from ≤ working date ≤ to` makes the shift `EXCUSED` outright, including an
+  overnight shift whose end falls after the leave's local midnight (layer-2 review, round 3).
+- **BR-002a** (NC-Q13): a session of the employee that is still `OPEN` at the alert moment counts as present, even when
+  its clock-in is before this shift's 2 h window (split day with a missed clock-out).
 - **BR-003**: decision order → `STALE` when `now ≥ ends_at` or the (moved) alert moment `≥ ends_at`;
   `INELIGIBLE` for a deleted employee or `contract_end` before the shift's working date; `EXCUSED` by full leave;
   `CLOCKED_IN` when any session's `clock_in` lies in the window (any branch); `WAIT` when `now <` alert moment;
