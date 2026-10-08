@@ -11,6 +11,7 @@ import { employeeDocumentsAr } from './employee-documents-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
 import { salaryAr } from './salary-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
+import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, serviceErrorsAr } from './catalog-services.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
@@ -18,41 +19,7 @@ export const ar: Catalog = {
   employeeDocuments: employeeDocumentsAr,
   passkeyAdmin: arPasskeyAdmin,
   leave: leaveAr,
-  permissionCodes: {
-    readPackageTypesBusiness: 'قراءة أنواع باقات النشاط',
-    managePackageTypesBusiness: 'إدارة أنواع باقات النشاط',
-    readSchedulesBranch: 'قراءة جداول الفرع',
-    manageSchedulesBranch: 'إدارة جداول الفرع',
-    readSchedulesBusiness: 'قراءة قوالب دوام النشاط',
-    manageSchedulesBusiness: 'إدارة قوالب دوام النشاط',
-    readMembershipsCompany: 'عرض عضويات الشركة',
-    manageMembershipsCompany: 'إدارة صلاحيات الشركة',
-    readMembershipsBusiness: 'عرض عضويات النشاط',
-    manageMembershipsBusiness: 'إدارة صلاحيات النشاط',
-    readBusinessesCompany: 'عرض الأنشطة',
-    createBusinessesCompany: 'إنشاء الأنشطة',
-    createBranchesBusiness: 'إنشاء فروع النشاط',
-    readBranchesBranch: 'عرض الفروع',
-    manageDevicesBranch: 'إدارة أجهزة الفرع',
-    readSettingsBusiness: 'عرض إعدادات النشاط',
-    manageSettingsBusiness: 'إدارة إعدادات النشاط',
-    viewNotificationsBusiness: 'عرض سجل إرسال الإشعارات',
-    manageFilesBusiness: 'رفع ملفات النشاط',
-    readFilesBusiness: 'عرض ملفات النشاط',
-    manageEmployeesBusiness: 'إدارة موظفي النشاط',
-    manageDiscountsCompany: 'إدارة خصومات الشركة',
-    createCustomersCompany: 'إنشاء عملاء الشركة',
-    createCustomersBusiness: 'إنشاء عملاء من هذا النشاط',
-    createCustomersBranch: 'إنشاء عملاء من هذا الفرع',
-    manageDiscountLimitsBusiness: 'إدارة حدود الخصم الشخصية',
-    loginStaffBranch: 'الدخول إلى تطبيق الموظفين',
-    clockAttendanceBranch: 'تسجيل حضور الموظفين بالكارت على جهاز مثبّت',
-    resolveAttendanceBranch: 'إغلاق استثناءات حضور الفرع وإعادة فتحها',
-    correctAttendanceBranch: 'تصحيح أوقات حضور الفرع',
-    createCompaniesPlatform: 'إنشاء شركات على المنصة',
-    readServicesBusiness: 'عرض خدمات النشاط',
-    manageServicesBusiness: 'إدارة خدمات النشاط',
-  },
+  permissionCodes: permissionCodesAr,
   brand: {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',
