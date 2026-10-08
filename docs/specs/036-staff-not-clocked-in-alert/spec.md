@@ -157,7 +157,7 @@ Nour works 09:00–13:00 and 17:00–21:00; Rana starts at 22:00. The system was
   and MUST NOT apply quiet hours (NC-Q11).
 - **FR-005**: The system MUST record the detection once per employee per shift start instant, whatever re-runs,
   restarts, concurrent workers or schedule re-saves happen (NC-Q5).
-- **FR-006**: Each detection MUST publish one `ShiftNotClockedIn` event carrying one IN_APP recipient per manager of
+- **FR-006**: Each detection MUST publish `ShiftNotClockedIn` events — one per group of at most 100 recipients, all in the notice's transaction (round 2 fix: `notificationRequest` caps recipients at 100) — carrying one IN_APP recipient per manager of
   the shift's branch — owner, general manager, business manager, branch manager whose membership is active and
   covers that branch, excluding the absent employee's own user (NC-Q1, NC-Q2). No email, no WhatsApp, no employee
   recipient in this row (NC-Q3, NC-Q4).
@@ -231,7 +231,7 @@ a Redis failure is retryable. Existing companies: one controlled operator replay
 - No endpoint, request schema or `Idempotency-Key`.
 - `packages/contracts`: job data `attendanceNotClockedInJob = { companyId }`; the in-app recipient and
   `InAppNotification` schemas accept `template_key: 'shift_not_clocked_in'` (revision 1) beside `generic_notice`,
-  with its own strict parameter tuple (`employee_name`, `branch_name`, `shift_start` as `HH:MM`) passing the
+  with its own strict parameter tuple (`employee_name_ar`, `employee_name_en`, `branch_name_ar`, `branch_name_en`, `shift_start` as `HH:MM`; a name the safe-text check rejects is replaced by a safe generic display value, never dropping recipients) passing the
   existing safe-text checks. The regenerated admin/pos API types follow.
 - `packages/notifications`: template `shift_not_clocked_in` rev 1, ar/en copy; `validInAppTemplate` accepts it.
 - `apps/admin/src/notifications/ui/notification-item.tsx`: render the new key through `packages/i18n` keys.
@@ -243,10 +243,10 @@ not from a permission check — the role list is the owner's NC-Q2 decision, and
 
 ### Events
 
-- **Published**: `ShiftNotClockedIn` — emitted once per (employee, shift start) when the alert moment passes with no
+- **Published**: `ShiftNotClockedIn` — emitted once per (employee, shift start) per recipient group of ≤100 when the alert moment passes with no
   counting clock-in, in the same transaction as the notice and the audit row. Payload: `notice_id, employee_id,
   business_id, branch_id, shift_starts_at, shift_ends_at, alert_due_at, detected_at`, plus
-  `notification_recipients` (IN_APP, one per BR-004 user, `locale: 'ar'`, template `shift_not_clocked_in`) when
+  `notification_recipients` (IN_APP, one per BR-004 user, `locale: 'ar'` as the stored default — the bell renders in the viewer's UI locale (owner addition), template `shift_not_clocked_in`) when
   there is at least one. No phone, no document. Declared in `apps/worker/src/modules/staff/events/published.ts` with
   its Arabic one-liner.
 - **Consumed**: `CompanyCreated` (existing) — schedule registration.
@@ -328,7 +328,7 @@ DO NOTHING RETURNING id` → only an inserted row writes audit and outbox. A sca
 
 ## Assumptions
 
-- The in-app message locale is `ar` (Arabic-first); no per-user locale is stored today. The admin renders it through
+- The stored in-app `locale` is `ar` as a default only; the bell renders in the viewer's current UI locale, so no per-user locale is needed for in-app (push in 28b needs one). The admin renders it through
   i18n keys.
 - Job cadence 5 minutes, keyset pages of 100 — technical defaults from spec 029.
 - Out of this row: the employee's own push notice (28b), the "your shift ends soon" reminder (28c), the dashboard
