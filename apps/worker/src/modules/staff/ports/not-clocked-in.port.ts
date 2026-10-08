@@ -39,7 +39,7 @@ export interface NoticeWrite {
   readonly alertAt: Date;
   readonly detectedAt: Date;
   readonly recipients: readonly string[];
-  readonly parameters: readonly NoticeParameter[] | null;
+  readonly parameters: readonly NoticeParameter[];
 }
 
 /** قراءات وكتابة الوظيفة على معاملة قفل الموظف. */
@@ -59,7 +59,11 @@ export interface LockedNotClockedIn {
    * @param endsAt نهاية الوردية
    * @returns الإجازات المعتمدة فقط
    */
-  approvedLeaves(employeeId: string, startsAt: Date, endsAt: Date): Promise<readonly LeaveInterval[]>;
+  approvedLeaves(
+    employeeId: string,
+    startsAt: Date,
+    endsAt: Date,
+  ): Promise<readonly LeaveInterval[]>;
   /**
    * لحظات الحضور داخل النافذة، من أي فرع.
    *
@@ -77,7 +81,11 @@ export interface LockedNotClockedIn {
    * @param roles أدوار القاعدة المؤقتة
    * @returns معرفات المستخدمين بلا ترتيب مضمون بعد إزالة التكرار في SQL
    */
-  managers(businessId: string, branchId: string, roles: readonly string[]): Promise<readonly string[]>;
+  managers(
+    businessId: string,
+    branchId: string,
+    roles: readonly string[],
+  ): Promise<readonly string[]>;
   /**
    * يدرج دفتر المنع مرة واحدة مع التدقيق وحدث لكل مجموعة مستلمين لا تتجاوز مئة، في نفس المعاملة.
    *

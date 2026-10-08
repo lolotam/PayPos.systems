@@ -1,3 +1,5 @@
+import { t } from '@pospay/i18n';
+import { branchPlaceAdapter } from '../persistence/branch-place.adapter.ts';
 import postgres from 'postgres';
 import { createDatabase, PROVISIONAL_PLAN_ID, type Database, type IdGenerator } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
@@ -47,6 +49,13 @@ const STANDARD: ShiftClock = {
   week: WEEK,
 };
 
+const NAME_FALLBACK = {
+  employeeAr: t('ar', 'inApp.generic_employee'),
+  employeeEn: t('en', 'inApp.generic_employee'),
+  branchAr: t('ar', 'inApp.generic_branch'),
+  branchEn: t('en', 'inApp.generic_branch'),
+};
+
 /** قاعدة اختبار مستنسخة، والوظيفة وقراءة المستلمين تعملان كـ pospay_app فقط. */
 export async function notClockedInFixture() {
   const ids = systemUuidV7();
@@ -57,7 +66,7 @@ export async function notClockedInFixture() {
   let instant = ALERT_AT;
   const clock = { now: () => new Date(instant) };
   const userId = await addUser(owner, ids, 'owner');
-  const transactions = notClockedInTransactions(db, ids);
+  const transactions = notClockedInTransactions(db, ids, branchPlaceAdapter);
   return {
     ids,
     owner,
@@ -68,7 +77,7 @@ export async function notClockedInFixture() {
       instant = at;
     },
     detect: (port: NotClockedInTransactions = transactions) =>
-      new DetectNotClockedIns(port, clock),
+      new DetectNotClockedIns(port, clock, NAME_FALLBACK),
     tenant: () => addTenant(owner, ids, userId),
     business: (company: string) => addBusiness(owner, ids, company),
     branch: (tenant: Tenant, business = tenant.business) => addBranch(owner, ids, tenant, business),

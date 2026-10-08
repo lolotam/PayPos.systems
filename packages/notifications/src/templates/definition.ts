@@ -27,7 +27,7 @@ export interface SafeParameter {
 // A descriptor allowlist is necessary but not sufficient: safe text cannot smuggle a phone, bearer link or code.
 const UNSAFE_TEXT = /(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|\b\d{4,8}\b)/i;
 const DISPLAY_NAME_UNSAFE =
-  /(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|^\d{4,8}$)/i;
+  /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\p{Nd}(?:[\s().+-]*\p{Nd}){6,}|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu;
 
 export function validateParameters(
   definition: TemplateDefinition,
@@ -56,8 +56,9 @@ export function validateParameters(
 
 function textAllowed(descriptor: TemplateParameter, value: string): boolean {
   if (value.length > 255) return false;
-  const pattern = descriptor.textKind === 'display_name' ? DISPLAY_NAME_UNSAFE : UNSAFE_TEXT;
-  return !pattern.test(value);
+  if (descriptor.textKind === 'display_name')
+    return value.trim().length > 0 && !DISPLAY_NAME_UNSAFE.test(value.trim());
+  return !UNSAFE_TEXT.test(value);
 }
 
 export function templateComponents(

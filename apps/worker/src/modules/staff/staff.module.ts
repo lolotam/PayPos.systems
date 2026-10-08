@@ -1,3 +1,5 @@
+import { t } from '@pospay/i18n';
+import { branchPlaceAdapter } from './persistence/branch-place.adapter.ts';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Clock } from './ports/clock.port.ts';
 import { companyCreatedConsumer } from './events/handlers/on-company-created.handler.ts';
@@ -26,6 +28,13 @@ const ATTENDANCE_EVENT_TYPES = [
   'AttendanceMissedOut',
 ] as const;
 
+const NOT_CLOCKED_IN_NAME_FALLBACK = {
+  employeeAr: t('ar', 'inApp.generic_employee'),
+  employeeEn: t('en', 'inApp.generic_employee'),
+  branchAr: t('ar', 'inApp.generic_branch'),
+  branchEn: t('en', 'inApp.generic_branch'),
+};
+
 export function createStaffDocumentDefaults(ids: IdGenerator) {
   return companyCreatedConsumer((tx) => new SeedDocumentTypes(createDocumentTypeSeeds(tx), ids));
 }
@@ -45,7 +54,7 @@ export function startStaffWorker(
     prefix,
   );
   const notClockedIn = startNotClockedInProcessor(
-    new DetectNotClockedIns(notClockedInTransactions(database, ids), clock),
+    createNotClockedInDetector(database, ids, clock),
     redisUrl,
     prefix,
   );
@@ -60,14 +69,20 @@ export function startStaffWorker(
     prefix,
   );
   return {
-    eventTypes: [...ATTENDANCE_EVENT_TYPES, 'EmployeeImportCommitRequested', 'EmployeeDocumentRecorded'],
+    eventTypes: [
+      ...ATTENDANCE_EVENT_TYPES,
+      'EmployeeImportCommitRequested',
+      'EmployeeDocumentRecorded',
+    ],
     deliver: (
       event: Parameters<typeof processor.deliver>[0],
       next: Parameters<typeof processor.deliver>[1],
     ) =>
       event.eventType === 'EmployeeImportCommitRequested'
         ? recovery.deliver(event, () => imports.deliver(event))
-        : expiry.deliver(event, () => notClockedIn.deliver(event, () => processor.deliver(event, next))),
+        : expiry.deliver(event, () =>
+            notClockedIn.deliver(event, () => processor.deliver(event, next)),
+          ),
     ready: async () => {
       await processor.ready();
       await imports.ready();
@@ -83,4 +98,16 @@ export function startStaffWorker(
       await processor.close();
     },
   };
+}
+
+function createNotClockedInDetector(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  ids: IdGenerator,
+  clock: Clock,
+) {
+  return new DetectNotClockedIns(
+    notClockedInTransactions(database, ids, branchPlaceAdapter),
+    clock,
+    NOT_CLOCKED_IN_NAME_FALLBACK,
+  );
 }

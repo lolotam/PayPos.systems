@@ -27,8 +27,8 @@ function sentence(locale: 'ar' | 'en', employee: string, branch: string) {
   const employeeKey = locale === 'ar' ? 'employee_name_ar' : 'employee_name_en';
   const branchKey = locale === 'ar' ? 'branch_name_ar' : 'branch_name_en';
   return t(locale, 'inApp.shift_not_clocked_in')
-    .replace(`{{${employeeKey}}}`, employee)
     .replace('{{shift_start}}', '10:00')
+    .replace(`{{${employeeKey}}}`, employee)
     .replace(`{{${branchKey}}}`, branch);
 }
 
@@ -57,4 +57,10 @@ it('keeps generic_notice on the stored locale', () => {
   const arabic = t('ar', 'inApp.generic_notice').replace('{{subject}}', 'Synthetic subject');
   expect(renderNotification(item, 'en')).toBe(arabic);
   expect(renderNotification(item, 'ar')).toBe(arabic);
+});
+
+it('renders placeholders within a display name literally', () => {
+  expect(renderNotification(shift('ar', 'ليلى', '{{shift_start}}'), 'en')).toBe(
+    sentence('en', '{{shift_start}}', 'Salmiya'),
+  );
 });

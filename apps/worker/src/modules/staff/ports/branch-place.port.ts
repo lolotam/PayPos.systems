@@ -1,5 +1,3 @@
-import type { Tx } from '@pospay/db';
-
 /** اسم الفرع باللغتين والمنطقة الزمنية الفعّالة كما يملكها التينانسي. */
 export interface BranchPlace {
   readonly nameAr: string | null;
@@ -11,7 +9,7 @@ export interface BranchPlace {
  * قراءة مكان الوردية من التينانسي، حتى لا يضم staff جداول الفروع والأنشطة.
  * المنطقة الفعّالة هي منطقة الفرع إن وُجدت وإلا منطقة النشاط.
  */
-export interface BranchPlaceReader {
+export interface BranchPlaceReader<Transaction> {
   /**
    * اسم الفرع باللغتين ومنطقته الزمنية الفعّالة لرسالة عدم الحضور.
    *
@@ -22,7 +20,7 @@ export interface BranchPlaceReader {
    * @returns المكان أو null إن لم يوجد الفرع
    */
   forBranch(
-    tx: Tx,
+    tx: Transaction,
     companyId: string,
     businessId: string,
     branchId: string,

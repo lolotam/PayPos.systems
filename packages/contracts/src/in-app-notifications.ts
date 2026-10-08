@@ -20,7 +20,9 @@ const displayName = z
   .refine(
     (value) =>
       value.trim().length > 0 &&
-      !/(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|^\d{4,8}$)/i.test(value),
+      !/(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\p{Nd}(?:[\s().+-]*\p{Nd}){6,}|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu.test(
+        value.trim(),
+      ),
   );
 const shiftStart = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const displayParameter = <Name extends string>(name: Name) =>

@@ -8,12 +8,7 @@ export const NOT_CLOCKED_IN_WINDOW_BEFORE_MS = 2 * 60 * MINUTE_MS;
 
 /** قرار الوظيفة لوردية واحدة في لحظة واحدة؛ ALERT وحده يكتب إشعاراً. */
 export type NotClockedInDecision =
-  | 'ALERT'
-  | 'WAIT'
-  | 'EXCUSED'
-  | 'CLOCKED_IN'
-  | 'STALE'
-  | 'INELIGIBLE';
+  'ALERT' | 'WAIT' | 'EXCUSED' | 'CLOCKED_IN' | 'STALE' | 'INELIGIBLE';
 
 /** القاعدة الثابتة التي يستبدلها PR 62 بقراءة AlertRulesPort؛ مكانها واحد. */
 export interface InterimNotClockedInRule {
@@ -65,11 +60,7 @@ export interface NotClockedInProgress {
 /** معامل قالب الإشعار؛ اسم العرض يرفض الرابط والهاتف ويبقي سنة داخل الاسم. */
 export interface NoticeParameter {
   readonly name:
-    | 'employee_name_ar'
-    | 'employee_name_en'
-    | 'branch_name_ar'
-    | 'branch_name_en'
-    | 'shift_start';
+    'employee_name_ar' | 'employee_name_en' | 'branch_name_ar' | 'branch_name_en' | 'shift_start';
   readonly type: 'text';
   readonly value: string;
 }
@@ -78,7 +69,7 @@ export interface NoticeParameter {
 export const IN_APP_RECIPIENT_GROUP_SIZE = 100;
 
 const DISPLAY_NAME_UNSAFE =
-  /(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|^\d{4,8}$)/i;
+  /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\p{Nd}(?:[\s().+-]*\p{Nd}){6,}|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu;
 const SHIFT_START = /^([01]\d|2[0-3]):[0-5]\d$/;
 const SAFE_EMPLOYEE = 'Employee';
 const SAFE_BRANCH = 'Branch';
@@ -233,14 +224,15 @@ export function formatLocalShiftStart(startsAt: Date, timeZone: string): string 
  * الترتيب معجمي على معرف المستخدم حتى تعاد نفس المجموعات في كل تشغيل.
  *
  * @param userIds معرفات المستخدمين بأي ترتيب
- * @param groupSize الحد الأقصى للمجموعة، والافتراضي سقف العقد
+ * @param groupSize حجم المجموعة من واحد إلى سقف العقد مئة، والافتراضي السقف
  * @returns مجموعات مرتبة بلا تكرار؛ فارغة إن لم يوجد مستلم
  */
 export function inAppRecipientGroups(
   userIds: readonly string[],
   groupSize: number = IN_APP_RECIPIENT_GROUP_SIZE,
 ): readonly (readonly string[])[] {
-  if (!Number.isInteger(groupSize) || groupSize < 1) throw new Error('IN_APP_RECIPIENT_GROUP_INVALID');
+  if (!Number.isInteger(groupSize) || groupSize < 1 || groupSize > IN_APP_RECIPIENT_GROUP_SIZE)
+    throw new Error('IN_APP_RECIPIENT_GROUP_INVALID');
   const unique = [...new Set(userIds)].sort();
   const groups: string[][] = [];
   for (let index = 0; index < unique.length; index += groupSize)
@@ -330,15 +322,23 @@ function englishSlot(nameEn: string, generic: string): string {
 
 function acceptedDisplayName(value: string | null): string | null {
   const trimmed = value?.trim() ?? '';
-  if (trimmed.length === 0 || trimmed.length > 255 || DISPLAY_NAME_UNSAFE.test(trimmed)) return null;
+  if (trimmed.length === 0 || trimmed.length > 255 || DISPLAY_NAME_UNSAFE.test(trimmed))
+    return null;
   return trimmed;
 }
 
 function byLeaveStart(left: LeaveInterval, right: LeaveInterval): number {
-  return left.startsAt.getTime() - right.startsAt.getTime() || left.endsAt.getTime() - right.endsAt.getTime();
+  return (
+    left.startsAt.getTime() - right.startsAt.getTime() ||
+    left.endsAt.getTime() - right.endsAt.getTime()
+  );
 }
 
-function coveringLeave(leaves: readonly LeaveInterval[], used: ReadonlySet<number>, cursor: number): number {
+function coveringLeave(
+  leaves: readonly LeaveInterval[],
+  used: ReadonlySet<number>,
+  cursor: number,
+): number {
   return leaves.findIndex(
     (leave, index) =>
       !used.has(index) && leave.startsAt.getTime() <= cursor && cursor < leave.endsAt.getTime(),

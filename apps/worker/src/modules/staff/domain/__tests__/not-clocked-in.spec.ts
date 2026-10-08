@@ -98,10 +98,12 @@ describe('notClockedInDecision', () => {
   it('is stale once the shift has ended, including an overnight shift', () => {
     const overnightEnd = new Date('2026-10-05T02:00:00.000Z');
     expect(notClockedInDecision(facts({ now: END }))).toBe('STALE');
-    expect(notClockedInDecision(facts({ now: at(overnightEnd, -1), shiftEndsAt: overnightEnd }))).toBe(
-      'ALERT',
+    expect(
+      notClockedInDecision(facts({ now: at(overnightEnd, -1), shiftEndsAt: overnightEnd })),
+    ).toBe('ALERT');
+    expect(notClockedInDecision(facts({ now: overnightEnd, shiftEndsAt: overnightEnd }))).toBe(
+      'STALE',
     );
-    expect(notClockedInDecision(facts({ now: overnightEnd, shiftEndsAt: overnightEnd }))).toBe('STALE');
   });
 
   it('skips a deleted employee and a contract that ended before the working date', () => {
@@ -123,20 +125,30 @@ describe('applyApprovedLeave', () => {
   });
 
   it('excuses approved leave that passes the shift end and defers a partial leave', () => {
-    const full = applyApprovedLeave(shift, [leave('APPROVED', at(START, -WINDOW), at(END, MINUTE))], DELAY);
+    const full = applyApprovedLeave(
+      shift,
+      [leave('APPROVED', at(START, -WINDOW), at(END, MINUTE))],
+      DELAY,
+    );
     expect(full.excused).toBe(true);
     expect(notClockedInDecision(facts({ excused: true, alertAt: full.alertAt }))).toBe('EXCUSED');
     const partialEnd = new Date('2026-10-04T09:00:00.000Z');
     const partial = applyApprovedLeave(shift, [leave('APPROVED', START, partialEnd)], DELAY);
     expect(partial).toEqual({ excused: false, alertAt: at(partialEnd, DELAY) });
-    expect(notClockedInDecision(facts({ now: at(START, DELAY), alertAt: partial.alertAt }))).toBe('WAIT');
-    expect(notClockedInDecision(facts({ now: partial.alertAt, alertAt: partial.alertAt }))).toBe('ALERT');
+    expect(notClockedInDecision(facts({ now: at(START, DELAY), alertAt: partial.alertAt }))).toBe(
+      'WAIT',
+    );
+    expect(notClockedInDecision(facts({ now: partial.alertAt, alertAt: partial.alertAt }))).toBe(
+      'ALERT',
+    );
   });
 
   it('treats approved leave that ends exactly at the shift end as stale', () => {
     const applied = applyApprovedLeave(shift, [leave('APPROVED', START, END)], DELAY);
     expect(applied.excused).toBe(false);
-    expect(notClockedInDecision(facts({ now: at(START, DELAY), alertAt: applied.alertAt }))).toBe('STALE');
+    expect(notClockedInDecision(facts({ now: at(START, DELAY), alertAt: applied.alertAt }))).toBe(
+      'STALE',
+    );
   });
 
   it('walks contiguous approved leaves and stops at a gap', () => {
@@ -159,7 +171,9 @@ describe('applyApprovedLeave', () => {
 
 describe('recipient text', () => {
   it('keeps both languages, falls back when Arabic is missing, and drops the absent employee', () => {
-    expect(shiftNotClockedInParameters('  ليلى  ', 'Layla', 'فرع السالمية', 'Salmiya', '10:00')).toEqual([
+    expect(
+      shiftNotClockedInParameters('  ليلى  ', 'Layla', 'فرع السالمية', 'Salmiya', '10:00'),
+    ).toEqual([
       { name: 'employee_name_ar', type: 'text', value: 'ليلى' },
       { name: 'employee_name_en', type: 'text', value: 'Layla' },
       { name: 'branch_name_ar', type: 'text', value: 'فرع السالمية' },
@@ -184,7 +198,9 @@ describe('recipient text', () => {
       { name: 'branch_name_en', type: 'text', value: 'Studio 2026' },
       { name: 'shift_start', type: 'text', value: '10:00' },
     ]);
-    expect(shiftNotClockedInParameters(null, '123456', null, 'https://example.test/private', '10:00')).toEqual([
+    expect(
+      shiftNotClockedInParameters(null, '123456', null, 'https://example.test/private', '10:00'),
+    ).toEqual([
       { name: 'employee_name_ar', type: 'text', value: 'Employee' },
       { name: 'employee_name_en', type: 'text', value: 'Employee' },
       { name: 'branch_name_ar', type: 'text', value: 'Branch' },
@@ -223,5 +239,30 @@ describe('recipient groups', () => {
     expect(groups.map((group) => group.length)).toEqual([100, 1]);
     expect(groups.flat()).toEqual(ids);
     expect(() => inAppRecipientGroups(['a'], 0)).toThrow('IN_APP_RECIPIENT_GROUP_INVALID');
+    expect(() => inAppRecipientGroups(ids, 101)).toThrow('IN_APP_RECIPIENT_GROUP_INVALID');
+    expect(inAppRecipientGroups([])).toEqual([]);
   });
+});
+
+it.each([
+  '123456',
+  ' 123456 ',
+  'https://example.test/private',
+  'www.example.test',
+  'example.test',
+  '+96500000001',
+  '00000001',
+  '0000 0001',
+  '٠٠٠٠ ٠٠٠١',
+  'Synthetic 00000001',
+  ' ',
+])('replaces rejected display names without dropping the notification: %s', (name) => {
+  const parameters = shiftNotClockedInParameters(name, name, name, name, '10:00');
+  expect(parameters?.map((parameter) => parameter.value)).toEqual([
+    'Employee',
+    'Employee',
+    'Branch',
+    'Branch',
+    '10:00',
+  ]);
 });

@@ -22,7 +22,7 @@ export interface AttendanceMissedOut {
   readonly recorded_at: string;
 }
 
-/** يصدر في نفس معاملة الدفتر والتدقيق، مرة لكل مجموعة مستلمين لا تتجاوز مئة، ومرة واحدة لكل موظف وبداية وردية. */
+/** يصدر مع دفتر التنبيه والتدقيق لكل مجموعة من مئة مستلم كحد أقصى؛ مفتاح الموظف وبداية الوردية يمنع إعادة إصدار كل المجموعات. */
 export interface ShiftNotClockedIn {
   readonly notice_id: string;
   readonly employee_id: string;

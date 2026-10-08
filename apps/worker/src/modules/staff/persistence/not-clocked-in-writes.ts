@@ -10,7 +10,7 @@ export async function recordNotClockedIn(
   notice: NoticeWrite,
 ): Promise<boolean> {
   const id = ids.newId();
-  const groups = recipientGroups(notice);
+  const groups = inAppRecipientGroups(notice.recipients);
   const inserted = await tx.execute<{ id: string }>(sql`
     INSERT INTO attendance_not_clocked_in_notices(
       company_id,id,business_id,branch_id,employee_id,shift_starts_at,shift_ends_at,alert_due_at,notified_at,recipient_count)
@@ -30,11 +30,6 @@ export async function recordNotClockedIn(
   return true;
 }
 
-function recipientGroups(notice: NoticeWrite): readonly (readonly string[])[] {
-  if (notice.parameters === null || notice.recipients.length === 0) return [];
-  return inAppRecipientGroups(notice.recipients);
-}
-
 function outboxEntries(
   ids: IdGenerator,
   notice: NoticeWrite,
@@ -46,12 +41,14 @@ function outboxEntries(
     aggregateId: notice.shift.employeeId,
     eventType: 'ShiftNotClockedIn',
   };
-  if (groups.length === 0 || notice.parameters === null)
-    return [{ id: ids.newId(), event: { ...event, payload: facts } }];
+  if (groups.length === 0) return [{ id: ids.newId(), event: { ...event, payload: facts } }];
   const parameters = notice.parameters;
   return groups.map((group) => ({
     id: ids.newId(),
-    event: { ...event, payload: { ...facts, notification_recipients: recipientsFor(group, parameters) } },
+    event: {
+      ...event,
+      payload: { ...facts, notification_recipients: recipientsFor(group, parameters) },
+    },
   }));
 }
 

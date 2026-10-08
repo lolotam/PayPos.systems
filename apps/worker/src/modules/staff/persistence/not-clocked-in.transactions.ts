@@ -1,7 +1,7 @@
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { LeaveInterval } from '../domain/not-clocked-in.ts';
-import type { BranchPlace } from '../ports/branch-place.port.ts';
+import type { BranchPlace, BranchPlaceReader } from '../ports/branch-place.port.ts';
 import type {
   DueShift,
   LockedNotClockedIn,
@@ -10,7 +10,6 @@ import type {
   NotClockedInTransactions,
 } from '../ports/not-clocked-in.port.ts';
 import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adapter.ts';
-import { branchPlaceAdapter } from './branch-place.adapter.ts';
 import { recordNotClockedIn } from './not-clocked-in-writes.ts';
 
 export const NOT_CLOCKED_IN_TRANSACTION_TIMEOUT_MS = 15_000;
@@ -87,6 +86,7 @@ export function countingClockInsStatement(
 export function notClockedInTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
+  places: BranchPlaceReader<Tx>,
 ): NotClockedInTransactions {
   return {
     candidates: (companyId, startsAtOrBefore, endsAfter, after, limit) =>
@@ -106,7 +106,7 @@ export function notClockedInTransactions(
         async (tx) => {
           await lockEmployee(tx, companyId, employeeId);
           const at = sample();
-          return work(locked(tx, ids, companyId, employeeId, at), at);
+          return work(locked(tx, ids, companyId, employeeId, at, places), at);
         },
         { timeoutMs: NOT_CLOCKED_IN_TRANSACTION_TIMEOUT_MS },
       ),
@@ -119,9 +119,10 @@ function locked(
   companyId: string,
   employeeId: string,
   at: Date,
+  places: BranchPlaceReader<Tx>,
 ): LockedNotClockedIn {
   return {
-    shift: (shiftId) => readShift(tx, companyId, employeeId, shiftId),
+    shift: (shiftId) => readShift(tx, companyId, employeeId, shiftId, places),
     approvedLeaves: (id, startsAt, endsAt) => readLeaves(tx, companyId, id, startsAt, endsAt),
     clockIns: (id, from, to) => readClockIns(tx, companyId, id, from, to),
     managers: (businessId, branchId, roles) =>
@@ -141,6 +142,7 @@ async function readShift(
   companyId: string,
   employeeId: string,
   shiftId: string,
+  places: BranchPlaceReader<Tx>,
 ): Promise<LockedShift | null> {
   const [row] = await tx.execute<ShiftRow>(sql`
     SELECT sh.id, sh.employee_id, sh.working_date, sh.starts_at, sh.ends_at,
@@ -150,7 +152,7 @@ async function readShift(
     JOIN employees e ON e.company_id = sh.company_id AND e.business_id = sc.business_id AND e.id = sh.employee_id
     WHERE sh.company_id = ${companyId} AND sh.id = ${shiftId} AND sh.employee_id = ${employeeId}`);
   if (row === undefined) return null;
-  const place = await branchPlaceAdapter.forBranch(tx, companyId, row.business_id, row.branch_id);
+  const place = await places.forBranch(tx, companyId, row.business_id, row.branch_id);
   return place === null ? null : toLockedShift(row, place);
 }
 
@@ -161,9 +163,11 @@ async function readLeaves(
   startsAt: Date,
   endsAt: Date,
 ): Promise<readonly LeaveInterval[]> {
-  const rows = await tx.execute<{ starts_at: Date | string; ends_at: Date | string; status: string }>(
-    approvedLeavesStatement(companyId, employeeId, startsAt, endsAt),
-  );
+  const rows = await tx.execute<{
+    starts_at: Date | string;
+    ends_at: Date | string;
+    status: string;
+  }>(approvedLeavesStatement(companyId, employeeId, startsAt, endsAt));
   return rows.map((row) => ({
     status: row.status,
     startsAt: instant(row.starts_at),

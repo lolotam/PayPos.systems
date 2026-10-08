@@ -1,4 +1,3 @@
-import { t } from '@pospay/i18n';
 import {
   applyApprovedLeave,
   countingWindow,
@@ -34,6 +33,7 @@ export class DetectNotClockedIns {
   constructor(
     private readonly transactions: NotClockedInTransactions,
     private readonly clock: Clock,
+    private readonly nameFallback: NameFallback,
   ) {}
 
   async execute(companyId: string): Promise<NotClockedInRun> {
@@ -67,8 +67,11 @@ export class DetectNotClockedIns {
     candidate: DueShift,
     rule: InterimNotClockedInRule,
   ): Promise<boolean> {
-    return this.transactions.run(companyId, candidate.employeeId, () => this.clock.now(), (tx, at) =>
-      this.assess(tx, candidate, rule, at),
+    return this.transactions.run(
+      companyId,
+      candidate.employeeId,
+      () => this.clock.now(),
+      (tx, at) => this.assess(tx, candidate, rule, at),
     );
   }
 
@@ -113,24 +116,15 @@ export class DetectNotClockedIns {
       shift.branchNameAr,
       shift.branchNameEn,
       formatLocalShiftStart(shift.startsAt, shift.timeZone),
-      catalogNameFallback(),
+      this.nameFallback,
     );
+    if (parameters === null) throw new Error('ATTENDANCE_NOT_CLOCKED_IN_PARAMETERS_INVALID');
     return tx.record({
       shift,
       alertAt,
       detectedAt: at,
-      recipients: parameters === null ? [] : withoutAbsentEmployee(managers, shift.employeeUserId),
+      recipients: withoutAbsentEmployee(managers, shift.employeeUserId),
       parameters,
     });
   }
-}
-
-/** الأسماء العامة من الكتالوج، حتى يبقى النص الذي يراه المستخدم خارج الدومين. */
-function catalogNameFallback(): NameFallback {
-  return {
-    employeeAr: t('ar', 'inApp.generic_employee'),
-    employeeEn: t('en', 'inApp.generic_employee'),
-    branchAr: t('ar', 'inApp.generic_branch'),
-    branchEn: t('en', 'inApp.generic_branch'),
-  };
 }

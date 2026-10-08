@@ -29,8 +29,8 @@ function shiftValues(parameters: InAppNotification['safe_parameters']): Record<s
 }
 
 function fill(text: string, values: Readonly<Record<string, string>>): string {
-  return Object.entries(values).reduce(
-    (current, [name, value]) => current.replaceAll(`{{${name}}}`, () => value),
-    text,
+  return text.replace(
+    /\{\{([a-z_]+)\}\}/g,
+    (placeholder, name: string) => values[name] ?? placeholder,
   );
 }

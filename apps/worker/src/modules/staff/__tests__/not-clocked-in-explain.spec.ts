@@ -26,9 +26,13 @@ afterAll(async () => {
   await f?.close();
 });
 
-async function plan(company: string, statement: ReturnType<typeof dueShiftsStatement>) {
+async function plan(
+  company: string,
+  statement: ReturnType<typeof dueShiftsStatement>,
+  forceIndex = true,
+) {
   return f.db.withTenant(company, async (tx) => {
-    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    if (forceIndex) await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`);
   });
 }
@@ -64,7 +68,8 @@ async function seedPage(company: string, business: string, branch: string) {
     FROM staff_schedules CROSS JOIN generate_series(1, 20) AS g(i)
     WHERE company_id=${company} AND week_start=${WEEK}`;
   await seedProbes(company);
-  const [sample] = await f.owner`SELECT id FROM employees WHERE company_id=${company} AND name_en='Synthetic bulk' LIMIT 1`;
+  const [sample] =
+    await f.owner`SELECT id FROM employees WHERE company_id=${company} AND name_en='Synthetic bulk' LIMIT 1`;
   return String(sample?.['id']);
 }
 
@@ -119,12 +124,26 @@ async function expectIndexes(
 ) {
   await f.owner`ANALYZE staff_schedule_shifts, attendance_sessions, leave_requests, memberships`;
   const from = new Date('2026-10-04T05:00:00.000Z');
-  const due = await plan(tenant.company, dueShiftsStatement(tenant.company, ALERT_AT, ALERT_AT, null, 100));
+  const due = await plan(
+    tenant.company,
+    dueShiftsStatement(tenant.company, SHIFT_START, ALERT_AT, null, 100),
+    false,
+  );
   assertStartRange(due);
+  const idleAt = new Date('2026-10-06T07:20:00Z');
+  const idle = dueShiftsStatement(tenant.company, idleAt, idleAt, null, 100);
+  assertStartRange(await plan(tenant.company, idle, false));
+  expect(await f.db.withTenant(tenant.company, (tx) => tx.execute(idle))).toHaveLength(0);
   const text = JSON.stringify({
     due,
-    clocks: await plan(tenant.company, countingClockInsStatement(tenant.company, employeeId, from, ALERT_AT)),
-    leaves: await plan(tenant.company, approvedLeavesStatement(tenant.company, employeeId, SHIFT_START, SHIFT_END)),
+    clocks: await plan(
+      tenant.company,
+      countingClockInsStatement(tenant.company, employeeId, from, ALERT_AT),
+    ),
+    leaves: await plan(
+      tenant.company,
+      approvedLeavesStatement(tenant.company, employeeId, SHIFT_START, SHIFT_END),
+    ),
     recipients: await plan(
       tenant.company,
       branchManagerRecipientsStatement(tenant.company, tenant.business, tenant.branch, ALERT_AT, [
@@ -143,15 +162,19 @@ async function expectIndexes(
 }
 
 function assertStartRange(plan: unknown) {
-  const text = JSON.stringify(plan);
-  const condAt = text.indexOf('Index Cond');
-  const cond = condAt < 0 ? '' : text.slice(condAt, condAt + 900);
-  expect(text).toContain('Index Scan');
-  expect(text).toContain('staff_schedule_shifts_company_starts_idx');
-  expect(cond).toContain('starts_at >');
-  expect(cond).toContain('starts_at <=');
-  const removed = [...text.matchAll(/Rows Removed by Filter[^0-9]*(\d+)/g)].map((match) =>
-    Number(match[1]),
+  const scans = planNodes(plan).filter(
+    (node) => node['Index Name'] === 'staff_schedule_shifts_company_starts_idx',
   );
-  expect(Math.max(0, ...removed)).toBeLessThan(100);
+  expect(scans).toHaveLength(1);
+  expect(scans[0]?.['Node Type']).toMatch(/Index.*Scan/);
+  expect(scans[0]?.['Index Cond']).toContain('starts_at >');
+  expect(scans[0]?.['Index Cond']).toContain('starts_at <=');
+  expect(Number(scans[0]?.['Rows Removed by Filter'] ?? 0)).toBeLessThan(100);
+}
+
+function planNodes(value: unknown): Record<string, unknown>[] {
+  if (value === null || typeof value !== 'object') return [];
+  if (Array.isArray(value)) return value.flatMap(planNodes);
+  const node = value as Record<string, unknown>;
+  return [node, ...Object.values(node).flatMap(planNodes)];
 }

@@ -46,13 +46,16 @@ Two things are not covered by an existing decision:
 4. **A dedicated in-app template.** `packages/notifications` gains the `shift_not_clocked_in` template (ar/en).
    Safe parameters carry `employee_name_ar` / `employee_name_en`, `branch_name_ar` / `branch_name_en`, and the
    local shift start `HH:MM`. Display names reject a URL, a phone number and a bare 4–8 digit code, and allow a
-   year inside a name. A rejected name is replaced with the other safe language, or a generic label, so managers
-   are still alerted. Missing Arabic falls back to English. The admin bell renders the viewer's current UI locale;
+   year inside a name. Phone detection also covers local numbers, separated digits and Arabic digits. Missing or
+   rejected Arabic falls back to safe English; rejected English uses a generic label. The translated generic
+   labels are injected at the staff composition root, so managers are still alerted without an i18n dependency
+   in the use case. The admin bell renders the viewer's current UI locale;
    the stored row locale stays the default for consumers without a UI. `generic_notice` is unchanged. Parameters
    are names and a time only — never a phone or a document.
 5. **Recipient groups.** `notificationRequest` accepts at most 100 recipients. The notice transaction writes one
    outbox event per stable, deduplicated group of at most 100 user ids. A company with 101 managers still alerts
-   every manager, and the once-only notice is not committed without those events.
+   every manager, and the once-only notice is not committed without those events. A failure while building or
+   appending any group rolls back the notice, audit and all groups; redelivery cannot duplicate inbox rows.
 6. **Due-shift lower bound and branch read.** The candidate page requires
    `starts_at > now - interval '16 hours'` because `staff_schedule_shifts_duration` already forbids a longer
    shift, so a shift still open cannot have started earlier. The locked read does not join `branches` or

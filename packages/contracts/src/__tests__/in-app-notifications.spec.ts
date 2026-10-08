@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 
 import { inAppRecipient, notificationRequest, notificationResult } from '../index.js';
+import { shiftNotClockedInParameters } from '../in-app-notifications.js';
 
 const recipient = {
   channel: 'IN_APP',
@@ -10,6 +11,33 @@ const recipient = {
   locale: 'en',
   safe_parameters: [{ name: 'subject', type: 'text', value: 'Synthetic subject' }],
 };
+
+it.each([
+  '123456',
+  ' 123456 ',
+  'https://example.test/private',
+  'www.example.test',
+  'example.test',
+  '+96500000001',
+  '00000001',
+  '0000 0001',
+  '٠٠٠٠ ٠٠٠١',
+  'Synthetic 00000001',
+  ' ',
+])('rejects unsafe display names: %s', (value) => {
+  const parameters = [
+    'employee_name_ar',
+    'employee_name_en',
+    'branch_name_ar',
+    'branch_name_en',
+  ].map((name) => ({ name, type: 'text', value }));
+  expect(
+    shiftNotClockedInParameters.safeParse([
+      ...parameters,
+      { name: 'shift_start', type: 'text', value: '10:00' },
+    ]).success,
+  ).toBe(false);
+});
 
 it('discriminates user recipients from unchanged WhatsApp phone recipients', () => {
   expect(inAppRecipient.parse(recipient)).toEqual(recipient);
