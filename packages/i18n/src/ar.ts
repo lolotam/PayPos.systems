@@ -4,6 +4,7 @@ import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
 import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
+import { attendanceExceptionErrorsAr } from './attendance-exception-catalog.js';
 import { employeeDocumentsAr } from './employee-documents-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
 import { salaryAr } from './salary-catalog.js';
@@ -42,6 +43,7 @@ export const ar: Catalog = {
     manageDiscountLimitsBusiness: 'إدارة حدود الخصم الشخصية',
     loginStaffBranch: 'الدخول إلى تطبيق الموظفين',
     clockAttendanceBranch: 'تسجيل حضور الموظفين بالكارت على جهاز مثبّت',
+    resolveAttendanceBranch: 'إغلاق استثناءات حضور الفرع وإعادة فتحها',
     createCompaniesPlatform: 'إنشاء شركات على المنصة',
     readServicesBusiness: 'عرض خدمات النشاط',
     manageServicesBusiness: 'إدارة خدمات النشاط',
@@ -189,6 +191,7 @@ export const ar: Catalog = {
     LEAVE_PAST_OWN_FORBIDDEN: 'طلب الإجازة الذاتي لا يبدأ قبل اليوم بتوقيت الفرع.',
     LEAVE_NOT_PENDING: 'يمكن البت في الإجازات المعلقة أو إلغاؤها فقط.',
     ...leaveDecisionErrorsAr,
+    ...attendanceExceptionErrorsAr,
     LEAVE_REVISION_CONFLICT: 'تغير طلب الإجازة. أعد التحميل وحاول مرة أخرى.',
     SCHEDULE_WEEK_INVALID: 'أسبوع الجدول لازم يبدأ السبت.',
     SCHEDULE_SHIFT_INVALID: 'الحد ورديتان في اليوم ومدة كل وردية لا تزيد عن ١٦ ساعة.',

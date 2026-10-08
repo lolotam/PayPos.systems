@@ -253,6 +253,8 @@ reads:
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts
   - staff -> identity.lockLeaveAccess @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
   - staff -> identity.readLeaveAccess @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
+  - staff -> identity.lockAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-exception-context.adapter.ts
+  - staff -> identity.readAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-exception-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/leave-context.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-employee.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/personal-employee.ts

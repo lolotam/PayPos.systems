@@ -101,5 +101,7 @@ export const ROLE_DEFAULTS = {
   // تصحيح PR 23 بطلب المراجع: كاشير الاستقبال يحتاج الدخول والحضور معاً؛ سلطة المدير وحدها لا تفتح جلسة الموظف.
   'login:staff:branch': ['staff', 'cashier'],
   'clock:attendance:branch': [...managers, 'branch_manager', 'shift_supervisor', 'cashier'],
+  // قرار المالك 2026-10-08 (RE-Q3): نفس حائزي decide:leave:branch، والجهاز ممنوع.
+  'resolve:attendance:branch': [...managers, 'branch_manager'],
   'create:companies:platform': [],
 } as const satisfies Record<Permission, readonly string[]>;

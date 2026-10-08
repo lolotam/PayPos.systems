@@ -157,6 +157,8 @@ export const attendanceExceptions = pgTable(
     resolution: text('resolution'),
     resolvedBy: uuid('resolved_by').references(() => user.id),
     reason: text('reason'),
+    // يزيد مع كل قرار يدوي حتى يرفض الطلب الذي يحمل نسخة قديمة.
+    revision: integer('revision').notNull().default(0),
   },
   (t) => [
     primaryKey({ columns: [t.companyId, t.id] }),
@@ -191,6 +193,22 @@ export const attendanceExceptions = pgTable(
       sql`${t.kind} IN ('NONE','OUT_OF_RANGE','SUSPECTED_MISSED_OUT')`,
     ),
     check('attendance_exceptions_status', sql`${t.status} IN ('OPEN','RESOLVED')`),
+    check(
+      'attendance_exceptions_resolution',
+      sql`${t.resolution} IS NULL OR ${t.resolution} IN ('CLOSED_LATE','MISSED_OUT','ACKNOWLEDGED','CARD_SCAN')`,
+    ),
+    check(
+      'attendance_exceptions_open_clear',
+      sql`${t.status} <> 'OPEN' OR (${t.resolution} IS NULL AND ${t.resolvedBy} IS NULL AND ${t.resolvedAt} IS NULL AND ${t.reason} IS NULL)`,
+    ),
+    check(
+      'attendance_exceptions_resolved_set',
+      sql`${t.status} <> 'RESOLVED' OR (${t.resolution} IS NOT NULL AND ${t.resolvedAt} IS NOT NULL)`,
+    ),
+    check(
+      'attendance_exceptions_reason_bounds',
+      sql`${t.reason} IS NULL OR (${t.reason} = btrim(${t.reason}) AND char_length(${t.reason}) BETWEEN 1 AND 500)`,
+    ),
   ],
 );
 

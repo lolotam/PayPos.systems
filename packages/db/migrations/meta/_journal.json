@@ -619,6 +619,13 @@
       "breakpoints": true
     },
     {
+      "idx": 88,
+      "version": "7",
+      "when": 1791418411311,
+      "tag": "0088_2026-10-08_resolve-attendance-exception",
+      "breakpoints": true
+    },
+    {
       "idx": 89,
       "version": "7",
       "when": 1791425285946,
