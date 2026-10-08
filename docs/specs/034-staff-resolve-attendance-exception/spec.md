@@ -127,8 +127,10 @@ are `NONE`, and the scan result lists no exceptions.
 - An exception id from another business of the same company, or another company → `NOT_FOUND` (404); the response
   never confirms that it exists.
 - Reason empty, only spaces, or longer than 500 characters → `VALIDATION_FAILED` (400, the platform's mapping).
-- When several rules fail at once the order is: own attendance, then kind, then revision / state, then reason. So a
-  manager's own `SUSPECTED_MISSED_OUT` is `ATTENDANCE_EXCEPTION_SELF_FORBIDDEN`.
+- A request whose body is malformed (missing / blank / over-long reason, bad revision) is refused at the edge with
+  `VALIDATION_FAILED` before any business rule runs, like every other route (`CLAUDE.md` §4.2: controllers validate).
+  For a well-formed request, when several rules fail at once the order is: own attendance, then kind, then
+  revision / state. So a manager's own `SUSPECTED_MISSED_OUT` is `ATTENDANCE_EXCEPTION_SELF_FORBIDDEN`.
 - Resolving does not change the session's times, status, hours or anything commission reads (SPEC A7). Times are PR 26.
 - Exceptions already raised by card scans before this release (staging only; there is no production yet) are closed by
   the migration as system resolutions (see BR-007).
