@@ -121,11 +121,14 @@ are `NONE`, and the scan result lists no exceptions.
   `ATTENDANCE_EXCEPTION_REVISION_CONFLICT` (409); nothing changes. Two managers at the same moment: exactly one wins.
 - A manager resolving or reopening an exception on **their own** attendance → `ATTENDANCE_EXCEPTION_SELF_FORBIDDEN` (403), even the owner
   (pattern of `LEAVE_SELF_DECISION_FORBIDDEN`).
-- A branch manager of branch B acting on an exception raised in branch A → `FORBIDDEN`.
+- A branch manager of branch B acting on an exception raised in branch A → `NOT_FOUND`, exactly like leave decisions: a
+  caller without the permission on that branch learns nothing about the exception.
 - The paired device (staff session on the reception tablet) → `FORBIDDEN`; the permission is device-forbidden.
 - An exception id from another business of the same company, or another company → `NOT_FOUND` (404); the response
   never confirms that it exists.
-- Reason empty, only spaces, or longer than 500 characters → `VALIDATION_FAILED` (422).
+- Reason empty, only spaces, or longer than 500 characters → `VALIDATION_FAILED` (400, the platform's mapping).
+- When several rules fail at once the order is: own attendance, then kind, then revision / state, then reason. So a
+  manager's own `SUSPECTED_MISSED_OUT` is `ATTENDANCE_EXCEPTION_SELF_FORBIDDEN`.
 - Resolving does not change the session's times, status, hours or anything commission reads (SPEC A7). Times are PR 26.
 - Exceptions already raised by card scans before this release (staging only; there is no production yet) are closed by
   the migration as system resolutions (see BR-007).
@@ -160,17 +163,19 @@ are `NONE`, and the scan result lists no exceptions.
 
 - **BR-001**: Only `OUT_OF_RANGE` and `NONE` are resolved or reopened by hand (RE-Q1).
 - **BR-002**: Resolve: `OPEN` → `RESOLVED`, resolution `ACKNOWLEDGED`, `resolved_by` = actor, `resolved_at` = now,
-  `reason` = the trimmed reason, `revision` + 1.
+  `reason` = the trimmed reason, `revision` + 1. The audit `after` also carries `decision_reason`.
 - **BR-003**: Reopen: `RESOLVED` → `OPEN`; `resolution`, `resolved_by`, `resolved_at` and `reason` become empty;
-  `revision` + 1. The earlier values live on in the audit entry's `before` (RE-Q6).
+  `revision` + 1. The earlier values live on in the audit entry's `before`, and the reopen reason in its `after.decision_reason`, because
+  the open row must keep `reason` empty (RE-Q6).
 - **BR-004**: The actor may not act on an exception whose employee is linked to the actor's own user (RE-Q3).
 - **BR-005**: Authority is checked on the exception's `branch_id` (RE-Q10).
 - **BR-006**: A clock-by-card movement writes no exception row; the session still stores `geo` / `out_geo` = `NONE`,
   and the card scan result's `exceptions` is `[]` (RE-Q4).
 - **BR-007**: The migration closes every `OPEN` `NONE` exception raised by a card movement as resolution `CARD_SCAN`,
-  `resolved_by` NULL (system), `reason` NULL, `resolved_at` = the migration time. A card movement is a clock-in of a
-  session with `source = 'BARCODE'`, or a clock-out with `out_operator_id` set — the implementation proves this
-  identification with a test that QR movements are never matched.
+  `resolved_by` NULL (system), `reason` NULL, `resolved_at` = the migration time. A card movement is the clock-in of a
+  session with `source = 'BARCODE'` (`raised_at = clock_in`), or a clock-out with `out_operator_id` set
+  (`raised_at = clock_out`). Matching on `raised_at` keeps a QR clock-in `NONE` open when the same session is later
+  closed by card; RAE-14 proves QR movements, `SUSPECTED_MISSED_OUT` and `OUT_OF_RANGE` are never matched.
 - **BR-008**: All decisions are pure functions in `domain/` (transition, kind check, self-check); the use case only
   orchestrates.
 
@@ -196,16 +201,18 @@ are `NONE`, and the scan result lists no exceptions.
 - **Response** (both, 200): `{ id, session_id, employee_id, branch_id, kind, status, resolution, resolved_by,
   resolved_at, reason, raised_at, revision }`.
 - **Idempotency-Key**: required (leave-decision pattern).
-- **Errors**: `NOT_FOUND` 404 · `FORBIDDEN` 403 · `ATTENDANCE_EXCEPTION_SELF_FORBIDDEN` 403 ·
+- **Errors**: `NOT_FOUND` 404 (also for a caller without the permission on the exception's branch) · `FORBIDDEN` 403
+  (paired device) · `ATTENDANCE_EXCEPTION_SELF_FORBIDDEN` 403 ·
   `ATTENDANCE_EXCEPTION_NOT_MANUAL` 409 · `ATTENDANCE_EXCEPTION_REVISION_CONFLICT` 409 (stale revision or wrong state) ·
-  `VALIDATION_FAILED` 422 · `IDEMPOTENCY_KEY_REUSED` 422 · `NOT_READY` 503 — each with `message_ar` / `message_en`.
+  `VALIDATION_FAILED` 400 · `IDEMPOTENCY_KEY_REUSED` · `TRANSACTION_RETRY_REQUIRED` · `NOT_READY` 503 — each with `message_ar` / `message_en`.
 - **Card scan contract**: unchanged schema; `exceptions` is now always `[]` for a card movement.
 
 ### Permissions
 
 - `resolve:attendance:branch` — new; covers resolve and reopen. Default holders: owner, general manager, business
   manager (`managers`) and branch manager, mirroring `decide:leave:branch`. Added to `deviceForbidden`, to the access
-  catalog, the role defaults and `packages/i18n` permission names.
+  catalog, the role defaults and `packages/i18n` permission names. Unlike the leave codes it is not added to the list
+  every system role may be granted, so only these four roles hold it (RE-Q3); widening that is a later owner decision.
 
 ### Events
 
