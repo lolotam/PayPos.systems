@@ -1,5 +1,5 @@
 {
-  "id": "8041aea0-224a-45d8-a4a1-03292659f7c2",
+  "id": "69ba8d6c-bd0a-4b18-9123-f891943b3edf",
   "prevId": "82cc799a-b4dc-403c-93d2-afc548cb0010",
   "version": "7",
   "dialect": "postgresql",
@@ -802,21 +802,21 @@
       "uniqueConstraints": {
         "package_type_components_type_service_key": {
           "name": "package_type_components_type_service_key",
-          "nullsNotDistinct": false,
           "columns": [
             "company_id",
             "package_type_id",
             "service_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         },
         "package_type_components_type_position_key": {
           "name": "package_type_components_type_position_key",
-          "nullsNotDistinct": false,
           "columns": [
             "company_id",
             "package_type_id",
             "position"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},

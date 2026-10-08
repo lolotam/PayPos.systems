@@ -115,5 +115,6 @@ it('the detail projection matches the contract and uses a tenant-scoped index', 
       sql`EXPLAIN (ANALYZE, FORMAT JSON) ${packageTypeDetailStatement(f.company, f.business, record.id)}`,
     );
   });
-  expect(JSON.stringify(plan)).toMatch(/package_types_(company_business_id|pk|name_en_key)/);
+  expect(JSON.stringify(plan)).toMatch(/package_types_(pkey|company_business_id_key)/);
+  expect(JSON.stringify(plan)).toMatch(/package_type_components_type_(idx|position_key)/);
 });

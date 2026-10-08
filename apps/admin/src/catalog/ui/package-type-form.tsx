@@ -34,7 +34,11 @@ export function PackageTypeForm({
   });
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSave)} className="flex flex-col gap-3 text-start">
+      <form
+        noValidate
+        onSubmit={form.handleSubmit(onSave)}
+        className="flex flex-col gap-3 text-start"
+      >
         <fieldset disabled={pending} className="flex flex-col gap-3">
           <PackageTypeBasicsFields />
           <PackageComponentsFields companyId={companyId} businessId={businessId} userId={userId} />

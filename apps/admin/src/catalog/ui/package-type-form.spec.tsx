@@ -69,9 +69,9 @@ it('caps component rows at 20 and permits removing rows', () => {
   expect((add as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getAllByRole('combobox')).toHaveLength(20);
   fireEvent.click(
-    screen.getAllByRole('button', {
-      name: t('en', 'catalogPackageTypes.removeComponent'),
-    })[0] as HTMLElement,
+    screen.getByRole('button', {
+      name: t('en', 'catalogPackageTypes.removeComponentRow').replace('{row}', '1'),
+    }),
   );
   expect(screen.getAllByRole('combobox')).toHaveLength(19);
   expect((add as HTMLButtonElement).disabled).toBe(false);

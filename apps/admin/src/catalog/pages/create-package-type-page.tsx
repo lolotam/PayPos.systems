@@ -21,6 +21,7 @@ export function CreatePackageTypePage({
     <section className="mx-auto flex w-full max-w-xl flex-col gap-4 text-start">
       <h1 className="text-xl font-semibold">{t(locale, 'catalogPackageTypes.title')}</h1>
       <PackageTypeForm
+        key={save.data?.id ?? 'new'}
         companyId={companyId}
         businessId={business.id}
         userId={userId}

@@ -103,7 +103,7 @@ it('PT-03 rejects every invalid definition by name without a partial write', asy
   }
   expect(await f.h.owner`SELECT count(*) FROM package_types`).toEqual(before);
 });
-it('PT-04 unknown, cross-business and cross-company services have an identical refusal', async () => {
+it('PT-04 unknown, cross-business and cross-company services have an identical create/update refusal', async () => {
   const foreignIds = [ids.newId()];
   for (const [companyId, businessId] of [
     [f.company, f.secondBusiness],
@@ -118,13 +118,28 @@ it('PT-04 unknown, cross-business and cross-company services have an identical r
     foreignIds.push(service.id);
   }
   const replies = [];
-  for (const service_id of foreignIds)
-    replies.push(await post({ ...packageTerms(f), components: [{ service_id, sessions: 1 }] }));
+  const auditBefore = await f.h.owner`SELECT count(*) FROM audit_log`;
+  for (const service_id of foreignIds) {
+    const input = { ...packageTerms(f), components: [{ service_id, sessions: 1 }] };
+    replies.push(await post(input));
+    const response = await patch(made.id, { ...input, expected_revision: made.revision });
+    replies.push({ status: response.statusCode, body: response.json() });
+  }
   for (const reply of replies) {
     expect(reply.status).toBe(400);
     expect(reply.body).toEqual(replies[0]?.body);
     expect(reply.body['code']).toBe('PACKAGE_TYPE_SERVICE_NOT_FOUND');
   }
+  expect((await get(made.id)).body).toEqual(made);
+  expect(await f.h.owner`SELECT count(*) FROM audit_log`).toEqual(auditBefore);
+});
+it('accepts a free promotional package through POST and preserves its zero price', async () => {
+  const input = { ...packageTerms(f, 'Free promotional package'), price: '0.000' };
+  const response = await post(input);
+  expect(response.status).toBe(201);
+  const record = packageTypeDetail.parse(response.body);
+  expect(record).toMatchObject({ ...input, revision: 1 });
+  expect((await get(record.id)).body).toEqual(record);
 });
 it('PT-05/06/07 replaces all fields, retains before/after components and detects stale/no-op updates', async () => {
   const body = {
