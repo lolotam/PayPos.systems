@@ -51,7 +51,7 @@ export async function closeMissedOut(
   at: Date,
 ): Promise<boolean> {
   const closed = await tx.execute<{ id: string }>(sql`
-    UPDATE attendance_sessions SET clock_out=${closeAt.toISOString()}, status='MISSED_OUT', closed_by='MISSED_OUT'
+    UPDATE attendance_sessions SET clock_out=${closeAt.toISOString()}, status='MISSED_OUT', closed_by='MISSED_OUT', revision=revision+1
     WHERE company_id=${companyId} AND id=${session.id} AND status='OPEN' RETURNING id`);
   if (closed.length !== 1) return false;
   await tx.execute(sql`

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { SYSTEM_ROLES } from '@pospay/db';
 import { attendanceExceptionRecord } from '@pospay/contracts';
 import { origin, paired } from '../../../../test/staff-otp-harness.ts';
@@ -6,6 +6,7 @@ import {
   asRole,
   attendanceExceptionFixture,
   decision,
+  exceptionAudits,
   exceptionFact,
   openException,
   type AttendanceExceptionFixture,
@@ -133,6 +134,62 @@ it('RAE-06 other branch and an unknown id share one not-found envelope', async (
   expect(other.json()).toEqual(unknown.json());
   expect(other.json().code).toBe('NOT_FOUND');
   expect(await exceptionFact(f, seeded.id)).toMatchObject([{ status: 'OPEN', revision: 0 }]);
+});
+
+it.each([
+  ['resolve', 'attendance_exceptions'],
+  ['resolve', 'employees'],
+  ['reopen', 'attendance_exceptions'],
+  ['reopen', 'employees'],
+])('RAE-06 %s returns NOT_FOUND within a second while %s is locked', async (action, table) => {
+  await asRole(f, 'business_manager');
+  const seeded = await openException(f, 'NONE', f.secondBranch);
+  if (action === 'reopen') {
+    const resolved = await f.h.app.inject({
+      method: 'POST',
+      url: route(seeded.id),
+      headers: headers(),
+      payload: decision(),
+    });
+    expect(resolved.statusCode).toBe(200);
+  }
+  await asRole(f, 'branch_manager');
+  const before = await exceptionFact(f, seeded.id);
+  const audits = await exceptionAudits(f, seeded.id);
+  const request = {
+    method: 'POST' as const,
+    headers: headers(),
+    payload: decision(action === 'reopen' ? 1 : 0),
+  };
+  const missing = await f.h.app.inject({ ...request, url: route(leaveIds.newId(), action) });
+  expect(missing.statusCode).toBe(404);
+  expect(missing.json().code).toBe('NOT_FOUND');
+  const holder = await f.h.owner.reserve();
+  let pending: Promise<void> | undefined;
+  let response: { statusCode: number; json(): unknown } | undefined;
+  try {
+    await holder`BEGIN`;
+    const id = table === 'employees' ? f.employee.id : seeded.id;
+    const locked = await holder`SELECT id FROM ${holder(table)}
+      WHERE company_id=${f.company} AND id=${id} FOR UPDATE`;
+    expect(locked).toHaveLength(1);
+    pending = f.h.app.inject({ ...request, url: route(seeded.id, action) }).then((result) => {
+      response = result;
+    });
+    await vi.waitFor(() => expect(response).toBeDefined(), { timeout: 1000, interval: 10 });
+    expect(response?.statusCode).toBe(404);
+    expect(response?.json()).toEqual(missing.json());
+  } finally {
+    await holder`ROLLBACK`;
+    holder.release();
+    await pending;
+    await asRole(f, 'business_manager');
+  }
+  expect(await exceptionFact(f, seeded.id)).toEqual(before);
+  expect(await exceptionAudits(f, seeded.id)).toEqual(audits);
+  expect(
+    await f.h.owner`SELECT key FROM idempotency_keys WHERE key=${request.headers['idempotency-key']}`,
+  ).toHaveLength(0);
 });
 
 it('RAE-07 refuses the paired device', async () => {

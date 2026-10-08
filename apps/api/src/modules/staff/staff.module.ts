@@ -24,9 +24,12 @@ import { OwnLeaveController } from './http/own-leave.controller.ts';
 import { LeaveInboxController } from './http/leave-inbox.controller.ts';
 import { LeaveDecisionsController } from './http/leave-decisions.controller.ts';
 import { AttendanceExceptionsController } from './http/attendance-exceptions.controller.ts';
+import { AttendanceCorrectionsController } from './http/attendance-corrections.controller.ts';
 import { ResolveAttendanceExceptionUseCase } from './use-cases/resolve-attendance-exception/resolve-attendance-exception.usecase.ts';
 import { ReopenAttendanceExceptionUseCase } from './use-cases/reopen-attendance-exception/reopen-attendance-exception.usecase.ts';
 import { createAttendanceExceptionTransactions } from './persistence/drizzle-attendance-exception-transactions.ts';
+import { createAttendanceCorrectionTransactions } from './persistence/drizzle-attendance-correction-transactions.ts';
+import { CorrectAttendanceUseCase } from './use-cases/correct-attendance/correct-attendance.usecase.ts';
 import { DecideLeaveUseCase } from './use-cases/decide-leave/decide-leave.usecase.ts';
 import { RevokeLeaveUseCase } from './use-cases/revoke-leave/revoke-leave.usecase.ts';
 import { createLeaveTransactions } from './persistence/drizzle-leave-transactions.ts';
@@ -97,6 +100,7 @@ export const staffControllers = [
   LeaveInboxController,
   LeaveDecisionsController,
   AttendanceExceptionsController,
+  AttendanceCorrectionsController,
   AttendanceQrController,
   PasskeysController,
   MyScheduleController,
@@ -137,6 +141,18 @@ function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerato
         transactions === null
           ? null
           : new ApplyShiftTemplateUseCase(transactions, ids, systemClock),
+    },
+  ];
+}
+function attendanceCorrectionProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+): Provider[] {
+  const tx = database === undefined ? null : createAttendanceCorrectionTransactions(database, ids);
+  return [
+    {
+      provide: CorrectAttendanceUseCase,
+      useValue: tx === null ? null : new CorrectAttendanceUseCase(tx, systemClock),
     },
   ];
 }
@@ -276,6 +292,7 @@ export function staffProviders(
     ...scheduleProviders(database, ids),
     ...leaveProviders(database, ids),
     ...attendanceExceptionProviders(database, ids),
+    ...attendanceCorrectionProviders(database, ids),
     ...salaryProviders(database, ids),
     ...documentProviders(database, ids),
     {

@@ -116,7 +116,8 @@ Gates: `pnpm check` without FORCE_COLOR; worker build; production startup with o
 - MO-Q5 — notification recipients for `AttendanceExceptionRaised`: TODO(spec), recommended to add them
   when alert rules (`AlertRulesPort`) ship; until then no alert is sent (implemented).
 - MO-Q6 — missed-out exception status: PR 22 resolves a suspected exception as `MISSED_OUT` (RESOLVED);
-  this job follows it. Recommended: keep, and let PR 25/27 list MISSED_OUT sessions for correction.
+  this job follows it. Recommended: keep. Correcting a MISSED_OUT session's times is spec 035 (PR 26);
+  the session stays MISSED_OUT. PR 27 lists them.
 - MO-Q7 — a session reaching 16 h with no suspected exception (due ≥ 16 h, or the job was down) is
   closed without creating one, as PR 22's scan path does. Recommended: keep.
 

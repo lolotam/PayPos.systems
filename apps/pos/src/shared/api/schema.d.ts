@@ -826,6 +826,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/attendance-sessions/{sessionId}/correct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["correctAttendanceSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/permissions/memberships/{membershipId}/discount-limit": {
         parameters: {
             query?: never;
@@ -1718,6 +1734,51 @@ export interface components {
             /** Format: date-time */
             raised_at: string;
             revision: number;
+        };
+        CorrectAttendanceInput: {
+            revision: number;
+            /** Format: date-time */
+            clock_in?: string;
+            /** Format: date-time */
+            clock_out?: string;
+            reason: string;
+        };
+        CorrectAttendanceResult: {
+            session: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                employee_id: string;
+                /** Format: uuid */
+                branch_id: string;
+                /** Format: date */
+                working_date: string;
+                /** Format: date-time */
+                clock_in: string;
+                /** Format: date-time */
+                clock_out: string;
+                /** @enum {string} */
+                status: "CLOSED" | "MISSED_OUT";
+                /** @enum {string} */
+                closed_by: "EMPLOYEE" | "MISSED_OUT";
+                late_minutes: number;
+                revision: number;
+            };
+            corrections: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                field: "CLOCK_IN" | "CLOCK_OUT";
+                /** Format: date-time */
+                before: string;
+                /** Format: date-time */
+                after: string;
+                reason: string;
+                /** Format: uuid */
+                corrected_by: string;
+                /** Format: date-time */
+                corrected_at: string;
+            }[];
         };
         PersonalOtpRequestInput: {
             phone: string;
@@ -5296,6 +5357,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttendanceExceptionRecord"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    correctAttendanceSession: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectAttendanceInput"];
+            };
+        };
+        responses: {
+            /** @description CorrectAttendanceResult */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectAttendanceResult"];
                 };
             };
             /** @description Bilingual refusal */

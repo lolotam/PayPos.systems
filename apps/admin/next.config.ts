@@ -1,12 +1,13 @@
-import { loadEnvConfig } from '@next/env';
 import type { NextConfig } from 'next';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { loadRepoEnv } from './load-repo-env';
+
 const appDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(appDir, '../..');
 
-loadEnvConfig(repoRoot);
+loadRepoEnv(repoRoot);
 
 const nextConfig: NextConfig = {
   agentRules: false,

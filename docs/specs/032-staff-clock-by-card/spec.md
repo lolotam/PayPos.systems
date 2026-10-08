@@ -8,7 +8,7 @@ Sources: Phase 1 SPEC §§4/7/11 (A1/A8, D-52/D-53), plan row 23, ADR-0003 §4 p
 (the paired device principal), ADR-0019 (staff session on a shared device), spec 027
 (clock-attendance — the state machine, dedupe, 16 h rule, geofence and lateness are
 **reused**, never re-implemented). Scope is the card fallback scanned on the paired
-reception device; correction, resolution and the board remain PRs 25–27.
+reception device. Resolution shipped in PR 25. Correction is PR 26 (spec 035): a card close increments the session `revision`, and a card-closed session is corrected like any other. The board remains PR 27.
 
 ## User scenarios and requirements
 
