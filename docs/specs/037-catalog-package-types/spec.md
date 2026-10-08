@@ -235,8 +235,9 @@ A manager opens the list to check prices and validity before a customer asks.
 
 CHECKs mirror the validator: names 1–255 after trim with no control characters (as `services`); price
 0…99999999999.999; `validity_days BETWEEN 1 AND 730`; `sessions BETWEEN 1 AND 365`; `position BETWEEN 1 AND 20`;
-revision > 0. "At least one component" and "at most 20" are enforced in `catalog/domain` (a row CHECK cannot count
-siblings) and tested end to end. No branch column (PT-Q10). No commission column (PT-Q12).
+revision > 0. "At least one component" is enforced in `catalog/domain` (a row CHECK cannot count siblings); "at most 20" is
+enforced in `catalog/domain` and in the database by `position BETWEEN 1 AND 20` plus
+`UNIQUE (company_id, package_type_id, position)` (database review, round 2); both are tested end to end. No branch column (PT-Q10). No commission column (PT-Q12).
 
 ### API contract
 
