@@ -28,7 +28,9 @@ CREATE INDEX "attendance_corrections_session_idx" ON "attendance_corrections" US
 CREATE INDEX "attendance_corrections_board_idx" ON "attendance_corrections" USING btree ("company_id","business_id","branch_id","corrected_at");--> statement-breakpoint
 CREATE INDEX "attendance_corrections_employee_idx" ON "attendance_corrections" USING btree ("company_id","employee_id","corrected_at");--> statement-breakpoint
 CREATE INDEX "attendance_corrections_actor_idx" ON "attendance_corrections" USING btree ("company_id","corrected_by");--> statement-breakpoint
-ALTER TABLE "attendance_sessions" ADD CONSTRAINT "attendance_sessions_revision" CHECK ("attendance_sessions"."revision" >= 0);
+ALTER TABLE "attendance_sessions" ADD CONSTRAINT "attendance_sessions_revision" CHECK ("attendance_sessions"."revision" >= 0) NOT VALID;
+--> statement-breakpoint
+ALTER TABLE "attendance_sessions" VALIDATE CONSTRAINT "attendance_sessions_revision";
 --> statement-breakpoint
 ALTER TABLE attendance_corrections ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint

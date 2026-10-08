@@ -32,7 +32,7 @@ export interface AttendanceCorrectionResult {
     late_minutes: number;
     revision: number;
   };
-  corrections: readonly {
+  corrections: {
     id: string;
     field: 'CLOCK_IN' | 'CLOCK_OUT';
     before: string;

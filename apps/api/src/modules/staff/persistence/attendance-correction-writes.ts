@@ -49,12 +49,14 @@ export async function saveAttendanceCorrection(
       corrected_at: at,
     });
   }
-  await appendAuditLog(tx, ids.newId(), {
+  await appendAuditLog(tx, requestId, {
     entity: 'attendance_session',
     entityId: before.id,
     action: 'attendance_session.corrected',
     before: sessionSnapshot(before),
     after: {
+      reason: plan.corrections[0]?.reason,
+      corrected_at: at,
       clock_in: plan.clock_in,
       clock_out: plan.clock_out,
       late_minutes: plan.late_minutes,

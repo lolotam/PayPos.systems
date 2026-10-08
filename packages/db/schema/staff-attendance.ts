@@ -224,7 +224,7 @@ export const attendanceCorrections = pgTable(
     branchId: uuid('branch_id').notNull(),
     employeeId: uuid('employee_id').notNull(),
     sessionId: uuid('session_id').notNull(),
-    // يجمّع صفوف الطلب الواحد. ليس مفتاحاً أجنبياً حتى يبقى شكل الطلب حرّاً لـ 26b و26c.
+    // يربط الحقول المتغيرة بسجل التدقيق الواحد للطلب حتى يمكن تتبع التصحيح كاملاً.
     requestId: uuid('request_id').notNull(),
     field: text('field').notNull(),
     beforeAt: timestamp('before_at', { withTimezone: true }).notNull(),

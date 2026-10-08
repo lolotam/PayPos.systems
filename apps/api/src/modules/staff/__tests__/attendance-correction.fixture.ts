@@ -1,7 +1,10 @@
 import { OWNER_ROLE_ID } from '@pospay/db';
 import { createAttendanceCorrectionTransactions } from '../persistence/drizzle-attendance-correction-transactions.ts';
 import { CorrectAttendanceUseCase } from '../use-cases/correct-attendance/correct-attendance.usecase.ts';
-import { attendanceExceptionFixture, type AttendanceExceptionFixture } from './attendance-exception.fixture.ts';
+import {
+  attendanceExceptionFixture,
+  type AttendanceExceptionFixture,
+} from './attendance-exception.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
 
 export async function attendanceCorrectionFixture() {
@@ -54,10 +57,11 @@ export async function seedSession(
   } = {},
 ) {
   const id = leaveIds.newId();
+  const employeeId = patch.employeeId ?? (await linkEmployee(f, null));
   const status = patch.status ?? 'CLOSED';
   await f.h.owner`INSERT INTO attendance_sessions(
       company_id,id,business_id,branch_id,employee_id,working_date,timezone,clock_in,clock_out,status,source,closed_by,geo,out_geo,late_minutes,scheduled_start,revision,out_operator_id)
-    VALUES(${f.company},${id},${f.business},${patch.branchId ?? f.branch},${patch.employeeId ?? f.employee.id},
+    VALUES(${f.company},${id},${f.business},${patch.branchId ?? f.branch},${employeeId},
       ${patch.workingDate ?? '2026-10-04'},'Asia/Kuwait',${patch.clockIn ?? '2026-10-04T05:00:00.000Z'},
       ${patch.clockOut === undefined ? '2026-10-04T08:00:00.000Z' : patch.clockOut},${status},${patch.source ?? 'QR'},
       ${patch.closedBy === undefined ? 'EMPLOYEE' : patch.closedBy},${patch.geo ?? 'NONE'},
@@ -66,9 +70,10 @@ export async function seedSession(
       ${patch.outOperatorId ?? null})`;
   return id;
 }
-export async function linkEmployee(f: AttendanceCorrectionFixture, userId: string) {
+export async function linkEmployee(f: AttendanceCorrectionFixture, userId: string | null) {
   const id = leaveIds.newId();
-  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date,user_id)
+  await f.h
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date,user_id)
     VALUES(${f.company},${id},${f.business},${f.branch},'Synthetic corrected employee','staff','2026-01-01',${userId})`;
   return id;
 }

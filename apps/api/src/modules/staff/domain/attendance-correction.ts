@@ -25,8 +25,8 @@ export interface AttendanceCorrectionNeighbour {
 /** الأوقات المطلوبة كما وصلت بعد التحقق من الشكل، والسبب قبل القص. */
 export interface AttendanceCorrectionRequest {
   revision: number;
-  clock_in?: string;
-  clock_out?: string;
+  clock_in?: string | undefined;
+  clock_out?: string | undefined;
   reason: string;
 }
 /** سياق القرار بعد الأقفال: الآن والجلسات المجاورة وهل الفاعل هو الموظف وهل هو المالك. */
@@ -99,7 +99,7 @@ export function attendanceCorrectionReason(reason: string): string {
 }
 
 /**
- * يقرر تصحيح الدخول و/أو الخروج لجلسة مغلقة أو فائتة، أو يرفض باسم واحد.
+ * يقرر تصحيح الدخول و/أو الخروج لجلسة مغلقة أو فائتة؛ رفض تصحيح النفس ثم الحالة والنسخة يسبق رفض الطلب بلا تغيير.
  *
  * @param session الجلسة المقفولة
  * @param request النسخة والأوقات والسبب
@@ -114,15 +114,14 @@ export function planAttendanceCorrection(
   const reason = attendanceCorrectionReason(request.reason);
   if (request.clock_in === undefined && request.clock_out === undefined)
     throw new AttendanceCorrectionError('VALIDATION_FAILED');
-  const clockIn = request.clock_in === undefined ? instant(session.clock_in) : instant(request.clock_in);
+  const clockIn =
+    request.clock_in === undefined ? instant(session.clock_in) : instant(request.clock_in);
   const clockOut =
     request.clock_out === undefined
       ? session.clock_out === null
         ? null
         : instant(session.clock_out)
       : instant(request.clock_out);
-  // طلب لا يغيّر لحظة ليس تصحيحاً؛ يُرفض قبل الذات والحالة لأنه غير مكتمل.
-  if (sameClock(session, clockIn, clockOut)) throw new AttendanceCorrectionError('VALIDATION_FAILED');
   // قرار المالك 2026-10-08 (CA-Q2): المالك وحده يصحح حضوره. غير الموظف لا تمسّه القاعدة.
   if (context.actorIsEmployee && !context.actorIsOwner)
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_SELF_FORBIDDEN');
@@ -130,6 +129,8 @@ export function planAttendanceCorrection(
   if (session.status === 'OPEN') throw new AttendanceCorrectionError('ATTENDANCE_SESSION_OPEN');
   if (session.revision !== request.revision || session.revision >= 2147483647)
     throw new AttendanceCorrectionError('ATTENDANCE_SESSION_REVISION_CONFLICT');
+  if (sameClock(session, clockIn, clockOut))
+    throw new AttendanceCorrectionError('VALIDATION_FAILED');
   if (clockOut === null || session.closed_by === null)
     throw new AttendanceCorrectionError('ATTENDANCE_SESSION_OPEN');
   assertTimes(clockIn, clockOut, context.now, session.id, context.neighbours);
@@ -140,7 +141,11 @@ export function planAttendanceCorrection(
   return buildPlan(session, clockIn, clockOut, session.closed_by, reason, clockInChanged);
 }
 
-function sameClock(session: AttendanceCorrectionSession, clockIn: Date, clockOut: Date | null): boolean {
+function sameClock(
+  session: AttendanceCorrectionSession,
+  clockIn: Date,
+  clockOut: Date | null,
+): boolean {
   const inSame = clockIn.getTime() === instant(session.clock_in).getTime();
   const outSame =
     session.clock_out === null
@@ -159,7 +164,12 @@ function assertTimes(
   const start = clockIn.getTime();
   const end = clockOut.getTime();
   // الترتيب ثم المستقبل ثم المدة ثم التداخل: أول مانع للأوقات يكفي.
-  if (end <= start || start > now.getTime() || end > now.getTime() || end - start > SIXTEEN_HOURS_MS)
+  if (
+    end <= start ||
+    start > now.getTime() ||
+    end > now.getTime() ||
+    end - start > SIXTEEN_HOURS_MS
+  )
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_INVALID_TIMES');
   if (neighbours.some((other) => overlaps(start, end, sessionId, other)))
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_INVALID_TIMES');
@@ -173,7 +183,8 @@ function overlaps(
 ): boolean {
   if (other.id === sessionId) return false;
   const otherStart = instant(other.clock_in).getTime();
-  const otherEnd = other.clock_out === null ? Number.POSITIVE_INFINITY : instant(other.clock_out).getTime();
+  const otherEnd =
+    other.clock_out === null ? Number.POSITIVE_INFINITY : instant(other.clock_out).getTime();
   // الأطراف المتلامسة ليست تداخلاً: الخروج يساوي دخول التالية.
   return start < otherEnd && otherStart < end;
 }
@@ -205,7 +216,10 @@ function buildPlan(
     });
   // قرار المالك 2026-10-08 (CA-Q7 وCA-Q10): الحالة وسبب الإغلاق يبقيان. التأخير يُعاد من بداية الوردية المثبتة عند تغيّر الدخول فقط.
   const late = clockInChanged
-    ? attendanceLateMinutes(session.scheduled_start === null ? null : instant(session.scheduled_start), clockIn)
+    ? attendanceLateMinutes(
+        session.scheduled_start === null ? null : instant(session.scheduled_start),
+        clockIn,
+      )
     : session.late_minutes;
   return {
     clock_in: clockIn.toISOString(),

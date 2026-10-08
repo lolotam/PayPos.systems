@@ -21,7 +21,11 @@ export async function peekCorrectionEmployee(
   return row.employee_id;
 }
 
-export async function lockCorrectionState(tx: Tx, companyId: string, employeeId: string): Promise<void> {
+export async function lockCorrectionState(
+  tx: Tx,
+  companyId: string,
+  employeeId: string,
+): Promise<void> {
   const [row] = await tx.execute<{ id: string }>(sql`
     SELECT id FROM attendance_states WHERE company_id=${companyId} AND id=${employeeId} FOR UPDATE`);
   if (!row) throw new AttendanceCorrectionError('NOT_FOUND');
@@ -31,7 +35,7 @@ export async function lockedCorrectionSession(
   tx: Tx,
   actor: AttendanceCorrectionActor,
 ): Promise<AttendanceCorrectionSession> {
-  const [row] = await tx.execute<AttendanceCorrectionSession>(sql`
+  const [row] = await tx.execute<AttendanceCorrectionSession & Record<string, unknown>>(sql`
     SELECT id, employee_id, branch_id, working_date::text AS working_date, timezone,
       ${sql.raw(stamp('clock_in'))} AS clock_in,
       ${sql.raw(stamp('clock_out'))} AS clock_out,
@@ -61,7 +65,7 @@ export async function lockedCorrectionNeighbours(
   employeeId: string,
   sessionId: string,
 ): Promise<AttendanceCorrectionNeighbour[]> {
-  return tx.execute<AttendanceCorrectionNeighbour>(sql`
+  return tx.execute<AttendanceCorrectionNeighbour & Record<string, unknown>>(sql`
     SELECT id, status,
       ${sql.raw(stamp('clock_in'))} AS clock_in,
       ${sql.raw(stamp('clock_out'))} AS clock_out
