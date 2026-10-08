@@ -25,8 +25,10 @@ it('discriminates user recipients from unchanged WhatsApp phone recipients', () 
     template_revision: 1,
     locale: 'ar',
     safe_parameters: [
-      { name: 'employee_name', type: 'text', value: 'Synthetic employee' },
-      { name: 'branch_name', type: 'text', value: 'Synthetic branch' },
+      { name: 'employee_name_ar', type: 'text', value: 'Synthetic employee' },
+      { name: 'employee_name_en', type: 'text', value: 'Synthetic employee' },
+      { name: 'branch_name_ar', type: 'text', value: 'Studio 2026' },
+      { name: 'branch_name_en', type: 'text', value: 'Studio 2026' },
       { name: 'shift_start', type: 'text', value: '10:00' },
     ],
   };
@@ -36,9 +38,19 @@ it('discriminates user recipients from unchanged WhatsApp phone recipients', () 
     inAppRecipient.safeParse({
       ...shift,
       safe_parameters: [
-        { name: 'employee_name', type: 'text', value: '123456' },
+        { name: 'employee_name_ar', type: 'text', value: '123456' },
+        ...shift.safe_parameters.slice(1),
+      ],
+    }).success,
+  ).toBe(false);
+  expect(
+    inAppRecipient.safeParse({
+      ...shift,
+      safe_parameters: [
+        shift.safe_parameters[0],
         shift.safe_parameters[1],
-        shift.safe_parameters[2],
+        { name: 'branch_name_ar', type: 'text', value: 'https://example.test/private' },
+        ...shift.safe_parameters.slice(3),
       ],
     }).success,
   ).toBe(false);

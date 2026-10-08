@@ -1,3 +1,4 @@
+import { notificationRequest } from '@pospay/contracts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { notClockedInInbox } from '../persistence/__tests__/not-clocked-in-inbox.ts';
 import {
@@ -60,6 +61,39 @@ it('NCI-10 only the shift branch managers receive it, and the absent employee is
     [owner, general, business, branch].sort(),
   );
 });
+
+it('101 managers become two contract-valid events and each gets one in-app row', async () => {
+  const tenant = await f.tenant();
+  await f.owner`WITH seeded AS (
+    INSERT INTO "user"(id, name, email)
+    SELECT gen_random_uuid(), 'Synthetic manager', gen_random_uuid()::text || '@example.test'
+    FROM generate_series(1, 101) RETURNING id
+  )
+  INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at)
+  SELECT ${tenant.company}, gen_random_uuid(), seeded.id, ${ROLE.branch_manager}, 'global', 'BRANCH', ${tenant.branch}, '2026-01-01T00:00:00Z'
+  FROM seeded`;
+  const managers = (
+    await f.owner`SELECT user_id FROM memberships WHERE company_id=${tenant.company} AND role_id=${ROLE.branch_manager} ORDER BY user_id`
+  ).map((row) => String(row['user_id']));
+  expect(managers).toHaveLength(101);
+  const employee = await f.employee(tenant, { nameEn: 'Laila' });
+  await f.shift(tenant, employee);
+  f.setNow(ALERT_AT);
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
+  expect((await f.notices(tenant.company, employee))[0]).toMatchObject({ recipient_count: 101 });
+  const events = await f.events(tenant.company);
+  const groups = events.map((event) => {
+    expect(notificationRequest.safeParse(event['payload']).success).toBe(true);
+    return (
+      event['payload'] as { notification_recipients: { user_id: string }[] }
+    ).notification_recipients.map((item) => item.user_id);
+  });
+  expect(groups.map((group) => group.length)).toEqual([100, 1]);
+  expect(groups.flat()).toEqual([...managers].sort());
+  await inbox.deliver(f.owner, tenant.company);
+  const rows = await f.owner`SELECT recipient_user_id FROM in_app_notifications WHERE company_id=${tenant.company} ORDER BY recipient_user_id`;
+  expect(rows.map((row) => String(row['recipient_user_id']))).toEqual([...managers].sort());
+}, 60_000);
 
 it('NCI-11 no managers still publishes the event, and the consumer stores nothing', async () => {
   const tenant = await f.tenant();

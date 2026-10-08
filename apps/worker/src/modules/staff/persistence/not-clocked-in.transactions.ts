@@ -1,6 +1,7 @@
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { LeaveInterval } from '../domain/not-clocked-in.ts';
+import type { BranchPlace } from '../ports/branch-place.port.ts';
 import type {
   DueShift,
   LockedNotClockedIn,
@@ -9,6 +10,7 @@ import type {
   NotClockedInTransactions,
 } from '../ports/not-clocked-in.port.ts';
 import { branchManagerRecipientsAdapter } from './branch-manager-recipients.adapter.ts';
+import { branchPlaceAdapter } from './branch-place.adapter.ts';
 import { recordNotClockedIn } from './not-clocked-in-writes.ts';
 
 export const NOT_CLOCKED_IN_TRANSACTION_TIMEOUT_MS = 15_000;
@@ -29,11 +31,10 @@ type ShiftRow = DueRow & {
   user_id: string | null;
   name_ar: string | null;
   name_en: string;
-  branch_name_ar: string | null;
-  branch_name_en: string;
-  timezone: string;
 };
 
+// قيد staff_schedule_shifts_duration يمنع وردية أطول من ١٦ ساعة (ends_at <= starts_at + interval '16 hours')،
+// فالتي لم تنتهِ بعد endsAfter لا تكون قد بدأت عند تلك اللحظة ناقص ١٦ ساعة أو قبلها. الحد يبقي مسح الفهرس نطاقاً.
 export function dueShiftsStatement(
   companyId: string,
   startsAtOrBefore: Date,
@@ -49,6 +50,7 @@ export function dueShiftsStatement(
     FROM staff_schedule_shifts sh
     WHERE sh.company_id = ${companyId}
       AND sh.starts_at <= ${startsAtOrBefore.toISOString()}::timestamptz
+      AND sh.starts_at > (${endsAfter.toISOString()}::timestamptz - interval '16 hours')
       AND sh.ends_at > ${endsAfter.toISOString()}::timestamptz
       ${page}
     ORDER BY sh.starts_at, sh.id
@@ -142,16 +144,14 @@ async function readShift(
 ): Promise<LockedShift | null> {
   const [row] = await tx.execute<ShiftRow>(sql`
     SELECT sh.id, sh.employee_id, sh.working_date, sh.starts_at, sh.ends_at,
-      sc.business_id, sc.branch_id, e.deleted_at, e.contract_end, e.user_id, e.name_ar, e.name_en,
-      b.name_ar AS branch_name_ar, b.name_en AS branch_name_en,
-      COALESCE(b.timezone, bu.timezone) AS timezone
+      sc.business_id, sc.branch_id, e.deleted_at, e.contract_end, e.user_id, e.name_ar, e.name_en
     FROM staff_schedule_shifts sh
     JOIN staff_schedules sc ON sc.company_id = sh.company_id AND sc.id = sh.schedule_id AND sc.employee_id = sh.employee_id
     JOIN employees e ON e.company_id = sh.company_id AND e.business_id = sc.business_id AND e.id = sh.employee_id
-    JOIN branches b ON b.company_id = sc.company_id AND b.business_id = sc.business_id AND b.id = sc.branch_id
-    JOIN businesses bu ON bu.company_id = sc.company_id AND bu.id = sc.business_id
     WHERE sh.company_id = ${companyId} AND sh.id = ${shiftId} AND sh.employee_id = ${employeeId}`);
-  return row === undefined ? null : toLockedShift(row);
+  if (row === undefined) return null;
+  const place = await branchPlaceAdapter.forBranch(tx, companyId, row.business_id, row.branch_id);
+  return place === null ? null : toLockedShift(row, place);
 }
 
 async function readLeaves(
@@ -193,7 +193,7 @@ function toDueShift(row: DueRow): DueShift {
   };
 }
 
-function toLockedShift(row: ShiftRow): LockedShift {
+function toLockedShift(row: ShiftRow, place: BranchPlace): LockedShift {
   return {
     ...toDueShift(row),
     businessId: row.business_id,
@@ -204,9 +204,9 @@ function toLockedShift(row: ShiftRow): LockedShift {
     employeeUserId: row.user_id,
     nameAr: row.name_ar,
     nameEn: row.name_en,
-    branchNameAr: row.branch_name_ar,
-    branchNameEn: row.branch_name_en,
-    timeZone: row.timezone,
+    branchNameAr: place.nameAr,
+    branchNameEn: place.nameEn,
+    timeZone: place.timeZone,
   };
 }
 

@@ -2538,13 +2538,25 @@ export interface components {
             template_key: "shift_not_clocked_in";
             safe_parameters: ({
                 /** @enum {string} */
-                name: "employee_name";
+                name: "employee_name_ar";
                 /** @enum {string} */
                 type: "text";
                 value: string;
             } | {
                 /** @enum {string} */
-                name: "branch_name";
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
                 /** @enum {string} */
                 type: "text";
                 value: string;

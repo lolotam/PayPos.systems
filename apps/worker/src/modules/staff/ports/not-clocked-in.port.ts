@@ -79,7 +79,7 @@ export interface LockedNotClockedIn {
    */
   managers(businessId: string, branchId: string, roles: readonly string[]): Promise<readonly string[]>;
   /**
-   * يدرج دفتر المنع مرة واحدة مع التدقيق والحدث في نفس المعاملة.
+   * يدرج دفتر المنع مرة واحدة مع التدقيق وحدث لكل مجموعة مستلمين لا تتجاوز مئة، في نفس المعاملة.
    *
    * @param notice حقائق التنبيه والمستلمون
    * @returns true لو أُدرج الصف الآن
@@ -91,10 +91,11 @@ export interface LockedNotClockedIn {
 export interface NotClockedInTransactions {
   /**
    * صفحة الورديات التي بدأت بما يكفي وما زالت جارية، بلا أقفال.
+   * البداية أيضاً بعد endsAfter ناقص ١٦ ساعة، لأن قيد مدة الوردية يمنع أطول من ذلك.
    *
    * @param companyId الشركة المجدولة
    * @param startsAtOrBefore أحدث بداية مستحقة
-   * @param endsAfter الورديات التي تنتهي بعد هذه اللحظة فقط
+   * @param endsAfter الورديات التي تنتهي بعد هذه اللحظة فقط، وهي مرساة حد الست عشرة ساعة
    * @param after موضع الصفحة السابقة
    * @param limit حجم الصفحة
    * @returns المرشحون

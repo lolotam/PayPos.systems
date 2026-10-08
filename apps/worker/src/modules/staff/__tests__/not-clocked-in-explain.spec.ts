@@ -37,10 +37,11 @@ it('pages past one hundred due shifts and the probes use the named indexes', asy
   const tenant = await f.tenant();
   const employeeId = await seedPage(tenant.company, tenant.business, tenant.branch);
   await seedDecoys(tenant);
+  await seedHistory(tenant);
   f.setNow(ALERT_AT);
   expect((await f.detect().execute(tenant.company)).notified).toBe(NOT_CLOCKED_IN_PAGE_SIZE + 1);
   await expectIndexes(tenant, employeeId);
-}, 60_000);
+}, 120_000);
 
 async function seedPage(company: string, business: string, branch: string) {
   const count = NOT_CLOCKED_IN_PAGE_SIZE + 1;
@@ -99,14 +100,29 @@ async function seedDecoys(tenant: { company: string; business: string; branch: s
   FROM seeded`;
 }
 
+async function seedHistory(tenant: { company: string; business: string; branch: string }) {
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
+    SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, ${tenant.branch}, 'Synthetic history', 'staff', '2026-01-01'
+    FROM generate_series(1, 3000)`;
+  await f.owner`INSERT INTO staff_schedules(company_id,id,business_id,branch_id,employee_id,week_start,timezone,revision)
+    SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, ${tenant.branch}, e.id, '2026-08-29', 'Asia/Kuwait', 1
+    FROM employees e WHERE e.company_id=${tenant.company} AND e.name_en='Synthetic history'`;
+  await f.owner`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at)
+    SELECT company_id, gen_random_uuid(), id, employee_id, '2026-08-30', 1, '09:00', '17:00',
+      '2026-08-30T06:00:00.000Z', '2026-08-30T14:00:00.000Z'
+    FROM staff_schedules WHERE company_id=${tenant.company} AND week_start='2026-08-29'`;
+}
+
 async function expectIndexes(
   tenant: { company: string; business: string; branch: string },
   employeeId: string,
 ) {
   await f.owner`ANALYZE staff_schedule_shifts, attendance_sessions, leave_requests, memberships`;
   const from = new Date('2026-10-04T05:00:00.000Z');
+  const due = await plan(tenant.company, dueShiftsStatement(tenant.company, ALERT_AT, ALERT_AT, null, 100));
+  assertStartRange(due);
   const text = JSON.stringify({
-    due: await plan(tenant.company, dueShiftsStatement(tenant.company, ALERT_AT, ALERT_AT, null, 100)),
+    due,
     clocks: await plan(tenant.company, countingClockInsStatement(tenant.company, employeeId, from, ALERT_AT)),
     leaves: await plan(tenant.company, approvedLeavesStatement(tenant.company, employeeId, SHIFT_START, SHIFT_END)),
     recipients: await plan(
@@ -124,4 +140,18 @@ async function expectIndexes(
   expect(text).toContain('leave_requests_company_employee_period_idx');
   expect(text).toContain('memberships_scope_branch_idx');
   expect(text).toContain('memberships_scope_business_idx');
+}
+
+function assertStartRange(plan: unknown) {
+  const text = JSON.stringify(plan);
+  const condAt = text.indexOf('Index Cond');
+  const cond = condAt < 0 ? '' : text.slice(condAt, condAt + 900);
+  expect(text).toContain('Index Scan');
+  expect(text).toContain('staff_schedule_shifts_company_starts_idx');
+  expect(cond).toContain('starts_at >');
+  expect(cond).toContain('starts_at <=');
+  const removed = [...text.matchAll(/Rows Removed by Filter[^0-9]*(\d+)/g)].map((match) =>
+    Number(match[1]),
+  );
+  expect(Math.max(0, ...removed)).toBeLessThan(100);
 }

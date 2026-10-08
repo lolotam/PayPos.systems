@@ -7,7 +7,7 @@ import {
   formatLocalShiftStart,
   interimNotClockedInRule,
   notClockedInDecision,
-  noticeDisplayName,
+  inAppRecipientGroups,
   recordNotClockedInOutcome,
   shiftNotClockedInParameters,
   withoutAbsentEmployee,
@@ -158,25 +158,70 @@ describe('applyApprovedLeave', () => {
 });
 
 describe('recipient text', () => {
-  it('prefers a non-blank Arabic name and drops the absent employee', () => {
-    expect(noticeDisplayName('  ليلى  ', 'Layla')).toBe('ليلى');
-    expect(noticeDisplayName('   ', 'Layla')).toBe('Layla');
-    expect(noticeDisplayName(null, 'Layla')).toBe('Layla');
+  it('keeps both languages, falls back when Arabic is missing, and drops the absent employee', () => {
+    expect(shiftNotClockedInParameters('  ليلى  ', 'Layla', 'فرع السالمية', 'Salmiya', '10:00')).toEqual([
+      { name: 'employee_name_ar', type: 'text', value: 'ليلى' },
+      { name: 'employee_name_en', type: 'text', value: 'Layla' },
+      { name: 'branch_name_ar', type: 'text', value: 'فرع السالمية' },
+      { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
+      { name: 'shift_start', type: 'text', value: '10:00' },
+    ]);
+    expect(shiftNotClockedInParameters(null, 'Layla', '   ', 'Salmiya', '10:00')?.[0]).toEqual({
+      name: 'employee_name_ar',
+      type: 'text',
+      value: 'Layla',
+    });
     expect(withoutAbsentEmployee(['a', 'b', 'a', 'c'], 'b')).toEqual(['a', 'c']);
     expect(withoutAbsentEmployee(['a'], null)).toEqual(['a']);
   });
 
-  it('accepts a safe HH:MM parameter tuple and refuses unsafe text', () => {
-    expect(shiftNotClockedInParameters('ليلى', 'فرع السالمية', '10:00')).toEqual([
-      { name: 'employee_name', type: 'text', value: 'ليلى' },
-      { name: 'branch_name', type: 'text', value: 'فرع السالمية' },
+  it('keeps a year inside a name and substitutes a generic when the only name is rejected', () => {
+    const studio = shiftNotClockedInParameters(null, 'Laila', null, 'Studio 2026', '10:00');
+    expect(studio).toEqual([
+      { name: 'employee_name_ar', type: 'text', value: 'Laila' },
+      { name: 'employee_name_en', type: 'text', value: 'Laila' },
+      { name: 'branch_name_ar', type: 'text', value: 'Studio 2026' },
+      { name: 'branch_name_en', type: 'text', value: 'Studio 2026' },
       { name: 'shift_start', type: 'text', value: '10:00' },
     ]);
-    expect(shiftNotClockedInParameters('123456', 'فرع', '10:00')).toBeNull();
+    expect(shiftNotClockedInParameters(null, '123456', null, 'https://example.test/private', '10:00')).toEqual([
+      { name: 'employee_name_ar', type: 'text', value: 'Employee' },
+      { name: 'employee_name_en', type: 'text', value: 'Employee' },
+      { name: 'branch_name_ar', type: 'text', value: 'Branch' },
+      { name: 'branch_name_en', type: 'text', value: 'Branch' },
+      { name: 'shift_start', type: 'text', value: '10:00' },
+    ]);
+    expect(
+      shiftNotClockedInParameters(null, '123456', null, 'https://example.test/private', '10:00', {
+        employeeAr: 'موظف',
+        employeeEn: 'Employee',
+        branchAr: 'فرع',
+        branchEn: 'Branch',
+      }),
+    ).toEqual([
+      { name: 'employee_name_ar', type: 'text', value: 'موظف' },
+      { name: 'employee_name_en', type: 'text', value: 'Employee' },
+      { name: 'branch_name_ar', type: 'text', value: 'فرع' },
+      { name: 'branch_name_en', type: 'text', value: 'Branch' },
+      { name: 'shift_start', type: 'text', value: '10:00' },
+    ]);
+    expect(shiftNotClockedInParameters('ليلى', 'Laila', 'فرع', 'Salmiya', '25:00')).toBeNull();
     expect(recordNotClockedInOutcome({ notified: 1, failed: 0 }, null)).toEqual({
       notified: 1,
       failed: 1,
     });
     expect(recordNotClockedInOutcome({ notified: 0, failed: 0 }, true).notified).toBe(1);
+  });
+});
+
+describe('recipient groups', () => {
+  it('sorts, dedupes and splits recipients into contract-sized groups', () => {
+    const ids = Array.from({ length: 101 }, (_, index) => `u${String(index).padStart(3, '0')}`);
+    const first = ids[0] ?? 'missing';
+    const last = ids[100] ?? 'missing';
+    const groups = inAppRecipientGroups([last, first, first, ...ids.slice(1)]);
+    expect(groups.map((group) => group.length)).toEqual([100, 1]);
+    expect(groups.flat()).toEqual(ids);
+    expect(() => inAppRecipientGroups(['a'], 0)).toThrow('IN_APP_RECIPIENT_GROUP_INVALID');
   });
 });

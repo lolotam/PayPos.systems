@@ -10906,7 +10906,7 @@
                         "name": {
                           "type": "string",
                           "enum": [
-                            "employee_name"
+                            "employee_name_ar"
                           ]
                         },
                         "type": {
@@ -10934,7 +10934,63 @@
                         "name": {
                           "type": "string",
                           "enum": [
-                            "branch_name"
+                            "employee_name_en"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "branch_name_ar"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "branch_name_en"
                           ]
                         },
                         "type": {
@@ -10985,8 +11041,8 @@
                     }
                   ]
                 },
-                "minItems": 3,
-                "maxItems": 3
+                "minItems": 5,
+                "maxItems": 5
               }
             },
             "required": [

@@ -62,14 +62,41 @@ export interface NotClockedInProgress {
   readonly failed: number;
 }
 
-/** معامل قالب الإشعار؛ الاسم والقيمة نص آمن بلا هاتف ولا رابط. */
+/** معامل قالب الإشعار؛ اسم العرض يرفض الرابط والهاتف ويبقي سنة داخل الاسم. */
 export interface NoticeParameter {
-  readonly name: 'employee_name' | 'branch_name' | 'shift_start';
+  readonly name:
+    | 'employee_name_ar'
+    | 'employee_name_en'
+    | 'branch_name_ar'
+    | 'branch_name_en'
+    | 'shift_start';
   readonly type: 'text';
   readonly value: string;
 }
 
-const UNSAFE_TEXT = /(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|\b\d{4,8}\b)/i;
+/** سقف notificationRequest؛ مجموعة أكبر يرفضها المستهلك والدفتر يبقى ملتزماً فلا يصل أحد. */
+export const IN_APP_RECIPIENT_GROUP_SIZE = 100;
+
+const DISPLAY_NAME_UNSAFE =
+  /(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|^\d{4,8}$)/i;
+const SHIFT_START = /^([01]\d|2[0-3]):[0-5]\d$/;
+const SAFE_EMPLOYEE = 'Employee';
+const SAFE_BRANCH = 'Branch';
+
+/** الأسماء العامة عند رفض اسم العرض. المستدعي يملؤها من الكتالوج؛ الافتراضي إنجليزي حتى لا يسقط التنبيه. */
+export interface NameFallback {
+  readonly employeeAr: string;
+  readonly employeeEn: string;
+  readonly branchAr: string;
+  readonly branchEn: string;
+}
+
+const SAFE_NAME_FALLBACK: NameFallback = {
+  employeeAr: SAFE_EMPLOYEE,
+  employeeEn: SAFE_EMPLOYEE,
+  branchAr: SAFE_BRANCH,
+  branchEn: SAFE_BRANCH,
+};
 
 /**
  * القاعدة المؤقتة لتنبيه عدم الحضور حتى تصل شاشة قواعد التنبيه.
@@ -202,15 +229,23 @@ export function formatLocalShiftStart(startsAt: Date, timeZone: string): string 
 }
 
 /**
- * اسم العرض: العربي إن كان غير فارغ، وإلا الإنجليزي.
+ * يقسم المستلمين مجموعات لا تتجاوز حد عقد الإشعار، بعد ترتيب ثابت وإسقاط التكرار.
+ * الترتيب معجمي على معرف المستخدم حتى تعاد نفس المجموعات في كل تشغيل.
  *
- * @param nameAr الاسم العربي أو null
- * @param nameEn الاسم الإنجليزي
- * @returns الاسم الذي يدخل قالب الإشعار
+ * @param userIds معرفات المستخدمين بأي ترتيب
+ * @param groupSize الحد الأقصى للمجموعة، والافتراضي سقف العقد
+ * @returns مجموعات مرتبة بلا تكرار؛ فارغة إن لم يوجد مستلم
  */
-export function noticeDisplayName(nameAr: string | null, nameEn: string): string {
-  const arabic = nameAr?.trim() ?? '';
-  return arabic.length > 0 ? arabic : nameEn.trim();
+export function inAppRecipientGroups(
+  userIds: readonly string[],
+  groupSize: number = IN_APP_RECIPIENT_GROUP_SIZE,
+): readonly (readonly string[])[] {
+  if (!Number.isInteger(groupSize) || groupSize < 1) throw new Error('IN_APP_RECIPIENT_GROUP_INVALID');
+  const unique = [...new Set(userIds)].sort();
+  const groups: string[][] = [];
+  for (let index = 0; index < unique.length; index += groupSize)
+    groups.push(unique.slice(index, index + groupSize));
+  return groups;
 }
 
 /**
@@ -235,30 +270,33 @@ export function withoutAbsentEmployee(
 }
 
 /**
- * معاملات القالب بالترتيب إن كانت كلها نصاً آمناً؛ وإلا null فلا يُرفق مستلمون.
+ * معاملات القالب باللغتين. اسم مرفوض (رابط أو هاتف أو رمز) لا يُسقط المستلمين:
+ * العربي الغائب أو المرفوض يرجع للإنجليزي السليم، وإلا لاسم عام آمن.
  *
- * @param employeeName اسم الموظف
- * @param branchName اسم الفرع
+ * @param employeeNameAr اسم الموظف العربي أو null
+ * @param employeeNameEn اسم الموظف الإنجليزي
+ * @param branchNameAr اسم الفرع العربي أو null
+ * @param branchNameEn اسم الفرع الإنجليزي
  * @param shiftStart بداية الوردية المحلية HH:MM
- * @returns المعاملات أو null لو رفض فحص النص الآمن أحدها
+ * @param fallback الأسماء العامة من كتالوج اللغتين؛ الغائب يبقى إنجليزياً آمناً
+ * @returns المعاملات بالترتيب، أو null إذا لم تكن ساعة البداية HH:MM
  */
 export function shiftNotClockedInParameters(
-  employeeName: string,
-  branchName: string,
+  employeeNameAr: string | null,
+  employeeNameEn: string,
+  branchNameAr: string | null,
+  branchNameEn: string,
   shiftStart: string,
+  fallback: NameFallback = SAFE_NAME_FALLBACK,
 ): readonly NoticeParameter[] | null {
-  const parameters: readonly NoticeParameter[] = [
-    { name: 'employee_name', type: 'text', value: employeeName },
-    { name: 'branch_name', type: 'text', value: branchName },
-    { name: 'shift_start', type: 'text', value: shiftStart },
+  if (!SHIFT_START.test(shiftStart)) return null;
+  return [
+    named('employee_name_ar', arabicSlot(employeeNameAr, employeeNameEn, fallback.employeeAr)),
+    named('employee_name_en', englishSlot(employeeNameEn, fallback.employeeEn)),
+    named('branch_name_ar', arabicSlot(branchNameAr, branchNameEn, fallback.branchAr)),
+    named('branch_name_en', englishSlot(branchNameEn, fallback.branchEn)),
+    named('shift_start', shiftStart),
   ];
-  const safe = parameters.every(
-    (parameter) =>
-      parameter.value.length > 0 &&
-      parameter.value.length <= 255 &&
-      !UNSAFE_TEXT.test(parameter.value),
-  );
-  return safe ? parameters : null;
 }
 
 /**
@@ -276,6 +314,24 @@ export function recordNotClockedInOutcome(
     notified: progress.notified + (outcome === true ? 1 : 0),
     failed: progress.failed + (outcome === null ? 1 : 0),
   };
+}
+
+function named(name: NoticeParameter['name'], value: string): NoticeParameter {
+  return { name, type: 'text', value };
+}
+
+function arabicSlot(nameAr: string | null, nameEn: string, generic: string): string {
+  return acceptedDisplayName(nameAr) ?? acceptedDisplayName(nameEn) ?? generic;
+}
+
+function englishSlot(nameEn: string, generic: string): string {
+  return acceptedDisplayName(nameEn) ?? generic;
+}
+
+function acceptedDisplayName(value: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  if (trimmed.length === 0 || trimmed.length > 255 || DISPLAY_NAME_UNSAFE.test(trimmed)) return null;
+  return trimmed;
 }
 
 function byLeaveStart(left: LeaveInterval, right: LeaveInterval): number {

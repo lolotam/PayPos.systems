@@ -100,8 +100,9 @@ Every event names a stable identity and carries every field its consumers use:
 
 Emitting modules read `AlertRulesPort` and put recipients and channels in the event, so `notifications` holds no
 business knowledge. Until PR 62, `ShiftNotClockedIn` is the exception: the worker reads `interimNotClockedInRule`
-(ADR-0037) and still puts the in-app manager recipients in the event. `ServiceCompleted` in the map is replaced
-in Phase 1 by `ServiceLineChanged` (ADR-0010).
+(ADR-0037) and still puts the in-app manager recipients in the event, one event per group of at most 100.
+The safe parameters carry both languages of the employee and branch names; the admin bell renders the viewer's
+UI locale. `ServiceCompleted` in the map is replaced in Phase 1 by `ServiceLineChanged` (ADR-0010).
 
 ---
 

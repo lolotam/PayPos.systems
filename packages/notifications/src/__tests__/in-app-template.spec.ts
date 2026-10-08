@@ -5,8 +5,10 @@ import { validInAppTemplate } from '../index.ts';
 it('allows the safe in-app templates in supported locales and revision', () => {
   const values = [{ name: 'subject', type: 'text' as const, value: 'Synthetic subject' }];
   const shift = [
-    { name: 'employee_name', type: 'text' as const, value: 'Synthetic employee' },
-    { name: 'branch_name', type: 'text' as const, value: 'Synthetic branch' },
+    { name: 'employee_name_ar', type: 'text' as const, value: 'Synthetic employee' },
+    { name: 'employee_name_en', type: 'text' as const, value: 'Synthetic employee' },
+    { name: 'branch_name_ar', type: 'text' as const, value: 'Studio 2026' },
+    { name: 'branch_name_en', type: 'text' as const, value: 'Studio 2026' },
     { name: 'shift_start', type: 'text' as const, value: '10:00' },
   ];
   for (const locale of ['ar', 'en']) {
@@ -30,6 +32,20 @@ it('allows the safe in-app templates in supported locales and revision', () => {
     expect(
       validInAppTemplate('generic_notice', 1, 'ar', [{ name: 'subject', type: 'text', value }]),
     ).toBe(false);
+  expect(validInAppTemplate('shift_not_clocked_in', 1, 'ar', [
+    ...shift.slice(0, 2),
+    { name: 'branch_name_ar', type: 'text', value: '123456' },
+    ...shift.slice(3),
+  ])).toBe(false);
+  expect(
+    validInAppTemplate('shift_not_clocked_in', 1, 'ar', [
+      { name: 'employee_name_ar', type: 'text', value: 'Synthetic employee' },
+      { name: 'employee_name_en', type: 'text', value: 'Synthetic employee' },
+      { name: 'branch_name_ar', type: 'text', value: 'Studio 2026' },
+      { name: 'branch_name_en', type: 'text', value: 'https://example.test/private' },
+      { name: 'shift_start', type: 'text', value: '10:00' },
+    ]),
+  ).toBe(false);
   expect(validInAppTemplate('generic_notice', 1, 'ar', [])).toBe(false);
   expect(
     validInAppTemplate('generic_notice', 1, 'ar', [

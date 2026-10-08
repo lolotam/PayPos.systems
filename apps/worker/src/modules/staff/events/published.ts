@@ -22,7 +22,7 @@ export interface AttendanceMissedOut {
   readonly recorded_at: string;
 }
 
-/** يصدر مرة واحدة لكل موظف وبداية وردية عند تجاوز لحظة التنبيه بلا حضور محسوب، في نفس معاملة الدفتر والتدقيق. */
+/** يصدر في نفس معاملة الدفتر والتدقيق، مرة لكل مجموعة مستلمين لا تتجاوز مئة، ومرة واحدة لكل موظف وبداية وردية. */
 export interface ShiftNotClockedIn {
   readonly notice_id: string;
   readonly employee_id: string;

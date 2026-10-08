@@ -1,3 +1,4 @@
+import { t } from '@pospay/i18n';
 import {
   applyApprovedLeave,
   countingWindow,
@@ -5,11 +6,11 @@ import {
   formatLocalShiftStart,
   interimNotClockedInRule,
   notClockedInDecision,
-  noticeDisplayName,
   recordNotClockedInOutcome,
   shiftNotClockedInParameters,
   withoutAbsentEmployee,
   type InterimNotClockedInRule,
+  type NameFallback,
   type NotClockedInProgress,
 } from '../../domain/not-clocked-in.ts';
 import type { Clock } from '../../ports/clock.port.ts';
@@ -107,9 +108,12 @@ export class DetectNotClockedIns {
   ): Promise<boolean> {
     const managers = await tx.managers(shift.businessId, shift.branchId, roles);
     const parameters = shiftNotClockedInParameters(
-      noticeDisplayName(shift.nameAr, shift.nameEn),
-      noticeDisplayName(shift.branchNameAr, shift.branchNameEn),
+      shift.nameAr,
+      shift.nameEn,
+      shift.branchNameAr,
+      shift.branchNameEn,
       formatLocalShiftStart(shift.startsAt, shift.timeZone),
+      catalogNameFallback(),
     );
     return tx.record({
       shift,
@@ -119,4 +123,14 @@ export class DetectNotClockedIns {
       parameters,
     });
   }
+}
+
+/** الأسماء العامة من الكتالوج، حتى يبقى النص الذي يراه المستخدم خارج الدومين. */
+function catalogNameFallback(): NameFallback {
+  return {
+    employeeAr: t('ar', 'inApp.generic_employee'),
+    employeeEn: t('en', 'inApp.generic_employee'),
+    branchAr: t('ar', 'inApp.generic_branch'),
+    branchEn: t('en', 'inApp.generic_branch'),
+  };
 }

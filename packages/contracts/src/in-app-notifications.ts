@@ -12,13 +12,27 @@ const safeText = z
     (value) =>
       !/(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|\b\d{4,8}\b)/i.test(value),
   );
+// Display names reject a URL, a phone and a bare 4–8 digit code, and allow a year inside a name.
+const displayName = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine(
+    (value) =>
+      value.trim().length > 0 &&
+      !/(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|^\d{4,8}$)/i.test(value),
+  );
 const shiftStart = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const displayParameter = <Name extends string>(name: Name) =>
+  z.strictObject({ name: z.literal(name), type: z.literal('text'), value: displayName });
 export const inAppParameters = z.tuple([
   z.strictObject({ name: z.literal('subject'), type: z.literal('text'), value: safeText }),
 ]);
 export const shiftNotClockedInParameters = z.tuple([
-  z.strictObject({ name: z.literal('employee_name'), type: z.literal('text'), value: safeText }),
-  z.strictObject({ name: z.literal('branch_name'), type: z.literal('text'), value: safeText }),
+  displayParameter('employee_name_ar'),
+  displayParameter('employee_name_en'),
+  displayParameter('branch_name_ar'),
+  displayParameter('branch_name_en'),
   z.strictObject({ name: z.literal('shift_start'), type: z.literal('text'), value: shiftStart }),
 ]);
 const inAppBase = {

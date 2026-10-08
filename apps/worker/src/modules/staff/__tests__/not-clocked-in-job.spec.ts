@@ -80,8 +80,10 @@ async function expectNotice(tenant: Tenant, employee: string, first: string, sec
     [first, second].sort(),
   );
   expect(payload.notification_recipients[0]?.safe_parameters).toEqual([
-    { name: 'employee_name', type: 'text', value: 'Laila' },
-    { name: 'branch_name', type: 'text', value: 'Salmiya' },
+    { name: 'employee_name_ar', type: 'text', value: 'Laila' },
+    { name: 'employee_name_en', type: 'text', value: 'Laila' },
+    { name: 'branch_name_ar', type: 'text', value: 'Salmiya' },
+    { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
     { name: 'shift_start', type: 'text', value: '10:00' },
   ]);
   const calls = inbox.channel.calls;
@@ -145,6 +147,30 @@ it('NCI-09 an ended shift is skipped and a late run still sends while the shift 
   expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
   expect(await f.notices(tenant.company, ended)).toHaveLength(0);
   expect(await f.notices(tenant.company, running)).toHaveLength(1);
+});
+
+it('a rejected employee name still alerts and a branch year is kept', async () => {
+  const { tenant, manager, employee } = await managed('123456');
+  await f.owner`UPDATE branches SET name_en='Studio 2026' WHERE company_id=${tenant.company} AND id=${tenant.branch}`;
+  f.setNow(ALERT_AT);
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
+  expect(await f.notices(tenant.company, employee)).toHaveLength(1);
+  const [event] = await f.events(tenant.company);
+  const recipients = (
+    event?.['payload'] as {
+      notification_recipients: { user_id: string; safe_parameters: unknown }[];
+    }
+  ).notification_recipients;
+  expect(recipients.map((item) => item.user_id)).toEqual([manager]);
+  expect(recipients[0]?.safe_parameters).toEqual([
+    { name: 'employee_name_ar', type: 'text', value: 'موظف' },
+    { name: 'employee_name_en', type: 'text', value: 'Employee' },
+    { name: 'branch_name_ar', type: 'text', value: 'Studio 2026' },
+    { name: 'branch_name_en', type: 'text', value: 'Studio 2026' },
+    { name: 'shift_start', type: 'text', value: '10:00' },
+  ]);
+  await inbox.deliver(f.owner, tenant.company);
+  expect(await f.inbox(String(event?.['id']))).toHaveLength(1);
 });
 
 it('NCI-14 a deleted employee or a contract that ended before the shift date is skipped', async () => {

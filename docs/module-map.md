@@ -105,6 +105,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeDocumentReadAccess`, document-type authority | `identity`, `tenancy` | locked read/manage files and manage:document-types:company; business timezone for the expiry badge (ADR-0031) |
 | worker `staff` | `DocumentExpiryTransactions.timeZone` | worker `tenancy` | business timezone for the expiry window, reusing ADR-0031's staff-to-tenancy read; discovery stays on outbox delivery (ADR-0032) |
 | worker `staff` | `BranchManagerRecipients` | worker `identity` | active system-role managers whose scope covers the shift branch, at the injected instant (ADR-0037); PR 62 does not remove this read |
+| worker `staff` | `BranchPlaceReader` | worker `tenancy` | both branch names and the effective timezone (branch, otherwise business) for the not-clocked-in message (ADR-0037) |
 | `staff`, `customers`, `commissions` | `AlertRulesPort`, `StaffColumnsPort`                                                    | `settings`  | alert rules (recipients, channels) and staff-app columns — reads (ADR-0010)                                                                                          |
 
 ### 3.1 The one synchronous cross-module write (ADR-0003 §5.3)
@@ -292,6 +293,7 @@ reads:
   - staff -> identity.readEmployeeBranchAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> identity.lockEmployeeManagementAccess @ apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts
   - staff -> tenancy.businessTimeZone @ apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts
+  - staff -> tenancy.branchPlace @ apps/worker/src/modules/staff/persistence/branch-place.adapter.ts
   - staff -> identity.branchManagerRecipients @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
   - staff -> identity.branchManagerRecipientsStatement @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
 ```

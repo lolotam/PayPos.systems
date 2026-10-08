@@ -38,16 +38,27 @@ Two things are not covered by an existing decision:
    the attendance lock, and `roles` come only from `interimNotClockedInRule`. Each scope arm is fenced with
    `OFFSET 0` so the planner uses the company/scope indexes instead of the global role index. It adds **no import arrow** —
    `staff → identity` already exists (`module-map.md` §2) — and one §3 port row. The machine-readable map records
-   the read under `reads:` (the generated YAML has no `ports:` key).
+   the read under `reads:` (the generated YAML has no `ports:` key). Branch names use a second port, decision 6.
 3. **Interim fixed rule, replaced by PR 62.** Until PR 62, the alert is always on, its delay is 20 minutes, its
    recipients are the step-2 managers and its only channel is IN_APP. No email (NC-Q4); no WhatsApp; no employee
    notice (NC-Q3 — the employee's own push notice ships with PR 28b). The rule is one function in the worker
    `staff` module, the single place PR 62 replaces with `AlertRulesPort`.
-4. **A dedicated in-app template.** `packages/notifications` gains the `shift_not_clocked_in` template (ar/en,
-   parameters: employee display name, branch name, local shift start `HH:MM`), and the in-app contract and admin
-   item renderer accept it beside `generic_notice`. Parameters are names and a time only — never a phone or a
-   document — and pass the existing safe-parameter checks.
-5. **Once-only key and lock order.** The notice table's UNIQUE `(company_id, employee_id, shift_starts_at)` is the
+4. **A dedicated in-app template.** `packages/notifications` gains the `shift_not_clocked_in` template (ar/en).
+   Safe parameters carry `employee_name_ar` / `employee_name_en`, `branch_name_ar` / `branch_name_en`, and the
+   local shift start `HH:MM`. Display names reject a URL, a phone number and a bare 4–8 digit code, and allow a
+   year inside a name. A rejected name is replaced with the other safe language, or a generic label, so managers
+   are still alerted. Missing Arabic falls back to English. The admin bell renders the viewer's current UI locale;
+   the stored row locale stays the default for consumers without a UI. `generic_notice` is unchanged. Parameters
+   are names and a time only — never a phone or a document.
+5. **Recipient groups.** `notificationRequest` accepts at most 100 recipients. The notice transaction writes one
+   outbox event per stable, deduplicated group of at most 100 user ids. A company with 101 managers still alerts
+   every manager, and the once-only notice is not committed without those events.
+6. **Due-shift lower bound and branch read.** The candidate page requires
+   `starts_at > now - interval '16 hours'` because `staff_schedule_shifts_duration` already forbids a longer
+   shift, so a shift still open cannot have started earlier. The locked read does not join `branches` or
+   `businesses`. Worker `staff` defines `BranchPlaceReader`; its adapter calls `branchPlace` from the worker
+   `tenancy` module's `index.ts` for both names and the effective timezone. `staff → tenancy` already exists.
+7. **Once-only key and lock order.** The notice table's UNIQUE `(company_id, employee_id, shift_starts_at)` is the
    dedupe key (shift rows are replaced on re-save, ADR-0024), and each decision runs after locking the employee's
    `attendance_states` row, the same first lock as scans and the missed-out job (ADR-0028/0032).
 
@@ -55,5 +66,5 @@ Two things are not covered by an existing decision:
 
 Every company keeps a 5-minute schedule and one cheap indexed query per run, even with no shifts. A company created
 before this release alerts only after its replay. Recipients are resolved at detection time, so a manager added
-after the alert does not receive it. PR 62 must replace the interim rule (decision 3) and keep decisions 1, 2 and 5.
+after the alert does not receive it. PR 62 must replace the interim rule (decision 3) and keep decisions 1, 2 and 7.
 Staff push (PR 28b) and the shift-ending reminder (PR 28c) are separate decisions with their own ADRs.
