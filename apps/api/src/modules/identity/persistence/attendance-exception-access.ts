@@ -28,7 +28,7 @@ export async function lockAttendanceExceptionAccess(tx: Tx, companyId: string): 
  * @param companyId الشركة
  * @param userId الفاعل المثبت
  * @param businessId النشاط المحلول من المسار
- * @param branchId فرع الاستثناء المقفول
+ * @param branchId فرع الاستثناء المقروء للفحص الأولي أو لإعادة التحقق بعد الأقفال
  * @param now لحظة الساعة المحقونة لسريان العضوية
  * @returns هل الفرع داخل منح الفاعل
  */
