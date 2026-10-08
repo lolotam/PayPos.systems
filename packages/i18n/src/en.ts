@@ -1,3 +1,4 @@
+import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
 import { attendanceEn } from './attendance-en.js';
 import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
@@ -15,6 +16,8 @@ export const en = {
   passkeyAdmin: enPasskeyAdmin,
   leave: leaveEn,
   permissionCodes: {
+    readPackageTypesBusiness: 'Read business package types',
+    managePackageTypesBusiness: 'Manage business package types',
     readSchedulesBranch: 'Read branch schedules',
     manageSchedulesBranch: 'Manage branch schedules',
     readSchedulesBusiness: 'Read business shift templates',
@@ -225,6 +228,7 @@ export const en = {
       'This card code is already active for another employee in the company.',
     ...employeeImportErrorsEn,
     ...serviceErrorsEn,
+    ...packageTypeErrorsEn,
     PERMISSION_NOT_HELD: 'You do not currently hold this permission over the target scope',
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
@@ -298,6 +302,7 @@ export const en = {
     invalid: 'Check the employee details, dates and user ID.',
   },
   catalogServices: catalogServicesEn,
+  catalogPackageTypes: catalogPackageTypesEn,
   admin: {
     appName: 'PosPay',
     signInTitle: 'Sign in',

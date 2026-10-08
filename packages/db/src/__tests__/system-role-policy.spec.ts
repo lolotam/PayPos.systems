@@ -118,3 +118,14 @@ for (const entry of SYSTEM_ROLES) {
 it('Device retains explicit staff login eligibility', () => {
   expect(systemRolePolicy(role('device'), 'global')?.permissions).toContain('login:staff:branch');
 });
+
+for (const entry of SYSTEM_ROLES) {
+  it.each(['read:package-types:business', 'manage:package-types:business'])(
+    entry.code + ' package-type eligibility for %s',
+    (permission) => {
+      expect(
+        systemRolePolicy(entry.id, 'global')?.permissions.some((code) => code === permission),
+      ).toBe(['owner', 'general_manager', 'business_manager'].includes(entry.code));
+    },
+  );
+}

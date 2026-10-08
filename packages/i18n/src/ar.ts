@@ -1,3 +1,4 @@
+import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
 import { attendanceAr } from './attendance-ar.js';
 import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
 import { employeeImportAr, employeeImportErrorsAr } from './employee-import.js';
@@ -17,6 +18,8 @@ export const ar: Catalog = {
   passkeyAdmin: arPasskeyAdmin,
   leave: leaveAr,
   permissionCodes: {
+    readPackageTypesBusiness: 'قراءة أنواع باقات النشاط',
+    managePackageTypesBusiness: 'إدارة أنواع باقات النشاط',
     readSchedulesBranch: 'قراءة جداول الفرع',
     manageSchedulesBranch: 'إدارة جداول الفرع',
     readSchedulesBusiness: 'قراءة قوالب دوام النشاط',
@@ -222,6 +225,7 @@ export const ar: Catalog = {
     EMPLOYEE_CARD_CODE_IN_USE: 'كود الكارت مستخدم بالفعل لموظف نشط آخر في الشركة.',
     ...employeeImportErrorsAr,
     ...serviceErrorsAr,
+    ...packageTypeErrorsAr,
     PERMISSION_NOT_HELD: 'لا تملك هذه الصلاحية حاليًا على النطاق المطلوب',
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
@@ -290,6 +294,7 @@ export const ar: Catalog = {
     invalid: 'راجع بيانات الموظف والتواريخ ومعرف المستخدم.',
   },
   catalogServices: catalogServicesAr,
+  catalogPackageTypes: catalogPackageTypesAr,
   admin: {
     appName: 'PosPay',
     signInTitle: 'تسجيل الدخول',

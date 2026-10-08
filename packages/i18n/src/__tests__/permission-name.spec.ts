@@ -24,6 +24,8 @@ it.each(['ar', 'en'] as const)(
       'manage:discount-limits:business',
       'read:settings:business',
       'manage:settings:business',
+      'read:package-types:business',
+      'manage:package-types:business',
     ])
       expect(permissionName(locale, code)).not.toBe(code);
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');

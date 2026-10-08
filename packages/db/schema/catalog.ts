@@ -145,6 +145,7 @@ export const packageTypeComponents = pgTable(
     companyId: uuid('company_id')
       .notNull()
       .references(() => companies.id),
+    id: uuid('id').notNull(),
     packageTypeId: uuid('package_type_id').notNull(),
     businessId: uuid('business_id').notNull(),
     serviceId: uuid('service_id').notNull(),
@@ -156,8 +157,13 @@ export const packageTypeComponents = pgTable(
   (t) => [
     primaryKey({
       name: 'package_type_components_pkey',
-      columns: [t.companyId, t.packageTypeId, t.serviceId],
+      columns: [t.companyId, t.id],
     }),
+    unique('package_type_components_type_service_key').on(
+      t.companyId,
+      t.packageTypeId,
+      t.serviceId,
+    ),
     foreignKey({
       name: 'package_type_components_type_fk',
       columns: [t.companyId, t.businessId, t.packageTypeId],

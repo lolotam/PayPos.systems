@@ -87,6 +87,8 @@ export const ROLE_DEFAULTS = {
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,
+  'read:package-types:business': managers,
+  'manage:package-types:business': managers,
   // TODO(spec) SV-Q1: SPEC لا يسمّي صلاحية الكتالوج؛ القرار المؤقت مطابق لـ manage:employees:business.
   'manage:services:business': managers,
   'manage:files:business': managers,

@@ -32,6 +32,8 @@ const deviceForbidden = [
   'manage:document-types:company',
   'manage:employees:business',
   'read:services:business',
+  'read:package-types:business',
+  'manage:package-types:business',
   'manage:services:business',
   'create:customers:company',
   'create:customers:business',

@@ -133,6 +133,11 @@ existing access reader, and card issue/revoke reuse identity's employee-manageme
 helpers. Staff owns the card domain, persistence, endpoints and audit; no new import arrow and
 no event consumer is added.
 
+PR 33 package types remain catalog-owned master data. Creation and full replacement publish no event;
+orders will read their components through the existing CatalogReaderPort at sale (ADR-0010).
+Catalog and orders own separate definition validators (spec 037 TD-1, ADR-0035 precedent), checked
+against the data-only cases in `apps/api/test/package-definition-cases.ts`; no new import arrow.
+
 ## 4. Event arrows (the default for state changes)
 
 The producer appends to the outbox inside its own transaction and knows **none** of its consumers. Adding a consumer changes zero lines in the producer.

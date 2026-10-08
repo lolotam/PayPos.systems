@@ -654,6 +654,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "package_type_id": {
           "name": "package_type_id",
           "type": "uuid",
@@ -789,12 +795,21 @@
           "name": "package_type_components_pkey",
           "columns": [
             "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "package_type_components_type_service_key": {
+          "name": "package_type_components_type_service_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "company_id",
             "package_type_id",
             "service_id"
           ]
         }
       },
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
         "package_type_components_sessions": {

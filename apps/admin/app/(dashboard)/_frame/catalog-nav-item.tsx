@@ -5,18 +5,28 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
 
-/** عنصر تنقّل الكتالوج، مستقل عشان قائمة التنقّل تفضل داخل حد الدالة. */
+/** مدخلا الخدمات وأنواع الباقات، مع تمييز المدخل المطابق للمسار الحالي فقط. */
 export function CatalogNavItem() {
   const locale = useLocale();
   const pathname = usePathname();
   return (
-    <AppSidebarItem
-      asChild
-      icon={<Store />}
-      label={t(locale, 'catalogServices.listTitle')}
-      active={pathname.startsWith('/catalog')}
-    >
-      <Link href="/catalog" />
-    </AppSidebarItem>
+    <>
+      <AppSidebarItem
+        asChild
+        icon={<Store />}
+        label={t(locale, 'catalogServices.listTitle')}
+        active={pathname.startsWith('/catalog') && !pathname.startsWith('/catalog/package-types')}
+      >
+        <Link href="/catalog" />
+      </AppSidebarItem>
+      <AppSidebarItem
+        asChild
+        icon={<Store />}
+        label={t(locale, 'catalogPackageTypes.listTitle')}
+        active={pathname.startsWith('/catalog/package-types')}
+      >
+        <Link href="/catalog/package-types" />
+      </AppSidebarItem>
+    </>
   );
 }

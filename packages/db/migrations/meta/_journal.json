@@ -638,6 +638,13 @@
       "when": 1791450877335,
       "tag": "0090_2026-10-08_catalog-package-types-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1791452595777,
+      "tag": "0091_2026-10-08_package-types-access-rls",
+      "breakpoints": true
     }
   ]
 }
