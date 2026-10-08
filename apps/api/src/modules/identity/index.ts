@@ -1,6 +1,10 @@
 export { COMPANY_HEADER } from './http/access.guard.ts';
 export { lockLeaveAccess, readLeaveAccess } from './persistence/leave-access.ts';
 export {
+  lockAttendanceExceptionAccess,
+  readAttendanceExceptionAccess,
+} from './persistence/attendance-exception-access.ts';
+export {
   lockBusinessDiscountAccess,
   readBusinessDiscountAccess,
 } from './persistence/business-discount-access.ts';

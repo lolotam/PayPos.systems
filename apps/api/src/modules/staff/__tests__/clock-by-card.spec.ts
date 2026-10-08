@@ -26,7 +26,7 @@ it('clocks in and out by card, recording source, device and operator with audit 
   const first = await f.clockByCard.execute(f.scope, { card_code: CARD_CODE }, f.idem());
   expect(first).toMatchObject({
     operation: 'CLOCK_IN',
-    exceptions: ['NONE'],
+    exceptions: [],
     missed_session_id: null,
   });
   const rows = await sessions();
@@ -56,6 +56,12 @@ it('clocks in and out by card, recording source, device and operator with audit 
   const closed = await sessions();
   expect(closed).toHaveLength(1);
   expect(closed[0]).toMatchObject({ status: 'CLOSED', source: 'BARCODE' });
+  expect(second.exceptions).toEqual([]);
+  const located = await f.owner`SELECT geo,out_geo FROM attendance_sessions WHERE id=${first.session_id}`;
+  expect(located).toMatchObject([{ geo: 'NONE', out_geo: 'NONE' }]);
+  const warnings = await f.owner`SELECT id FROM attendance_exceptions WHERE company_id=${f.companyId}
+    AND session_id=${first.session_id}`;
+  expect(warnings).toHaveLength(0);
 });
 
 it('returns the previous accepted result within five minutes and permits the transition at exactly five', async () => {

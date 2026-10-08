@@ -127,13 +127,14 @@ export function attendanceMissedDeadline(open: OpenAttendance): Date {
   // قرار المالك 2026-10-04 (AT-Q6، الخيار الموصى به): قفل MISSED_OUT عند حد ١٦ ساعة وتسجيل الاكتشاف منفصلاً.
   return new Date(open.clockIn.getTime() + 16 * 60 * 60 * 1000);
 }
-/** الحقائق الدنيا التي يحسبها الانتقال بغض النظر عن مصدر المسح. */
+/** الحقائق الدنيا التي يحسبها الانتقال؛ المصدر يقرر الاستثناء والموقع يبقى حقيقة الجلسة. */
 export interface AttendancePlanInput {
   open: OpenAttendance | null;
   timezone: string;
   shifts: readonly { startsAt: Date; endsAt: Date; workingDate: string }[];
   location: ClockLocation | undefined;
   geo: { lat: number; lng: number } | null;
+  source: 'QR' | 'BARCODE';
 }
 /** خطة حركة واحدة: الرد المقبول ولحظة القفل والموقع والوردية. */
 export interface AttendancePlan {
@@ -142,9 +143,24 @@ export interface AttendancePlan {
   geo: 'OK' | 'NONE' | 'OUT_OF_RANGE';
   schedule: { startsAt: Date; endsAt: Date } | null;
 }
-/** يحسب الرد من نفس قواعد spec 027 لأي مصدر مسح (QR أو كارت)، فلا يوجد تنفيذ ثانٍ للانتقال.
+/**
+ * حركة الكارت لا ترفع استثناء؛ مسح QR يرفع NONE أو OUT_OF_RANGE كما كان.
  *
- * @param input حقائق الجلسة المفتوحة والورديات والموقع
+ * @param source مصدر المسح
+ * @param geo حقيقة الموقع التي تُخزن على الجلسة
+ * @returns الاستثناءات التي تُكتب، أو مصفوفة فارغة للكارت
+ */
+export function attendanceRaisedExceptions(
+  source: 'QR' | 'BARCODE',
+  geo: 'OK' | 'NONE' | 'OUT_OF_RANGE',
+): ('NONE' | 'OUT_OF_RANGE')[] {
+  // قرار المالك 2026-10-08 (RE-Q4): الكارت على جهاز الفرع لا يرفع استثناء؛ QR يبقى كما هو.
+  if (source === 'BARCODE') return [];
+  return geo === 'OK' ? [] : [geo];
+}
+/** يحسب الرد من نفس قواعد spec 027 لـ QR والكارت. المصدر يقرر الاستثناءات وgeo يبقى حقيقة الموقع.
+ *
+ * @param input حقائق الجلسة المفتوحة والورديات والموقع ومصدر المسح
  * @param at وقت الطلب الواحد بعد كل الأقفال
  * @param newSessionId معرّف محتمل للجلسة الجديدة، يُستخدم عند الفتح فقط
  * @returns الرد المقبول وما يُكتب معه في نفس المعاملة
@@ -165,7 +181,7 @@ export function planAttendance(
       operation: closing ? 'CLOCK_OUT' : 'CLOCK_IN',
       working_date: closing && input.open !== null ? input.open.workingDate : workingDate,
       accepted_at: at.toISOString(),
-      exceptions: geo === 'OK' ? [] : [geo],
+      exceptions: attendanceRaisedExceptions(input.source, geo),
       late_minutes:
         closing && input.open !== null
           ? input.open.lateMinutes

@@ -31,6 +31,9 @@ it('a state already exists before the first scan; concurrent signed scans open e
     await f.owner`SELECT id FROM attendance_sessions WHERE company_id=${f.companyId} AND status='OPEN'`,
   ).toHaveLength(1);
   expect(
+    await f.owner`SELECT kind FROM attendance_exceptions WHERE session_id=${results[0]?.session_id ?? ''}`,
+  ).toEqual([{ kind: 'NONE' }]);
+  expect(
     await f.owner`SELECT id FROM outbox WHERE company_id=${f.companyId} AND event_type='AttendanceClockedIn'`,
   ).toHaveLength(1);
   expect(await a.execute()).toEqual(results[0]);

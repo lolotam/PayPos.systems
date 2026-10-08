@@ -794,6 +794,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/attendance-exceptions/{exceptionId}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resolveAttendanceException"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/attendance-exceptions/{exceptionId}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reopenAttendanceException"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/permissions/memberships/{membershipId}/discount-limit": {
         parameters: {
             query?: never;
@@ -1658,6 +1690,34 @@ export interface components {
             branch_id?: string;
             from?: components["schemas"]["EmployeeDate"];
             to?: components["schemas"]["EmployeeDate"];
+        };
+        AttendanceExceptionDecisionInput: {
+            revision: number;
+            reason: string;
+        };
+        AttendanceExceptionRecord: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** @enum {string} */
+            kind: "NONE" | "OUT_OF_RANGE" | "SUSPECTED_MISSED_OUT";
+            /** @enum {string} */
+            status: "OPEN" | "RESOLVED";
+            /** @enum {string|null} */
+            resolution: "CLOSED_LATE" | "MISSED_OUT" | "ACKNOWLEDGED" | "CARD_SCAN" | null;
+            /** Format: uuid */
+            resolved_by: string | null;
+            /** Format: date-time */
+            resolved_at: string | null;
+            reason: string | null;
+            /** Format: date-time */
+            raised_at: string;
+            revision: number;
         };
         PersonalOtpRequestInput: {
             phone: string;
@@ -5106,6 +5166,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resolveAttendanceException: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                exceptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttendanceExceptionDecisionInput"];
+            };
+        };
+        responses: {
+            /** @description AttendanceExceptionRecord */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceExceptionRecord"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reopenAttendanceException: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                exceptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttendanceExceptionDecisionInput"];
+            };
+        };
+        responses: {
+            /** @description AttendanceExceptionRecord */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceExceptionRecord"];
                 };
             };
             /** @description Bilingual refusal */

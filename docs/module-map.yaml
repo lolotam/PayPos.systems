@@ -42,6 +42,8 @@ reads:
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts }
   - { from: staff, to: identity, symbol: lockLeaveAccess, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
   - { from: staff, to: identity, symbol: readLeaveAccess, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
+  - { from: staff, to: identity, symbol: lockAttendanceExceptionAccess, file: apps/api/src/modules/staff/persistence/attendance-exception-context.adapter.ts }
+  - { from: staff, to: identity, symbol: readAttendanceExceptionAccess, file: apps/api/src/modules/staff/persistence/attendance-exception-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/leave-context.adapter.ts }
   - { from: staff, to: identity, symbol: personalMemberships, file: apps/api/src/modules/staff/persistence/personal-employee.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/personal-employee.ts }

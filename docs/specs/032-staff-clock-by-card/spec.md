@@ -41,7 +41,9 @@ tests.
   the same transaction. The card code never appears in logs, audit, outbox or events.
 - CB-08: lateness, schedule selection, working-date/overnight, 16 h deadline and geofence
   are computed by the shared spec-027 domain functions; a fixed device has no phone
-  location and therefore records `NONE` (see CB-Q1).
+  location and therefore records `NONE` on the session (see CB-Q1). Spec 034 RE-Q4
+  (2026-10-08) removed the attendance exception for a card movement and kept `NONE` on
+  the session.
 
 ## Slice design
 
@@ -134,7 +136,9 @@ all optional settings empty if startup wiring changes.
 - CB-Q1 — card location: a fixed reception device samples no phone location, so the scan
   records the `NONE` exception exactly as spec 027 does for a missing location. Alternative:
   treat the fixed device as `OK` because it is physically installed at the branch. **Decided
-  (Waleed, 2026-10-07): keep `NONE`**, so the report stays truthful.
+  (Waleed, 2026-10-07): keep `NONE`**, so the report stays truthful. Spec 034 RE-Q4
+  (2026-10-08) later removed the exception itself: a card movement raises none, and the
+  session still records `NONE`.
 - CB-Q2 — resolved by the review request: store only a company-scoped HMAC and a suffix that never contains the whole code; hash lookups and keyed idempotency fingerprints, no plaintext column. Regenerated this slice's 0085/0086 (ADR-0036).
 - CB-Q3 — who may clock by card: `clock:attendance:branch` is granted by default to the
   reception-capable human roles (owner, general manager, business manager, branch manager,
