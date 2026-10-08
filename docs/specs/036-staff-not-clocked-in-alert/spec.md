@@ -265,10 +265,12 @@ not from a permission check — the role list is the owner's NC-Q2 decision, and
 
 ### Recipients read (ADR-0037 §2)
 
-Worker `staff` port `BranchManagerRecipients.forBranch(tx, businessId, branchId) → userId[]`; adapter in
-`staff/persistence/` calls a read exported from a new minimal worker `identity` module (`apps/worker/src/modules/
-identity/index.ts`), on the caller's tenant transaction. No new import arrow (`staff → identity` exists); one §3 port
-row in `docs/module-map.md` and one `ports:` entry in `docs/module-map.yaml`.
+Worker `staff` port `BranchManagerRecipients` has two reads on the caller's tenant transaction. `companyOpen(tx,
+companyId)` is backed by worker `tenancy`'s public `index.ts`. `forBranch(tx, companyId, businessId, branchId, at,
+roles) → userId[]` is backed by a read exported from a new minimal worker `identity` module, which touches identity-owned
+tables only. The adapter lives in `staff/persistence/`. The reads are declared as rows in `docs/module-map.md` §6, and
+`docs/module-map.yaml` regenerates them under `reads:`. This was rounds 2 and 5 of the review: no cross-context table
+joins.
 
 ### Lock and once-only protocol
 
