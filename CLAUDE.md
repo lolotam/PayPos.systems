@@ -43,6 +43,10 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
     - Second, the shared decisions page https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF, as a **new numbered batch**. Batch 1 is the decisions made up to 2026-10-08.
     - Waleed and his partner pick there. Waleed's pick is final.
     - Never create a second page. Publish to that same URL.
+    - **Who writes where:** only the Claude Code orchestrator session can publish to that page. Any other agent (Codex,
+      Grok, a subagent) writes the question into the slice's `owner-questions.ar.md` with the answer marked
+      `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then posts the batch to the page and writes
+      the owner's answer back into the file.
 6. **A slice is not done until the checklist in `CLAUDE.architecture.md` §15 passes.**
 
 > **A doc comment is written with its function, not afterwards** (§3.1). "I'll document it later" means it never gets documented, and by then the author has forgotten the _why_ — which is the only part worth writing down.
