@@ -164,6 +164,11 @@ export const packageTypeComponents = pgTable(
       t.packageTypeId,
       t.serviceId,
     ),
+    unique('package_type_components_type_position_key').on(
+      t.companyId,
+      t.packageTypeId,
+      t.position,
+    ),
     foreignKey({
       name: 'package_type_components_type_fk',
       columns: [t.companyId, t.businessId, t.packageTypeId],

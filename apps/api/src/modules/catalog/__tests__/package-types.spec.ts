@@ -194,6 +194,25 @@ it('PT-12 accepts 20 components and 730 days, rejects 21 without writing', async
     'PACKAGE_TYPE_INVALID_COMPONENTS',
   );
 });
+it('PT-05 reorders all 20 components without transient position conflicts', async () => {
+  const input = {
+    ...packageTerms(f, 'Reordered package'),
+    components: f.services.slice(0, 20).map((service) => ({ service_id: service.id, sessions: 1 })),
+  };
+  const created = await post(input);
+  expect(created.status).toBe(201);
+  const current = packageTypeDetail.parse(created.body);
+  const components = [...input.components].reverse();
+  const response = await patch(current.id, {
+    ...input,
+    components,
+    expected_revision: current.revision,
+  });
+  expect(response.statusCode).toBe(200);
+  const updated = packageTypeDetail.parse(response.json());
+  expect(updated).toMatchObject({ revision: 2, components });
+  expect((await get(current.id)).body).toEqual(updated);
+});
 it('two concurrent editors and two duplicate-name creators each produce one winner', async () => {
   const current = packageTypeDetail.parse((await post(packageTerms(f, 'Concurrent'))).body);
   const updates = await Promise.all(

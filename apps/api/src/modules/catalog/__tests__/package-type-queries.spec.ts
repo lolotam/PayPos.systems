@@ -99,7 +99,7 @@ it('the list plan uses tenant-scoped indexes for cursor rows and component count
     );
   });
   expect(JSON.stringify(plan)).toMatch(/package_types_(company_business_id_key|pkey)/);
-  expect(JSON.stringify(plan)).toContain('package_type_components_type_idx');
+  expect(JSON.stringify(plan)).toMatch(/package_type_components_type_(idx|position_key)/);
 });
 
 it('the detail projection matches the contract and uses a tenant-scoped index', async () => {

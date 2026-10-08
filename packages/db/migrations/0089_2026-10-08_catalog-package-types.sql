@@ -8,6 +8,7 @@ CREATE TABLE "package_type_components" (
 	"position" smallint NOT NULL,
 	CONSTRAINT "package_type_components_pkey" PRIMARY KEY("company_id","id"),
 	CONSTRAINT "package_type_components_type_service_key" UNIQUE("company_id","package_type_id","service_id"),
+	CONSTRAINT "package_type_components_type_position_key" UNIQUE("company_id","package_type_id","position"),
 	CONSTRAINT "package_type_components_sessions" CHECK ("package_type_components"."sessions" BETWEEN 1 AND 365),
 	CONSTRAINT "package_type_components_position" CHECK ("package_type_components"."position" BETWEEN 1 AND 20)
 );

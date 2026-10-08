@@ -1,3 +1,4 @@
+import { systemUuidV7 } from '@pospay/ids';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -105,6 +106,45 @@ it('cross-tenant inserts and upserts cannot write either table', async () => {
     ON CONFLICT(company_id,id) DO UPDATE SET name_en=excluded.name_en`),
     /row-level security/,
   );
+});
+it('rejects a 21st distinct component at an occupied position as the application role', async () => {
+  const ids = systemUuidV7();
+  const packageTypeId = ids.newId();
+  const components = Array.from({ length: 21 }, () => ({
+    id: ids.newId(),
+    serviceId: ids.newId(),
+  }));
+  for (const { serviceId } of components)
+    await owner`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind)
+      VALUES (${A.company},${serviceId},${A.business},'Cap test service','0.000','ZERO')`;
+  await db.withTenant(A.company, async (tx) => {
+    await tx.execute(sql`INSERT INTO package_types(company_id,id,business_id,name_en,price,validity_days)
+      VALUES (${A.company},${packageTypeId},${A.business},'Twenty component cap','0.000',1)`);
+    await tx.execute(sql`INSERT INTO package_type_components
+      (company_id,id,business_id,package_type_id,service_id,sessions,position) VALUES ${sql.join(
+        components
+          .slice(0, 20)
+          .map(
+            ({ id, serviceId }, index) =>
+              sql`(${A.company},${id},${A.business},${packageTypeId},${serviceId},1,${index + 1})`,
+          ),
+        sql`,`,
+      )}`);
+  });
+  const extra = components[20];
+  if (extra === undefined) throw new Error('Missing component fixture');
+  await rejects(
+    asA(sql`INSERT INTO package_type_components
+      (company_id,id,business_id,package_type_id,service_id,sessions,position)
+      VALUES (${A.company},${extra.id},${A.business},${packageTypeId},${extra.serviceId},1,20)`),
+    /package_type_components_type_position_key/,
+  );
+  expect(
+    Array.from(
+      await asA(sql`SELECT position FROM package_type_components
+        WHERE package_type_id=${packageTypeId} ORDER BY position`),
+    ),
+  ).toEqual(Array.from({ length: 20 }, (_, index) => ({ position: index + 1 })));
 });
 it('cross-tenant updates and deletes are invisible and identities cannot be reassigned', async () => {
   expect(
