@@ -253,6 +253,7 @@ export * from './staff/employee-cards.js';
 export * from './staff/unbind-passkey.js';
 export * from './staff/missed-out.js';
 export * from './staff/document-expiry.js';
+export * from './staff/not-clocked-in.js';
 export * from './staff/employee-documents.js';
 export {
   employeeImportColumn,

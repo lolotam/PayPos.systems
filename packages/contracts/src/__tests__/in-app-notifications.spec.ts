@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 
 import { inAppRecipient, notificationRequest, notificationResult } from '../index.js';
+import { shiftNotClockedInParameters } from '../in-app-notifications.js';
 
 const recipient = {
   channel: 'IN_APP',
@@ -11,6 +12,33 @@ const recipient = {
   safe_parameters: [{ name: 'subject', type: 'text', value: 'Synthetic subject' }],
 };
 
+it.each([
+  '123456',
+  ' 123456 ',
+  'https://example.test/private',
+  'www.example.test',
+  'example.test',
+  '+96500000001',
+  '00000001',
+  '0000 0001',
+  '٠٠٠٠ ٠٠٠١',
+  'Synthetic 00000001',
+  ' ',
+])('rejects unsafe display names: %s', (value) => {
+  const parameters = [
+    'employee_name_ar',
+    'employee_name_en',
+    'branch_name_ar',
+    'branch_name_en',
+  ].map((name) => ({ name, type: 'text', value }));
+  expect(
+    shiftNotClockedInParameters.safeParse([
+      ...parameters,
+      { name: 'shift_start', type: 'text', value: '10:00' },
+    ]).success,
+  ).toBe(false);
+});
+
 it('discriminates user recipients from unchanged WhatsApp phone recipients', () => {
   expect(inAppRecipient.parse(recipient)).toEqual(recipient);
   expect(notificationRequest.safeParse({ notification_recipients: [recipient] }).success).toBe(
@@ -18,6 +46,42 @@ it('discriminates user recipients from unchanged WhatsApp phone recipients', () 
   );
   expect(inAppRecipient.safeParse({ ...recipient, phone: '+96500000001' }).success).toBe(false);
   expect(inAppRecipient.safeParse({ ...recipient, template_key: 'staff_otp' }).success).toBe(false);
+  const shift = {
+    channel: 'IN_APP',
+    user_id: recipient.user_id,
+    template_key: 'shift_not_clocked_in',
+    template_revision: 1,
+    locale: 'ar',
+    safe_parameters: [
+      { name: 'employee_name_ar', type: 'text', value: 'Synthetic employee' },
+      { name: 'employee_name_en', type: 'text', value: 'Synthetic employee' },
+      { name: 'branch_name_ar', type: 'text', value: 'Studio 2026' },
+      { name: 'branch_name_en', type: 'text', value: 'Studio 2026' },
+      { name: 'shift_start', type: 'text', value: '10:00' },
+    ],
+  };
+  expect(inAppRecipient.parse(shift)).toEqual(shift);
+  expect(notificationRequest.safeParse({ notification_recipients: [shift] }).success).toBe(true);
+  expect(
+    inAppRecipient.safeParse({
+      ...shift,
+      safe_parameters: [
+        { name: 'employee_name_ar', type: 'text', value: '123456' },
+        ...shift.safe_parameters.slice(1),
+      ],
+    }).success,
+  ).toBe(false);
+  expect(
+    inAppRecipient.safeParse({
+      ...shift,
+      safe_parameters: [
+        shift.safe_parameters[0],
+        shift.safe_parameters[1],
+        { name: 'branch_name_ar', type: 'text', value: 'https://example.test/private' },
+        ...shift.safe_parameters.slice(3),
+      ],
+    }).success,
+  ).toBe(false);
   expect(
     inAppRecipient.safeParse({
       ...recipient,

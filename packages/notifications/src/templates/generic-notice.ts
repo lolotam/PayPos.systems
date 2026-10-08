@@ -1,4 +1,5 @@
 import { validateParameters, type SafeParameter, type TemplateDefinition } from './definition.ts';
+import { shiftNotClockedIn } from './shift-not-clocked-in.ts';
 
 export const genericNotice: TemplateDefinition = {
   key: 'generic_notice',
@@ -17,9 +18,11 @@ export function validInAppTemplate(
   locale: string,
   parameters: readonly SafeParameter[],
 ): boolean {
+  const definition =
+    key === genericNotice.key ? genericNotice : key === shiftNotClockedIn.key ? shiftNotClockedIn : null;
   return (
-    key === genericNotice.key &&
-    revision === genericNotice.revision &&
-    validateParameters(genericNotice, locale, parameters)
+    definition !== null &&
+    revision === definition.revision &&
+    validateParameters(definition, locale, parameters)
   );
 }

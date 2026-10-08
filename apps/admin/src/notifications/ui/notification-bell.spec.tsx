@@ -82,6 +82,55 @@ it.each(['ar', 'en'] as const)(
 );
 
 it.each(['ar', 'en'] as const)(
+  'renders the not-clocked-in template in viewer locale %s when the stored locale differs',
+  async (locale) => {
+    const stored = locale === 'ar' ? 'en' : 'ar';
+    vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = new URL((input as Request).url).pathname;
+      if (path.endsWith('/unread-count')) return response({ count: 1 });
+      return response({
+        items: [
+          {
+            ...sampleItem(stored, false),
+            template_key: 'shift_not_clocked_in',
+            safe_parameters: [
+              { name: 'employee_name_ar', type: 'text', value: 'Arabic slot employee' },
+              { name: 'employee_name_en', type: 'text', value: 'English slot employee' },
+              { name: 'branch_name_ar', type: 'text', value: 'Arabic slot branch' },
+              { name: 'branch_name_en', type: 'text', value: 'English slot branch' },
+              { name: 'shift_start', type: 'text', value: '10:00' },
+            ],
+          },
+        ],
+        next_cursor: null,
+      });
+    });
+    render(
+      <DirectionProvider dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+        <LocaleProvider locale={locale} setLocale={() => undefined}>
+          <QueryProvider>
+            <NotificationBell companyId={companyId} userId="01920000-0000-7000-8000-0000000000f1" />
+          </QueryProvider>
+        </LocaleProvider>
+      </DirectionProvider>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: t(locale, 'inApp.title') }));
+    const text = t(locale, 'inApp.shift_not_clocked_in')
+      .replace(
+        locale === 'ar' ? '{{employee_name_ar}}' : '{{employee_name_en}}',
+        locale === 'ar' ? 'Arabic slot employee' : 'English slot employee',
+      )
+      .replace(
+        locale === 'ar' ? '{{branch_name_ar}}' : '{{branch_name_en}}',
+        locale === 'ar' ? 'Arabic slot branch' : 'English slot branch',
+      )
+      .replace('{{shift_start}}', '10:00');
+    expect(await screen.findByText(text)).not.toBeNull();
+  },
+);
+
+it.each(['ar', 'en'] as const)(
   'hides badge at zero and shows empty state in %s',
   async (locale) => {
     vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);

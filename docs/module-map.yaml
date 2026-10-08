@@ -83,3 +83,7 @@ reads:
   - { from: staff, to: identity, symbol: readEmployeeBranchAccess, file: apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts }
   - { from: staff, to: identity, symbol: lockEmployeeManagementAccess, file: apps/api/src/modules/staff/persistence/employee-card-access.adapter.ts }
   - { from: staff, to: tenancy, symbol: businessTimeZone, file: apps/worker/src/modules/staff/persistence/document-expiry.transactions.ts }
+  - { from: staff, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/staff/persistence/branch-place.adapter.ts }
+  - { from: staff, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts }
+  - { from: staff, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts }
+  - { from: staff, to: identity, symbol: branchManagerRecipientsStatement, file: apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts }

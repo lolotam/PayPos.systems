@@ -638,6 +638,27 @@
       "when": 1791456712219,
       "tag": "0090_2026-10-08_correct-attendance",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1791456713219,
+      "tag": "0091_2026-10-08_staff-schedule-shifts-company-starts",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1791456714219,
+      "tag": "0092_2026-10-08_attendance-not-clocked-in-notices",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1791456715219,
+      "tag": "0093_2026-10-08_attendance-not-clocked-in-notices-rls",
+      "breakpoints": true
     }
   ]
 }

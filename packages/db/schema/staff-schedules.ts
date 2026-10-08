@@ -79,6 +79,7 @@ export const staffScheduleShifts = pgTable(
     }),
     index('staff_schedule_shifts_schedule_idx').on(t.companyId, t.scheduleId, t.startsAt),
     index('staff_schedule_shifts_employee_idx').on(t.companyId, t.employeeId, t.startsAt),
+    index('staff_schedule_shifts_company_starts_idx').on(t.companyId, t.startsAt),
     check(
       'staff_schedule_shifts_duration',
       sql`${t.endsAt} > ${t.startsAt} AND ${t.endsAt} <= ${t.startsAt} + interval '16 hours'`,
