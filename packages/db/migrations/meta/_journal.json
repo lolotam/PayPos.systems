@@ -624,6 +624,20 @@
       "when": 1791418411311,
       "tag": "0088_2026-10-08_resolve-attendance-exception",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1791450870578,
+      "tag": "0089_2026-10-08_catalog-package-types",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1791450877335,
+      "tag": "0090_2026-10-08_catalog-package-types-rls",
+      "breakpoints": true
     }
   ]
 }
