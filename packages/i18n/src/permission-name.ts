@@ -42,6 +42,7 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'manage:discount-limits:business': 'permissionCodes.manageDiscountLimitsBusiness',
   'login:staff:branch': 'permissionCodes.loginStaffBranch',
   'clock:attendance:branch': 'permissionCodes.clockAttendanceBranch',
+  'resolve:attendance:branch': 'permissionCodes.resolveAttendanceBranch',
   'create:companies:platform': 'permissionCodes.createCompaniesPlatform',
 };
 

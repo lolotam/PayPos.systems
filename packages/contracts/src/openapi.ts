@@ -6,6 +6,8 @@ import { employeeDocumentSchemas } from './staff/employee-documents.js';
 import { employeeDocumentPaths } from './staff/employee-documents-openapi.js';
 import { leaveDecisionSchemas } from './staff/leave-decision.js';
 import { leavePaths } from './staff/leave-openapi.js';
+import { attendanceExceptionSchemas } from './staff/attendance-exception.js';
+import { attendanceExceptionPaths } from './staff/attendance-exception-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
 import { clockAttendanceSchemas } from './staff/clock-attendance.js';
 import { clockAttendancePaths } from './staff/clock-attendance-openapi.js';
@@ -113,6 +115,7 @@ const SCHEMAS = [
   ...employeeCardSchemas,
   ...leaveSchemas,
   ...leaveDecisionSchemas,
+  ...attendanceExceptionSchemas,
   ...passkeySchemas,
   ...unbindPasskeySchemas,
   ...scheduleSchemas,
@@ -232,6 +235,7 @@ const PATHS = {
   ...filePaths,
   ...staffPaths,
   ...leavePaths,
+  ...attendanceExceptionPaths,
   ...permissionPaths,
   ...customerPaths,
   ...catalogPaths,

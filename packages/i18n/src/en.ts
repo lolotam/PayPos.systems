@@ -2,6 +2,7 @@ import { attendanceEn } from './attendance-en.js';
 import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportEn, employeeImportErrorsEn } from './employee-import.js';
 import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
+import { attendanceExceptionErrorsEn } from './attendance-exception-catalog.js';
 import { employeeDocumentsEn } from './employee-documents-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
@@ -40,6 +41,7 @@ export const en = {
     manageDiscountLimitsBusiness: 'Administer personal discount limits',
     loginStaffBranch: 'Sign in to staff app',
     clockAttendanceBranch: 'Clock staff in by card on a paired device',
+    resolveAttendanceBranch: 'Resolve branch attendance exceptions',
     createCompaniesPlatform: 'Create companies on the platform',
     readServicesBusiness: 'Read business services',
     manageServicesBusiness: 'Manage business services',
@@ -187,6 +189,7 @@ export const en = {
       'Own leave requests cannot start before today in the branch timezone.',
     LEAVE_NOT_PENDING: 'Only pending leave can be decided or cancelled.',
     ...leaveDecisionErrorsEn,
+    ...attendanceExceptionErrorsEn,
     LEAVE_REVISION_CONFLICT: 'The leave request changed. Reload and try again.',
     SCHEDULE_WEEK_INVALID: 'The schedule week must start on Saturday.',
     SCHEDULE_SHIFT_INVALID: 'Use up to two shifts per day, each at most 16 hours.',

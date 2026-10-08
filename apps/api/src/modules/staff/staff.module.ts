@@ -23,6 +23,10 @@ import { EmployeeLeaveController } from './http/employee-leave.controller.ts';
 import { OwnLeaveController } from './http/own-leave.controller.ts';
 import { LeaveInboxController } from './http/leave-inbox.controller.ts';
 import { LeaveDecisionsController } from './http/leave-decisions.controller.ts';
+import { AttendanceExceptionsController } from './http/attendance-exceptions.controller.ts';
+import { ResolveAttendanceExceptionUseCase } from './use-cases/resolve-attendance-exception/resolve-attendance-exception.usecase.ts';
+import { ReopenAttendanceExceptionUseCase } from './use-cases/reopen-attendance-exception/reopen-attendance-exception.usecase.ts';
+import { createAttendanceExceptionTransactions } from './persistence/drizzle-attendance-exception-transactions.ts';
 import { DecideLeaveUseCase } from './use-cases/decide-leave/decide-leave.usecase.ts';
 import { RevokeLeaveUseCase } from './use-cases/revoke-leave/revoke-leave.usecase.ts';
 import { createLeaveTransactions } from './persistence/drizzle-leave-transactions.ts';
@@ -92,6 +96,7 @@ export const staffControllers = [
   OwnLeaveController,
   LeaveInboxController,
   LeaveDecisionsController,
+  AttendanceExceptionsController,
   AttendanceQrController,
   PasskeysController,
   MyScheduleController,
@@ -132,6 +137,22 @@ function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerato
         transactions === null
           ? null
           : new ApplyShiftTemplateUseCase(transactions, ids, systemClock),
+    },
+  ];
+}
+function attendanceExceptionProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+): Provider[] {
+  const tx = database === undefined ? null : createAttendanceExceptionTransactions(database, ids);
+  return [
+    {
+      provide: ResolveAttendanceExceptionUseCase,
+      useValue: tx === null ? null : new ResolveAttendanceExceptionUseCase(tx, systemClock),
+    },
+    {
+      provide: ReopenAttendanceExceptionUseCase,
+      useValue: tx === null ? null : new ReopenAttendanceExceptionUseCase(tx, systemClock),
     },
   ];
 }
@@ -254,6 +275,7 @@ export function staffProviders(
     ...enrolProviders(database, ids, passkeys),
     ...scheduleProviders(database, ids),
     ...leaveProviders(database, ids),
+    ...attendanceExceptionProviders(database, ids),
     ...salaryProviders(database, ids),
     ...documentProviders(database, ids),
     {
