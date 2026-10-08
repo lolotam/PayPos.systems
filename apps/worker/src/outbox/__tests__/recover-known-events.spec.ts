@@ -47,7 +47,7 @@ afterAll(async () => {
   await testDb?.drop();
 });
 
-async function seedBlockedEvents(eventType: string) {
+async function seedBlockedEvents(eventType: string, attempts: number, parked: boolean) {
   const aggregate = ids.newId();
   const head = ids.newId();
   const later = ids.newId();
@@ -59,70 +59,85 @@ async function seedBlockedEvents(eventType: string) {
                         attempts, next_attempt_at, last_error, parked_at, published_at)
     VALUES
       (${TENANT.A.company}, ${head}, 'employee', ${aggregate}, ${eventType}, '{}',
-       10, clock_timestamp() + interval '1 day', 'TypeError', clock_timestamp(), NULL),
+       ${attempts}, clock_timestamp() + interval '1 day', 'TypeError',
+       CASE WHEN ${parked} THEN clock_timestamp() ELSE NULL END, NULL),
       (${TENANT.A.company}, ${later}, 'employee', ${aggregate}, 'EmployeePasskeyUnbound', '{}',
        0, clock_timestamp(), NULL, NULL, NULL),
       (${TENANT.B.company}, ${unrelated}, 'employee', ${ids.newId()}, 'UnrelatedEvent', '{}',
-       10, clock_timestamp() + interval '1 day', 'TypeError', clock_timestamp(), NULL),
+       ${attempts}, clock_timestamp() + interval '1 day', 'TypeError',
+       CASE WHEN ${parked} THEN clock_timestamp() ELSE NULL END, NULL),
       (${TENANT.B.company}, ${published}, 'employee', ${ids.newId()}, ${eventType}, '{}',
-       10, clock_timestamp() + interval '1 day', 'TypeError', clock_timestamp(), clock_timestamp()),
+       ${attempts}, clock_timestamp() + interval '1 day', 'TypeError',
+       CASE WHEN ${parked} THEN clock_timestamp() ELSE NULL END, clock_timestamp()),
       (${TENANT.B.company}, ${retrying}, 'employee', ${ids.newId()}, ${eventType}, '{}',
-       3, clock_timestamp() + interval '1 day', 'TypeError', NULL, NULL)`;
+       9, clock_timestamp() + interval '1 day', 'TypeError', NULL, NULL)`;
   return { head, later, untouched: [unrelated, published, retrying] };
 }
 
 const state = (id: string) => owner`
   SELECT *, next_attempt_at <= clock_timestamp() AS ready FROM outbox WHERE id = ${id}`;
 
-it.each([
-  'SalaryChanged',
-  'LeaveRequested',
-  'LeaveCancelled',
-  'LeaveApproved',
-  'LeaveRejected',
-  'LeaveRevoked',
-  'EmployeePasskeyBound',
-])('recovers parked %s and releases the next employee event without effects', async (eventType) => {
-  const { head, later, untouched } = await seedBlockedEvents(eventType);
-  const before = await Promise.all(untouched.map(state));
-  const withTenant = vi.spyOn(app, 'withTenant');
-  const deliver = vi.fn(
-    createDeliverer(app, [], createLogger('silent'), {
-      knownEventTypes: KNOWN_EVENT_TYPES,
-    }),
-  );
-  expect(await dispatcher.dispatchBatch(100, deliver)).toBe(0);
+it.each(
+  [
+    'SalaryChanged',
+    'LeaveRequested',
+    'LeaveCancelled',
+    'LeaveApproved',
+    'LeaveRejected',
+    'LeaveRevoked',
+    'EmployeePasskeyBound',
+  ].flatMap((eventType) => [
+    { eventType, attempts: 10, parked: true },
+    { eventType, attempts: 10, parked: false },
+    { eventType, attempts: 11, parked: false },
+  ]),
+)(
+  'recovers $eventType (attempts=$attempts, parked=$parked) and releases the next event without effects',
+  async ({ eventType, attempts, parked }) => {
+    const { head, later, untouched } = await seedBlockedEvents(eventType, attempts, parked);
+    expect(await state(head)).toMatchObject([
+      { attempts, parked_at: parked ? expect.any(Date) : null, published_at: null, ready: false },
+    ]);
+    const before = await Promise.all(untouched.map(state));
+    const withTenant = vi.spyOn(app, 'withTenant');
+    const deliver = vi.fn(
+      createDeliverer(app, [], createLogger('silent'), {
+        knownEventTypes: KNOWN_EVENT_TYPES,
+      }),
+    );
+    expect(await dispatcher.dispatchBatch(100, deliver)).toBe(0);
 
-  await owner.unsafe(recovery);
-  const recovered = await state(head);
-  expect(recovered).toMatchObject([
-    {
-      parked_at: null,
-      published_at: null,
-      attempts: 0,
-      last_error: null,
-      ready: true,
-    },
-  ]);
-  await owner.unsafe(recovery);
-  expect(await state(head)).toEqual(recovered);
-  expect(await Promise.all(untouched.map(state))).toEqual(before);
+    await owner.unsafe(recovery);
+    const recovered = await state(head);
+    expect(recovered).toMatchObject([
+      {
+        parked_at: null,
+        published_at: null,
+        attempts: 0,
+        last_error: null,
+        ready: true,
+      },
+    ]);
+    await owner.unsafe(recovery);
+    expect(await state(head)).toEqual(recovered);
+    expect(await Promise.all(untouched.map(state))).toEqual(before);
 
-  expect(await dispatcher.dispatchBatch(100, deliver)).toBe(1);
-  expect(deliver.mock.calls.map(([event]) => event.id)).toEqual([head]);
-  expect(await state(head)).toMatchObject([
-    {
-      published_at: expect.any(Date),
-      parked_at: null,
-      attempts: 1,
-      last_error: null,
-    },
-  ]);
-  expect(await state(later)).toMatchObject([{ published_at: null, attempts: 0 }]);
-  expect(await dispatcher.dispatchBatch(100, deliver)).toBe(1);
-  expect(deliver.mock.calls.map(([event]) => event.id)).toEqual([head, later]);
-  expect(await state(later)).toMatchObject([{ published_at: expect.any(Date), attempts: 1 }]);
-  expect(await Promise.all(untouched.map(state))).toEqual(before);
-  expect(withTenant).not.toHaveBeenCalled();
-  withTenant.mockRestore();
-});
+    expect(await dispatcher.dispatchBatch(100, deliver)).toBe(1);
+    expect(deliver.mock.calls.map(([event]) => event.id)).toEqual([head]);
+    expect(await state(head)).toMatchObject([
+      {
+        published_at: expect.any(Date),
+        parked_at: null,
+        attempts: 1,
+        last_error: null,
+      },
+    ]);
+    expect(await state(later)).toMatchObject([{ published_at: null, attempts: 0 }]);
+    expect(await dispatcher.dispatchBatch(100, deliver)).toBe(1);
+    expect(deliver.mock.calls.map(([event]) => event.id)).toEqual([head, later]);
+    expect(await state(later)).toMatchObject([{ published_at: expect.any(Date), attempts: 1 }]);
+    expect(await Promise.all(untouched.map(state))).toEqual(before);
+    expect(withTenant).not.toHaveBeenCalled();
+    withTenant.mockRestore();
+  },
+);

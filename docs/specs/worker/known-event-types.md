@@ -11,6 +11,13 @@ parks, blocking later events for the same aggregate.
 - Recognize `SalaryChanged`, `LeaveRequested`, `LeaveCancelled`, `LeaveApproved`,
   `LeaveRejected`, `LeaveRevoked`, and `EmployeePasskeyBound` without new consumers.
 - Keep genuinely unknown events on the existing retry/park path.
+- Recover only unpublished rows of the seven types that are parked or have
+  attempts >= 10 (the dispatcher's default maximum), including a crashed final
+  attempt whose lease is still held and whose parked_at is NULL. Clear parked_at
+  and last_error, reset attempts to zero and next_attempt_at to now (the lease is
+  stored there). Repeating the statement must leave recovered rows unchanged.
+  Prove the dispatcher publishes each recovered head and then its blocked successor;
+  unrelated types, published rows and retries below the limit remain unchanged.
 - Add a source coverage spec for all production `eventType:` values in API and
   worker, including constants, conditional literals and finite template expansions.
   Every emitted type must be known or covered by a registered consumer. The spec
