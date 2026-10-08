@@ -181,6 +181,8 @@ The producer appends to the outbox inside its own transaction and knows **none**
 
 > The Phase 1 rows (ADR-0010) are the exception: realtime is out of scope this phase — screens poll (the PRD's Phase 1 exception, closed by P2-T8) — so they list their business consumers only, and the `realtime` publisher joins them when it ships. Payload identities and per-row `revision` convergence live in ADR-0010 and SPEC §3.
 
+PR #128 recovery migration re-queues only unpublished, parked `SalaryChanged`, `LeaveRequested`, `LeaveCancelled`, `LeaveApproved`, `LeaveRejected`, `LeaveRevoked` and `EmployeePasskeyBound` rows, resetting retries so known events publish without effects and release later events for the same aggregate.
+
 **Consumers are idempotent**, deduped by `event_id`. Redelivery is harmless, and replay is a supported recovery tool.
 
 ---
