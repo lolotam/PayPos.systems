@@ -30,8 +30,8 @@ Two things are not covered by an existing decision:
    release is relied on, only after every worker has fully rolled out (the spec 033 MO-Q4 precedent of 2026-10-05).
    The operator procedure is in [the runbook](../runbook.md). Schedules are never removed automatically.
 2. **Recipients through a read port.** Worker `staff` defines `BranchManagerRecipients` in its own `ports/`:
-   for one branch, the user ids holding an **active** membership of the company (not removed, not expired, company
-   not closed) whose system role is `owner`, `general_manager`, `business_manager` or `branch_manager` and whose
+   for one branch, the user ids holding an **active** membership of the company (not removed, not expired) whose
+   system role is `owner`, `general_manager`, `business_manager` or `branch_manager` and whose
    membership scope (COMPANY / the branch's BUSINESS / the BRANCH) covers that branch (NC-Q2), excluding the absent
    employee's own user. The adapter in
    `apps/worker/src/modules/staff/persistence/` calls a read-only function exported from a new minimal worker
@@ -41,9 +41,12 @@ Two things are not covered by an existing decision:
    the attendance lock, and `roles` come only from `interimNotClockedInRule`. Each scope arm is fenced with
    `OFFSET 0` so the planner uses the company/scope indexes instead of the global role index. It adds **no import arrow** —
    `staff → identity` already exists (`module-map.md` §2) — and one §3 port row. The machine-readable map records
-   the reads under `reads:` (the generated YAML has no `ports:` key). The same port also calls identity's
-   `companyOpen` read before candidate paging and again under the employee lock: a company with `deleted_at`
-   set is skipped entirely, including recipient-free notices. Branch names use a second port, decision 6.
+   the reads under `reads:` (the generated YAML has no `ports:` key). The same staff-owned port calls worker
+   tenancy's public `companyOpen` read before candidate paging and again under the employee lock, on the
+   caller's tenant transaction: a company with `deleted_at` set is skipped entirely, including recipient-free
+   notices. Identity's recipient query reads only identity-owned memberships and roles; it relies on this
+   locked caller check and never joins tenancy's `companies` table (CLAUDE.architecture.md §6.2/§7.3).
+   Branch names use a second port, decision 6.
 3. **Interim fixed rule, replaced by PR 62.** Until PR 62, the alert is always on, its delay is 20 minutes, its
    recipients are the step-2 managers and its only channel is IN_APP. No email (NC-Q4); no WhatsApp; no employee
    notice (NC-Q3 — the employee's own push notice ships with PR 28b). The rule is one function in the worker

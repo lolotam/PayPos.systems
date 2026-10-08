@@ -1,15 +1,9 @@
 import type { Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
-/** قراءة أهلية الشركة على معاملة المستأجر حتى لا تسجل الوظيفة إشعاراً لشركة محذوفة. */
-export async function companyOpen(tx: Tx, companyId: string): Promise<boolean> {
-  const rows = await tx.execute(sql`SELECT id FROM companies
-    WHERE id = ${companyId} AND deleted_at IS NULL`);
-  return rows.length > 0;
-}
-
 /**
  * مستخدمو العضويات النشطة التي تغطي الفرع بدور نظام من القائمة، بلا مسح عابر للشركات.
+ * المستدعي يتحقق من أهلية الشركة عبر التينانسي قبل قراءة المستلمين على نفس المعاملة.
  *
  * @param tx معاملة المستأجر
  * @param companyId الشركة
@@ -64,8 +58,7 @@ export function branchManagerRecipientsStatement(
     OFFSET 0`;
   const arm = (scope: SQL) => sql`SELECT s.user_id FROM (${covered(scope)}) s
     JOIN roles r ON r.id = s.role_id AND r.owner_key = s.role_owner_key
-    JOIN companies c ON c.id = ${companyId}
-    WHERE c.deleted_at IS NULL AND r.company_id IS NULL AND r.code IN (${codes})`;
+    WHERE r.company_id IS NULL AND r.code IN (${codes})`;
   return sql`${arm(sql`scope_type = 'COMPANY' AND scope_id = ${companyId}`)}
     UNION ${arm(sql`scope_business_id = ${businessId}`)}
     UNION ${arm(sql`scope_branch_id = ${branchId}`)}`;

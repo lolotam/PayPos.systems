@@ -4,6 +4,7 @@ import {
   ALERT_AT,
   lockWaiter,
   notClockedInFixture,
+  ROLE,
   type NotClockedInFixture,
   type Tenant,
 } from './not-clocked-in.fixture.ts';
@@ -42,6 +43,41 @@ it('NCI-02 two concurrent workers record one notice', async () => {
   expect(first.notified + second.notified).toBe(1);
   expect(await f.notices(tenant.company, employee)).toHaveLength(1);
   expect(await f.events(tenant.company)).toHaveLength(1);
+});
+
+it.each([false, true])('company closure while waiting for State suppresses the notice (manager: %s)', async (hasManager) => {
+  const { tenant, employee } = await dueEmployee('Company closes');
+  if (hasManager) {
+    await f.member({
+      tenant, userId: await f.user('manager'), roleId: ROLE.owner,
+      scopeType: 'COMPANY', scopeId: tenant.company,
+    });
+  }
+  const locked = gate();
+  const release = gate();
+  const holder = f.db.withTenant(tenant.company, async (tx) => {
+    await tx.execute(sql`SELECT employee_id FROM attendance_states
+      WHERE company_id=${tenant.company} AND employee_id=${employee} FOR UPDATE`);
+    locked.open();
+    await release.promise;
+  });
+  let job: Promise<unknown> | undefined;
+  try {
+    await locked.promise;
+    job = f.detect().execute(tenant.company).catch((error: unknown) => error);
+    await lockWaiter(f.owner);
+    await f.closeCompany(tenant.company, ALERT_AT);
+    release.open();
+    await holder;
+    expect(await job).toEqual({ notified: 0 });
+    expect(await f.notices(tenant.company, employee)).toHaveLength(0);
+    expect(await f.events(tenant.company)).toHaveLength(0);
+    expect(await f.owner`SELECT id FROM audit_log WHERE company_id=${tenant.company}`).toHaveLength(0);
+  } finally {
+    release.open();
+    await holder;
+    await job;
+  }
 });
 
 it('NCI-03 a clock-in holding the State lock first wins and the job sends nothing', async () => {
