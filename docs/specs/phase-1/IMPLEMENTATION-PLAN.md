@@ -74,6 +74,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 32  | services (create / update)                                                                                          | S            | 11                 |
 | 32b | services import                                                                                                     | S            | 32                 |
 | 33  | package types                                                                                                       | S            | 32                 |
+| 33b | package types: stop selling / resume selling (owner PT-Q5, 2026-10-08) — before PR 42                               | S            | 33                 |
 | 34  | customers: find-or-create by phone                                                                                  | S            | G1                 |
 | 34b | customers import                                                                                                    | S            | 34, 11             |
 | 35  | `record-service-session` — effective discount up to the limit only; above it refused                                | L            | 32, 34, 9, 7c      |
