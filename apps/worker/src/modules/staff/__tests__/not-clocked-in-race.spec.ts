@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import {
   ALERT_AT,
@@ -29,9 +29,9 @@ function gate() {
 async function dueEmployee(name: string) {
   const tenant = await f.tenant();
   const employee = await f.employee(tenant, { nameEn: name });
-  await f.shift(tenant, employee);
+  const shift = await f.shift(tenant, employee);
   f.setNow(ALERT_AT);
-  return { tenant, employee };
+  return { tenant, employee, shift };
 }
 
 it('NCI-02 two concurrent workers record one notice', async () => {
@@ -118,6 +118,94 @@ it('NCI-03 a clock-in that waits behind the notice does not retract it', async (
     await clock?.catch(() => undefined);
   }
 });
+
+it('NCI-07 waits for a schedule save and skips the deleted shift after commit', async () => {
+  const { tenant, employee, shift } = await dueEmployee('Schedule first');
+  const deleted = gate();
+  const release = gate();
+  const save = holdScheduleDelete(tenant, employee, shift, deleted.open, release.promise);
+  const settledSave = save.catch((error: unknown) => error);
+  let job: Promise<unknown> | undefined;
+  try {
+    await deleted.promise;
+    job = f.detect().execute(tenant.company).catch((error: unknown) => error);
+    await employeeLockWaiter('SHARE');
+    expect(await f.notices(tenant.company, employee)).toHaveLength(0);
+    expect(await f.events(tenant.company)).toHaveLength(0);
+    release.open();
+    expect(await settledSave).toEqual([{ id: shift }]);
+    expect(await job).toEqual({ notified: 0 });
+    expect(await f.notices(tenant.company, employee)).toHaveLength(0);
+    expect(await f.events(tenant.company)).toHaveLength(0);
+  } finally {
+    release.open();
+    await settledSave;
+    await job;
+  }
+});
+
+it('NCI-07 a schedule save waits for the job locks, then succeeds after the notice commits', async () => {
+  const { tenant, employee, shift } = await dueEmployee('Job first');
+  const inside = gate();
+  const release = gate();
+  const transactions: NotClockedInTransactions = {
+    candidates: f.transactions.candidates,
+    run: (company, employeeId, sample, work) =>
+      f.transactions.run(company, employeeId, sample, async (tx, at) => {
+        // نوقف المهمة قبل القراءة والكتابة حتى لا يخفي قفل FK الخاص بالتنبيه غياب قفل الموظف.
+        inside.open();
+        await release.promise;
+        return work(tx, at);
+      }),
+  };
+  const job = f.detect(transactions).execute(tenant.company).catch((error: unknown) => error);
+  let save: Promise<unknown> | undefined;
+  try {
+    await inside.promise;
+    save = holdScheduleDelete(tenant, employee, shift, () => undefined, Promise.resolve())
+      .catch((error: unknown) => error);
+    await employeeLockWaiter('UPDATE');
+    expect(await f.notices(tenant.company, employee)).toHaveLength(0);
+    release.open();
+    expect(await job).toEqual({ notified: 1 });
+    expect(await save).toEqual([{ id: shift }]);
+    expect(await f.owner`SELECT id FROM staff_schedule_shifts
+      WHERE company_id=${tenant.company} AND id=${shift}`).toHaveLength(0);
+    expect(await f.notices(tenant.company, employee)).toHaveLength(1);
+    expect(await f.events(tenant.company)).toHaveLength(1);
+  } finally {
+    release.open();
+    await job;
+    await save;
+  }
+});
+
+async function employeeLockWaiter(mode: 'SHARE' | 'UPDATE') {
+  await vi.waitFor(async () => {
+    const rows = await f.owner`SELECT pid FROM pg_stat_activity
+      WHERE datname=current_database() AND usename='pospay_app' AND wait_event_type='Lock'
+        AND query LIKE '%FROM employees%' AND query LIKE ${`%FOR ${mode}%`}`;
+    expect(rows).toHaveLength(1);
+  }, { timeout: 5_000, interval: 25 });
+}
+
+function holdScheduleDelete(
+  tenant: Tenant,
+  employee: string,
+  shift: string,
+  opened: () => void,
+  release: Promise<void>,
+) {
+  return f.db.withTenant(tenant.company, async (tx) => {
+    await tx.execute(sql`SELECT id FROM employees
+      WHERE company_id=${tenant.company} AND id=${employee} FOR UPDATE`);
+    const removed = await tx.execute(sql`DELETE FROM staff_schedule_shifts
+      WHERE company_id=${tenant.company} AND employee_id=${employee} AND id=${shift} RETURNING id`);
+    opened();
+    await release;
+    return removed;
+  });
+}
 
 function gated(opened: () => void, release: Promise<void>): NotClockedInTransactions {
   return {

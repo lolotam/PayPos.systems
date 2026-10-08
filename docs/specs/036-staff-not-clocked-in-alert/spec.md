@@ -275,7 +275,9 @@ joins.
 ### Lock and once-only protocol
 
 The due-shift page is read without locks (pre-filter only). Per candidate, one `withTenant` transaction: lock the
-employee's `attendance_states` row (the first lock of scans and the missed-out job, ADR-0028/0032) → sample the
+employee's `attendance_states` row (the first lock of scans and the missed-out job, ADR-0028/0032) → take `FOR SHARE`
+on the employee's `employees` row (schedule saves hold it `FOR UPDATE`, so a concurrent move or delete of the shift
+commits before the re-read or waits for the job) → sample the
 injected Clock once → re-read the shift, counting clock-ins, approved leave and employee eligibility → decide with
 the domain → on `ALERT` resolve recipients → `INSERT … ON CONFLICT (company_id, employee_id, shift_starts_at)
 DO NOTHING RETURNING id` → only an inserted row writes audit and outbox. A scan holding the lock first wins.
@@ -302,7 +304,7 @@ DO NOTHING RETURNING id` → only an inserted row writes audit and outbox. A sca
   fall and spring zones; split shifts; the interim rule's values.
 - **Integration scenarios** (PostgreSQL, one cloned database per file, as `pospay_app`):
   `NCI-01` one notice, event and one in-app message per manager; re-run none · `NCI-02` two concurrent workers → one ·
-  `NCI-03` scan racing the job, both lock orders → the clock-in wins · `NCI-04` approved full leave suppresses,
+  `NCI-03` scan racing the job: when the scan locks first the clock-in wins; when the job commits first its notice stands (as in the missed-out job) · `NCI-04` approved full leave suppresses,
   pending does not · `NCI-05` partial leave moves to 12:20 · `NCI-06` re-saved week, same start → none ·
   `NCI-07` moved shift alerts at its new start · `NCI-08` clock-in at another branch → none · `NCI-09` stale shift
   skipped, late detection while running sends · `NCI-10` recipients: owner, GM, business manager, branch manager of

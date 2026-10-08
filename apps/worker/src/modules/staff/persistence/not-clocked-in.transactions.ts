@@ -144,6 +144,13 @@ async function lockEmployee(tx: Tx, companyId: string, employeeId: string): Prom
   await tx.execute(sql`
     SELECT employee_id FROM attendance_states
     WHERE company_id = ${companyId} AND employee_id = ${employeeId} FOR UPDATE`);
+  // قفل employees يمنع حفظ الجدول من تغيير الوردية بين إعادة قراءتها وتثبيت التنبيه.
+  // الترتيب attendance_states ثم employees يوافق مسح QR/الكارت؛ correct-attendance يأخذ الحالة ثم الجلسة ثم الموظف.
+  // missed-out يأخذ الحالة ولا يقفل الموظف، وresolve يأخذ الاستثناء ثم الموظف ولا يطلب الحالة.
+  // حفظ الجدول يقفل الموظف فقط دون الحالة، وهذه المهمة لا تقفل جلسة أو استثناء؛ فلا تنشأ دورة انتظار بهذه الإضافة.
+  await tx.execute(sql`
+    SELECT id FROM employees
+    WHERE company_id = ${companyId} AND id = ${employeeId} FOR SHARE`);
 }
 
 async function readShift(

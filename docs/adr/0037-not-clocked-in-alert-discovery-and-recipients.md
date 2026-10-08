@@ -77,6 +77,7 @@ Two things are not covered by an existing decision:
 7. **Once-only key and lock order.** The notice table's UNIQUE `(company_id, employee_id, shift_starts_at)` is the
    dedupe key (shift rows are replaced on re-save, ADR-0024), and each decision runs after locking the employee's
    `attendance_states` row, the same first lock as scans and the missed-out job (ADR-0028/0032).
+   Then lock the same `(company_id, id)` employee row `FOR SHARE` before re-reading the shift, holding it through notice/audit/outbox commit to serialize with schedule writers' `employees FOR UPDATE`.
 8. **Leave and presence.** An approved `FULL_DAY` leave excuses any shift with `from ≤ working_date ≤ to`,
    including overnight shifts. All approved leaves are also fetched by instant overlap and participate in the
    contiguous-leave chain: partial leave until midnight followed by FULL_DAY leave on the next day excuses an
