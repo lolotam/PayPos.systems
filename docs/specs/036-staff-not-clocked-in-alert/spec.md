@@ -59,6 +59,10 @@ clocking in at 10:15 for a 10:00 shift is reported late but not alerted.
 - **In-app (this PR):** the admin bell renders `shift_not_clocked_in` in the **viewer's current UI locale** at read time, not the `locale` stored on the row. The stored safe parameters carry both languages: `employee_name_ar` / `employee_name_en` and `branch_name_ar` / `branch_name_en`. The Arabic value falls back to English when missing (names: English required, Arabic optional — CLAUDE.md §5). The stored `locale` stays as the row's default for consumers without a UI, such as exports.
 - **Push (row 28b):** text is rendered before it is sent, so 28b must add a stored per-user language preference and render push in it.
 
+### NC-Q13 — open session across a split-day gap (Waleed, 2026-10-08)
+
+The question came from the layer-2 review. An employee clocks in at 07:55 for the 08:00–12:00 shift, never clocks out, and has a second shift at 12:30. Decision: **no alert** for the second shift. A session still OPEN at the second shift's deadline counts as present. The missing clock-out is the job of the existing suspected-missed-out exception (spec 029).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - The manager learns an employee has not arrived (Priority: P1)
