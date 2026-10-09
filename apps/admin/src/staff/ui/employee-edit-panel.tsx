@@ -52,13 +52,7 @@ export function EmployeeEditPanel({
       {save.isSuccess ? <p role="status">{t(locale, 'staff.saved')}</p> : null}
       {/* TODO(spec) SS-Q2: الوصول هنا يتطلب manage:employees:business؛ مدخل مستقل لمفوّض الرواتب ينتظر قرار المالك. */}
       {record.data && !record.isError ? (
-        <EmployeeRecordSections
-          {...{ companyId, businessId: business.id, userId, employeeId }}
-          timeZone={
-            business.branches.find((b) => b.id === record.data.primary_branch_id)
-              ?.effective_timezone
-          }
-        />
+        <EmployeeRecordSections {...recordSectionProps(companyId, business, userId, record.data)} />
       ) : null}
       <EmployeeEditActions
         pending={save.isPending}
@@ -75,4 +69,20 @@ export function EmployeeEditPanel({
       />
     </Card>
   );
+}
+
+function recordSectionProps(
+  companyId: string,
+  business: WorkspaceBusiness,
+  userId: string,
+  record: { id: string; primary_branch_id: string },
+) {
+  const branch = business.branches.find((b) => b.id === record.primary_branch_id);
+  return {
+    companyId,
+    businessId: business.id,
+    userId,
+    employeeId: record.id,
+    timeZone: branch?.effective_timezone,
+  };
 }
