@@ -1,5 +1,10 @@
-import { employeeNameMatches as responseSchema, type EmployeeNameMatches } from '@pospay/contracts';
+import {
+  employeeNameMatches as responseSchema,
+  type EmployeeNameMatches,
+  type EmployeeNameMatchesInput,
+} from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
+import { employeeNameMatchKey } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import type { EmployeeDetailAccess } from './employee-detail.query.ts';
 
@@ -7,6 +12,17 @@ export interface EmployeeNameMatchKeys {
   readonly name_en_key: string;
   readonly name_ar_key: string | null;
   readonly exclude_employee_id?: string;
+}
+
+// المفتاح بيتحسب بقاعدة packages/domain الوحيدة، عشان المقارنة تطابق المفاتيح المخزّنة وقت الحفظ بالظبط.
+export function matchKeysOf(input: EmployeeNameMatchesInput): EmployeeNameMatchKeys {
+  return {
+    name_en_key: employeeNameMatchKey(input.name_en),
+    name_ar_key: input.name_ar == null ? null : employeeNameMatchKey(input.name_ar),
+    ...(input.exclude_employee_id === undefined
+      ? {}
+      : { exclude_employee_id: input.exclude_employee_id }),
+  };
 }
 
 // استمارتا إنشاء وتعديل الموظف تعرضان تفاصيل التطابق المرئي فقط ووجود تطابق مخفي دون عدده.
@@ -44,14 +60,19 @@ export async function employeeNameMatches(
   companyId: string,
   businessId: string,
   userId: string,
-  input: EmployeeNameMatchKeys,
+  input: EmployeeNameMatchesInput,
   access: EmployeeDetailAccess,
 ): Promise<EmployeeNameMatches | 'FORBIDDEN' | 'FEATURE_DISABLED'> {
   const decision = await access.listScope(tx, companyId, userId, businessId);
   if (decision.allowedBranchIds.length === 0) return 'FORBIDDEN';
   if (!decision.featureEnabled) return 'FEATURE_DISABLED';
   const [row] = await tx.execute(
-    employeeNameMatchesStatement(companyId, businessId, input, decision.allowedBranchIds),
+    employeeNameMatchesStatement(
+      companyId,
+      businessId,
+      matchKeysOf(input),
+      decision.allowedBranchIds,
+    ),
   );
   return responseSchema.parse(row);
 }

@@ -44,7 +44,14 @@ const keys = (input: unknown) => {
 };
 const check = (input: unknown, company = f.company, business = f.business) =>
   f.db.withTenant(company, (tx) =>
-    employeeNameMatches(tx, company, business, f.userId, keys(input), createEmployeeDetailAccess()),
+    employeeNameMatches(
+      tx,
+      company,
+      business,
+      f.userId,
+      employeeNameMatchesInput.parse(input),
+      createEmployeeDetailAccess(),
+    ),
   );
 const send = (body: object, business = f.business) =>
   f.h.send('POST', `/v1/businesses/${business}/employees/name-matches`, {
