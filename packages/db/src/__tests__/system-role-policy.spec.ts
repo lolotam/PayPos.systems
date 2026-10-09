@@ -23,7 +23,7 @@ it.each([
   ['cashier', 'login:staff:branch', true],
   ['staff', 'login:staff:branch', true],
   ['owner', 'login:staff:branch', false],
-  ['kitchen', 'manage:files:business', false],
+  ['kitchen', 'manage:files:business', true],
 ])('%s personal eligibility for %s is %s', (code, permission, allowed) => {
   expect(
     systemRolePolicy(role(String(code)), 'global')?.permissions.some(
@@ -40,6 +40,9 @@ it('recognizes fixed global identities only; company aliases and technical Devic
 
 for (const entry of SYSTEM_ROLES) {
   it.each([
+    'read:files:business',
+    'manage:files:business',
+    'manage:document-types:company',
     'read:salaries:business',
     'manage:salaries:business',
     'read:schedules:branch',
@@ -109,7 +112,10 @@ for (const entry of SYSTEM_ROLES) {
     ['create:customers:business', ['owner', 'business_manager']],
     ['create:customers:branch', ['owner', 'branch_manager', 'cashier']],
     ['manage:discount-limits:business', ['owner', 'general_manager', 'business_manager']],
-    ['manage:document-types:company', ['owner', 'general_manager', 'business_manager']],
+    [
+      'manage:document-types:company',
+      SYSTEM_ROLES.filter((r) => r.code !== 'device').map((r) => r.code),
+    ],
   ] as const)(entry.code + ' follow-up eligibility for %s', (code, roles) => {
     expect(systemRolePolicy(entry.id, 'global')?.permissions.includes(code)).toBe(
       (roles as readonly string[]).includes(entry.code),

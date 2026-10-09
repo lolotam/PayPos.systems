@@ -54,8 +54,6 @@ it.each(['ar', 'en'] as const)(
     state.locale = locale;
     const data = detail([
       'manage:employees:business',
-      'manage:files:business',
-      'read:files:business',
       'create:customers:business',
       'create:customers:branch',
       'manage:discount-limits:business',
@@ -70,6 +68,12 @@ it.each(['ar', 'en'] as const)(
       screen.getByText(t(locale, 'permissions.defaults')).closest('section') as HTMLElement,
     );
     expect(defaults.queryByText(code)).toBeNull();
+    for (const permission of [
+      'read:files:business',
+      'manage:files:business',
+      'manage:document-types:company',
+    ])
+      expect(defaults.queryByText(permission)).toBeNull();
     for (const permission of data.role_defaults) {
       expect(defaults.getByText(permission)).toBeTruthy();
       expect(defaults.getByText(permissionName(locale, permission), { exact: false })).toBeTruthy();

@@ -17,6 +17,7 @@ const terms = {
 const context: PermissionEditContext = {
   companyId,
   editorUserId: 'editor',
+  editorIsCompanyOwner: false,
   now: new Date('2026-10-03'),
   catalog: [terms.permission_code],
   holderMemberships: [],
