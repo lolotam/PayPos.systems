@@ -171,3 +171,30 @@ it.each([403, 404])('removes mutation variables when saving is denied with %s', 
   expect(api.PUT).toHaveBeenCalledTimes(1);
   unmount();
 });
+it('evicts full history and saved IBAN data when a fresh read comes back masked', async () => {
+  api.PUT.mockResolvedValue({ data: full });
+  const { client, result, unmount } = mountHook();
+  await waitFor(() => expect(result.current.history.data).toBeTruthy());
+  await act(async () => {
+    await result.current.save.mutateAsync(input);
+  });
+  expect(client.getMutationCache().findAll({ mutationKey: key })).toHaveLength(1);
+  api.GET.mockResolvedValue({ data: masked });
+  await act(async () => {
+    await result.current.current.refetch();
+  });
+  // الـ observer المعطّل ممكن يرجّع entry فاضي، المهم إن مفيش أي صفحة سجل فيها بيانات.
+  await waitFor(() =>
+    expect(
+      client
+        .getQueryCache()
+        .findAll({ queryKey: [...key, 'history'] })
+        .map((query) => query.state.data),
+    ).toEqual([undefined]),
+  );
+  expect(client.getMutationCache().findAll({ mutationKey: key })).toEqual([]);
+  expect(result.current.save.data).toBeUndefined();
+  expect(result.current.save.variables).toBeUndefined();
+  expect(result.current.current.data?.iban).toBeNull();
+  unmount();
+});

@@ -29,17 +29,33 @@ export function useEmployeeIban(
   const accessDenied = [current.error, history.error, save.error].some((error) =>
     [403, 404].includes((error as { status?: number } | null)?.status ?? 0),
   );
-  const clearCache = useCallback(() => {
-    const queryKey = ['employee-iban', companyId, businessId, userId, employeeId];
-    client.removeQueries({ queryKey });
+  const removeSaves = useCallback(() => {
     const mutations = client.getMutationCache();
-    for (const mutation of mutations.findAll({ mutationKey: [...queryKey, 'set'], exact: true }))
+    const mutationKey = ['employee-iban', companyId, businessId, userId, employeeId, 'set'];
+    for (const mutation of mutations.findAll({ mutationKey, exact: true }))
       mutations.remove(mutation);
   }, [client, companyId, businessId, userId, employeeId]);
+  const clearCache = useCallback(() => {
+    client.removeQueries({
+      queryKey: ['employee-iban', companyId, businessId, userId, employeeId],
+    });
+    removeSaves();
+  }, [client, removeSaves, companyId, businessId, userId, employeeId]);
   useEffect(() => clearCache, [clearCache]);
   useEffect(() => {
     if (accessDenied) clearCache();
   }, [clearCache, accessDenied]);
+  // لو الصلاحية اتسحبت والقراءة رجعت مقنّعة، السجل الكامل وبيانات الحفظ القديمة لازم تتمسح من الكاش.
+  const masked = current.isFetchedAfterMount && current.data?.can_read_full === false;
+  const resetSave = save.reset;
+  useEffect(() => {
+    if (!masked) return;
+    client.removeQueries({
+      queryKey: ['employee-iban', companyId, businessId, userId, employeeId, 'history'],
+    });
+    removeSaves();
+    resetSave();
+  }, [masked, client, removeSaves, resetSave, companyId, businessId, userId, employeeId]);
   return { current, history, save, accessDenied };
 }
 
