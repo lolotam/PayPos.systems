@@ -176,6 +176,10 @@ it.each([
   '-- pospay:data_step known',
   '-- pospay: data-step known',
   '-- pospay:datastep known',
+  '-- pospay:data-stpe known',
+  '-- pospay:data-sep known',
+  '-- pospay:dta-step known',
+  '/* pospay: anything */',
 ])('rejects malformed marker %s before any step, statement or journal row', async (marker) => {
   files.sql = [
     '-- pospay:data-step known\nCREATE TABLE data_step_malformed_test (id int)',

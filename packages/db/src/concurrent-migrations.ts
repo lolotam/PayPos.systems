@@ -11,6 +11,8 @@ type DataSteps = Readonly<Record<string, (owner: postgres.Sql) => Promise<void>>
 // Only the exact column-0 form is a marker. Any other line that mentions it (indented, inside a block comment,
 // different case or spacing) would be skipped by a looser parser and silently lose its step, so it aborts instead.
 const MARKER = /^-- pospay:data-step ([a-z0-9-]+)$/;
+// `pospay:` inside a SQL comment is reserved for markers, so a misspelt one (data-stpe, datastep…) fails closed too.
+const RESERVED = /pospay\s*:\s*data|(--|\/\*).*pospay\s*:|^\s*\*.*pospay\s*:/i;
 
 function migrationSteps(statements: readonly string[], dataSteps: DataSteps) {
   const names = [
@@ -18,7 +20,7 @@ function migrationSteps(statements: readonly string[], dataSteps: DataSteps) {
       statements.flatMap((statement) =>
         statement
           .split(/\r?\n/)
-          .filter((line) => /pospay\s*:\s*data[-_\s]?step/i.test(line))
+          .filter((line) => RESERVED.test(line))
           .map((line) => {
             const name = MARKER.exec(line)?.[1];
             if (name === undefined)
