@@ -40,17 +40,17 @@ reception device is not part of the block. This replaces the warn-only ten-minut
 - **What this cannot prove (must be said to the owner)**: two browsers, two browser profiles, or the iOS home-screen
   app vs Safari on one phone each have their own storage, so they look like **two phones**. Clearing site data or a
   private window gives a new id. The lock therefore raises the bar (OTP of the other employee + enrolling her passkey
-  in a second browser on the same phone), it is not a physical guarantee. This is why DL-Q1 recommends the two-way lock:
+  in a second browser on the same phone), it is not a physical guarantee. This is why PL-Q1 recommends the two-way lock:
   with a one-way lock a private window is a 10-second bypass.
 - **Storage loss risk**: Safari may delete script-written storage of a site not used for 7 days of browser use
   (ITP); an employee back from leave can find her phone "new". Home-screen web apps are exempt. Mitigation: request
-  `navigator.storage.persist()`, and recommend adding the POS to the home screen. Recovery is DL-Q2.
+  `navigator.storage.persist()`, and recommend adding the POS to the home screen. Recovery is PL-Q2.
 
 ## R3. Rule shape
 
 - Enrollment records the installation hash on the new binding. It is refused when that installation already
   belongs to an active binding of **another person** in the company.
-- Challenge and clock: refused when the installation belongs to another person's active binding, and — if DL-Q1 is
+- Challenge and clock: refused when the installation belongs to another person's active binding, and — if PL-Q1 is
   the two-way option — when the employee's own binding is locked to a different installation.
 - "Another person" = a different linked user (`employees.user_id`), not a different employee row: one person may be an
   employee in two businesses of the same company (`employees_active_user_business_key`, `packages/db/schema/staff.ts:102`)
@@ -69,7 +69,7 @@ reception device is not part of the block. This replaces the warn-only ten-minut
   `sharedInstallationFlag*` contracts), which have no consumer. Keep writing `attendance_device_signals` per accepted
   clock (UNB-Q4 retention; useful history; no schema change). Card clocks never had a signal, so "keep it for
   non-passkey paths" is impossible — not asked.
-- Row 27 (board) loses the pair list from its scope; it gains the refused-attempt list if DL-Q3 keeps it.
+- Row 27 (board) loses the pair list from its scope; it gains the refused-attempt list if PL-Q3 keeps it.
 
 ## R5. Where the check runs
 
@@ -94,7 +94,7 @@ reception device is not part of the block. This replaces the warn-only ten-minut
 | Stored attendance rows / open shifts | none changed. An employee who loses her phone mid-shift cannot clock out from another phone (two-way) | card at reception (unaffected) or the 16 h missed-out job; manager unbind |
 | Legacy bindings | no installation yet | first accepted clock attaches |
 | Two employees already sharing one phone | the first to clock after deploy takes it; the other is refused until a manager unbinds | staging only (R3) |
-| iOS: enrolled in Safari, later uses home-screen app | different storage → "different phone" → refused (two-way) | onboarding copy: enrol from the app you will use; recovery DL-Q2 |
+| iOS: enrolled in Safari, later uses home-screen app | different storage → "different phone" → refused (two-way) | onboarding copy: enrol from the app you will use; recovery PL-Q2 |
 | Offline POS | attendance is online-only (spec 027 AT-07) | no change |
 | Reports, hours, commission | refused clocks write no session | no change |
 | ADR-0029 "never block on the signal" | contradicted | **new ADR** amending ADR-0029 (number at merge) |
@@ -110,9 +110,9 @@ its test (delete); `queries/shared-installations.query.ts` (delete) and `__tests
 `persistence/attendance-context.adapter.ts`, `persistence/attendance-device-signal.ts`,
 `persistence/passkey-transactions.ts`, `persistence/attendance-writes.ts`; `http/clock-attendance.controller.ts`,
 `http/passkeys.controller.ts`; `queries/employee-passkeys.query.ts` (show "phone locked"); `apps/api/src/shared/errors.ts`.
-If DL-Q3 keeps a record: a refused-attempt writer outside the rolled-back transaction.
+If PL-Q3 keeps a record: a refused-attempt writer outside the rolled-back transaction.
 DB: `packages/db/schema/staff-passkeys.ts`, new migration(s) (`installation_hash` column + partial index + grant +
-immutability trigger; numbers at merge, next free is 0103). Possibly a refused-attempts table (DL-Q3).
+immutability trigger; numbers at merge, next free is 0103). Possibly a refused-attempts table (PL-Q3).
 Contracts: `packages/contracts/src/staff/clock-attendance.ts`, `passkeys.ts`, `unbind-passkey.ts`, OpenAPI.
 POS: `apps/pos/src/personal-staff/api/personal-calls.ts`, `attendance-calls.ts`, `use-enrol-passkey.ts`,
 `model/installation-id.ts` (`storage.persist()`), `ui/clock-attendance-screen.tsx`, `ui/enrol-passkey-screen.tsx`,

@@ -13,11 +13,11 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — four business rules are `TODO(spec) → DL-Q1…DL-Q4`, PENDING owner
+- [ ] No [NEEDS CLARIFICATION] markers remain — four business rules are `TODO(spec) → PL-Q1…PL-Q4`, PENDING owner
 - [x] Requirements are testable and unambiguous (except the four pending rules)
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
-- [x] All acceptance scenarios are defined (DL-04, DL-09 depend on DL-Q1/DL-Q2)
+- [x] All acceptance scenarios are defined (DL-04, DL-09 depend on PL-Q1/PL-Q2)
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
@@ -32,5 +32,5 @@
 
 ## Notes
 
-- Not ready for `/speckit-plan` until DL-Q1 … DL-Q4 are answered and written back into `spec.md`.
+- Not ready for `/speckit-plan` until PL-Q1 … PL-Q4 are answered and written back into `spec.md`.
 - A new ADR amending ADR-0029 is required at implementation (blocking on the installation signal).
