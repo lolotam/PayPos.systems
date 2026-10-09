@@ -127,3 +127,11 @@ MS-Q5 minimum gap between back-to-back shifts. See `owner-questions.ar.md`.
 Not asked (already decided or not a business rule): the 16 h cap (owner: stays 16 h); auditing the setting change
 (always, `CLAUDE.md` §8); the default 3 for every existing business (owner); POS offline (not needed, R5);
 the count stays employee-wide across branches by start day (spec 020, unchanged).
+
+## R8. After the owner's answers (2026-10-10)
+
+- MS-Q1 per business · MS-Q2 owner default, owner-only grant to any human (spec 039 pattern) · MS-Q3 **1 … 4** ·
+  MS-Q4 stored rows stay, changed days only, template apply checks all days · MS-Q5 no minimum gap.
+- Consequences: DB CHECK `BETWEEN 1 AND 4`; contract bound `.max(28)` (7 × 4) instead of 42 (R5 row "Contract
+  bound"); the FR-013 re-measure is 20 copies × 28 shifts (560 shift rows), against 20 × 14 = 280 today.
+- No open `NEEDS CLARIFICATION` remains for planning.
