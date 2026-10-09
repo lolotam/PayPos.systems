@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { employeeIbanSchemas } from './staff/employee-iban.js';
+import { employeeIbanPaths } from './staff/employee-iban-openapi.js';
 import { unbindPasskeySchemas } from './staff/unbind-passkey.js';
 import { unbindPasskeyPaths } from './staff/unbind-passkey-openapi.js';
 import { leaveSchemas } from './staff/leave.js';
@@ -111,6 +113,7 @@ import {
 } from './whatsapp-webhook.js';
 
 const SCHEMAS = [
+  ...employeeIbanSchemas,
   ...employeeDocumentSchemas,
   ...clockAttendanceSchemas,
   ...clockByCardSchemas,
@@ -227,6 +230,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...employeeIbanPaths,
   ...employeeDocumentPaths,
   ...employeeImportPaths,
   ...passkeyPaths,

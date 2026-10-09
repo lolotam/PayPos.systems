@@ -694,6 +694,20 @@
       "when": 1791456720219,
       "tag": "0098_2026-10-09_staff-employee-name-key-indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1791456721219,
+      "tag": "0099_2026-10-09_employee-ibans",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1791456722219,
+      "tag": "0100_2026-10-09_employee-ibans-rls",
+      "breakpoints": true
     }
   ]
 }

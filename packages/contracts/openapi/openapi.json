@@ -5,6 +5,253 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/businesses/{businessId}/employees/{employeeId}/iban": {
+      "get": {
+        "operationId": "getEmployeeIban",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "description": "Salary readers receive full bank details; employee managers receive only the last four IBAN characters. Uniform 404 otherwise. Staff feature required after access.",
+        "responses": {
+          "200": {
+            "description": "Current bank account, masked by access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeIbanView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setEmployeeIban",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "description": "Requires salary read and manage. Append-only revision with mandatory reason; stale revision or duplicate current IBAN returns 409 without identifying details. Same values are a no-op. No Idempotency-Key. Uniform 404 for inaccessible employees.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetEmployeeIbanInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current bank account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeIbanView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employees/{employeeId}/iban/history": {
+      "get": {
+        "operationId": "employeeIbanHistory",
+        "description": "Full bank account history for salary readers only. Masked readers and inaccessible employees receive uniform 404.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Descending revisions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeIbanHistoryPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/document-types": {
       "get": {
         "operationId": "listDocumentTypes",
@@ -6570,6 +6817,201 @@
   },
   "components": {
     "schemas": {
+      "SetEmployeeIbanInput": {
+        "type": "object",
+        "properties": {
+          "iban": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 64
+          },
+          "bank_id": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 48
+          },
+          "holder_name_en": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 200
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "iban",
+          "bank_id",
+          "holder_name_en",
+          "reason",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeIbanView": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "SET",
+              "NOT_SET"
+            ]
+          },
+          "iban_last4": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 4
+          },
+          "iban": {
+            "nullable": true,
+            "type": "string"
+          },
+          "bank_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "holder_name_en": {
+            "nullable": true,
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "set_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "set_by": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "can_read_full": {
+            "type": "boolean"
+          },
+          "can_manage": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "status",
+          "iban_last4",
+          "iban",
+          "bank_id",
+          "holder_name_en",
+          "revision",
+          "set_at",
+          "set_by",
+          "can_read_full",
+          "can_manage"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeIbanHistoryQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "EmployeeIbanHistoryEntry": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "iban": {
+            "nullable": true,
+            "type": "string"
+          },
+          "bank_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "holder_name_en": {
+            "nullable": true,
+            "type": "string"
+          },
+          "cleared": {
+            "type": "boolean"
+          },
+          "set_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "set_by": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "iban",
+          "bank_id",
+          "holder_name_en",
+          "cleared",
+          "set_at",
+          "set_by",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeIbanHistoryPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmployeeIbanHistoryEntry"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
       "EmployeeDocumentStatus": {
         "type": "string",
         "enum": [
