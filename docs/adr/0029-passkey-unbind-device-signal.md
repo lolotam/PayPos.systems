@@ -2,6 +2,9 @@
 
 Date: 2026-10-04. Status: Accepted technical scope and owner policies.
 
+**Amended by [ADR-0039](0039-passkey-installation-lock.md) (Proposed, 2026-10-10):** a passkey phone is now locked to one
+person and the clock is refused from another person's phone; the advisory ten-minute pair rule (UNB-Q2) is retired.
+
 ## Context
 
 ADR-0013/0027 separate global auth credentials from tenant binding history. PR 21

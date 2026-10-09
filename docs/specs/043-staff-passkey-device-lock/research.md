@@ -122,3 +122,19 @@ schema. i18n: `packages/i18n/src/ar.ts`, `en.ts`. Docs: new ADR, `docs/specs/026
 **Overlap with 16b / 16c (schedules)**: none expected in source files — they touch schedule/shift-template code.
 Shared registries only: `packages/i18n/src/{ar,en}.ts`, `apps/api/src/shared/errors.ts`, contracts index/OpenAPI,
 generated `schema.d.ts` in admin/pos, migration numbering and `meta/_journal.json`. Reconcile at merge.
+
+## R8. After the owner's answers (2026-10-10)
+
+- **Decision**: two-way, per-person lock (PL-Q1, PL-Q4); manager unbind is the only release (PL-Q2); every refusal is
+  recorded in a new immutable tenant table, no event, no notification (PL-Q3). Recorded in ADR-0039 (Proposed).
+- **Refusal writer outside the rolled-back transaction**: a refusal must leave no session / audit / outbox /
+  idempotency row, so the attendance or enrollment transaction rolls back and the use case writes the refusal row in
+  a second `withTenant` transaction. Alternatives rejected: committing the refused transaction (keeps the idempotency
+  claim and needs every partial write undone); Redis counter like the card scan limiter (not durable, cannot feed the
+  board, no tenant RLS); audit log (refusals are not changes and would mix rejected attempts into the permanent
+  change log).
+- **Holder kept as an employee id**: the owner's chosen option names "on whose phone"; an employee id is not new
+  personal data. No name, no phone, no raw installation id.
+- **Enrollment of a second record from another phone** is refused (`PASSKEY_OTHER_DEVICE`): PL-Q4 "one phone" with
+  TD-3 "employee = person".
+- **Branch for an enrollment refusal**: the employee's primary branch (enrollment has no QR branch).

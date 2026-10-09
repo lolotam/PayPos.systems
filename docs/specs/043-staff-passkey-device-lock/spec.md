@@ -4,8 +4,9 @@
 
 **Created**: 2026-10-10
 
-**Status**: Draft — owner questions PL-Q1 … PL-Q4 **PENDING** (`owner-questions.ar.md`). Not ready for `/speckit-plan`
-until they are answered.
+**Status**: Ready for plan — owner questions PL-Q1 … PL-Q4 **ANSWERED** by Waleed on 2026-10-10 (all on the
+recommended option; the partner has not answered yet, Waleed said to proceed). Design recorded in
+[ADR-0039](../../adr/0039-passkey-installation-lock.md) (Proposed), which amends ADR-0029.
 
 **Input**: Phase 1 plan row **21b** (`docs/specs/phase-1/IMPLEMENTATION-PLAN.md`): "a phone bound by passkey to one
 employee refuses another employee's clock-in (block, replacing the warn-only two-employees flag for passkey devices; the
@@ -20,14 +21,16 @@ spec 024 (enrol passkey), spec 032 (clock by card), ADR-0027.
   does not accept an attendance clock for another employee.
 - The card on the reception device is **not** part of this block.
 
-## Owner questions (PENDING — see `owner-questions.ar.md`)
+## Owner answers (ANSWERED 2026-10-10 — `owner-questions.ar.md`, binding)
 
-| ID | Topic | Recommended |
+| ID | Topic | Waleed's final answer |
 |---|---|---|
-| PL-Q1 | One-way lock (the phone refuses others) or two-way (also: the employee clocks only from her phone) | two-way |
-| PL-Q2 | Lost / changed phone, or app data wiped: who moves the lock | manager unbind, as today (row 21) |
-| PL-Q3 | What the refused employee sees; is the attempt recorded / alerted | clear message + recorded for the board, no push |
-| PL-Q4 | One phone per employee, or more | exactly one |
+| PL-Q1 | One-way or two-way lock | **two-way**: Sara's phone accepts only Sara, and Sara clocks only from her phone or with the reception card |
+| PL-Q2 | Lost / changed phone, or app data wiped | **manager unbinds**, as row 21 (owner, general manager, business manager, branch manager for her branch); she enrols from the new phone; meanwhile she clocks with the card |
+| PL-Q3 | What the refused employee sees; recorded / alerted | **clear message** + the attempt is **recorded** and shown to the manager on the attendance board, **no instant notification** |
+| PL-Q4 | One phone or more | **one phone**; to change it a manager unbinds |
+
+Partner (أبو سالم / محمد العنزي): not answered yet — to be added later.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -50,8 +53,9 @@ with `ATTENDANCE_DEVICE_LOCKED`; no session, audit, outbox, idempotency or signa
 2. **DL-02** — **Given** the same, **When** A clocks from X, **Then** the spec 027 state machine runs unchanged.
 3. **DL-03** — **Given** the challenge was issued before a lock change (race), **When** the clock arrives, **Then** the
    locked recheck at the clock decides; the challenge decision is advisory.
-4. **DL-04** — **Given** A is locked to X, **When** A clocks from installation Y, **Then**
-   `TODO(spec) → PL-Q1` (two-way: refused `ATTENDANCE_DEVICE_NOT_ENROLLED`; one-way: accepted).
+4. **DL-04** (PL-Q1 two-way) — **Given** A is locked to X, **When** A requests a challenge or clocks from installation
+   Y (not held by anyone), **Then** it is refused `ATTENDANCE_DEVICE_NOT_ENROLLED` with the same no-effect guarantees
+   as DL-01, and the attempt is recorded (DL-12).
 
 ### User Story 2 — A phone cannot be enrolled for a second person (Priority: P1)
 
@@ -69,6 +73,9 @@ Without this, Heba would simply enrol her passkey on Sara's phone and the lock w
    it; the other is refused.
 3. **DL-07** — **Given** the same person has employee records in two businesses of one company, **When** she enrols the
    second record from her phone, **Then** it is accepted (the lock is per person, not per employee row).
+4. **DL-07b** (PL-Q4 one phone) — **Given** the same person's first record is locked to X, **When** she enrols her
+   second record from installation Y, **Then** it is refused `PASSKEY_OTHER_DEVICE` (409); she enrols it from X, or a
+   manager unbinds the first record.
 
 ### User Story 3 — Releasing a phone (Priority: P2)
 
@@ -78,7 +85,10 @@ A manager unbinds A's passkey (row 21); the phone is released together with it a
 
 1. **DL-08** — **Given** A is locked to X, **When** a permitted manager unbinds A, **Then** X is free: B can enrol on X;
    a stale challenge for A fails as today.
-2. **DL-09** — Lost phone / wiped app data / new phone: `TODO(spec) → PL-Q2`.
+2. **DL-09** (PL-Q2) — **Given** A lost her phone, changed it, or its app data was wiped (it now reports installation
+   Y), **When** she clocks from Y, **Then** she is refused `ATTENDANCE_DEVICE_NOT_ENROLLED` (DL-04). A permitted
+   manager unbinds her passkey (row 21, unchanged permissions); she enrols from Y and Y becomes her lock. Until then
+   she clocks with the reception card (DL-11). There is no self-service move.
 
 ### User Story 4 — Existing bindings and the card (Priority: P2)
 
@@ -88,10 +98,32 @@ A manager unbinds A's passkey (row 21); the phone is released together with it a
 2. **DL-11** — Clock by card on the paired reception device (spec 032) is unaffected: same results, no installation
    involved, any employee.
 
+### User Story 5 — The manager sees refused attempts (Priority: P2, PL-Q3)
+
+Heba is refused on Sara's phone. The refusal tells her what to do. The attempt is kept so the manager can review
+repeated attempts on the attendance board (row 27). Nobody is notified at that moment.
+
+1. **DL-12** — **Given** any refusal of DL-01, DL-04, DL-05, DL-07b (challenge, clock or enrollment step), **Then**
+   exactly one `attendance_device_refusals` row is written **after** the refused transaction ended, holding: the
+   employee who tried, the holder employee of the phone (only when it is another person's phone), branch (QR branch
+   for challenge/clock; the employee's primary branch for enrollment), step, reason, the company-separated
+   installation hash and the time. No raw installation id, no phone number, no name, no audit/outbox/event row.
+2. **DL-13** — **Given** writing the refusal row fails, **Then** the employee still receives the same refusal
+   (the failure is logged without the installation id).
+3. **DL-14** — **Given** refused attempts in a business, **When** the board query lists them for a branch and time
+   window, **Then** it returns rows newest first with a cursor, never the hash, and only that company's rows.
+4. **DL-15** — The refusal message is bilingual and tells the employee what to do:
+   - `ATTENDANCE_DEVICE_LOCKED` / `PASSKEY_DEVICE_TAKEN`: «التليفون ده متسجل لموظفة تانية. ابصمي من تليفونك أو بالكارت في
+     الريسبشن.» / "This phone is registered to another employee. Clock in from your own phone or with the card at
+     reception."
+   - `ATTENDANCE_DEVICE_NOT_ENROLLED` / `PASSKEY_OTHER_DEVICE`: «بصمتك متسجلة على تليفون تاني. ابصمي من تليفونك أو بالكارت
+     في الريسبشن، ولو غيّرتي تليفونك اطلبي من المدير يفك الربط.» / "Your passkey is registered on another phone. Clock in
+     from that phone or with the card at reception. If you changed phones, ask your manager to unbind it."
+
 ### Edge Cases
 
-- Private window / blocked storage: a new installation per page load. Two-way lock refuses it (not the enrolled phone);
-  one-way lock would accept it — see PL-Q1.
+- Private window / blocked storage: a new installation per page load. The two-way lock (PL-Q1) refuses it: it is not
+  the enrolled phone.
 - Two browsers or the iOS home-screen app vs Safari on one phone look like two phones (research R2). Residual risk,
   stated to the owner.
 - Employee mid-shift loses her phone: under two-way lock she cannot clock out from another phone; card at reception or
@@ -111,13 +143,16 @@ A manager unbinds A's passkey (row 21); the phone is released together with it a
 - **FR-002**: Enrollment records the requesting installation on the new binding and is refused when the installation
   belongs to another person's active binding.
 - **FR-003**: Clock challenge and clock are refused when the installation belongs to another person's active binding.
-- **FR-004**: Clocks from an installation other than the employee's own locked one: `TODO(spec) → PL-Q1`.
+- **FR-004** (PL-Q1): Challenge and clock are refused `ATTENDANCE_DEVICE_NOT_ENROLLED` when the person's lock is a
+  different installation.
 - **FR-005**: Unbinding a passkey releases its installation in the same transaction (no new column write needed: the
   lock follows the active binding).
-- **FR-006**: Recovery after phone loss / data wipe: `TODO(spec) → PL-Q2`.
-- **FR-007**: Refusal message (ar/en) to the employee; recording or alerting of refused attempts: `TODO(spec) → PL-Q3`.
-- **FR-008**: Number of phones per employee: `TODO(spec) → PL-Q4` (recommended one; the schema keeps one active binding
-  per employee).
+- **FR-006** (PL-Q2): Recovery after phone loss / change / data wipe is the existing manager unbind (row 21, UNB-Q1
+  holders); no new permission and no self-service move. The refusal message points to the card and the manager.
+- **FR-007** (PL-Q3): Every refusal returns the bilingual message of DL-15 and writes one refused-attempt row after
+  the refused transaction (DL-12, DL-13). No event, no notification. A read query for the board (row 27) lists them.
+- **FR-008** (PL-Q4): One phone per person. All active bindings of one person in a company carry the same installation;
+  enrolling from a different one is refused `PASSKEY_OTHER_DEVICE`.
 - **FR-009**: The ten-minute advisory pair rule and its unused query are retired; per-clock installation observations
   are still written (UNB-Q4).
 - **FR-010**: The card path, the kiosk staff session and the per-clock UV requirement are unchanged.
@@ -128,7 +163,9 @@ A manager unbinds A's passkey (row 21); the phone is released together with it a
 
 - **Binding phone lock**: the company-separated hash of the installation on an employee's active binding; set at
   enrollment or first accepted clock, immutable while the binding is active, released by unbind.
-- **Refused attempt** (only if PL-Q3 keeps it): who tried, on whose phone, branch, time, which step.
+- **Refused attempt** (`attendance_device_refusals`, PL-Q3): who tried, whose phone (holder employee, when another
+  person), branch, step (`CHALLENGE` / `CLOCK` / `ENROL`), reason (`DEVICE_LOCKED` / `NOT_ENROLLED` / `DEVICE_TAKEN` /
+  `OTHER_DEVICE`), installation hash, time. Immutable; kept with attendance history (UNB-Q4 analogue, no cleanup job).
 
 ## Slice design *(mandatory — `CLAUDE.md` §1)*
 
@@ -137,28 +174,32 @@ A manager unbinds A's passkey (row 21); the phone is released together with it a
 - **BR-001** (owner, UNB-Q2): phone locked to Sara refuses Heba's clock, refusal before Face ID where possible.
 - **BR-002**: enrollment is locked the same way (follows from BR-001; otherwise the lock is empty).
 - **BR-003**: "another employee" means another person (different linked user).
-- **BR-004**: the lock is released only by unbind (row 21 permissions, UNB-Q1); recovery `TODO(spec) → PL-Q2`.
+- **BR-004** (PL-Q2): the lock is released only by unbind (row 21 permissions, UNB-Q1). No self-service move.
 - **BR-005**: legacy bindings attach on first accepted clock (technical default; no live tenant yet — research R3).
-- **BR-006**: direction of the lock `TODO(spec) → PL-Q1`; refusal visibility `TODO(spec) → PL-Q3`; phone count
-  `TODO(spec) → PL-Q4`.
+- **BR-006** (PL-Q1): two-way — the phone accepts only its owner, and the owner clocks only from her phone (or card).
+- **BR-007** (PL-Q3): refused attempts are recorded for the board, never pushed.
+- **BR-008** (PL-Q4): one phone per person across her employee records in the company.
+- **BR-009**: lock decision order — another person's phone first (`DEVICE_LOCKED` / `DEVICE_TAKEN`), then the person's
+  own lock elsewhere (`NOT_ENROLLED` / `OTHER_DEVICE`), then accept (attach when the binding has no hash yet).
 
 ### Schema changes (expand only)
 
 | Table | Columns added / changed | RLS policy | Indexes | Tenant-qualified FKs |
 |---|---|---|---|---|
 | `employee_passkeys` | `installation_hash text NULL` (CHECK `^[a-f0-9]{64}$`) | existing FORCE RLS unchanged; add column `UPDATE(installation_hash)` grant to `pospay_app`; trigger: may go NULL → value once, never change or clear | `(company_id, installation_hash) WHERE unbound_at IS NULL AND installation_hash IS NOT NULL` (non-unique: same person, two businesses — BR-003; uniqueness per person enforced under an advisory lock in the transaction) | none new |
-| refused-attempt table | only if PL-Q3 = record; tenant table, `(company_id,id)` PK, FORCE RLS select/insert, immutable | new policy + negative test | `(company_id, branch_id, attempted_at)` | employee/branch tenant FKs |
+| `attendance_device_refusals` (new, PL-Q3) | `company_id`, `id` (UUID v7), `business_id`, `branch_id`, `employee_id`, `holder_employee_id NULL`, `step`, `reason`, `installation_hash` (CHECK hex 64), `attempted_at timestamptz`; CHECKs on step/reason enums | ENABLE + FORCE RLS, tenant policy on `app.company_id`; `pospay_app` SELECT + INSERT only (immutable) | `(company_id, business_id, branch_id, attempted_at, id)`; FK indexes on employee and holder | `(company_id, business_id, employee_id)` → employees; `(company_id, business_id, branch_id)` → branches; holder `(company_id, holder_employee_id)` → employees |
 
 `attendance_device_signals` unchanged. Migration numbers assigned at merge (next free 0103).
 
 ### API contract
 
-- `POST /v1/staff/attendance/challenge`: `clockChallengeInput` gains optional `installation_id` (UUID v4). Refusal
-  `ATTENDANCE_DEVICE_LOCKED` (403); two-way `ATTENDANCE_DEVICE_NOT_ENROLLED` (403) if PL-Q1 = two-way.
+- `POST /v1/staff/attendance/challenge`: `clockChallengeInput` gains optional `installation_id` (UUID v4). Refusals
+  `ATTENDANCE_DEVICE_LOCKED` (403) and `ATTENDANCE_DEVICE_NOT_ENROLLED` (403).
 - `POST /v1/staff/attendance/clock`: unchanged body (already requires `installation_id`); Idempotency-Key stays required;
   `installation_id` stays out of the fingerprint. Same refusals, authoritative under lock.
 - `POST /v1/staff/passkey/options`: optional body `{installation_id}`; `POST /v1/staff/passkey/verify`:
-  `passkeyVerifyInput` gains optional `installation_id`. Refusal `PASSKEY_DEVICE_TAKEN` (409).
+  `passkeyVerifyInput` gains optional `installation_id`. Refusals `PASSKEY_DEVICE_TAKEN` (409) and
+  `PASSKEY_OTHER_DEVICE` (409).
 - `GET /v1/businesses/{businessId}/employees/{employeeId}/passkeys`: status gains `phone_locked: boolean` and
   `phone_locked_since` (no hash).
 - Remove `sharedInstallationFlag` / `sharedInstallationFlagPage` (no route uses them).
@@ -167,24 +208,27 @@ A manager unbinds A's passkey (row 21); the phone is released together with it a
 
 ### Permissions
 
-No new permission. Release = existing `unbind:passkeys:branch` (UNB-Q1 holders) unless PL-Q2 adds self-service.
+No new permission. Release = existing `unbind:passkeys:branch` (UNB-Q1 holders, PL-Q2). The refused-attempt query
+has no route in this slice; row 27 adds the board route under the existing attendance read permission.
 
 ### Events
 
 - Existing `EmployeePasskeyBound` payload unchanged (no hash in events).
-- No new event, unless PL-Q3 picks the in-app alert (then `AttendanceDeviceRefused` through the row-28 notice path,
-  with a module-map/ADR-0010 check).
+- No new event (PL-Q3: no instant notification). No new module-map arrow.
 
 ### Test plan
 
 - **Domain unit**: lock decision table — no lock/attach, own lock, other person's lock, same person other record,
-  legacy binding, two-way vs one-way branch.
+  legacy binding, own lock elsewhere (two-way), enrollment vs clock reasons, decision order (BR-009).
 - **Integration**: DL-01 … DL-11 on real Postgres + synthetic authenticator; concurrency (two enrolments on one
   installation; enrol vs unbind; attach vs enrol); refusal leaves no session/audit/outbox/idempotency/signal row;
-  replay from another installation; card regression.
+  replay from another installation; card regression; refusal row written once per refusal and only after rollback
+  (DL-12), refusal still returned when the row write fails (DL-13).
 - **RLS negative**: new column cannot be read/updated cross-tenant; update grant only `installation_hash`; trigger
-  refuses change/clear; refused-attempt table (if any) cross-tenant read 0 rows / write refused / FK refused.
-- **Queries**: passkey status result shape with `phone_locked`; `EXPLAIN` uses the new partial index for the lock lookup.
+  refuses change/clear; `attendance_device_refusals` cross-tenant read 0 rows / write refused / FK refused / UPDATE and
+  DELETE refused for `pospay_app`.
+- **Queries**: passkey status result shape with `phone_locked`; refused-attempt list result shape + cursor;
+  `EXPLAIN` uses the new partial index for the lock lookup and the branch/time index for the refusal list.
 - **POS / admin**: refusal screens in ar/en; installation id sent on challenge/options/verify; admin shows "phone locked".
 
 ## Success Criteria *(mandatory)*
@@ -200,6 +244,6 @@ No new permission. Release = existing `unbind:passkeys:branch` (UNB-Q1 holders) 
 
 - "Phone" = the personal POS app installation (random id in browser storage); a browser cannot prove a physical device
   without fingerprinting (research R2). The owner is told this in the questions file.
-- A new ADR amends ADR-0029 ("do not block on the signal").
+- ADR-0039 (Proposed) amends ADR-0029 ("do not block on the signal"); the owner accepts it before merge.
 - No live salon data yet (trial row 63 not started), so legacy handling targets staging test data only.
-- Board (row 27) drops the pair list from its scope.
+- Board (row 27) drops the pair list from its scope and shows the refused attempts (query delivered here).
