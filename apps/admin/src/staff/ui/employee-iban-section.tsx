@@ -13,6 +13,7 @@ type EmployeeIbanSectionProps = {
   businessId: string;
   userId: string;
   employeeId: string;
+  timeZone: string;
 };
 
 export function EmployeeIbanSection({
@@ -20,6 +21,7 @@ export function EmployeeIbanSection({
   businessId,
   userId,
   employeeId,
+  timeZone,
 }: EmployeeIbanSectionProps) {
   const locale = useLocale();
   const [cursor, setCursor] = useState<number>();
@@ -49,7 +51,12 @@ export function EmployeeIbanSection({
         <>
           <p>{bank ? (locale === 'ar' ? bank.nameAr : bank.nameEn) : ''}</p>
           <p dir="ltr">{view.holder_name_en}</p>
-          <IbanHistory history={history} cursor={cursor} setCursor={setCursor} />
+          <IbanHistory
+            history={history}
+            cursor={cursor}
+            setCursor={setCursor}
+            timeZone={timeZone}
+          />
         </>
       ) : null}
       {view.can_manage ? (

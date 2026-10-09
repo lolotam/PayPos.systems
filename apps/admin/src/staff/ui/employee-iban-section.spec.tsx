@@ -26,7 +26,7 @@ it('shows full details to read-only salary readers without a form', () => {
     history: { data: { items: [], next_cursor: null }, isFetchedAfterMount: true },
     save: {},
   });
-  render(<EmployeeIbanSection {...props} />);
+  render(<EmployeeIbanSection {...props} timeZone="Asia/Kuwait" />);
   expect(screen.getByText('KW81 CBKU 0000 0000 0000 1234 5601 01').getAttribute('dir')).toBe('ltr');
   expect(screen.getByText('Commercial Bank of Kuwait')).toBeTruthy();
   expect(screen.getByText('SYNTHETIC HOLDER')).toBeTruthy();
@@ -49,7 +49,7 @@ it('shows a missing-account message to masked readers without bank or history', 
     history: {},
     save: {},
   });
-  render(<EmployeeIbanSection {...props} />);
+  render(<EmployeeIbanSection {...props} timeZone="Asia/Kuwait" />);
   expect(screen.getByText('No IBAN on file')).toBeTruthy();
   expect(screen.queryByRole('table')).toBeNull();
 });

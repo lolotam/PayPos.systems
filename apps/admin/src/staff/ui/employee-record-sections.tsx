@@ -4,16 +4,20 @@ import { EmployeeDocumentsSection } from './employee-documents-section';
 import { EmployeeSalarySection } from './employee-salary-section';
 import { EmployeeIbanSection } from './employee-iban-section';
 
-export function EmployeeRecordSections(props: {
+export function EmployeeRecordSections({
+  timeZone,
+  ...props
+}: {
   companyId: string;
   businessId: string;
   userId: string;
   employeeId: string;
+  timeZone?: string | undefined;
 }) {
   return (
     <>
       <EmployeeSalarySection {...props} />
-      <EmployeeIbanSection {...props} />
+      <EmployeeIbanSection {...props} timeZone={timeZone ?? 'UTC'} />
       <EmployeeCardSection {...props} />
       <EmployeeDocumentsSection {...props} />
     </>

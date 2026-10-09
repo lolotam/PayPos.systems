@@ -40,7 +40,7 @@ function deferred() {
 function mount(client = new QueryClient()) {
   const view = render(
     <QueryClientProvider client={client}>
-      <EmployeeIbanSection {...props} />
+      <EmployeeIbanSection {...props} timeZone="Asia/Kuwait" />
     </QueryClientProvider>,
   );
   return { client, view };

@@ -52,7 +52,13 @@ export function EmployeeEditPanel({
       {save.isSuccess ? <p role="status">{t(locale, 'staff.saved')}</p> : null}
       {/* TODO(spec) SS-Q2: الوصول هنا يتطلب manage:employees:business؛ مدخل مستقل لمفوّض الرواتب ينتظر قرار المالك. */}
       {record.data && !record.isError ? (
-        <EmployeeRecordSections {...{ companyId, businessId: business.id, userId, employeeId }} />
+        <EmployeeRecordSections
+          {...{ companyId, businessId: business.id, userId, employeeId }}
+          timeZone={
+            business.branches.find((b) => b.id === record.data.primary_branch_id)
+              ?.effective_timezone
+          }
+        />
       ) : null}
       <EmployeeEditActions
         pending={save.isPending}

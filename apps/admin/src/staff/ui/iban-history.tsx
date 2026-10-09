@@ -9,16 +9,18 @@ export function IbanHistory({
   history,
   cursor,
   setCursor,
+  timeZone,
 }: {
   history: ReturnType<typeof useEmployeeIban>['history'];
   cursor: number | undefined;
   setCursor: (cursor: number | undefined) => void;
+  timeZone: string;
 }) {
   const locale = useLocale();
   if (!history.isFetchedAfterMount || !history.data || history.isError) return null;
   return (
     <>
-      <IbanHistoryTable items={history.data.items} />
+      <IbanHistoryTable items={history.data.items} timeZone={timeZone} />
       <div className="flex gap-2">
         <Button
           variant="outline"

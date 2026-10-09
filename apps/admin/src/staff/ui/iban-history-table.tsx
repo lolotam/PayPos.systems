@@ -6,12 +6,18 @@ import { DataTableFrame } from '@pospay/ui';
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
 import { useLocale } from '@/shared/locale/locale-context';
 
-export function IbanHistoryTable({ items }: { items: EmployeeIbanHistoryEntry[] }) {
+export function IbanHistoryTable({
+  items,
+  timeZone,
+}: {
+  items: EmployeeIbanHistoryEntry[];
+  timeZone: string;
+}) {
   'use no memo';
   const locale = useLocale();
   const table = useReactTable({
     data: items,
-    columns: ibanColumns(locale),
+    columns: ibanColumns(locale, timeZone),
     getRowId: (row) => String(row.revision),
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
@@ -44,7 +50,10 @@ export function IbanHistoryTable({ items }: { items: EmployeeIbanHistoryEntry[] 
   );
 }
 
-function ibanColumns(locale: ReturnType<typeof useLocale>): ColumnDef<EmployeeIbanHistoryEntry>[] {
+function ibanColumns(
+  locale: ReturnType<typeof useLocale>,
+  timeZone: string,
+): ColumnDef<EmployeeIbanHistoryEntry>[] {
   return [
     { accessorKey: 'revision', header: t(locale, 'employeeIban.revision') },
     {
@@ -70,7 +79,7 @@ function ibanColumns(locale: ReturnType<typeof useLocale>): ColumnDef<EmployeeIb
     {
       accessorKey: 'set_at',
       header: t(locale, 'employeeIban.date'),
-      cell: ({ row }) => formatInstant(new Date(row.original.set_at), locale, 'UTC'),
+      cell: ({ row }) => formatInstant(new Date(row.original.set_at), locale, timeZone),
     },
     { accessorKey: 'set_by', header: t(locale, 'employeeIban.actor') },
   ];

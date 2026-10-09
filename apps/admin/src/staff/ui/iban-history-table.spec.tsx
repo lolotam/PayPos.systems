@@ -1,4 +1,4 @@
-import { t } from '@pospay/i18n';
+import { formatInstant, t } from '@pospay/i18n';
 import { findGccBank } from '@pospay/domain';
 import { render, screen } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
@@ -23,10 +23,15 @@ it('renders grouped LTR accounts, translated bank names, actors, reasons and cle
           holder_name_en: 'SYNTHETIC HOLDER',
         },
       ]}
+      timeZone="Asia/Kuwait"
     />,
   );
   expect(screen.getByText('KW81 CBKU 0000 0000 0000 1234 5601 01').getAttribute('dir')).toBe('ltr');
   expect(screen.getByText(findGccBank('kw-cbk')?.nameAr ?? '')).toBeTruthy();
   expect(screen.getByText(t('ar', 'employeeIban.cleared'))).toBeTruthy();
   expect(screen.getAllByText(common.set_by)).toHaveLength(2);
+  // الوقت بتوقيت فرع الموظفة مش UTC (CLAUDE.md §5).
+  const branchTime = formatInstant(new Date(common.set_at), 'ar', 'Asia/Kuwait');
+  expect(branchTime).not.toBe(formatInstant(new Date(common.set_at), 'ar', 'UTC'));
+  expect(screen.getAllByText(branchTime)).toHaveLength(2);
 });
