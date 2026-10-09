@@ -1,6 +1,7 @@
 import postgres from 'postgres';
 import { expect, it } from 'vitest';
 
+import { MigrationRoleRefusedError } from '../data-steps/employee-name-keys.ts';
 import { appDatabaseUrl, sanitizedStepError } from '../data-steps/index.ts';
 
 it.each(['demo%pass', 'demo%40pass', 'a@b:c/d?e#f', 'plain'])(
@@ -32,4 +33,11 @@ it('reports an unknown SQLSTATE when the failure carries none', () => {
   expect(sanitizedStepError('employee-name-keys', new Error('boom josé')).message).toBe(
     'Migration data step employee-name-keys failed (sqlstate=unknown)',
   );
+});
+
+it('keeps the fixed role refusal message, which carries no URL, password or row data', () => {
+  const refusal = new MigrationRoleRefusedError();
+  const error = sanitizedStepError('employee-name-keys', refusal);
+  expect(error.message).toBe(refusal.message);
+  expect(error.message).not.toMatch(/postgres:|@|password/i);
 });

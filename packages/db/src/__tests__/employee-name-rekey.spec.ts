@@ -7,7 +7,10 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { createDatabase, type Database } from '../client.ts';
-import { rekeyEmployeeNameKeys } from '../data-steps/employee-name-keys.ts';
+import {
+  MigrationRoleRefusedError,
+  rekeyEmployeeNameKeys,
+} from '../data-steps/employee-name-keys.ts';
 
 let testDb: TestDatabase, owner: postgres.Sql, app: Database;
 const fixtures = [
@@ -132,6 +135,23 @@ it('re-keys all tenant batches, preserves correct rows and resumes idempotently 
   expect(
     await owner`SELECT convalidated FROM pg_constraint WHERE conname='employees_name_en_key_present'`,
   ).toEqual([{ convalidated: true }]);
+});
+
+it('refuses a migration role without BYPASSRLS before reading companies or updating a row', async () => {
+  const before = await rowsWithVersions();
+  expect(before.some((row) => !hasCorrectKeys(row))).toBe(true);
+  const restricted = postgres(testDb.appUrl, { max: 1, onnotice: () => undefined });
+  try {
+    const failure = rekeyEmployeeNameKeys(restricted, app, 2);
+    await expect(failure).rejects.toBeInstanceOf(MigrationRoleRefusedError);
+    await expect(failure).rejects.toThrow(
+      'Migration data step employee-name-keys needs a superuser or BYPASSRLS migration role; it would read no companies under FORCE RLS',
+    );
+    await expect(failure).rejects.not.toThrow(/postgres:|pospay_app|password/i);
+  } finally {
+    await restricted.end();
+  }
+  expect(await rowsWithVersions()).toEqual(before);
 });
 
 it('resumes after interruption with committed batches and leaves correct rows untouched', async () => {

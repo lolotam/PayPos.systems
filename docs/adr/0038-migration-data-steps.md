@@ -1,6 +1,6 @@
 # ADR-0038 — Migration data steps (employee name keys re-key)
 
-- **Status:** Accepted
+- **Status:** Proposed — awaiting owner acceptance
 - **Date:** 2026-10-09
 - **Scope:** `packages/db` migration runner; issue #139 (follow-up of PR #136, spec 038)
 
@@ -21,14 +21,20 @@ A worker job cannot guarantee that order: the worker starts only after the migra
 ## Decision
 
 1. **Data steps in the migration runner.** A migration file may carry the comment line
-   `-- pospay:data-step <name>`. While that migration is pending, `applyMigrations` runs the registered
-   TypeScript step `<name>` immediately before the migration's first statement, under the existing
-   session advisory lock and after the same-session check. An unknown name aborts the run before any
-   statement and before the journal row. A journaled migration never runs its step again. A step must be
+   `-- pospay:data-step <name>`, exactly in that form at column 0 (`<name>` is `[a-z0-9-]+`). While that
+   migration is pending, `applyMigrations` runs the registered TypeScript step `<name>` immediately before
+   the migration's first statement, under the existing session advisory lock and after the same-session
+   check. Before the first statement of the run, the runner resolves the markers of **every** pending
+   migration: an unknown name, or any line that mentions `pospay:data-step` in another form (indented,
+   inside a block comment, other case or spacing, trailing text), aborts the whole run before any step, any
+   statement and any journal row. A journaled migration never runs its step again. A step must be
    idempotent: a crash before the journal row runs it again on the next start. The marker is a comment,
    so renumbering a migration at merge time does not detach it from its step.
 2. **The step `employee-name-keys` reaches tenant data only through `withTenant`.** The migration owner
-   (the recorded ADR-0003 §3 exception) reads only `SELECT id FROM companies ORDER BY id`. For each id the
+   (the recorded ADR-0003 §3 exception) reads only `SELECT id FROM companies ORDER BY id`. Before that read
+   the step checks `rolsuper OR rolbypassrls` for `current_user` and fails closed when it is false — the
+   intent of migration 0074's guard: without the bypass, FORCE RLS would return no companies and the step
+   would "succeed" having fixed nothing. The refusal is a fixed message with no URL, password or row data. For each id the
    step opens `createDatabase` on `pospay_app` (URL built from `MIGRATION_DATABASE_URL` and the
    `POSTGRES_APP_PASSWORD` the migrate container already receives; no new variable, no new grant) and runs
    `withTenant(companyId, …)` transactions in keyset batches of 500 rows by `id`, `FOR UPDATE`. It computes
@@ -63,3 +69,10 @@ violates the CHECK. Once 0101 commits, no NULL `name_en_key` can be written by a
 - `name_ar_key` has no constraint here; its correctness rests on the writers and this step.
 - A future data step follows the same shape: a marker on the migration that needs it, a registered
   idempotent TypeScript step, tenant data only through `withTenant`.
+- **A step must stay runnable against the schema at its own migration.** On a fresh database (the CI test
+  template, a new production database) every marked migration runs in order, so a step registered today
+  runs against the schema as it was at its migration, not the latest one. When a later migration renames,
+  drops or tightens a table, column, grant or helper the step uses, that same change must either guard the
+  step (it checks what it needs and becomes a no-op when the data it fixes cannot exist), or freeze it (the
+  step keeps its own copy of the SQL and rules it needs as of its migration). Deleting a registered step is
+  never allowed while a migration still carries its marker: the runner would abort as "unknown".

@@ -6,19 +6,25 @@ import { runConcurrentIndex } from './recover-concurrent-index.ts';
 const CONCURRENT =
   /^\s*(?:--[^\r\n]*[\r\n]\s*)*(?:CREATE|DROP)\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i;
 
-function migrationSteps(
-  statements: readonly string[],
-  dataSteps: Readonly<Record<string, (owner: postgres.Sql) => Promise<void>>>,
-) {
+type DataSteps = Readonly<Record<string, (owner: postgres.Sql) => Promise<void>>>;
+
+// Only the exact column-0 form is a marker. Any other line that mentions it (indented, inside a block comment,
+// different case or spacing) would be skipped by a looser parser and silently lose its step, so it aborts instead.
+const MARKER = /^-- pospay:data-step ([a-z0-9-]+)$/;
+
+function migrationSteps(statements: readonly string[], dataSteps: DataSteps) {
   const names = [
     ...new Set(
       statements.flatMap((statement) =>
-        [...statement.matchAll(/^--[\t ]*pospay:data-step([^\r\n]*)/gim)].map((match) => {
-          const name = (match[1] ?? '').trim();
-          if (!/^[a-z0-9-]+$/.test(name))
-            throw new Error('Malformed migration data step marker; migration aborted');
-          return name;
-        }),
+        statement
+          .split(/\r?\n/)
+          .filter((line) => /pospay:data-step/i.test(line))
+          .map((line) => {
+            const name = MARKER.exec(line)?.[1];
+            if (name === undefined)
+              throw new Error('Malformed migration data step marker; migration aborted');
+            return name;
+          }),
       ),
     ),
   ];
@@ -35,7 +41,7 @@ function migrationSteps(
 export async function applyMigrations(
   client: postgres.Sql,
   folder: string,
-  dataSteps: Readonly<Record<string, (owner: postgres.Sql) => Promise<void>>> = {},
+  dataSteps: DataSteps = {},
 ): Promise<void> {
   const migrations = readMigrationFiles({ migrationsFolder: folder });
   await client`SELECT pg_advisory_lock(hashtext('pospay:migrations'))`;
@@ -53,9 +59,12 @@ export async function applyMigrations(
       { created_at: string }[]
     >`SELECT created_at FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 1`;
     const after = Number(last?.created_at ?? 0);
-    for (const migration of migrations) {
-      if (migration.folderMillis <= after) continue;
-      const steps = migrationSteps(migration.sql, dataSteps);
+    // Every pending marker resolves before the first statement of the run, so an unknown or malformed marker in a
+    // later migration cannot leave the earlier ones applied.
+    const pending = migrations
+      .filter((migration) => migration.folderMillis > after)
+      .map((migration) => ({ migration, steps: migrationSteps(migration.sql, dataSteps) }));
+    for (const { migration, steps } of pending) {
       await sameSession();
       for (const step of steps) await step(client);
       await sameSession();
