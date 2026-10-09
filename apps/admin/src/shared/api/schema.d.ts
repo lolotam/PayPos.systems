@@ -4,6 +4,41 @@
  */
 
 export interface paths {
+    "/v1/businesses/{businessId}/employees/{employeeId}/iban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Salary readers receive full bank details; employee managers receive only the last four IBAN characters. Uniform 404 otherwise. Staff feature required after access. */
+        get: operations["getEmployeeIban"];
+        /** @description Requires salary read and manage. Append-only revision with mandatory reason; stale revision or duplicate current IBAN returns 409 without identifying details. Same values are a no-op. No Idempotency-Key. Uniform 404 for inaccessible employees. */
+        put: operations["setEmployeeIban"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/iban/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Full bank account history for salary readers only. Masked readers and inaccessible employees receive uniform 404. */
+        get: operations["employeeIbanHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -1436,6 +1471,49 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SetEmployeeIbanInput: {
+            iban: string | null;
+            bank_id: string | null;
+            holder_name_en: string | null;
+            reason: string;
+            expected_revision: number;
+        };
+        EmployeeIbanView: {
+            /** @enum {string} */
+            status: "SET" | "NOT_SET";
+            iban_last4: string | null;
+            iban: string | null;
+            bank_id: string | null;
+            holder_name_en: string | null;
+            revision: number;
+            /** Format: date-time */
+            set_at: string | null;
+            /** Format: uuid */
+            set_by: string | null;
+            can_read_full: boolean;
+            can_manage: boolean;
+        };
+        EmployeeIbanHistoryQuery: {
+            cursor?: number;
+            /** @default 20 */
+            limit: number;
+        };
+        EmployeeIbanHistoryEntry: {
+            revision: number;
+            iban: string | null;
+            bank_id: string | null;
+            holder_name_en: string | null;
+            cleared: boolean;
+            /** Format: date-time */
+            set_at: string;
+            /** Format: uuid */
+            set_by: string;
+            reason: string;
+        };
+        EmployeeIbanHistoryPage: {
+            items: components["schemas"]["EmployeeIbanHistoryEntry"][];
+            next_cursor: number | null;
+        };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
         CreateDocumentTypeInput: {
@@ -3036,6 +3114,160 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getEmployeeIban: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current bank account, masked by access */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeIbanView"];
+                };
+            };
+            /** @description Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setEmployeeIban: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetEmployeeIbanInput"];
+            };
+        };
+        responses: {
+            /** @description Current bank account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeIbanView"];
+                };
+            };
+            /** @description Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeIbanHistory: {
+        parameters: {
+            query?: {
+                cursor?: number;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Descending revisions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeIbanHistoryPage"];
+                };
+            };
+            /** @description Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; inaccessible, missing, foreign and deleted employees share NOT_FOUND. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listDocumentTypes: {
         parameters: {
             query?: never;

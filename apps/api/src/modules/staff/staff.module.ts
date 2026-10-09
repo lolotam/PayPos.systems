@@ -1,4 +1,10 @@
 import { attendanceProviders, cardProviders } from './staff-attendance.providers.ts';
+import { GCC_BANKS } from '@pospay/domain';
+import { EmployeeIbanController } from './http/employee-iban.controller.ts';
+import { SetEmployeeIbanUseCase } from './use-cases/set-employee-iban/set-employee-iban.usecase.ts';
+import { createEmployeeIbanTransactions } from './persistence/drizzle-employee-iban-transactions.ts';
+import { createEmployeeIbanAccess } from './persistence/employee-iban-access.adapter.ts';
+import { EMPLOYEE_IBAN_ACCESS } from './queries/employee-iban.query.ts';
 import { MyScheduleController } from './http/my-schedule.controller.ts';
 import {
   PasskeysController,
@@ -91,6 +97,7 @@ import { ClockByCardController } from './http/clock-by-card.controller.ts';
 import { EmployeeCardsController } from './http/employee-cards.controller.ts';
 
 export const staffControllers = [
+  EmployeeIbanController,
   ClockAttendanceController,
   ClockByCardController,
   EmployeeCardsController,
@@ -209,6 +216,23 @@ function salaryProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
+function employeeIbanProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+): Provider[] {
+  return [
+    {
+      provide: SetEmployeeIbanUseCase,
+      useValue: database === undefined ? null :
+        new SetEmployeeIbanUseCase(createEmployeeIbanTransactions(database, ids), ids, GCC_BANKS),
+    },
+    {
+      provide: EMPLOYEE_IBAN_ACCESS,
+      useValue: database === undefined ? null : createEmployeeIbanAccess(),
+    },
+  ];
+}
+
 function documentProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   const types = database === undefined ? null : createDocumentTypeTransactions(database, ids);
   const records = database === undefined ? null : createEmployeeDocumentTransactions(database, ids);
@@ -294,6 +318,7 @@ export function staffProviders(
     ...attendanceExceptionProviders(database, ids),
     ...attendanceCorrectionProviders(database, ids),
     ...salaryProviders(database, ids),
+    ...employeeIbanProviders(database, ids),
     ...documentProviders(database, ids),
     {
       provide: UpdateEmployeeUseCase,

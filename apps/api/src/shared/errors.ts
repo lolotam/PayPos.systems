@@ -4,6 +4,13 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
+  IBAN_FORMAT_INVALID: 400,
+  IBAN_COUNTRY_NOT_ALLOWED: 400,
+  IBAN_CHECKSUM_INVALID: 400,
+  IBAN_BANK_INVALID: 400,
+  IBAN_HOLDER_NAME_INVALID: 400,
+  EMPLOYEE_IBAN_ALREADY_USED: 409,
+  EMPLOYEE_IBAN_REVISION_CONFLICT: 409,
   PACKAGE_TYPE_NOT_FOUND: 404,
   PACKAGE_TYPE_INVALID_COMPONENTS: 400,
   PACKAGE_TYPE_DUPLICATE_SERVICE: 400,
@@ -132,6 +139,13 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'IBAN_FORMAT_INVALID',
+  'IBAN_COUNTRY_NOT_ALLOWED',
+  'IBAN_CHECKSUM_INVALID',
+  'IBAN_BANK_INVALID',
+  'IBAN_HOLDER_NAME_INVALID',
+  'EMPLOYEE_IBAN_ALREADY_USED',
+  'EMPLOYEE_IBAN_REVISION_CONFLICT',
   'IMPORT_COMMIT_FAILED',
   'DOCUMENT_TYPE_UNAVAILABLE',
   'DOCUMENT_EXPIRY_REQUIRED',

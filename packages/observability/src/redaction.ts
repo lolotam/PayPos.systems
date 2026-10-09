@@ -6,6 +6,8 @@ import { errorDiagnostic } from './serializers.ts';
 // Keys are compared after removing case and separators, so accessToken, access_token and ACCESS-TOKEN are
 // one key, and by suffix, so sessionToken, bearer_token or card_cvv are caught without being listed.
 const SECRET_SUFFIXES = [
+  'iban',
+  'holdername',
   'token',
   'secret',
   'password',
@@ -89,7 +91,8 @@ const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
   return forms.some((form) => suffixes.some((suffix) => form.endsWith(suffix)));
 };
 const isSecretKey = (key: string): boolean =>
-  endsWithAny(key, SECRET_SUFFIXES) && !STRUCTURAL_KEYS.has(normalizeKey(key));
+  (endsWithAny(key, SECRET_SUFFIXES) || /holdername(?:en|ar)$/.test(normalizeKey(key))) &&
+  !STRUCTURAL_KEYS.has(normalizeKey(key));
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 const isEmailKey = (key: string): boolean =>
   endsWithAny(key, ['email', 'emails', 'emailaddress', 'emailaddresses']);
@@ -130,6 +133,8 @@ function scrubUrlCredentials(text: string): string {
 }
 
 const MAX_DEPTH = 8;
+const IBAN_IN_TEXT =
+  /\b(?:KW(?:[ ]*[A-Z0-9٠-٩۰-۹]){28}|SA(?:[ ]*[A-Z0-9٠-٩۰-۹]){22}|AE(?:[ ]*[A-Z0-9٠-٩۰-۹]){21}|BH(?:[ ]*[A-Z0-9٠-٩۰-۹]){20}|QA(?:[ ]*[A-Z0-9٠-٩۰-۹]){27}|OM(?:[ ]*[A-Z0-9٠-٩۰-۹]){21})(?![A-Z0-9٠-٩۰-۹])/gi;
 export const REDACTED = '[REDACTED]';
 
 /**
@@ -155,7 +160,7 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
     if (typeof node === 'function' || typeof node === 'symbol') return undefined;
     if (typeof node === 'bigint') return node.toString();
     if (typeof node === 'string') {
-      const text = scrubUrlCredentials(node);
+      const text = scrubUrlCredentials(node).replace(IBAN_IN_TEXT, REDACTED);
       return maskPhones
         ? text
             .replace(/\+[1-9]\d{7,14}/g, maskPhone)

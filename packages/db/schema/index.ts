@@ -29,3 +29,4 @@ export * from './staff-cards.ts';
 export * from './staff-device-signals.ts';
 export * from './staff-documents.ts';
 export * from './staff-import.ts';
+export * from './staff-ibans.ts';

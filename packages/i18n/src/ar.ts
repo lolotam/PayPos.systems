@@ -13,9 +13,11 @@ import { salaryAr } from './salary-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, serviceErrorsAr } from './catalog-services.js';
+import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  employeeIban: employeeIbanAr,
   employeeDocuments: employeeDocumentsAr,
   passkeyAdmin: arPasskeyAdmin,
   leave: leaveAr,
@@ -148,6 +150,7 @@ export const ar: Catalog = {
       'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
   },
   errors: {
+    ...employeeIbanErrorsAr,
     DOCUMENT_TYPE_UNAVAILABLE: 'نوع الوثيقة غير موجود أو موقوف.',
     DOCUMENT_EXPIRY_REQUIRED: 'هذا النوع من الوثائق يحتاج تاريخ انتهاء.',
     DOCUMENT_FILE_TYPE_INVALID: 'وثائق الموظف يجب أن تكون PDF أو JPEG أو PNG.',

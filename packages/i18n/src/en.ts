@@ -12,8 +12,10 @@ import { personalStaffEn } from './personal-staff-catalog.js';
 import { salaryEn } from './salary-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
+import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  employeeIban: employeeIbanEn,
   employeeDocuments: employeeDocumentsEn,
   passkeyAdmin: enPasskeyAdmin,
   leave: leaveEn,
@@ -146,6 +148,7 @@ export const en = {
       '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
   },
   errors: {
+    ...employeeIbanErrorsEn,
     DOCUMENT_TYPE_UNAVAILABLE: 'This document type does not exist or is inactive.',
     DOCUMENT_EXPIRY_REQUIRED: 'This document type needs an expiry date.',
     DOCUMENT_FILE_TYPE_INVALID: 'Employee documents must be PDF, JPEG or PNG.',

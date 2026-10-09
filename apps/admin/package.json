@@ -18,6 +18,7 @@
     "@next/env": "16.3.7",
     "@pospay/auth": "workspace:*",
     "@pospay/contracts": "workspace:*",
+    "@pospay/domain": "workspace:*",
     "@pospay/i18n": "workspace:*",
     "@pospay/ui": "workspace:*",
     "@tanstack/react-query": "5.104.0",

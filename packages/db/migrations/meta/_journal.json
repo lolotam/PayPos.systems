@@ -673,6 +673,20 @@
       "when": 1791456717219,
       "tag": "0095_2026-10-08_catalog-package-types-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1791552064486,
+      "tag": "0096_2026-10-09_employee-ibans",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1791552158021,
+      "tag": "0097_2026-10-09_employee-ibans-rls",
+      "breakpoints": true
     }
   ]
 }

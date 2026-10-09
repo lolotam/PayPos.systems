@@ -1,0 +1,99 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, expect, it, vi } from 'vitest';
+import { EmployeeIbanSection } from '../ui/employee-iban-section';
+const api = vi.hoisted(() => ({ GET: vi.fn(), PUT: vi.fn() }));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
+vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
+const id = '01920000-0000-7000-8000-0000000000a2';
+const props = { companyId: id, businessId: id, userId: id, employeeId: id };
+const key = ['employee-iban', id, id, id, id];
+const full = {
+  status: 'SET',
+  iban: 'KW81CBKU0000000000001234560101',
+  iban_last4: '0101',
+  bank_id: 'kw-cbk',
+  holder_name_en: 'SYNTHETIC HOLDER',
+  revision: 1,
+  set_at: '2026-10-09T12:00:00.000Z',
+  set_by: id,
+  can_read_full: true,
+  can_manage: true,
+};
+const masked = {
+  ...full,
+  iban: null,
+  bank_id: null,
+  holder_name_en: null,
+  set_by: null,
+  can_read_full: false,
+  can_manage: false,
+};
+function deferred() {
+  let resolve!: (value: unknown) => void;
+  const promise = new Promise((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+function mount(client = new QueryClient()) {
+  const view = render(
+    <QueryClientProvider client={client}>
+      <EmployeeIbanSection {...props} />
+    </QueryClientProvider>,
+  );
+  return { client, view };
+}
+beforeEach(() => {
+  api.GET.mockReset();
+  api.PUT.mockReset();
+});
+it('waits for fresh permission on mount, never requests history for masked readers, and evicts on close', async () => {
+  const client = new QueryClient();
+  client.setQueryData([...key, 'current'], full);
+  const pending = deferred();
+  api.GET.mockReturnValue(pending.promise);
+  const { view } = mount(client);
+  expect(screen.queryByRole('region')).toBeNull();
+  await act(async () => pending.resolve({ data: masked }));
+  await waitFor(() => expect(screen.getByText('•••• 0101')).toBeTruthy());
+  expect(screen.queryByText('SYNTHETIC HOLDER')).toBeNull();
+  expect(screen.queryByRole('form')).toBeNull();
+  expect(api.GET).toHaveBeenCalledTimes(1);
+  view.unmount();
+  expect(client.getQueryCache().findAll({ queryKey: key })).toEqual([]);
+});
+it.each([403, 404])('removes sensitive cached data on %s and does not retry', async (status) => {
+  api.GET.mockResolvedValue({ error: { code: 'NOT_FOUND' }, response: { status } });
+  const client = new QueryClient();
+  client.setQueryData([...key, 'current'], full);
+  const { view } = mount(client);
+  await waitFor(() => expect(client.getQueryCache().findAll({ queryKey: key })).toEqual([]));
+  expect(screen.queryByRole('region')).toBeNull();
+  expect(api.GET).toHaveBeenCalledTimes(1);
+  view.unmount();
+});
+it('aborts the current read on close and discards a late response', async () => {
+  const pending = deferred();
+  api.GET.mockReturnValue(pending.promise);
+  const { client, view } = mount();
+  const signal = api.GET.mock.calls[0]?.[1].signal as AbortSignal;
+  view.unmount();
+  expect(signal.aborted).toBe(true);
+  await act(async () => pending.resolve({ data: full }));
+  expect(client.getQueryCache().findAll({ queryKey: key })).toEqual([]);
+});
+it('hides current full details and evicts every page when history access is revoked', async () => {
+  const pending = deferred();
+  api.GET.mockImplementation((path: string) =>
+    path.endsWith('/history') ? pending.promise : Promise.resolve({ data: full }),
+  );
+  const { client, view } = mount();
+  await waitFor(() => expect(screen.getByText('SYNTHETIC HOLDER')).toBeTruthy());
+  await act(async () =>
+    pending.resolve({ error: { code: 'NOT_FOUND' }, response: { status: 404 } }),
+  );
+  await waitFor(() => expect(screen.queryByRole('region')).toBeNull());
+  expect(client.getQueryCache().findAll({ queryKey: key })).toEqual([]);
+  view.unmount();
+});
