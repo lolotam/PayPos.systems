@@ -167,7 +167,7 @@ No **runtime** role has `BYPASSRLS`. The platform bypass role stays deferred (re
 has `BYPASSRLS`. It runs migrations only and never serves a request; `packages/db` refuses any superuser or
 `BYPASSRLS` connection at runtime, and the "no `BYPASSRLS`" assertions cover the runtime roles.
 
-> **Amendment (2026-10-09, ADR-0038 — Proposed, awaiting owner acceptance).** During the `migrate` step only, a
+> **Amendment (2026-10-09, ADR-0038 — Accepted by the owner).** During the `migrate` step only, a
 > migration data step may use this owner connection to read `companies.id` and nothing else, and refuses to run
 > unless the role is superuser or `BYPASSRLS`. Every tenant read and write of the step runs as `pospay_app` inside
 > `withTenant(companyId, …)`. No runtime role gains `BYPASSRLS` and no grant is added. See
@@ -386,7 +386,7 @@ Every public route is rate-limited in Redis **except `/health`**, which must rep
 
 ## 6a. Revisions
 
-**2026-10-09, ADR-0038 (Proposed):** §3 bootstrap-owner exception amended — migration data steps read only `companies.id` as the owner; tenant effects run under `withTenant` on `pospay_app`.
+**2026-10-09, ADR-0038 (Accepted):** §3 bootstrap-owner exception amended — migration data steps read only `companies.id` as the owner; tenant effects run under `withTenant` on `pospay_app`.
 
 **2026-10-02, PR 6 / ADR-0019:** the two OTP tables are global identity, owned by pospay_owner. pospay_auth has SELECT, column INSERT, DELETE for bounded 30-day retention and only challenge UPDATE(status,failed_attempts,code_mac,consumed_at,finished_at,updated_at) and attempt UPDATE(status,authorized_at,execution_id,sending_at,finished_at,failure_code,outcome_known,provider_message_digest,updated_at). No other runtime/PUBLIC grants, TRUNCATE, REFERENCES, TRIGGER, CREATE, membership or BYPASSRLS. Auth additionally receives only EXECUTE on platform_whatsapp_is_suppressed(bytea), never a global messaging table grant. This supersedes the pre-PR-6 auth function denial in §§2.5/3.
 

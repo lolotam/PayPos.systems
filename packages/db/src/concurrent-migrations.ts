@@ -18,7 +18,7 @@ function migrationSteps(statements: readonly string[], dataSteps: DataSteps) {
       statements.flatMap((statement) =>
         statement
           .split(/\r?\n/)
-          .filter((line) => /pospay:data-step/i.test(line))
+          .filter((line) => /pospay\s*:\s*data[-_\s]?step/i.test(line))
           .map((line) => {
             const name = MARKER.exec(line)?.[1];
             if (name === undefined)

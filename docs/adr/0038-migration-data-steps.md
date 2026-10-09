@@ -1,6 +1,6 @@
 # ADR-0038 — Migration data steps (employee name keys re-key)
 
-- **Status:** Proposed — awaiting owner acceptance
+- **Status:** Accepted — owner (Waleed) accepted on 2026-10-09
 - **Date:** 2026-10-09
 - **Scope:** `packages/db` migration runner; issue #139 (follow-up of PR #136, spec 038)
 
