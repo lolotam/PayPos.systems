@@ -628,6 +628,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/name-matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Read-only advisory name check in the same business. Requires manage:employees:business and staff feature. Names stay in the body; invisible matches contribute only to hidden_count. */
+        post: operations["employeeNameMatches"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/salaries": {
         parameters: {
             query?: never;
@@ -4710,6 +4727,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApplyTemplateResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeNameMatches: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name_en: string;
+                    name_ar?: string | null;
+                    /** Format: uuid */
+                    exclude_employee_id?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description EmployeeNameMatches */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        matches: {
+                            /** Format: uuid */
+                            id: string;
+                            name_en: string;
+                            name_ar: string | null;
+                            /** Format: uuid */
+                            primary_branch_id: string;
+                            /** @enum {string} */
+                            role_code: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
+                        }[];
+                        visible_total: number;
+                        hidden_count: number;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */

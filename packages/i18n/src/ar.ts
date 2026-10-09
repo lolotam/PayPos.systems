@@ -239,6 +239,12 @@ export const ar: Catalog = {
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',
   },
   staff: {
+    duplicateNameTitle: 'موظفة بنفس الاسم',
+    duplicateNameLead: 'فيه موظفة بنفس الاسم، ضيف الاسم الرباعي؟',
+    duplicateNameHidden: 'فيه موظفة تانية بنفس الاسم في فرع مش مسموح لك تشوفه.',
+    duplicateNameMore: 'تطابقات إضافية مسموح لك تشوفها:',
+    duplicateNameEdit: 'تعديل الاسم',
+    duplicateNameSaveAnyway: 'حفظ على أي حال',
     listTitle: 'الموظفون',
     listLead: 'أدر بيانات الموظفين وفروع العمل.',
     empty: 'لا يوجد موظفون في هذه الصفحة.',
