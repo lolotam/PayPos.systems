@@ -1,4 +1,11 @@
 import { schedulesPaths } from './schedules-openapi.js';
+import { z } from 'zod';
+import { employeeNameMatches, employeeNameMatchesInput } from './employee-name-matches.js';
+const nameMatchesJson = (schema: typeof employeeNameMatches | typeof employeeNameMatchesInput) => ({
+  'application/json': {
+    schema: z.toJSONSchema(schema, { target: 'openapi-3.0', io: 'input', metadata: z.registry() }),
+  },
+});
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
 });
@@ -14,6 +21,24 @@ const parameters = [
 const errors = { description: 'Bilingual refusal', content: json('ErrorEnvelope') };
 export const staffPaths = {
   ...schedulesPaths,
+  '/v1/businesses/{businessId}/employees/name-matches': {
+    post: {
+      operationId: 'employeeNameMatches',
+      description:
+        'Read-only advisory name check in the same business. Requires manage:employees:business and staff feature. Names stay in the body; invisible matches set only hidden_exists, never a count or details.',
+      parameters,
+      requestBody: { required: true, content: nameMatchesJson(employeeNameMatchesInput) },
+      responses: {
+        '200': {
+          description: 'EmployeeNameMatches',
+          content: nameMatchesJson(employeeNameMatches),
+        },
+        '400': errors,
+        '403': errors,
+        default: errors,
+      },
+    },
+  },
   '/v1/businesses/{businessId}/employees/{employeeId}/salaries': {
     get: {
       operationId: 'salaryHistory',

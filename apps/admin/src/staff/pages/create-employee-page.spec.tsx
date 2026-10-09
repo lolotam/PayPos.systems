@@ -5,6 +5,9 @@ import { CreateEmployeePage } from './create-employee-page';
 
 const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en', error: true }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
+vi.mock('../api/use-employee-name-matches', () => ({
+  useEmployeeNameMatches: () => ({ mutateAsync: vi.fn() }),
+}));
 vi.mock('../api/use-create-employee', () => ({
   useCreateEmployee: () => ({
     isPending: false,

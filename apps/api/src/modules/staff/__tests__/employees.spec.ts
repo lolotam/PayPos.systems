@@ -1,4 +1,5 @@
 import { employee } from '@pospay/contracts';
+import { employeeNameMatchKey } from '@pospay/domain';
 import { systemUuidV7 } from '@pospay/ids';
 const employeeIds = systemUuidV7();
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -57,6 +58,16 @@ it('CE-01 creates UUIDv7 employee + dated primary attachment + allowlisted audit
   expect(result.status).toBe(201);
   const record = employee.parse(result.body);
   createdId = record.id;
+  expect(result.body).not.toHaveProperty('name_en_key');
+  expect(result.body).not.toHaveProperty('name_ar_key');
+  expect(
+    await f.h.owner`SELECT name_en_key,name_ar_key FROM employees WHERE id=${createdId}`,
+  ).toEqual([
+    {
+      name_en_key: employeeNameMatchKey(record.name_en),
+      name_ar_key: record.name_ar === null ? null : employeeNameMatchKey(record.name_ar),
+    },
+  ]);
   expect(record.id).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-7/);
   expect(record).toMatchObject({
     ...termsFor(f),
@@ -164,6 +175,10 @@ it('CE-08 duplicate names and future hires are allowed with correctly dated atta
   expect(second.status).toBe(201);
   expect(first.body['id']).not.toBe(second.body['id']);
   for (const record of [first.body, second.body]) {
+    expect(
+      await f.h
+        .owner`SELECT name_en_key,name_ar_key FROM employees WHERE id=${record['id'] as string}`,
+    ).toEqual([{ name_en_key: employeeNameMatchKey(body.name_en), name_ar_key: null }]);
     expect(record['hire_date']).toBe('2999-01-01');
     expect(
       await f.h

@@ -248,6 +248,12 @@ export const en = {
     INTERNAL_ERROR: 'An unexpected error occurred',
   },
   staff: {
+    duplicateNameTitle: 'Same-name employee',
+    duplicateNameLead: 'An employee with the same name exists. Add the full four-part name?',
+    duplicateNameHidden: 'Another employee with this name exists in a branch you cannot see.',
+    duplicateNameMore: 'Further visible matches:',
+    duplicateNameEdit: 'Edit name',
+    duplicateNameSaveAnyway: 'Save anyway',
     listTitle: 'Employees',
     listLead: 'Manage employee records and working branches.',
     empty: 'No employees on this page.',

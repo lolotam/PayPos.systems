@@ -5,6 +5,9 @@ export interface EmployeeRecord {
   readonly primary_branch_id: string;
   readonly name_ar: string | null;
   readonly name_en: string;
+  /** مفاتيح داخلية تضاف لنسخة الحفظ فقط؛ بيانات التحقق والتدقيق لا تحملها. */
+  readonly name_en_key?: string;
+  readonly name_ar_key?: string | null;
   readonly role_code:
     | 'owner'
     | 'general_manager'

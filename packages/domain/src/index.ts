@@ -18,3 +18,4 @@ export {
   type Percentage,
 } from './percentage.js';
 export type { TaxMode, TaxRule } from './tax-rule.js';
+export { employeeNameMatchKey } from './employee-name-key.js';

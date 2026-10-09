@@ -4,6 +4,7 @@ import { CommitEmployeeImport } from '../use-cases/commit-employee-import/commit
 import { employeeImportTransactions } from '../persistence/employee-import.transactions.ts';
 import { ImportCommitError } from '../domain/employee-import.ts';
 import { systemUuidV7 } from '@pospay/ids';
+import { employeeNameMatchKey } from '@pospay/domain';
 
 let f: EmployeeImportFixture;
 beforeAll(async () => {
@@ -13,6 +14,25 @@ afterAll(async () => {
   await f?.close();
 });
 const ids = systemUuidV7();
+
+it.each([undefined, 'سَـارة إيمان'])(
+  'stores domain keys for import with Arabic %s without auditing keys',
+  async (nameAr) => {
+    const nameEn = nameAr === undefined ? 'NULL Arabic Import' : 'ＳＡＲＡ  Import';
+    const id = await f.requested(nameEn, nameAr === undefined ? {} : { nameAr });
+    await f.worker.execute(f.company, id);
+    const [row] =
+      await f.owner`SELECT id,name_en_key,name_ar_key FROM employees WHERE company_id=${f.company} AND name_en=${nameEn}`;
+    expect(row).toMatchObject({
+      name_en_key: employeeNameMatchKey(nameEn),
+      name_ar_key: nameAr === undefined ? null : employeeNameMatchKey(nameAr),
+    });
+    const [audit] =
+      await f.owner`SELECT after FROM audit_log WHERE entity_id=${row?.['id']} AND action='imported'`;
+    expect(audit?.['after']).not.toHaveProperty('name_en_key');
+    expect(audit?.['after']).not.toHaveProperty('name_ar_key');
+  },
+);
 
 async function requested(name: string) {
   return f.requested(name);

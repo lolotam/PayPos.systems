@@ -97,6 +97,9 @@ it('maps a database exclusion violation to the named conflict and rolls back emp
         current.record,
         {
           after: { ...current.record, revision: 3, branch_ids: [f.branch, f.sibling] },
+          name_en_key: employeeNameMatchKey(current.record.name_en),
+          name_ar_key:
+            current.record.name_ar === null ? null : employeeNameMatchKey(current.record.name_ar),
           attach: [f.branch],
           detach: [],
           changed: true,
@@ -160,3 +163,4 @@ it('a denied target branch answers the same 403 whether or not the date overlaps
     await employeeGrants(f, []);
   }
 });
+import { employeeNameMatchKey } from '@pospay/domain';

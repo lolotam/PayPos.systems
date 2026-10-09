@@ -46,7 +46,10 @@ it('coordinates one transaction and injected ids/time with null optionals', asyn
     contract_end: null,
     created_at: '2026-10-03T00:00:00.000Z',
   });
-  expect(scope.insert).toHaveBeenCalledWith(result, 'injected-id');
+  expect(scope.insert).toHaveBeenCalledWith(
+    { ...result, name_en_key: 'synthetic', name_ar_key: null },
+    'injected-id',
+  );
   expect(scope.audit).toHaveBeenCalledWith(result);
   expect(scope.canLinkUser).not.toHaveBeenCalled();
 });
