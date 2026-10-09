@@ -10,6 +10,8 @@ export interface ImportEmployeeRow {
 
 /** بيانات الكتابة المضافة إلى الصف المحقق وقت الالتزام. */
 export interface ImportedEmployeeRecord extends ImportEmployeeRow {
+  readonly name_en_key: string;
+  readonly name_ar_key: string | null;
   readonly id: string;
   readonly business_id: string;
   readonly user_id: null;

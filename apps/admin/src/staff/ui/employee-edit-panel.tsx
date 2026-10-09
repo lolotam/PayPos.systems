@@ -41,8 +41,8 @@ export function EmployeeEditPanel({
       ) : null}
       {record.data && !record.isError ? (
         <EditEmployeeForm
+          {...{ companyId, businessId: business.id, record: record.data }}
           key={`${record.data.id}:${record.data.revision}`}
-          record={record.data}
           branches={business.branches}
           pending={save.isPending}
           onSave={(terms) => save.mutate(terms)}

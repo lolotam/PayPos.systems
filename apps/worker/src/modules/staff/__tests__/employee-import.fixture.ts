@@ -11,6 +11,14 @@ import { CommitEmployeeImport } from '../use-cases/commit-employee-import/commit
 import { employeeImportTransactions } from '../persistence/employee-import.transactions.ts';
 import type { ImportEmployeeRow } from '../domain/employee-import.ts';
 
+interface RequestedOptions {
+  requestedAt?: Date;
+  expiresAt?: Date;
+  branchId?: string;
+  count?: number;
+  nameAr?: string;
+}
+
 /** تجهيز العامل مستقل عن تطبيق API: الطلب المقبول محفوظ كصف ثابت في قاعدة الاختبار. */
 export async function employeeImportFixture() {
   const testDb = await createTestDatabase();
@@ -39,14 +47,11 @@ export async function employeeImportFixture() {
     worker: new CommitEmployeeImport(employeeImportTransactions(db, ids), ids, {
       now: () => clock.value,
     }),
-    async requested(
-      name: string,
-      options: { requestedAt?: Date; expiresAt?: Date; branchId?: string; count?: number } = {},
-    ) {
+    async requested(name: string, options: RequestedOptions = {}) {
       const id = ids.newId();
       const rows: ImportEmployeeRow[] = Array.from({ length: options.count ?? 1 }, () => ({
         name_en: name,
-        name_ar: null,
+        name_ar: options.nameAr ?? null,
         role_code: 'staff',
         hire_date: '2026-01-01',
         contract_end: null,

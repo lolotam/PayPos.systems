@@ -21,6 +21,8 @@ export function CreateEmployeePage({
     <section className="mx-auto flex w-full max-w-xl flex-col gap-4 text-start">
       <h1 className="text-xl font-semibold">{t(locale, 'staff.title')}</h1>
       <CreateEmployeeForm
+        companyId={companyId}
+        businessId={business.id}
         branches={business.branches}
         pending={save.isPending}
         onSave={(terms) => save.mutate(terms)}

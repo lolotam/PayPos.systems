@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import {
   EmployeeCreationError,
   validateEmployeeCreation,
@@ -34,6 +35,8 @@ export interface EmployeeUpdateTerms {
 /** الفروق تكفي لإغلاق الصف القديم وإضافة صف جديد دون حذف التاريخ. */
 export interface EmployeeUpdatePlan {
   readonly after: EditableEmployee;
+  readonly name_en_key: string;
+  readonly name_ar_key: string | null;
   readonly attach: readonly string[];
   readonly detach: readonly string[];
   readonly changed: boolean;
@@ -46,7 +49,7 @@ export interface EmployeeUpdatePlan {
  * @param terms بيانات المدير كاملة مع النسخة والتاريخ الصريح
  * @param history التاريخ الكامل للفروع، حتى لا يتقاطع ارتباط جديد مع فترة مغلقة
  * @param contexts تبعية كل فرع مطلوب داخل الشركة
- * @returns خطة واحدة للحفظ والتدقيق أو رفض مسمى
+ * @returns خطة للحفظ والتدقيق بمفاتيح مطابقة داخلية منفصلة عن بيانات العرض، أو رفض مسمى
  */
 export function planEmployeeUpdate(
   before: EditableEmployee,
@@ -95,6 +98,8 @@ export function planEmployeeUpdate(
     JSON.stringify({ ...before, branch_ids: [...before.branch_ids].sort() });
   return {
     after: { ...after, revision: changed ? before.revision + 1 : before.revision },
+    name_en_key: employeeNameMatchKey(after.name_en),
+    name_ar_key: after.name_ar === null ? null : employeeNameMatchKey(after.name_ar),
     attach,
     detach: removed.map((row) => row.id),
     changed,

@@ -10,7 +10,7 @@ implementation plan row 13; spec 014 + ADR-0022 (files); ADR-0025 (role bundles)
 
 ### User Story 1 — Keep each employee's papers current (Priority: P1)
 
-A manager opens an employee, uploads a PDF/JPEG/PNG through the files flow, picks its document type and
+The owner or an explicitly granted person opens an employee, uploads a PDF/JPEG/PNG through the files flow, picks its document type and
 expiry date, and records it. The employee page lists the current document of every type with a status
 badge (valid, expiring, expired, no expiry), opens it through files, and replaces it with a newer one.
 
@@ -66,13 +66,13 @@ badge (valid, expiring, expired, no expiry), opens it through files, and replace
 
 ## Requirements
 
-### Access (owner decision 2026-10-03, PR 7a grants)
+### Access (amended by owner decision 2026-10-09, spec 039)
 
 | Action | Permission | Default roles |
 |---|---|---|
-| List an employee's documents, open them through files | `read:files:business` at the employee's business | owner, general_manager, business_manager (own business) |
+| List an employee's documents, open them through files | `read:files:business` at the employee's business | owner only; other human roles by owner-saved personal ALLOW |
 | Upload and record | `read:files:business` **and** `manage:files:business` at the employee's business | same |
-| List/create/update/deactivate types | `manage:document-types:company` (new) | owner, general_manager ✅; business_manager ⚙️ personal ALLOW; Device ❌ |
+| List/create/update/deactivate types | `manage:document-types:company` (new) | owner only; other human roles by owner-saved personal ALLOW; Device never |
 
 Feature `staff` must be enabled (checked after access). Documents are business-level files, so access is
 evaluated at the business exactly as `files` evaluates the stored permission.
@@ -125,7 +125,7 @@ shape + EXPLAIN + SQL/domain status parity. Worker seed consumer idempotent. Adm
 ## Owner decisions 2026-10-04 (recommended options, DOC-Q1–Q7)
 
 - **DOC-Q1** Types per company, editable, seeded with five types (TYP-01/04). Recommended: as implemented.
-- **DOC-Q2** Type management: owner/GM by default, BM by personal ALLOW of the company code, Device never.
+- **DOC-Q2** Amended 2026-10-09 (spec 039): owner only by default; only the owner may grant the company code to any human role. Device never. The same rule covers read/manage files and therefore employee import uploads.
   A BM's ALLOW lets them edit the company-wide list. Recommended: as implemented.
 - **DOC-Q3** One current document per type; replacement keeps history; past expiry accepted. History is kept
   but not yet listed in the admin. Recommended: as implemented; a history view in a later slice.

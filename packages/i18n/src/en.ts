@@ -210,6 +210,7 @@ export const en = {
     PERMISSION_SELF_EDIT: 'You cannot edit permissions on your own membership',
     PERMISSION_OWNER_PROTECTED: 'Owner permissions are protected from this change',
     PERMISSION_SCOPE_OUTSIDE_REACH: 'The target scope is outside your permission’s reach',
+    PERMISSION_OWNER_ONLY: 'Only the company owner can grant this permission',
     PERMISSION_ROLE_FORBIDDEN: 'This system role cannot receive this permission',
     PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
     TRANSACTION_RETRY_REQUIRED:
@@ -250,6 +251,12 @@ export const en = {
     INTERNAL_ERROR: 'An unexpected error occurred',
   },
   staff: {
+    duplicateNameTitle: 'Same-name employee',
+    duplicateNameLead: 'An employee with the same name exists. Add the full four-part name?',
+    duplicateNameHidden: 'Another employee with this name exists in a branch you cannot see.',
+    duplicateNameMore: 'Further visible matches:',
+    duplicateNameEdit: 'Edit name',
+    duplicateNameSaveAnyway: 'Save anyway',
     listTitle: 'Employees',
     listLead: 'Manage employee records and working branches.',
     empty: 'No employees on this page.',

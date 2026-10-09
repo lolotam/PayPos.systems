@@ -1,4 +1,5 @@
 import type { IdGenerator } from '@pospay/db';
+import { employeeNameMatchKey } from '@pospay/domain';
 import {
   ImportCommitError,
   requireAcceptedImportExpiry,
@@ -37,6 +38,8 @@ export class CommitEmployeeImport {
             primary_branch_id: row.primary_branch_id,
             name_en: row.name_en,
             name_ar: row.name_ar,
+            name_en_key: employeeNameMatchKey(row.name_en),
+            name_ar_key: row.name_ar === null ? null : employeeNameMatchKey(row.name_ar),
             role_code: row.role_code,
             hire_date: row.hire_date,
             contract_end: row.contract_end,

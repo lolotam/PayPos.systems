@@ -22,6 +22,7 @@ const saved = { ...terms, id: 'override', granted_by: actor.userId, granted_at: 
 const context: PermissionEditContext = {
   companyId: actor.companyId,
   editorUserId: actor.userId,
+  editorIsCompanyOwner: false,
   now,
   holderMemberships: [],
   membership: {

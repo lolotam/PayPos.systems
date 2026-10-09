@@ -39,6 +39,7 @@ const member = {
 const context: PermissionEditContext = {
   companyId,
   editorUserId: 'editor',
+  editorIsCompanyOwner: false,
   now: new Date('2026-10-03T12:00:00Z'),
   membership: member,
   holderMemberships: [member],

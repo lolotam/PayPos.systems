@@ -79,12 +79,12 @@ afterAll(async () => {
   storage?.close();
   await fake?.close();
 });
-it('uses PR 7a file role bundles and rejects other types/oversize and broader staff read permissions', async () => {
+it('uses owner-only file role bundles and rejects other types/oversize and broader staff read permissions', async () => {
   expect(
     Array.from(
       await h.owner`SELECT permission_code FROM role_permissions WHERE permission_code IN ('manage:files:business','read:files:business')`,
     ),
-  ).toHaveLength(6);
+  ).toHaveLength(2);
   for (const patch of [
     { content_type: 'image/webp' },
     { content_type: 'text/plain' },
@@ -109,7 +109,7 @@ it('uses PR 7a file role bundles and rejects other types/oversize and broader st
     ).status,
   ).toBe(403);
 });
-it('owner/GM read and upload across own company; BM has only own-business access using stored permission', async () => {
+it('only the owner reads and uploads by default; GM and BM uploads are forbidden', async () => {
   const verifier = new VerifyUpload(
     verificationRepository(db),
     verificationStorage(storage, FILE_UPLOAD_POLICY),
@@ -123,13 +123,13 @@ it('owner/GM read and upload across own company; BM has only own-business access
       company,
       body: input(),
     });
-    expect(own.status).toBe(201);
+    expect(own.status).toBe(actor.role === 'owner' ? 201 : 403);
     const other = await h.send('POST', `/v1/businesses/${otherBusiness}/files/uploads`, {
       cookie: actor.cookie,
       company,
       body: input(),
     });
-    expect(other.status).toBe(actor.role === 'business_manager' ? 403 : 201);
+    expect(other.status).toBe(actor.role === 'owner' ? 201 : 403);
   }
   const ticket = await h.send('POST', `/v1/businesses/${otherBusiness}/files/uploads`, {
     cookie,
@@ -153,5 +153,5 @@ it('owner/GM read and upload across own company; BM has only own-business access
           company,
         })
       ).status,
-    ).toBe(actor.role === 'business_manager' ? 404 : 200);
+    ).toBe(actor.role === 'owner' ? 200 : 404);
 });

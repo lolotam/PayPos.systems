@@ -10,8 +10,13 @@ import {
 let f: DocumentsFixture;
 let businessManager: string;
 let typeId: string;
+let ownerUser: string;
 beforeAll(async () => {
   f = await documentsFixture();
+  const [owner] = await f.h.owner`SELECT user_id FROM memberships WHERE company_id=${f.company}
+    AND role_id='01920000-0000-7000-8000-000000000101' AND role_owner_key='global'
+    AND scope_type='COMPANY' AND scope_id=${f.company} ORDER BY id LIMIT 1`;
+  ownerUser = owner?.['user_id'] as string;
   const [role] = await f.h
     .owner`SELECT id FROM roles WHERE code='business_manager' AND company_id IS NULL`;
   businessManager = role?.['id'] as string;
@@ -44,7 +49,7 @@ async function override(
 ) {
   await f.h
     .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
-    VALUES (${f.company},${documentIds.newId()},${f.memberId},${permission},${effect},${scope},${scopeId},'Synthetic document access',${f.userId})`;
+    VALUES (${f.company},${documentIds.newId()},${f.memberId},${permission},${effect},${scope},${scopeId},'Synthetic document access',${ownerUser})`;
 }
 
 it('the owner records over HTTP with a mandatory key and lists the current documents with status', async () => {
@@ -62,7 +67,9 @@ it('the owner records over HTTP with a mandatory key and lists the current docum
   expect(parsed.types.map((t) => t.code).sort()).toEqual(['civil_id', 'passport', 'work_contract']);
 });
 
-it('a business manager reaches only their own business; every other employee looks unknown', async () => {
+it('an explicitly granted business manager reaches only their own business; every other employee looks unknown', async () => {
+  await override('read:files:business', 'ALLOW');
+  await override('manage:files:business', 'ALLOW');
   await asBusinessManager();
   expect(employeeDocumentsView.parse((await send('GET', f.path)).body).can_manage).toBe(true);
   const missing = await send(
@@ -88,6 +95,7 @@ it('a business manager reaches only their own business; every other employee loo
 });
 
 it('document types need manage:document-types:company: a business manager only by personal company ALLOW', async () => {
+  await override('read:files:business', 'ALLOW');
   await asBusinessManager();
   expect((await send('GET', '/v1/document-types')).status).toBe(403);
   await override('manage:document-types:company', 'ALLOW', 'COMPANY', f.company);

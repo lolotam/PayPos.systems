@@ -479,6 +479,9 @@ importers:
       '@pospay/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@pospay/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@pospay/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n

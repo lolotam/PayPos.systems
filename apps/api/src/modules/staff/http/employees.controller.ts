@@ -18,8 +18,15 @@ import type {
   EmployeeListQuery,
   UpdateEmployeeInput,
   EmployeePage,
+  EmployeeNameMatches,
+  EmployeeNameMatchesInput,
 } from '@pospay/contracts';
-import { id, employeeListQuery, updateEmployeeInput } from '@pospay/contracts';
+import {
+  id,
+  employeeListQuery,
+  updateEmployeeInput,
+  employeeNameMatchesInput,
+} from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
@@ -40,6 +47,7 @@ import {
   type EmployeeDetailAccess,
 } from '../queries/employee-detail.query.ts';
 import { listEmployees } from '../queries/list-employees.query.ts';
+import { employeeNameMatches } from '../queries/employee-name-matches.query.ts';
 import { UpdateEmployeeUseCase } from '../use-cases/update-employee/update-employee.usecase.ts';
 
 @Controller('businesses/:businessId/employees')
@@ -67,6 +75,27 @@ export class EmployeesController {
       if (error instanceof EmployeeCreationError) throw new ApiError(error.code);
       throw error;
     }
+  }
+
+  @Post('name-matches')
+  @HttpCode(200)
+  @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
+  async nameMatches(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Body(new ZodValidationPipe(employeeNameMatchesInput)) input: EmployeeNameMatchesInput,
+    @Req() request: FastifyRequest,
+  ): Promise<EmployeeNameMatches> {
+    if (this.database === null || this.access === null) throw new ApiError('NOT_READY');
+    const actor = actorOf(request);
+    const access = this.access;
+    const result = await this.database.withTenant(
+      actor.companyId,
+      (tx) => employeeNameMatches(tx, actor.companyId, businessId, actor.userId, input, access),
+      { userId: actor.userId },
+    );
+    if (typeof result === 'string') throw new ApiError(result);
+    return result;
   }
 
   @Get(':employeeId')

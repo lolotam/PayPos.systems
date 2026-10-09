@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { employeeNameMatchKey } from '@pospay/domain';
 import {
   createForUpdate,
   executeUpdate,
@@ -32,6 +33,17 @@ it.each([
     const beforeGrants = await f.h.owner`SELECT * FROM permission_overrides ORDER BY company_id,id`;
     const response = await patchEmployee(f, record, change);
     expect(response.status).toBe(200);
+    expect(response.body).not.toHaveProperty('name_en_key');
+    expect(response.body).not.toHaveProperty('name_ar_key');
+    const names = { ...record, ...change };
+    expect(
+      await f.h.owner`SELECT name_en_key,name_ar_key FROM employees WHERE id=${record.id}`,
+    ).toEqual([
+      {
+        name_en_key: employeeNameMatchKey(names.name_en),
+        name_ar_key: names.name_ar === null ? null : employeeNameMatchKey(names.name_ar),
+      },
+    ]);
     expect(response.body).toMatchObject({
       ...change,
       revision: 2,
@@ -71,6 +83,25 @@ it('UE-03 rejects contract end before hire and permits duplicate names and futur
       contract_end: '2999-01-01',
     }),
   ).toMatchObject({ revision: 2, name_en: b.name_en, hire_date: '2999-01-01' });
+});
+it('replaces both name keys on rename, keeps them on non-name edits and clears absent Arabic', async () => {
+  const original = await createForUpdate(f, { name_en: 'ＳＡＲＡ', name_ar: 'سَـارة' });
+  const renamed = await executeUpdate(f, original, {
+    name_en: 'HEBA  Ahmed',
+    name_ar: 'هِبَة أحمد',
+  });
+  const expected = { name_en_key: 'heba ahmed', name_ar_key: 'هبه احمد' };
+  expect(
+    await f.h.owner`SELECT name_en_key,name_ar_key FROM employees WHERE id=${original.id}`,
+  ).toEqual([expected]);
+  const changed = await executeUpdate(f, renamed, { role_code: 'cashier' });
+  expect(
+    await f.h.owner`SELECT name_en_key,name_ar_key FROM employees WHERE id=${original.id}`,
+  ).toEqual([expected]);
+  await executeUpdate(f, changed, { name_ar: null });
+  expect(
+    await f.h.owner`SELECT name_en_key,name_ar_key FROM employees WHERE id=${original.id}`,
+  ).toEqual([{ ...expected, name_ar_key: null }]);
 });
 it('UE-04 attaches, detaches, changes primary and reattaches without deleting history', async () => {
   const original = await createForUpdate(f);
@@ -166,6 +197,14 @@ it('UE-05 concurrent HTTP updates return one success and one named 409 with one 
 it('unchanged and reordered branch sets are a no-op but still require the current revision', async () => {
   const record = await createForUpdate(f);
   expect(await executeUpdate(f, record)).toEqual(record);
+  expect(
+    await f.h.owner`SELECT name_en_key,name_ar_key FROM employees WHERE id=${record.id}`,
+  ).toEqual([
+    {
+      name_en_key: employeeNameMatchKey(record.name_en),
+      name_ar_key: record.name_ar === null ? null : employeeNameMatchKey(record.name_ar),
+    },
+  ]);
   expect(
     await f.h.owner`SELECT id FROM audit_log WHERE entity_id=${record.id} AND action='updated'`,
   ).toHaveLength(0);
