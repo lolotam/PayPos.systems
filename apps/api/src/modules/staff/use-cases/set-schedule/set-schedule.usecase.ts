@@ -1,3 +1,4 @@
+import { changedScheduleDays } from '../../domain/schedule-settings.ts';
 import type { SetScheduleInput } from '@pospay/contracts';
 import { scheduleToday } from '../../domain/schedule-calendar.ts';
 import {
@@ -37,9 +38,12 @@ export class SetScheduleUseCase {
       const current = await scope.employeeWeek(businessId, branchId, employeeId, input.week_start);
       validateScheduleEmployeeWeek(current.employee, branchId, input.week_start);
       const revision = nextScheduleRevision(current.before?.revision ?? 0, input.expected_revision);
-      const shifts = materializeSchedule(input.week_start, input.shifts, context.timezone);
+      const limit = await scope.maxShiftsPerDay(businessId);
+      const shifts = materializeSchedule(input.week_start, input.shifts, context.timezone, limit, []);
       validateScheduleEmployee(current.employee, branchId, shifts);
-      validateScheduleOverlap(shifts, current.others);
+      validateScheduleOverlap(
+        shifts, current.others, limit, changedScheduleDays(current.before?.shifts ?? [], shifts),
+      );
       requirePastScheduleReason(
         current.before?.shifts ?? [],
         shifts,

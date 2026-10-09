@@ -30,3 +30,5 @@ export * from './staff-device-signals.ts';
 export * from './staff-documents.ts';
 export * from './staff-import.ts';
 export * from './staff-ibans.ts';
+
+export * from './staff-schedule-settings.ts';

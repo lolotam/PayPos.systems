@@ -136,3 +136,9 @@ for (const entry of SYSTEM_ROLES) {
     },
   );
 }
+
+it('schedule settings are eligible for humans only', () => {
+  for (const entry of SYSTEM_ROLES)
+    expect(systemRolePolicy(entry.id, 'global')?.permissions.includes('manage:schedule-settings:business'))
+      .toBe(entry.code !== 'device');
+});

@@ -12,6 +12,7 @@ let templateId: string;
 const employeeIds: string[] = [];
 beforeAll(async () => {
   f = await schedulesFixture();
+  await f.h.owner`INSERT INTO staff_schedule_settings(company_id,business_id,max_shifts_per_day,updated_by,updated_at) VALUES(${f.company},${f.business},4,${f.userId},now())`;
   employeeIds.push(f.employee.id);
   for (let i = 1; i < 20; i++) {
     const employee = await f.useCase.execute({
@@ -26,8 +27,10 @@ beforeAll(async () => {
     employeeIds.push(employee.id);
   }
   const shifts = Array.from({ length: 7 }, (_, day) => [
-    { day, start: '08:00', end: '12:00' },
-    { day, start: '14:00', end: '18:00' },
+    { day, start: '00:00', end: '04:00' },
+    { day, start: '06:00', end: '10:00' },
+    { day, start: '12:00', end: '16:00' },
+    { day, start: '18:00', end: '22:00' },
   ]).flat();
   const template = await f.createTemplate.execute({
     ...scheduleActor(f),
@@ -40,6 +43,7 @@ afterAll(async () => {
   await f?.h.close();
 });
 
+// TODO(spec) FR-013: القياس المنفرد 200.9 و289 ms تجاوز 200؛ سؤال المالك: اعتماد الزمن الحالي أم فتح شريحة تحسين؟ سقف 20 نسخة محفوظ.
 it.each([
   { employees: 20, weeks: 1, start: '2028-01-01' },
   { employees: 2, weeks: 10, start: '2028-04-01' },
@@ -63,7 +67,7 @@ it.each([
     const ids = result.schedules.map((s) => s.id);
     expect(
       await f.h.owner`SELECT id FROM staff_schedule_shifts WHERE schedule_id=ANY(${ids}::uuid[])`,
-    ).toHaveLength(280);
+    ).toHaveLength(560);
     expect(
       await f.h
         .owner`SELECT id FROM audit_log WHERE entity_id=ANY(${ids}::uuid[]) AND actor_user_id=${f.userId}`,

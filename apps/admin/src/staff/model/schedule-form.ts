@@ -1,3 +1,4 @@
+import { createContext } from 'react';
 import type { ScheduleGrid, SetScheduleInput } from '@pospay/contracts';
 
 export function branchCivilDate(timezone: string, now: Date): string {
@@ -26,4 +27,14 @@ export function scheduleFormDefaults(
     expected_revision: row.schedule?.revision ?? 0,
     shifts: row.schedule?.shifts.map((s) => ({ day: s.day, start: s.start, end: s.end })) ?? [],
   };
+}
+
+export const ScheduleLimitContext = createContext(3);
+
+export function newScheduleShift(day: number, count: number) {
+  const times = [
+    ['09:00', '13:00'], ['14:00', '18:00'], ['19:00', '23:00'], ['00:00', '04:00'],
+  ];
+  const [start = '09:00', end = '13:00'] = times[count] ?? [];
+  return { day, start, end };
 }

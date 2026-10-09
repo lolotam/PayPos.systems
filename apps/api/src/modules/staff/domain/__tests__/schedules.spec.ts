@@ -81,7 +81,6 @@ describe('split, overnight, duration and overlap rules', () => {
       pattern(-1),
       pattern(7),
       pattern(0.5),
-      [...pattern(), ...pattern(0, '18:00', '19:00'), ...pattern(0, '20:00', '21:00')],
     ].map((input) => ({ input })),
   )('refuses invalid day/time/duration/count %j', ({ input }) =>
     expect(() => validateSchedulePattern(input)).toThrow('SCHEDULE_SHIFT_INVALID'),
@@ -129,8 +128,9 @@ describe('cross-boundary overlaps', () => {
       validateScheduleOverlap(shifts(0, '01:00', '02:00'), [
         ...shifts(0, '03:00', '04:00'),
         ...shifts(0, '05:00', '06:00'),
+        ...shifts(0, '07:00', '08:00'),
       ]),
-    ).toThrow('SCHEDULE_SHIFT_INVALID'));
+    ).toThrow('SCHEDULE_DAY_LIMIT_EXCEEDED'));
   it('refuses elapsed durations over 16h on a DST fallback day', () =>
     expect(() =>
       materializeSchedule('2026-10-31', pattern(1, '00:00', '16:00'), 'America/New_York'),

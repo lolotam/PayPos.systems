@@ -44,6 +44,13 @@ import { LEAVE_READ_ACCESS } from './queries/leave-requests.query.ts';
 import { RequestLeaveUseCase } from './use-cases/request-leave/request-leave.usecase.ts';
 import { CancelLeaveUseCase } from './use-cases/cancel-leave/cancel-leave.usecase.ts';
 import { StaffLeaveGuard } from './http/staff-leave.guard.ts';
+import { ScheduleSettingsController } from './http/schedule-settings.controller.ts';
+import {
+  createScheduleSettingsAccess,
+  createScheduleSettingsTransactions,
+} from './persistence/schedule-settings.adapter.ts';
+import { SCHEDULE_SETTINGS_ACCESS } from './queries/schedule-settings.query.ts';
+import { SetScheduleSettingsUseCase } from './use-cases/set-schedule-settings/set-schedule-settings.usecase.ts';
 import { SchedulesController } from './http/schedules.controller.ts';
 import { ShiftTemplatesController } from './http/shift-templates.controller.ts';
 import { createScheduleTransactions } from './persistence/drizzle-schedules.ts';
@@ -113,6 +120,7 @@ export const staffControllers = [
   MyScheduleController,
   EmployeesController,
   SchedulesController,
+  ScheduleSettingsController,
   ShiftTemplatesController,
   EmployeeSalariesController,
   DocumentTypesController,
@@ -123,6 +131,13 @@ export const staffControllers = [
 function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   const transactions = database === undefined ? null : createScheduleTransactions(database, ids);
   return [
+    { provide: SCHEDULE_SETTINGS_ACCESS, useValue: createScheduleSettingsAccess() },
+    {
+      provide: SetScheduleSettingsUseCase,
+      useValue: database === undefined ? null : new SetScheduleSettingsUseCase(
+        createScheduleSettingsTransactions(database, ids), systemClock,
+      ),
+    },
     { provide: SCHEDULE_READ_ACCESS, useValue: createScheduleReadAccess() },
     {
       provide: SetScheduleUseCase,

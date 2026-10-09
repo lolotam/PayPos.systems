@@ -13,7 +13,7 @@ import { readFeatureEnabled } from './feature-reader.ts';
  * @param target المجال المطلوب بعد حل تبعية الفرع
  * @param target.businessId النشاط
  * @param target.branchId الفرع أو null للقوالب
- * @param target.action القراءة أو الإدارة
+ * @param target.action قراءة الجداول أو إدارتها أو إدارة إعداد الورديات للنشاط
  * @param lock تثبيت الشركة والعضويات للكتابة
  * @returns السماح أو سبب رفض دون كشف بيانات عضويات
  */
@@ -21,7 +21,7 @@ export async function scheduleAccess(
   tx: Tx,
   companyId: string,
   userId: string,
-  target: { businessId: string; branchId: string | null; action: 'read' | 'manage' },
+  target: { businessId: string; branchId: string | null; action: 'read' | 'manage' | 'settings' },
   lock = false,
 ): Promise<'ALLOWED' | 'DENIED' | 'FEATURE_DISABLED'> {
   if (lock) {
@@ -36,7 +36,9 @@ export async function scheduleAccess(
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (!time) return 'DENIED';
   const access = await readAccessTransaction(tx, companyId, userId, new Date(time.at));
-  const permission = `${target.action}:schedules:${target.branchId === null ? 'business' : 'branch'}`;
+  const permission = target.action === 'settings'
+    ? 'manage:schedule-settings:business'
+    : `${target.action}:schedules:${target.branchId === null ? 'business' : 'branch'}`;
   if (
     !evaluateAccess(access.grants, permission, {
       companyId,

@@ -41,6 +41,7 @@ export function branchScheduleStatement(
         AND (eb."to" IS NULL OR eb."to" > GREATEST(${query.week_start}::date,e.hire_date)))
     ORDER BY e.id LIMIT ${query.limit + 1}) SELECT
     (SELECT array_agg(to_char(${query.week_start}::date + n,'YYYY-MM-DD') ORDER BY n) FROM generate_series(0,6) AS n) AS days,
+    COALESCE((SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}),3) AS max_shifts_per_day,
     COALESCE(jsonb_agg(rows.row ORDER BY rows.id),'[]'::jsonb) AS items FROM rows`;
 }
 export async function branchScheduleWeek(
@@ -54,7 +55,7 @@ export async function branchScheduleWeek(
 ): Promise<ScheduleGrid | ScheduleReadFailure> {
   const context = await access.read(tx, companyId, userId, businessId, branchId, query.week_start);
   if (typeof context === 'string') return context;
-  const [page] = await tx.execute<{ days: string[]; items: ScheduleGrid['items'] }>(
+  const [page] = await tx.execute<{ days: string[]; items: ScheduleGrid['items']; max_shifts_per_day: number }>(
     branchScheduleStatement(companyId, businessId, branchId, query),
   );
   if (!page) throw new Error('SCHEDULE_QUERY_FAILED');
@@ -63,6 +64,7 @@ export async function branchScheduleWeek(
     week_start: query.week_start,
     days: page.days,
     timezone: context.timezone,
+    max_shifts_per_day: page.max_shifts_per_day,
     items: rows.slice(0, query.limit),
     next_cursor: rows.length > query.limit ? (rows[query.limit - 1]?.employee_id ?? null) : null,
   };
