@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { systemUuidV7 } from '@pospay/ids';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
@@ -27,8 +28,8 @@ function insert(company: string, business: string, branch: string, user: string 
   const id = ids.newId();
   return db.withTenant(company, (tx) =>
     tx.execute(sql`INSERT INTO employees
-    (company_id,id,business_id,primary_branch_id,user_id,name_en,role_code,hire_date)
-    VALUES (${company},${id},${business},${branch},${user},'Duplicate name','staff','2999-01-01') RETURNING id`),
+    (company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date)
+    VALUES (${company},${id},${business},${branch},${user},'Duplicate name',${employeeNameMatchKey('Duplicate name')},'staff','2999-01-01') RETURNING id`),
   );
 }
 it('enforces same-business uniqueness under concurrent direct tenant writes', async () => {

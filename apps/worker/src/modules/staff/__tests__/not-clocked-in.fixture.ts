@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { t } from '@pospay/i18n';
 import { branchPlaceAdapter } from '../persistence/branch-place.adapter.ts';
 import postgres from 'postgres';
@@ -191,9 +192,9 @@ async function addEmployee(
   options: EmployeeOptions,
 ) {
   const id = ids.newId();
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,role_code,hire_date,contract_end,deleted_at)
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,contract_end,deleted_at)
     VALUES(${tenant.company},${id},${tenant.business},${tenant.branch},${options.userId ?? null},${options.nameAr ?? null},
-      ${options.nameEn ?? 'Laila'},'staff','2026-01-01',${options.contractEnd ?? null},${options.deletedAt ?? null})`;
+      ${options.nameEn ?? 'Laila'},${options.nameAr == null ? null : employeeNameMatchKey(options.nameAr)},${employeeNameMatchKey(options.nameEn ?? 'Laila')},'staff','2026-01-01',${options.contractEnd ?? null},${options.deletedAt ?? null})`;
   return id;
 }
 

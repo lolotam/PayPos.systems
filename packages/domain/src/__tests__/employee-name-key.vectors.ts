@@ -61,3 +61,9 @@ export const employeeNameKeyVectors = [
   ['سارة', 'ساره'],
   ['سارة أحمد', 'ساره احمد'],
 ] as const;
+
+export const employeeNameKeyUnicodeCaseVectors = [
+  ['JOSÉ', 'josé'],
+  ['İ', 'i\u0307'],
+  ['ΑΣ', 'ας'],
+] as const;

@@ -1,7 +1,7 @@
 import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import { EmployeeCreationError, type EmployeeRecord } from '../domain/create-employee.ts';
+import { EmployeeCreationError, type EmployeeInsertRecord } from '../domain/create-employee.ts';
 import type { EmployeeTransactions } from '../ports/employee-transactions.port.ts';
 import {
   authorizeEmployeeCreation,
@@ -10,9 +10,14 @@ import {
   employeeBranchAccess,
 } from './employee-context.adapter.ts';
 
-async function insertEmployee(tx: Tx, companyId: string, r: EmployeeRecord, attachmentId: string) {
+async function insertEmployee(
+  tx: Tx,
+  companyId: string,
+  r: EmployeeInsertRecord,
+  attachmentId: string,
+) {
   await tx.execute(sql`INSERT INTO employees (company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,contract_end,created_at)
-    VALUES (${companyId},${r.id},${r.business_id},${r.primary_branch_id},${r.user_id},${r.name_ar},${r.name_en},${r.name_ar_key ?? null},${r.name_en_key ?? null},${r.role_code},${r.hire_date},${r.contract_end},${r.created_at})`);
+    VALUES (${companyId},${r.id},${r.business_id},${r.primary_branch_id},${r.user_id},${r.name_ar},${r.name_en},${r.name_ar_key},${r.name_en_key},${r.role_code},${r.hire_date},${r.contract_end},${r.created_at})`);
   await tx.execute(sql`INSERT INTO employee_branches (company_id,id,business_id,employee_id,branch_id,"from")
     VALUES (${companyId},${attachmentId},${r.business_id},${r.id},${r.primary_branch_id},${r.hire_date})`);
 }

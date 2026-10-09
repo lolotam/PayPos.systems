@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import type postgres from 'postgres';
 
 /**
@@ -13,8 +14,8 @@ export async function seedEmployee(
   companyId: string,
   employeeId: string,
 ): Promise<void> {
-  await owner`INSERT INTO employees (company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    SELECT ${companyId}, ${employeeId}, business_id, id, ${`Synthetic ${employeeId}`}, 'staff', '2026-01-01'
+  await owner`INSERT INTO employees (company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    SELECT ${companyId}, ${employeeId}, business_id, id, ${`Synthetic ${employeeId}`}, ${employeeNameMatchKey(`Synthetic ${employeeId}`)}, 'staff', '2026-01-01'
     FROM branches WHERE company_id=${companyId} ORDER BY id LIMIT 1
     ON CONFLICT (company_id,id) DO NOTHING`;
 }

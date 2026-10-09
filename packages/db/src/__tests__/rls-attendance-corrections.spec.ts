@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -19,8 +20,8 @@ beforeAll(async () => {
   db = createDatabase({ url: testDb.appUrl, ids });
   await owner`INSERT INTO "user"(id,name,email) VALUES(${USER},'Synthetic corrector','corrector@example.test') ON CONFLICT DO NOTHING`;
   for (const t of [A, B]) {
-    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-      VALUES(${t.company},${employee},${t.business},${t.branch},'Synthetic staff','staff','2026-01-01')`;
+    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+      VALUES(${t.company},${employee},${t.business},${t.branch},'Synthetic staff',${employeeNameMatchKey('Synthetic staff')},'staff','2026-01-01')`;
     await owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,clock_in,clock_out,status,source,closed_by,geo,late_minutes)
       VALUES(${t.company},${session},${t.business},${t.branch},${employee},'2026-10-04','Asia/Kuwait','2026-10-04T05:00:00Z','2026-10-04T08:00:00Z','CLOSED','QR','EMPLOYEE','NONE',0)`;
   }

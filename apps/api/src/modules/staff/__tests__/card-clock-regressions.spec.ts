@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { IdempotencyKeyReusedError, type TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
@@ -134,6 +135,7 @@ it('projects only the display suffix and uses an employee index for the admin qu
     business_id: f.businessId,
     primary_branch_id: f.branchId,
     name_en: `Synthetic plan employee ${index}`,
+    name_en_key: employeeNameMatchKey(`Synthetic plan employee ${index}`),
     role_code: 'staff',
     hire_date: '2026-01-01',
   }));

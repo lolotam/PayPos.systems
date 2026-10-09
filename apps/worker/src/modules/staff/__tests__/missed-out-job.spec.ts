@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { H, missedOutFixture, TENANT, type MissedOutFixture } from './missed-out.fixture.ts';
@@ -142,8 +143,8 @@ it('pages through more open sessions than one page and reads them through the on
   const A = await f.tenant();
   const clockIn = new Date('2026-10-09T01:00:00Z');
   const count = MISSED_OUT_PAGE_SIZE + 5;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    SELECT ${A.company}, gen_random_uuid(), ${A.business}, ${A.branch}, 'Synthetic bulk employee', 'staff', '2026-01-01'
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    SELECT ${A.company}, gen_random_uuid(), ${A.business}, ${A.branch}, 'Synthetic bulk employee',${employeeNameMatchKey('Synthetic bulk employee')}, 'staff', '2026-01-01'
     FROM generate_series(1, ${count})`;
   await f.owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,clock_in,status,source,geo,late_minutes)
     SELECT company_id, gen_random_uuid(), business_id, primary_branch_id, id, '2026-10-09', 'Asia/Kuwait', ${clockIn}, 'OPEN', 'QR', 'OK', 0

@@ -1,4 +1,8 @@
-import type { EmployeeCreationContext, EmployeeRecord } from '../domain/create-employee.ts';
+import type {
+  EmployeeCreationContext,
+  EmployeeInsertRecord,
+  EmployeeRecord,
+} from '../domain/create-employee.ts';
 
 /** معاملة الموظف لا تكتب عضويات؛ امتلاك role_code وحده ليس صلاحية دخول. */
 export interface EmployeeCreationScope {
@@ -25,13 +29,13 @@ export interface EmployeeCreationScope {
    */
   canLinkUser(userId: string): Promise<boolean>;
   /**
-   * يحفظ الموظف وارتباط فرعه في نفس المعاملة، دون اعتماد أو منح جديد.
+   * يحفظ الموظف بمفاتيح المطابقة المطلوبة وارتباط فرعه في نفس المعاملة، دون اعتماد أو منح جديد.
    *
    * @param record سجل الموظف
    * @param attachmentId معرف ارتباط الفرع
    * @returns اكتمال الحفظ داخل المعاملة
    */
-  insert(record: EmployeeRecord, attachmentId: string): Promise<void>;
+  insert(record: EmployeeInsertRecord, attachmentId: string): Promise<void>;
   /**
    * يسجل snapshot مسموح الحقول مع actor المعاملة، وأي فشل يرد الإنشاء كله.
    *

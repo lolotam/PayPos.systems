@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { OWNER_ROLE_ID } from '@pospay/db';
 import { createAttendanceCorrectionTransactions } from '../persistence/drizzle-attendance-correction-transactions.ts';
 import { CorrectAttendanceUseCase } from '../use-cases/correct-attendance/correct-attendance.usecase.ts';
@@ -73,8 +74,8 @@ export async function seedSession(
 export async function linkEmployee(f: AttendanceCorrectionFixture, userId: string | null) {
   const id = leaveIds.newId();
   await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date,user_id)
-    VALUES(${f.company},${id},${f.business},${f.branch},'Synthetic corrected employee','staff','2026-01-01',${userId})`;
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,user_id)
+    VALUES(${f.company},${id},${f.business},${f.branch},'Synthetic corrected employee',${employeeNameMatchKey('Synthetic corrected employee')},'staff','2026-01-01',${userId})`;
   return id;
 }
 export async function ownerUserId(f: AttendanceCorrectionFixture) {

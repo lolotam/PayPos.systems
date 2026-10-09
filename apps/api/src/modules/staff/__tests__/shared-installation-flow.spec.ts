@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   attendanceFixture,
@@ -17,8 +18,8 @@ beforeAll(async () => {
   const userId = f.ids.newId(),
     employeeId = f.ids.newId();
   await f.owner`INSERT INTO "user"(id,name,email) VALUES(${userId},'Synthetic colleague','colleague@example.test')`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,role_code,hire_date)
-    VALUES(${f.companyId},${employeeId},${f.businessId},${f.branchId},${userId},'Synthetic colleague','staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${f.companyId},${employeeId},${f.businessId},${f.branchId},${userId},'Synthetic colleague',${employeeNameMatchKey('Synthetic colleague')},'staff','2026-01-01')`;
   await f.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${f.companyId},${f.ids.newId()},${f.businessId},${employeeId},${f.branchId},'2026-01-01')`;
   await f.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)

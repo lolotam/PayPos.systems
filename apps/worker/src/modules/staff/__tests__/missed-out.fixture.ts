@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
 import { createDatabase, PROVISIONAL_PLAN_ID, type Database } from '@pospay/db';
@@ -70,8 +71,8 @@ async function newTenant(
 }
 
 async function newEmployee(owner: postgres.Sql, id: string, tenant: Tenant) {
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    VALUES(${tenant.company},${id},${tenant.business},${tenant.branch},'Synthetic missed-out employee','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${tenant.company},${id},${tenant.business},${tenant.branch},'Synthetic missed-out employee',${employeeNameMatchKey('Synthetic missed-out employee')},'staff','2026-01-01')`;
   return id;
 }
 

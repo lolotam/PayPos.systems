@@ -5,9 +5,6 @@ export interface EmployeeRecord {
   readonly primary_branch_id: string;
   readonly name_ar: string | null;
   readonly name_en: string;
-  /** مفاتيح داخلية تضاف لنسخة الحفظ فقط؛ بيانات التحقق والتدقيق لا تحملها. */
-  readonly name_en_key?: string;
-  readonly name_ar_key?: string | null;
   readonly role_code:
     | 'owner'
     | 'general_manager'
@@ -26,6 +23,11 @@ export interface EmployeeRecord {
   readonly contract_end: string | null;
   readonly user_id: string | null;
   readonly created_at: string;
+}
+/** نسخة الحفظ تلزم مفاتيح المطابقة حتى لا يختفي الموظف من تنبيه الأسماء المتشابهة. */
+export interface EmployeeInsertRecord extends EmployeeRecord {
+  readonly name_en_key: string;
+  readonly name_ar_key: string | null;
 }
 /** الحالة المقروءة داخل معاملة الإنشاء، بدون أسماء أو معرفات لشركة أخرى. */
 export interface EmployeeCreationContext {

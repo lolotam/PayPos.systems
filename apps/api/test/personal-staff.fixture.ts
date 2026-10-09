@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import {
   createAuth,
   createStaffOtpApi,
@@ -96,8 +97,8 @@ async function seedPersonalRecords(owner: postgres.Sql, ids: ReturnType<typeof s
     VALUES(${company},'Synthetic employer',${userId},${PROVISIONAL_PLAN_ID})`;
   await owner`INSERT INTO businesses(company_id,id,name_en,vertical_type) VALUES(${companyId},${businessId},'Synthetic business','salon')`;
   await owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${companyId},${branchId},${businessId},'Synthetic branch')`;
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,role_code,hire_date)
-    VALUES(${companyId},${employeeId},${businessId},${branchId},${userId},'Synthetic staff','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${companyId},${employeeId},${businessId},${branchId},${userId},'Synthetic staff',${employeeNameMatchKey('Synthetic staff')},'staff','2026-01-01')`;
   await owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${companyId},${ids.newId()},${businessId},${employeeId},${branchId},'2026-01-01')`;
   await owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)

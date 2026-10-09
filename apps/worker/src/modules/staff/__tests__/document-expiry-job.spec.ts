@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { documentExpiryCandidatesStatement } from '../persistence/document-expiry.transactions.ts';
@@ -145,9 +146,9 @@ it('pages through more candidates than one page and reads them through the scan 
   const tenant = await f.tenant();
   await setup(tenant, 'passport', 30);
   const count = 105;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
     SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, ${tenant.branch},
-      'Synthetic bulk employee', 'staff', '2026-01-01'
+      'Synthetic bulk employee',${employeeNameMatchKey('Synthetic bulk employee')}, 'staff', '2026-01-01'
     FROM generate_series(1, ${count})`;
   await f.owner`INSERT INTO employee_documents(company_id,id,business_id,employee_id,type_code,object_key,expires_on,uploaded_by,recorded_at)
     SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, e.id, 'passport',

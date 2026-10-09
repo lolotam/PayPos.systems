@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
@@ -104,8 +105,8 @@ it('an employee created by the application role gets its attendance State from t
     f.companyId,
     (tx) =>
       tx.execute(sql`
-    INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    VALUES(${f.companyId},${employee},${f.businessId},${f.branchId},'Synthetic hire','staff','2026-10-04')`),
+    INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${f.companyId},${employee},${f.businessId},${f.branchId},'Synthetic hire',${employeeNameMatchKey('Synthetic hire')},'staff','2026-10-04')`),
     { userId: f.userId },
   );
   expect(

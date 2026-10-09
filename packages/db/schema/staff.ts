@@ -80,6 +80,7 @@ export const employees = pgTable(
   (t) => [
     primaryKey({ name: 'employees_pkey', columns: [t.companyId, t.id] }),
     check('employees_revision_positive', sql`${t.revision} > 0`),
+    check('employees_name_en_key_present', sql`${t.nameEnKey} IS NOT NULL`),
     unique('employees_company_business_id_key').on(t.companyId, t.businessId, t.id),
     foreignKey({
       name: 'employees_business_fk',

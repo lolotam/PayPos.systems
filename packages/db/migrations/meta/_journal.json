@@ -708,6 +708,20 @@
       "when": 1791456722219,
       "tag": "0100_2026-10-09_employee-ibans-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1791567165448,
+      "tag": "0101_2026-10-09_employee-name-key-present",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1791567179164,
+      "tag": "0102_2026-10-09_employee-name-key-validate",
+      "breakpoints": true
     }
   ]
 }
