@@ -1,4 +1,5 @@
 import type { CreateEmployeeInput, Employee } from '@pospay/contracts';
+import { employeeNameMatchKey } from '@pospay/domain';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
@@ -38,7 +39,14 @@ export class CreateEmployeeUseCase {
       if (record.user_id !== null && !(await scope.canLinkUser(record.user_id)))
         throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
       // قرار المالك 2026-10-03: الوصول خطوة صريحة في شاشة الصلاحيات؛ إنشاء سجل الوظيفة لا يمنح عضوية.
-      await scope.insert(record, this.ids.newId());
+      await scope.insert(
+        {
+          ...record,
+          name_en_key: employeeNameMatchKey(record.name_en),
+          name_ar_key: record.name_ar === null ? null : employeeNameMatchKey(record.name_ar),
+        },
+        this.ids.newId(),
+      );
       await scope.audit(record);
       return record;
     });

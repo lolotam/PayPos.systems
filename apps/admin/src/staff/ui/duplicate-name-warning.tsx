@@ -50,7 +50,7 @@ export function DuplicateNameWarning({ matches, branches, onEdit, onConfirm }: W
           })}
         </ul>
       ) : null}
-      {matches.hidden_count > 0 ? <p>{t(locale, 'staff.duplicateNameHidden')}</p> : null}
+      {matches.hidden_exists ? <p>{t(locale, 'staff.duplicateNameHidden')}</p> : null}
       {matches.visible_total > matches.matches.length ? (
         <p>
           {t(locale, 'staff.duplicateNameMore')} {matches.visible_total - matches.matches.length}

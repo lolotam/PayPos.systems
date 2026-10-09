@@ -63,7 +63,7 @@ export function useNameCheckedSubmit<T extends EmployeeNameMatchesInput>(
     if (active.current !== attempt) return;
     active.current = null;
     setChecking(false);
-    if (matches && (matches.visible_total > 0 || matches.hidden_count > 0)) {
+    if (matches && (matches.visible_total > 0 || matches.hidden_exists)) {
       setPending({ terms, matches, scope });
     } else onSave(terms);
   };

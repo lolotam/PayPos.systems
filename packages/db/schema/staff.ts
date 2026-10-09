@@ -64,6 +64,10 @@ export const employees = pgTable(
     userId: uuid('user_id').references(() => user.id),
     nameAr: text('name_ar'),
     nameEn: text('name_en').notNull(),
+    // مفتاح المطابقة الداخلي يحفظ قاعدة الأسماء دون تغيير الاسم المعروض.
+    nameEnKey: text('name_en_key'),
+    // غياب الاسم العربي يبقي مفتاح المطابقة غائباً أيضاً.
+    nameArKey: text('name_ar_key'),
     // بيانات الوظيفة فقط؛ صلاحية الدخول مصدرها memberships ولا ينشئها هذا السجل.
     roleCode: text('role_code').notNull(),
     hireDate: date('hire_date').notNull(),
@@ -88,6 +92,8 @@ export const employees = pgTable(
       foreignColumns: [branches.companyId, branches.businessId, branches.id],
     }),
     index('employees_company_business_id_idx').on(t.companyId, t.businessId, t.id),
+    index('employees_company_business_name_en_key_idx').on(t.companyId, t.businessId, t.nameEnKey),
+    index('employees_company_business_name_ar_key_idx').on(t.companyId, t.businessId, t.nameArKey),
     index('employees_company_primary_branch_idx').on(t.companyId, t.primaryBranchId, t.id),
     index('employees_company_user_idx').on(t.companyId, t.userId, t.businessId),
     index('employees_user_id_idx').on(t.userId),

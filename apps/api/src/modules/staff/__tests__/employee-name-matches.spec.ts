@@ -3,6 +3,7 @@ import {
   employeeNameMatches as responseSchema,
   employeeNameMatchesInput,
 } from '@pospay/contracts';
+import { employeeNameMatchKey } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
@@ -31,16 +32,19 @@ afterAll(async () => {
   await f?.db.close();
   await f?.h.close();
 });
+const keys = (input: unknown) => {
+  const parsed = employeeNameMatchesInput.parse(input);
+  return {
+    name_en_key: employeeNameMatchKey(parsed.name_en),
+    name_ar_key: parsed.name_ar == null ? null : employeeNameMatchKey(parsed.name_ar),
+    ...(parsed.exclude_employee_id === undefined
+      ? {}
+      : { exclude_employee_id: parsed.exclude_employee_id }),
+  };
+};
 const check = (input: unknown, company = f.company, business = f.business) =>
   f.db.withTenant(company, (tx) =>
-    employeeNameMatches(
-      tx,
-      company,
-      business,
-      f.userId,
-      employeeNameMatchesInput.parse(input),
-      createEmployeeDetailAccess(),
-    ),
+    employeeNameMatches(tx, company, business, f.userId, keys(input), createEmployeeDetailAccess()),
   );
 const send = (body: object, business = f.business) =>
   f.h.send('POST', `/v1/businesses/${business}/employees/name-matches`, {
@@ -48,7 +52,7 @@ const send = (body: object, business = f.business) =>
     company: f.company,
     body,
   });
-const empty = { matches: [], visible_total: 0, hidden_count: 0 };
+const empty = { matches: [], visible_total: 0, hidden_exists: false };
 
 it('DN-01 returns exactly the allowed projection and performs no writes', async () => {
   const record = await createForUpdate(f, { name_en: 'Sara Ahmed', name_ar: 'سارة أحمد' });
@@ -64,7 +68,7 @@ it('DN-01 returns exactly the allowed projection and performs no writes', async 
       },
     ],
     visible_total: 1,
-    hidden_count: 0,
+    hidden_exists: false,
   });
   expect(await f.h.owner`SELECT count(*) AS n FROM audit_log`).toEqual(before);
 });
@@ -139,7 +143,7 @@ it('caps the stable name/id ordering at ten while counting all eleven visible ma
     await check({ name_en: 'Unrelated cap', name_ar: 'تطابق متعدد' }),
   );
   expect(result.visible_total).toBe(11);
-  expect(result.hidden_count).toBe(0);
+  expect(result.hidden_exists).toBe(false);
   expect(result.matches.map((row) => row.id)).toEqual(
     records
       .sort((a, b) => a.name_en.localeCompare(b.name_en) || a.id.localeCompare(b.id))
@@ -166,8 +170,8 @@ it('DN-09 never matches employees of another business or company', async () => {
     [f.otherCompany, f.foreignBranch],
   ]) {
     await f.h
-      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-      SELECT ${company as string},${ids.newId()},business_id,id,'Isolated synthetic','staff','2026-01-01' FROM branches WHERE company_id=${company as string} AND id=${branch as string}`;
+      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+      SELECT ${company as string},${ids.newId()},business_id,id,'Isolated synthetic',${employeeNameMatchKey('Isolated synthetic')},'staff','2026-01-01' FROM branches WHERE company_id=${company as string} AND id=${branch as string}`;
   }
   expect(await check({ name_en: 'Isolated synthetic' })).toEqual(empty);
   const [foreignBranch] = await f.h
@@ -176,7 +180,7 @@ it('DN-09 never matches employees of another business or company', async () => {
   const foreignStatement = employeeNameMatchesStatement(
     f.otherCompany,
     foreignBusiness,
-    { name_en: 'Isolated synthetic' },
+    keys({ name_en: 'Isolated synthetic' }),
     [f.foreignBranch],
   );
   const ownRows = await f.db.withTenant(f.otherCompany, (tx) => tx.execute(foreignStatement));
@@ -200,16 +204,26 @@ it('DN-10 hides a forbidden primary or open attachment, while closed attachments
     name_en: 'Hidden synthetic',
     primary_branch_id: f.sibling,
   });
+  const secondHidden = await createForUpdate(f, {
+    name_en: primary.name_en,
+    primary_branch_id: f.sibling,
+  });
   const attached = await createForUpdate(f, { name_en: 'Attached synthetic' });
   const expanded = await executeUpdate(f, attached, { branch_ids: [f.branch, f.sibling] });
   await employeeGrants(f, [['ALLOW', 'BRANCH', f.branch]]);
   try {
-    for (const record of [primary, attached]) {
+    for (const record of [primary, secondHidden, attached]) {
       const result = await check({ name_en: record.name_en });
-      expect(result).toEqual({ matches: [], visible_total: 0, hidden_count: 1 });
+      expect(result).toEqual({ matches: [], visible_total: 0, hidden_exists: true });
       expect(JSON.stringify(result)).not.toContain(record.id);
       expect(JSON.stringify(result)).not.toContain(record.name_en);
     }
+    const response = await send({ name_en: primary.name_en });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ matches: [], visible_total: 0, hidden_exists: true });
+    expect(JSON.stringify(response.body)).not.toContain(primary.id);
+    expect(JSON.stringify(response.body)).not.toContain(secondHidden.id);
+    expect(JSON.stringify(response.body)).not.toContain(primary.name_en);
   } finally {
     await employeeGrants(f, [['ALLOW', 'BUSINESS', f.business]]);
   }
@@ -222,14 +236,23 @@ it('DN-10 hides a forbidden primary or open attachment, while closed attachments
   }
 });
 
-it('uses employees_company_business_id_idx for the scoped scan', async () => {
+it('uses employees_company_business_name_en_key_idx for the scoped scan', async () => {
+  const rows = Array.from({ length: 2000 }, (_, i) => {
+    const name = `Plan filler ${i}`;
+    return { id: ids.newId(), name_en: name, name_en_key: employeeNameMatchKey(name) };
+  });
+  await f.h
+    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    SELECT ${f.company},id,${f.business},${f.branch},name_en,name_en_key,'staff','2026-01-01'
+    FROM jsonb_to_recordset(${f.h.owner.json(rows)}) AS r(id uuid,name_en text,name_en_key text)`;
+  await f.h.owner`ANALYZE employees`;
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(
-      sql`EXPLAIN (ANALYZE, FORMAT JSON) ${employeeNameMatchesStatement(f.company, f.business, { name_en: 'Heba', name_ar: 'هبة' }, [f.branch, f.sibling])}`,
+      sql`EXPLAIN (ANALYZE, FORMAT JSON) ${employeeNameMatchesStatement(f.company, f.business, keys({ name_en: 'Heba', name_ar: 'هبة' }), [f.branch, f.sibling])}`,
     );
   });
-  expect(JSON.stringify(plan)).toContain('employees_company_business_id_idx');
+  expect(JSON.stringify(plan)).toContain('employees_company_business_name_en_key_idx');
 });
 
 it('DN-11 authenticates, rejects no grant, accepts branch-only ALLOW and hides branch DENY', async () => {
@@ -245,7 +268,7 @@ it('DN-11 authenticates, rejects no grant, accepts branch-only ALLOW and hides b
   await employeeGrants(f, [['ALLOW', 'BRANCH', f.branch]]);
   expect(await send({ name_en: 'Heba' })).toMatchObject({
     status: 200,
-    body: { visible_total: 1, hidden_count: 0 },
+    body: { visible_total: 1, hidden_exists: false },
   });
   await employeeGrants(f, [
     ['ALLOW', 'BUSINESS', f.business],
@@ -253,7 +276,7 @@ it('DN-11 authenticates, rejects no grant, accepts branch-only ALLOW and hides b
   ]);
   expect(await send({ name_en: 'Hidden synthetic' })).toMatchObject({
     status: 200,
-    body: { matches: [], visible_total: 0, hidden_count: 1 },
+    body: { matches: [], visible_total: 0, hidden_exists: true },
   });
   await employeeGrants(f, [['ALLOW', 'BUSINESS', f.business]]);
 });

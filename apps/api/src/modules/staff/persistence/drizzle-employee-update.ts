@@ -52,7 +52,7 @@ async function saveEmployee(
 ) {
   const r = plan.after;
   const changed =
-    await tx.execute(sql`UPDATE employees SET primary_branch_id=${r.primary_branch_id},name_en=${r.name_en},name_ar=${r.name_ar},role_code=${r.role_code},hire_date=${r.hire_date},contract_end=${r.contract_end},user_id=${r.user_id},revision=${r.revision}
+    await tx.execute(sql`UPDATE employees SET primary_branch_id=${r.primary_branch_id},name_en=${r.name_en},name_ar=${r.name_ar},name_en_key=${plan.name_en_key},name_ar_key=${plan.name_ar_key},role_code=${r.role_code},hire_date=${r.hire_date},contract_end=${r.contract_end},user_id=${r.user_id},revision=${r.revision}
     WHERE company_id=${companyId} AND business_id=${r.business_id} AND id=${r.id} AND revision=${before.revision} AND deleted_at IS NULL RETURNING id`);
   if (changed.length !== 1) throw new EmployeeCreationError('EMPLOYEE_REVISION_CONFLICT');
   for (const attachmentId of plan.detach)

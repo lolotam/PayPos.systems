@@ -10,7 +10,9 @@ vi.mock('../api/use-employee-name-matches', () => ({
 }));
 beforeEach(() => {
   state.locale = 'en';
-  state.check.mockReset().mockResolvedValue({ matches: [], visible_total: 0, hidden_count: 0 });
+  state.check
+    .mockReset()
+    .mockResolvedValue({ matches: [], visible_total: 0, hidden_exists: false });
 });
 const branch = {
   id: '01920000-0000-7000-8000-0000000000a2',
@@ -104,7 +106,7 @@ const props = {
   pending: false,
 };
 it('DN-07 confirms the exact PATCH terms including revision and branch history fields', async () => {
-  state.check.mockResolvedValue({ matches: [], visible_total: 0, hidden_count: 1 });
+  state.check.mockResolvedValue({ matches: [], visible_total: 0, hidden_exists: true });
   const save = vi.fn();
   render(<EditEmployeeForm {...props} onSave={save} />);
   fireEvent.change(screen.getByLabelText(t('en', 'staff.nameEn')), {

@@ -25,7 +25,7 @@ export const staffPaths = {
     post: {
       operationId: 'employeeNameMatches',
       description:
-        'Read-only advisory name check in the same business. Requires manage:employees:business and staff feature. Names stay in the body; invisible matches contribute only to hidden_count.',
+        'Read-only advisory name check in the same business. Requires manage:employees:business and staff feature. Names stay in the body; invisible matches set only hidden_exists, never a count or details.',
       parameters,
       requestBody: { required: true, content: nameMatchesJson(employeeNameMatchesInput) },
       responses: {

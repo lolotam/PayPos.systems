@@ -673,6 +673,20 @@
       "when": 1791456717219,
       "tag": "0095_2026-10-08_catalog-package-types-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1791555194031,
+      "tag": "0096_2026-10-09_staff-employee-name-keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1791555240067,
+      "tag": "0097_2026-10-09_staff-employee-name-key-indexes",
+      "breakpoints": true
     }
   ]
 }

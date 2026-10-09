@@ -1,0 +1,2 @@
+CREATE INDEX CONCURRENTLY "employees_company_business_name_en_key_idx" ON "employees" USING btree ("company_id","business_id","name_en_key");--> statement-breakpoint
+CREATE INDEX CONCURRENTLY "employees_company_business_name_ar_key_idx" ON "employees" USING btree ("company_id","business_id","name_ar_key");

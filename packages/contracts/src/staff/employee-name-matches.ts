@@ -22,7 +22,7 @@ export const employeeNameMatches = z
   .object({
     matches: z.array(employeeNameMatch).max(10),
     visible_total: z.number().int().nonnegative(),
-    hidden_count: z.number().int().nonnegative(),
+    hidden_exists: z.boolean(),
   })
   .meta({ id: 'EmployeeNameMatches' });
 

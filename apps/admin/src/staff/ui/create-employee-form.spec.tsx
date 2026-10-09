@@ -8,8 +8,8 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale
 vi.mock('../api/use-employee-name-matches', () => ({
   useEmployeeNameMatches: () => ({ mutateAsync: state.check }),
 }));
-const empty = { matches: [], visible_total: 0, hidden_count: 0 };
-const duplicate = { matches: [], visible_total: 0, hidden_count: 1 };
+const empty = { matches: [], visible_total: 0, hidden_exists: false };
+const duplicate = { matches: [], visible_total: 0, hidden_exists: true };
 beforeEach(() => {
   state.locale = 'en';
   state.check.mockReset().mockResolvedValue(empty);

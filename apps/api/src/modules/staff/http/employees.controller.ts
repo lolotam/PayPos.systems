@@ -28,6 +28,7 @@ import {
   employeeNameMatchesInput,
 } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
+import { employeeNameMatchKey } from '@pospay/domain';
 import type { FastifyRequest } from 'fastify';
 
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -91,7 +92,21 @@ export class EmployeesController {
     const access = this.access;
     const result = await this.database.withTenant(
       actor.companyId,
-      (tx) => employeeNameMatches(tx, actor.companyId, businessId, actor.userId, input, access),
+      (tx) =>
+        employeeNameMatches(
+          tx,
+          actor.companyId,
+          businessId,
+          actor.userId,
+          {
+            name_en_key: employeeNameMatchKey(input.name_en),
+            name_ar_key: input.name_ar == null ? null : employeeNameMatchKey(input.name_ar),
+            ...(input.exclude_employee_id === undefined
+              ? {}
+              : { exclude_employee_id: input.exclude_employee_id }),
+          },
+          access,
+        ),
       { userId: actor.userId },
     );
     if (typeof result === 'string') throw new ApiError(result);

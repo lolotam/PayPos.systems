@@ -50,16 +50,16 @@ it('publishes a body-only read with the same generated request and response shap
   });
   expect(route.responses['200'].content['application/json'].schema).toMatchObject({
     type: 'object',
-    required: ['matches', 'visible_total', 'hidden_count'],
-    properties: { matches: { type: 'array', maxItems: 10 } },
+    required: ['matches', 'visible_total', 'hidden_exists'],
+    properties: { matches: { type: 'array', maxItems: 10 }, hidden_exists: { type: 'boolean' } },
   });
   expect(employeeNameMatchesInput.meta()?.id).toBe('EmployeeNameMatchesInput');
   expect(employeeNameMatches.meta()?.id).toBe('EmployeeNameMatches');
 });
 
-it('validates the visible projection, ten-row cap and non-negative integer totals', () => {
+it('validates the visible projection, ten-row cap, visible total and boolean hidden existence', () => {
   expect(employeeNameMatch.parse(match)).toEqual(match);
-  const response = { matches: [match], visible_total: 1, hidden_count: 0 };
+  const response = { matches: [match], visible_total: 1, hidden_exists: false };
   expect(employeeNameMatches.parse(response)).toEqual(response);
   expect(
     employeeNameMatches.safeParse({ ...response, matches: Array.from({ length: 10 }, () => match) })
@@ -68,11 +68,17 @@ it('validates the visible projection, ten-row cap and non-negative integer total
   for (const change of [
     { matches: Array.from({ length: 11 }, () => match) },
     { visible_total: -1 },
-    { hidden_count: -1 },
+    { hidden_exists: 0 },
     { visible_total: 1.5 },
-    { hidden_count: 0.5 },
+    { hidden_exists: 2 },
+    { hidden_exists: 'true' },
+    { hidden_exists: undefined },
   ])
     expect(employeeNameMatches.safeParse({ ...response, ...change }).success).toBe(false);
+  expect(employeeNameMatches.parse({ ...response, hidden_exists: true }).hidden_exists).toBe(true);
+  expect(
+    employeeNameMatches.safeParse({ matches: [], visible_total: 0, hidden_count: 2 }).success,
+  ).toBe(false);
   for (const change of [
     { id: 'invalid' },
     { primary_branch_id: 'invalid' },

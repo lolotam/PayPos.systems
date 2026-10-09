@@ -29,7 +29,7 @@ it.each(['ar', 'en'] as const)(
       confirm = vi.fn();
     render(
       <DuplicateNameWarning
-        matches={{ matches: [match], visible_total: 12, hidden_count: 4 }}
+        matches={{ matches: [match], visible_total: 12, hidden_exists: true }}
         branches={[branch]}
         onEdit={dismiss}
         onConfirm={confirm}
@@ -63,7 +63,7 @@ it('renders hidden-only matches without employee details or identifiers', () => 
   state.locale = 'en';
   render(
     <DuplicateNameWarning
-      matches={{ matches: [], visible_total: 0, hidden_count: 2 }}
+      matches={{ matches: [], visible_total: 0, hidden_exists: true }}
       branches={[branch]}
       onEdit={vi.fn()}
       onConfirm={vi.fn()}

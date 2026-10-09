@@ -637,7 +637,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Read-only advisory name check in the same business. Requires manage:employees:business and staff feature. Names stay in the body; invisible matches contribute only to hidden_count. */
+        /** @description Read-only advisory name check in the same business. Requires manage:employees:business and staff feature. Names stay in the body; invisible matches set only hidden_exists, never a count or details. */
         post: operations["employeeNameMatches"];
         delete?: never;
         options?: never;
@@ -4780,7 +4780,7 @@ export interface operations {
                             role_code: "owner" | "general_manager" | "accountant" | "business_manager" | "branch_manager" | "shift_supervisor" | "cashier" | "waiter" | "kitchen" | "storekeeper" | "staff" | "marketing" | "viewer";
                         }[];
                         visible_total: number;
-                        hidden_count: number;
+                        hidden_exists: boolean;
                     };
                 };
             };
