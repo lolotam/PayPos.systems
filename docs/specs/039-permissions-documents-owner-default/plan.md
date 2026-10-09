@@ -15,7 +15,7 @@ so managers without a personal grant get 403 on it (owner decision OD-Q4 = B).
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5 on Node 22
+**Language/Version**: TypeScript 6 on Node 24 (ADR-0002)
 
 **Primary Dependencies**: NestJS (Fastify), Drizzle ORM + drizzle-kit, Vitest; no new dependency
 

@@ -37,7 +37,7 @@ No new tenant table → no new RLS negative test; no `queries/` file → no new 
 
 ## Phase 3: User Story 1 — owner-only by default (P1)
 
-**Goal**: GM/BM without a grant get 403 on documents and document types; the owner keeps everything.
+**Goal**: GM/BM without a grant get 404 on documents (non-disclosure), 403 on uploads and document types; the owner keeps everything.
 **Independent test**: ODOC-01…04, ODOC-09.
 
 - [x] T007 [P] [US1] New integration spec `apps/api/src/modules/identity/__tests__/documents-owner-default.spec.ts`
