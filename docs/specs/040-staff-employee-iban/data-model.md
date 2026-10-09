@@ -34,4 +34,4 @@ lower-case country; `ibanBankCode` matches the country's code shape when present
 ## Audit (`audit_log`, existing)
 
 `entity 'employee_iban'`, `entity_id` = the new entry id, `action 'iban.set' | 'iban.cleared'`, before/after
-`{ entry_id, revision, iban_last4, bank_id, cleared }`, `after.reason`. No full IBAN, no holder name.
+`{ entry_id, revision, iban_last4, bank_id, cleared }`, with no reason, full IBAN or holder name; the reason lives only in the protected history row.

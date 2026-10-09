@@ -1,4 +1,4 @@
-import { maskIban, validateIban, type GccBank } from '@pospay/domain';
+import { maskIban, normalizeHolderName, validateIban, type GccBank } from '@pospay/domain';
 
 /** رفض مصرفي لا يحمل القيمة أو بيانات موظف آخر. */
 export class EmployeeIbanError extends Error {
@@ -73,9 +73,8 @@ export function validateIbanEntry(
   );
   if (!bank || bank.country !== validation.country || (mapped && mapped.id !== bank.id))
     throw new EmployeeIbanError('IBAN_BANK_INVALID');
-  const holder_name_en = input.holder_name_en.trim().replace(/\s+/g, ' ');
-  if (holder_name_en.length > 100 || !/^[A-Za-z][A-Za-z .'-]*$/.test(holder_name_en))
-    throw new EmployeeIbanError('IBAN_HOLDER_NAME_INVALID');
+  const holder_name_en = normalizeHolderName(input.holder_name_en);
+  if (holder_name_en === null) throw new EmployeeIbanError('IBAN_HOLDER_NAME_INVALID');
   return { iban: validation.iban, bank_id: bank.id, holder_name_en, reason };
 }
 

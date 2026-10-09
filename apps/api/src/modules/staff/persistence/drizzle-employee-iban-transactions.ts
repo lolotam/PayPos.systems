@@ -71,7 +71,7 @@ async function save(
     entityId: after.id,
     action: after.iban === null ? 'iban.cleared' : 'iban.set',
     before: ibanAuditSnapshot(before),
-    after: { ...ibanAuditSnapshot(after), reason: after.reason },
+    after: ibanAuditSnapshot(after),
   });
   return { ...after, set_at: row.set_at };
 }

@@ -29,6 +29,7 @@ it('IB-01/02/06 sets normalized data without an idempotency key; no-op writes no
     ...ibanTerms(),
     iban: ' kw٨١ cbku 0000 0000 0000 1234 5601 01 ',
     holder_name_en: ' SYNTHETIC  HOLDER ',
+    reason: `Changed account for SYNTHETIC HOLDER: ${registryIban}`,
   };
   const first = await ibanHttp(f, 'PUT', f.ibanPath, input);
   expect(first.status).toBe(200);
@@ -44,6 +45,7 @@ it('IB-01/02/06 sets normalized data without an idempotency key; no-op writes no
   const rows = await f.h
     .owner`SELECT * FROM employee_ibans WHERE company_id=${f.company} AND employee_id=${f.employee.id}`;
   expect(rows).toHaveLength(1);
+  expect(rows[0]?.['reason']).toBe(input.reason);
   const audits = await f.h
     .owner`SELECT * FROM audit_log WHERE company_id=${f.company} AND entity='employee_iban'`;
   expect(audits).toHaveLength(1);
@@ -52,13 +54,13 @@ it('IB-01/02/06 sets normalized data without an idempotency key; no-op writes no
     action: 'iban.set',
     actor_user_id: f.userId,
     before: null,
-    after: {
-      revision: 1,
-      iban_last4: '0101',
-      bank_id: 'kw-cbk',
-      cleared: false,
-      reason: input.reason,
-    },
+  });
+  expect(audits[0]?.['after']).toEqual({
+    entry_id: rows[0]?.['id'],
+    revision: 1,
+    iban_last4: '0101',
+    bank_id: 'kw-cbk',
+    cleared: false,
   });
   for (const value of [registryIban, 'SYNTHETIC HOLDER'])
     expect(JSON.stringify(audits)).not.toContain(value);

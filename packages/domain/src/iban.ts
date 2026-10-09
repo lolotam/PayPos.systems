@@ -31,6 +31,18 @@ export function normalizeIban(value: string): string {
 }
 
 /**
+ * يوحد مسافات اسم صاحب الحساب ويقبل الاسم الإنجليزي فقط حتى يطابق صيغة ملف البنك.
+ * يبدأ الاسم بحرف لاتيني ويكون طوله بعد التوحيد من حرف واحد إلى مئة حرف.
+ *
+ * @param value اسم صاحب الحساب المدخل
+ * @returns الاسم الموحد أو لا شيء عند مخالفة قاعدة الاسم
+ */
+export function normalizeHolderName(value: string): string | null {
+  const name = value.trim().replace(/\s+/g, ' ');
+  return name.length <= 100 && /^[A-Za-z][A-Za-z .'-]*$/.test(name) ? name : null;
+}
+
+/**
  * يحسب باقي القسمة رقماً رقماً لتجنب فقد الدقة عند تحويل حساب طويل إلى عدد.
  *
  * @param iban الآيبان الموحد

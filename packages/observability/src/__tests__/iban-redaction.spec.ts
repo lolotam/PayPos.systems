@@ -46,7 +46,9 @@ describe('employee IBAN redaction (spec 040 TD-5)', () => {
     expect(line).not.toContain(IBAN);
     expect(line).not.toContain(HOLDER);
   });
+});
 
+describe('employee IBAN free-text redaction (spec 040 TD-5)', () => {
   it.each([
     ['KW', 30],
     ['SA', 24],
@@ -57,9 +59,31 @@ describe('employee IBAN redaction (spec 040 TD-5)', () => {
   ] as const)('redacts %s IBAN-shaped tokens in free text, spaced or not', (country, length) => {
     const iban = country + '0'.repeat(length - 2);
     const spaced = iban.match(/.{1,4}/g)?.join(' ') ?? '';
-    for (const value of [iban, spaced, spaced.toLowerCase()]) {
-      expect(sanitize(`Failed account ${value}.`)).toBe('Failed account [REDACTED].');
+    const separated = country + '  ' + iban.slice(2).split('').join('   ');
+    const localized = [0x660, 0x6f0].map((start) =>
+      separated.replace(/\d/g, (digit) => String.fromCharCode(start + Number(digit))),
+    );
+    for (const value of [
+      iban,
+      spaced,
+      spaced.toLowerCase(),
+      separated,
+      separated.toLowerCase(),
+      ...localized,
+    ]) {
+      for (const clean of [sanitize, redactSecrets])
+        expect(clean(`Failed account ${value}.`)).toBe('Failed account [REDACTED].');
     }
+  });
+
+  it.each([
+    'KW 81CBKU0000000000001234560101',
+    'KW81  CBKU  0000  0000  0000  1234  5601  01',
+    'kw  8  1cbku0000000000001234560101',
+  ])('redacts accepted spacing in free text: %s', (value) => {
+    expect(sanitize(`Failed account ${value}.`)).toBe('Failed account [REDACTED].');
+    expect(redactSecrets(`Failed account ${value}.`)).toBe('Failed account [REDACTED].');
+    expect(capture({ message: value })).not.toContain(value);
   });
 
   it('keeps error codes, UUIDs and ordinary words that start like a country code', () => {
@@ -67,6 +91,7 @@ describe('employee IBAN redaction (spec 040 TD-5)', () => {
       'IBAN_CHECKSUM_INVALID 01920000-0000-7000-8000-0000000000a2',
       'qa team saw some account totals drift across the whole board ok',
       'om batch processed customers without any failures today',
+      'QA 1 team saw some account totals drift across the whole board ok',
     ]) {
       expect(sanitize(text)).toBe(text);
     }

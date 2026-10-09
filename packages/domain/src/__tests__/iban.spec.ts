@@ -4,11 +4,37 @@ import {
   ibanBankCode,
   ibanChecksumValid,
   maskIban,
+  normalizeHolderName,
   normalizeIban,
   validateIban,
 } from '../iban.js';
 
 const example = 'KW81CBKU0000000000001234560101';
+it.each([
+  ['A', 'A'],
+  ["Anne O'Neil-Smith.", "Anne O'Neil-Smith."],
+  ['  SYNTHETIC \t\n HOLDER  ', 'SYNTHETIC HOLDER'],
+  ['A'.repeat(100), 'A'.repeat(100)],
+  ['  ' + 'A'.repeat(98) + '   B  ', 'A'.repeat(98) + ' B'],
+])('normalizes a valid English holder name: %j', (value, expected) => {
+  expect(normalizeHolderName(value)).toBe(expected);
+});
+it.each([
+  '',
+  ' \t\n ',
+  'عربي',
+  'Émile',
+  '.Name',
+  "'Name",
+  '-Name',
+  '1Name',
+  'A'.repeat(101),
+  'SARA_ALI',
+  'Name1',
+  'Name@',
+])('refuses an invalid holder name: %j', (value) => {
+  expect(normalizeHolderName(value)).toBeNull();
+});
 function generated(country: string, bban: string) {
   const digits = `${bban}${country}00`.replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
   let remainder = 0;

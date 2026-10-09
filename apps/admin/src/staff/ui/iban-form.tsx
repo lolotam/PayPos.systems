@@ -6,16 +6,17 @@ import {
   type SetEmployeeIbanInput,
 } from '@pospay/contracts';
 import {
-  bankForIbanCode,
   banksForCountry,
   formatIbanForDisplay,
+  normalizeHolderName,
   validateIban,
 } from '@pospay/domain';
 import { t } from '@pospay/i18n';
-import { Button, Input, Label, NativeSelect } from '@pospay/ui';
+import { Button, Input, Label } from '@pospay/ui';
 import { useState } from 'react';
-import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
+import { BankingFields } from './iban-banking-fields';
 
 export function IbanForm({
   current,
@@ -76,76 +77,16 @@ function useIbanForm(
       return;
     }
     const result = validateIban(input.iban ?? '');
+    const holder_name_en = normalizeHolderName(input.holder_name_en ?? '');
     if (
       !result.ok ||
       !banksForCountry(result.country).some((bank) => bank.id === input.bank_id) ||
-      !/^[A-Za-z][A-Za-z .'-]{0,99}$/.test((input.holder_name_en ?? '').trim().replace(/\s+/g, ' '))
+      holder_name_en === null
     ) {
       form.setError('iban', { type: 'validate' });
       return;
     }
-    onSave({ ...input, iban: result.iban });
+    onSave({ ...input, iban: result.iban, holder_name_en });
   }
   return { form, submit };
-}
-function BankingFields({ form }: { form: UseFormReturn<SetEmployeeIbanInput> }) {
-  const locale = useLocale();
-  const checked = validateIban(useWatch({ control: form.control, name: 'iban' }) ?? '');
-  const banks = checked.ok ? banksForCountry(checked.country) : [];
-  return (
-    <>
-      <IbanInput form={form} />
-      <Label htmlFor="employee-iban-bank">{t(locale, 'employeeIban.bank')}</Label>
-      <NativeSelect id="employee-iban-bank" {...form.register('bank_id')}>
-        <option value="">{t(locale, 'employeeIban.selectBank')}</option>
-        {banks.map((bank) => (
-          <option key={bank.id} value={bank.id}>
-            {locale === 'ar' ? bank.nameAr : bank.nameEn}
-          </option>
-        ))}
-      </NativeSelect>
-      <Label htmlFor="employee-iban-holder">{t(locale, 'employeeIban.holder')}</Label>
-      <Input
-        id="employee-iban-holder"
-        dir="ltr"
-        maxLength={100}
-        {...form.register('holder_name_en')}
-      />
-    </>
-  );
-}
-function IbanInput({ form }: { form: UseFormReturn<SetEmployeeIbanInput> }) {
-  const locale = useLocale();
-  const iban = useWatch({ control: form.control, name: 'iban' }) ?? '';
-  const checked = validateIban(iban);
-  const hint = checked.ok
-    ? 'employeeIban.valid'
-    : checked.reason === 'COUNTRY'
-      ? 'employeeIban.country'
-      : checked.reason === 'CHECKSUM'
-        ? 'employeeIban.checksum'
-        : 'employeeIban.format';
-  return (
-    <>
-      <Label htmlFor="employee-iban">{t(locale, 'employeeIban.iban')}</Label>
-      <Input
-        id="employee-iban"
-        dir="ltr"
-        maxLength={64}
-        {...form.register('iban', {
-          onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
-            const result = validateIban(event.target.value);
-            form.setValue(
-              'bank_id',
-              result.ok ? (bankForIbanCode(result.country, result.bankCode)?.id ?? '') : '',
-            );
-          },
-          onBlur: () => {
-            if (checked.ok) form.setValue('iban', formatIbanForDisplay(checked.iban));
-          },
-        })}
-      />
-      {iban ? <p role="status">{t(locale, hint)}</p> : null}
-    </>
-  );
 }

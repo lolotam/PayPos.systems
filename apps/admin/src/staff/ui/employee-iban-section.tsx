@@ -1,25 +1,26 @@
 'use client';
 import { findGccBank, formatIbanForDisplay } from '@pospay/domain';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
 import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeIban } from '../api/use-employee-iban';
 import { IbanForm } from './iban-form';
-import { IbanHistoryTable } from './iban-history-table';
+import { IbanHistory } from './iban-history';
+
+type EmployeeIbanSectionProps = {
+  companyId: string;
+  businessId: string;
+  userId: string;
+  employeeId: string;
+};
 
 export function EmployeeIbanSection({
   companyId,
   businessId,
   userId,
   employeeId,
-}: {
-  companyId: string;
-  businessId: string;
-  userId: string;
-  employeeId: string;
-}) {
+}: EmployeeIbanSectionProps) {
   const locale = useLocale();
   const [cursor, setCursor] = useState<number>();
   const { current, history, save, accessDenied } = useEmployeeIban(
@@ -62,39 +63,5 @@ export function EmployeeIbanSection({
       {save.isError ? <p role="alert">{envelopeMessage(save.error, locale)}</p> : null}
       {save.isSuccess ? <p role="status">{t(locale, 'employeeIban.saved')}</p> : null}
     </section>
-  );
-}
-
-function IbanHistory({
-  history,
-  cursor,
-  setCursor,
-}: {
-  history: ReturnType<typeof useEmployeeIban>['history'];
-  cursor: number | undefined;
-  setCursor: (cursor: number | undefined) => void;
-}) {
-  const locale = useLocale();
-  if (!history.isFetchedAfterMount || !history.data || history.isError) return null;
-  return (
-    <>
-      <IbanHistoryTable items={history.data.items} />
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          disabled={!cursor || history.isFetching}
-          onClick={() => setCursor(undefined)}
-        >
-          {t(locale, 'staff.first')}
-        </Button>
-        <Button
-          variant="outline"
-          disabled={!history.data.next_cursor || history.isFetching}
-          onClick={() => setCursor(history.data?.next_cursor ?? undefined)}
-        >
-          {t(locale, 'staff.next')}
-        </Button>
-      </div>
-    </>
   );
 }

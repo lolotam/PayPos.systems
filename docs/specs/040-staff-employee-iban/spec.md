@@ -240,8 +240,8 @@ The receptionist (who was granted the salary permissions) types her own IBAN int
   memberships (`lockEmployeeSalaryAccess`) → employee `FOR UPDATE`. The company-row lock serialises every IBAN write
   in a company, which makes the BR-006 check-then-insert race-free; IB-12 proves it with two concurrent writers.
 - **TD-4 — Audit holds no full IBAN and no holder name**: `entity 'employee_iban'`, entity id = the new entry id,
-  before/after `{ entry_id, revision, iban_last4, bank_id, cleared }`, reason in `after`. Full values stay in the
-  protected history table.
+  before/after `{ entry_id, revision, iban_last4, bank_id, cleared }`, with no reason; the reason and full values
+  stay only in the protected history row.
 - **TD-5 — Log redaction** in `packages/observability/src/redaction.ts`: add `iban` and `holdername` to
   `SECRET_SUFFIXES` (covers `iban`, `employee_iban`, `holder_name_en`… in logs and audit snapshots; `iban_last4`
   survives). `sanitize` also replaces IBAN-shaped tokens of the six countries in free text. The Zod validation pipe's
