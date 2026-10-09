@@ -83,7 +83,7 @@ Base: `main` 043c68da. Line numbers are from that commit.
 | Past-reason rule | six-value tuple misses breaks → past break changes without reason | ten-value tuple (BR-006) |
 | Open attendance sessions | a session opened before deploy keeps its stored lateness | nothing recomputed retroactively |
 | Offline POS | no POS schedule screen; personal clocking is online-only (ADR-0019) | none |
-| Reports (row 27, not built) | hours must exclude the break (BW-Q4) | written into FR-011 for row 27 |
+| Reports (row 27, not built) | hours must **include** the break (BW-Q4 = 2, owner 2026-10-10) | written into FR-011 for row 27 |
 | Commissions | attendance never touches commission (SPEC §7) | none |
 | Not-clocked-in / missed-out jobs | use shift start/end only | unchanged; regression tests kept |
 | Apply benchmark (spec 020, 897 ms for 240 copies; cap 20 copies) | two more text + two timestamp columns per row | re-run the apply timing test |
@@ -92,7 +92,8 @@ Base: `main` 043c68da. Line numbers are from that commit.
 
 Kuwaiti private-sector law is commonly summarised as "a rest of at least one hour after five consecutive working
 hours, not counted as working time". This is **not** verified here and is not enforced; it is the background for the
-BW-Q2 alternative "required on shifts longer than 5 hours" and the BW-Q4 recommendation.
+BW-Q2 alternative "required on shifts longer than 5 hours" and the BW-Q4 recommendation. The owner chose otherwise
+(2026-10-10): breaks are optional and count as working hours.
 
 ## R7. Files expected to change at implementation, and overlap with 16c
 
@@ -119,3 +120,28 @@ BW-Q2 alternative "required on shifts longer than 5 hours" and the BW-Q4 recomme
 **Recommendation to the orchestrator**: do not run 16b and 16c implementation in parallel — they share
 `domain/schedules.ts`, the contracts file, the admin shift fields and the generated clients. Land the smaller one
 first (16c, a setting and two constants) and rebase 16b on it, or the reverse; either way, one after the other.
+
+## R8. Owner answers 2026-10-10 — what they change
+
+- BW-Q1 (on the shift), BW-Q2 (optional), BW-Q3 (one), BW-Q6 (all four), BW-Q7 (no check): as recommended; R2 stands.
+- **BW-Q4 = 2 (break counts as working hours)**, not the recommendation. Consequences: nothing in 16b subtracts the
+  break; `starts_at`/`ends_at` remain the shift length; FR-011 now tells row 27 to **credit** clocked-out time inside
+  the scheduled break as worked. R6's labour-law note is background only and not enforced.
+- BW-Q5 = 1: as R4, narrowed to a real return (plan D6): an earlier closed session on the same shift is required, so
+  a first clock-in after the break start keeps the spec 027 rule and cannot hide a late arrival.
+
+## R9. Return detection (16b-2)
+
+- **Decision**: "returning" = a session of the same employee with `clock_out > shift.starts_at AND clock_out ≤ at`.
+- **Rationale**: the morning clock-in may be before the shift start (08:58), so matching on `clock_in` would miss it;
+  the stored `scheduled_start` of the morning session would work only when a schedule existed at that moment.
+  `clock_out` inside the shift is the plain fact "she already worked part of this shift". Read in the same
+  transaction that already locks the employee row, on `attendance_sessions_employee_date_idx`.
+- **Alternatives**: any session on the same `working_date` (wrong for split days with two shifts); matching
+  `scheduled_start` (misses sessions opened before the schedule existed).
+
+## R10. PR split and rebase onto 16c
+
+See plan.md "PR split" (recommendation: 16b-1 schedules/templates, then 16b-2 attendance) and "Rebase onto 16c"
+(16c spec 042 merges first; break checks in a separate `validateShiftBreak`, break inputs in a separate admin
+component, contract bounds untouched, migration generated after the rebase).
