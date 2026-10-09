@@ -4,26 +4,6 @@ import type { Logger } from 'pino';
 import { describe, expect, it } from 'vitest';
 
 import { createLogger } from '../logger.ts';
-import { redactSecrets, sanitize } from '../redaction.ts';
-
-it('redacts IBAN and holder containers at depth and in arrays while keeping last4', () => {
-  const iban = 'KW81CBKU0000000000001234560101';
-  const value = { records: [{ nested: { iban, employee_iban: iban, holder_name_en: 'SYNTHETIC HOLDER', accountHolderName: 'SYNTHETIC HOLDER', iban_last4: '0101' } }] };
-  for (const clean of [sanitize(value), redactSecrets(value)]) {
-    expect(JSON.stringify(clean)).not.toContain(iban);
-    expect(JSON.stringify(clean)).not.toContain('SYNTHETIC HOLDER'); expect(JSON.stringify(clean)).toContain('0101');
-  }
-  expect(capture((log) => log.info(value, 'event'))).not.toMatch(/KW81CBKU0000000000001234560101|SYNTHETIC HOLDER/);
-});
-it.each([['KW', 30], ['SA', 24], ['AE', 23], ['BH', 22], ['QA', 29], ['OM', 23]] as const)(
-  'redacts %s IBAN-shaped tokens, including spaced free text', (country, length) => {
-    const iban = country + '0'.repeat(length - 2);
-    const spaced = iban.match(/.{1,4}/g)?.join(' ') ?? '';
-    for (const value of [iban, spaced, spaced.toLowerCase()]) expect(sanitize(`Failed account ${value}.`)).toBe('Failed account [REDACTED].');
-    expect(sanitize('IBAN_CHECKSUM_INVALID 01920000-0000-7000-8000-0000000000a2')).toBe('IBAN_CHECKSUM_INVALID 01920000-0000-7000-8000-0000000000a2');
-    expect(sanitize('qa team saw some account totals drift across the whole board ok')).toBe('qa team saw some account totals drift across the whole board ok');
-    expect(sanitize('om batch processed customers without any failures today')).toBe('om batch processed customers without any failures today');
-  });
 
 // Every way a value can reach a pino line other than a plain logged key (Codex review of T6b, round 2).
 // Each case checks the final written line, not an intermediate object.

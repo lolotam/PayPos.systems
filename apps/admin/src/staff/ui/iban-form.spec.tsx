@@ -18,7 +18,9 @@ it('normalizes localized IBAN input, preselects the known bank and submits the d
   const onSave = vi.fn();
   render(<IbanForm current={current} pending={false} onSave={onSave} />);
   fireEvent.change(screen.getByLabelText('IBAN'), {
-    target: { value: 'kw' + String.fromCharCode(0x668, 0x661) + ' cbku 0000 0000 0000 1234 5601 01' },
+    target: {
+      value: 'kw' + String.fromCharCode(0x668, 0x661) + ' cbku 0000 0000 0000 1234 5601 01',
+    },
   });
   expect((screen.getByLabelText('Bank') as HTMLSelectElement).value).toBe('kw-cbk');
   fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Synthetic reason' } });

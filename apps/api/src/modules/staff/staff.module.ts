@@ -216,15 +216,18 @@ function salaryProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
-function employeeIbanProviders(
-  database: TenantWrappers | undefined,
-  ids: IdGenerator,
-): Provider[] {
+function employeeIbanProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   return [
     {
       provide: SetEmployeeIbanUseCase,
-      useValue: database === undefined ? null :
-        new SetEmployeeIbanUseCase(createEmployeeIbanTransactions(database, ids), ids, GCC_BANKS),
+      useValue:
+        database === undefined
+          ? null
+          : new SetEmployeeIbanUseCase(
+              createEmployeeIbanTransactions(database, ids),
+              ids,
+              GCC_BANKS,
+            ),
     },
     {
       provide: EMPLOYEE_IBAN_ACCESS,

@@ -63,16 +63,17 @@ it('detects every single digit substitution and unequal adjacent digit transposi
   expect(ibanChecksumValid(example)).toBe(true);
   const digits = '0123456789';
   for (let at = 0; at < example.length; at++) {
-    if (!digits.includes(example[at]!)) continue;
+    const current = example.charAt(at);
+    if (!digits.includes(current)) continue;
     for (const char of digits) {
-      if (char === example[at]) continue;
+      if (char === current) continue;
       expect(validateIban(example.slice(0, at) + char + example.slice(at + 1)).ok).toBe(false);
     }
-    const next = example[at + 1];
-    if (next !== undefined && digits.includes(next) && example[at] !== next) {
-      expect(
-        validateIban(example.slice(0, at) + next + example[at] + example.slice(at + 2)).ok,
-      ).toBe(false);
+    const next = example.charAt(at + 1);
+    if (next !== '' && digits.includes(next) && current !== next) {
+      expect(validateIban(example.slice(0, at) + next + current + example.slice(at + 2)).ok).toBe(
+        false,
+      );
     }
   }
   expect(validateIban(example.slice(0, -1) + '2')).toEqual({ ok: false, reason: 'CHECKSUM' });
