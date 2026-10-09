@@ -13,9 +13,12 @@ function migrationSteps(
   const names = [
     ...new Set(
       statements.flatMap((statement) =>
-        [...statement.matchAll(/^--\s*pospay:data-step\s+([a-z0-9-]+)\s*$/gm)].map(
-          (match) => match[1] ?? '',
-        ),
+        [...statement.matchAll(/^--[\t ]*pospay:data-step([^\r\n]*)/gim)].map((match) => {
+          const name = (match[1] ?? '').trim();
+          if (!/^[a-z0-9-]+$/.test(name))
+            throw new Error('Malformed migration data step marker; migration aborted');
+          return name;
+        }),
       ),
     ),
   ];
@@ -55,6 +58,7 @@ export async function applyMigrations(
       const steps = migrationSteps(migration.sql, dataSteps);
       await sameSession();
       for (const step of steps) await step(client);
+      await sameSession();
       const statements = migration.sql.filter((statement) => statement.trim() !== '');
       const firstTransactional = statements.findIndex((statement) => !CONCURRENT.test(statement));
       const prefixLength = firstTransactional === -1 ? statements.length : firstTransactional;

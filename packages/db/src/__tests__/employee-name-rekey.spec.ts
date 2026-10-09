@@ -2,7 +2,7 @@ import { employeeNameMatchKey } from '@pospay/domain';
 import { systemUuidV7 } from '@pospay/ids';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
 import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
@@ -45,12 +45,13 @@ beforeAll(async () => {
   await seedTwoTenants(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   app = createDatabase({ url: testDb.appUrl, ids: systemUuidV7(), maxConnections: 1 });
-  await owner`ALTER TABLE employees DROP CONSTRAINT employees_name_en_key_present`;
+});
+beforeEach(async () => {
+  await owner`ALTER TABLE employees DROP CONSTRAINT IF EXISTS employees_name_en_key_present`;
+  await owner`DELETE FROM attendance_states`;
+  await owner`DELETE FROM employees`;
   for (const tenant of Object.values(TENANT)) {
-    for (const row of fixtures) {
-      await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_ar,name_en_key,name_ar_key,role_code,hire_date,deleted_at)
-        VALUES(${tenant.company},${row.id},${tenant.business},${tenant.branch},${row.en},${row.ar},${row.enKey},${row.arKey},'staff','2026-01-01',${row.deleted ? '2026-09-01T00:00:00Z' : null})`;
-    }
+    for (const row of fixtures) await insertEmployee(tenant, row);
   }
 });
 afterAll(async () => {
@@ -58,6 +59,11 @@ afterAll(async () => {
   await owner?.end();
   await testDb?.drop();
 });
+
+async function insertEmployee(tenant: (typeof TENANT)['A' | 'B'], row: (typeof fixtures)[number]) {
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_ar,name_en_key,name_ar_key,role_code,hire_date,deleted_at)
+    VALUES(${tenant.company},${row.id},${tenant.business},${tenant.branch},${row.en},${row.ar},${row.enKey},${row.arKey},'staff','2026-01-01',${row.deleted ? '2026-09-01T00:00:00Z' : null})`;
+}
 
 async function rowsWithVersions() {
   const rows = [];
@@ -78,6 +84,26 @@ async function rowsWithVersions() {
     );
   }
   return rows;
+}
+
+type EmployeeRow = Awaited<ReturnType<typeof rowsWithVersions>>[number];
+
+function hasCorrectKeys(row: EmployeeRow) {
+  return (
+    row.name_en_key === employeeNameMatchKey(row.name_en) &&
+    row.name_ar_key === (row.name_ar === null ? null : employeeNameMatchKey(row.name_ar))
+  );
+}
+
+function expectPreservedRows(before: EmployeeRow[], after: EmployeeRow[]) {
+  for (const previous of before) {
+    const row = after.find(
+      (item) => item.company_id === previous.company_id && item.id === previous.id,
+    );
+    expect(row?.name_en).toBe(previous.name_en);
+    expect(row?.name_ar).toBe(previous.name_ar);
+    if (hasCorrectKeys(previous)) expect(row?.version).toBe(previous.version);
+  }
 }
 
 it('re-keys all tenant batches, preserves correct rows and resumes idempotently before validation', async () => {
@@ -106,6 +132,109 @@ it('re-keys all tenant batches, preserves correct rows and resumes idempotently 
   expect(
     await owner`SELECT convalidated FROM pg_constraint WHERE conname='employees_name_en_key_present'`,
   ).toEqual([{ convalidated: true }]);
+});
+
+it('resumes after interruption with committed batches and leaves correct rows untouched', async () => {
+  const before = await rowsWithVersions();
+  const wrongBefore = before.filter((row) => !hasCorrectKeys(row)).length;
+  let calls = 0;
+  const interrupted: Database = {
+    ...app,
+    withTenant: async (company, work, options) => {
+      if (++calls === 2) throw new Error('Synthetic batch interruption');
+      return app.withTenant(company, work, options);
+    },
+  };
+  await expect(rekeyEmployeeNameKeys(owner, interrupted, 2)).rejects.toThrow(
+    'Synthetic batch interruption',
+  );
+  const partial = await rowsWithVersions();
+  const wrongRemaining = partial.filter((row) => !hasCorrectKeys(row)).length;
+  expect(wrongRemaining).toBeGreaterThan(0);
+  expect(wrongRemaining).toBeLessThan(wrongBefore);
+  expectPreservedRows(before, partial);
+  expect(await rekeyEmployeeNameKeys(owner, app, 2)).toEqual({
+    companies: 2,
+    read: 12,
+    updated: wrongRemaining,
+  });
+  const after = await rowsWithVersions();
+  expect(after).toHaveLength(12);
+  expect(after.every(hasCorrectKeys)).toBe(true);
+  expectPreservedRows(before, after);
+  expectPreservedRows(partial.filter(hasCorrectKeys), after);
+});
+
+async function interleaveWrites(company: string, before: EmployeeRow[]) {
+  const processed = before.filter((row) => row.company_id === company).slice(0, 2);
+  const renamed = processed[0];
+  if (renamed === undefined) throw new Error('Missing processed employee');
+  const committed = await rowsWithVersions();
+  expect(
+    committed
+      .filter((row) =>
+        processed.some((old) => old.company_id === row.company_id && old.id === row.id),
+      )
+      .every(hasCorrectKeys),
+  ).toBe(true);
+  const other = Object.values(TENANT).find((tenant) => tenant.company !== company);
+  const fixture = fixtures[0];
+  if (other === undefined || fixture === undefined) throw new Error('Missing interleaving fixture');
+  await insertEmployee(other, {
+    ...fixture,
+    id: systemUuidV7().newId(),
+    en: 'Inserted fixture',
+    ar: null,
+    enKey: 'stale',
+    arKey: null,
+  });
+  const newName = 'Renamed fixture';
+  await owner`UPDATE employees SET name_en=${newName}, name_en_key=${employeeNameMatchKey(newName)}
+    WHERE company_id=${company} AND id=${renamed.id}`;
+  return { ...renamed, name_en: newName };
+}
+
+it('preserves interleaved renames and re-keys an insert in the other tenant', async () => {
+  const before = await rowsWithVersions();
+  let calls = 0;
+  let renamed: EmployeeRow | undefined;
+  const interleaved: Database = {
+    ...app,
+    withTenant: async (company, work, options) => {
+      const result = await app.withTenant(company, work, options);
+      if (++calls === 1) renamed = await interleaveWrites(company, before);
+      return result;
+    },
+  };
+  expect(await rekeyEmployeeNameKeys(owner, interleaved, 2)).toEqual({
+    companies: 2,
+    read: 13,
+    updated: 11,
+  });
+  const afterFirst = await rowsWithVersions();
+  const wrongRemaining = afterFirst.filter((row) => !hasCorrectKeys(row)).length;
+  // الشركة الأخرى لم تُقرأ بعد، لذا يصل المرور الأول إلى الصف المُضاف أيضاً.
+  expect(wrongRemaining).toBe(0);
+  expect(await rekeyEmployeeNameKeys(owner, app, 2)).toEqual({
+    companies: 2,
+    read: 13,
+    updated: wrongRemaining,
+  });
+  const after = await rowsWithVersions();
+  expect(after).toEqual(afterFirst);
+  expect(after.every(hasCorrectKeys)).toBe(true);
+  const renamedRow = renamed;
+  if (renamedRow === undefined) throw new Error('Interleaved writes did not run');
+  expect(
+    after.find((row) => row.company_id === renamedRow.company_id && row.id === renamedRow.id),
+  ).toMatchObject({
+    name_en: renamedRow.name_en,
+    name_en_key: employeeNameMatchKey(renamedRow.name_en),
+  });
+  expectPreservedRows(
+    before.filter((row) => row.company_id !== renamedRow.company_id || row.id !== renamedRow.id),
+    after,
+  );
 });
 
 it('rejects a NULL English key through the app on the normal migrated template', async () => {
