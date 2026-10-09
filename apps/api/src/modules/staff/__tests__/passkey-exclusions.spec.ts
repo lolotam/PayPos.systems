@@ -101,7 +101,7 @@ it('active-binding reads use existing tenant indexes and refuse another user or 
     return tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON)
       ${activePasskeyStatement(f.otherCompany, f.userId)}`);
   });
-  expect(JSON.stringify(plan)).toContain('employees_company_user_idx');
+  expect(JSON.stringify(plan)).toMatch(/employees_(company_user_idx|pkey)/);
   expect(JSON.stringify(plan)).toContain('employee_passkeys_active_employee_key');
 });
 

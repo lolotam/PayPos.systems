@@ -69,11 +69,11 @@ integration test proves another tenant's / business's same-name employee is neve
 
 ## Phase 7: PR #136 round 2 (review findings)
 
-- [ ] T018 [P] Add `employeeNameMatchKey(name: string): string` with Arabic JSDoc to `packages/domain/src/employee-name-key.ts`, export from `packages/domain/src/index.ts`, exhaustive tests in `packages/domain/src/__tests__/employee-name-key.spec.ts`.
-- [ ] T019 Add `nameEnKey` / `nameArKey` to `employees` in `packages/db/schema/staff.ts`; migration A (columns + `GRANT UPDATE (name_en_key, name_ar_key)` + one-time backfill mirror), migration B (two `CREATE INDEX CONCURRENTLY`); journal; `packages/db/src/__tests__/privileges.spec.ts` allowlist.
-- [ ] T020 Writers store keys: api create-employee + update-employee, worker commit-employee-import (worker gains the `@pospay/domain` workspace dependency); tests prove keys stored.
-- [ ] T021 Query compares stored keys only; controller computes typed keys with the domain function; EXPLAIN asserts `employees_company_business_name_en_key_idx`; parity test migration SQL ≡ domain function.
-- [ ] T022 `hidden_count` → `hidden_exists: boolean` across contract, query, OpenAPI, clients, admin UI and tests.
+- [x] T018 [P] Add `employeeNameMatchKey(name: string): string` with Arabic JSDoc to `packages/domain/src/employee-name-key.ts`, export from `packages/domain/src/index.ts`, exhaustive tests in `packages/domain/src/__tests__/employee-name-key.spec.ts`.
+- [x] T019 Add `nameEnKey` / `nameArKey` to `employees` in `packages/db/schema/staff.ts`; migration A (columns + `GRANT UPDATE (name_en_key, name_ar_key)` + one-time backfill mirror), migration B (two `CREATE INDEX CONCURRENTLY`); journal; `packages/db/src/__tests__/privileges.spec.ts` allowlist.
+- [x] T020 Writers store keys: api create-employee + update-employee, worker commit-employee-import (worker gains the `@pospay/domain` workspace dependency); tests prove keys stored.
+- [x] T021 Query compares stored keys only; controller computes typed keys with the domain function; EXPLAIN asserts `employees_company_business_name_en_key_idx`; parity test migration SQL ≡ domain function.
+- [x] T022 `hidden_count` → `hidden_exists: boolean` across contract, query, OpenAPI, clients, admin UI and tests.
 
 ## Dependencies
 

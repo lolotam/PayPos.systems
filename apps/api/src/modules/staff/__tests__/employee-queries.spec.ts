@@ -52,5 +52,7 @@ it('employee detail projects the contract shape and uses tenant/business index',
       to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
       FROM employees WHERE company_id=${f.company} AND business_id=${f.business} AND id=${created.id} AND deleted_at IS NULL`);
   });
-  expect(JSON.stringify(plan)).toMatch(/employees_(company_business_id_(idx|key)|pkey)/);
+  expect(JSON.stringify(plan)).toMatch(
+    /employees_(company_business_(id_(idx|key)|name_(en|ar)_key_idx)|pkey)/,
+  );
 });
