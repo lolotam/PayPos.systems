@@ -80,7 +80,9 @@ async function applyReferenceMigrations() {
     '0059_2026-10-03_identity-role-followups.sql',
     '0064_2026-10-04_leave-default-bundles.sql',
     '0070_2026-10-04_leave-decision-access.sql',
+    '0075_2026-10-04_document-type-permissions.sql',
     '0087_2026-10-07_clock-by-card-defaults.sql',
+    '0096_2026-10-09_documents-owner-default.sql',
   ].map((name) =>
     readFileSync(
       new URL(`../../../../../../packages/db/migrations/${name}`, import.meta.url),
@@ -292,20 +294,31 @@ it('historical DENY on an owner sibling cannot reduce authority; history stays v
     .owner`SELECT effect,expires_at FROM permission_overrides WHERE company_id=${f.company} AND id=${deny}`;
   expect(row).toMatchObject({ effect: 'DENY', expires_at: null });
 });
-it('the reference migrations upgrade a seeded existing company without changing personal decisions', async () => {
+it('ODOC-09: the reference migrations upgrade a seeded existing company without changing personal decisions', async () => {
   const customRole = f.ids.newId();
   await f.h.owner`INSERT INTO roles (id,company_id,code,name_en)
     VALUES (${customRole},${f.company},'synthetic_custom','Synthetic custom')`;
   await f.h
     .owner`INSERT INTO role_permissions (role_id,role_owner_key,company_id,permission_code) VALUES
     (${customRole},${f.company},${f.company},'read:branches:branch'),
+    (${customRole},${f.company},${f.company},'read:files:business'),
+    (${customRole},${f.company},${f.company},'manage:files:business'),
+    (${customRole},${f.company},${f.company},'manage:document-types:company'),
     ('01920000-0000-7000-8000-00000000010e','global',NULL,'read:branches:branch')`;
   const preserved = await f.h.owner`SELECT * FROM role_permissions WHERE role_owner_key <> 'global'
     OR role_id = '01920000-0000-7000-8000-00000000010e' ORDER BY role_id,permission_code`;
+  const historical = await seedOverride(f, targetMember, {
+    permission_code: 'read:files:business',
+  });
+  await seedOverride(f, targetMember, { permission_code: 'manage:files:business', effect: 'DENY' });
+  await seedOverride(f, targetMember, { permission_code: 'manage:document-types:company' });
+  await f.h.owner`UPDATE permission_overrides SET granted_by=${f.managerId}
+    WHERE company_id=${f.company} AND id=${historical}`;
   const before = await f.h.owner`SELECT * FROM permission_overrides ORDER BY company_id,id`;
   const members = await f.h.owner`SELECT * FROM memberships ORDER BY company_id,id`;
   await f.h
-    .owner`DELETE FROM role_permissions WHERE role_owner_key='global' AND permission_code IN ('manage:employees:business','manage:files:business','read:files:business')`;
+    .owner`DELETE FROM role_permissions WHERE role_owner_key='global' AND permission_code IN ('manage:employees:business','manage:files:business','read:files:business','manage:document-types:company')`;
+  await applyReferenceMigrations();
   await applyReferenceMigrations();
   expect(
     Array.from(await f.h.owner`SELECT * FROM permission_overrides ORDER BY company_id,id`),

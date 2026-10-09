@@ -1,6 +1,13 @@
 import { evaluateAccess, type AccessGrant, type AccessTarget, type ScopeType } from './access.ts';
 import { personalAllowFailure } from './permission-eligibility.ts';
 
+/** قرار spec 039 يحصر منح الوثائق في المالك؛ القائمة الصافية تمنع اعتماد الدومين على قاعدة البيانات. */
+export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
+  'read:files:business',
+  'manage:files:business',
+  'manage:document-types:company',
+];
+
 /** العضوية المستهدفة، بدون أي بيانات دخول حساسة. */
 export interface EditableMembership {
   readonly id: string;
@@ -34,6 +41,7 @@ export interface PermissionEditContext {
   readonly companyId: string;
   readonly now: Date;
   readonly editorUserId: string;
+  readonly editorIsCompanyOwner: boolean;
   readonly descendantTargets: readonly AccessTarget[];
   readonly membershipTarget?: AccessTarget | null;
   readonly managementBusinessId?: string | undefined;
@@ -113,7 +121,7 @@ export function permissionPossessionFailure(
 
 /**
  * بيتحقق من السلطة والنطاق والمدة؛ تفويض كودي إدارة النشاط لمديره لا يتجاوز نشاط عضويته.
- * منع تعديل الذات وحماية المالك يتبعان الشخص لا رقم العضوية.
+ * منع تعديل الذات وحماية المالك يتبعان الشخص لا رقم العضوية؛ منح ALLOW للوثائق محصور في المالك النشط.
  *
  * @param terms بيانات الاستثناء المطلوبة
  * @param context العضوية والصلاحيات والهدف الموثوق والوقت المحقون
@@ -132,6 +140,7 @@ export function permissionEditFailure(
   | 'PERMISSION_OWNER_PROTECTED'
   | 'PERMISSION_SCOPE_OUTSIDE_REACH'
   | 'PERMISSION_ROLE_FORBIDDEN'
+  | 'PERMISSION_OWNER_ONLY'
   | null {
   const { membership, target, companyId, now } = context;
   if (!membershipManagementAllowed(context)) return 'FORBIDDEN';
@@ -150,6 +159,13 @@ export function permissionEditFailure(
     return 'VALIDATION_FAILED';
   if (operation === 'SAVE' && permissionHolderIsOwner(context) && terms.effect === 'DENY')
     return 'PERMISSION_OWNER_PROTECTED';
+  if (
+    operation === 'SAVE' &&
+    terms.effect === 'ALLOW' &&
+    OWNER_GRANTED_PERMISSIONS.includes(terms.permission_code) &&
+    !context.editorIsCompanyOwner
+  )
+    return 'PERMISSION_OWNER_ONLY';
   const eligibility = operation === 'SAVE' ? personalAllowFailure(terms, context) : null;
   if (eligibility !== null) return eligibility;
   return permissionPossessionFailure(

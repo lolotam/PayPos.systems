@@ -18,6 +18,7 @@ const member = {
 const context: PermissionEditContext = {
   companyId: 'company',
   editorUserId: 'editor',
+  editorIsCompanyOwner: false,
   membership: member,
   holderMemberships: [member],
   catalog: ['manage:discount-limits:business'],

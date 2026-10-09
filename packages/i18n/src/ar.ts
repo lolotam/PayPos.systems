@@ -204,6 +204,7 @@ export const ar: Catalog = {
     PERMISSION_SELF_EDIT: 'لا يمكنك تعديل صلاحيات عضويتك الشخصية',
     PERMISSION_OWNER_PROTECTED: 'صلاحيات صاحب الشركة محمية من هذا التغيير',
     PERMISSION_SCOPE_OUTSIDE_REACH: 'النطاق المطلوب خارج نطاق صلاحيتك',
+    PERMISSION_OWNER_ONLY: 'صاحب الشركة فقط يقدر يمنح الصلاحية دي',
     PERMISSION_ROLE_FORBIDDEN: 'لا يمكن منح هذه الصلاحية لهذا الدور النظامي',
     PERMISSION_OVERRIDE_ENDED: 'هذا الاستثناء انتهى بالفعل',
     TRANSACTION_RETRY_REQUIRED: 'تعارض التغيير مع عملية أخرى ولم يُحفظ. حاول مرة أخرى.',

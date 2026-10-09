@@ -153,15 +153,13 @@ Gates: `pnpm check` without FORCE_COLOR; api + worker builds; production startup
 
 ## Provisional owner questions
 
-- MO-Q1 — notification recipients for `DocumentExpiring`: TODO(spec). SPEC §3 says the emitting module reads
+- MO-Q1 — notification recipients for `DocumentExpiring`: decided 2026-10-09 (spec 039 OD-Q3); attachment waits for PR 62. SPEC §3 says the emitting module reads
   `AlertRulesPort` and puts recipients and channels in the event, but alert rules ship in PR 62, so this slice
   emits the event with no recipients and notifications acknowledges it unsent. `recipients_attached_at` remains
   NULL, preserving PR 62's one-time recipient-bearing re-emission for documents still current and inside their
-  window, under the contract above. PR 15 does not implement recipient attachment. Recommend: when alert rules
-  ship,
-  the document-expiry alert defaults to the users holding `manage:document-types:company` at the company
-  (owner/general_manager by default; business_manager with a personal ALLOW), in-app only until email/WhatsApp are
-  activated. Implementing it before PR 62 would need a new identity read (outside this slice).
+  window, under the contract above. PR 15 does not implement recipient attachment. When alert rules ship,
+  recipients must hold `read:files:business` at the employee’s business: owner by default, others only with access.
+  Managers without that right receive nothing; delivery stays in-app until email/WhatsApp are activated. Implementing it before PR 62 would need a new identity read (outside this slice).
 - MO-Q2 — job cadence: TODO(spec), recommended every 6 hours (implemented).
 - MO-Q3 — page size: TODO(spec), recommended keyset pages of 100 candidates per query (implemented).
 - MO-Q4 — documents recorded before this release: TODO(spec), recommended they register their company only when a

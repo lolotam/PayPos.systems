@@ -7,8 +7,8 @@ import { seedEmployee } from '../../../../../../packages/db/test/staff-fixtures.
 const ids = systemUuidV7();
 const role = (code: string) => SYSTEM_ROLES.find((r) => r.code === code)?.id ?? '';
 
-export async function permissionFixture() {
-  const h = await startHarness();
+export async function permissionFixture(options: Parameters<typeof startHarness>[0] = {}) {
+  const h = await startHarness(options);
   const cookie = await h.signedInOperator('permissions@example.test');
   const managerCookie = await h.signedInOperator('permission-editor@example.test');
   const company = await h.onboard(cookie, 'Permissions A');

@@ -12,7 +12,7 @@ import { seedTwoTenants, TENANT } from '../../../../../../packages/db/test/tenan
 
 const migration = readFileSync(
   new URL(
-    '../../../../../../packages/db/migrations/0096_2026-10-09_staff-employee-name-keys.sql',
+    '../../../../../../packages/db/migrations/0097_2026-10-09_staff-employee-name-keys.sql',
     import.meta.url,
   ),
   'utf8',

@@ -121,3 +121,12 @@ mutation reuse one scope reader and the existing permission-possession rule.
 Unknown and inaccessible memberships share the complete FORBIDDEN envelope even
 for invalid bodies; self/owner errors require full target authorization first.
 The transaction retains its locked recheck against grants committed after preflight.
+
+## PR 13b amendment — 2026-10-09 (spec 039, design D1)
+
+Migration 0096 removes the global GM/BM defaults for read/manage:files:business and
+manage:document-types:company; Owner keeps all three. Every human role is eligible
+for a personal ALLOW, but only the active canonical company owner can save it.
+Other editors receive PERMISSION_OWNER_ONLY (403); DENY/revoke rules are unchanged.
+Personal overrides, memberships, custom-role grants and audit history stay intact.
+Code rollback alone cannot restore manager access: a new reviewed migration is required.

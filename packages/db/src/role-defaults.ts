@@ -35,6 +35,13 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
+/** صلاحيات الوثائق متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+export const OWNER_GRANTED_PERMISSIONS = [
+  'read:files:business',
+  'manage:files:business',
+  'manage:document-types:company',
+] as const satisfies readonly Permission[];
+
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
 export const SCHEDULE_PERMISSIONS = [
   'read:schedules:branch',
@@ -91,10 +98,10 @@ export const ROLE_DEFAULTS = {
   'manage:package-types:business': managers,
   // TODO(spec) SV-Q1: SPEC لا يسمّي صلاحية الكتالوج؛ القرار المؤقت مطابق لـ manage:employees:business.
   'manage:services:business': managers,
-  'manage:files:business': managers,
-  'read:files:business': managers,
-  // قرار المالك 2026-10-04 (DOC-Q2، الخيار الموصى به): أنواع الوثائق للشركة كلها؛ مدير النشاط يحتاج ALLOW شخصياً على مستوى الشركة.
-  'manage:document-types:company': ['owner', 'general_manager'],
+  // قرار المالك 2026-10-09 (DOC-Q2 + S014-GRANTS، spec 039): الوثائق للمالك افتراضياً والمنح الشخصية بقراره فقط.
+  'manage:files:business': ['owner'],
+  'read:files:business': ['owner'],
+  'manage:document-types:company': ['owner'],
   'manage:discounts:company': ['owner'],
   'manage:discount-limits:business': managers,
   'create:customers:company': ['owner', 'general_manager'],

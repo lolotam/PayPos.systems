@@ -1,6 +1,6 @@
 {
-  "id": "0d9ebaee-8389-459e-9576-e8a8ebb33e7a",
-  "prevId": "dfaedbbb-6499-4f4e-95d8-85a186adc97c",
+  "id": "b08f8fec-6333-48f9-b1e0-a68ad86f905c",
+  "prevId": "0d9ebaee-8389-459e-9576-e8a8ebb33e7a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1741,6 +1741,60 @@
             },
             {
               "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_company_business_name_en_key_idx": {
+          "name": "employees_company_business_name_en_key_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name_en_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_company_business_name_ar_key_idx": {
+          "name": "employees_company_business_name_ar_key_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name_ar_key",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
