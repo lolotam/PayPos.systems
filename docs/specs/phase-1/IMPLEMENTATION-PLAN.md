@@ -45,27 +45,34 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 7c  | business default discount limit (settings)                                                                          | S            | 7b                 |
 |     | **M2 · staff**                                                                                                      |              |                    |
 | 8   | `create-employee`                                                                                                   | S            | 7                  |
+| 8b | duplicate-name warning on create / update employee: a soft "same name exists, add the full four-part name?" prompt, never a block (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | S | 8, 9 |
 | 9   | `update-employee` (incl. branches)                                                                                  | S            | 8                  |
+| 9b | employee IBAN on the employee record: masked to the last 4 except with the salary-style restricted read, audited on change; not a document type (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | S | 9, 10 |
 | 10  | `set-salary` (one entry per date, any date, audited, restricted read, `SalaryChanged`)                              | S            | 8, G1              |
 | 11  | import framework (template, preview, all-or-nothing) + employee import                                              | M            | 8                  |
 | 12  | `files`: presigned upload/download with stored permission, access audit                                             | M            | 7                  |
 | 13  | document types + `record-employee-document`                                                                         | S            | 8, 12              |
+| 13b | employee-document access defaults to the owner only: `read:files:business`, `manage:files:business` and `manage:document-types:company` leave the manager role defaults and stay grantable to any role or person (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | S | 7, 13 |
 | 14  | email channel                                                                                                       | S            | 4, G5              |
 | 15  | document-expiry job                                                                                                 | S            | 13, 14             |
 | 16  | schedules + templates                                                                                               | M            | 8                  |
+| 16b | fixed break window per employee per shift (from–to) in schedules and templates (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | S | 16 |
+| 16c | max shifts starting on one day becomes an owner setting, default 3 (was a fixed 2); one shift stays at most 16 h; long holiday stretches are consecutive shifts with breaks between them (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | S | 16 |
 | 17  | `request-leave`                                                                                                     | S            | 8                  |
 | 18  | `decide-leave`                                                                                                      | S            | 17                 |
 |     | **M3 · attendance**                                                                                                 |              |                    |
 | 19  | QR issuer + attendance screen                                                                                       | M            | 3                  |
 | 20  | `enrol-passkey`                                                                                                     | M            | 6, 8, G4           |
 | 21  | `unbind-passkey` + the two-employees-one-device flag                                                                | S            | 20                 |
+| 21b | a phone bound by passkey to one employee refuses another employee's clock-in (block, replacing the warn-only two-employees flag for passkey devices; the shared reception card device is unaffected) (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | S | 21, 22 |
 | 22  | `clock-attendance`: state machine, geofence, 5-minute dedupe                                                        | M            | 16, 19, 20         |
 | 23  | `clock-by-card` on the paired device                                                                                | S            | 22                 |
 | 24  | suspected / missed-out job                                                                                          | S            | 22                 |
 | 25  | `resolve-attendance-exception`                                                                                      | S            | 24                 |
 | 26  | `correct-attendance`                                                                                                | S            | 22                 |
-| 26b | `add-manual-session` (source MANUAL, reason, actor recorded — spec 035 CA-Q6)                                       | S            | 26                 |
-| 26c | `void-attendance-session` (kept, marked voided with who/when/why, out of reports — spec 035 CA-Q6)                  | S            | 26                 |
+| 26a | attendance change requests: a manager requests a manual day or a void, the owner approves or rejects; both steps audited (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | M | 26 |
+| 26b | `add-manual-session` (source MANUAL, reason, actor recorded — spec 035 CA-Q6) — applied only after owner approval through 26a (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | S | 26, 26a |
+| 26c | `void-attendance-session` (kept, marked voided with who/when/why, out of reports — spec 035 CA-Q6) — applied only after owner approval through 26a (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | S | 26, 26a |
 | 27  | attendance board + monthly report + CSV                                                                             | M            | 25, 26             |
 | 28  | not-clocked-in alert: detection + once-only notice + `ShiftNotClockedIn`, in-app to the branch's managers by a fixed interim rule (spec 036, ADR-0037; owner 2026-10-08) | S            | 22, 15, 4b         |
 | 28b | staff web push: subscriptions table + RLS, staff-session subscribe/unsubscribe, custom service-worker push handler, `push` channel adapter; delivers the employee's own not-clocked-in notice (spec 036 NC-Q3). ADR first: `web-push` library, VAPID key custody (`CLAUDE.md` §8), the staff-session route exception. iOS delivers web push only to the PWA added to the home screen Push text is rendered in a stored per-user language preference (added here), per the owner, 2026-10-08. | M            | 3, 57b, 28         |
@@ -120,7 +127,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 61  | low-rating alert + averages                                                                                         | S            | 60                 |
 | 62  | alert-rules screen + master switch; replaces row 28's interim fixed rule (on, 20 min, managers, in-app) and owns row 28c's lead-time setting | S            | 4b, 15, 28, 61     |
 |     | **M9 · pilot**                                                                                                      |              |                    |
-| 63  | real data by import, dry-run week, parallel month, comparison (D-45)                                                | S + calendar | all                |
+| 63  | real data by import, dry-run week, parallel month, comparison (D-45); the salon pilot starts only on the new server (D-11, owner review 2026-10-09)                                                | S + calendar | all; the new server with point-in-time recovery (D-11)                |
 
 ---
 
@@ -139,6 +146,17 @@ weeks** of pilot, not compressible, plus one more validation cycle if the parall
 
 Largest risks: the engine's combinations (M4 — hand-calculated fixtures, started first); approval racing live data
 (PR 53 — the atomic protocol and its race tests); package concurrency (PRs 43, 46 — row locks and race tests).
+
+---
+
+## Recorded for later phases — owner review 2026-10-09
+
+Decided by the owner on 2026-10-09 ([owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)); not Phase 1 rows.
+
+- Face-recognition clock-in on the POS device (D-13, CB-Q1). Needs an ADR first: image privacy, consent, storage. Phase 1 keeps the card.
+- Payroll components (S021-1): work-permit salary, actual salary, overtime, leave allowance, advance, gift, food, housing and transport allowances, with two Excel exports (work-permit salary; allowances). Row 10 stays base salary only.
+- Product-sale commission (D-37), with product selling.
+- Per-service barcode slip for the staff member (D-15): the invoice is the customer's, the barcode is the staff member's.
 
 ---
 
