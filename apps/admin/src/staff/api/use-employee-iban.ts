@@ -5,7 +5,7 @@ import {
   type SetEmployeeIbanInput,
 } from '@pospay/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { apiClient } from '@/shared/api/client';
 
 export function useEmployeeIban(
@@ -29,20 +29,17 @@ export function useEmployeeIban(
   const accessDenied = [current.error, history.error, save.error].some((error) =>
     [403, 404].includes((error as { status?: number } | null)?.status ?? 0),
   );
-  useEffect(
-    () => () =>
-      client.removeQueries({
-        queryKey: ['employee-iban', companyId, businessId, userId, employeeId],
-      }),
-    [client, companyId, businessId, userId, employeeId],
-  );
+  const clearCache = useCallback(() => {
+    const queryKey = ['employee-iban', companyId, businessId, userId, employeeId];
+    client.removeQueries({ queryKey });
+    const mutations = client.getMutationCache();
+    for (const mutation of mutations.findAll({ mutationKey: [...queryKey, 'set'], exact: true }))
+      mutations.remove(mutation);
+  }, [client, companyId, businessId, userId, employeeId]);
+  useEffect(() => clearCache, [clearCache]);
   useEffect(() => {
-    if (accessDenied) {
-      client.removeQueries({
-        queryKey: ['employee-iban', companyId, businessId, userId, employeeId],
-      });
-    }
-  }, [client, companyId, businessId, userId, employeeId, accessDenied]);
+    if (accessDenied) clearCache();
+  }, [clearCache, accessDenied]);
   return { current, history, save, accessDenied };
 }
 
@@ -96,6 +93,7 @@ function useSaveIban(key: string[], params: IbanParams) {
   const client = useQueryClient();
   return useMutation({
     mutationKey: [...key, 'set'],
+    gcTime: 0,
     retry: false,
     mutationFn: async (body: SetEmployeeIbanInput) => {
       const result = await apiClient().PUT(

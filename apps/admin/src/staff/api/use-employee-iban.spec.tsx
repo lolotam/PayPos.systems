@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { EmployeeIbanSection } from '../ui/employee-iban-section';
+import { useEmployeeIban } from './use-employee-iban';
 const api = vi.hoisted(() => ({ GET: vi.fn(), PUT: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
@@ -44,6 +45,25 @@ function mount(client = new QueryClient()) {
   );
   return { client, view };
 }
+function mountHook() {
+  const client = new QueryClient();
+  api.GET.mockImplementation((path: string) =>
+    Promise.resolve({ data: path.endsWith('/history') ? { items: [], next_cursor: null } : full }),
+  );
+  const hook = renderHook(() => useEmployeeIban(id, id, id, id), {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  return { client, ...hook };
+}
+const input = {
+  iban: full.iban,
+  bank_id: full.bank_id,
+  holder_name_en: full.holder_name_en,
+  reason: 'Synthetic change',
+  expected_revision: 1,
+};
 beforeEach(() => {
   api.GET.mockReset();
   api.PUT.mockReset();
@@ -96,4 +116,58 @@ it('hides current full details and evicts every page when history access is revo
   await waitFor(() => expect(screen.queryByRole('region')).toBeNull());
   expect(client.getQueryCache().findAll({ queryKey: key })).toEqual([]);
   view.unmount();
+});
+it('removes completed mutations with full IBAN data immediately on unmount', async () => {
+  api.PUT.mockResolvedValue({ data: full });
+  const { client, result, unmount } = mountHook();
+  await act(async () => {
+    await result.current.save.mutateAsync(input);
+  });
+  const cache = client.getMutationCache();
+  expect(cache.findAll({ mutationKey: [...key, 'set'] })[0]?.state.data).toEqual(full);
+  const unrelated = cache.build(client, { mutationKey: ['unrelated'] });
+  unmount();
+  expect(cache.findAll({ mutationKey: key })).toEqual([]);
+  expect(cache.getAll()).toEqual([unrelated]);
+  client.clear();
+});
+it('removes pending mutations on unmount and does not restore a late IBAN response', async () => {
+  const pending = deferred();
+  api.PUT.mockReturnValue(pending.promise);
+  const { client, result, unmount } = mountHook();
+  act(() => result.current.save.mutate(input));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalledTimes(1));
+  const cache = client.getMutationCache();
+  expect(cache.findAll({ mutationKey: key })).toHaveLength(1);
+  unmount();
+  expect(cache.findAll({ mutationKey: key })).toEqual([]);
+  await act(async () => pending.resolve({ data: full }));
+  expect(cache.findAll({ mutationKey: key })).toEqual([]);
+  expect(client.getQueryCache().findAll({ queryKey: key })).toEqual([]);
+});
+it.each([403, 404])('removes saved IBAN mutations when a fresh read returns %s', async (status) => {
+  api.PUT.mockResolvedValue({ data: full });
+  const { client, result, unmount } = mountHook();
+  await act(async () => {
+    await result.current.save.mutateAsync(input);
+  });
+  expect(client.getMutationCache().findAll({ mutationKey: key })).toHaveLength(1);
+  api.GET.mockResolvedValue({ error: { code: 'NOT_FOUND' }, response: { status } });
+  await act(async () => {
+    await result.current.current.refetch();
+  });
+  await waitFor(() => expect(result.current.accessDenied).toBe(true));
+  expect(client.getMutationCache().findAll({ mutationKey: key })).toEqual([]);
+  expect(client.getQueryCache().findAll({ queryKey: key })).toEqual([]);
+  unmount();
+});
+it.each([403, 404])('removes mutation variables when saving is denied with %s', async (status) => {
+  api.PUT.mockResolvedValue({ error: { code: 'NOT_FOUND' }, response: { status } });
+  const { client, result, unmount } = mountHook();
+  act(() => result.current.save.mutate(input));
+  await waitFor(() => expect(result.current.accessDenied).toBe(true));
+  expect(client.getMutationCache().findAll({ mutationKey: key })).toEqual([]);
+  expect(client.getQueryCache().findAll({ queryKey: key })).toEqual([]);
+  expect(api.PUT).toHaveBeenCalledTimes(1);
+  unmount();
 });

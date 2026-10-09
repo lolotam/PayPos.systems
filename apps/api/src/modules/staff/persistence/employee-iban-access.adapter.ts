@@ -2,7 +2,7 @@ import type { Tx } from '@pospay/db';
 import {
   lockEmployeeSalaryAccess,
   readEmployeeSalaryAccess,
-  readEmployeeManagementAccess,
+  readEmployeeBranchAccess,
 } from '../../identity/index.ts';
 
 export const createEmployeeIbanAccess = () => ({
@@ -16,11 +16,13 @@ export const createEmployeeIbanAccess = () => ({
   ) => {
     const salary = await readEmployeeSalaryAccess(tx, companyId, userId, businessId, branchIds);
     if (salary.read) return { ...salary, masked: false };
-    const employee = await readEmployeeManagementAccess(tx, companyId, userId, businessId);
+    const employee = await readEmployeeBranchAccess(tx, companyId, userId, businessId, branchIds);
     return {
       read: false,
       manage: false,
-      masked: employee.manage,
+      masked:
+        branchIds.length > 0 &&
+        branchIds.every((branchId) => employee.allowedBranchIds.includes(branchId)),
       featureEnabled: employee.featureEnabled,
     };
   },

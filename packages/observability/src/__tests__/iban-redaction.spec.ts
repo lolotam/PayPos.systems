@@ -22,6 +22,25 @@ const capture = (value: object): string => {
 };
 
 describe('employee IBAN redaction (spec 040 TD-5)', () => {
+  it.each(['iban', 'employee_iban', 'accountHolderName', 'holder_name_en', 'holder_name_ar'])(
+    'redacts reasons beside %s in logger objects and nested arrays',
+    (key) => {
+      const reason = `Changed account for ${HOLDER}`;
+      const record = { [key]: key.endsWith('iban') ? IBAN : HOLDER, reason };
+      for (const value of [record, { records: [{ nested: record }] }]) {
+        const line = capture(value);
+        expect(line).not.toContain(IBAN);
+        expect(line).not.toContain(HOLDER);
+        expect(line).not.toContain(reason);
+        expect(line).toContain('"reason":"[REDACTED]"');
+      }
+      expect(sanitize({ reason: 'Service unavailable' })).toEqual({
+        reason: 'Service unavailable',
+      });
+      expect(redactSecrets(record)).toMatchObject({ reason });
+    },
+  );
+
   it('redacts IBAN and holder containers at depth and in arrays while keeping last4', () => {
     const value = {
       records: [
@@ -69,6 +88,7 @@ describe('employee IBAN free-text redaction (spec 040 TD-5)', () => {
       spaced.toLowerCase(),
       separated,
       separated.toLowerCase(),
+      iban.split('').join(' '),
       ...localized,
     ]) {
       for (const clean of [sanitize, redactSecrets])
@@ -77,6 +97,8 @@ describe('employee IBAN free-text redaction (spec 040 TD-5)', () => {
   });
 
   it.each([
+    'K W81CBKU0000000000001234560101',
+    'k   w  ٨  ١cbku0000000000001234560101',
     'KW 81CBKU0000000000001234560101',
     'KW81  CBKU  0000  0000  0000  1234  5601  01',
     'kw  8  1cbku0000000000001234560101',
@@ -92,6 +114,7 @@ describe('employee IBAN free-text redaction (spec 040 TD-5)', () => {
       'qa team saw some account totals drift across the whole board ok',
       'om batch processed customers without any failures today',
       'QA 1 team saw some account totals drift across the whole board ok',
+      'Q A 1 team saw some account totals drift across the whole board ok',
     ]) {
       expect(sanitize(text)).toBe(text);
     }

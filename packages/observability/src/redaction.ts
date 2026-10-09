@@ -90,9 +90,10 @@ const endsWithAny = (key: string, suffixes: readonly string[]): boolean => {
   const forms = [normalized, normalized.replace(/es$/, ''), normalized.replace(/s$/, '')];
   return forms.some((form) => suffixes.some((suffix) => form.endsWith(suffix)));
 };
+const isIbanKey = (key: string): boolean =>
+  endsWithAny(key, ['iban', 'holdername']) || /holdername(?:en|ar)$/.test(normalizeKey(key));
 const isSecretKey = (key: string): boolean =>
-  (endsWithAny(key, SECRET_SUFFIXES) || /holdername(?:en|ar)$/.test(normalizeKey(key))) &&
-  !STRUCTURAL_KEYS.has(normalizeKey(key));
+  (endsWithAny(key, SECRET_SUFFIXES) || isIbanKey(key)) && !STRUCTURAL_KEYS.has(normalizeKey(key));
 const isPhoneKey = (key: string): boolean => endsWithAny(key, PHONE_SUFFIXES);
 const isEmailKey = (key: string): boolean =>
   endsWithAny(key, ['email', 'emails', 'emailaddress', 'emailaddresses']);
@@ -136,7 +137,7 @@ const MAX_DEPTH = 8;
 // آيبان خليجي داخل نص حر (رسالة خطأ مثلاً): رقمي التحقق بعد كود الدولة شرط، عشان كلام عادي يبدأ بـ qa أو om
 // مايتشالش بالغلط.
 const IBAN_IN_TEXT =
-  /\b(?:KW(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){26}|SA(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){20}|AE(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){19}|BH(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){18}|QA(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){25}|OM(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){19})(?![A-Z0-9٠-٩۰-۹])/gi;
+  /\b(?:K[ ]*W(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){26}|S[ ]*A(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){20}|A[ ]*E(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){19}|B[ ]*H(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){18}|Q[ ]*A(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){25}|O[ ]*M(?:[ ]*[0-9٠-٩۰-۹]){2}(?:[ ]*[A-Z0-9٠-٩۰-۹]){19})(?![A-Z0-9٠-٩۰-۹])/gi;
 export const REDACTED = '[REDACTED]';
 
 /**
@@ -178,10 +179,11 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
     if (depth >= MAX_DEPTH) return '[Truncated]';
     seen.add(node);
     if (Array.isArray(node)) return node.map((item) => walk(item, depth + 1));
-    // سبب تعطل خدمة مطلوب للتشخيص؛ سبب الراتب يُحجب فقط مع حقول سياقه المالي.
+    // سبب تعطل خدمة مطلوب للتشخيص؛ سبب الراتب أو الحساب يُحجب فقط مع حقول سياقه المالي.
     const salaryShaped = Object.keys(node).some(
       (key) => endsWithAny(key, SALARY_SUFFIXES) || normalizeKey(key) === 'effectivefrom',
     );
+    const ibanShaped = Object.keys(node).some(isIbanKey);
     const out: Record<string, unknown> = {};
     for (const [key, child] of Object.entries(node)) {
       if (typeof child === 'function') continue;
@@ -191,7 +193,7 @@ function scrub(value: unknown, maskPhones: boolean): unknown {
         (maskPhones &&
           (isEmailKey(key) ||
             endsWithAny(key, SALARY_SUFFIXES) ||
-            (salaryShaped && endsWithAny(key, ['reason'])) ||
+            ((salaryShaped || ibanShaped) && endsWithAny(key, ['reason'])) ||
             PRIVATE_PAYLOAD_KEYS.has(normalizeKey(key))))
       )
         out[key] = REDACTED;
