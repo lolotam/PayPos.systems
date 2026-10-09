@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { personalFixture, personalOrigin } from '../../../../test/personal-staff.fixture.ts';
@@ -132,8 +133,8 @@ async function otherWorkspace(requestScope: PasskeyScope): Promise<PasskeyScope>
     VALUES(${f.otherCompany},${businessId},'Synthetic second business','salon')`;
   await f.owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES(${f.otherCompany},${branchId},${businessId},'Synthetic second branch')`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,role_code,hire_date)
-    VALUES(${f.otherCompany},${employeeId},${businessId},${branchId},${f.userId},'Synthetic second staff','staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${f.otherCompany},${employeeId},${businessId},${branchId},${f.userId},'Synthetic second staff',${employeeNameMatchKey('Synthetic second staff')},'staff','2026-01-01')`;
   await f.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     SELECT ${f.otherCompany},${f.ids.newId()},${f.userId},id,'global','BRANCH',${branchId}
     FROM roles WHERE code='staff' AND company_id IS NULL`;

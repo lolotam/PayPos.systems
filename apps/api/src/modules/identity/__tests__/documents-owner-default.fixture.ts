@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { expect } from 'vitest';
 import { createS3Storage, FILE_UPLOAD_POLICY } from '@pospay/storage';
 import { fakeS3, fakeCredentials } from '../../../../../../packages/storage/test/fake-s3.ts';
@@ -37,8 +38,8 @@ async function seedDocumentEmployees(f: PermissionFixture) {
     [otherEmployee, f.otherBusiness, otherBranch],
   ] as const)
     await f.h
-      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-      VALUES (${f.company},${id},${business},${branch},'Synthetic document employee','staff','2026-01-01')`;
+      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+      VALUES (${f.company},${id},${business},${branch},'Synthetic document employee',${employeeNameMatchKey('Synthetic document employee')},'staff','2026-01-01')`;
   for (const code of ['civil_id', 'work_contract'])
     await f.h
       .owner`INSERT INTO document_types(company_id,id,code,name_en,alert_days,requires_expiry)

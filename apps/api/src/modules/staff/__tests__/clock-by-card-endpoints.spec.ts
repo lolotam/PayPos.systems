@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { deriveEmployeeCardKey } from '@pospay/auth';
 import { randomUUID } from 'node:crypto';
 import { clockAttendanceResult, errorEnvelope } from '@pospay/contracts';
@@ -65,8 +66,8 @@ async function inaccessibleCards() {
   const otherBranch = randomUUID(),
     otherEmployee = randomUUID();
   await h.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${company},${otherBranch},${business},'Synthetic other reception')`;
-  await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    VALUES(${company},${otherEmployee},${business},${otherBranch},'Synthetic other employee','staff','2026-01-01')`;
+  await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${company},${otherEmployee},${business},${otherBranch},'Synthetic other employee',${employeeNameMatchKey('Synthetic other employee')},'staff','2026-01-01')`;
   await h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${company},${randomUUID()},${business},${otherEmployee},${otherBranch},'2026-01-01')`;
   await h.owner`INSERT INTO employee_cards(company_id,id,business_id,employee_id,card_code_hash,card_code_suffix,issued_at,issued_by)
@@ -77,8 +78,8 @@ async function inaccessibleCards() {
     foreignEmployee = randomUUID();
   await h.owner`INSERT INTO businesses(company_id,id,name_en,vertical_type) VALUES(${foreign},${foreignBusiness},'Synthetic foreign salon','salon')`;
   await h.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${foreign},${foreignBranch},${foreignBusiness},'Synthetic foreign branch')`;
-  await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    VALUES(${foreign},${foreignEmployee},${foreignBusiness},${foreignBranch},'Synthetic foreign employee','staff','2026-01-01')`;
+  await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${foreign},${foreignEmployee},${foreignBusiness},${foreignBranch},'Synthetic foreign employee',${employeeNameMatchKey('Synthetic foreign employee')},'staff','2026-01-01')`;
   await h.owner`INSERT INTO employee_cards(company_id,id,business_id,employee_id,card_code_hash,card_code_suffix,issued_at,issued_by)
     VALUES(${foreign},${randomUUID()},${foreignBusiness},${foreignEmployee},${hash(foreign, 'OTHER-COMPANY-CARD')},'CARD',clock_timestamp(),${operatorId})`;
 }
@@ -143,8 +144,8 @@ beforeAll(async () => {
   });
   branch = String(branchRes.body['id']);
   employee = randomUUID();
-  await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    VALUES(${company},${employee},${business},${branch},'Synthetic card employee','staff','2026-01-01')`;
+  await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${company},${employee},${business},${branch},'Synthetic card employee',${employeeNameMatchKey('Synthetic card employee')},'staff','2026-01-01')`;
   await h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${company},${randomUUID()},${business},${employee},${branch},'2026-01-01')`;
   operatorId = await addOperator('card-reception@example.test', 'cashier');

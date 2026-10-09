@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { systemUuidV7 } from '@pospay/ids';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
@@ -22,7 +23,7 @@ afterAll(async () => {
 });
 async function employee() {
   const id = ids.newId();
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date) VALUES (${A.company},${id},${A.business},${A.branch},'Synthetic history','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date) VALUES (${A.company},${id},${A.business},${A.branch},'Synthetic history',${employeeNameMatchKey('Synthetic history')},'staff','2026-01-01')`;
   return id;
 }
 function insert(tx: Tx, employeeId: string, from: string, to: string | null) {

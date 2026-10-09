@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
   enrollFor,
@@ -67,7 +68,7 @@ it('unknown, foreign and inaccessible employees share the same 404 even with a m
     foreignEmployee = f.ids.newId();
   await f.owner`INSERT INTO businesses(company_id,id,name_en,vertical_type) VALUES(${f.otherCompany},${foreignBusiness},'Synthetic foreign','salon')`;
   await f.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.otherCompany},${foreignBranch},${foreignBusiness},'Synthetic foreign')`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date) VALUES(${f.otherCompany},${foreignEmployee},${foreignBusiness},${foreignBranch},'Synthetic foreign','staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date) VALUES(${f.otherCompany},${foreignEmployee},${foreignBusiness},${foreignBranch},'Synthetic foreign',${employeeNameMatchKey('Synthetic foreign')},'staff','2026-01-01')`;
   const foreign = await requestFor(f)(
     'POST',
     f.url.replace(f.employeeId, foreignEmployee) + '/unbind',

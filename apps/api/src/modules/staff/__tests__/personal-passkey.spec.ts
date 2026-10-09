@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
@@ -264,8 +265,8 @@ async function seedEmployee(label: string) {
   const userId = f.ids.newId(),
     employeeId = f.ids.newId();
   await f.owner`INSERT INTO "user"(id,name,email) VALUES(${userId},'Synthetic race',${label + '@example.test'})`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,role_code,hire_date)
-    VALUES(${f.companyId},${employeeId},${f.businessId},${f.branchId},${userId},'Synthetic race','staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${f.companyId},${employeeId},${f.businessId},${f.branchId},${userId},'Synthetic race',${employeeNameMatchKey('Synthetic race')},'staff','2026-01-01')`;
   await f.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     SELECT ${f.companyId},${f.ids.newId()},${userId},id,'global','BRANCH',${f.branchId} FROM roles WHERE code='staff' AND company_id IS NULL`;
   return { userId, employeeId };

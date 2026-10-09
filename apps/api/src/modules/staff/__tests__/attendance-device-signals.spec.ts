@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
@@ -19,8 +20,8 @@ const installationId = '12345678-1234-4234-8234-123456789abc';
 beforeAll(async () => {
   f = await personalFixture();
   secondEmployee = f.ids.newId();
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    VALUES(${f.companyId},${secondEmployee},${f.businessId},${f.branchId},'Synthetic second staff','staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${f.companyId},${secondEmployee},${f.businessId},${f.branchId},'Synthetic second staff',${employeeNameMatchKey('Synthetic second staff')},'staff','2026-01-01')`;
 });
 afterAll(async () => {
   await f?.close();
@@ -185,7 +186,7 @@ it('company managers can query across businesses only when both branches are aut
     employeeId = f.ids.newId();
   await f.owner`INSERT INTO businesses(company_id,id,name_en,vertical_type) VALUES(${f.companyId},${businessId},'Synthetic second business','salon')`;
   await f.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.companyId},${branchId},${businessId},'Synthetic second business branch')`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date) VALUES(${f.companyId},${employeeId},${businessId},${branchId},'Synthetic cross-business staff','staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date) VALUES(${f.companyId},${employeeId},${businessId},${branchId},'Synthetic cross-business staff',${employeeNameMatchKey('Synthetic cross-business staff')},'staff','2026-01-01')`;
   await f.database.withTenant(f.companyId, async (tx) => {
     await recordAttendanceDeviceSignal(tx, record(f.employeeId, '2026-10-05T10:00:00Z'));
     await recordAttendanceDeviceSignal(tx, {

@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { branchManagerRecipientsStatement } from '../persistence/branch-manager-recipients.adapter.ts';
@@ -50,8 +51,8 @@ it('pages past one hundred due shifts and the probes use the named indexes', asy
 
 async function seedPage(company: string, business: string, branch: string) {
   const count = NOT_CLOCKED_IN_PAGE_SIZE + 1;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    SELECT ${company}, gen_random_uuid(), ${business}, ${branch}, 'Synthetic bulk', 'staff', '2026-01-01'
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    SELECT ${company}, gen_random_uuid(), ${business}, ${branch}, 'Synthetic bulk',${employeeNameMatchKey('Synthetic bulk')}, 'staff', '2026-01-01'
     FROM generate_series(1, ${count})`;
   await f.owner`INSERT INTO staff_schedules(company_id,id,business_id,branch_id,employee_id,week_start,timezone,revision)
     SELECT ${company}, gen_random_uuid(), ${business}, ${branch}, e.id, ${WEEK}, 'Asia/Kuwait', 1
@@ -109,8 +110,8 @@ async function seedDecoys(tenant: { company: string; business: string; branch: s
 }
 
 async function seedHistory(tenant: { company: string; business: string; branch: string }) {
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, ${tenant.branch}, 'Synthetic history', 'staff', '2026-01-01'
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, ${tenant.branch}, 'Synthetic history',${employeeNameMatchKey('Synthetic history')}, 'staff', '2026-01-01'
     FROM generate_series(1, 3000)`;
   await f.owner`INSERT INTO staff_schedules(company_id,id,business_id,branch_id,employee_id,week_start,timezone,revision)
     SELECT ${tenant.company}, gen_random_uuid(), ${tenant.business}, ${tenant.branch}, e.id, '2026-08-29', 'Asia/Kuwait', 1

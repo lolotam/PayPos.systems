@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { clockChallenge } from '@pospay/contracts';
 import {
@@ -21,12 +22,12 @@ beforeAll(async () => {
     binding: ids(),
     sibling: ids(),
   });
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    VALUES(${f.companyId},${other.sibling},${f.businessId},${f.branchId},'Synthetic sibling','staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${f.companyId},${other.sibling},${f.businessId},${f.branchId},'Synthetic sibling',${employeeNameMatchKey('Synthetic sibling')},'staff','2026-01-01')`;
   await f.owner`INSERT INTO businesses(company_id,id,name_en,vertical_type) VALUES(${f.otherCompany},${other.business},'Synthetic other business','salon')`;
   await f.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.otherCompany},${other.branch},${other.business},'Synthetic other branch')`;
-  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    VALUES(${f.otherCompany},${other.employee},${other.business},${other.branch},'Synthetic other staff','staff','2026-01-01')`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${f.otherCompany},${other.employee},${other.business},${other.branch},'Synthetic other staff',${employeeNameMatchKey('Synthetic other staff')},'staff','2026-01-01')`;
   await f.owner`INSERT INTO employee_passkeys(company_id,id,business_id,employee_id,passkey_id,revision,bound_at,bound_by)
     SELECT ${f.otherCompany},${other.binding},${other.business},${other.employee},passkey_id,1,clock_timestamp(),${f.userId}
     FROM employee_passkeys WHERE id=${f.bindingId}`;

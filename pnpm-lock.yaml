@@ -636,6 +636,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@pospay/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@pospay/ids':
         specifier: workspace:*
         version: link:../ids

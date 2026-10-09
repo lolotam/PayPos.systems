@@ -6,9 +6,34 @@ import { runConcurrentIndex } from './recover-concurrent-index.ts';
 const CONCURRENT =
   /^\s*(?:--[^\r\n]*[\r\n]\s*)*(?:CREATE|DROP)\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i;
 
+function migrationSteps(
+  statements: readonly string[],
+  dataSteps: Readonly<Record<string, (owner: postgres.Sql) => Promise<void>>>,
+) {
+  const names = [
+    ...new Set(
+      statements.flatMap((statement) =>
+        [...statement.matchAll(/^--\s*pospay:data-step\s+([a-z0-9-]+)\s*$/gm)].map(
+          (match) => match[1] ?? '',
+        ),
+      ),
+    ),
+  ];
+  return names.map((name) => {
+    const step = dataSteps[name];
+    if (!Object.hasOwn(dataSteps, name) || step === undefined)
+      throw new Error(`Unknown migration data step ${name}; migration aborted`);
+    return step;
+  });
+}
+
 // The connection is held (max:1) until the session advisory lock is released. Only a concurrent-index prefix
 // may run outside a transaction. The remaining DDL and journal entry commit together, as Drizzle normally does.
-export async function applyMigrations(client: postgres.Sql, folder: string): Promise<void> {
+export async function applyMigrations(
+  client: postgres.Sql,
+  folder: string,
+  dataSteps: Readonly<Record<string, (owner: postgres.Sql) => Promise<void>>> = {},
+): Promise<void> {
   const migrations = readMigrationFiles({ migrationsFolder: folder });
   await client`SELECT pg_advisory_lock(hashtext('pospay:migrations'))`;
   const [session] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
@@ -27,7 +52,9 @@ export async function applyMigrations(client: postgres.Sql, folder: string): Pro
     const after = Number(last?.created_at ?? 0);
     for (const migration of migrations) {
       if (migration.folderMillis <= after) continue;
+      const steps = migrationSteps(migration.sql, dataSteps);
       await sameSession();
+      for (const step of steps) await step(client);
       const statements = migration.sql.filter((statement) => statement.trim() !== '');
       const firstTransactional = statements.findIndex((statement) => !CONCURRENT.test(statement));
       const prefixLength = firstTransactional === -1 ? statements.length : firstTransactional;

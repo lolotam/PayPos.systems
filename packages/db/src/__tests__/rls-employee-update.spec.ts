@@ -1,3 +1,4 @@
+import { employeeNameMatchKey } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -13,7 +14,7 @@ beforeAll(async () => {
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   db = createDatabase({ url: testDb.appUrl, ids: { newId: () => id } });
   for (const tenant of [A, B]) {
-    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date) VALUES (${tenant.company},${id},${tenant.business},${tenant.branch},'Synthetic update','staff','2026-01-01')`;
+    await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date) VALUES (${tenant.company},${id},${tenant.business},${tenant.branch},'Synthetic update',${employeeNameMatchKey('Synthetic update')},'staff','2026-01-01')`;
     await owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from") VALUES (${tenant.company},${id},${tenant.business},${id},${tenant.branch},'2026-01-01')`;
   }
 });

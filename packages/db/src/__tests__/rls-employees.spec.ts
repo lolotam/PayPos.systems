@@ -1,4 +1,5 @@
-﻿import { sql } from 'drizzle-orm';
+import { employeeNameMatchKey } from '@pospay/domain';
+import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { seedTwoTenants, TENANT } from '../../test/tenancy-fixtures.ts';
@@ -13,8 +14,8 @@ beforeAll(async () => {
   await seedTwoTenants(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   db = createDatabase({ url: testDb.appUrl, ids: { newId: () => ID } });
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-    VALUES (${B.company},${ID},${B.business},${B.branch},'Sentinel B','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES (${B.company},${ID},${B.business},${B.branch},'Sentinel B',${employeeNameMatchKey('Sentinel B')},'staff','2026-01-01')`;
   await owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES (${B.company},${ID},${B.business},${ID},${B.branch},'2026-01-01')`;
 });
@@ -29,8 +30,8 @@ const employeeInsert = (
   business: string,
   branch: string,
 ) => sql`INSERT INTO employees
-  (company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-  VALUES (${company},${ID},${business},${branch},'Synthetic','staff','2026-01-01') RETURNING id`;
+  (company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+  VALUES (${company},${ID},${business},${branch},'Synthetic',${employeeNameMatchKey('Synthetic')},'staff','2026-01-01') RETURNING id`;
 const attachmentInsert = (
   company: string,
   business: string,
@@ -107,8 +108,8 @@ it.each(['authUrl', 'dispatcherUrl', 'notificationsUrl'] as const)(
 it('membership and PIN employee references are tenant qualified even though legacy validation is deferred', async () => {
   const staffRole = SYSTEM_ROLES.find((r) => r.code === 'staff')?.id as string;
   const foreignEmployee = '01920000-0000-7000-8000-000000000abe';
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,role_code,hire_date)
-      VALUES (${B.company},${foreignEmployee},${B.business},${B.branch},'Foreign employee','staff','2026-01-01')`;
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+      VALUES (${B.company},${foreignEmployee},${B.business},${B.branch},'Foreign employee',${employeeNameMatchKey('Foreign employee')},'staff','2026-01-01')`;
   await expect(
     asA(sql`INSERT INTO memberships(company_id,id,employee_id,role_id,role_owner_key,scope_type,scope_id)
       VALUES (${A.company},${foreignEmployee},${foreignEmployee},${staffRole},'global','BUSINESS',${A.business})`),
