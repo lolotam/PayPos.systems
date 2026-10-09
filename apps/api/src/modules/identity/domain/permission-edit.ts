@@ -2,7 +2,7 @@ import { evaluateAccess, type AccessGrant, type AccessTarget, type ScopeType } f
 import { personalAllowFailure } from './permission-eligibility.ts';
 
 /** قرار spec 039 يحصر منح الوثائق في المالك؛ القائمة الصافية تمنع اعتماد الدومين على قاعدة البيانات. */
-const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
+export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
   'read:files:business',
   'manage:files:business',
   'manage:document-types:company',

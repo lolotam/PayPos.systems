@@ -40,10 +40,10 @@ No new tenant table → no new RLS negative test; no `queries/` file → no new 
 **Goal**: GM/BM without a grant get 403 on documents and document types; the owner keeps everything.
 **Independent test**: ODOC-01…04, ODOC-09.
 
-- [ ] T007 [P] [US1] New integration spec `apps/api/src/modules/identity/__tests__/documents-owner-default.spec.ts`
+- [x] T007 [P] [US1] New integration spec `apps/api/src/modules/identity/__tests__/documents-owner-default.spec.ts`
   (or extend an existing fixture-based spec) covering ODOC-01 owner lists/opens/uploads a document, ODOC-02 GM default →
-  403 on `GET/POST /v1/businesses/:b/employees/:e/documents` and on the download of an existing document file,
-  ODOC-03 BM default → same 403s, ODOC-04 GM → 403 on `/v1/document-types`
+  404 `NOT_FOUND` (spec 028 non-disclosure) on `GET/POST /v1/businesses/:b/employees/:e/documents` and on the download of an existing document file, 403 on upload,
+  ODOC-03 BM default → same refusals, ODOC-04 GM → 403 on `/v1/document-types`
 - [x] T008 [P] [US1] Update `apps/api/src/modules/identity/__tests__/role-default-grants.spec.ts`: append the new
   migration to `applyReferenceMigrations` (after 0087) and also delete `manage:document-types:company` global rows
   before re-applying so ODOC-09 proves the stored rows equal `ROLE_DEFAULTS` with overrides, memberships and custom-role
@@ -64,8 +64,8 @@ No new tenant table → no new RLS negative test; no `queries/` file → no new 
 - [x] T012 [P] [US2] Domain unit tests in `apps/api/src/modules/identity/domain/__tests__/` for `permissionEditFailure`:
   editor not owner + `effect: 'ALLOW'` + each of the three codes → `'PERMISSION_OWNER_ONLY'`; editor owner → no new
   failure; non-owner DENY and `'REVOKE'`/`'CHECK'` operations → unchanged results; other codes unchanged
-- [ ] T013 [P] [US2] Integration in `documents-owner-default.spec.ts`: ODOC-05 accountant with owner-saved ALLOW of
-  `read:files:business` at business X → list/open ✅ (`can_manage` false), upload 403, business Y 403; + `manage:files:business`
+- [x] T013 [P] [US2] Integration in `documents-owner-default.spec.ts`: ODOC-05 accountant with owner-saved ALLOW of
+  `read:files:business` at business X → list/open ✅ (`can_manage` false), upload 403, business Y refused (404 non-disclosure); + `manage:files:business`
   → upload/record ✅; ODOC-06 GM with ALLOW `manage:document-types:company` → create type ✅; ODOC-07 a business manager
   holding files by grant and `manage:memberships:business` saving an ALLOW of `read:files:business` for a cashier of
   his business → 403 `PERMISSION_OWNER_ONLY`; owner saving ALLOW for a Device membership → `PERMISSION_ROLE_FORBIDDEN`

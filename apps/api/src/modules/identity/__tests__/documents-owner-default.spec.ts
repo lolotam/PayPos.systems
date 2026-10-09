@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { employeeDocumentsView } from '@pospay/contracts';
 import { OWNER_GRANTED_PERMISSIONS, SYSTEM_ROLES } from '@pospay/db';
+import { OWNER_GRANTED_PERMISSIONS as DOMAIN_OWNER_GRANTED } from '../domain/permission-edit.ts';
 import { newMember, revoke, save } from './permissions-screen.fixture.ts';
 import {
   documentsOwnerFixture,
@@ -155,6 +156,10 @@ it('ODOC-07: a delegated business manager cannot grant files onward; DENY and re
       })
     ).status,
   ).toBe(200);
+});
+
+it('the domain owner-only list mirrors the reference list in packages/db', () => {
+  expect([...DOMAIN_OWNER_GRANTED].sort()).toEqual([...OWNER_GRANTED_PERMISSIONS].sort());
 });
 
 it.each(SYSTEM_ROLES)(

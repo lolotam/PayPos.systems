@@ -85,9 +85,10 @@ recorded document.
 1. **Given** an employee with a recorded residency copy, **When** the owner opens the employee, **Then** the documents
    section lists it and the owner can open the file and upload a new one.
 2. **Given** the same employee, **When** the general manager (no personal grant) opens it, **Then** the documents API
-   answers 403, the section is not shown, and the download link request answers 403.
-3. **Given** the same, **When** the business manager of that business (no personal grant) tries, **Then** the same 403s.
-4. **Given** a document recorded before the release, **When** the general manager asks for its link, **Then** 403.
+   answers 404 `NOT_FOUND` (spec 028 hides documents from people without read), the section is not shown, the
+   download link request answers 404 and a new upload answers 403.
+3. **Given** the same, **When** the business manager of that business (no personal grant) tries, **Then** the same refusals.
+4. **Given** a document recorded before the release, **When** the general manager asks for its link, **Then** 404 `NOT_FOUND`.
 5. **Given** a general manager without a grant, **When** he lists or edits document types, **Then** 403.
 
 ---
@@ -107,7 +108,7 @@ accountant membership; repeat for a general manager.
 1. **Given** an accountant with a personal ALLOW of `read:files:business` for business X, **When** she opens an employee
    of X, **Then** she sees and opens documents but cannot upload (`can_manage = false`).
 2. **Given** she also gets `manage:files:business` for X, **When** she uploads a contract, **Then** it is recorded; for
-   business Y she still gets 403.
+   business Y she is still refused (404 non-disclosure).
 3. **Given** a general manager with a personal ALLOW of `manage:document-types:company`, **When** he adds a type,
    **Then** it succeeds.
 4. **Given** the owner revokes the grant, **When** the accountant reloads, **Then** access is gone (live recheck).
@@ -224,9 +225,9 @@ None. `DocumentExpiring` recipients (PR 62) follow FR-006.
   (13 human roles eligible for the three codes, Device not; `kitchen / manage:files:business` flips to true);
   `seed.spec.ts` if it counts rows.
 - **Integration** (`ODOC-01…09`):
-  `ODOC-01` owner lists/opens/uploads ✅ · `ODOC-02` GM default → 403 documents list, record, download ·
-  `ODOC-03` BM default → 403 · `ODOC-04` GM → 403 on document types · `ODOC-05` accountant read ALLOW (business X) →
-  list/open ✅, upload 403, business Y 403; + manage → upload ✅ · `ODOC-06` GM `manage:document-types:company` ALLOW →
+  `ODOC-01` owner lists/opens/uploads ✅ · `ODOC-02` GM default → 404 on documents list, record, download (spec 028 non-disclosure), 403 on upload ·
+  `ODOC-03` BM default → same · `ODOC-04` GM → 403 on document types · `ODOC-05` accountant read ALLOW (business X) →
+  list/open ✅, upload 403, business Y refused (404); + manage → upload ✅ · `ODOC-06` GM `manage:document-types:company` ALLOW →
   ✅ · `ODOC-07` non-owner editor ALLOW → `PERMISSION_OWNER_ONLY`; Device ALLOW → `PERMISSION_ROLE_FORBIDDEN` ·
   `ODOC-08` import: GM default → upload 403; owner → upload/preview/commit ✅; GM granted files → ✅ ·
   `ODOC-09` migration: stored global rows equal `ROLE_DEFAULTS`; overrides, memberships, custom-role rows unchanged.
