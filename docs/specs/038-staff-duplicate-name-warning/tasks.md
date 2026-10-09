@@ -67,6 +67,14 @@ integration test proves another tenant's / business's same-name employee is neve
 
 ---
 
+## Phase 7: PR #136 round 2 (review findings)
+
+- [ ] T018 [P] Add `employeeNameMatchKey(name: string): string` with Arabic JSDoc to `packages/domain/src/employee-name-key.ts`, export from `packages/domain/src/index.ts`, exhaustive tests in `packages/domain/src/__tests__/employee-name-key.spec.ts`.
+- [ ] T019 Add `nameEnKey` / `nameArKey` to `employees` in `packages/db/schema/staff.ts`; migration A (columns + `GRANT UPDATE (name_en_key, name_ar_key)` + one-time backfill mirror), migration B (two `CREATE INDEX CONCURRENTLY`); journal; `packages/db/src/__tests__/privileges.spec.ts` allowlist.
+- [ ] T020 Writers store keys: api create-employee + update-employee, worker commit-employee-import (worker gains the `@pospay/domain` workspace dependency); tests prove keys stored.
+- [ ] T021 Query compares stored keys only; controller computes typed keys with the domain function; EXPLAIN asserts `employees_company_business_name_en_key_idx`; parity test migration SQL ≡ domain function.
+- [ ] T022 `hidden_count` → `hidden_exists: boolean` across contract, query, OpenAPI, clients, admin UI and tests.
+
 ## Dependencies
 
 - T002–T007 block all stories. T003 before T004/T006/T010. T006 before T007.
@@ -79,4 +87,4 @@ integration test proves another tenant's / business's same-name employee is neve
 
 ## Implementation strategy
 
-Phase 2 → US1 (MVP, demonstrable) → US3 tests (security) → US2 → gates. One PR; no migration; no use case change.
+Phase 2 → US1 (MVP, demonstrable) → US3 tests (security) → US2 → gates. One PR. Round 2 (below) adds the domain key, migrations and writer changes.

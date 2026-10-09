@@ -11,7 +11,7 @@ Before a create, or an update that changes a name, the admin employee form asks 
 in the same business. The server answers from one read-only `queries/` statement that normalises both the stored and
 the typed name in SQL (NFKC, no diacritics/tatweel, أ/إ/آ/ٱ→ا, ة→ه, ى→ي, lower case, collapsed spaces) and compares
 Arabic with Arabic and English with English. Visible matches come back with details; matches outside the caller's
-visible branches only increase `hidden_count`. The form shows a bilingual warning with "edit name" / "save anyway";
+visible branches only set `hidden_exists`. The form shows a bilingual warning with "edit name" / "save anyway";
 "save anyway" calls the unchanged create/update endpoints. The write path, schema and audits do not change.
 
 ## Technical Context
@@ -20,7 +20,8 @@ visible branches only increase `hidden_count`. The form shows a bilingual warnin
 
 **Primary Dependencies**: NestJS (Fastify), Drizzle `sql` tag, Zod 4, TanStack Query, react-hook-form — all existing
 
-**Storage**: PostgreSQL 16, existing `employees` and `employee_branches` tables; no migration
+**Storage**: PostgreSQL 16, `employees` + `employee_branches`; round 2 adds `name_en_key` / `name_ar_key` (expand-only,
+backfilled) and two concurrent indexes
 
 **Testing**: Vitest (contracts; api integration on the T2 compose Postgres with a cloned DB per spec file; admin with
 Testing Library)

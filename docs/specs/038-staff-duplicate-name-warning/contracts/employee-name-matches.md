@@ -27,7 +27,7 @@ Read-only (TD-1). Zod source of truth: `packages/contracts/src/staff/employee-na
     { "id": "0192…", "name_en": "Sara Ahmed", "name_ar": "سارة أحمد", "primary_branch_id": "0192…", "role_code": "staff" }
   ],
   "visible_total": 1,
-  "hidden_count": 0
+  "hidden_exists": false
 }
 ```
 

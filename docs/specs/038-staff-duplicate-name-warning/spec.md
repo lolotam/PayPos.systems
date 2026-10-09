@@ -142,15 +142,16 @@ the manager is not allowed to see, and if it cannot run (network, server busy) t
 ### Key Entities
 
 - **Employee** (existing, spec 013/017): `name_en` (required), `name_ar` (optional), primary branch, active branch
-  attachments, `contract_end`, `deleted_at`. No new entity and no new column.
+  attachments, `contract_end`, `deleted_at`. Two new internal columns (PR #136 round 2): `name_en_key`,
+  `name_ar_key` — the stored match keys of the names. Never returned by any API.
 - **Name match** (read projection only): an employee whose name equals the typed name under the DN-Q3 rule.
 
 ## Slice design *(mandatory — `CLAUDE.md` §1)*
 
 ### Chosen design — a read-only `queries/` check called by the form before submit
 
-The write path does not change. Create (`POST .../employees`) and update (`PATCH .../employees/{id}`) keep their
-contracts, use cases, audits and errors. A new read endpoint in `queries/` returns the matches; the admin form calls it
+Create (`POST .../employees`) and update (`PATCH .../employees/{id}`) keep their HTTP contracts, audits and errors;
+since PR #136 round 2 they (and the employee import commit) also store the two name match keys (see Round 2 below). A new read endpoint in `queries/` returns the matches; the admin form calls it
 on submit and shows the warning; "save anyway" calls the unchanged write. Reasons:
 
 - `CLAUDE.md` §6: reads go through `queries/`, never through a use case; a warning is a read.
@@ -167,26 +168,40 @@ warning arrives, so "edit name" would need a second update and a second audit ro
 - **BR-001**: duplicate names are allowed (spec 013 CE-08, spec 017 UE-03); this slice never refuses on a name.
 - **BR-002**: scope of the search (DN-Q1 A): `company_id` + `business_id` of the request — every branch of the business.
 - **BR-003**: compared fields (DN-Q2 A): `name_ar` vs `name_ar` (only when both are non-null) OR `name_en` vs `name_en`.
-- **BR-004**: matching key (DN-Q3 A), applied identically to the stored and the typed name:
+- **BR-004**: matching key (DN-Q3 A), one pure function `employeeNameMatchKey(name)` in `packages/domain`, applied to
+  the stored names when they are written and to the typed names when they are checked:
   Unicode NFKC → remove Arabic diacritics (U+064B–U+0652, U+0670) and tatweel (U+0640) → fold أ إ آ ٱ → ا, ة → ه,
   ى → ي → lower-case → collapse every run of whitespace to one space → trim. Exact equality of keys; no partial match.
   Example: "  سَـارة " and "ساره" both give the key "ساره"; "Sara  AHMED" and "sara ahmed" give "sara ahmed".
 - **BR-005**: records searched (DN-Q4 A): `deleted_at IS NULL`, regardless of `contract_end`.
 - **BR-006**: details returned (DN-Q5 A): details only for employees whose primary branch and
   every open attachment are inside the caller's allowed branches (the exact visibility filter of
-  `list-employees.query.ts`); others are only counted in `hidden_count`.
+  `list-employees.query.ts`); for the others the response says only that at least one exists (`hidden_exists`),
+  never how many (PR #136 round 2, layer-2 review: the owner accepted "one exists", not a count).
 - **BR-007**: on edit, `exclude_employee_id` removes the edited employee; the form calls the check only when
   `name_ar` or `name_en` differs from the loaded record after trimming (DN-Q6 A).
 - **BR-008**: at most 10 visible matches are returned, ordered by English name then id; `visible_total` gives the
   full visible count.
 
-### Schema changes
+### Schema changes (PR #136 round 2)
 
-None. No table, column, RLS policy, grant or migration. The query filters `employees` on
-`(company_id, business_id)` and is served by the existing index `employees_company_business_id_idx`; the name key is
-computed per row of one business (a salon business holds tens to a few hundred employees).
-A later expression index on the name key is only needed if the EXPLAIN check shows a business above ~5,000 employees;
-not in this slice.
+Review finding (Codex GitHub bot, P1): the matching rule is a business rule and must live in a pure domain function,
+not in SQL inside `queries/`. The rule therefore moves to `packages/domain` (shared kernel, zero dependencies, usable by
+api, worker and browser), and the keys are persisted:
+
+| Table | Columns added | RLS / grants | Indexes | FKs |
+|---|---|---|---|---|
+| employees | `name_en_key text NULL`, `name_ar_key text NULL` (expand-only, nullable) | existing FORCE RLS policies unchanged; `pospay_app` keeps table-level INSERT; new `GRANT UPDATE (name_en_key, name_ar_key)`; `privileges.spec.ts` allowlist updated | `employees_company_business_name_en_key_idx (company_id, business_id, name_en_key)`, `employees_company_business_name_ar_key_idx (company_id, business_id, name_ar_key)`, both `CREATE INDEX CONCURRENTLY` in their own migration (ADR-0033 leading-prefix rule) | none |
+
+- Migration A (transactional): add the two columns, the column UPDATE grant, and a **one-time backfill** of existing rows.
+  The backfill SQL is a mirror of `employeeNameMatchKey`, commented as never used at runtime; a parity integration test
+  runs the exact SQL text from the migration file over every domain test vector and asserts equality with the domain
+  function.
+- Migration B: the two concurrent indexes.
+- Writers: create-employee, update-employee (api) and commit-employee-import (worker) compute both keys with
+  `employeeNameMatchKey` and store them with the names (`name_ar_key` is NULL when `name_ar` is NULL).
+- Reader: the controller computes the typed keys with the same function; the query compares
+  `e.name_en_key = $1` / `e.name_ar_key = $2` only.
 
 ### API contract
 
@@ -200,7 +215,7 @@ not in this slice.
 - **Request** (Zod, `packages/contracts/src/staff/employee-name-matches.ts`, strict):
   `{ name_en: nameEn, name_ar: nameAr.nullable().optional(), exclude_employee_id: employeeInputId.optional() }`.
 - **Response**: `{ matches: Array<{ id, name_en, name_ar|null, primary_branch_id, role_code }> (max 10),
-  visible_total: int ≥ 0, hidden_count: int ≥ 0 }` — `meta({ id: 'EmployeeNameMatches' })`.
+  visible_total: int ≥ 0, hidden_exists: boolean }` — `meta({ id: 'EmployeeNameMatches' })`.
 - **Idempotency-Key**: not required — no write, no money or stock effect.
 - **Errors**: standard `VALIDATION_FAILED` (400), `FORBIDDEN` (403), `FEATURE_DISABLED`, `NOT_READY`. No new code.
 - **OpenAPI**: path added in `packages/contracts/src/staff/staff-openapi.ts`; `pnpm contracts:openapi`; both generated
@@ -231,17 +246,20 @@ not in this slice.
 
 ### Test plan
 
-- **Domain unit**: none — no `domain/` function (the name key is SQL inside the query; `queries/` may not import
-  `domain/`). The key's cases are covered by the query integration test below.
+- **Domain unit** (`packages/domain`): `employeeNameMatchKey` — every variant (spaces, tabs, newlines, case,
+  full-width Latin, diacritics, superscript alef, tatweel, أ/إ/آ/ٱ, ة/ه, ى/ي), idempotence, no prefix match.
+- **Parity** (integration): the migration's one-time backfill SQL equals the domain function on every vector.
+- **Writers** (integration): create, update (name change and no change) and import commit store the keys.
 - **Contracts**: strict input (unknown keys refused, trimmed names, 255 limit, lower-cased exclude id), response shape.
 - **Query integration** (`apps/api/src/modules/staff/__tests__/employee-name-matches.spec.ts`, T2 Postgres, cloned DB):
   DN-01, DN-05 (spaces, case, ة/ه, أ/إ/آ/ٱ, ى/ي, diacritics, tatweel), DN-06 (exclude self), DN-09 (other company,
-  other business → 0), DN-10 (hidden branch → `hidden_count` only, no id/name), DN-04 (no match), soft-deleted excluded,
+  other business → 0), DN-10 (hidden branch → `hidden_exists` only, no id/name/count), DN-04 (no match), soft-deleted excluded,
   ended contract included (DN-Q4 A), Arabic null never matches null, limit 10 + `visible_total`.
-- **Result shape + EXPLAIN ANALYZE**: exact projection; plan uses `employees_company_business_id_idx`.
+- **Result shape + EXPLAIN ANALYZE**: exact projection; plan uses `employees_company_business_name_en_key_idx`.
 - **HTTP**: DN-11 (no grant → 403, branch-only ALLOW works, branch DENY hides, feature off), validation, static route
   does not collide with `GET /employees/{employeeId}`, DN-13 (duplicate create/update via API still 201/200).
-- **RLS negative**: no new table; the existing `rls-employees.spec.ts` covers `employees`. The integration test
+- **RLS negative**: no new table; the existing `rls-employees.spec.ts` covers `employees`; the grant allowlist covers the
+  new UPDATE columns. The integration test
   asserts another tenant's same-name employee is never returned under `withTenant`.
 - **Admin UI** (Vitest + Testing Library): DN-02, DN-03 (values kept, Arabic field focused), DN-04, DN-07, DN-08,
   DN-12 (check error → saved), bilingual text, RTL rendering, workspace switch clears a pending warning.

@@ -31,7 +31,7 @@
 
 - **Decision**: reuse `EmployeeDetailAccess.listScope` (already used by `list-employees.query.ts`). A match is
   "visible" when its primary branch and every open attachment are in `allowedBranchIds`; otherwise it only counts in
-  `hidden_count`. No allowed branch → `FORBIDDEN`; feature off → `FEATURE_DISABLED`.
+  `hidden_exists` (round 2: boolean, no count). No allowed branch → `FORBIDDEN`; feature off → `FEATURE_DISABLED`.
 - **Rationale**: identical visibility rule to the employee list, so the warning never shows a record the list hides.
 
 ## R5. Index

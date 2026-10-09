@@ -1,6 +1,8 @@
 # Data model — 038 duplicate-name warning
 
-No schema change. The slice reads existing columns only.
+PR #136 round 2 adds two internal columns on `employees`: `name_en_key text NULL`, `name_ar_key text NULL` — the
+`employeeNameMatchKey` (packages/domain) values of the names, written by create, update and import commit, backfilled
+once by migration, indexed `(company_id, business_id, name_en_key)` and `(company_id, business_id, name_ar_key)`.
 
 ## Employee (existing — `packages/db/schema/staff.ts`)
 
@@ -23,7 +25,7 @@ Open attachments (`"to" IS NULL`) decide visibility together with the primary br
 |---|---|---|
 | `matches[]` | ≤ 10 items `{ id, name_en, name_ar \| null, primary_branch_id, role_code }` | visible only; ordered by `name_en`, then `id` |
 | `visible_total` | integer ≥ 0 | all visible matches, not capped |
-| `hidden_count` | integer ≥ 0 | matches outside the caller's visible branches; no other data about them |
+| `hidden_exists` | boolean | at least one match outside the caller's visible branches; no count, no other data |
 
-Matching rule: `key(name_en) = key(input.name_en)` OR (`name_ar IS NOT NULL` AND `input.name_ar` given AND
-`key(name_ar) = key(input.name_ar)`).
+Matching rule: `name_en_key = key(input.name_en)` OR (`name_ar_key IS NOT NULL` AND `input.name_ar` given AND
+`name_ar_key = key(input.name_ar)`), `key` = `employeeNameMatchKey`.
