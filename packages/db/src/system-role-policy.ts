@@ -3,6 +3,7 @@ import { OWNER_ROLE_ID, PERMISSIONS, SYSTEM_ROLES, type Permission } from './acc
 import {
   ROLE_DEFAULTS,
   OWNER_DERIVED_PERMISSIONS,
+  OWNER_GRANTED_PERMISSIONS,
   SCHEDULE_PERMISSIONS,
   LEAVE_PERMISSIONS,
 } from './role-defaults.ts';
@@ -45,11 +46,7 @@ const deviceForbidden = [
 ] as const satisfies readonly Permission[];
 
 const optional: Readonly<Record<string, readonly string[]>> = {
-  business_manager: [
-    'read:memberships:business',
-    'manage:memberships:business',
-    'manage:document-types:company',
-  ],
+  business_manager: ['read:memberships:business', 'manage:memberships:business'],
   branch_manager: ['read:settings:business', 'manage:settings:business'],
   cashier: ['login:staff:branch'],
   // قرار المالك 2026-10-04: هذه الأدوار تقبل إنشاء العميل للشركة بتفويض شخصي فقط.
@@ -63,7 +60,7 @@ const optional: Readonly<Record<string, readonly string[]>> = {
   viewer: ['create:customers:company'],
 };
 
-/** المرجع يميز الدور العالمي الثابت ويمنع تفويض خانات الجهاز المحظورة؛ اسم الدور المخصص لا يرث حمايته. */
+/** المرجع يميز الدور العالمي الثابت ويمنع تفويض خانات الجهاز المحظورة؛ اسم الدور المخصص لا يرث حمايته، وصلاحيات الوثائق قابلة للتفويض لكل البشر. */
 export function systemRolePolicy(roleId: string, ownerKey: string) {
   const role = SYSTEM_ROLES.find((r) => r.id === roleId);
   if (ownerKey !== 'global' || role === undefined) return null;
@@ -75,6 +72,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
         : (ROLE_DEFAULTS[code] as readonly string[]).includes(role.code) ||
           (OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(code) ||
           (SCHEDULE_PERMISSIONS as readonly string[]).includes(code) ||
+          (OWNER_GRANTED_PERMISSIONS as readonly string[]).includes(code) ||
           ['decide:leave:branch', 'revoke:leave:branch', 'read:leave:branch'].includes(code) ||
           optional[role.code]?.includes(code),
     ),

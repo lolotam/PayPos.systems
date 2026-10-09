@@ -41,6 +41,7 @@ const manage = grant('manage:memberships:company');
 const context: PermissionEditContext = {
   companyId,
   editorUserId: 'editor',
+  editorIsCompanyOwner: false,
   now,
   membership: member,
   holderMemberships: [member],
@@ -221,3 +222,66 @@ it('allows future expiry', () => {
     permissionEditFailure({ ...terms, expires_at: '2999-01-01T00:00:00Z' }, context),
   ).toBeNull();
 });
+
+const ownerGranted = [
+  'read:files:business',
+  'manage:files:business',
+  'manage:document-types:company',
+];
+for (const permission_code of ownerGranted) {
+  const documentTerms = { ...terms, permission_code };
+  const documentContext = {
+    ...context,
+    editorIsCompanyOwner: false,
+    catalog: ownerGranted,
+    grants: [manage, grant(permission_code)],
+  };
+  it(`${permission_code}: only the owner can save ALLOW`, () => {
+    expect(permissionEditFailure(documentTerms, documentContext)).toBe('PERMISSION_OWNER_ONLY');
+    expect(
+      permissionEditFailure(documentTerms, {
+        ...documentContext,
+        editorIsCompanyOwner: true,
+      }),
+    ).toBeNull();
+  });
+  it(`${permission_code}: DENY, revoke and check retain possession rules`, () => {
+    expect(permissionEditFailure({ ...documentTerms, effect: 'DENY' }, documentContext)).toBeNull();
+    for (const operation of ['REVOKE', 'CHECK'] as const) {
+      expect(permissionEditFailure(documentTerms, documentContext, operation)).toBeNull();
+      expect(
+        permissionEditFailure(
+          documentTerms,
+          {
+            ...documentContext,
+            grants: [manage],
+          },
+          operation,
+        ),
+      ).toBe('PERMISSION_NOT_HELD');
+    }
+    expect(
+      permissionEditFailure(
+        { ...documentTerms, effect: 'DENY' },
+        {
+          ...documentContext,
+          grants: [manage],
+        },
+      ),
+    ).toBe('PERMISSION_NOT_HELD');
+  });
+  it(`${permission_code}: authorization, self-edit and catalog checks precede owner-only`, () => {
+    expect(permissionEditFailure(documentTerms, { ...documentContext, grants: [] })).toBe(
+      'FORBIDDEN',
+    );
+    expect(
+      permissionEditFailure(documentTerms, {
+        ...documentContext,
+        membership: { ...member, userId: 'editor' },
+      }),
+    ).toBe('PERMISSION_SELF_EDIT');
+    expect(permissionEditFailure(documentTerms, { ...documentContext, catalog: [] })).toBe(
+      'FORBIDDEN',
+    );
+  });
+}

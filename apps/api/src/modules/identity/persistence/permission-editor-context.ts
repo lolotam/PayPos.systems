@@ -76,6 +76,12 @@ export async function permissionEditorContext(
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (time === undefined) throw new Error('Transaction time missing');
   const now = new Date(time.at);
+  const [editor] = await tx.execute<{ is_owner: boolean }>(sql`SELECT EXISTS (
+    SELECT 1 FROM memberships m WHERE m.company_id = ${companyId} AND m.user_id = ${userId}
+      AND ${canonicalOwnerSql('m', companyId)}
+      AND m.starts_at <= ${now.toISOString()}::timestamptz
+      AND (m.ends_at IS NULL OR m.ends_at > ${now.toISOString()}::timestamptz)
+  ) AS is_owner`);
   const catalog = await tx.execute<{ code: string }>(
     sql`SELECT code FROM permissions WHERE code NOT LIKE '%:platform'`,
   );
@@ -97,6 +103,7 @@ export async function permissionEditorContext(
     grants: await editorGrants(tx, companyId, userId, now.toISOString()),
     companyId,
     editorUserId: userId,
+    editorIsCompanyOwner: editor?.is_owner === true,
     now,
   };
 }

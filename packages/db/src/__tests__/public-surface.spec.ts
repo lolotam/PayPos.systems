@@ -10,6 +10,7 @@ describe('@pospay/db public surface (CLAUDE.md §5 — no raw client)', () => {
       'IdempotencyKeyBusyError',
       'IdempotencyKeyReusedError',
       'OWNER_DERIVED_PERMISSIONS',
+      'OWNER_GRANTED_PERMISSIONS',
       'OWNER_ROLE_ID',
       'PERMISSIONS',
       'PLATFORM_ROLES',

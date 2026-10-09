@@ -51,7 +51,8 @@ to new and historical personal ALLOWs without changing human or custom-role poli
 | manage:devices:branch | owner, general_manager, business_manager, branch_manager |
 | read/manage:settings:business | owner, general_manager, business_manager; branch_manager explicit ALLOW only |
 | view:notifications:business | owner, general_manager, business_manager |
-| read/manage:files:business | owner, general_manager, business_manager |
+| read/manage:files:business | owner only; all human roles eligible by owner-saved personal ALLOW (spec 039); Device never |
+| manage:document-types:company | owner only; same owner-only granting rule (spec 039) |
 | manage:employees:business | owner, general_manager, business_manager |
 | create:customers:company | owner, general_manager; spec 022 records optional personal cells and business/branch context codes |
 | manage:discounts:company | owner; spec 022 implements separate personal-limit administration |

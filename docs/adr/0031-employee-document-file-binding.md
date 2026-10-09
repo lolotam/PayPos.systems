@@ -37,3 +37,12 @@ the type's current `alert_days`, computed by `documentStatus` and, on the read p
 no new runtime role, no RLS exception.
 
 Known limit: the binding has no purpose discriminator. Today the staff module has exactly one upload kind (employee documents), so any staff file owned by the employee is a document upload. When a second staff upload kind for employees appears (for example a photo), add a `purpose` (or a distinct owner module) to the file and check it here, so a file uploaded for another purpose cannot be recorded as a document.
+
+## PR 13b amendment — 2026-10-09 (spec 039, design D1)
+
+The stored read:files:business permission, upload permission and document-type
+management now default to Owner only, superseding the manager defaults above.
+Only the owner may save a personal ALLOW for these codes, on any human role;
+Device remains forbidden. File bindings and existing personal decisions do not change.
+Employee import xlsx uploads also become owner-only unless the owner grants both
+read/manage:files:business; preview/commit still require manage:employees:business.
