@@ -21,6 +21,8 @@ it.each([['KW', 30], ['SA', 24], ['AE', 23], ['BH', 22], ['QA', 29], ['OM', 23]]
     const spaced = iban.match(/.{1,4}/g)?.join(' ') ?? '';
     for (const value of [iban, spaced, spaced.toLowerCase()]) expect(sanitize(`Failed account ${value}.`)).toBe('Failed account [REDACTED].');
     expect(sanitize('IBAN_CHECKSUM_INVALID 01920000-0000-7000-8000-0000000000a2')).toBe('IBAN_CHECKSUM_INVALID 01920000-0000-7000-8000-0000000000a2');
+    expect(sanitize('qa team saw some account totals drift across the whole board ok')).toBe('qa team saw some account totals drift across the whole board ok');
+    expect(sanitize('om batch processed customers without any failures today')).toBe('om batch processed customers without any failures today');
   });
 
 // Every way a value can reach a pino line other than a plain logged key (Codex review of T6b, round 2).

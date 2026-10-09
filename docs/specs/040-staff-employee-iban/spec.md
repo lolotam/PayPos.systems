@@ -162,7 +162,9 @@ The receptionist (who was granted the salary permissions) types her own IBAN int
 
 - Spaces, lower case, Arabic-Indic (٠–٩) and Persian (۰–۹) digits are normalised before validation; any other
   character is refused.
-- The mod-97 check catches every single mistyped character and every swap of two adjacent different characters.
+- The mod-97 check catches every single mistyped digit and every swap of two adjacent different digits (ISO 7064
+  guarantee). A letter typed in place of a digit can keep the checksum; it is caught by the country's BBAN shape where
+  that position must be a digit.
 - The 409 for a duplicate IBAN says only that it is in use; it never returns the other employee's name, id, business
   or branch, and it is only reachable by a caller who already holds the full read and manage for this employee.
 - A holder of the salary read without `manage:employees:business` cannot reach the employee editor (spec 021 SS-Q2
@@ -302,8 +304,8 @@ reads are single-row or indexed cursor pages. Synchronous in `api`.
 ### Test plan
 
 - **Domain unit**: `packages/domain/src/__tests__/iban.spec.ts` — normalisation, each country's length and BBAN shape
-  (valid / ±1 length / wrong shape), non-GCC refused, registry examples valid, every single-character change and
-  adjacent swap refused, bank-code extraction, mask; `gcc-banks.spec.ts` — ids unique, country prefix, codes match
+  (valid / ±1 length / wrong shape), non-GCC refused, registry examples valid, every single-digit change and
+  adjacent digit swap refused, bank-code extraction, mask; `gcc-banks.spec.ts` — ids unique, country prefix, codes match
   the country's code shape. `apps/api/src/modules/staff/domain/__tests__/employee-iban.spec.ts` — holder-name rules,
   bank/country/code match, clear vs set shape, revision and no-op detection, reason bounds.
 - **Integration** (`apps/api/src/modules/staff/__tests__/set-employee-iban.spec.ts`): `IB-01` first set + audit (no
@@ -329,7 +331,7 @@ reads are single-row or indexed cursor pages. Synchronous in `api`.
 ### Measurable Outcomes
 
 - **SC-001**: The owner records or changes an employee's bank details in under one minute from the employee's record.
-- **SC-002**: 100% of IBANs with one mistyped character or two swapped adjacent characters are refused before saving.
+- **SC-002**: 100% of IBANs with one mistyped digit or two swapped adjacent digits are refused before saving.
 - **SC-003**: A person without the salary read never receives more than the last 4 characters of any IBAN — in any
   screen, response, log line or audit entry.
 - **SC-004**: For every change the owner can tell who made it, when, why, and from what to what.

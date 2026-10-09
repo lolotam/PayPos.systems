@@ -57,18 +57,21 @@ it.each(['GB', 'EG', 'DE'])('refuses %s explicitly', (country) => {
     reason: 'COUNTRY',
   });
 });
-// TODO(spec): SC-002/T002 conflicts with MOD 97: replacing position 10 with K preserves the checksum. Owner clarification is pending.
-it('detects every single substitution and unequal adjacent transposition of the registry example', () => {
+// MOD 97-10 يضمن كشف أي رقم واحد مكتوب غلط وأي رقمين متجاورين متبدلين؛ الحرف مكان رقم ممكن يفلت من المجموع
+// (KW81CBKU0K00…)، فده بيتصاد من شكل الـ BBAN مش من المجموع، ومش جزء من SC-002.
+it('detects every single digit substitution and unequal adjacent digit transposition of the registry example', () => {
   expect(ibanChecksumValid(example)).toBe(true);
+  const digits = '0123456789';
   for (let at = 0; at < example.length; at++) {
-    for (const char of '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+    if (!digits.includes(example[at]!)) continue;
+    for (const char of digits) {
       if (char === example[at]) continue;
       expect(validateIban(example.slice(0, at) + char + example.slice(at + 1)).ok).toBe(false);
     }
-    if (at < example.length - 1 && example[at] !== example[at + 1]) {
+    const next = example[at + 1];
+    if (next !== undefined && digits.includes(next) && example[at] !== next) {
       expect(
-        validateIban(example.slice(0, at) + example[at + 1] + example[at] + example.slice(at + 2))
-          .ok,
+        validateIban(example.slice(0, at) + next + example[at] + example.slice(at + 2)).ok,
       ).toBe(false);
     }
   }

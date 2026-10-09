@@ -200,6 +200,9 @@ importers:
       '@pospay/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@pospay/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@pospay/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
