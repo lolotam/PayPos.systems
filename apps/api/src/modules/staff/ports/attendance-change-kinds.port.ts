@@ -56,6 +56,12 @@ export interface AttendanceChangeKind {
     scope: Omit<AttendanceChangeKindScope, 'target' | 'request'>,
   ): Promise<AttendanceChangeTarget | null>;
   /**
+   * يأخذ أقفال صفوف النوع بعد أقفال State والهوية وقبل أخذ وقت الساعة المعتمد.
+   *
+   * @param scope سياق النوع قبل أخذ الوقت المعتمد
+   */
+  lock?(scope: AttendanceChangeKindScope): Promise<void>;
+  /**
    * يعيد القيم المثبتة بعد مراجعة قواعد النوع تحت الأقفال عند الطلب والموافقة.
    *
    * @param scope الحقائق المقفولة

@@ -49,7 +49,7 @@ export async function attendanceChangeFixture(production = false) {
   const f = await attendanceCorrectionFixture();
   override.current = null;
   const owner = await ownerUserId(f);
-  const tx = createAttendanceChangeTransactions(f.db, leaveIds);
+  const tx = createAttendanceChangeTransactions(f.db, leaveIds, kinds);
   return {
     ...f,
     owner,

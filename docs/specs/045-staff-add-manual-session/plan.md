@@ -79,8 +79,9 @@ Post-design re-check: unchanged, ✅. One recorded deviation: a `DEFERRABLE INIT
    `lockedCorrectionSession` selects `source`. `closed_by` type gains `'MANUAL'`.
 3. **Kind** — `staff/persistence/add-session-kind.ts` exports `createAddSessionKind(ids)` implementing 26a's
    `AttendanceChangeKind` for `ADD_SESSION`:
-   - `target(scope)` — the employee (business-scoped, `deleted_at IS NULL`) and the requested branch must exist in the
-     business, else `null` (→ `NOT_FOUND`); no locks.
+   - `target(scope)` reads the business-scoped, non-deleted employee without locks and returns the requested branch;
+     `lock(scope)` validates the active branch and locks branch/business, employee and attachments after State and
+     identity locks and before the authoritative clock sample at filing and decision.
    - `check(scope)` — reads the context through `manual-session-context.adapter.ts` (already under 26a's State lock),
      calls `planManualSession`, returns the values to store on the request (`manual: { clock_in, clock_out,
      working_date, timezone }`, `session_id: null`, `session_revision: null`).

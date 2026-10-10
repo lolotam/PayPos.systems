@@ -40,8 +40,8 @@ const actor = (requestId?: string) => ({
   ...(requestId ? { requestId } : {}),
 });
 async function setup(day: string) {
-  const tx = createAttendanceChangeTransactions(f.database, f.ids);
   const kinds = createAttendanceChangeKinds([createAddSessionKind(f.ids)]);
+  const tx = createAttendanceChangeTransactions(f.database, f.ids, kinds);
   const clock = { now: () => new Date(`${day}T09:00:00Z`) };
   const row = await new RequestAttendanceChangeUseCase(tx, clock, kinds).execute(actor(), {
     kind: 'ADD_SESSION',

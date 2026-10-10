@@ -2,13 +2,18 @@ import type { IdGenerator } from '@pospay/db';
 import { AttendanceChangeError } from '../domain/attendance-change-request.ts';
 import { planManualSession } from '../domain/manual-attendance-session.ts';
 import type { AttendanceChangeKind } from '../ports/attendance-change-kinds.port.ts';
-import { manualSessionContext, manualSessionTarget } from './manual-session-context.adapter.ts';
+import {
+  lockManualSessionContext,
+  manualSessionContext,
+  manualSessionTarget,
+} from './manual-session-context.adapter.ts';
 import { insertManualSession } from './manual-session-writes.ts';
 
 export function createAddSessionKind(ids: IdGenerator): AttendanceChangeKind {
   return {
     code: 'ADD_SESSION',
     target: manualSessionTarget,
+    lock: lockManualSessionContext,
     check: async (scope) => {
       const { clock_in, clock_out } = scope.input;
       if (!clock_in || !clock_out)

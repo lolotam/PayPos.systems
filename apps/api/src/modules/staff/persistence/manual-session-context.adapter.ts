@@ -12,18 +12,29 @@ export async function manualSessionTarget(
 ) {
   const tx = scope.transaction as Tx;
   if (!scope.input.branch_id) return null;
+  const [employee] = await tx.execute<{ id: string }>(sql`SELECT id FROM employees
+    WHERE company_id=${scope.companyId} AND business_id=${scope.businessId}
+      AND id=${scope.input.employee_id} AND deleted_at IS NULL`);
+  return employee
+    ? { employee_id: employee.id, branch_id: scope.input.branch_id.toLowerCase() }
+    : null;
+}
+
+export async function lockManualSessionContext(scope: AttendanceChangeKindScope): Promise<void> {
+  const tx = scope.transaction as Tx;
   const branch = await attendanceBranch(
     tx,
     scope.companyId,
     scope.businessId,
-    scope.input.branch_id,
+    scope.target.branch_id,
   );
-  const [employee] = await tx.execute<{ id: string }>(sql`SELECT id FROM employees
+  if (!branch) throw new AttendanceChangeError('NOT_FOUND');
+  const [employee] = await tx.execute(sql`SELECT id FROM employees
     WHERE company_id=${scope.companyId} AND business_id=${scope.businessId}
-      AND id=${scope.input.employee_id} AND deleted_at IS NULL`);
-  return branch && employee
-    ? { employee_id: employee.id, branch_id: scope.input.branch_id.toLowerCase() }
-    : null;
+      AND id=${scope.target.employee_id} AND deleted_at IS NULL FOR SHARE`);
+  if (!employee) throw new AttendanceChangeError('NOT_FOUND');
+  await tx.execute(sql`SELECT id FROM employee_branches WHERE company_id=${scope.companyId}
+    AND employee_id=${scope.target.employee_id} ORDER BY id FOR SHARE`);
 }
 
 export async function manualSessionContext(
