@@ -39,7 +39,7 @@ export function attendanceChangePageStatement(
       : attendanceChangeCursor.parse(
           JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')),
         );
-  // صندوق حائز صلاحية القرار يعرض النشاط؛ زر القرار يراعي نطاق الفرع ومنع القرار الذاتي لغير المالك.
+  // المالك يشوف النشاط كله؛ غيره يشوف بس فروع صلاحية الطلب أو القرار، وزر القرار يراعي نطاق الفرع ومنع القرار الذاتي.
   return sql`SELECT jsonb_build_object('id',r.id,'business_id',r.business_id,'branch_id',r.branch_id,
     'kind',r.kind,'status',r.status,'employee',jsonb_build_object('id',e.id,'name_ar',e.name_ar,'name_en',e.name_en),
     'session_id',r.session_id,'session_revision',r.session_revision,'reason',r.reason,
@@ -52,7 +52,7 @@ export function attendanceChangePageStatement(
     'can_cancel',r.status='PENDING' AND r.requested_by=${context.userId}) AS record
     FROM attendance_change_requests r JOIN employees e ON e.company_id=r.company_id AND e.business_id=r.business_id AND e.id=r.employee_id
     WHERE r.company_id=${context.companyId} AND r.business_id=${context.businessId}
-    ${access.canDecide ? sql`` : sql`AND r.branch_id=ANY(${uuidArray(access.branches)})`}
+    ${access.owner ? sql`` : sql`AND r.branch_id=ANY(${uuidArray(access.branches)})`}
     ${query.status === undefined ? sql`` : sql`AND r.status=${query.status}`}
     ${query.branch_id === undefined ? sql`` : sql`AND r.branch_id=${query.branch_id}::uuid`}
     ${query.employee_id === undefined ? sql`` : sql`AND r.employee_id=${query.employee_id}::uuid`}

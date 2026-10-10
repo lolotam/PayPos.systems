@@ -49,7 +49,9 @@ export function createAttendanceChangeReadAccess(clock: AttendanceChangeClock) {
         owner: access.owner,
         canDecide: access.canDecide,
         decideBranches: access.decideBranches,
-        branches: access.canDecide ? business.branches.map((b) => b.id) : access.branches,
+        branches: access.owner
+          ? business.branches.map((b) => b.id)
+          : [...new Set([...access.branches, ...access.decideBranches])],
       };
     },
   };
