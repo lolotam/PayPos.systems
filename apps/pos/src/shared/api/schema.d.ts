@@ -1598,6 +1598,8 @@ export interface components {
                 lng: number;
                 accuracy: number;
             };
+            /** Format: uuid */
+            installation_id?: string;
         };
         ClockAttendanceInput: {
             token: components["schemas"]["AttendanceQrToken"];
@@ -1928,6 +1930,11 @@ export interface components {
                 corrected_at: string;
             }[];
         };
+        /** @default {} */
+        PasskeyOptionsInput: {
+            /** Format: uuid */
+            installation_id?: string;
+        };
         PersonalOtpRequestInput: {
             phone: string;
             /** @enum {string} */
@@ -1962,6 +1969,8 @@ export interface components {
             schedule: components["schemas"]["StaffSchedule"] | null;
         };
         PasskeyVerifyInput: {
+            /** Format: uuid */
+            installation_id?: string;
             /** Format: uuid */
             challenge_id: string;
             response: {
@@ -2038,6 +2047,26 @@ export interface components {
                 };
             };
         };
+        AttendanceDeviceRefusal: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** Format: uuid */
+            holder_employee_id: string | null;
+            /** Format: uuid */
+            branch_id: string;
+            /** @enum {string} */
+            step: "CHALLENGE" | "CLOCK" | "ENROL";
+            /** @enum {string} */
+            reason: "DEVICE_LOCKED" | "NOT_ENROLLED" | "DEVICE_TAKEN" | "OTHER_DEVICE";
+            /** Format: date-time */
+            attempted_at: string;
+        };
+        AttendanceDeviceRefusalPage: {
+            items: components["schemas"]["AttendanceDeviceRefusal"][];
+            next_cursor: string | null;
+        };
         UnbindPasskeyInput: {
             /** Format: uuid */
             binding_id: string;
@@ -2067,7 +2096,17 @@ export interface components {
             unbound_at: string | null;
         };
         EmployeePasskeyHistory: {
-            status: components["schemas"]["PasskeyBindingStatus"];
+            status: {
+                bound: boolean;
+                /** Format: uuid */
+                binding_id: string | null;
+                revision: number | null;
+                /** Format: date-time */
+                bound_at: string | null;
+                phone_locked: boolean;
+                /** Format: date-time */
+                phone_locked_since: string | null;
+            };
             can_unbind: boolean;
             items: components["schemas"]["PasskeyHistoryEntry"][];
             /** Format: uuid */
@@ -2089,28 +2128,6 @@ export interface components {
         AttendanceInstallationSignal: {
             /** Format: uuid */
             installation_id: string;
-        };
-        SharedInstallationFlag: {
-            /** Format: uuid */
-            first_signal_id: string;
-            /** Format: uuid */
-            second_signal_id: string;
-            /** Format: uuid */
-            first_employee_id: string;
-            /** Format: uuid */
-            second_employee_id: string;
-            /** Format: uuid */
-            first_branch_id: string;
-            /** Format: uuid */
-            second_branch_id: string;
-            /** Format: date-time */
-            first_clocked_at: string;
-            /** Format: date-time */
-            second_clocked_at: string;
-        };
-        SharedInstallationFlagPage: {
-            items: components["schemas"]["SharedInstallationFlag"][];
-            next_cursor: string | null;
         };
         TemplateListQuery: {
             /** Format: uuid */
@@ -4015,7 +4032,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PasskeyOptionsInput"];
+            };
+        };
         responses: {
             /** @description generatePersonalPasskeyOptions */
             200: {

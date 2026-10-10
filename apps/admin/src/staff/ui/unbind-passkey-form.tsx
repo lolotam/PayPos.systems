@@ -24,6 +24,7 @@ export function UnbindPasskeyForm({
   return (
     <form onSubmit={form.handleSubmit(onSave)} className="flex flex-col gap-3 text-start">
       <p>{t(locale, 'passkeyAdmin.warning')}</p>
+      <p>{t(locale, 'phoneLock.release')}</p>
       <fieldset disabled={pending} className="flex flex-col gap-3">
         <Label htmlFor="passkey-unbind-reason">{t(locale, 'passkeyAdmin.reason')}</Label>
         <Input id="passkey-unbind-reason" maxLength={500} {...form.register('reason')} />

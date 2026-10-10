@@ -51,7 +51,7 @@ it('one accepted scan writes one hashed observation linked to its clocked_in aud
 
 it('a close and a missed-out reopen are one observation per scan, linked to the scan movement, never to MISSED_OUT', async () => {
   await permitNext();
-  const closed = await (await f.prepare(f.scan(), true, OTHER_INSTALLATION)).execute();
+  const closed = await (await f.prepare()).execute();
   expect(closed.operation).toBe('CLOCK_OUT');
   await permitNext();
   const opened = await (await f.prepare()).execute();
@@ -67,7 +67,9 @@ it('a close and a missed-out reopen are one observation per scan, linked to the 
     [opened.session_id, 'clocked_in'],
     [reopened.session_id, 'clocked_in'],
   ]);
-  expect(rows[1]?.['installation_hash']).toBe(installationHash(f.companyId, OTHER_INSTALLATION));
+  expect(rows[1]?.['installation_hash']).toBe(
+    installationHash(f.companyId, SYNTHETIC_INSTALLATION),
+  );
   expect(
     await f.owner`SELECT id FROM audit_log WHERE company_id=${f.companyId} AND action='missed_out'`,
   ).toHaveLength(1);
@@ -97,6 +99,7 @@ it('a rolled-back clock leaves no observation', async () => {
     { verify: async () => true },
     f.clock,
     f.ids,
+    f.refusals,
   );
   await expect(fail.execute(f.scope, command.input, command.idem)).rejects.toThrow(
     'SYNTHETIC_ROLLBACK',

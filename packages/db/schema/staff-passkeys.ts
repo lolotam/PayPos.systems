@@ -7,6 +7,7 @@ import {
   pgTable,
   primaryKey,
   timestamp,
+  text,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -35,6 +36,8 @@ export const employeePasskeys = pgTable(
       .references(() => user.id),
     unboundAt: timestamp('unbound_at', { withTimezone: true }),
     unboundBy: uuid('unbound_by').references(() => user.id),
+    // قفل تثبيت مفصول بالشركة؛ يكتب مرة واحدة ويبقى بعد فك الربط للتاريخ.
+    installationHash: text('installation_hash'),
   },
   (t) => [
     primaryKey({ name: 'employee_passkeys_pkey', columns: [t.companyId, t.id] }),
@@ -53,6 +56,13 @@ export const employeePasskeys = pgTable(
     index('employee_passkeys_bound_by_idx').on(t.boundBy),
     index('employee_passkeys_unbound_by_idx').on(t.unboundBy),
     check('employee_passkeys_revision_positive', sql`${t.revision} > 0`),
+    check(
+      'employee_passkeys_installation_hash_format',
+      sql`${t.installationHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    index('employee_passkeys_active_installation_idx')
+      .on(t.companyId, t.installationHash)
+      .where(sql`${t.unboundAt} IS NULL AND ${t.installationHash} IS NOT NULL`),
     check(
       'employee_passkeys_unbound_pair',
       sql`(${t.unboundAt} IS NULL) = (${t.unboundBy} IS NULL)`,

@@ -1,6 +1,11 @@
 import { Body, Controller, Get, HttpCode, Inject, Post, Req, SetMetadata } from '@nestjs/common';
 import { RouteConfig } from '@nestjs/platform-fastify';
-import { passkeyVerifyInput, type PasskeyVerifyInput } from '@pospay/contracts';
+import {
+  passkeyVerifyInput,
+  passkeyOptionsInput,
+  type PasskeyOptionsInput,
+  type PasskeyVerifyInput,
+} from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -45,8 +50,18 @@ export class PasskeysController {
   @Authenticated()
   @SetMetadata(PERSONAL_ROUTE, true)
   @HttpCode(200)
-  async registrationOptions(@Req() request: FastifyRequest) {
-    if (this.options === null) throw new ApiError('NOT_READY');
+  async registrationOptions(
+    @Req() request: FastifyRequest,
+    @Body(new ZodValidationPipe(passkeyOptionsInput)) input: PasskeyOptionsInput,
+  ) {
+    if (this.options === null || this.enrol === null) throw new ApiError('NOT_READY');
+    try {
+      if (input.installation_id !== undefined)
+        await this.enrol.checkInstallation(scopeOf(request), input.installation_id);
+    } catch (error) {
+      if (error instanceof PasskeyBindingError) throw new ApiError(error.code);
+      throw error;
+    }
     if ((await this.status(request)).bound) throw new ApiError('PASSKEY_ALREADY_BOUND');
     const generated = await this.options.enrollmentOptions(scopeOf(request));
     return { challenge_id: generated.challengeId, options: generated.options };
@@ -64,7 +79,12 @@ export class PasskeysController {
     if (this.enrol === null) throw new ApiError('NOT_READY');
     if ((await this.status(request)).bound) throw new ApiError('PASSKEY_ALREADY_BOUND');
     try {
-      return await this.enrol.execute(scopeOf(request), input.challenge_id, input.response);
+      return await this.enrol.execute(
+        scopeOf(request),
+        input.challenge_id,
+        input.response,
+        input.installation_id,
+      );
     } catch (error) {
       if (error instanceof PasskeyBindingError) throw new ApiError(error.code);
       throw error;

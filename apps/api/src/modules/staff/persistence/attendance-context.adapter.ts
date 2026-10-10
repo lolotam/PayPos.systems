@@ -17,6 +17,51 @@ import {
 import type { PasskeyScope } from '../ports/passkeys.port.ts';
 import type { AttendanceScan, AttendanceContext } from '../ports/clock-attendance.port.ts';
 import type { CardClockContext, CardClockScope } from '../ports/clock-by-card.port.ts';
+import type { DeviceLockFacts } from '../domain/passkey-device-lock.ts';
+import { installationHash } from './attendance-device-signal.ts';
+
+export function installationLockStatement(scope: PasskeyScope, hash: string) {
+  return sql`SELECT p.employee_id,p.installation_hash,e.user_id,p.id
+    FROM employee_passkeys p JOIN employees e ON e.company_id=p.company_id
+      AND e.business_id=p.business_id AND e.id=p.employee_id
+    WHERE p.company_id=${scope.companyId} AND p.unbound_at IS NULL
+      AND p.installation_hash=${hash}
+    UNION ALL
+    SELECT p.employee_id,p.installation_hash,e.user_id,p.id
+    FROM employees e JOIN employee_passkeys p ON p.company_id=e.company_id
+      AND p.business_id=e.business_id AND p.employee_id=e.id
+    WHERE e.company_id=${scope.companyId} AND e.user_id=${scope.userId} AND p.unbound_at IS NULL
+    ORDER BY id`;
+}
+export async function attendanceDeviceLock(
+  tx: Tx,
+  scope: PasskeyScope,
+  installationId: string,
+  bindingId: string | null,
+): Promise<Omit<DeviceLockFacts, 'step'>> {
+  const hash = installationHash(scope.companyId, installationId);
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${'pospay:attendance-installation:v1:' + scope.companyId + ':' + hash},0))`,
+  );
+  const rows = await tx.execute<{
+    employee_id: string;
+    installation_hash: string | null;
+    user_id: string | null;
+    id: string;
+  }>(installationLockStatement(scope, hash));
+  const holder = rows.find((row) => row.installation_hash === hash && row.user_id !== scope.userId);
+  const own = rows.filter((row) => row.user_id === scope.userId && row.installation_hash !== null);
+  return {
+    heldByOther: holder === undefined ? null : { holderEmployeeId: holder.employee_id },
+    own: own.some((row) => row.installation_hash !== hash)
+      ? 'OTHER'
+      : own.length === 0
+        ? 'NONE'
+        : 'THIS',
+    bindingUnlocked:
+      bindingId === null || rows.find((row) => row.id === bindingId)?.installation_hash == null,
+  };
+}
 
 export function scanDigest(scan: AttendanceScan): string {
   return createHash('sha256')

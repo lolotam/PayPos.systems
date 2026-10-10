@@ -36,3 +36,15 @@ it('blocked storage still yields one stable id for the page without throwing', (
   expect(v4(id)).toBe(true);
   expect(attendanceInstallationId()).toBe(id);
 });
+
+it('requests persistent storage once and ignores a rejected request', async () => {
+  vi.resetModules();
+  const persist = vi.fn().mockRejectedValue(new Error('SYNTHETIC_DENIED'));
+  vi.stubGlobal('navigator', { storage: { persist } });
+  const installation = await import('./installation-id');
+  installation.attendanceInstallationId();
+  installation.attendanceInstallationId();
+  await Promise.resolve();
+  expect(persist).toHaveBeenCalledTimes(1);
+  vi.unstubAllGlobals();
+});

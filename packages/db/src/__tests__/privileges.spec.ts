@@ -21,6 +21,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_app: [
     ...[
       ...ATTENDANCE_TABLE_GRANTS,
+      'attendance_device_refusals:INSERT',
+      'attendance_device_refusals:SELECT',
       'attendance_device_signals:INSERT',
       'attendance_device_signals:SELECT',
       'attendance_not_clocked_in_notices:INSERT',
@@ -180,6 +182,7 @@ const TENANT_TABLES = [
   'attendance_clock_challenges',
   'attendance_corrections',
   'attendance_device_signals',
+  'attendance_device_refusals',
   'file_objects',
   'file_access_audit',
   'file_cleanup_objects',
@@ -285,6 +288,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         'employees.name_ar_key:pospay_app:UPDATE',
         ...SCHEDULE_COLUMN_GRANTS,
         ...PASSKEY_COLUMN_GRANTS,
+        'employee_passkeys.installation_hash:pospay_app:UPDATE',
         ...DOCUMENT_COLUMN_GRANTS,
         ...IMPORT_COLUMN_GRANTS,
         ...CARD_COLUMN_GRANTS,

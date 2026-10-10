@@ -17,6 +17,11 @@ import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  phoneLock: {
+    locked: 'التليفون مربوط',
+    since: 'منذ',
+    release: 'فك ربط البصمة بيحرر التليفون كمان.',
+  },
   employeeIban: employeeIbanAr,
   employeeDocuments: employeeDocumentsAr,
   passkeyAdmin: arPasskeyAdmin,
@@ -150,6 +155,14 @@ export const ar: Catalog = {
       'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
   },
   errors: {
+    ATTENDANCE_DEVICE_LOCKED:
+      'التليفون ده متسجل لموظفة تانية. ابصمي من تليفونك أو بالكارت في الريسبشن.',
+    ATTENDANCE_DEVICE_NOT_ENROLLED:
+      'بصمتك متسجلة على تليفون تاني. ابصمي من تليفونك أو بالكارت في الريسبشن، ولو غيّرتي تليفونك اطلبي من المدير يفك الربط.',
+    PASSKEY_DEVICE_TAKEN:
+      'التليفون ده متسجل لموظفة تانية. ابصمي من تليفونك أو بالكارت في الريسبشن.',
+    PASSKEY_OTHER_DEVICE:
+      'بصمتك متسجلة على تليفون تاني. ابصمي من تليفونك أو بالكارت في الريسبشن، ولو غيّرتي تليفونك اطلبي من المدير يفك الربط.',
     ...employeeIbanErrorsAr,
     DOCUMENT_TYPE_UNAVAILABLE: 'نوع الوثيقة غير موجود أو موقوف.',
     DOCUMENT_EXPIRY_REQUIRED: 'هذا النوع من الوثائق يحتاج تاريخ انتهاء.',

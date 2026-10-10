@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { passkeyBindingStatus } from './passkeys.js';
+import {
+  attendanceDeviceRefusal,
+  attendanceDeviceRefusalPage,
+} from './attendance-device-refusals.js';
 
 export const unbindPasskeyInput = z
   .strictObject({
@@ -33,7 +37,10 @@ export const passkeyHistoryEntry = z
   .meta({ id: 'PasskeyHistoryEntry' });
 export const employeePasskeyHistory = z
   .strictObject({
-    status: passkeyBindingStatus,
+    status: passkeyBindingStatus.extend({
+      phone_locked: z.boolean(),
+      phone_locked_since: timestamp.nullable(),
+    }),
     can_unbind: z.boolean(),
     items: z.array(passkeyHistoryEntry),
     next_cursor: id.nullable(),
@@ -60,32 +67,15 @@ export const attendanceInstallationSignal = z
     installation_id: z.uuid({ version: 'v4' }).toLowerCase(),
   })
   .meta({ id: 'AttendanceInstallationSignal' });
-export const sharedInstallationFlag = z
-  .strictObject({
-    first_signal_id: id,
-    second_signal_id: id,
-    first_employee_id: id,
-    second_employee_id: id,
-    first_branch_id: id,
-    second_branch_id: id,
-    first_clocked_at: timestamp,
-    second_clocked_at: timestamp,
-  })
-  .meta({ id: 'SharedInstallationFlag' });
-export const sharedInstallationFlagPage = z
-  .strictObject({
-    items: z.array(sharedInstallationFlag),
-    next_cursor: z.string().nullable(),
-  })
-  .meta({ id: 'SharedInstallationFlagPage' });
 export type UnbindPasskeyInput = z.infer<typeof unbindPasskeyInput>;
 export type UnboundPasskey = z.infer<typeof unboundPasskey>;
 export type PasskeyHistoryQuery = z.infer<typeof passkeyHistoryQuery>;
 export type EmployeePasskeyHistory = z.infer<typeof employeePasskeyHistory>;
 export type PasskeyEmployeePage = z.infer<typeof passkeyEmployeePage>;
 export type AttendanceInstallationSignal = z.infer<typeof attendanceInstallationSignal>;
-export type SharedInstallationFlagPage = z.infer<typeof sharedInstallationFlagPage>;
 export const unbindPasskeySchemas = [
+  attendanceDeviceRefusal,
+  attendanceDeviceRefusalPage,
   unbindPasskeyInput,
   unboundPasskey,
   passkeyHistoryQuery,
@@ -94,6 +84,4 @@ export const unbindPasskeySchemas = [
   passkeyEmployee,
   passkeyEmployeePage,
   attendanceInstallationSignal,
-  sharedInstallationFlag,
-  sharedInstallationFlagPage,
 ];

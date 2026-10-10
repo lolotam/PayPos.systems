@@ -9,6 +9,7 @@ import { createAttendanceTransactions } from '../persistence/attendance-transact
 import { createLockedAttendanceQrVerifier } from '../persistence/locked-attendance-qr.ts';
 import type { AttendanceScan } from '../ports/clock-attendance.port.ts';
 import { requestFingerprint } from '../../../shared/idempotency.ts';
+import { createAttendanceDeviceRefusals } from '../persistence/attendance-device-refusals.ts';
 
 // معرف تثبيت v4 اصطناعي يرسله كل أمر حضور ما لم يحدد الاختبار تثبيتاً آخر.
 export const SYNTHETIC_INSTALLATION = '12345678-1234-4234-8234-123456789abc';
@@ -74,8 +75,9 @@ function attendanceCeremony(
     hmacAttendanceQr,
   );
   const transactions = createAttendanceTransactions(f.database, f.ids);
-  const challenge = new RequestClockChallenge(transactions, f.auth.passkeys, qr, clock);
-  const attendance = new ClockAttendance(transactions, f.auth.passkeys, qr, clock, f.ids);
+  const refusals = createAttendanceDeviceRefusals(f.database, f.ids, () => undefined);
+  const challenge = new RequestClockChallenge(transactions, f.auth.passkeys, qr, clock, refusals);
+  const attendance = new ClockAttendance(transactions, f.auth.passkeys, qr, clock, f.ids, refusals);
   const scan = (branchId = f.branchId): AttendanceScan => {
     const window = attendanceQrWindow(instant.getTime());
     return {
@@ -90,6 +92,7 @@ function attendanceCeremony(
     challenge,
     attendance,
     transactions,
+    refusals,
     scan,
     prepare: (value = scan(), uv = true, installationId = SYNTHETIC_INSTALLATION) =>
       prepareAttendance(f, scope, device, challenge, attendance, value, uv, installationId),
@@ -147,6 +150,7 @@ interface AttendanceFixtureExtensions {
   challenge: RequestClockChallenge;
   attendance: ClockAttendance;
   transactions: ReturnType<typeof createAttendanceTransactions>;
+  refusals: ReturnType<typeof createAttendanceDeviceRefusals>;
   scan(branchId?: string): AttendanceScan;
   prepare(
     value?: AttendanceScan,

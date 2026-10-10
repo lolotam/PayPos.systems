@@ -1,3 +1,5 @@
+import type { DeviceLockFacts } from '../domain/passkey-device-lock.ts';
+
 /** سياق التسجيل الموثق، لا يقبل employee_id من الهاتف. */
 export interface PasskeyScope {
   readonly userId: string;
@@ -39,6 +41,12 @@ export interface PasskeyRegistration {
 }
 /** معاملة الموظف تثبت الأهلية وتاريخ الربط والتدقيق والحدث معاً. */
 export interface PasskeyTransactions {
+  /** يفحص الهاتف قبل بدء التسجيل دون كتابة ربط.
+   *
+   * @param scope سياق الموظف الموثق
+   * @param installationId معرف التثبيت المؤقت
+   */
+  deviceLock(scope: PasskeyScope, installationId: string): Promise<Omit<DeviceLockFacts, 'step'>>;
   /** يثبت الأهلية والربط والتدقيق والحدث في commit واحد.
    *
    * @param scope سياق الموظف الموثق
@@ -47,8 +55,29 @@ export interface PasskeyTransactions {
   run<T>(
     scope: PasskeyScope,
     work: (binding: {
+      /** يقرأ روابط الشخص والهاتف بعد قفل الموظف ثم التثبيت.
+       *
+       * @param installationId معرف التثبيت المؤقت
+       */
+      deviceLock(installationId: string): Promise<Omit<DeviceLockFacts, 'step'>>;
+      /** يسترجع التاريخ لمنع استبدال الربط النشط. */
       history(): Promise<{ active: boolean; revision: number }>;
-      insert(record: { id: string; passkeyId: string; revision: number; at: Date }): Promise<void>;
+      /** يثبت الربط والهاتف مع التدقيق والحدث.
+       *
+       * @param record الربط الجديد
+       * @param record.id معرف الربط
+       * @param record.passkeyId معرف الاعتماد العالمي
+       * @param record.revision نسخة الربط
+       * @param record.at وقت التسجيل
+       * @param record.installationId معرف التثبيت المؤقت أو غيابه للتوافق
+       */
+      insert(record: {
+        id: string;
+        passkeyId: string;
+        revision: number;
+        at: Date;
+        installationId: string | null;
+      }): Promise<void>;
     }) => Promise<T>,
   ): Promise<T>;
 }

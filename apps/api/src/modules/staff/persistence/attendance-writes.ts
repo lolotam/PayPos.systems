@@ -7,7 +7,7 @@ import type {
   AttendanceWrite,
 } from '../ports/clock-attendance.port.ts';
 import type { ClockLocation } from '../domain/clock-attendance.ts';
-import { recordAttendanceDeviceSignal } from './attendance-device-signal.ts';
+import { recordAttendanceDeviceSignal, installationHash } from './attendance-device-signal.ts';
 
 /** حقائق الحركة المشتركة بين مسح QR الشخصي والكارت على الجهاز، بلا منطق انتقال. */
 export interface AttendanceMovementRef {
@@ -35,8 +35,7 @@ export interface AttendanceMovementWrite {
   readonly schedule: AttendanceWrite['schedule'];
 }
 
-// مسار PR 22 كما هو: يوسم حقول الربط والمسح من السياق ثم يستدعي الكاتب المشترك.
-export function persistAttendance(
+export async function persistAttendance(
   tx: Tx,
   scope: PasskeyScope,
   scan: AttendanceScan,
@@ -44,6 +43,11 @@ export function persistAttendance(
   write: AttendanceWrite,
   ids: IdGenerator,
 ) {
+  if (write.attachInstallation)
+    await tx.execute(sql`UPDATE employee_passkeys
+    SET installation_hash=${installationHash(scope.companyId, write.installationId)}
+    WHERE company_id=${scope.companyId} AND id=${context.bindingId}
+      AND installation_hash IS NULL AND unbound_at IS NULL`);
   return persistAttendanceMovement(
     tx,
     {

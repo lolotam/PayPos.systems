@@ -6,7 +6,12 @@ import type {
   AttendanceTransactions,
 } from '../ports/clock-attendance.port.ts';
 import type { ClockResult } from '../domain/clock-attendance.ts';
-import { lockAttendanceState, lockedAttendanceContext } from './attendance-context.adapter.ts';
+import type { PasskeyScope } from '../ports/passkeys.port.ts';
+import {
+  lockAttendanceState,
+  lockedAttendanceContext,
+  attendanceDeviceLock,
+} from './attendance-context.adapter.ts';
 import { persistAttendance } from './attendance-writes.ts';
 
 // أقفال State والهوية والربط تبقى مفتوحة عبر تحقق WebAuthn على pool منفصل؛ نفس حد كتابات الـ worker.
@@ -26,6 +31,8 @@ export function createAttendanceTransactions(
           return work(
             {
               context,
+              deviceLock: (installationId) =>
+                attendanceDeviceLock(tx, scope, installationId, context.bindingId),
               challenge: async (id) => {
                 const [row] = await tx.execute<{ operation: 'CLOCK_IN' | 'CLOCK_OUT' }>(sql`
             SELECT operation FROM attendance_clock_challenges WHERE company_id=${scope.companyId} AND id=${id}
@@ -50,11 +57,7 @@ export function createAttendanceTransactions(
             VALUES(${scope.companyId},${id},${scope.businessId},${scope.employeeId},${challenge.branchId},${challenge.bindingId},${challenge.bindingRevision},${scope.userId},${scope.sessionId},${challenge.operation},${challenge.qrContext},${at.toISOString()})`);
               },
               idempotent: async (key, fingerprint, effect) => {
-                const bound = createHash('sha256')
-                  .update(
-                    JSON.stringify([scope.userId, scope.employeeId, scope.sessionId, fingerprint]),
-                  )
-                  .digest('hex');
+                const bound = attendanceFingerprint(scope, fingerprint);
                 const result = await runIdempotent(
                   tx,
                   { scope: 'COMPANY', operation: 'clock-attendance', key, fingerprint: bound },
@@ -70,4 +73,10 @@ export function createAttendanceTransactions(
         { userId: scope.userId, timeoutMs: ATTENDANCE_TRANSACTION_TIMEOUT_MS },
       ),
   };
+}
+
+function attendanceFingerprint(scope: PasskeyScope, fingerprint: string): string {
+  return createHash('sha256')
+    .update(JSON.stringify([scope.userId, scope.employeeId, scope.sessionId, fingerprint]))
+    .digest('hex');
 }
