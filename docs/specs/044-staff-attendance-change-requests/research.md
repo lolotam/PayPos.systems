@@ -2,10 +2,14 @@
 
 All business rules come from the owner (ACR-Q1 … ACR-Q22, 2026-10-10). This file records the technical choices.
 
-## R1 — Who is an approver
+## R1 — Who is an approver (revised 2026-10-10: ACR-Q4 → option 2)
 
-- **Decision**: approve/reject authority = an active membership matching `canonicalOwnerSql` (fixed global Owner
-  role id, `role_owner_key = 'global'`, `scope_type = 'COMPANY'`, `scope_id = company`). No `decide:` permission.
+- **Decision (current)**: approve/reject authority = `decide:attendance-change:company`, owner by default, granted only
+  by an owner (OD-Q5 pattern), device-forbidden; non-owner holders may not decide their own filings or their own
+  attendance; owners keep ACR-Q2 and ACR-Q22c. Recipients = every holder in scope.
+- **Decision (superseded, option 1)**: approve/reject authority = an active membership matching `canonicalOwnerSql`
+  (fixed global Owner role id, `role_owner_key = 'global'`, `scope_type = 'COMPANY'`, `scope_id = company`). No
+  `decide:` permission.
 - **Rationale**: ACR-Q4 says "anyone registered as owner, never delegable". `canonicalOwnerSql`
   (`packages/db/src/system-role-policy.ts:161`) matches every owner membership, not one legal owner; migration 0013
   only guarantees at least one owner. A permission would invite a grant to a non-owner, which the owner refused.

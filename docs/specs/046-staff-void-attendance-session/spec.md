@@ -35,8 +35,11 @@ All in [044 owner-questions.ar.md](../044-staff-attendance-change-requests/owner
 - **ACR-Q20** — the session's exceptions and corrections. corrections stay in history unchanged; OPEN exceptions
   of a voided session are hidden with it (board/report filters) and are **not** modified (PR 25's resolution CHECK is
   untouched).
-- **ACR-Q21** — undo. none; a wrong void is fixed by an `ADD_SESSION` request (26b) with the same times. (Partner
-  note: Abu Salem preferred an "undo void" request; recorded, not adopted.)
+- **ACR-Q21** — undo. **Changed 2026-10-10 to option 2** (partner Abu Salem's pick, confirmed by Waleed):
+  «أيوه، بطلب «رجوع عن الإلغاء» وموافقتك». A third request kind `RESTORE_SESSION` (User Story 4). The earlier answer
+  (no undo; re-add with `ADD_SESSION`) is kept as history in the owner-questions file.
+- **ACR-Q4** — approval is now the grantable permission `decide:attendance-change:company` (owner by default; spec 044
+  BR-004). Wherever this spec says "the owner approves", read "a holder of the decide permission approves".
 - **ACR-Q11** — one PENDING void per session.
 - **ACR-Q13** — at approval every rule is re-checked (state, revision, not already voided); a failure leaves the
   request PENDING.
@@ -95,10 +98,31 @@ out of the board and reports (PR 27).
 
 ---
 
+### User Story 4 - Undo a wrong void (Priority: P2)
+
+Huda's Thursday was voided by mistake. The branch manager files a `RESTORE_SESSION` request for that session with a
+reason. A holder of the decide permission approves. The session counts again; the void request stays in history.
+
+**Acceptance Scenarios**:
+
+1. **Given** a voided session, **When** a restore is filed with `{kind: 'RESTORE_SESSION', session_id,
+   session_revision, reason}`, **Then** the request is PENDING and the session stays voided.
+2. **Given** that PENDING restore, **When** it is approved, **Then** `voided_at`, `voided_by` and `void_request_id`
+   become NULL, `revision` + 1, one audit entry `attendance_session.restored` (before/after), the original
+   `VOID_SESSION` request row is unchanged, and the restore request is APPROVED.
+3. **Given** a voided session whose hours now overlap another session of the employee (a manual day was added in the
+   meantime), **When** the restore is approved, **Then** `ATTENDANCE_RESTORE_OVERLAP` (422) and the request stays
+   PENDING.
+4. **Given** a session that is not voided, **When** a restore is filed, **Then** `ATTENDANCE_SESSION_NOT_VOIDED` (409).
+5. **Given** a PENDING restore for a session, **When** a second restore (or a void) for it is filed, **Then**
+   `ATTENDANCE_CHANGE_DUPLICATE_PENDING` (409).
+
+---
+
 ### Edge Cases
 
 - A MISSED_OUT session is voidable; its `status` and `closed_by` stay MISSED_OUT (the void is a separate mark).
-- A MANUAL session (26b) is voidable — the recommended way to fix a wrong manual day (ACR-Q10, ACR-Q21).
+- A MANUAL session (26b) is voidable — the recommended way to fix a wrong manual day (ACR-Q10).
 - A session with past corrections: the correction rows stay as they are (ACR-Q20, decided 2026-10-10).
 - A session with OPEN exceptions: exceptions are not modified (ACR-Q20, decided 2026-10-10); PR 27's queries hide exceptions
   of voided sessions.
@@ -119,14 +143,21 @@ out of the board and reports (PR 27).
   manual day).
 - **FR-005**: A voided session MUST be excluded from attendance reports and the board (PR 27 queries filter
   `voided_at IS NULL`).
-- **FR-006**: A void MUST NOT be undone (ACR-Q21, decided 2026-10-10).
+- **FR-006**: A void MUST be undoable only through an approved `RESTORE_SESSION` request (ACR-Q21, option 2,
+  decided 2026-10-10). The restore clears `voided_at`, `voided_by` and `void_request_id`, increases `revision`, writes
+  one audit entry `attendance_session.restored`, and keeps the original void request row unchanged as history.
+- **FR-008**: A restore MUST be re-checked at approval under the locks of 044 BR-003: the session must still be voided
+  by the void the request saw (`session_revision` match), and its times must not overlap another non-voided session of
+  the employee (CA-Q8 overlap rule, OPEN session included); otherwise `ATTENDANCE_RESTORE_OVERLAP` (422) or
+  `ATTENDANCE_SESSION_REVISION_CONFLICT` (409) and the request stays PENDING (ACR-Q13).
 - **FR-007**: A void MUST NOT change exceptions or correction history (ACR-Q20, decided 2026-10-10) and MUST NOT create any
   commission input.
 
 ### Key Entities
 
 - **Attendance session** (exists): gains `voided_at`, `voided_by`, `void_request_id`.
-- **Attendance change request** (spec 044): the `VOID_SESSION` shape uses its `session_id` and `session_revision`.
+- **Attendance change request** (spec 044): the `VOID_SESSION` and `RESTORE_SESSION` shapes use its `session_id`
+  and `session_revision`.
 
 ## Slice design *(mandatory — `CLAUDE.md` §1)*
 
@@ -140,6 +171,10 @@ out of the board and reports (PR 27).
 - **BR-003**: `planAttendanceCorrection` gains "voided → `ATTENDANCE_SESSION_VOIDED`" before the state check, and the
   neighbour read excludes voided sessions (`voided_at IS NULL`). 26b's overlap read applies the same filter; whichever
   of 26b/26c merges second adds the filter to the other's read.
+- **BR-005 (restore)**: `planAttendanceRestore(session, request, context)` in `domain/attendance-void.ts`: the session
+  must be voided and at `session_revision`; its times must not overlap any non-voided session of the employee
+  (OPEN included); returns the cleared void marks and `revision + 1`. Registered as the `RESTORE_SESSION` kind. The
+  overlap read is the voided-aware neighbour read of BR-003.
 - **BR-004**: `voided_by` is the approver (the person whose decision made it effective); the requester and the reason
   are on the linked request.
 
@@ -150,7 +185,7 @@ One expand migration (plan from 0111, numbered at merge after 26a's).
 | Table | Columns added / changed | RLS | Indexes | Tenant-qualified FKs |
 |---|---|---|---|---|
 | `attendance_sessions` | add `voided_at timestamptz NULL`, `voided_by uuid NULL` → user, `void_request_id uuid NULL`; CHECK all three NULL or all three NOT NULL; CHECK voided ⇒ `status <> 'OPEN'`; `pospay_app` gains column UPDATE on the three columns (ADR-0033 style CHECKs `NOT VALID` then validated) | unchanged | `(company_id, voided_by)`, `(company_id, void_request_id)` built `CONCURRENTLY`; the board index stays (PR 27 adds a partial `WHERE voided_at IS NULL` index if `EXPLAIN` asks) | `(company_id, void_request_id)` → `attendance_change_requests` |
-| `attendance_change_requests` | CHECK `kind <> 'VOID_SESSION' OR (session_id IS NOT NULL AND session_revision IS NOT NULL)` | unchanged | 044's partial UNIQUE one-PENDING-void-per-session | — |
+| `attendance_change_requests` | `kind` CHECK extended to IN ('ADD_SESSION','VOID_SESSION','RESTORE_SESSION') (drop + re-add `NOT VALID`, then validate); CHECK `kind NOT IN ('VOID_SESSION','RESTORE_SESSION') OR (session_id IS NOT NULL AND session_revision IS NOT NULL)` | unchanged | 044's partial UNIQUE becomes one PENDING void **or restore** per session: replace it with `(company_id, session_id) WHERE status='PENDING' AND kind IN ('VOID_SESSION','RESTORE_SESSION')` (new index built `CONCURRENTLY`, old one dropped after) | — |
 
 - `privileges.spec.ts` gains the three column UPDATE grants on `attendance_sessions`.
 
@@ -159,7 +194,10 @@ One expand migration (plan from 0111, numbered at merge after 26a's).
 - No new endpoint. The `VOID_SESSION` member joins 044's union: `{ kind: 'VOID_SESSION', session_id,
   session_revision: int ≥ 0, reason }`. The list/response `requested` field carries `{ session_id, working_date,
   clock_in, clock_out }` (read from the session); the decide response carries the voided session.
-- **Errors (new)**: `ATTENDANCE_SESSION_VOIDED` 409 (also returned by PR 26's endpoint). Reused:
+- The `RESTORE_SESSION` member joins the union: `{ kind: 'RESTORE_SESSION', session_id, session_revision: int ≥ 0,
+  reason }`; the decide response carries the restored session.
+- **Errors (new)**: `ATTENDANCE_SESSION_VOIDED` 409 (also returned by PR 26's endpoint), `ATTENDANCE_SESSION_NOT_VOIDED`
+  409, `ATTENDANCE_RESTORE_OVERLAP` 422. Reused:
   `ATTENDANCE_SESSION_OPEN` 409, `ATTENDANCE_SESSION_REVISION_CONFLICT` 409.
 
 ### Permissions
@@ -180,7 +218,10 @@ One expand migration (plan from 0111, numbered at merge after 26a's).
   `AVS-06` correction between file and approval → approval revision conflict, request PENDING · `AVS-07` duplicate
   PENDING void refused · `AVS-08` correction of a voided session refused; voided neighbour does not block a
   correction · `AVS-09` exceptions and correction rows unchanged after the void · `AVS-10` approve vs a concurrent
-  correction: exactly one commits.
+  correction: exactly one commits · `AVS-11` restore filed and approved → void marks cleared, revision + 1, audit,
+  void request row unchanged · `AVS-12` restore refused on a non-voided session · `AVS-13` restore approval refused on
+  overlap, request PENDING · `AVS-14` duplicate PENDING restore refused · `AVS-15` restore vs a concurrent void
+  approval: exactly one commits.
 - **RLS negative**: a `void_request_id` of company B cannot be referenced by company A; column grants limit
   `pospay_app` UPDATE to the granted columns.
 - **Queries**: none new here; PR 27's board/report tests assert voided sessions are excluded.
@@ -188,7 +229,7 @@ One expand migration (plan from 0111, numbered at merge after 26a's).
 ### Files this slice touches (26c)
 
 - New: `apps/api/src/modules/staff/domain/attendance-void.ts` (+ `__tests__`), `persistence/void-session-writes.ts`,
-  `persistence/void-session-kind.ts` (kind registration), migration `01xx_…_attendance-session-void.sql`.
+  `persistence/void-session-kind.ts` and `persistence/restore-session-kind.ts` (kind registrations), migration `01xx_…_attendance-session-void.sql`.
 - Edited: `packages/db/schema/staff-attendance.ts` (void columns + CHECKs), `packages/db/schema/staff-attendance-change-requests.ts`
   (VOID shape CHECK), `packages/db/src/__tests__/privileges.spec.ts`, `staff/domain/attendance-correction.ts`
   (voided refusal, voided neighbours), `staff/persistence/attendance-correction-records.ts` (select `voided_at`,
@@ -204,7 +245,7 @@ One expand migration (plan from 0111, numbered at merge after 26a's).
 
 - **SC-001**: A wrong day stops counting only after the owner approves, and 100 % of voided days remain readable with
   who asked, who approved, when and why.
-- **SC-002**: No attendance row is ever deleted.
+- **SC-002**: No attendance row is ever deleted, and a wrong void can be undone only with an approval.
 - **SC-003**: A voided day never blocks a legitimate correction or manual day, and is never counted in a report.
 
 ## Assumptions

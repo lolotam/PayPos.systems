@@ -43,9 +43,9 @@ partial UNIQUE `attendance_change_requests_one_pending_void` on `(company_id, se
 ## State transitions
 
 ```text
-          file (non-owner)            approve (owner, kind.check + kind.apply)
+          file (non-owner)            approve (decide holder, kind.check + kind.apply)
 (none) ───────────────────► PENDING ─────────────────────────────► APPROVED
-   │                          │  └── reject (owner, reason) ──────► REJECTED
+   │                          │  └── reject (decide holder, reason) ► REJECTED
    │                          └───── withdraw (requester) ────────► CANCELLED
    └── file (owner, one step: kind.check + kind.apply) ───────────► APPROVED
 ```
@@ -57,5 +57,9 @@ Terminal states never change again. No row is ever deleted. No expiry (ACR-Q9).
 | Code | Default holders | Device |
 |---|---|---|
 | `request:attendance-change:branch` | owner, general_manager, business_manager, branch_manager | forbidden |
+| `decide:attendance-change:company` | owner only (ACR-Q4 option 2); only an owner may grant/revoke it | forbidden |
 
-Approve/reject: canonical Owner membership only (research R1).
+Approve/reject: holders of `decide:attendance-change:company`; non-owner holders never decide their own filings or
+their own attendance (research R1).
+
+`kind` CHECK lists kinds explicitly; 26c extends it with `RESTORE_SESSION` (ACR-Q21 option 2).

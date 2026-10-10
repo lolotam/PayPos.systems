@@ -3,15 +3,16 @@
 **Branch**: `feat/p1-26a-attendance-change-requests` | **Date**: 2026-10-10 | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `docs/specs/044-staff-attendance-change-requests/spec.md` (owner answers
-ACR-Q1 … ACR-Q22, Waleed 2026-10-10, the ⭐ option on all; partner notes on ACR-Q4 and ACR-Q21 recorded, not adopted).
+ACR-Q1 … ACR-Q22, Waleed 2026-10-10, the ⭐ option on all; the same day ACR-Q4 and ACR-Q21 were changed to option 2,
+partner Abu Salem's pick — see "Change 2026-10-10" below).
 
 ## Summary
 
 A new staff-owned tenant table `attendance_change_requests` holds requests to add a manual attendance day (kind
 `ADD_SESSION`, applied by row 26b) or to void one (kind `VOID_SESSION`, row 26c). Three write use cases — file,
 withdraw, decide (approve/reject) — and one read query (owner inbox / branch list) ship behind a new permission
-`request:attendance-change:branch`; approve/reject is reserved to the company's owners through `canonicalOwnerSql`
-(no grantable decide permission). The kind-specific rules and effects are reached through a kinds port that this
+`request:attendance-change:branch`; approve/reject needs `decide:attendance-change:company` (owner by default,
+grantable by an owner only; ACR-Q4 option 2). The kind-specific rules and effects are reached through a kinds port that this
 slice ships **empty**: in production every kind answers `ATTENDANCE_CHANGE_KIND_UNAVAILABLE` until 26b/26c register
 theirs. Owners get an in-app bell notice when a request waits; the requester gets one when it is decided. Every step
 is audited in its own transaction.
@@ -66,8 +67,9 @@ Post-design re-check: unchanged, ✅. The kinds port has no production implement
      Owner one-step: status APPROVED with `decided_by = requested_by`, `revision 1` (ACR-Q2).
    - `planChangeCancel(request, context)` — requester only (`NOT_FOUND` for anyone else), PENDING only
      (`ATTENDANCE_CHANGE_NOT_PENDING`), revision match (`ATTENDANCE_CHANGE_REVISION_CONFLICT`).
-   - `planChangeDecision(request, decision, context)` — owner only (`NOT_FOUND`), PENDING only, revision match,
-     REJECTED requires a reason, APPROVED reason optional (ACR-Q7).
+   - `planChangeDecision(request, decision, context)` — decide-permission holder only (`NOT_FOUND`); a non-owner
+     holder deciding a request he filed or one about his own attendance → `ATTENDANCE_CHANGE_SELF_FORBIDDEN`; PENDING
+     only, revision match, REJECTED requires a reason, APPROVED reason optional (ACR-Q7).
    - Check order for a well-formed request: authority → self → state → revision → kind rules.
 2. **Ports**:
    - `ports/attendance-change-transactions.port.ts` — `file`, `cancel`, `decide`: each runs `work(scope)` inside one
@@ -92,11 +94,10 @@ Post-design re-check: unchanged, ✅. The kinds port has no production implement
    (`lockAttendanceExceptionAccess`) → request row `FOR UPDATE` (cancel/decide) → second Clock sample → authority
    re-read. Idempotency fingerprint = sha256(action, actor user, business, request id, body).
 5. **Identity** (`identity/persistence/attendance-change-access.ts`, exported from `identity/index.ts`):
-   - `readAttendanceChangeAccess(tx, companyId, userId, businessId, branchId, now)` → `{ canRequest, owner }` —
-     `request:attendance-change:branch` via `evaluateAccess`, owner via `canonicalOwnerSql`.
-   - `readAttendanceChangeApprovers(tx, companyId, now)` → distinct `user_id` of active canonical-owner memberships.
-   - `canonicalOwnerSql` matches **every** active membership with the fixed global Owner role at COMPANY scope, so
-     "anyone registered as owner" (ACR-Q4) holds without a new check.
+   - `readAttendanceChangeAccess(tx, companyId, userId, businessId, branchId, now)` → `{ canRequest, canDecide,
+     owner }` — both permissions via `evaluateAccess`, owner via `canonicalOwnerSql` (every owner membership).
+   - `readAttendanceChangeApprovers(tx, companyId, businessId, branchId, now)` → distinct `user_id` of active members
+     for whom `decide:attendance-change:company` evaluates true there (owners always included).
 6. **Events and notices** (`events/published.ts`, staff `index.ts`, worker `known-event-types.ts`,
    `NOTIFICATION_SOURCE_EVENTS`, `docs/specs/worker/known-event-types.md`, `docs/module-map.md`):
    - `AttendanceChangeRequested` (PENDING filed) — IN_APP to every owner except the requester, groups ≤ 100,
@@ -115,6 +116,17 @@ Post-design re-check: unchanged, ✅. The kinds port has no production implement
 8. **Audit** (`appendAuditLog`, entity `attendance_change_request`): `attendance_change.requested`, `.approved`,
    `.rejected`, `.cancelled`; before/after hold status, revision, actor ids and timestamps; reasons stay on the row,
    not in the audit snapshot (spec 025 pattern). The owner one-step writes `requested` and `approved`.
+
+## Change 2026-10-10 — ACR-Q4 and ACR-Q21 moved to option 2
+
+- **ACR-Q4**: new permission `decide:attendance-change:company`, default owner only, owner-granted (added to
+  `OWNER_GRANTED_PERMISSIONS` in `packages/db/src/role-defaults.ts` and the identity `permission-edit.ts` list, the
+  OD-Q5 pattern: a non-owner editor gets `PERMISSION_OWNER_ONLY`), device-forbidden, i18n name, permission row +
+  owner default in a new expand migration. The use cases replace the owner check with the permission check; the self
+  rules of BR-004 apply to non-owner holders; recipients become every holder in scope (BR-006); the list treats decide
+  holders like owners. Owner one-step (ACR-Q2) and owner self-decision (ACR-Q22c) stay owner-only.
+- **ACR-Q21**: no code in 26a. The `kind` CHECK keeps an explicit list so 26c adds `RESTORE_SESSION` with one expand
+  migration (drop + re-add the CHECK `NOT VALID`, then validate).
 
 ## Project Structure
 

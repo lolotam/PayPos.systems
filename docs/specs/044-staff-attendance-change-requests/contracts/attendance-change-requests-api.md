@@ -27,7 +27,8 @@ Personal staff and kiosk sessions are refused by the shared guard; the paired de
 
 - Query: `status?`, `branch_id?`, `employee_id?`, `kind?`, `cursor?`, `limit?` (cursor pagination, newest first by
   `requested_at, id`).
-- Owners see the whole business; holders of `request:attendance-change:branch` see the branches where they hold it.
+- Holders of `decide:attendance-change:company` (owners by default) see the whole business; holders of
+  `request:attendance-change:branch` see the branches where they hold it.
 - 200 → `{ items: AttendanceChangeRequest[], next_cursor }`.
 
 ## `AttendanceChangeRequest`
@@ -42,16 +43,17 @@ Personal staff and kiosk sessions are refused by the shared guard; the paired de
   revision, can_decide, can_cancel }
 ```
 
-`can_decide` = viewer is an owner and the row is PENDING; `can_cancel` = viewer is the requester and the row is
+`can_decide` = viewer holds the decide permission, the row is PENDING, and (viewer is an owner or neither filed it
+nor is its employee); `can_cancel` = viewer is the requester and the row is
 PENDING.
 
 ## Errors
 
 | Code | HTTP |
 |---|---|
-| `NOT_FOUND` | 404 (unknown, other business/company, out of scope, non-owner decide, non-requester cancel) |
+| `NOT_FOUND` | 404 (unknown, other business/company, out of scope, decide without the permission, non-requester cancel) |
 | `FORBIDDEN` | 403 (paired device) |
-| `ATTENDANCE_CHANGE_SELF_FORBIDDEN` | 403 |
+| `ATTENDANCE_CHANGE_SELF_FORBIDDEN` | 403 (non-owner filing for herself; non-owner holder deciding her own filing or her own attendance) |
 | `ATTENDANCE_CHANGE_NOT_PENDING` | 409 |
 | `ATTENDANCE_CHANGE_REVISION_CONFLICT` | 409 |
 | `ATTENDANCE_CHANGE_DUPLICATE_PENDING` | 409 |

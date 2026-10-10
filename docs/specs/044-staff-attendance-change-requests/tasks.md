@@ -1,7 +1,8 @@
 # Tasks: Attendance change requests (request → owner approval)
 
 **Input**: `docs/specs/044-staff-attendance-change-requests/` — spec.md, plan.md, research.md, data-model.md,
-contracts/attendance-change-requests-api.md, quickstart.md. Owner answers ACR-Q1 … ACR-Q22, 2026-10-10.
+contracts/attendance-change-requests-api.md, quickstart.md. Owner answers ACR-Q1 … ACR-Q22, 2026-10-10; ACR-Q4 and
+ACR-Q21 changed to option 2 the same day (Phase 8).
 
 **Tests are mandatory** (`CLAUDE.md` §9) and come first in each phase; they must fail before the code exists.
 
@@ -124,3 +125,23 @@ approve → APPROVED + kind applied once + audit + requester notice.
 ## Implementation strategy
 
 MVP = Phases 1–3 (file + approve with the test kind). Then reject/withdraw, self rules, the list. One PR for all.
+
+## Phase 8: ACR-Q4 change (2026-10-10) — grantable decide permission
+
+- [ ] T025 Failing tests first: domain (`planChangeDecision` with `canDecide` instead of owner; non-owner holder on
+  his own filing or own attendance → `ATTENDANCE_CHANGE_SELF_FORBIDDEN`; owner on her own attendance allowed),
+  integration ACR-15 in `apps/api/src/modules/staff/__tests__/attendance-change-requests-http.spec.ts` or a new
+  `attendance-change-delegation.spec.ts` (owner grants to a general manager by personal ALLOW → he decides and is a
+  notice recipient; SELF_FORBIDDEN cases; a non-owner editor granting it → `PERMISSION_OWNER_ONLY`; Device ALLOW
+  ignored), list `can_decide` for a delegated holder, role-defaults and privileges specs
+- [ ] T026 New expand migration `packages/db/migrations/0113_2026-10-10_attendance-change-decide-permission.sql`:
+  permission row `decide:attendance-change:company` + owner default role row (journal `when` strictly increasing;
+  drift check clean)
+- [ ] T027 Add the code to `packages/db/src/access-catalog.ts`, `role-defaults.ts` (`['owner']`,
+  `OWNER_GRANTED_PERMISSIONS`), `system-role-policy.ts` (`deviceForbidden`), `apps/api/src/modules/identity/domain/permission-edit.ts`,
+  `packages/i18n` permission name
+- [ ] T028 Identity `readAttendanceChangeAccess` returns `canDecide`; `readAttendanceChangeApprovers` returns every
+  holder on the request's business/branch (owners always); domain, use cases, query `can_decide` and list scope switch
+  from the owner flag to `canDecide`; ACR-Q2 one-step and ACR-Q22c keep the owner flag
+- [ ] T029 Update `docs/adr/0040-attendance-change-requests.md` (decision moved to option 2, guard rails as orchestrator
+  defaults) and confirm the `kind` CHECK is an explicit list 26c can extend with `RESTORE_SESSION`

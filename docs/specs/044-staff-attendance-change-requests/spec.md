@@ -31,19 +31,25 @@ this folder's `owner-questions.ar.md`.
 
 ## Owner questions
 
-All 22 decided by Waleed on 2026-10-10 (the recommended ⭐ option each time, approved as final on the decisions page,
-batch 6). Partner Abu Salem (محمد العنزي) picked the same on 20; on **ACR-Q4** he preferred a delegable approval and on
-**ACR-Q21** an "undo void" request. Both are recorded as partner notes in
-[owner-questions.ar.md](owner-questions.ar.md) and change nothing. Each rule below cites its decision as
-`ACR-Qn, decided 2026-10-10`.
+All 22 decided by Waleed on 2026-10-10 (the recommended ⭐ option each time, batch 6). Later the same day Waleed
+**changed two answers to partner Abu Salem's (محمد العنزي) pick**, confirmed in the orchestrator chat and on the
+decisions page (choice index 1):
+
+- **ACR-Q4 → option 2**: «المالك افتراضيًا، وتقدر تدي صلاحية الموافقة لحد تثق فيه (مثلًا المدير العام)». Approval is a
+  grantable permission `decide:attendance-change:company`, held by the owner by default (BR-004).
+- **ACR-Q21 → option 2**: «أيوه، بطلب «رجوع عن الإلغاء» وموافقتك». An undo-void request kind `RESTORE_SESSION` lands in
+  26c (spec 046); 26a only keeps the `kind` CHECK extendable.
+
+Each rule below cites its decision as `ACR-Qn, decided 2026-10-10`. Rules marked **orchestrator default** follow from
+the purpose of the feature (no manipulation) and await the owner's review.
 
 | ID | Topic | Decision (Waleed, 2026-10-10) | Slice |
 |---|---|---|---|
 | ACR-Q1 | Who may request | new `request:attendance-change:branch`, defaults GM, business manager, branch manager | 26a |
 | ACR-Q2 | The owner adding/voiding | one step: a request recorded and approved at once, both under the owner's name | 26a |
 | ACR-Q3 | Requesting for oneself | refused (as CA-Q2) | 26a |
-| ACR-Q4 | Who approves | anyone registered as an owner of the company (every canonical Owner membership); never delegable | 26a |
-| ACR-Q5 | How the owner learns | in-app bell to every approver + a pending-requests list | 26a |
+| ACR-Q4 | Who approves | **changed 2026-10-10 to option 2**: the owner by default, and anyone the owner grants `decide:attendance-change:company` (e.g. the general manager) | 26a |
+| ACR-Q5 | How the owner learns | in-app bell to every approver (every holder of the decide permission in scope; owners always) + a pending-requests list | 26a |
 | ACR-Q6 | Screens | API only; screens with PR 27 | 26a |
 | ACR-Q7 | Decision reason | required on reject (1–500), optional on approve | 26a |
 | ACR-Q8 | Withdraw | the requester only, while PENDING | 26a |
@@ -53,7 +59,7 @@ batch 6). Partner Abu Salem (محمد العنزي) picked the same on 20; on **
 | ACR-Q12 | Telling the requester | in-app bell to the requester; nothing to the employee | 26a |
 | ACR-Q13 | World changed before approval | approval refused with the reason; request stays PENDING | 26a |
 | ACR-Q14…Q18 | Manual day content and rules | see spec 045 | 26b |
-| ACR-Q19…Q21 | Void rules | see spec 046 | 26c |
+| ACR-Q19…Q21 | Void rules (Q21 **changed to option 2**: an undo-void request, kind `RESTORE_SESSION`) | see spec 046 | 26c |
 | ACR-Q22 | Remaining defaults (no date limit, leave not read, owner self-approval, audit, device, commission) | as listed | all |
 
 ## User Scenarios & Testing *(mandatory)*
@@ -109,17 +115,23 @@ requester. Neither changes attendance.
 ### User Story 3 - Nobody approves their own manipulation (Priority: P1)
 
 A branch manager tries to file a request for her own missing day; she is refused. A general manager without the
-Owner role tries to approve a request; he is refused. The owner adds a day herself and it is recorded as a request
+decide permission tries to approve a request; he is refused. A general manager to whom the owner granted the decide
+permission approves a branch manager's request, but cannot decide a request he filed himself or one about his own
+attendance. The owner adds a day herself and it is recorded as a request
 approved at once under her name (ACR-Q2, decided 2026-10-10).
 
 **Acceptance Scenarios**:
 
 1. **Given** a non-owner requester whose `user_id` is the employee's, **When** they file a request for themselves,
    **Then** `ATTENDANCE_CHANGE_SELF_FORBIDDEN` (403) (ACR-Q3, decided 2026-10-10).
-2. **Given** a user without the approve authority, **When** they approve or reject, **Then** `NOT_FOUND` (404); the
-   answer never confirms the request exists (ACR-Q4, decided 2026-10-10).
+2. **Given** a user without `decide:attendance-change:company`, **When** they approve or reject, **Then** `NOT_FOUND`
+   (404); the answer never confirms the request exists (ACR-Q4, decided 2026-10-10).
 3. **Given** the owner, **When** she files a request, **Then** it is stored APPROVED in the same transaction, with
    `requested_by = decided_by = owner`, two audit entries, and no in-app notice to approvers (ACR-Q2, decided 2026-10-10).
+4. **Given** a non-owner holder of the decide permission, **When** he decides a request he filed, or a request about his
+   own attendance, **Then** `ATTENDANCE_CHANGE_SELF_FORBIDDEN` (403) and nothing changes (orchestrator default).
+5. **Given** an owner, **When** she decides a request about her own attendance filed by a manager, **Then** it is
+   allowed (ACR-Q22c).
 
 ---
 
@@ -156,6 +168,8 @@ branches she may request for.
 - No expiry: a request may wait indefinitely (ACR-Q9, decided 2026-10-10).
 - Zero approvers resolvable (cannot happen while the company keeps its last owner, migration 0013) → the event is
   still emitted, without recipients, as spec 036 BR-004 does.
+- A non-owner tries to grant or revoke `decide:attendance-change:company` → `PERMISSION_OWNER_ONLY` (403), the OD-Q5
+  pattern (orchestrator default).
 
 ## Requirements *(mandatory)*
 
@@ -168,7 +182,9 @@ branches she may request for.
   (CA-Q6 update).
 - **FR-003**: The kind's rules MUST be checked when the request is filed **and** again, under locks, when it is
   approved (ACR-Q13, decided 2026-10-10).
-- **FR-004**: Only an approver MUST be able to approve or reject (ACR-Q4, decided 2026-10-10). A reject MUST carry a reason;
+- **FR-004**: Only a holder of `decide:attendance-change:company` (the owner by default, or whoever the owner granted
+  it to) MUST be able to approve or reject (ACR-Q4, decided 2026-10-10 — option 2). A non-owner holder MUST NOT decide a
+  request he filed or one about his own attendance (orchestrator default). A reject MUST carry a reason;
   an approve MAY carry one (ACR-Q7, decided 2026-10-10).
 - **FR-005**: The requester MUST be able to withdraw their own PENDING request (ACR-Q8, decided 2026-10-10). A request MUST
   NOT be edited (ACR-Q10, decided 2026-10-10).
@@ -214,15 +230,22 @@ branches she may request for.
   then (void) the session row. This serialises a request with scans, the missed-out job and corrections of the same
   employee. A non-locking permission precheck runs first so an unauthorised caller gets `NOT_FOUND`, never a lock
   wait (spec 035 BR-002). The injected Clock is sampled again after the locks; that sample is authoritative.
-- **BR-004 (approver)**: ACR-Q4, decided 2026-10-10: anyone registered as an owner of the company. Implemented with
-  `canonicalOwnerSql` (`packages/db/src/system-role-policy.ts`): it matches **every** active membership holding the
-  fixed global Owner role at COMPANY scope (a company may have several owners; migration 0013 only keeps at least
-  one), not a single "legal owner". It is read through identity under the membership locks, never from the client.
-  A personal ALLOW, any delegated grant, or any other role never makes an approver — there is deliberately **no
-  `decide:` permission** to grant (orchestrator decision 2026-10-10, ADR-0040).
+- **BR-004 (approver)**: ACR-Q4, decided 2026-10-10 — **option 2** (changed from option 1 the same day): approval is
+  the permission `decide:attendance-change:company`, evaluated with `evaluateAccess` on the request's
+  business/branch, read through identity under the membership locks, never from the client. Default: the owner role
+  only. The owner can grant it to a person (personal ALLOW) or a custom role. Orchestrator defaults pending owner
+  review:
+  - **Granting**: only an owner can grant or revoke it (owner-granted permission, the OD-Q5 / spec 039 pattern;
+    `PERMISSION_OWNER_ONLY` otherwise). Device-forbidden.
+  - **No self-approval**: a non-owner holder cannot decide a request he filed, nor a request about his own attendance
+    (`ATTENDANCE_CHANGE_SELF_FORBIDDEN`).
+  - **Owner exceptions**: an owner (`canonicalOwnerSql`, every owner membership) may decide a request about her own
+    attendance (ACR-Q22c); the owner one-step path (ACR-Q2) is unchanged and applies to owners only.
 - **BR-005 (self)**: "the actor is the employee" uses `employees.user_id` (spec 034/035). ACR-Q3, ACR-Q22c, decided 2026-10-10.
-- **BR-006 (recipients)**: approvers are resolved at file time inside the transaction (active owner memberships of
-  the company, deduplicated, minus the requester). Groups of ≤100 per event (spec 036 FR-006).
+- **BR-006 (recipients)**: approvers are resolved at file time inside the transaction: every active member of the
+  company for whom `decide:attendance-change:company` evaluates true on the request's business/branch (an owner always
+  counts), deduplicated, minus the requester, and minus the employee the request is about unless she is an owner (she
+  could not decide it). Groups of ≤100 per event (spec 036 FR-006) (ACR-Q5, orchestrator default).
 - **BR-007**: a request stores the branch it concerns: the session's branch (void) or the requested branch (add).
   Authority is checked on that branch.
 
@@ -233,7 +256,7 @@ One expand migration, numbered at merge time (from **0111**; main at 720a8397 en
 | Table | Columns | RLS | Indexes | Tenant-qualified FKs |
 |---|---|---|---|---|
 | `attendance_change_requests` (new) | `company_id`, `id` (UUID v7), `business_id`, `branch_id`, `employee_id`, `kind` CHECK IN ('ADD_SESSION','VOID_SESSION'), `status` CHECK IN ('PENDING','APPROVED','REJECTED','CANCELLED'), `session_id uuid NULL`, `session_revision int NULL` (≥0), `reason` (trimmed 1–500), `requested_by` → user, `requested_at`, `decided_by` → user NULL, `decided_at` NULL, `decision_reason` NULL (trimmed 1–500), `cancelled_by` → user NULL, `cancelled_at` NULL, `revision int NOT NULL DEFAULT 0` (≥0). Status-shape CHECKs: PENDING ⇒ decided/cancelled all NULL; APPROVED/REJECTED ⇒ `decided_by`,`decided_at` set, cancelled NULL; CANCELLED ⇒ `cancelled_by`,`cancelled_at` set, decided NULL; REJECTED ⇒ `decision_reason` NOT NULL (ACR-Q7, decided 2026-10-10) | ENABLE + FORCE; tenant policy `company_id = app.company_id`; `pospay_app` SELECT, INSERT, and column-scoped UPDATE (`status`, `decided_*`, `decision_reason`, `cancelled_*`, `session_id`, `revision`); no DELETE | PK `(company_id, id)`; `(company_id, business_id, status, requested_at)` (owner inbox); `(company_id, business_id, branch_id, status, requested_at)` (branch list); `(company_id, employee_id, requested_at)`; `(company_id, session_id)`; `(company_id, requested_by)`; `(company_id, decided_by)`; `(company_id, cancelled_by)`; partial UNIQUE `(company_id, session_id) WHERE status='PENDING' AND kind='VOID_SESSION'` (ACR-Q11, decided 2026-10-10) | `(company_id, business_id, employee_id)` → employees; `(company_id, business_id, branch_id)` → branches; `(company_id, session_id)` → attendance_sessions |
-| `permissions`, `role_permissions` | insert `request:attendance-change:branch` with its default holders (ACR-Q1, decided 2026-10-10); no decide permission (ACR-Q4) | — | — | — |
+| `permissions`, `role_permissions` | insert `request:attendance-change:branch` (defaults owner, GM, business manager, branch manager; ACR-Q1) and, in a follow-up expand migration, `decide:attendance-change:company` (default owner only; ACR-Q4 option 2) | — | — | — |
 
 - The kind-specific columns and their shape CHECKs are added by 26b (`ADD_SESSION`) and 26c (`VOID_SESSION`), each in
   its own expand migration.
@@ -269,9 +292,10 @@ All under `@Authenticated()` + the use-case permission check (PR 25/26 pattern);
   business_manager, branch_manager (`[...managers, 'branch_manager']`, as `correct:attendance:branch`); the owner
   holds it for the one-step path (ACR-Q2). Device-forbidden. The owner may grant or remove it for anyone. Added to the access catalog, `ROLE_DEFAULTS`,
   `deviceForbidden`, `system-role-policy` and the i18n permission names.
-- **No decide permission.** Approve/reject authority is the canonical owner check of BR-004 (ACR-Q4: never
-  delegable), so nothing exists that could be granted to a non-owner.
-- The list is readable by owners (whole business) and by holders of the request permission (their branches).
+- `decide:attendance-change:company` (new) — ACR-Q4, decided 2026-10-10 (option 2). Default: owner only. Owner-granted
+  (only an owner may grant/revoke it; any human role or person may receive it), device-forbidden, i18n name. See BR-004.
+- The list is readable by holders of the decide permission (whole business) and by holders of the request permission
+  (their branches). `can_decide` is false on rows the viewer may not decide (self rules).
 
 ### Events
 
@@ -302,7 +326,10 @@ All under `@Authenticated()` + the use-case permission check (PR 25/26 pattern);
   - `ACR-06` approve vs withdraw race and approve vs approve race: exactly one commits
   - `ACR-07` stale revision → 409
   - `ACR-08` self request refused for GM/business/branch manager; owner one-step
-  - `ACR-09` non-owner approver → NOT_FOUND; other branch / business / company → NOT_FOUND with identical envelopes
+  - `ACR-09` user without the decide permission → NOT_FOUND; other branch / business / company → NOT_FOUND with identical envelopes
+  - `ACR-15` owner grants the decide permission to a general manager: he decides others' requests and is notified;
+    he gets SELF_FORBIDDEN on a request he filed and on one about his own attendance; a non-owner cannot grant it;
+    an owner may decide a request about her own attendance
   - `ACR-10` device and personal session refused
   - `ACR-11` idempotent replay and key reuse with another body, for file, cancel and decide
   - `ACR-12` unknown kind (no planner) → `KIND_UNAVAILABLE`, nothing stored
@@ -325,13 +352,15 @@ All under `@Authenticated()` + the use-case permission check (PR 25/26 pattern);
 ### ADR
 
 ADR-0040 (provisional, renumbered at merge) — "attendance change requests: request → owner approval → kind planner
-applied in the approval transaction": the kinds port, lock order, owner-only decision, one-step owner path, and why
+applied in the approval transaction": the kinds port, lock order, the grantable owner-default decide permission and its self rules, one-step owner path, and why
 an approval re-checks the kind under locks.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
+- **SC-000**: The `kind` CHECK lists kinds explicitly so 26c can add `RESTORE_SESSION` (ACR-Q21 option 2) with one
+  expand migration; nothing in 26a assumes only two kinds.
 - **SC-001**: 100 % of manual days and voids are applied only after an approver's decision; no attendance row changes
   on filing, rejecting or withdrawing.
 - **SC-002**: For every change, the owner can see who asked, when and why, and who decided, when and why.
