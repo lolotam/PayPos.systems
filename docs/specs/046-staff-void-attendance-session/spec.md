@@ -187,7 +187,8 @@ One expand migration (plan from 0111, numbered at merge after 26a's).
 | `attendance_sessions` | add `voided_at timestamptz NULL`, `voided_by uuid NULL` → user, `void_request_id uuid NULL`; CHECK all three NULL or all three NOT NULL; CHECK voided ⇒ `status <> 'OPEN'`; `pospay_app` gains column UPDATE on the three columns (ADR-0033 style CHECKs `NOT VALID` then validated) | unchanged | `(company_id, voided_by)`, `(company_id, void_request_id)` built `CONCURRENTLY`; the board index stays (PR 27 adds a partial `WHERE voided_at IS NULL` index if `EXPLAIN` asks) | `(company_id, void_request_id)` → `attendance_change_requests` |
 | `attendance_change_requests` | `kind` CHECK extended to IN ('ADD_SESSION','VOID_SESSION','RESTORE_SESSION') (drop + re-add `NOT VALID`, then validate); CHECK `kind NOT IN ('VOID_SESSION','RESTORE_SESSION') OR (session_id IS NOT NULL AND session_revision IS NOT NULL)` | unchanged | 044's partial UNIQUE becomes one PENDING void **or restore** per session: replace it with `(company_id, session_id) WHERE status='PENDING' AND kind IN ('VOID_SESSION','RESTORE_SESSION')` (new index built `CONCURRENTLY`, old one dropped after) | — |
 
-- `privileges.spec.ts` gains the three column UPDATE grants on `attendance_sessions`.
+- No new grant: `pospay_app` already holds table-level UPDATE on `attendance_sessions` (0072), so `privileges.spec.ts`
+  is unchanged (plan research R2, 2026-10-10).
 
 ### API contract
 
