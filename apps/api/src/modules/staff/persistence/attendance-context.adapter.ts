@@ -181,7 +181,8 @@ export async function scheduleCandidates(
     returning: boolean;
   }>(scheduleCandidatesStatement(scope, branchId, at, timezone));
 }
-// الجلسة اللي الموظف قفلها بنفسه بس هي اللي تثبت الرجوع؛ قفل MISSED_OUT من الـ worker مش رجوع (BW-Q9).
+// الرجوع يحتاج جلسة قفلها الموظف بنفسه على نفس الوردية: نفس الفرع ونفس نهاية الوردية المثبتة على الجلسة،
+// فقفل MISSED_OUT أو وردية ملاصقة قبلها أو فرع تاني مش رجوع (BW-Q9).
 // الجلسة حدها ١٦ ساعة، فتاريخها بين يوم الوردية السابق ويوم الحركة، وده بيقصر البحث على الـ index.
 export function scheduleCandidatesStatement(
   scope: { companyId: string; employeeId: string },
@@ -196,6 +197,7 @@ export function scheduleCandidatesStatement(
       EXISTS (SELECT 1 FROM attendance_sessions a
         WHERE a.company_id=ss.company_id AND a.employee_id=ss.employee_id
           AND a.working_date BETWEEN ss.working_date - 1 AND ${date}::date AND a.clock_in<${instant}::timestamptz
+          AND a.branch_id=s.branch_id AND a.scheduled_end=ss.ends_at
           AND a.status='CLOSED' AND a.clock_out>ss.starts_at AND a.clock_out<=${instant}::timestamptz) AS returning
     FROM staff_schedule_shifts ss
     JOIN staff_schedules s ON s.company_id=ss.company_id AND s.id=ss.schedule_id

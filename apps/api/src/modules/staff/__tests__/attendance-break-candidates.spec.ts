@@ -19,9 +19,10 @@ beforeAll(async () => {
   await seedAttendanceBreak(f, '2026-10-03');
   sessionId = f.ids.newId();
   await f.owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,
-      clock_in,clock_out,status,source,closed_by,geo,late_minutes)
+      clock_in,clock_out,status,source,closed_by,geo,late_minutes,scheduled_start,scheduled_end)
     VALUES(${f.companyId},${sessionId},${f.businessId},${f.branchId},${f.employeeId},'2026-10-03','Asia/Kuwait',
-      '2026-10-03T08:58:00+03:00','2026-10-03T13:00:00+03:00','CLOSED','BARCODE','EMPLOYEE','NONE',0)`;
+      '2026-10-03T08:58:00+03:00','2026-10-03T13:00:00+03:00','CLOSED','BARCODE','EMPLOYEE','NONE',0,
+      '2026-10-03T09:00:00+03:00','2026-10-03T17:00:00+03:00')`;
   const other = f.ids.newId();
   await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
     VALUES(${f.companyId},${other},${f.businessId},${f.branchId},'Synthetic history employee','synthetic history employee','staff','2020-01-01')`;
