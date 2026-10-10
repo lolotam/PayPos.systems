@@ -6,7 +6,7 @@
 
 **Status**: Ready for plan — owner questions PL-Q1 … PL-Q4 **ANSWERED** by Waleed on 2026-10-10 (all on the
 recommended option; the partner has not answered yet, Waleed said to proceed). Design recorded in
-[ADR-0039](../../adr/0039-passkey-installation-lock.md) (Proposed), which amends ADR-0029.
+[ADR-0039](../../adr/0039-passkey-installation-lock.md) (Accepted — owner (Waleed), 2026-10-10), which amends ADR-0029.
 
 **Input**: Phase 1 plan row **21b** (`docs/specs/phase-1/IMPLEMENTATION-PLAN.md`): "a phone bound by passkey to one
 employee refuses another employee's clock-in (block, replacing the warn-only two-employees flag for passkey devices; the
@@ -247,6 +247,6 @@ has no route in this slice; row 27 adds the board route under the existing atten
 
 - "Phone" = the personal POS app installation (random id in browser storage); a browser cannot prove a physical device
   without fingerprinting (research R2). The owner is told this in the questions file.
-- ADR-0039 (Proposed) amends ADR-0029 ("do not block on the signal"); the owner accepts it before merge.
+- ADR-0039 (Accepted — owner (Waleed), 2026-10-10) amends ADR-0029 ("do not block on the signal").
 - No live salon data yet (trial row 63 not started), so legacy handling targets staging test data only.
 - Board (row 27) drops the pair list from its scope and shows the refused attempts (query delivered here).

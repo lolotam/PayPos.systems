@@ -14,6 +14,10 @@ export function createAttendanceDeviceRefusals(
         await database.withTenant(input.companyId, async (tx) => {
           const hash = installationHash(input.companyId, input.installationId);
           // سقف رخيص: محاولة واحدة لكل موظف وخطوة وتثبيت في الدقيقة، فالضغط المتكرر لا يملأ الجدول.
+          // القفل يسلسل الطلبات المتوازية حتى لا يمر اثنان من فحص NOT EXISTS معاً.
+          await tx.execute(
+            sql`SELECT pg_advisory_xact_lock(hashtextextended(${`pospay:attendance-refusal-throttle:v1:${input.companyId}:${input.employeeId}:${input.step}:${hash}`},0))`,
+          );
           const [written] = await tx.execute<{ employees: number }>(sql`
           WITH employee AS (
             SELECT e.id,e.primary_branch_id FROM employees e

@@ -3,7 +3,7 @@
 **Branch**: `feat/p1-21b-passkey-device-lock` | **Date**: 2026-10-10 | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `docs/specs/043-staff-passkey-device-lock/spec.md` (owner answers PL-Q1 … PL-Q4,
-2026-10-10). Design decision: [ADR-0039](../../adr/0039-passkey-installation-lock.md) (Proposed; amends ADR-0029).
+2026-10-10). Design decision: [ADR-0039](../../adr/0039-passkey-installation-lock.md) (Accepted — owner, 2026-10-10; amends ADR-0029).
 
 ## Summary
 
@@ -58,7 +58,7 @@ clock, where it is already required).
 | VI. Arabic-first RTL | four new error messages ar/en through `errors.ts` + i18n keys; logical CSS; `packages/ui` | PASS |
 | VII. Documented why, in Arabic | Arabic JSDoc on the domain function, every new/changed port method; one-liners on use cases, query, schema columns | PASS |
 | Security (CLAUDE.md §8) | no new PII; hash only; refusal rows carry ids, not names/phones; log redaction already drops `installation_id`; refusals are rejected attempts kept in their own table, not audited changes | PASS |
-| ADR | ADR-0039 Proposed (amends ADR-0029 "do not block on the signal"); owner accepts before merge | PASS (pending acceptance) |
+| ADR | ADR-0039 Accepted by the owner 2026-10-10 (amends ADR-0029 "do not block on the signal") | PASS |
 
 Post-design re-check: unchanged — PASS.
 
@@ -209,7 +209,7 @@ phone. i18n additive.
 
 ### D10. Docs
 
-ADR-0039 (Proposed) + "Amended by" line in ADR-0029 (spec commit). Short notes in specs 026/027 pointing to 043.
+ADR-0039 (Accepted 2026-10-10) + "Amended by" line in ADR-0029 (spec commit). Short notes in specs 026/027 pointing to 043.
 Phase-1 plan row 27: the pair list is replaced by the refused-attempt list.
 
 ## Project Structure

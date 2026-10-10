@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { attendanceDeviceRefusalPage } from '@pospay/contracts';
 import { attendanceFixture, type AttendanceFixture } from './clock-attendance.fixture.ts';
@@ -81,4 +81,53 @@ it('EXPLAIN uses the branch/time index and the active-installation partial index
       ${installationLockStatement(f.scope, installationHash(f.companyId, PHONE_X))}`);
     expect(JSON.stringify(lock)).toContain('employee_passkeys_active_installation_idx');
   });
+});
+
+it('parallel refusals in the same minute wait on the throttle lock and leave exactly one row', async () => {
+  const installationId = '3f0c2b1a-4d5e-4f60-8a71-b2c3d4e5f603';
+  const hash = installationHash(f.companyId, installationId);
+  const key = `pospay:attendance-refusal-throttle:v1:${f.companyId}:${f.employeeId}:CHALLENGE:${hash}`;
+  let release = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let locked = () => {};
+  const acquired = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const blocker = f.owner.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${key},0))`;
+    locked();
+    await released;
+  });
+  await acquired;
+  const writes = Array.from({ length: 8 }, () =>
+    f.refusals.record({
+      ...f.scope,
+      branchId: f.branchId,
+      installationId,
+      step: 'CHALLENGE',
+      reason: 'NOT_ENROLLED',
+      holderEmployeeId: null,
+      at: new Date('2026-10-10T12:30:00Z'),
+    }),
+  );
+  try {
+    await vi.waitFor(
+      async () => {
+        const rows = await f.owner`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
+          AND wait_event_type='Lock' AND wait_event='advisory'`;
+        expect(rows.length).toBeGreaterThan(0);
+      },
+      { timeout: 3000, interval: 20 },
+    );
+  } finally {
+    release();
+    await blocker;
+  }
+  await Promise.all(writes);
+  expect(
+    await f.owner`SELECT id FROM attendance_device_refusals
+      WHERE company_id=${f.companyId} AND installation_hash=${hash}`,
+  ).toHaveLength(1);
 });

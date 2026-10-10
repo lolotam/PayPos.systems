@@ -126,7 +126,7 @@ generated `schema.d.ts` in admin/pos, migration numbering and `meta/_journal.jso
 ## R8. After the owner's answers (2026-10-10)
 
 - **Decision**: two-way, per-person lock (PL-Q1, PL-Q4); manager unbind is the only release (PL-Q2); every refusal is
-  recorded in a new immutable tenant table, no event, no notification (PL-Q3). Recorded in ADR-0039 (Proposed).
+  recorded in a new immutable tenant table, no event, no notification (PL-Q3). Recorded in ADR-0039 (Accepted by the owner, 2026-10-10).
 - **Refusal writer outside the rolled-back transaction**: a refusal must leave no session / audit / outbox /
   idempotency row, so the attendance or enrollment transaction rolls back and the use case writes the refusal row in
   a second `withTenant` transaction. Alternatives rejected: committing the refused transaction (keeps the idempotency

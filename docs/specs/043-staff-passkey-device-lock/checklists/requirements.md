@@ -33,4 +33,4 @@
 ## Notes
 
 - PL-Q1 … PL-Q4 answered 2026-10-10 and written back into `spec.md`; plan and tasks generated.
-- ADR-0039 (Proposed) amends ADR-0029 (blocking on the installation signal); the owner accepts it before merge.
+- ADR-0039 (Accepted — owner (Waleed), 2026-10-10) amends ADR-0029 (blocking on the installation signal).

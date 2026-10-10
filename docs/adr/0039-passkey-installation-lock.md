@@ -1,6 +1,6 @@
 # ADR-0039 — Passkey phones are locked to one person (installation lock)
 
-- **Status:** Proposed — waiting for the owner (Waleed) to accept before merge
+- **Status:** Accepted — owner (Waleed), 2026-10-10
 - **Date:** 2026-10-10
 - **Scope:** `staff` attendance clock, clock challenge and passkey enrollment; `packages/db` (`employee_passkeys`,
   new `attendance_device_refusals`); POS personal app. Spec `docs/specs/043-staff-passkey-device-lock/`, phase 1

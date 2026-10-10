@@ -1,7 +1,7 @@
 # Tasks: Passkey phone lock (043, phase 1 row 21b)
 
 **Input**: `docs/specs/043-staff-passkey-device-lock/` — spec.md, plan.md (D1–D10), data-model.md,
-contracts/passkey-device-lock-api.md, research.md, quickstart.md; ADR-0039 (Proposed).
+contracts/passkey-device-lock-api.md, research.md, quickstart.md; ADR-0039 (Accepted 2026-10-10).
 
 **Tests are mandatory** (`CLAUDE.md` §9) and are written first; they must fail before the code exists.
 
