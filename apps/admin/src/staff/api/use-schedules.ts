@@ -42,7 +42,11 @@ async function saveWeek(scope: ScheduleWorkspace, employeeId: string, input: Set
       body: {
         week_start: input.week_start,
         expected_revision: input.expected_revision,
-        shifts: input.shifts,
+        shifts: input.shifts.map((s) => ({
+          ...s,
+          break_start: s.break_start ?? null,
+          break_end: s.break_end ?? null,
+        })),
         ...(input.reason ? { reason: input.reason } : {}),
       },
     },

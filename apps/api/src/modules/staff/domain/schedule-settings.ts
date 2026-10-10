@@ -2,6 +2,13 @@ import { ScheduleError, type ConcreteShift, type WeeklyShift } from './schedule-
 
 /** غياب صف الإعدادات يعطي ثلاث ورديات وفق قرار المالك S020-SHIFTS (9 أكتوبر 2026). */
 export const DEFAULT_MAX_SHIFTS_PER_DAY = 3;
+/** حقول الوردية التي تغير عدد ورديات اليوم؛ البريك لا يضيف وردية فلا يخضع اليوم للحد بسببه. */
+type ScheduleDayShift = Pick<
+  ConcreteShift,
+  'day' | 'working_date' | 'start' | 'end' | 'starts_at' | 'ends_at'
+>;
+/** حقول نمط القالب التي تغير عدد ورديات اليوم دون البريك. */
+type PatternDayShift = Pick<WeeklyShift, 'day' | 'start' | 'end'>;
 /** الحدود المعتمدة من المالك MS-Q3 وليست حدوداً مرتبطة بنوع النشاط. */
 export const MAX_SHIFTS_PER_DAY_RANGE = { min: 1, max: 4 } as const;
 
@@ -29,11 +36,11 @@ export function validateMaxShiftsPerDay(value: number): void {
  * @returns تواريخ البداية المتغيرة مرتبة
  */
 export function changedScheduleDays(
-  before: readonly ConcreteShift[],
-  after: readonly ConcreteShift[],
+  before: readonly ScheduleDayShift[],
+  after: readonly ScheduleDayShift[],
 ): string[] {
   const dates = [...new Set([...before, ...after].map((s) => s.working_date))].sort();
-  const onDay = (shifts: readonly ConcreteShift[], date: string) =>
+  const onDay = (shifts: readonly ScheduleDayShift[], date: string) =>
     JSON.stringify(
       shifts
         .filter((s) => s.working_date === date)
@@ -51,11 +58,11 @@ export function changedScheduleDays(
  * @returns أرقام أيام الأسبوع المتغيرة مرتبة من السبت
  */
 export function changedPatternDays(
-  before: readonly WeeklyShift[],
-  after: readonly WeeklyShift[],
+  before: readonly PatternDayShift[],
+  after: readonly PatternDayShift[],
 ): number[] {
   const days = [...new Set([...before, ...after].map((s) => s.day))].sort((a, b) => a - b);
-  const onDay = (shifts: readonly WeeklyShift[], day: number) =>
+  const onDay = (shifts: readonly PatternDayShift[], day: number) =>
     JSON.stringify(
       shifts
         .filter((s) => s.day === day)
