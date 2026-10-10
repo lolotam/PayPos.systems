@@ -799,6 +799,34 @@
       "when": 1791656771195,
       "tag": "0113_2026-10-10_attendance-change-decide-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1791656772195,
+      "tag": "0116_2026-10-10_attendance-session-void",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1791656773195,
+      "tag": "0117_2026-10-10_attendance-session-void-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1791656774195,
+      "tag": "0118_2026-10-10_attendance-session-void-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1791656775195,
+      "tag": "0119_2026-10-10_attendance-session-void-drop-old-index",
+      "breakpoints": true
     }
   ]
 }

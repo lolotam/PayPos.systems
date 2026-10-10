@@ -27,8 +27,11 @@ effect: { session: { id, working_date, clock_in, clock_out, status, revision, vo
 ## `AttendanceChangeRequest` — field added
 
 ```text
-requested: { branch_id, working_date, clock_in, clock_out } | null   // the session the request is about
+requested: { clock_in, clock_out, working_date, timezone } | null   // the session the request is about
 ```
+
+Same shape as lane 26b's `requested` (spec 045 research R3), so the two kinds share one field; for void/restore it
+is read from the session.
 
 ## Errors (new or newly reachable)
 

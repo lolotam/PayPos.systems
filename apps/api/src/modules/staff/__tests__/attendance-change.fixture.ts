@@ -13,7 +13,12 @@ import { createAttendanceChangeTransactions } from '../persistence/drizzle-atten
 import { RequestAttendanceChangeUseCase } from '../use-cases/request-attendance-change/request-attendance-change.usecase.ts';
 import { CancelAttendanceChangeUseCase } from '../use-cases/cancel-attendance-change/cancel-attendance-change.usecase.ts';
 import { DecideAttendanceChangeUseCase } from '../use-cases/decide-attendance-change/decide-attendance-change.usecase.ts';
-import { attendanceCorrectionFixture, ownerUserId } from './attendance-correction.fixture.ts';
+import {
+  attendanceCorrectionFixture,
+  ownerUserId,
+  seedSession,
+} from './attendance-correction.fixture.ts';
+import { attendanceChangeProviders } from '../attendance-change.providers.ts';
 import { leaveIds } from './leave.fixture.ts';
 
 const override = vi.hoisted(() => ({ current: null as AttendanceChangeKinds | null }));
@@ -47,18 +52,46 @@ export async function attendanceChangeFixture(production = false) {
   override.current = null;
   const owner = await ownerUserId(f);
   const tx = createAttendanceChangeTransactions(f.db, leaveIds);
+  const provider = attendanceChangeProviders(f.db, leaveIds).find(
+    (entry) =>
+      typeof entry === 'object' && 'provide' in entry && entry.provide === ATTENDANCE_CHANGE_KINDS,
+  );
+  const activeKinds =
+    production && provider && typeof provider === 'object' && 'useValue' in provider
+      ? (provider.useValue as AttendanceChangeKinds)
+      : kinds;
   return {
     ...f,
     owner,
     control,
-    kinds,
+    kinds: activeKinds,
     tx,
-    fileChange: new RequestAttendanceChangeUseCase(tx, f.clock, kinds),
+    fileChange: new RequestAttendanceChangeUseCase(tx, f.clock, activeKinds),
     cancelChange: new CancelAttendanceChangeUseCase(tx, f.clock),
-    decideChange: new DecideAttendanceChangeUseCase(tx, f.clock, kinds),
+    decideChange: new DecideAttendanceChangeUseCase(tx, f.clock, activeKinds),
   };
 }
 export type ChangeFixture = Awaited<ReturnType<typeof attendanceChangeFixture>>;
+export async function voidInput(f: ChangeFixture, patch: Parameters<typeof seedSession>[1] = {}) {
+  const session_id = await seedSession(f, patch);
+  const [row] = await f.h
+    .owner`SELECT employee_id FROM attendance_sessions WHERE company_id=${f.company} AND id=${session_id}`;
+  return {
+    kind: 'VOID_SESSION' as const,
+    employee_id: row?.employee_id as string,
+    session_id,
+    session_revision: patch.revision ?? 0,
+    reason: 'wrong attendance day',
+  };
+}
+export const voidRow = async (f: ChangeFixture, sessionId: string) => {
+  const [row] = await f.h
+    .owner`SELECT to_jsonb(s) AS record FROM attendance_sessions s WHERE company_id=${f.company} AND id=${sessionId}`;
+  return row?.record as Record<string, unknown>;
+};
+export const voidAudits = (f: ChangeFixture, sessionId: string) =>
+  f.h
+    .owner`SELECT action,before,after FROM audit_log WHERE company_id=${f.company} AND entity='attendance_session' AND entity_id=${sessionId} AND action IN ('attendance_session.voided','attendance_session.restored') ORDER BY id`;
 export const changeActor = (f: ChangeFixture, requestId?: string, userId = f.approverId) => ({
   companyId: f.company,
   businessId: f.business,

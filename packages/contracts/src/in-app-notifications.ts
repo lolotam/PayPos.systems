@@ -46,7 +46,7 @@ const inAppBase = {
 const changeParameter = z.strictObject({
   name: z.literal('change'),
   type: z.literal('text'),
-  value: z.enum(['ADD_SESSION', 'VOID_SESSION']),
+  value: z.enum(['ADD_SESSION', 'VOID_SESSION', 'RESTORE_SESSION']),
 });
 export const attendanceChangeRequestedParameters = z.tuple([
   displayParameter('employee_name_ar'),

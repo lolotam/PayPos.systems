@@ -143,7 +143,10 @@ async function changeOnce(
     return await database.withTenant(
       actor.companyId,
       async (tx) => {
-        const context = await load(tx, actor, action, clock, filing);
+        const context = {
+          ...(await load(tx, actor, action, clock, filing)),
+          requestId: actor.requestId ?? ids.newId(),
+        };
         const result = await runIdempotent(
           tx,
           {
@@ -194,7 +197,7 @@ function persistenceError(error: unknown): never {
     if (
       cause.code === '23505' &&
       'constraint_name' in cause &&
-      cause.constraint_name === 'attendance_change_requests_one_pending_void'
+      cause.constraint_name === 'attendance_change_requests_one_pending_session'
     )
       throw new AttendanceChangeError('ATTENDANCE_CHANGE_DUPLICATE_PENDING');
   }

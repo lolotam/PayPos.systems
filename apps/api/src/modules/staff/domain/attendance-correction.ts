@@ -13,6 +13,7 @@ export interface AttendanceCorrectionSession {
   closed_by: 'EMPLOYEE' | 'MISSED_OUT' | null;
   late_minutes: number;
   revision: number;
+  voided_at: string | null;
   scheduled_start: string | null;
 }
 /** جلسة أخرى للموظف نفسه؛ المفتوحة بلا خروج تتداخل مع أي فترة تلامسها من الداخل. */
@@ -67,6 +68,7 @@ export class AttendanceCorrectionError extends Error {
       | 'VALIDATION_FAILED'
       | 'ATTENDANCE_CORRECTION_SELF_FORBIDDEN'
       | 'ATTENDANCE_SESSION_OPEN'
+      | 'ATTENDANCE_SESSION_VOIDED'
       | 'ATTENDANCE_SESSION_REVISION_CONFLICT'
       | 'ATTENDANCE_CORRECTION_INVALID_TIMES'
       | 'ATTENDANCE_CORRECTION_WORKING_DATE'
@@ -99,7 +101,7 @@ export function attendanceCorrectionReason(reason: string): string {
 }
 
 /**
- * يقرر تصحيح الدخول و/أو الخروج لجلسة مغلقة أو فائتة؛ رفض تصحيح النفس ثم الحالة والنسخة يسبق رفض الطلب بلا تغيير.
+ * يقرر تصحيح الدخول و/أو الخروج لجلسة مغلقة أو فائتة؛ رفض تصحيح النفس ثم الإلغاء والحالة والنسخة يسبق رفض الطلب بلا تغيير.
  *
  * @param session الجلسة المقفولة
  * @param request النسخة والأوقات والسبب
@@ -125,6 +127,7 @@ export function planAttendanceCorrection(
   // قرار المالك 2026-10-08 (CA-Q2): المالك وحده يصحح حضوره. غير الموظف لا تمسّه القاعدة.
   if (context.actorIsEmployee && !context.actorIsOwner)
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_SELF_FORBIDDEN');
+  if (session.voided_at !== null) throw new AttendanceCorrectionError('ATTENDANCE_SESSION_VOIDED');
   // قرار المالك 2026-10-08 (CA-Q5): المفتوحة تُغلق بالمسح أو بمهمة الخروج الفائت، لا بالتصحيح.
   if (session.status === 'OPEN') throw new AttendanceCorrectionError('ATTENDANCE_SESSION_OPEN');
   if (session.revision !== request.revision || session.revision >= 2147483647)
@@ -171,11 +174,20 @@ function assertTimes(
     end - start > SIXTEEN_HOURS_MS
   )
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_INVALID_TIMES');
-  if (neighbours.some((other) => overlaps(start, end, sessionId, other)))
+  if (neighbours.some((other) => attendanceSessionsOverlap(start, end, sessionId, other)))
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_INVALID_TIMES');
 }
 
-function overlaps(
+/**
+ * يقارن فترتين دون احتساب الأطراف المتلامسة أو الجلسة نفسها؛ المفتوحة تستمر بلا نهاية معلومة.
+ *
+ * @param start بداية الفترة بالمللي ثانية
+ * @param end نهاية الفترة بالمللي ثانية
+ * @param sessionId معرّف الجلسة المستبعدة من المقارنة
+ * @param other جلسة أخرى غير ملغاة لنفس الموظف
+ * @returns هل تتقاطع الفترتان من الداخل
+ */
+export function attendanceSessionsOverlap(
   start: number,
   end: number,
   sessionId: string,

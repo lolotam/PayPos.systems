@@ -43,6 +43,10 @@ export function attendanceChangePageStatement(
   return sql`SELECT jsonb_build_object('id',r.id,'business_id',r.business_id,'branch_id',r.branch_id,
     'kind',r.kind,'status',r.status,'employee',jsonb_build_object('id',e.id,'name_ar',e.name_ar,'name_en',e.name_en),
     'session_id',r.session_id,'session_revision',r.session_revision,'reason',r.reason,
+      'requested',CASE WHEN s.id IS NULL THEN NULL ELSE jsonb_build_object(
+        'working_date',s.working_date::text,'timezone',s.timezone,
+        'clock_in',to_char(s.clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'clock_out',to_char(s.clock_out AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) END,
     'requested_by',r.requested_by,'requested_at',to_char(r.requested_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
     'decided_by',r.decided_by,'decided_at',to_char(r.decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
     'decision_reason',r.decision_reason,'cancelled_by',r.cancelled_by,
@@ -51,6 +55,7 @@ export function attendanceChangePageStatement(
       AND r.status='PENDING' AND (${access.owner} OR (r.requested_by<>${context.userId} AND e.user_id IS DISTINCT FROM ${context.userId})),
     'can_cancel',r.status='PENDING' AND r.requested_by=${context.userId}) AS record
     FROM attendance_change_requests r JOIN employees e ON e.company_id=r.company_id AND e.business_id=r.business_id AND e.id=r.employee_id
+    LEFT JOIN attendance_sessions s ON s.company_id=r.company_id AND s.id=r.session_id
     WHERE r.company_id=${context.companyId} AND r.business_id=${context.businessId}
     ${access.canDecide ? sql`` : sql`AND r.branch_id=ANY(${uuidArray(access.branches)})`}
     ${query.status === undefined ? sql`` : sql`AND r.status=${query.status}`}

@@ -120,7 +120,7 @@ restore kind are business rules recorded in the spec and the owner-questions fil
    also returns `ATTENDANCE_SESSION_VOIDED` (contracts `attendance-correction.ts` error list + OpenAPI).
 7. **Contracts**: the request input union gets strict members `VOID_SESSION` and `RESTORE_SESSION` with mandatory
    `session_id` and `session_revision` (the `ADD_SESSION` member is left as 26a shipped it, lane 26b narrows it);
-   `attendanceChangeKind` adds `RESTORE_SESSION`; the row gains `requested`; the decision result's `effect` becomes
+   `attendanceChangeKind` adds `RESTORE_SESSION`; the row gains `requested` `{ clock_in, clock_out, working_date, timezone } | null` (the same shape as lane 26b's, spec 045 research R3); the decision result's `effect` becomes
    `{ session } | null` (contracts/void-restore-kinds-api.md).
 8. **Bell copy**: the `change` enum (contracts `in-app-notifications.ts`, event payload types in `events/published.ts`)
    adds `RESTORE_SESSION`; i18n adds `inApp.attendance_change_restore` («استرجاع يوم حضور» / "Restore attendance day");

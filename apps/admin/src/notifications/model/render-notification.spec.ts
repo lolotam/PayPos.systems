@@ -114,3 +114,34 @@ it.each(['ar', 'en'] as const)(
     }
   },
 );
+
+it.each(['ar', 'en'] as const)('renders restore requests and decisions in %s', (locale) => {
+  const requested: InAppNotification = {
+    ...shift(locale === 'ar' ? 'en' : 'ar'),
+    template_key: 'attendance_change_requested',
+    safe_parameters: [
+      { name: 'employee_name_ar', type: 'text', value: 'ليلى' },
+      { name: 'employee_name_en', type: 'text', value: 'Laila' },
+      { name: 'change', type: 'text', value: 'RESTORE_SESSION' },
+    ],
+  };
+  const decided: InAppNotification = {
+    ...requested,
+    template_key: 'attendance_change_decided',
+    safe_parameters: [
+      ...requested.safe_parameters,
+      { name: 'decision', type: 'text', value: 'APPROVED' },
+      { name: 'reason', type: 'text', value: '-' },
+    ],
+  };
+  for (const notice of [requested, decided]) {
+    expect(renderNotification(notice, locale)).toBe(
+      t(locale, `inApp.${notice.template_key}`)
+        .replace('{{employee_name_ar}}', 'ليلى')
+        .replace('{{employee_name_en}}', 'Laila')
+        .replace('{{change}}', t(locale, 'inApp.attendance_change_restore'))
+        .replace('{{decision}}', t(locale, 'inApp.attendance_change_approved'))
+        .replace('{{reason}}', '-'),
+    );
+  }
+});

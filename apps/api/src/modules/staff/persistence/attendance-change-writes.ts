@@ -18,6 +18,7 @@ import type { AttendanceChangeActor } from '../ports/attendance-change-transacti
 import { attendanceChangeApprovers } from './attendance-change-context.adapter.ts';
 
 interface SaveContext {
+  requestId: string;
   before: AttendanceChangeRequest | null;
   target: AttendanceChangeTarget;
   input: AttendanceChangeKindInput;
@@ -34,13 +35,14 @@ export async function saveAttendanceChange(
   plan: AttendanceChangePlan,
   values: AttendanceChangeKindValues,
 ): Promise<AttendanceChangeRequest> {
-  const id = context.before?.id ?? ids.newId();
+  const id = context.requestId;
   if (context.before) await update(tx, actor, context.before, plan, values);
   else await insert(tx, actor, id, context, plan, values);
   const row: AttendanceChangeRequest = {
     ...plan,
     session_id: values.session_id,
     session_revision: context.before ? context.before.session_revision : values.session_revision,
+    requested: values.requested ?? context.before?.requested ?? null,
     id,
     business_id: actor.businessId,
     branch_id: context.target.branch_id,

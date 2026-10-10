@@ -27,13 +27,14 @@ export class DecideAttendanceChangeUseCase {
     const record = await this.transactions.decide(actor, this.clock, async (scope) => {
       if (!scope.before) throw new AttendanceChangeError('NOT_FOUND');
       const plan = planChangeDecision(scope.before, input, { ...scope, userId: actor.userId });
-      if (plan.status === 'REJECTED') return scope.save(plan, scope.before);
+      if (plan.status === 'REJECTED')
+        return { ...(await scope.save(plan, scope.before)), effect: null };
       const kind = this.kinds.find(scope.before.kind);
       if (!kind) throw new AttendanceChangeError('ATTENDANCE_CHANGE_KIND_UNAVAILABLE');
       const checked = await kind.check(scope);
       const values = await kind.apply(scope, checked);
-      return scope.save(plan, values);
+      return { ...(await scope.save(plan, values)), effect: values.effect ?? null };
     });
-    return { ...record, effect: null };
+    return record as AttendanceChangeDecisionResult;
   }
 }

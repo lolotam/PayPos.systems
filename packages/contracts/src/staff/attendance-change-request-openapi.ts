@@ -21,6 +21,15 @@ const idem = {
 };
 const response = (name: string, status = '200') => ({
   [status]: { description: name, content: json(name) },
+  '409': {
+    description:
+      'ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED, ATTENDANCE_SESSION_NOT_VOIDED, ATTENDANCE_SESSION_REVISION_CONFLICT or ATTENDANCE_CHANGE_DUPLICATE_PENDING',
+    content: json('ErrorEnvelope'),
+  },
+  '422': {
+    description: 'ATTENDANCE_RESTORE_OVERLAP or ATTENDANCE_CHANGE_KIND_UNAVAILABLE',
+    content: json('ErrorEnvelope'),
+  },
   default: { description: 'Bilingual refusal', content: json('ErrorEnvelope') },
 });
 const write = (
@@ -61,7 +70,7 @@ export const attendanceChangePaths = {
         {
           in: 'query',
           name: 'kind',
-          schema: { type: 'string', enum: ['ADD_SESSION', 'VOID_SESSION'] },
+          schema: { type: 'string', enum: ['ADD_SESSION', 'VOID_SESSION', 'RESTORE_SESSION'] },
         },
         { in: 'query', name: 'cursor', schema: { type: 'string', maxLength: 512 } },
         {
