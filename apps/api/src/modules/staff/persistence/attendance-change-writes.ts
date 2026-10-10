@@ -55,9 +55,10 @@ export async function saveAttendanceChange(
     can_decide: context.owner && plan.status === 'PENDING',
     can_cancel: plan.status === 'PENDING' && plan.requested_by === actor.userId,
   };
-  if (!context.before) await audit(tx, ids, id, 'requested', null, plan);
+  const filed = context.before ? null : pendingSnapshot(plan);
+  if (filed) await audit(tx, ids, id, 'requested', null, filed);
   if (plan.status !== 'PENDING')
-    await audit(tx, ids, id, plan.status.toLowerCase(), context.before, plan);
+    await audit(tx, ids, id, plan.status.toLowerCase(), context.before ?? filed, plan);
   if (plan.status !== 'CANCELLED') await events(tx, ids, actor, context, row);
   return row;
 }
@@ -87,6 +88,18 @@ async function update(
     cancelled_by=${p.cancelled_by},cancelled_at=${p.cancelled_at},session_id=${v.session_id}
     WHERE company_id=${actor.companyId} AND id=${before.id} AND revision=${before.revision} AND status='PENDING' RETURNING id`);
   if (rows.length !== 1) throw new AttendanceChangeError('ATTENDANCE_CHANGE_REVISION_CONFLICT');
+}
+// خطوة المالك الواحدة تُسجَّل كطلب PENDING ثم انتقال APPROVED، حتى يبقى السجل نفس شكل الطلب العادي.
+function pendingSnapshot(p: AttendanceChangePlan): AttendanceChangePlan {
+  if (p.status === 'PENDING') return p;
+  return {
+    ...p,
+    status: 'PENDING',
+    revision: 0,
+    decided_by: null,
+    decided_at: null,
+    decision_reason: null,
+  };
 }
 function snapshot(p: AttendanceChangePlan) {
   return {

@@ -96,20 +96,44 @@ BW-04, BW-05.
 
 ### Tests (first, failing)
 
-- [ ] T030 [P] [US3] Unit tests in `apps/api/src/modules/staff/domain/__tests__/clock-attendance.spec.ts`: shift 09:00–17:00 break 13:00–14:00, `returning = true`: clock-in 13:45 → 0, 14:00 → 0, 14:10 → 0, 14:11 → 11, 14:12 → 12, and the plan's `schedule.startsAt` = break end; `returning = false` at 13:30 → 270 (spec 027 unchanged); shift without a break, returning at 14:05 → 305 (unchanged); clock-in before the break start while returning (11:20) → measured from 09:00 (unchanged); clock-out transitions keep the open session's lateness; overnight shift with break after midnight.
-- [ ] T031 [P] [US3] Integration BW-07 in `apps/api/src/modules/staff/__tests__/clock-attendance.spec.ts` (QR) and `clock-by-card.spec.ts` (card): in 08:58, out 13:00, in 14:05 → `late_minutes` 0, stored `scheduled_start` = break end; in 14:12 → 12; never clocking out for the break → no exception, no alert; first clock-in at 13:30 → 270.
-- [ ] T032 [P] [US3] Integration BW-08 in `apps/api/src/modules/staff/__tests__/correct-attendance.spec.ts`: correcting the return session's clock-in recomputes lateness from the stored break end.
+- [x] T030 [P] [US3] Unit tests in `apps/api/src/modules/staff/domain/__tests__/clock-attendance.spec.ts`: shift 09:00–17:00 break 13:00–14:00, `returning = true`: clock-in 13:45 → 0, 14:00 → 0, 14:10 → 0, 14:11 → 11, 14:12 → 12, and the plan's `schedule.startsAt` = break end; `returning = false` at 13:30 → 270 (spec 027 unchanged); shift without a break, returning at 14:05 → 305 (unchanged); clock-in before the break start while returning (11:20) → measured from 09:00 (unchanged); clock-out transitions keep the open session's lateness; overnight shift with break after midnight.
+- [x] T031 [P] [US3] Integration BW-07 in `apps/api/src/modules/staff/__tests__/clock-attendance.spec.ts` (QR) and `clock-by-card.spec.ts` (card): in 08:58, out 13:00, in 14:05 → `late_minutes` 0, stored `scheduled_start` = break end; in 14:12 → 12; never clocking out for the break → no exception, no alert; first clock-in at 13:30 → 270.
+- [x] T032 [P] [US3] Integration BW-08 in `apps/api/src/modules/staff/__tests__/correct-attendance.spec.ts`: correcting the return session's clock-in recomputes lateness from the stored break end.
 
 ### Implementation
 
-- [ ] T033 [US3] Domain: in `apps/api/src/modules/staff/domain/clock-attendance.ts` extend the candidate shift input with `breakStartsAt: Date | null`, `breakEndsAt: Date | null`, `returning: boolean`; when the chosen shift has a break, `returning` is true and `at ≥ breakStartsAt`, the comparison start (and returned `schedule.startsAt`) is `breakEndsAt`; otherwise unchanged. Update the Arabic doc comments of `attendanceSchedule` / `planAttendance` / `AttendancePlanInput` in the same commit (owner decision BW-Q5, 2026-10-10).
-- [ ] T034 [US3] Adapter: in `apps/api/src/modules/staff/persistence/attendance-context.adapter.ts` `scheduleCandidates` selects `break_starts_at`, `break_ends_at` and `returning` = `EXISTS (SELECT 1 FROM attendance_sessions a WHERE a.company_id = ss.company_id AND a.employee_id = ss.employee_id AND a.clock_out > ss.starts_at AND a.clock_out <= $at)`; map them for both the QR (`:90-94`) and card (`:217-221`) contexts. Check the plan uses `attendance_sessions_employee_date_idx` (add an `EXPLAIN` assertion if the adapter has a query test).
-- [ ] T035 [US3] Confirm `attendance-writes.ts` stores `plan.schedule.startsAt` as `scheduled_start` (break end for a return); no schema change.
+- [x] T033 [US3] Domain: in `apps/api/src/modules/staff/domain/clock-attendance.ts` extend the candidate shift input with `breakStartsAt: Date | null`, `breakEndsAt: Date | null`, `returning: boolean`; when the chosen shift has a break, `returning` is true and `at ≥ breakStartsAt`, the comparison start (and returned `schedule.startsAt`) is `breakEndsAt`; otherwise unchanged. Update the Arabic doc comments of `attendanceSchedule` / `planAttendance` / `AttendancePlanInput` in the same commit (owner decision BW-Q5, 2026-10-10).
+- [x] T034 [US3] Adapter: in `apps/api/src/modules/staff/persistence/attendance-context.adapter.ts` `scheduleCandidates` selects `break_starts_at`, `break_ends_at` and `returning` = `EXISTS (SELECT 1 FROM attendance_sessions a WHERE a.company_id = ss.company_id AND a.employee_id = ss.employee_id AND a.clock_out > ss.starts_at AND a.clock_out <= $at)`; map them for both the QR (`:90-94`) and card (`:217-221`) contexts. Check the plan uses `attendance_sessions_employee_date_idx` (add an `EXPLAIN` assertion if the adapter has a query test).
+- [x] T035 [US3] Confirm `attendance-writes.ts` stores `plan.schedule.startsAt` as `scheduled_start` (break end for a return); no schema change.
 
 ## Phase 8: Polish (16b-2)
 
-- [ ] T036 Gates as T027 (no contract or migration change expected; OpenAPI unchanged).
-- [ ] T037 Commit, review rounds and PR per the pipeline (`fix(staff): phase 1 PR 16b-2 — return-from-break lateness`).
+- [x] T036 Gates as T027 (no contract or migration change expected; OpenAPI unchanged).
+- [x] T037 Commit, review rounds and PR per the pipeline (`fix(staff): phase 1 PR 16b-2 — return-from-break lateness`).
+
+## Phase 9: User Story 4 — not-returned alert (P2) — PR 16b-2, owner BW-Q5 change 2026-10-10
+
+**Goal**: FR-013…FR-015, BR-007, BR-008 (plan D8). **Independent test**: BW-09, BW-10.
+
+### Tests (first, failing)
+
+- [x] T038 [P] [US4] Unit tests in `apps/worker/src/modules/staff/domain/__tests__/break-not-returned.spec.ts`: alert moment break end + 10 min; 14:09:59 WAIT, 14:10 ALERT; no break-out → NO_BREAK_OUT; returned → RETURNED; now ≥ shift end or alert moment ≥ shift end → STALE; deleted / ended contract → INELIGIBLE; leave anchored at the break end; template parameters with `break_end`.
+- [x] T039 [P] [US4] Integration BW-09 in `apps/worker/src/modules/staff/__tests__/break-not-returned-job.spec.ts`: one notice, event and in-app message per manager; re-run none; two workers → one; 14:09 nothing; back at 14:30 before a 14:35 run → none; never clocked out → none; out at 11:00 → none; shift over → none; approved leave → none; other-branch break-out → none; break-out session from another shift → none; MISSED_OUT is not a break-out; no email or WhatsApp attempt. Races in `break-not-returned-race.spec.ts`: a return clock-in holding the State lock first wins; one waiting behind the notice does not retract it; a schedule save holding the employee lock first is waited for; a failure after the notice insert rolls back notice, audit and outbox and the retry records exactly one.
+- [x] T040 [P] [US4] BW-10 RLS and grants in `apps/worker/src/modules/staff/__tests__/break-not-returned-rls.spec.ts` and `packages/db/src/__tests__/privileges.spec.ts`; EXPLAIN of the due-break page in `break-not-returned-explain.spec.ts`.
+
+### Implementation
+
+- [x] T041 [US4] Migration: `attendance_break_not_returned_notices` + FORCE RLS + `pospay_app` SELECT/INSERT (next free number after 0110; renumbered at merge if lane 2 lands first).
+- [x] T042 [US4] Worker domain `break-not-returned.ts`, port, persistence, use case `detect-break-not-returned`; the processor runs both detectors (plan D8).
+- [x] T043 [US4] Event `ShiftBreakNotReturned` (`events/published.ts`, `index.ts`, `NOTIFICATION_SOURCE_EVENTS` additive, `docs/module-map.md` + `.yaml`); template `break_not_returned` rev 1 in contracts, `packages/notifications`, i18n ar/en, admin bell; OpenAPI and generated clients.
+- [x] T044 [US4] ADR-0037 addendum (the break alert rides the same sweep); `IMPLEMENTATION-PLAN.md` new row for default working hours and break on the employee profile (Abu Salem, BW-Q4 comment).
+
+## Phase 10: Polish (16b-2 rework)
+
+- [x] T045 Gates as T027 plus `pnpm --filter @pospay/worker test`; DB review (touches `packages/db`); review layer 1.
+- [x] T047 [US4] BW-Q10/BW-Q11 (Waleed, 2026-10-10): keep the same-branch return; widen the break-out window to `[break start − 10 min, break end)` in the candidate `EXISTS` and the locked probe (`BREAK_OUT_LEAD_MS`, `breakOutWindowStart`). Tests: 12:50 alerts, 12:49 does not; QR out 12:55, back 14:05 → 0 late (`clock-break-return.spec.ts`, no lateness change needed).
+- [x] T048 [US4] L2 fixes: remove the stray `persistence/=` file; overnight-break job test (20:00–04:00, break 00:30–01:00, sweep 01:10); two shifts in one day with their own notices and events; journal trailing newline.
+- [x] T046 Push without force, PR #147 title "16b-2 — return-from-break lateness + not-returned alert", `@codex review`.
 
 ## Dependencies
 

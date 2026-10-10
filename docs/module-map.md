@@ -182,7 +182,8 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `LowRatingReceived`                                                         | `customers`     | `notifications`                                                                                   |
 | `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (no recipients until alert rules ship)                                            |
 | `ShiftNotClockedIn` | `staff` (worker not-clocked-in job, ADR-0037) | `notifications` (in-app managers by the interim rule; PR 62 replaces the rule) |
-| `AttendanceChangeRequested` / `AttendanceChangeDecided` | `staff` | `notifications` (in-app owners / requester, ADR-0040) |
+| `ShiftBreakNotReturned` | `staff` (worker not-clocked-in job, break detector, spec 041 BW-Q5) | `notifications` (in-app managers by the same interim rule; PR 62 replaces the rule) |
+| `AttendanceChangeRequested` / `AttendanceChangeDecided` | `staff` | `notifications` (in-app holders of decide:attendance-change:company / the requester, ADR-0040) |
 | `DocumentExpiring`                                                          | `staff`         | `notifications`                                                                                   |
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |
 | `StatementAwaitingApproval`                                                 | `commissions`   | `notifications`                                                                                   |

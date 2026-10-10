@@ -1,4 +1,5 @@
 import { attendanceChangeAr } from './attendance-change.js';
+import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
 import { attendanceAr } from './attendance-ar.js';
 import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
@@ -142,22 +143,7 @@ export const ar: Catalog = {
     expired: 'منتهي',
   },
   staffLogin: staffLoginAr,
-  inApp: {
-    ...attendanceChangeAr.inApp,
-    title: 'الإشعارات',
-    unread: 'غير مقروء',
-    read: 'مقروء',
-    markRead: 'تحديد كمقروء',
-    markAllRead: 'تحديد الكل كمقروء',
-    empty: 'لا توجد إشعارات بعد.',
-    loading: 'جارٍ تحميل الإشعارات…',
-    error: 'تعذّر تحديث الإشعارات. حاول مرة أخرى.',
-    generic_notice: 'تحديث بخصوص {{subject}}',
-    generic_employee: 'موظف',
-    generic_branch: 'فرع',
-    shift_not_clocked_in:
-      'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
-  },
+  inApp: inAppAr,
   errors: {
     ATTENDANCE_MANUAL_INVALID_TIMES: 'أوقات اليوم اليدوي مش صحيحة: الخروج لازم بعد الدخول، مش في المستقبل، ١٦ ساعة بالكتير، ومن غير تداخل مع حضور تاني',
     ATTENDANCE_MANUAL_NOT_ELIGIBLE: 'الموظفة مش مرتبطة بالفرع ده في اليوم ده أو اليوم برّه عقدها',
