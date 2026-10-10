@@ -154,13 +154,17 @@ it('EXPLAIN ANALYZE verifies indexes for actual grid, employee-week and template
         sql`EXPLAIN (ANALYZE, FORMAT JSON) ${employeeScheduleStatement(f.company, f.business, f.branch, f.employee.id, testWeek)}`,
       ),
       tx.execute(
-        sql`EXPLAIN (ANALYZE, FORMAT JSON) ${shiftTemplatesStatement(f.company, f.business, { limit: 20 })}`,
+        sql`EXPLAIN (ANALYZE, FORMAT JSON) ${shiftTemplatesStatement(f.company, f.business, { limit: 20 }, [f.branch, f.secondBranch])}`,
       ),
       tx.execute(
-        sql`EXPLAIN (ANALYZE, FORMAT JSON) ${scheduleSettingsStatement(f.company, f.business)}`,
+        sql`EXPLAIN (ANALYZE, FORMAT JSON) ${scheduleSettingsStatement(f.company, f.business, [f.branch, f.secondBranch])}`,
       ),
     ]);
   });
+  for (const plan of [plans[0], plans[2], plans[3]])
+    expect(JSON.stringify(plan)).toMatch(
+      /staff_branch_schedule_settings_(pkey|company_business_idx)/,
+    );
   expect(JSON.stringify(plans[0])).toMatch(/employees_company_business_id_(idx|key)/);
   expect(JSON.stringify(plans[0])).toMatch(/staff_schedules_(branch_week_idx|week_key)/);
   expect(JSON.stringify(plans[1])).toMatch(/staff_schedules_(branch_week_idx|week_key)/);
@@ -198,6 +202,7 @@ it('projects the default and saved setting, including empty grid and template pa
     max_shifts_per_day: 3,
     is_default: true,
     updated_at: null,
+    branches: [],
   });
   await f.h
     .owner`INSERT INTO staff_schedule_settings(company_id,business_id,max_shifts_per_day,updated_by,updated_at) VALUES(${f.company},${f.business},4,${f.userId},'2026-10-10T00:00:00Z'),(${f.company},${f.secondBusiness},4,${f.userId},'2026-10-10T00:00:00Z')`;
@@ -207,6 +212,7 @@ it('projects the default and saved setting, including empty grid and template pa
     max_shifts_per_day: 4,
     is_default: false,
     updated_at: '2026-10-10T00:00:00.000Z',
+    branches: [],
   });
   expect(saved.grid).toMatchObject({ max_shifts_per_day: 4, items: [] });
   expect(saved.templates.max_shifts_per_day).toBe(4);
@@ -214,4 +220,45 @@ it('projects the default and saved setting, including empty grid and template pa
     tx.execute(shiftTemplatesStatement(f.company, f.secondBusiness, { limit: 20 })),
   );
   expect(empty[0]).toMatchObject({ max_shifts_per_day: 4, items: [] });
+});
+
+it('projects branch sources and active template maximum, falling back with no active branches', async () => {
+  await f.h
+    .owner`INSERT INTO staff_branch_schedule_settings(company_id,business_id,branch_id,max_shifts_per_day,updated_by,updated_at)
+    VALUES(${f.company},${f.business},${f.branch},1,${f.userId},now()),(${f.company},${f.business},${f.secondBranch},2,${f.userId},now())`;
+  const read = () =>
+    f.db.withTenant(f.company, async (tx) => ({
+      templates: templatePage.parse(
+        await listShiftTemplates(tx, f.company, f.userId, f.business, { limit: 20 }, f.access),
+      ),
+      grid: scheduleGrid.parse(
+        await branchScheduleWeek(
+          tx,
+          f.company,
+          f.userId,
+          f.business,
+          f.branch,
+          { week_start: testWeek, limit: 20 },
+          f.access,
+        ),
+      ),
+    }));
+  expect(await read()).toMatchObject({
+    templates: { max_shifts_per_day: 2 },
+    grid: { max_shifts_per_day: 1 },
+  });
+  await f.h.owner`UPDATE branches SET is_active=false WHERE id=${f.secondBranch}`;
+  expect((await read()).templates.max_shifts_per_day).toBe(1);
+  await f.h.owner`UPDATE branches SET is_active=false WHERE id=${f.branch}`;
+  const maximum = () =>
+    f.db.withTenant(
+      f.company,
+      async (tx) =>
+        templatePage.parse(
+          await listShiftTemplates(tx, f.company, f.userId, f.business, { limit: 20 }, f.access),
+        ).max_shifts_per_day,
+    );
+  expect(await maximum()).toBe(4);
+  await f.h.owner`DELETE FROM staff_schedule_settings WHERE business_id=${f.business}`;
+  expect(await maximum()).toBe(3);
 });

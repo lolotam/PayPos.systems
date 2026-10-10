@@ -38,7 +38,7 @@ export class SetScheduleUseCase {
       const current = await scope.employeeWeek(businessId, branchId, employeeId, input.week_start);
       validateScheduleEmployeeWeek(current.employee, branchId, input.week_start);
       const revision = nextScheduleRevision(current.before?.revision ?? 0, input.expected_revision);
-      const limit = await scope.maxShiftsPerDay(businessId);
+      const limit = await scope.maxShiftsPerDay(businessId, branchId);
       const shifts = materializeSchedule(
         input.week_start,
         input.shifts,
@@ -52,6 +52,7 @@ export class SetScheduleUseCase {
         current.others,
         limit,
         changedScheduleDays(current.before?.shifts ?? [], shifts),
+        branchId,
       );
       requirePastScheduleReason(
         current.before?.shifts ?? [],

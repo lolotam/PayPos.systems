@@ -14,7 +14,7 @@ export class UpdateShiftTemplateUseCase {
       const before = await scope.template(command.businessId, command.templateId);
       requireActiveTemplate(before);
       const revision = nextScheduleRevision(before.revision, command.input.expected_revision);
-      const limit = await scope.maxShiftsPerDay(command.businessId);
+      const limit = await scope.templateMaxShiftsPerDay(command.businessId);
       const shifts = validateSchedulePattern(
         command.input.shifts,
         limit,

@@ -7,8 +7,46 @@ export interface ScheduleSettingsRecord {
   is_default: boolean;
   updated_at: string | null;
 }
+/** القيمة الخاصة منفصلة عن الموروثة حتى لا يعتبر حفظ القيمة الموروثة تكراراً. */
+export interface BranchScheduleSettingsRecord {
+  business_id: string;
+  branch_id: string;
+  max_shifts_per_day: number | null;
+  business_value: number | null;
+  updated_at: string | null;
+}
 /** عمليات إعداد الورديات ضمن نفس معاملة الشركة والتدقيق. */
 export interface ScheduleSettingsScope {
+  /**
+   * يثبت أن الفرع نشط ويتبع النشاط بعد تثبيت إذن إعداداته.
+   *
+   * @param businessId النشاط المتحقق منه
+   * @param branchId الفرع المطلوب
+   */
+  branch(businessId: string, branchId: string): Promise<void>;
+  /**
+   * يقفل إعداد الفرع ويعيد قيمة النشاط للمقارنة والاستجابة الموروثة.
+   *
+   * @param businessId النشاط المتحقق منه
+   * @param branchId الفرع المطلوب
+   */
+  branchSettings(businessId: string, branchId: string): Promise<BranchScheduleSettingsRecord>;
+  /**
+   * يحفظ القيمة الخاصة وتدقيقها في نفس المعاملة دون لمس الجداول.
+   *
+   * @param before القيمة السابقة للتدقيق
+   * @param after القيمة الجديدة
+   */
+  saveBranch(
+    before: BranchScheduleSettingsRecord,
+    after: BranchScheduleSettingsRecord,
+  ): Promise<void>;
+  /**
+   * يحذف القيمة الخاصة ويدقق الرجوع إلى النشاط في نفس المعاملة.
+   *
+   * @param before القيمة السابقة للتدقيق
+   */
+  clearBranch(before: BranchScheduleSettingsRecord): Promise<void>;
   /**
    * يثبت صلاحية إعداد النشاط والميزة بعد قفل الشركة والعضويات.
    *
