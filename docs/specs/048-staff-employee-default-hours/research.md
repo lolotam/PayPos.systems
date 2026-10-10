@@ -102,3 +102,12 @@ Already binding and not asked again: the break **counts** as working hours (BW-Q
   only: a pre-filled break is a normal 16b break, so 16b-2's return-from-break lateness applies to it unchanged.
 - **26a–26c:** no shared file; migration numbering only.
 - **Row 27 (not started):** consumes this only if DH-Q4 says so.
+
+## R7. After the owner's answers (2026-10-10)
+
+- DH-Q2 (per weekday) and DH-Q7 (per branch): `branch_id` joins the PK; the R2 table shape otherwise holds.
+- DH-Q3 (warn): the comparison is a pure function in `packages/domain` (`dayDiffersFromDefault`), so the admin imports
+  it instead of re-implementing it in React (`CLAUDE.md` §7; precedent `employee-name-key.ts`, `iban.ts`).
+- DH-Q4 (contracted hours): 16d stores the data and exposes `contractedMinutes()` plus a `queries/` reader; row 27
+  builds the column. Leave and holiday treatment is left to row 27's spec.
+- DH-Q6 (notice): computed from the GET (`shifts: []` on a currently linked branch); no schema impact.

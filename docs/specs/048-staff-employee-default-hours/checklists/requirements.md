@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — seven business rules are open as `TODO(spec) → DH-Q1 … DH-Q7`
+- [x] No [NEEDS CLARIFICATION] markers remain — DH-Q1 … DH-Q7 answered 2026-10-10
 - [x] Requirements are testable and unambiguous (apart from the open rules, each with its listed options)
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -27,10 +27,10 @@
 
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
-- [ ] Feature meets measurable outcomes defined in Success Criteria — after DH-Q1 … DH-Q7
+- [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
 ## Notes
 
-- Not ready for `/speckit-plan` until the owner answers DH-Q1 … DH-Q7 (`owner-questions.ar.md`).
+- Owner answered DH-Q1 … DH-Q7 on 2026-10-10 (provisional until the partner answers; his pick wins on a difference).
 - BW-Q2/Q3/Q4/Q6 (spec 041) and S020-SHIFTS stay binding and are not re-asked.
