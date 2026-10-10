@@ -23,6 +23,9 @@ export function createVoidSessionKind(ids: IdGenerator): AttendanceChangeKind {
   return {
     code: 'VOID_SESSION',
     target: voidSessionTarget,
+    lock: async (scope) => {
+      await lockVoidSession(scope);
+    },
     check: async (scope) => {
       const session = await lockVoidSession(scope);
       await assertNoPendingSessionChange(scope);

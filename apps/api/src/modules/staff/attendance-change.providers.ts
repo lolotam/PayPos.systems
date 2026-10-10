@@ -19,7 +19,8 @@ export function attendanceChangeProviders(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
 ): Provider[] {
-  const tx = database === undefined ? null : createAttendanceChangeTransactions(database, ids);
+  const transactions = (kinds: AttendanceChangeKinds) =>
+    database === undefined ? null : createAttendanceChangeTransactions(database, ids, kinds);
   return [
     {
       provide: ATTENDANCE_CHANGE_KINDS,
@@ -34,19 +35,27 @@ export function attendanceChangeProviders(
     },
     {
       provide: CancelAttendanceChangeUseCase,
-      useValue: tx === null ? null : new CancelAttendanceChangeUseCase(tx, systemClock),
+      inject: [ATTENDANCE_CHANGE_KINDS],
+      useFactory: (kinds: AttendanceChangeKinds) => {
+        const tx = transactions(kinds);
+        return tx === null ? null : new CancelAttendanceChangeUseCase(tx, systemClock);
+      },
     },
     {
       provide: RequestAttendanceChangeUseCase,
       inject: [ATTENDANCE_CHANGE_KINDS],
-      useFactory: (kinds: AttendanceChangeKinds) =>
-        tx === null ? null : new RequestAttendanceChangeUseCase(tx, systemClock, kinds),
+      useFactory: (kinds: AttendanceChangeKinds) => {
+        const tx = transactions(kinds);
+        return tx === null ? null : new RequestAttendanceChangeUseCase(tx, systemClock, kinds);
+      },
     },
     {
       provide: DecideAttendanceChangeUseCase,
       inject: [ATTENDANCE_CHANGE_KINDS],
-      useFactory: (kinds: AttendanceChangeKinds) =>
-        tx === null ? null : new DecideAttendanceChangeUseCase(tx, systemClock, kinds),
+      useFactory: (kinds: AttendanceChangeKinds) => {
+        const tx = transactions(kinds);
+        return tx === null ? null : new DecideAttendanceChangeUseCase(tx, systemClock, kinds);
+      },
     },
   ];
 }

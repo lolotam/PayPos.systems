@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import { sql } from 'drizzle-orm';
 import { DecideAttendanceChangeUseCase } from '../use-cases/decide-attendance-change/decide-attendance-change.usecase.ts';
 import { CorrectAttendanceUseCase } from '../use-cases/correct-attendance/correct-attendance.usecase.ts';
 import { createAttendanceCorrectionTransactions } from '../persistence/drizzle-attendance-correction-transactions.ts';
@@ -38,16 +39,55 @@ function gate() {
     },
   };
 }
-async function waitForStateLock() {
+async function waitForLock(table: 'attendance_states' | 'attendance_sessions') {
   await vi.waitFor(
     async () => {
       const rows = await f.h
-        .owner`SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%attendance_states%' AND pid<>pg_backend_pid()`;
+        .owner`SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE ${`%${table}%`} AND pid<>pg_backend_pid()`;
       expect(rows.length).toBeGreaterThan(0);
     },
     { timeout: 5000 },
   );
 }
+it('samples void and decision timestamps after waiting for the session row lock', async () => {
+  const input = await voidInput(f);
+  const row = await f.fileChange.execute(changeActor(f), input);
+  const lock = gate();
+  let now = f.clock.now();
+  const afterWait = new Date(now.getTime() + 60_000);
+  const approve = new DecideAttendanceChangeUseCase(f.tx, { now: () => now }, f.kinds);
+  const holder = f.db.withTenant(f.company, async (tx) => {
+    await tx.execute(sql`SELECT id FROM attendance_sessions
+      WHERE company_id=${f.company} AND business_id=${f.business}
+        AND id=${input.session_id} AND employee_id=${input.employee_id} FOR UPDATE`);
+    await lock.pause();
+  });
+  await lock.ready;
+  const approval = approve.execute(changeActor(f, row.id, f.owner), {
+    decision: 'APPROVED',
+    revision: 0,
+  });
+  const outcomes = Promise.allSettled([holder, approval]);
+  try {
+    await waitForLock('attendance_sessions');
+    now = afterWait;
+  } finally {
+    lock.release();
+    await outcomes;
+  }
+  await holder;
+  expect(await approval).toMatchObject({
+    decided_at: afterWait.toISOString(),
+    effect: { session: { voided_at: afterWait.toISOString() } },
+  });
+  const session = await voidRow(f, input.session_id);
+  const [request] = await f.h.owner`SELECT to_jsonb(r) AS record
+    FROM attendance_change_requests r WHERE company_id=${f.company} AND id=${row.id}`;
+  expect(new Date(session.voided_at as string).toISOString()).toBe(afterWait.toISOString());
+  expect(new Date(request?.record.decided_at as string).toISOString()).toBe(
+    afterWait.toISOString(),
+  );
+});
 it.each(['void', 'correction'] as const)(
   'AVS-10 serializes %s first against the other writer',
   async (winner) => {
@@ -85,7 +125,7 @@ it.each(['void', 'correction'] as const)(
     await lock.ready;
     const outcomes = Promise.allSettled([first, winner === 'void' ? correction() : decide()]);
     try {
-      await waitForStateLock();
+      await waitForLock('attendance_states');
     } finally {
       lock.release();
     }
@@ -149,7 +189,7 @@ it.each(['original approval', 'owner one-step void'] as const)(
           });
     const outcomes = Promise.allSettled([first, second]);
     try {
-      await waitForStateLock();
+      await waitForLock('attendance_states');
     } finally {
       lock.release();
     }

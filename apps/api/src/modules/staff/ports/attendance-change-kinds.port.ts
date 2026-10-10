@@ -66,6 +66,12 @@ export interface AttendanceChangeKind {
     scope: Omit<AttendanceChangeKindScope, 'target' | 'request' | 'requestId'>,
   ): Promise<AttendanceChangeTarget | null>;
   /**
+   * يقفل صفوف النوع بترتيب ADR-0028 قبل أخذ عينة الساعة المعتمدة للقرار.
+   *
+   * @param scope سياق الأقفال؛ عينة الوقت الأولية لا تُستخدم للقرار
+   */
+  lock?(scope: Omit<AttendanceChangeKindScope, 'request'>): Promise<void>;
+  /**
    * يعيد القيم المثبتة بعد مراجعة قواعد النوع تحت الأقفال عند الطلب والموافقة.
    *
    * @param scope الحقائق المقفولة

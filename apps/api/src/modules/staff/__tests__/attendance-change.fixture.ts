@@ -51,7 +51,6 @@ export async function attendanceChangeFixture(production = false) {
   const f = await attendanceCorrectionFixture();
   override.current = null;
   const owner = await ownerUserId(f);
-  const tx = createAttendanceChangeTransactions(f.db, leaveIds);
   const provider = attendanceChangeProviders(f.db, leaveIds).find(
     (entry) =>
       typeof entry === 'object' && 'provide' in entry && entry.provide === ATTENDANCE_CHANGE_KINDS,
@@ -60,6 +59,7 @@ export async function attendanceChangeFixture(production = false) {
     production && provider && typeof provider === 'object' && 'useValue' in provider
       ? (provider.useValue as AttendanceChangeKinds)
       : kinds;
+  const tx = createAttendanceChangeTransactions(f.db, leaveIds, activeKinds);
   return {
     ...f,
     owner,

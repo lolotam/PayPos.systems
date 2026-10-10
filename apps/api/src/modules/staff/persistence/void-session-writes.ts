@@ -29,7 +29,9 @@ export const voidSessionTarget: AttendanceChangeKind['target'] = async (scope) =
   return row ?? null;
 };
 
-export async function lockVoidSession(scope: AttendanceChangeKindScope): Promise<VoidSession> {
+export async function lockVoidSession(
+  scope: Omit<AttendanceChangeKindScope, 'request'>,
+): Promise<VoidSession> {
   const [row] = await (scope.transaction as Tx).execute<VoidSession & Record<string, unknown>>(sql`
     SELECT id,employee_id,branch_id,working_date::text AS working_date,timezone,status,revision,
       to_char(clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS clock_in,
