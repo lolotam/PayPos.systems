@@ -6,6 +6,9 @@
 **Sources**: Phase 1 SPEC §7; implementation plan PR 21; ADR-0013 §8;
 spec 024; ADR-0027; ADR-0025; explicit implementation instructions.
 
+> **Amended 2026-10-10 by spec 043 / ADR-0039 (row 21b):** the advisory ten-minute shared-installation pair rule
+> (UNB-Q2) is retired. A passkey phone is now locked to one person; unbinding the passkey also frees the phone.
+
 ## User Scenarios & Testing
 
 ### User Story 1 — Replace a lost authenticator (Priority: P1)

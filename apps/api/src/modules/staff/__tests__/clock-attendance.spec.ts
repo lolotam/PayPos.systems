@@ -135,6 +135,7 @@ it('a failed transaction rolls back attendance, audit, event and idempotency; re
     { verify: async () => true },
     f.clock,
     f.ids,
+    f.refusals,
   );
   await expect(fail.execute(f.scope, command.input, command.idem)).rejects.toThrow(
     'SYNTHETIC_ROLLBACK',
@@ -160,6 +161,7 @@ it('uses one sampled clock instant, including membership and QR verification', a
     { verify: qr },
     { now },
     f.ids,
+    f.refusals,
   );
   await useCase.execute(f.scope, command.input, command.idem);
   expect(now).toHaveBeenCalledTimes(1);

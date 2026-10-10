@@ -28,7 +28,15 @@ export class AttendanceError extends Error {
    *
    * @param code سبب الرفض الآمن
    */
-  constructor(readonly code: 'NOT_FOUND' | 'PASSKEY_INVALID' | 'BAD_REQUEST' | 'FORBIDDEN') {
+  constructor(
+    readonly code:
+      | 'NOT_FOUND'
+      | 'PASSKEY_INVALID'
+      | 'BAD_REQUEST'
+      | 'FORBIDDEN'
+      | 'ATTENDANCE_DEVICE_LOCKED'
+      | 'ATTENDANCE_DEVICE_NOT_ENROLLED',
+  ) {
     super(code);
   }
 }

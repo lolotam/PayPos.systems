@@ -27,6 +27,7 @@ export * from './staff-attendance.ts';
 export * from './staff-attendance-notices.ts';
 export * from './staff-cards.ts';
 export * from './staff-device-signals.ts';
+export * from './staff-device-refusals.ts';
 export * from './staff-documents.ts';
 export * from './staff-import.ts';
 export * from './staff-ibans.ts';

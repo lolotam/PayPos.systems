@@ -2,7 +2,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { attendanceInstallationSignal } from '@pospay/contracts';
 import { announceOperatorChange } from '@/staff-login/model/operator-change';
 import { announcePersonalChange } from './session-change';
-import { attendanceInstallationId, INSTALLATION_KEY } from './installation-id';
+import {
+  attendanceInstallationId,
+  INSTALLATION_KEY,
+  INSTALLATION_STORAGE_BLOCKED,
+} from './installation-id';
 
 const v4 = (value: string) =>
   attendanceInstallationSignal.safeParse({ installation_id: value }).success;
@@ -28,11 +32,28 @@ it('replaces a tampered or non-v4 stored value instead of sending arbitrary data
   }
 });
 
-it('blocked storage still yields one stable id for the page without throwing', () => {
+it('blocked storage refuses instead of inventing a page-lifetime id', () => {
   vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
     throw new Error('SYNTHETIC_BLOCKED');
   });
-  const id = attendanceInstallationId();
-  expect(v4(id)).toBe(true);
-  expect(attendanceInstallationId()).toBe(id);
+  expect(() => attendanceInstallationId()).toThrow(INSTALLATION_STORAGE_BLOCKED);
+});
+
+it('storage that reads but cannot write also refuses', () => {
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('SYNTHETIC_QUOTA');
+  });
+  expect(() => attendanceInstallationId()).toThrow(INSTALLATION_STORAGE_BLOCKED);
+});
+
+it('requests persistent storage once and ignores a rejected request', async () => {
+  vi.resetModules();
+  const persist = vi.fn().mockRejectedValue(new Error('SYNTHETIC_DENIED'));
+  vi.stubGlobal('navigator', { storage: { persist } });
+  const installation = await import('./installation-id');
+  installation.attendanceInstallationId();
+  installation.attendanceInstallationId();
+  await Promise.resolve();
+  expect(persist).toHaveBeenCalledTimes(1);
+  vi.unstubAllGlobals();
 });

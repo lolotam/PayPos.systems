@@ -13,8 +13,14 @@ import { salaryEn } from './salary-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
 import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
+import { scheduleShellEn } from './schedule-shell-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
+  phoneLock: {
+    locked: 'Phone locked',
+    since: 'Since',
+    release: 'Unbinding the passkey also frees the phone.',
+  },
   employeeIban: employeeIbanEn,
   employeeDocuments: employeeDocumentsEn,
   passkeyAdmin: enPasskeyAdmin,
@@ -30,16 +36,7 @@ export const en = {
   personalAttendance: attendanceEn,
   personalStaff: personalStaffEn,
   shell: {
-    schedule_break: 'Break',
-    schedule_break_start: 'Break start',
-    schedule_break_end: 'Break end',
-    schedule_break_add: 'Add break',
-    schedule_break_remove: 'Remove break',
-    schedule_settings_title: 'Schedule settings',
-    schedule_settings_limit: 'Maximum shifts starting per day',
-    schedule_settings_default: 'Default: 3 shifts per day',
-    schedule_settings_save: 'Save schedule settings',
-    schedule_dayLimitDetail: 'Limit {limit} shifts per day: {dates}',
+    ...scheduleShellEn,
     schedule_title: 'Weekly schedules',
     schedule_lead: 'Saturday to Friday in the selected branch timezone.',
     schedule_week: 'Week starts (Saturday)',
@@ -158,6 +155,14 @@ export const en = {
       '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
   },
   errors: {
+    ATTENDANCE_DEVICE_LOCKED:
+      'This phone is registered to another employee. Clock in from your own phone or with the card at reception.',
+    ATTENDANCE_DEVICE_NOT_ENROLLED:
+      'Your passkey is registered on another phone. Clock in from that phone or with the card at reception. If you changed phones, ask your manager to unbind it.',
+    PASSKEY_DEVICE_TAKEN:
+      'This phone is registered to another employee, so your passkey cannot be enrolled on it. Enrol from your own phone; until then, use the card at reception.',
+    PASSKEY_OTHER_DEVICE:
+      'You already have a passkey on another phone. Enrol from that phone, or ask your manager to unbind it if you changed phones.',
     ...employeeIbanErrorsEn,
     DOCUMENT_TYPE_UNAVAILABLE: 'This document type does not exist or is inactive.',
     DOCUMENT_EXPIRY_REQUIRED: 'This document type needs an expiry date.',

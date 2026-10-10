@@ -13,4 +13,7 @@ export const ATTENDANCE_TABLE_GRANTS = [
   'attendance_clock_challenges:INSERT',
   'attendance_corrections:SELECT',
   'attendance_corrections:INSERT',
+  // بند 21b: محاولات الرفض لا تُعدل ولا تُحذف.
+  'attendance_device_refusals:SELECT',
+  'attendance_device_refusals:INSERT',
 ].sort();

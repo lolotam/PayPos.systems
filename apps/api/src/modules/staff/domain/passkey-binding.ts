@@ -4,7 +4,14 @@ export class PasskeyBindingError extends Error {
    *
    * @param code سبب الرفض
    */
-  constructor(readonly code: 'PASSKEY_ALREADY_BOUND' | 'PASSKEY_INVALID' | 'FORBIDDEN') {
+  constructor(
+    readonly code:
+      | 'PASSKEY_ALREADY_BOUND'
+      | 'PASSKEY_INVALID'
+      | 'FORBIDDEN'
+      | 'PASSKEY_DEVICE_TAKEN'
+      | 'PASSKEY_OTHER_DEVICE',
+  ) {
     super(code);
   }
 }

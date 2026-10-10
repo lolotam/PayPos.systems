@@ -6,6 +6,7 @@ import { createUnbindPasskeyTransactions } from '../persistence/unbind-passkey-t
 import { EnrolPasskey } from '../use-cases/enrol-passkey/enrol-passkey.ts';
 import { UnbindPasskeyUseCase } from '../use-cases/unbind-passkey/unbind-passkey.usecase.ts';
 import type { ManagerPasskeyScope } from '../ports/unbind-passkey.port.ts';
+import { createAttendanceDeviceRefusals } from '../persistence/attendance-device-refusals.ts';
 
 export type UnbindFixture = Awaited<ReturnType<typeof personalFixture>> & {
   manager: Awaited<ReturnType<typeof managerFor>>;
@@ -23,6 +24,7 @@ export async function unbindFixture(): Promise<UnbindFixture> {
     createPasskeyTransactions(f.database, f.ids),
     f.ids,
     { now: () => new Date() },
+    createAttendanceDeviceRefusals(f.database, f.ids, () => undefined),
   );
   const clock = { now: () => new Date() };
   const unbind = new UnbindPasskeyUseCase(

@@ -13,20 +13,24 @@ export function useEnrolPasskey(employeeId: string) {
   });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   return {
     binding: binding.data,
     loading: binding.isPending,
     error: error || binding.isError,
+    errorCode,
     pending,
     enrol: async () => {
       if (pending) return;
       setPending(true);
       setError(false);
+      setErrorCode(null);
       try {
         await personalCalls.enrol();
         await cache.invalidateQueries({ queryKey: ['personal-binding', employeeId] });
-      } catch {
+      } catch (cause) {
         setError(true);
+        setErrorCode(cause instanceof Error ? cause.message : null);
       } finally {
         setPending(false);
       }

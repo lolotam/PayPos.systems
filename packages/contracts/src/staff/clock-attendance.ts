@@ -18,9 +18,10 @@ export const clockChallengeInput = z
   .strictObject({
     token: attendanceQrToken,
     location: attendanceLocation.optional(),
+    installation_id: attendanceInstallationSignal.shape.installation_id.optional(),
   })
   .meta({ id: 'ClockChallengeInput' });
-// installation_id إلزامي لأن كل نسخة POS منشورة ترسله؛ إشارة مراجعة فقط، خارج التحدي وسياق QR.
+// قفل الهاتف إلزامي عند الحركة؛ المعرف خارج بصمة التحدي ومنع التكرار.
 export const clockAttendanceInput = clockChallengeInput
   .extend({
     ...attendanceInstallationSignal.shape,

@@ -14,9 +14,15 @@ import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, serviceErrorsAr } from './catalog-services.js';
 import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js';
+import { scheduleShellAr } from './schedule-shell-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  phoneLock: {
+    locked: 'التليفون مربوط',
+    since: 'منذ',
+    release: 'فك ربط البصمة بيحرر التليفون كمان.',
+  },
   employeeIban: employeeIbanAr,
   employeeDocuments: employeeDocumentsAr,
   passkeyAdmin: arPasskeyAdmin,
@@ -32,16 +38,7 @@ export const ar: Catalog = {
   personalAttendance: attendanceAr,
   personalStaff: personalStaffAr,
   shell: {
-    schedule_break: 'البريك',
-    schedule_break_start: 'بداية البريك',
-    schedule_break_end: 'نهاية البريك',
-    schedule_break_add: 'إضافة بريك',
-    schedule_break_remove: 'إزالة البريك',
-    schedule_settings_title: 'إعدادات الورديات',
-    schedule_settings_limit: 'أقصى عدد ورديات تبدأ في اليوم',
-    schedule_settings_default: 'الافتراضي: 3 ورديات في اليوم',
-    schedule_settings_save: 'حفظ إعدادات الورديات',
-    schedule_dayLimitDetail: 'الحد {limit} ورديات في اليوم: {dates}',
+    ...scheduleShellAr,
     schedule_title: 'جداول العمل الأسبوعية',
     schedule_lead: 'من السبت إلى الجمعة حسب المنطقة الزمنية للفرع المختار.',
     schedule_week: 'بداية الأسبوع (السبت)',
@@ -160,6 +157,14 @@ export const ar: Catalog = {
       'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
   },
   errors: {
+    ATTENDANCE_DEVICE_LOCKED:
+      'هذا الهاتف مسجّل لموظف آخر. سجّل الحضور من هاتفك أو بالبطاقة عند الاستقبال.',
+    ATTENDANCE_DEVICE_NOT_ENROLLED:
+      'مفتاح المرور الخاص بك مسجّل على هاتف آخر. سجّل الحضور من ذلك الهاتف أو بالبطاقة عند الاستقبال، وإذا غيّرت هاتفك فاطلب من المدير فك الربط.',
+    PASSKEY_DEVICE_TAKEN:
+      'هذا الهاتف مسجّل لموظف آخر، فلا يمكن تسجيل مفتاح مرورك عليه. سجّل من هاتفك، واستخدم البطاقة عند الاستقبال حتى ذلك الحين.',
+    PASSKEY_OTHER_DEVICE:
+      'لديك مفتاح مرور مسجّل على هاتف آخر. سجّل من ذلك الهاتف، أو اطلب من المدير فك الربط إذا غيّرت هاتفك.',
     ...employeeIbanErrorsAr,
     DOCUMENT_TYPE_UNAVAILABLE: 'نوع الوثيقة غير موجود أو موقوف.',
     DOCUMENT_EXPIRY_REQUIRED: 'هذا النوع من الوثائق يحتاج تاريخ انتهاء.',

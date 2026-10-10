@@ -1,3 +1,4 @@
+import { createAttendanceDeviceRefusals } from '../persistence/attendance-device-refusals.ts';
 import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
@@ -219,6 +220,7 @@ it('concurrent enrollment creates one active binding; a losing global credential
     createPasskeyTransactions(f.database, f.ids),
     f.ids,
     { now: () => new Date() },
+    createAttendanceDeviceRefusals(f.database, f.ids, () => undefined),
   );
   const enrollments = await Promise.all(
     [0, 1].map(async () => {
@@ -290,9 +292,15 @@ it('a rolled-back tenant binding leaves a global credential inert without audit 
     },
     f.ids,
   );
-  const registration = new EnrolPasskey(f.auth.passkeys, transactions, f.ids, {
-    now: () => new Date(),
-  });
+  const registration = new EnrolPasskey(
+    f.auth.passkeys,
+    transactions,
+    f.ids,
+    {
+      now: () => new Date(),
+    },
+    createAttendanceDeviceRefusals(f.database, f.ids, () => undefined),
+  );
   const generated = await f.auth.passkeys.enrollmentOptions(requestScope);
   const device = testAuthenticator();
   await expect(

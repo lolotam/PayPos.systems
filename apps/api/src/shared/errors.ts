@@ -4,6 +4,10 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
 const STATUS = {
+  ATTENDANCE_DEVICE_LOCKED: 403,
+  ATTENDANCE_DEVICE_NOT_ENROLLED: 403,
+  PASSKEY_DEVICE_TAKEN: 409,
+  PASSKEY_OTHER_DEVICE: 409,
   IBAN_FORMAT_INVALID: 400,
   IBAN_COUNTRY_NOT_ALLOWED: 400,
   IBAN_CHECKSUM_INVALID: 400,
@@ -142,6 +146,10 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'ATTENDANCE_DEVICE_LOCKED',
+  'ATTENDANCE_DEVICE_NOT_ENROLLED',
+  'PASSKEY_DEVICE_TAKEN',
+  'PASSKEY_OTHER_DEVICE',
   'IBAN_FORMAT_INVALID',
   'IBAN_COUNTRY_NOT_ALLOWED',
   'IBAN_CHECKSUM_INVALID',

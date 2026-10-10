@@ -182,6 +182,7 @@ const TENANT_TABLES = [
   'attendance_clock_challenges',
   'attendance_corrections',
   'attendance_device_signals',
+  'attendance_device_refusals',
   'file_objects',
   'file_access_audit',
   'file_cleanup_objects',

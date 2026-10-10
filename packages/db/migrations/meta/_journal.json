@@ -747,15 +747,36 @@
     {
       "idx": 106,
       "version": "7",
-      "when": 1791621453528,
-      "tag": "0106_2026-10-10_staff-schedule-breaks",
+      "when": 1791588573342,
+      "tag": "0106_2026-10-10_passkey-installation-lock",
       "breakpoints": true
     },
     {
       "idx": 107,
       "version": "7",
-      "when": 1791624318328,
-      "tag": "0107_2026-10-10_staff-schedule-breaks-validate",
+      "when": 1791588574342,
+      "tag": "0107_2026-10-10_passkey-installation-lock-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1791588575342,
+      "tag": "0108_2026-10-10_passkey-installation-lock-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1791588576342,
+      "tag": "0109_2026-10-10_staff-schedule-breaks",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1791588577342,
+      "tag": "0110_2026-10-10_staff-schedule-breaks-validate",
       "breakpoints": true
     }
   ]

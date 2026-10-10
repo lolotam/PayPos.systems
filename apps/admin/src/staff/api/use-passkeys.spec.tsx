@@ -17,7 +17,14 @@ const props = {
 };
 const prefix = ['employee-passkeys', id, id, id, id];
 const page = {
-  status: { bound: true, binding_id: id, revision: 1, bound_at: '2026-10-04T10:00:00Z' },
+  status: {
+    bound: true,
+    binding_id: id,
+    revision: 1,
+    bound_at: '2026-10-04T10:00:00Z',
+    phone_locked: false,
+    phone_locked_since: null,
+  },
   can_unbind: true,
   items: [{ binding_id: id, revision: 1, bound_at: '2026-10-04T10:00:00Z', unbound_at: null }],
   next_cursor: null,
@@ -107,7 +114,14 @@ it('requires a trimmed reason, sends the displayed binding revision and refreshe
   api.GET.mockResolvedValue({
     data: {
       ...page,
-      status: { bound: false, binding_id: null, revision: null, bound_at: null },
+      status: {
+        bound: false,
+        binding_id: null,
+        revision: null,
+        bound_at: null,
+        phone_locked: false,
+        phone_locked_since: null,
+      },
       items: [],
     },
   });

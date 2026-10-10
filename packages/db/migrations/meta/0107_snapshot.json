@@ -1,6 +1,6 @@
 {
-  "id": "9487f412-ed65-42c5-8ba9-5631d3dcdecf",
-  "prevId": "6b028bc5-bc62-408e-9f75-4dc87c623772",
+  "id": "028e7490-5ae4-4617-abc0-a025dd4226da",
+  "prevId": "d407f8ca-8233-4a76-b724-b2f135ade15d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7179,30 +7179,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "break_start": {
-          "name": "break_start",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "break_end": {
-          "name": "break_end",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "break_starts_at": {
-          "name": "break_starts_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "break_ends_at": {
-          "name": "break_ends_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -7333,14 +7309,6 @@
         "staff_schedule_shifts_day": {
           "name": "staff_schedule_shifts_day",
           "value": "\"staff_schedule_shifts\".\"day\" BETWEEN 0 AND 6"
-        },
-        "staff_schedule_shifts_break_pair": {
-          "name": "staff_schedule_shifts_break_pair",
-          "value": "(\"staff_schedule_shifts\".\"break_start\" IS NULL AND \"staff_schedule_shifts\".\"break_end\" IS NULL AND \"staff_schedule_shifts\".\"break_starts_at\" IS NULL AND \"staff_schedule_shifts\".\"break_ends_at\" IS NULL) OR (\"staff_schedule_shifts\".\"break_start\" IS NOT NULL AND \"staff_schedule_shifts\".\"break_end\" IS NOT NULL AND \"staff_schedule_shifts\".\"break_starts_at\" IS NOT NULL AND \"staff_schedule_shifts\".\"break_ends_at\" IS NOT NULL)"
-        },
-        "staff_schedule_shifts_break_inside": {
-          "name": "staff_schedule_shifts_break_inside",
-          "value": "\"staff_schedule_shifts\".\"break_starts_at\" IS NULL OR (\"staff_schedule_shifts\".\"break_starts_at\" > \"staff_schedule_shifts\".\"starts_at\" AND \"staff_schedule_shifts\".\"break_ends_at\" > \"staff_schedule_shifts\".\"break_starts_at\" AND \"staff_schedule_shifts\".\"break_ends_at\" < \"staff_schedule_shifts\".\"ends_at\")"
         }
       },
       "isRLSEnabled": false
@@ -8432,6 +8400,18 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "installation_hash": {
+          "name": "installation_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "installation_locked_at": {
+          "name": "installation_locked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -8671,9 +8651,17 @@
           "name": "employee_passkeys_revision_positive",
           "value": "\"employee_passkeys\".\"revision\" > 0"
         },
+        "employee_passkeys_installation_hash_format": {
+          "name": "employee_passkeys_installation_hash_format",
+          "value": "\"employee_passkeys\".\"installation_hash\" ~ '^[a-f0-9]{64}$'"
+        },
         "employee_passkeys_unbound_pair": {
           "name": "employee_passkeys_unbound_pair",
           "value": "(\"employee_passkeys\".\"unbound_at\" IS NULL) = (\"employee_passkeys\".\"unbound_by\" IS NULL)"
+        },
+        "employee_passkeys_installation_lock_pair": {
+          "name": "employee_passkeys_installation_lock_pair",
+          "value": "(\"employee_passkeys\".\"installation_hash\" IS NULL) = (\"employee_passkeys\".\"installation_locked_at\" IS NULL)"
         }
       },
       "isRLSEnabled": false
@@ -11094,6 +11082,256 @@
         "attendance_device_signals_hash_format": {
           "name": "attendance_device_signals_hash_format",
           "value": "\"attendance_device_signals\".\"installation_hash\" ~ '^[a-f0-9]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.attendance_device_refusals": {
+      "name": "attendance_device_refusals",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "holder_employee_id": {
+          "name": "holder_employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "step": {
+          "name": "step",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "installation_hash": {
+          "name": "installation_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempted_at": {
+          "name": "attempted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "attendance_device_refusals_branch_time_idx": {
+          "name": "attendance_device_refusals_branch_time_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "attempted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "attendance_device_refusals_employee_idx": {
+          "name": "attendance_device_refusals_employee_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "attendance_device_refusals_holder_idx": {
+          "name": "attendance_device_refusals_holder_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "holder_employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "where": "\"attendance_device_refusals\".\"holder_employee_id\" IS NOT NULL",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "attendance_device_refusals_company_id_companies_id_fk": {
+          "name": "attendance_device_refusals_company_id_companies_id_fk",
+          "tableFrom": "attendance_device_refusals",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "tableTo": "companies",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "attendance_device_refusals_employee_fk": {
+          "name": "attendance_device_refusals_employee_fk",
+          "tableFrom": "attendance_device_refusals",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "employee_id"
+          ],
+          "tableTo": "employees",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "attendance_device_refusals_branch_fk": {
+          "name": "attendance_device_refusals_branch_fk",
+          "tableFrom": "attendance_device_refusals",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "branch_id"
+          ],
+          "tableTo": "branches",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "attendance_device_refusals_holder_fk": {
+          "name": "attendance_device_refusals_holder_fk",
+          "tableFrom": "attendance_device_refusals",
+          "columnsFrom": [
+            "company_id",
+            "holder_employee_id"
+          ],
+          "tableTo": "employees",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "attendance_device_refusals_pkey": {
+          "name": "attendance_device_refusals_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "attendance_device_refusals_step": {
+          "name": "attendance_device_refusals_step",
+          "value": "\"attendance_device_refusals\".\"step\" IN ('CHALLENGE','CLOCK','ENROL')"
+        },
+        "attendance_device_refusals_reason": {
+          "name": "attendance_device_refusals_reason",
+          "value": "\"attendance_device_refusals\".\"reason\" IN ('DEVICE_LOCKED','NOT_ENROLLED','DEVICE_TAKEN','OTHER_DEVICE')"
+        },
+        "attendance_device_refusals_holder_reason": {
+          "name": "attendance_device_refusals_holder_reason",
+          "value": "(\"attendance_device_refusals\".\"holder_employee_id\" IS NOT NULL) = (\"attendance_device_refusals\".\"reason\" IN ('DEVICE_LOCKED','DEVICE_TAKEN'))"
+        },
+        "attendance_device_refusals_hash_format": {
+          "name": "attendance_device_refusals_hash_format",
+          "value": "\"attendance_device_refusals\".\"installation_hash\" ~ '^[a-f0-9]{64}$'"
         }
       },
       "isRLSEnabled": false

@@ -45,10 +45,17 @@ export const registrationResponse = z.strictObject({
 });
 export const passkeyVerifyInput = z
   .strictObject({
+    installation_id: z.uuid({ version: 'v4' }).toLowerCase().optional(),
     challenge_id: id,
     response: registrationResponse,
   })
   .meta({ id: 'PasskeyVerifyInput' });
+export const passkeyOptionsInput = z
+  .strictObject({
+    installation_id: z.uuid({ version: 'v4' }).toLowerCase().optional(),
+  })
+  .default({})
+  .meta({ id: 'PasskeyOptionsInput' });
 export const passkeyBindingStatus = z
   .strictObject({
     bound: z.boolean(),
@@ -99,6 +106,7 @@ export const personalSchedule = z
   .meta({ id: 'PersonalSchedule' });
 
 export const passkeySchemas = [
+  passkeyOptionsInput,
   personalOtpRequestInput,
   personalOtpVerifyInput,
   personalSessionContext,
@@ -111,5 +119,6 @@ export type PersonalOtpRequestInput = z.infer<typeof personalOtpRequestInput>;
 export type PersonalOtpVerifyInput = z.infer<typeof personalOtpVerifyInput>;
 export type PersonalSessionContext = z.infer<typeof personalSessionContext>;
 export type PasskeyVerifyInput = z.infer<typeof passkeyVerifyInput>;
+export type PasskeyOptionsInput = z.infer<typeof passkeyOptionsInput>;
 export type PasskeyBindingStatus = z.infer<typeof passkeyBindingStatus>;
 export type PasskeyRegistrationOptions = z.infer<typeof passkeyRegistrationOptions>;
