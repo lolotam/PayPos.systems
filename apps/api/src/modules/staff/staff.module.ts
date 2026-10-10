@@ -1,4 +1,8 @@
-import { attendanceProviders, cardProviders } from './staff-attendance.providers.ts';
+import {
+  attendanceProviders,
+  cardProviders,
+  enrolProviders,
+} from './staff-attendance.providers.ts';
 import { GCC_BANKS } from '@pospay/domain';
 import { EmployeeIbanController } from './http/employee-iban.controller.ts';
 import { SetEmployeeIbanUseCase } from './use-cases/set-employee-iban/set-employee-iban.usecase.ts';
@@ -20,8 +24,6 @@ import { MANAGER_PASSKEY_ACCESS } from './queries/passkey-access.ts';
 import { createManagerPasskeyAccess } from './persistence/manager-passkey-access.adapter.ts';
 import { createUnbindPasskeyTransactions } from './persistence/unbind-passkey-transactions.ts';
 import { UnbindPasskeyUseCase } from './use-cases/unbind-passkey/unbind-passkey.usecase.ts';
-import { EnrolPasskey } from './use-cases/enrol-passkey/enrol-passkey.ts';
-import { createPasskeyTransactions } from './persistence/passkey-transactions.ts';
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Logger } from '@pospay/observability';
@@ -304,22 +306,6 @@ function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
-function enrolProviders(
-  database: TenantWrappers | undefined,
-  ids: IdGenerator,
-  passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null,
-): Provider[] {
-  return [
-    {
-      provide: EnrolPasskey,
-      useValue:
-        database === undefined || passkeys === null
-          ? null
-          : new EnrolPasskey(passkeys, createPasskeyTransactions(database, ids), ids, systemClock),
-    },
-  ];
-}
-
 export function staffProviders(
   database?: TenantWrappers,
   redis?: Redis,
@@ -330,11 +316,11 @@ export function staffProviders(
 ): Provider[] {
   const ids = systemUuidV7();
   return [
-    ...attendanceProviders(database, redis, passkeys, ids),
+    ...attendanceProviders(database, redis, passkeys, ids, logger),
     ...cardProviders(database, ids, employeeCardKey, redis, logger),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
     ...unbindProviders(database, ids),
-    ...enrolProviders(database, ids, passkeys),
+    ...enrolProviders(database, ids, passkeys, logger),
     ...scheduleProviders(database, ids),
     ...leaveProviders(database, ids),
     ...attendanceExceptionProviders(database, ids),

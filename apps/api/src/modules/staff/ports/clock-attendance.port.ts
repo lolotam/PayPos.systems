@@ -1,8 +1,10 @@
 import type { ClockLocation, ClockResult, OpenAttendance } from '../domain/clock-attendance.ts';
 import type { PasskeyScope } from './passkeys.port.ts';
+import type { DeviceLockFacts } from '../domain/passkey-device-lock.ts';
 
 /** المسح مؤقت ولا يحتوي هوية يختارها العميل. */
 export interface AttendanceScan {
+  installation_id?: string | undefined;
   token: { branch_id: string; window: number; sig: string };
   location?: ClockLocation | undefined;
 }
@@ -104,6 +106,8 @@ export interface AttendanceContext {
 }
 /** نتيجة الخطة تحمل فقط الحقائق التي تكتب، لا حسبة مخفية في adapter. */
 export interface AttendanceWrite {
+  /** يرفق الهاتف فقط عند حركة مقبولة بلا تكرار لربط لم يحجز هاتفاً بعد. */
+  attachInstallation: boolean;
   result: ClockResult;
   open: OpenAttendance | null;
   closeAt: Date | null;
@@ -115,6 +119,11 @@ export interface AttendanceWrite {
 }
 /** كل طريقة تستخدم نفس المعاملة والقفل السابق. */
 export interface AttendanceTransaction {
+  /** يقرأ حقائق الهاتف بعد قفل الربط وقفل التثبيت لمنع السباق.
+   *
+   * @param installationId معرف التثبيت المؤقت
+   */
+  deviceLock(installationId: string): Promise<Omit<DeviceLockFacts, 'step'>>;
   readonly context: AttendanceContext;
   /**
    * يسترجع سياقاً صدر لهذا الموظف والجلسة فقط، ويرفض تبديل المسح أو النسخة.

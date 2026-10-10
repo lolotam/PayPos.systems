@@ -17,6 +17,64 @@ import {
 import type { PasskeyScope } from '../ports/passkeys.port.ts';
 import type { AttendanceScan, AttendanceContext } from '../ports/clock-attendance.port.ts';
 import type { CardClockContext, CardClockScope } from '../ports/clock-by-card.port.ts';
+import type { DeviceLockFacts } from '../domain/passkey-device-lock.ts';
+import { installationHash } from './attendance-device-signal.ts';
+
+// الشخص هو bound_by (من سجّل البصمة بنفسه) وليس employees.user_id القابل للتعديل،
+// حتى لا ينقل تعديل ربط الموظف هاتف شخص إلى شخص آخر من غير فك ربط.
+export function installationLockStatement(companyId: string, person: string, hash: string) {
+  return sql`SELECT p.employee_id,p.installation_hash,p.bound_by AS user_id,p.id
+    FROM employee_passkeys p
+    WHERE p.company_id=${companyId} AND p.unbound_at IS NULL
+      AND p.installation_hash=${hash}
+    UNION ALL
+    SELECT p.employee_id,p.installation_hash,p.bound_by AS user_id,p.id
+    FROM employee_passkeys p
+    WHERE p.company_id=${companyId} AND p.bound_by=${person} AND p.unbound_at IS NULL
+    ORDER BY id`;
+}
+// بعد إعادة ربط الموظف قد يمسح شخص آخر بربط سجّله صاحبه؛ القفل والمقارنة على bound_by الثابت.
+// الربط مقفول FOR UPDATE قبل قفل الشخص، فلا تتغير قيمته بين القراءة والقفل.
+async function bindingOwner(tx: Tx, companyId: string, bindingId: string): Promise<string> {
+  const [row] = await tx.execute<{ bound_by: string }>(sql`
+    SELECT bound_by FROM employee_passkeys WHERE company_id=${companyId} AND id=${bindingId} FOR UPDATE`);
+  if (row === undefined) throw new AttendanceError('NOT_FOUND');
+  return row.bound_by;
+}
+export async function attendanceDeviceLock(
+  tx: Tx,
+  scope: PasskeyScope,
+  installationId: string,
+  bindingId: string | null,
+): Promise<Omit<DeviceLockFacts, 'step'>> {
+  const hash = installationHash(scope.companyId, installationId);
+  const person =
+    bindingId === null ? scope.userId : await bindingOwner(tx, scope.companyId, bindingId);
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${'pospay:passkey-person:v1:' + scope.companyId + ':' + person},0))`,
+  );
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${'pospay:attendance-installation:v1:' + scope.companyId + ':' + hash},0))`,
+  );
+  const rows = await tx.execute<{
+    employee_id: string;
+    installation_hash: string | null;
+    user_id: string | null;
+    id: string;
+  }>(installationLockStatement(scope.companyId, person, hash));
+  const holder = rows.find((row) => row.installation_hash === hash && row.user_id !== person);
+  const own = rows.filter((row) => row.user_id === person && row.installation_hash !== null);
+  return {
+    heldByOther: holder === undefined ? null : { holderEmployeeId: holder.employee_id },
+    own: own.some((row) => row.installation_hash !== hash)
+      ? 'OTHER'
+      : own.length === 0
+        ? 'NONE'
+        : 'THIS',
+    bindingUnlocked:
+      bindingId === null || rows.find((row) => row.id === bindingId)?.installation_hash == null,
+  };
+}
 
 export function scanDigest(scan: AttendanceScan): string {
   return createHash('sha256')

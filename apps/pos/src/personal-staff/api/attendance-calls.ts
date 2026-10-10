@@ -10,6 +10,7 @@ const client = () =>
 export const attendanceCalls = {
   clock: async (scan: ClockChallengeInput, signal?: AbortSignal) => {
     const bodyScan = {
+      installation_id: attendanceInstallationId(),
       token: scan.token,
       ...(scan.location === undefined ? {} : { location: scan.location }),
     };
@@ -17,13 +18,13 @@ export const attendanceCalls = {
       body: bodyScan,
       ...(signal === undefined ? {} : { signal }),
     });
-    if (generated.data === undefined) throw new Error('ATTENDANCE_REFUSED');
+    if (generated.data === undefined)
+      throw new Error(generated.error?.code ?? 'ATTENDANCE_REFUSED');
     if (signal?.aborted || !navigator.onLine) throw new Error('ATTENDANCE_CANCELLED');
     const raw = await assertStaffAttendance(generated.data.options);
     if (signal?.aborted || !navigator.onLine) throw new Error('ATTENDANCE_CANCELLED');
     const body = {
       ...bodyScan,
-      installation_id: attendanceInstallationId(),
       challenge_id: generated.data.challenge_id,
       response: {
         id: raw.id,
@@ -46,7 +47,7 @@ export const attendanceCalls = {
       ...(signal === undefined ? {} : { signal }),
       params: { header: { 'Idempotency-Key': generated.data.challenge_id } },
     });
-    if (result.data === undefined) throw new Error('ATTENDANCE_REFUSED');
+    if (result.data === undefined) throw new Error(result.error?.code ?? 'ATTENDANCE_REFUSED');
     return result.data;
   },
 };

@@ -27,11 +27,11 @@ it('the clock command requires the random v4 installation id and normalizes its 
     expect(clockAttendanceInput.safeParse({ ...command, installation_id }).success).toBe(false);
 });
 
-it('the challenge does not carry the installation signal', () => {
+it('the challenge optionally carries the installation signal', () => {
   expect(
     clockChallengeInput.safeParse({
       token: command.token,
       installation_id: '12345678-1234-4234-8234-123456789abc',
     }).success,
-  ).toBe(false);
+  ).toBe(true);
 });

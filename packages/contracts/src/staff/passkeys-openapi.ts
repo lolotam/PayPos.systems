@@ -53,7 +53,10 @@ export const passkeyPaths = {
     get: operation('getPersonalPasskeyBinding', '200', 'PasskeyBindingStatus'),
   },
   '/v1/staff/passkey/options': {
-    post: operation('generatePersonalPasskeyOptions', '200', 'PasskeyRegistrationOptions'),
+    post: {
+      ...operation('generatePersonalPasskeyOptions', '200', 'PasskeyRegistrationOptions'),
+      requestBody: { required: false, content: json('PasskeyOptionsInput') },
+    },
   },
   '/v1/staff/passkey/verify': {
     post: operation('enrolPersonalPasskey', '201', 'PasskeyBindingStatus', 'PasskeyVerifyInput'),

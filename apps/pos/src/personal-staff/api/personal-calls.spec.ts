@@ -41,3 +41,27 @@ it('cancelled registration sends no verification and never calls generic auth', 
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect((fetcher.mock.calls[0]?.[0] as Request).url).toContain('/v1/staff/passkey/options');
 });
+
+it('options and verification send the same installation identifier', async () => {
+  fetcher.mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({ challenge_id: 'synthetic', options: { challenge: 'synthetic' } }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+  );
+  vi.mocked(registerStaffPasskey).mockResolvedValue({
+    id: 'synthetic',
+    rawId: 'synthetic',
+    type: 'public-key',
+    clientExtensionResults: {},
+    response: { clientDataJSON: 'synthetic', attestationObject: 'synthetic' },
+  });
+  await personalCalls.enrol();
+  const requests = fetcher.mock.calls.map((call) => call[0] as Request);
+  expect(requests).toHaveLength(2);
+  const options = await requests[0]?.json();
+  const verify = await requests[1]?.json();
+  expect(options.installation_id).toMatch(/^[a-f0-9-]{36}$/);
+  expect(verify.installation_id).toBe(options.installation_id);
+});

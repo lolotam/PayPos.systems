@@ -19,6 +19,7 @@ beforeEach(() => {
     scanning: false,
     pending: false,
     error: false,
+    errorCode: null,
     result: null,
     scanned: async () => undefined,
     failed: () => undefined,
@@ -60,3 +61,25 @@ it('pending blocks duplicate camera starts; cancellation is a translated retryab
   expect(screen.getByRole('alert').textContent).toBe(t('ar', 'personalAttendance.failed'));
   view.unmount();
 });
+
+it.each(['ar', 'en'] as const)(
+  'phone refusals show recovery messages and keep the scan retryable in %s',
+  (locale) => {
+    const state = useClockAttendance();
+    for (const [code, key] of [
+      ['ATTENDANCE_DEVICE_LOCKED', 'errors.ATTENDANCE_DEVICE_LOCKED'],
+      ['ATTENDANCE_DEVICE_NOT_ENROLLED', 'errors.ATTENDANCE_DEVICE_NOT_ENROLLED'],
+      ['INSTALLATION_STORAGE_BLOCKED', 'personalAttendance.storageBlocked'],
+    ] as const) {
+      vi.mocked(useClockAttendance).mockReturnValue({
+        ...state,
+        error: true,
+        errorCode: code,
+      });
+      const view = mount(locale);
+      expect(screen.getByRole('alert').textContent).toBe(t(locale, key));
+      expect(screen.getByRole('button').hasAttribute('disabled')).toBe(false);
+      view.unmount();
+    }
+  },
+);

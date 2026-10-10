@@ -1,3 +1,4 @@
+import { createAttendanceDeviceRefusals } from '../persistence/attendance-device-refusals.ts';
 import { employeeNameMatchKey } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
@@ -28,9 +29,15 @@ const scope = (): PasskeyScope => ({
   employeeId: f.employeeId,
 });
 const enrollment = () =>
-  new EnrolPasskey(f.auth.passkeys, createPasskeyTransactions(f.database, f.ids), f.ids, {
-    now: () => new Date(),
-  });
+  new EnrolPasskey(
+    f.auth.passkeys,
+    createPasskeyTransactions(f.database, f.ids),
+    f.ids,
+    {
+      now: () => new Date(),
+    },
+    createAttendanceDeviceRefusals(f.database, f.ids, () => undefined),
+  );
 
 it('binding rollback permits the same authenticator to retry with a fresh credential; only the new credential is bound', async () => {
   const requestScope = scope();
@@ -122,7 +129,13 @@ function failedBinding() {
     },
     f.ids,
   );
-  return new EnrolPasskey(f.auth.passkeys, transactions, f.ids, { now: () => new Date() });
+  return new EnrolPasskey(
+    f.auth.passkeys,
+    transactions,
+    f.ids,
+    { now: () => new Date() },
+    createAttendanceDeviceRefusals(f.database, f.ids, () => undefined),
+  );
 }
 
 async function otherWorkspace(requestScope: PasskeyScope): Promise<PasskeyScope> {

@@ -59,7 +59,7 @@ it('the personal generated client submits the same scan plus UV with cookies, no
     challenge_id: 'synthetic',
   });
   const challenge = fetcher.mock.calls[0]?.[0] as Request;
-  expect(await challenge.clone().json()).not.toHaveProperty('installation_id');
+  expect(await challenge.clone().json()).toHaveProperty('installation_id', installation);
 });
 it.each(['offline', 'logout'] as const)(
   '%s after the passkey prompt refuses submission and never queues the command',

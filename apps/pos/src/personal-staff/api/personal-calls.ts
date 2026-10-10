@@ -3,6 +3,7 @@ import { registerStaffPasskey } from '@pospay/auth/client';
 import type { PersonalOtpRequestInput, PersonalOtpVerifyInput } from '@pospay/contracts';
 import { apiOrigin } from '@/shared/api/origin';
 import type { paths } from '@/shared/api/schema';
+import { attendanceInstallationId } from '../model/installation-id';
 
 // لا middleware الجهاز هنا، حتى لو كان المتصفح قد استعمل كشكاً في وقت سابق.
 const client = () =>
@@ -28,8 +29,11 @@ export const personalCalls = {
     if (!result.response.ok) throw new Error('PERSONAL_SIGN_OUT_REFUSED');
   },
   enrol: async () => {
-    const generated = await client().POST('/v1/staff/passkey/options');
-    if (generated.data === undefined) throw new Error('PASSKEY_REFUSED');
+    const installation_id = attendanceInstallationId();
+    const generated = await client().POST('/v1/staff/passkey/options', {
+      body: { installation_id },
+    });
+    if (generated.data === undefined) throw new Error(generated.error?.code ?? 'PASSKEY_REFUSED');
     const raw = await registerStaffPasskey(generated.data.options);
     const response = {
       id: raw.id,
@@ -49,9 +53,9 @@ export const personalCalls = {
       },
     };
     const verified = await client().POST('/v1/staff/passkey/verify', {
-      body: { challenge_id: generated.data.challenge_id, response },
+      body: { challenge_id: generated.data.challenge_id, response, installation_id },
     });
-    if (verified.data === undefined) throw new Error('PASSKEY_REFUSED');
+    if (verified.data === undefined) throw new Error(verified.error?.code ?? 'PASSKEY_REFUSED');
     return verified.data;
   },
 };
