@@ -22,7 +22,8 @@ Body `SetScheduleSettingsInput`: `{ "max_shifts_per_day": 1 | 2 | 3 | 4 }` (stri
 
 `200 ScheduleSettings` (after the change; unchanged value returns the current row and writes no audit).
 
-Errors: `VALIDATION_FAILED` 400 (outside 1 … 4, non-integer, extra key) · `FORBIDDEN` 403 · `NOT_FOUND` 404 ·
+Errors: `VALIDATION_FAILED` 400 (outside 1 … 4, non-integer, extra key) · `NOT_FOUND` 404 (unknown business, or the
+actor lacks the permission — same non-disclosure as the other schedule routes) ·
 `FEATURE_DISABLED`.
 
 ## Changed responses

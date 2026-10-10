@@ -48,9 +48,9 @@ it.each(['ar', 'en'] as const)(
     await waitFor(() => expect(state.save).toHaveBeenCalledWith({ max_shifts_per_day: 4 }));
   },
 );
-it('hides the panel on forbidden access', () => {
+it.each(['FORBIDDEN', 'NOT_FOUND'])('hides the panel when access is refused with %s', (code) => {
   state.data = undefined;
-  state.error = { code: 'FORBIDDEN' };
+  state.error = { code };
   const view = render(<ScheduleSettingsPanel scope={scope} />);
   expect(view.container.textContent).toBe('');
 });

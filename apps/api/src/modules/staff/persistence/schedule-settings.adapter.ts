@@ -26,7 +26,7 @@ async function settingsAccess(
     'settings',
     lock,
   );
-  if (decision === 'DENIED') return 'FORBIDDEN' as const;
+  if (decision === 'DENIED') return 'NOT_FOUND' as const;
   if (lock && !(await schedulingContext(tx, companyId, businessId, null)))
     return 'NOT_FOUND' as const;
   return decision;

@@ -97,8 +97,8 @@ it('MS-02/03: default reads, no-op stays default, changes audit once with actor'
   ).toBe(3);
 });
 it('MS-04: manager refused, owner grants personally, non-owner cannot grant onward', async () => {
-  expect((await request('PUT', { max_shifts_per_day: 4 }, f.cookie)).statusCode).toBe(403);
-  expect((await request('GET', undefined, f.cookie)).statusCode).toBe(403);
+  expect((await request('PUT', { max_shifts_per_day: 4 }, f.cookie)).statusCode).toBe(404);
+  expect((await request('GET', undefined, f.cookie)).statusCode).toBe(404);
   const grantPath = `/v1/permissions/memberships/${f.memberId}/overrides`;
   const terms = {
     permission_code: 'manage:schedule-settings:business',

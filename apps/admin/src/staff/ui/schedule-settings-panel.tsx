@@ -22,7 +22,7 @@ export function ScheduleSettingsPanel({ scope }: { scope: ScheduleWorkspace }) {
       typeof query.error === 'object' &&
       query.error !== null &&
       'code' in query.error &&
-      query.error.code === 'FORBIDDEN'
+      (query.error.code === 'FORBIDDEN' || query.error.code === 'NOT_FOUND')
     )
       return null;
     return <p role="alert">{envelopeMessage(query.error, locale)}</p>;
