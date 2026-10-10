@@ -5,17 +5,16 @@ import { PageHeader } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useScheduleWeek, type ScheduleWorkspace } from '../api/use-schedules';
-import { initialScheduleWeek } from '../model/schedule-form';
+import { ScheduleSettingsPanel } from '../ui/schedule-settings-panel';
+import { initialScheduleWeek, ScheduleLimitContext } from '../model/schedule-form';
 import { ScheduleWeekControls } from '../ui/schedule-week-controls';
 import { ScheduleListPanel } from '../ui/schedule-list-panel';
 import { ScheduleEditDialog } from '../ui/schedule-edit-dialog';
-export function SchedulesPage({
-  scope,
-  branch,
-}: {
+interface SchedulesPageProps {
   scope: ScheduleWorkspace;
   branch: WorkspaceBranch;
-}) {
+}
+export function SchedulesPage({ scope, branch }: SchedulesPageProps) {
   const locale = useLocale();
   const [week, setWeek] = useState(() =>
     initialScheduleWeek(branch.effective_timezone, new Date()),
@@ -28,6 +27,10 @@ export function SchedulesPage({
       <PageHeader
         title={t(locale, 'shell.schedule_title')}
         description={t(locale, 'shell.schedule_lead')}
+      />
+      <ScheduleSettingsPanel
+        key={`${scope.companyId}:${scope.businessId}:${scope.userId}`}
+        scope={scope}
       />
       <ScheduleWeekControls
         week={week}
@@ -53,14 +56,16 @@ export function SchedulesPage({
         onEdit={(row, day) => setEdit({ row, day })}
       />
       {edit && list.data ? (
-        <ScheduleEditDialog
-          key={`${edit.row.employee_id}:${week}:${edit.day}`}
-          scope={scope}
-          row={edit.row}
-          day={edit.day}
-          grid={list.data}
-          onClose={() => setEdit(undefined)}
-        />
+        <ScheduleLimitContext value={list.data.max_shifts_per_day}>
+          <ScheduleEditDialog
+            key={`${edit.row.employee_id}:${week}:${edit.day}`}
+            scope={scope}
+            row={edit.row}
+            day={edit.day}
+            grid={list.data}
+            onClose={() => setEdit(undefined)}
+          />
+        </ScheduleLimitContext>
       ) : null}
     </section>
   );

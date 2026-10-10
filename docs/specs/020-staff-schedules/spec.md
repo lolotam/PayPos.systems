@@ -2,6 +2,8 @@
 
 Created: 2026-10-03. Phase 1 PR 16; extends specs 013/017 and ADR-0021.
 
+**042 update (2026-10-10):** The fixed two-shift daily limit below is superseded by the per-business owner setting (1–4, default 3). Lowering preserves stored schedules/templates; only changed start dates or template weekdays must meet the new limit, while template creation/application checks every day. Touching shifts remain allowed and each shift remains capped at 16 hours.
+
 ## Scope and owner decisions
 
 Managers maintain one employee/branch/week schedule and business-owned weekly templates.

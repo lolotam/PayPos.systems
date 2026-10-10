@@ -3,6 +3,10 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Logger } from '@pospay/observability';
 import type { Redis } from 'ioredis';
 import type { AttendancePasskeys } from './ports/clock-attendance.port.ts';
+import type { PasskeyRegistration } from './ports/passkeys.port.ts';
+import type { RegistrationOptionsPort } from './http/passkeys.controller.ts';
+import { EnrolPasskey } from './use-cases/enrol-passkey/enrol-passkey.ts';
+import { createPasskeyTransactions } from './persistence/passkey-transactions.ts';
 import { createRedisRateLimiter } from '../../shared/adapters/redis-rate-limiter.ts';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { createAttendanceTransactions } from './persistence/attendance-transactions.ts';
@@ -179,4 +183,27 @@ function openClock(
       ),
     inject: [operatorSessionsToken()],
   };
+}
+
+export function enrolProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  passkeys: (PasskeyRegistration & RegistrationOptionsPort & AttendancePasskeys) | null,
+  logger: Logger | undefined,
+): Provider[] {
+  return [
+    {
+      provide: EnrolPasskey,
+      useValue:
+        database === undefined || passkeys === null
+          ? null
+          : new EnrolPasskey(
+              passkeys,
+              createPasskeyTransactions(database, ids),
+              ids,
+              systemClock,
+              attendanceRefusals(database, ids, logger),
+            ),
+    },
+  ];
 }

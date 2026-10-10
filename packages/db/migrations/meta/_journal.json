@@ -726,22 +726,43 @@
     {
       "idx": 103,
       "version": "7",
-      "when": 1791589691341,
-      "tag": "0103_2026-10-10_passkey-installation-lock",
+      "when": 1791588545710,
+      "tag": "0103_2026-10-10_staff-schedule-settings",
       "breakpoints": true
     },
     {
       "idx": 104,
       "version": "7",
-      "when": 1791589713643,
-      "tag": "0104_2026-10-10_passkey-installation-lock-validate",
+      "when": 1791588565478,
+      "tag": "0104_2026-10-10_staff-schedule-settings-rls",
       "breakpoints": true
     },
     {
       "idx": 105,
       "version": "7",
-      "when": 1791589714643,
-      "tag": "0105_2026-10-10_passkey-installation-lock-rls",
+      "when": 1791588572342,
+      "tag": "0105_2026-10-10_schedule-settings-permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1791588573342,
+      "tag": "0106_2026-10-10_passkey-installation-lock",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1791588574342,
+      "tag": "0107_2026-10-10_passkey-installation-lock-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1791588575342,
+      "tag": "0108_2026-10-10_passkey-installation-lock-rls",
       "breakpoints": true
     }
   ]

@@ -14,7 +14,8 @@ export class CreateShiftTemplateUseCase {
   execute(command: ScheduleActor & { businessId: string; input: TemplateTerms }) {
     return this.transactions.run(command, async (scope) => {
       await scope.business(command.businessId, 'manage');
-      const shifts = validateSchedulePattern(command.input.shifts);
+      const limit = await scope.maxShiftsPerDay(command.businessId);
+      const shifts = validateSchedulePattern(command.input.shifts, limit);
       const after = {
         ...command.input,
         name_ar: command.input.name_ar ?? null,

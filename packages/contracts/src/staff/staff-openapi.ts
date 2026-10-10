@@ -1,3 +1,4 @@
+import { scheduleSettingsPaths } from './schedule-settings-openapi.js';
 import { schedulesPaths } from './schedules-openapi.js';
 import { z } from 'zod';
 import { employeeNameMatches, employeeNameMatchesInput } from './employee-name-matches.js';
@@ -21,6 +22,7 @@ const parameters = [
 const errors = { description: 'Bilingual refusal', content: json('ErrorEnvelope') };
 export const staffPaths = {
   ...schedulesPaths,
+  ...scheduleSettingsPaths,
   '/v1/businesses/{businessId}/employees/name-matches': {
     post: {
       operationId: 'employeeNameMatches',

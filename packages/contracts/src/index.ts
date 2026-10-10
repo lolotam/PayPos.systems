@@ -304,3 +304,5 @@ export {
 } from './catalog/package-service-option.js';
 export * from './staff/employee-iban.js';
 export * from './staff/employee-name-matches.js';
+
+export * from './staff/schedule-settings.js';

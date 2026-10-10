@@ -49,7 +49,7 @@ it('on Monday changes only Friday without a reason, using the real Postgres befo
     { day: 6, start: '10:00', end: '13:00' },
     { day: 0, start: '09:00', end: '12:00' },
   ];
-  const after = materializeSchedule(original.week_start, afterPattern, original.timezone);
+  const after = materializeSchedule(original.week_start, afterPattern, original.timezone, 3);
   expect(Object.keys(before.shifts[0] ?? {})).not.toEqual(Object.keys(original.shifts[0] ?? {}));
   expect(() =>
     requirePastScheduleReason([...before.shifts].reverse(), after, '2026-10-05'),

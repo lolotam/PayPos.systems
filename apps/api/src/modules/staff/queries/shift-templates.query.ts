@@ -9,10 +9,12 @@ export function shiftTemplatesStatement(
   businessId: string,
   query: { cursor?: string; limit: number },
 ) {
-  return sql`SELECT id,jsonb_build_object('id',id,'business_id',business_id,'name_en',name_en,'name_ar',name_ar,'shifts',shifts,'revision',revision,
+  return sql`WITH rows AS (SELECT id,jsonb_build_object('id',id,'business_id',business_id,'name_en',name_en,'name_ar',name_ar,'shifts',shifts,'revision',revision,
     'archived_at',CASE WHEN archived_at IS NULL THEN NULL ELSE to_char(archived_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END) AS record
     FROM staff_shift_templates WHERE company_id=${companyId} AND business_id=${businessId}
-      AND (${query.cursor ?? null}::uuid IS NULL OR id > ${query.cursor ?? null}::uuid) ORDER BY id LIMIT ${query.limit + 1}`;
+      AND (${query.cursor ?? null}::uuid IS NULL OR id > ${query.cursor ?? null}::uuid) ORDER BY id LIMIT ${query.limit + 1})
+    SELECT COALESCE(jsonb_agg(record ORDER BY id),'[]'::jsonb) AS items,
+      COALESCE((SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}),3) AS max_shifts_per_day FROM rows`;
 }
 export async function listShiftTemplates(
   tx: Tx,
@@ -24,11 +26,14 @@ export async function listShiftTemplates(
 ) {
   const context = await access.read(tx, companyId, userId, businessId, null);
   if (typeof context === 'string') return context;
-  const rows = await tx.execute<{ id: string; record: ShiftTemplate }>(
+  const [page] = await tx.execute<{ items: ShiftTemplate[]; max_shifts_per_day: number }>(
     shiftTemplatesStatement(companyId, businessId, query),
   );
+  if (!page) throw new Error('SCHEDULE_QUERY_FAILED');
+  const rows = page.items;
   return {
-    items: rows.slice(0, query.limit).map((r) => r.record),
+    max_shifts_per_day: page.max_shifts_per_day,
+    items: rows.slice(0, query.limit),
     next_cursor: rows.length > query.limit ? (rows[query.limit - 1]?.id ?? null) : null,
   };
 }
