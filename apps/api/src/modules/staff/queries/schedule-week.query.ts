@@ -55,9 +55,11 @@ export async function branchScheduleWeek(
 ): Promise<ScheduleGrid | ScheduleReadFailure> {
   const context = await access.read(tx, companyId, userId, businessId, branchId, query.week_start);
   if (typeof context === 'string') return context;
-  const [page] = await tx.execute<{ days: string[]; items: ScheduleGrid['items']; max_shifts_per_day: number }>(
-    branchScheduleStatement(companyId, businessId, branchId, query),
-  );
+  const [page] = await tx.execute<{
+    days: string[];
+    items: ScheduleGrid['items'];
+    max_shifts_per_day: number;
+  }>(branchScheduleStatement(companyId, businessId, branchId, query));
   if (!page) throw new Error('SCHEDULE_QUERY_FAILED');
   const rows = page.items;
   return {

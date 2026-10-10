@@ -59,7 +59,9 @@ function transactionScope(
   };
   return {
     maxShiftsPerDay: async (businessId) => {
-      const [row] = await tx.execute<{ max_shifts_per_day: number }>(sql`SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}`);
+      const [row] = await tx.execute<{ max_shifts_per_day: number }>(
+        sql`SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}`,
+      );
       return row?.max_shifts_per_day ?? DEFAULT_MAX_SHIFTS_PER_DAY;
     },
     branch: (businessId, branchId) => access(businessId, branchId, 'manage'),

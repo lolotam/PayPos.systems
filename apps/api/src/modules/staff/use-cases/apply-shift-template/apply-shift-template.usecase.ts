@@ -59,7 +59,14 @@ export class ApplyShiftTemplateUseCase {
       );
       const today = scheduleToday(this.clock.now(), context.timezone);
       const plans = targets.map((target) =>
-        this.plan(command, context.timezone, patterns.get(target.weekStart) ?? [], today, target, limit),
+        this.plan(
+          command,
+          context.timezone,
+          patterns.get(target.weekStart) ?? [],
+          today,
+          target,
+          limit,
+        ),
       );
       for (const plan of plans)
         validateScheduleOverlap(

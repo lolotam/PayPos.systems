@@ -36,9 +36,10 @@ export async function scheduleAccess(
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (!time) return 'DENIED';
   const access = await readAccessTransaction(tx, companyId, userId, new Date(time.at));
-  const permission = target.action === 'settings'
-    ? 'manage:schedule-settings:business'
-    : `${target.action}:schedules:${target.branchId === null ? 'business' : 'branch'}`;
+  const permission =
+    target.action === 'settings'
+      ? 'manage:schedule-settings:business'
+      : `${target.action}:schedules:${target.branchId === null ? 'business' : 'branch'}`;
   if (
     !evaluateAccess(access.grants, permission, {
       companyId,

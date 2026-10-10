@@ -282,11 +282,14 @@ it('MS-07: a save waiting behind a committed lower reads the new limit', async (
   const saving = setWeek(f, four, { week: '2027-04-03' });
   const refusal = expect(saving).rejects.toMatchObject({ code: 'SCHEDULE_DAY_LIMIT_EXCEEDED' });
   try {
-    await expect.poll(async () => {
-      const waiting = await f.h.owner`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
+    await expect
+      .poll(async () => {
+        const waiting = await f.h
+          .owner`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
         AND wait_event_type='Lock' AND query LIKE '%companies%FOR NO KEY UPDATE%'`;
-      return waiting.length;
-    }).toBe(1);
+        return waiting.length;
+      })
+      .toBe(1);
   } finally {
     release();
   }

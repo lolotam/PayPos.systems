@@ -12,7 +12,8 @@ let templateId: string;
 const employeeIds: string[] = [];
 beforeAll(async () => {
   f = await schedulesFixture();
-  await f.h.owner`INSERT INTO staff_schedule_settings(company_id,business_id,max_shifts_per_day,updated_by,updated_at) VALUES(${f.company},${f.business},4,${f.userId},now())`;
+  await f.h
+    .owner`INSERT INTO staff_schedule_settings(company_id,business_id,max_shifts_per_day,updated_by,updated_at) VALUES(${f.company},${f.business},4,${f.userId},now())`;
   employeeIds.push(f.employee.id);
   for (let i = 1; i < 20; i++) {
     const employee = await f.useCase.execute({

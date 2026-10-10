@@ -33,7 +33,10 @@ export const ScheduleLimitContext = createContext(3);
 
 export function newScheduleShift(day: number, count: number) {
   const times = [
-    ['09:00', '13:00'], ['14:00', '18:00'], ['19:00', '23:00'], ['00:00', '04:00'],
+    ['09:00', '13:00'],
+    ['14:00', '18:00'],
+    ['19:00', '23:00'],
+    ['00:00', '04:00'],
   ];
   const [start = '09:00', end = '13:00'] = times[count] ?? [];
   return { day, start, end };

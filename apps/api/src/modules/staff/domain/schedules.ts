@@ -39,8 +39,11 @@ export function validateSchedulePattern(
     return { start: shift.day * 1440 + start, end: shift.day * 1440 + start + duration };
   });
   const days = [...counts]
-    .filter(([day, count]) => count > limit && (checkedDays === undefined || checkedDays.includes(day)))
-    .map(([day]) => day).sort((a, b) => a - b);
+    .filter(
+      ([day, count]) => count > limit && (checkedDays === undefined || checkedDays.includes(day)),
+    )
+    .map(([day]) => day)
+    .sort((a, b) => a - b);
   if (days.length)
     throw new ScheduleError('SCHEDULE_DAY_LIMIT_EXCEEDED', { max_shifts_per_day: limit, days });
   for (let i = 0; i < ranges.length; i++)
@@ -153,7 +156,10 @@ export function validateScheduleOverlap(
     counts.set(shift.working_date, (counts.get(shift.working_date) ?? 0) + 1);
   const working_dates = dates.filter((day) => (counts.get(day) ?? 0) > limit).sort();
   if (working_dates.length)
-    throw new ScheduleError('SCHEDULE_DAY_LIMIT_EXCEEDED', { max_shifts_per_day: limit, working_dates });
+    throw new ScheduleError('SCHEDULE_DAY_LIMIT_EXCEEDED', {
+      max_shifts_per_day: limit,
+      working_dates,
+    });
   for (const a of shifts)
     for (const b of others) {
       if (a.starts_at < b.ends_at && b.starts_at < a.ends_at)

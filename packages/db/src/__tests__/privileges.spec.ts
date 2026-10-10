@@ -287,8 +287,6 @@ describe('direct privileges match the reviewed allowlist', () => {
         'employees.name_en_key:pospay_app:UPDATE',
         'employees.name_ar_key:pospay_app:UPDATE',
         ...SCHEDULE_COLUMN_GRANTS,
-        ...['max_shifts_per_day', 'updated_at', 'updated_by'].map(
-          column => `staff_schedule_settings.${column}:pospay_app:UPDATE`),
         ...PASSKEY_COLUMN_GRANTS,
         ...DOCUMENT_COLUMN_GRANTS,
         ...IMPORT_COLUMN_GRANTS,

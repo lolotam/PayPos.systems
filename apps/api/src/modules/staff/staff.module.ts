@@ -134,9 +134,13 @@ function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerato
     { provide: SCHEDULE_SETTINGS_ACCESS, useValue: createScheduleSettingsAccess() },
     {
       provide: SetScheduleSettingsUseCase,
-      useValue: database === undefined ? null : new SetScheduleSettingsUseCase(
-        createScheduleSettingsTransactions(database, ids), systemClock,
-      ),
+      useValue:
+        database === undefined
+          ? null
+          : new SetScheduleSettingsUseCase(
+              createScheduleSettingsTransactions(database, ids),
+              systemClock,
+            ),
     },
     { provide: SCHEDULE_READ_ACCESS, useValue: createScheduleReadAccess() },
     {

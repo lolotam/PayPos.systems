@@ -1,6 +1,11 @@
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { scheduleGrid, scheduleSettings, scheduleWeekResult, templatePage } from '@pospay/contracts';
+import {
+  scheduleGrid,
+  scheduleSettings,
+  scheduleWeekResult,
+  templatePage,
+} from '@pospay/contracts';
 import { scheduleSettingsStatement } from '../queries/schedule-settings.query.ts';
 import {
   branchScheduleStatement,
@@ -117,7 +122,11 @@ it('lists template contract shapes including archives with an id cursor', async 
   const page = await f.db.withTenant(f.company, (tx) =>
     listShiftTemplates(tx, f.company, f.userId, f.business, { limit: 20 }, f.access),
   );
-  expect(templatePage.parse(page)).toEqual({ items: [archived], next_cursor: null, max_shifts_per_day: 3 });
+  expect(templatePage.parse(page)).toEqual({
+    items: [archived],
+    next_cursor: null,
+    max_shifts_per_day: 3,
+  });
 });
 it('EXPLAIN ANALYZE verifies indexes for actual grid, employee-week and template statements', async () => {
   const plans = await f.db.withTenant(f.company, async (tx) => {
@@ -132,7 +141,9 @@ it('EXPLAIN ANALYZE verifies indexes for actual grid, employee-week and template
       tx.execute(
         sql`EXPLAIN (ANALYZE, FORMAT JSON) ${shiftTemplatesStatement(f.company, f.business, { limit: 20 })}`,
       ),
-      tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${scheduleSettingsStatement(f.company, f.business)}`),
+      tx.execute(
+        sql`EXPLAIN (ANALYZE, FORMAT JSON) ${scheduleSettingsStatement(f.company, f.business)}`,
+      ),
     ]);
   });
   expect(JSON.stringify(plans[0])).toMatch(/employees_company_business_id_(idx|key)/);
@@ -144,18 +155,48 @@ it('EXPLAIN ANALYZE verifies indexes for actual grid, employee-week and template
     expect(JSON.stringify(plan)).toContain('staff_schedule_settings_pkey');
 });
 it('projects the default and saved setting, including empty grid and template pages', async () => {
-  const read = () => f.db.withTenant(f.company, async tx => {
-    const [settings] = await tx.execute(scheduleSettingsStatement(f.company, f.secondBusiness));
-    const grid = await tx.execute(branchScheduleStatement(f.company, f.secondBusiness, f.branch, { week_start: testWeek, limit: 20 }));
-    const templates = await listShiftTemplates(tx, f.company, f.userId, f.business, { limit: 20 }, f.access);
-    return { settings: scheduleSettings.parse(settings), grid: grid[0], templates: templatePage.parse(templates) };
+  const read = () =>
+    f.db.withTenant(f.company, async (tx) => {
+      const [settings] = await tx.execute(scheduleSettingsStatement(f.company, f.secondBusiness));
+      const grid = await tx.execute(
+        branchScheduleStatement(f.company, f.secondBusiness, f.branch, {
+          week_start: testWeek,
+          limit: 20,
+        }),
+      );
+      const templates = await listShiftTemplates(
+        tx,
+        f.company,
+        f.userId,
+        f.business,
+        { limit: 20 },
+        f.access,
+      );
+      return {
+        settings: scheduleSettings.parse(settings),
+        grid: grid[0],
+        templates: templatePage.parse(templates),
+      };
+    });
+  expect((await read()).settings).toEqual({
+    business_id: f.secondBusiness,
+    max_shifts_per_day: 3,
+    is_default: true,
+    updated_at: null,
   });
-  expect((await read()).settings).toEqual({ business_id: f.secondBusiness, max_shifts_per_day: 3, is_default: true, updated_at: null });
-  await f.h.owner`INSERT INTO staff_schedule_settings(company_id,business_id,max_shifts_per_day,updated_by,updated_at) VALUES(${f.company},${f.business},4,${f.userId},'2026-10-10T00:00:00Z'),(${f.company},${f.secondBusiness},4,${f.userId},'2026-10-10T00:00:00Z')`;
+  await f.h
+    .owner`INSERT INTO staff_schedule_settings(company_id,business_id,max_shifts_per_day,updated_by,updated_at) VALUES(${f.company},${f.business},4,${f.userId},'2026-10-10T00:00:00Z'),(${f.company},${f.secondBusiness},4,${f.userId},'2026-10-10T00:00:00Z')`;
   const saved = await read();
-  expect(saved.settings).toEqual({ business_id: f.secondBusiness, max_shifts_per_day: 4, is_default: false, updated_at: '2026-10-10T00:00:00.000Z' });
+  expect(saved.settings).toEqual({
+    business_id: f.secondBusiness,
+    max_shifts_per_day: 4,
+    is_default: false,
+    updated_at: '2026-10-10T00:00:00.000Z',
+  });
   expect(saved.grid).toMatchObject({ max_shifts_per_day: 4, items: [] });
   expect(saved.templates.max_shifts_per_day).toBe(4);
-  const empty = await f.db.withTenant(f.company, tx => tx.execute(shiftTemplatesStatement(f.company, f.secondBusiness, { limit: 20 })));
+  const empty = await f.db.withTenant(f.company, (tx) =>
+    tx.execute(shiftTemplatesStatement(f.company, f.secondBusiness, { limit: 20 })),
+  );
   expect(empty[0]).toMatchObject({ max_shifts_per_day: 4, items: [] });
 });

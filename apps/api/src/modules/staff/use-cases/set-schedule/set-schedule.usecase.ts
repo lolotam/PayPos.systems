@@ -39,10 +39,19 @@ export class SetScheduleUseCase {
       validateScheduleEmployeeWeek(current.employee, branchId, input.week_start);
       const revision = nextScheduleRevision(current.before?.revision ?? 0, input.expected_revision);
       const limit = await scope.maxShiftsPerDay(businessId);
-      const shifts = materializeSchedule(input.week_start, input.shifts, context.timezone, limit, []);
+      const shifts = materializeSchedule(
+        input.week_start,
+        input.shifts,
+        context.timezone,
+        limit,
+        [],
+      );
       validateScheduleEmployee(current.employee, branchId, shifts);
       validateScheduleOverlap(
-        shifts, current.others, limit, changedScheduleDays(current.before?.shifts ?? [], shifts),
+        shifts,
+        current.others,
+        limit,
+        changedScheduleDays(current.before?.shifts ?? [], shifts),
       );
       requirePastScheduleReason(
         current.before?.shifts ?? [],

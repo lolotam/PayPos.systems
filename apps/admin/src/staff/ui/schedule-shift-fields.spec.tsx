@@ -29,7 +29,9 @@ it.each([1, 3, 4])('disables Add at the effective limit %s', (limit) => {
   }
   expect(add.disabled).toBe(true);
   fireEvent.click(
-    screen.getAllByRole('button', { name: t('en', 'shell.schedule_remove') })[0] as HTMLButtonElement,
+    screen.getAllByRole('button', {
+      name: t('en', 'shell.schedule_remove'),
+    })[0] as HTMLButtonElement,
   );
   expect(add.disabled).toBe(false);
 });
