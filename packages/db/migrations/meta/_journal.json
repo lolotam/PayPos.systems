@@ -778,6 +778,20 @@
       "when": 1791588577342,
       "tag": "0110_2026-10-10_staff-schedule-breaks-validate",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1791655663250,
+      "tag": "0111_2026-10-10_attendance-break-not-returned-notices",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1791655666038,
+      "tag": "0112_2026-10-10_attendance-break-not-returned-notices-rls",
+      "breakpoints": true
     }
   ]
 }

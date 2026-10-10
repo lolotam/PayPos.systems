@@ -23,7 +23,15 @@ export interface CardClockContext {
   readonly lastAt: Date | null;
   readonly lastResult: ClockResult | null;
   readonly open: OpenAttendance | null;
-  readonly shifts: readonly { startsAt: Date; endsAt: Date; workingDate: string }[];
+  // لحظتا البريك من الجدول، وreturning يعني جلسة قفلها الموظف بنفسه جوّه الوردية قبل الحركة (BW-Q5/BW-Q9).
+  readonly shifts: readonly {
+    startsAt: Date;
+    endsAt: Date;
+    workingDate: string;
+    breakStartsAt?: Date | null;
+    breakEndsAt?: Date | null;
+    returning?: boolean;
+  }[];
 }
 /** ما يقرره الـ use case من الدومين وتكتبه المعاملة؛ لا حساب داخل التخزين. */
 export interface CardClockWrite {

@@ -140,7 +140,7 @@ function locked(
   };
 }
 
-async function lockEmployee(tx: Tx, companyId: string, employeeId: string): Promise<void> {
+export async function lockEmployee(tx: Tx, companyId: string, employeeId: string): Promise<void> {
   await tx.execute(sql`
     SELECT employee_id FROM attendance_states
     WHERE company_id = ${companyId} AND employee_id = ${employeeId} FOR UPDATE`);
@@ -173,7 +173,7 @@ async function readShift(
   return place === null ? null : toLockedShift(row, place);
 }
 
-async function readLeaves(
+export async function readLeaves(
   tx: Tx,
   companyId: string,
   employeeId: string,

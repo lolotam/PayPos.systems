@@ -177,6 +177,7 @@ const TENANT_TABLES = [
   'employee_document_expiry_notices',
   'attendance_states',
   'attendance_not_clocked_in_notices',
+  'attendance_break_not_returned_notices',
   'attendance_sessions',
   'attendance_exceptions',
   'attendance_clock_challenges',

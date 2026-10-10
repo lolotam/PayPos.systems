@@ -136,6 +136,24 @@ export async function prepareAttendance(
   return { input, idem, execute: () => attendance.execute(scope, input, idem) };
 }
 export type AttendanceFixture = Awaited<ReturnType<typeof attendanceFixture>>;
+
+export async function seedAttendanceBreak(
+  f: Pick<
+    AttendanceFixture,
+    'owner' | 'ids' | 'companyId' | 'businessId' | 'branchId' | 'employeeId'
+  >,
+  saturday: string,
+) {
+  const id = f.ids.newId();
+  await f.owner`INSERT INTO staff_schedules(company_id,id,business_id,branch_id,employee_id,week_start,timezone,revision)
+    VALUES(${f.companyId},${id},${f.businessId},${f.branchId},${f.employeeId},${saturday},'Asia/Kuwait',1)`;
+  await f.owner`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at,
+      break_start,break_end,break_starts_at,break_ends_at)
+    VALUES(${f.companyId},${f.ids.newId()},${id},${f.employeeId},${saturday},0,'09:00','17:00',
+      ${saturday + 'T09:00:00+03:00'},${saturday + 'T17:00:00+03:00'},'13:00','14:00',
+      ${saturday + 'T13:00:00+03:00'},${saturday + 'T14:00:00+03:00'})`;
+}
+
 interface AttendanceFixtureExtensions {
   redis: Redis;
   scope: {

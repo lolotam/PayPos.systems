@@ -2,15 +2,19 @@ import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { attendanceNotClockedInJob } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
-import type { DetectNotClockedIns } from '../use-cases/detect-not-clocked-in/detect-not-clocked-in.ts';
 
 export const ATTENDANCE_NOT_CLOCKED_IN_QUEUE = 'attendance-not-clocked-in';
 export const NOT_CLOCKED_IN_EVERY_MS = 5 * 60 * 1000;
 
 type Deliver = (event: ClaimedEvent) => Promise<DeliveryOutcome>;
 
+/** كاشف يعمل على نفس جدولة الشركة: عدم الحضور ثم عدم الرجوع من البريك (BW-Q5). */
+export interface CompanyAttendanceDetector {
+  execute(companyId: string): Promise<unknown>;
+}
+
 export function startNotClockedInProcessor(
-  useCase: DetectNotClockedIns,
+  detectors: readonly CompanyAttendanceDetector[],
   redisUrl: string,
   prefix = 'bull',
 ) {
@@ -25,7 +29,13 @@ export function startNotClockedInProcessor(
     async (job) => {
       const data = attendanceNotClockedInJob.safeParse(job.data);
       if (!data.success) throw new Error('ATTENDANCE_NOT_CLOCKED_IN_JOB_INVALID');
-      await useCase.execute(data.data.companyId);
+      // الكواشف بالترتيب، وكل واحد يكمل حتى لو فشل اللي قبله؛ أي فشل يعيد المهمة والدفتر يمنع التكرار.
+      const failures: unknown[] = [];
+      for (const detector of detectors)
+        await detector.execute(data.data.companyId).catch((error: unknown) => {
+          failures.push(error);
+        });
+      if (failures.length > 0) throw failures[0];
     },
     { connection, concurrency: 1, prefix },
   );
