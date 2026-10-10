@@ -35,8 +35,8 @@ UNIQUE index. No new table, no new permission, no new grant (`pospay_app` alread
 
 **Performance Goals**: each kind adds two or three indexed statements to 26a's transaction, well under 200 ms
 
-**Constraints**: expand-only migrations, renumbered on 2026-10-11 to **0118–0121** (main 0111–0112, 26a 0113–0115, lane
-26b 0116–0117; first planned as 0116+). The later PR to
+**Constraints**: expand-only migrations, renumbered on 2026-10-11 to **0120–0123** (main 0111–0114, 26a 0115–0117, lane
+26b 0118–0119; first planned as 0116+). The later PR to
 merge renumbers with `renumber_migrations.py`; **no edit** to `staff/domain/clock-attendance.ts`,
 `staff/persistence/attendance-context.adapter.ts`, `staff/persistence/attendance-writes.ts` or any worker job (lane
 16b-2); edits to `attendance-correction.ts`, `attendance-correction-records.ts`, `schema/staff-attendance.ts` are small
@@ -146,7 +146,7 @@ docs/specs/046-staff-void-attendance-session/
 packages/db/
 ├── schema/staff-attendance.ts                    (void columns, CHECKs, FK, indexes)
 ├── schema/staff-attendance-change-requests.ts    (kind CHECK, session-shape CHECK, replaced partial UNIQUE)
-├── migrations/0116…0119_2026-10-10_attendance-session-void*.sql (+ meta/_journal.json, snapshots)
+├── migrations/0120…0123_2026-10-10_attendance-session-void*.sql (+ meta/_journal.json, snapshots)
 └── src/__tests__/ or apps/api staff __tests__ (RLS negative for the new FK)
 packages/contracts/src/staff/attendance-change-request{,-openapi}.ts · attendance-correction*.ts (error list) ·
   in-app-notifications.ts · openapi/openapi.json

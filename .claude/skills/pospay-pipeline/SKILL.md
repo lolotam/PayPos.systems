@@ -25,15 +25,15 @@ Load `pospay-code-rules` for every task, and the layer skills stage by stage as 
 |---|---|---|
 | Orchestrator | Claude Code (this session) | yes — specs, briefs, merges, renumbering, small fixes |
 | Design advisors (risky slices only, §3 step 2) | Codex astra 6 medium (`gpt-6-astra`, effort medium) **and** Claude Fable 5.1 medium (`claude-fable-5-1`) | no — read-only |
-| **Implementer** — code, tests **and migrations** | **Grok 4.7 high** (`grok-4.7`, `--reasoning-effort high`, through the Grok CLI `grok.exe`) | yes, in its own worktree |
+| **Implementer** — code, tests **and migrations** | **Codex Sol 6.1 high** (`gpt-6.1-sol`, effort high, `codex exec -s workspace-write`) — owner's choice 2026-10-11 (Grok 4.7 is out of balance) | yes, in its own worktree |
 | **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
-| Review layer 1 | Codex Sol 6.1 high (`gpt-6.1-sol`, effort high, `codex exec -s read-only`) | no |
+| Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
 | Review layer 2 | a fresh Claude reviewer (new subagent, no prior context); the confirm round uses another fresh one | no |
 | Review layer 3 | the Codex GitHub bot (`@codex review` comment); Codex CLI when the bot is out of quota | no |
-| Fixer | the implementer, in the **same** Grok session (§4); the orchestrator only for one-line fixes | yes |
+| Fixer | the implementer (Codex Sol 6.1 high, a new `workspace-write` run with only the findings); the orchestrator only for one-line fixes | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
-Fallback when Grok is dry or fails twice on one brief: Codex astra 6 high → orchestrator implements. Announce the
+Fallback when Codex Sol fails twice on one brief: the orchestrator implements (Grok 4.7 high again once its balance is topped up). Announce the
 substitution the moment it happens, in the owner report. Never switch to a metered provider without the owner saying so.
 
 ---

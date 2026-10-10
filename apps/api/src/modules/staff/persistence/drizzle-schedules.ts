@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { DEFAULT_MAX_SHIFTS_PER_DAY } from '../domain/schedule-settings.ts';
+import { effectiveMaxShiftsPerDay, templateMaxShiftsPerDay } from '../domain/schedule-settings.ts';
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { ScheduleError } from '../domain/schedule-types.ts';
 import type { ScheduleScope, ScheduleTransactions } from '../ports/schedules.port.ts';
@@ -58,12 +58,8 @@ function transactionScope(
     return result;
   };
   return {
-    maxShiftsPerDay: async (businessId) => {
-      const [row] = await tx.execute<{ max_shifts_per_day: number }>(
-        sql`SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}`,
-      );
-      return row?.max_shifts_per_day ?? DEFAULT_MAX_SHIFTS_PER_DAY;
-    },
+    maxShiftsPerDay: (businessId, branchId) => branchLimit(tx, companyId, businessId, branchId),
+    templateMaxShiftsPerDay: (businessId) => templateLimit(tx, companyId, businessId),
     branch: (businessId, branchId) => access(businessId, branchId, 'manage'),
     business: async (businessId, action) => {
       await access(businessId, null, action);
@@ -89,6 +85,30 @@ function transactionScope(
     template: (businessId, templateId) => lockedTemplate(tx, companyId, businessId, templateId),
     saveTemplate: (before, after) => saveShiftTemplate(tx, companyId, ids, before, after),
   };
+}
+async function branchLimit(tx: Tx, companyId: string, businessId: string, branchId: string) {
+  const [row] = await tx.execute<{ max_shifts_per_day: number }>(sql`SELECT COALESCE(
+    (SELECT max_shifts_per_day FROM staff_branch_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId} AND branch_id=${branchId}),
+    (SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}),3) AS max_shifts_per_day`);
+  if (!row) throw new Error('SCHEDULE_SETTINGS_QUERY_FAILED');
+  return row.max_shifts_per_day;
+}
+async function templateLimit(tx: Tx, companyId: string, businessId: string) {
+  const context = await schedulingContext(tx, companyId, businessId, null);
+  const [row] = await tx.execute<{
+    business_value: number | null;
+    branch_values: Record<string, number>;
+  }>(sql`SELECT
+    (SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}) AS business_value,
+    COALESCE((SELECT jsonb_object_agg(branch_id,max_shifts_per_day) FROM staff_branch_schedule_settings
+      WHERE company_id=${companyId} AND business_id=${businessId}),'{}'::jsonb) AS branch_values`);
+  if (!row) throw new Error('SCHEDULE_SETTINGS_QUERY_FAILED');
+  return templateMaxShiftsPerDay(
+    (context?.branchIds ?? []).map((id) =>
+      effectiveMaxShiftsPerDay(row.branch_values[id] ?? null, row.business_value),
+    ),
+    row.business_value,
+  );
 }
 export function createScheduleTransactions(
   database: TenantWrappers,

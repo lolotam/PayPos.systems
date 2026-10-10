@@ -445,8 +445,8 @@
           "method": "btree",
           "with": {}
         },
-        "attendance_change_requests_one_pending_session": {
-          "name": "attendance_change_requests_one_pending_session",
+        "attendance_change_requests_one_pending_void": {
+          "name": "attendance_change_requests_one_pending_void",
           "columns": [
             {
               "expression": "company_id",
@@ -462,10 +462,10 @@
             }
           ],
           "isUnique": true,
-          "where": "\"attendance_change_requests\".\"status\" = 'PENDING' AND \"attendance_change_requests\".\"kind\" IN ('VOID_SESSION','RESTORE_SESSION')",
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "where": "\"attendance_change_requests\".\"status\" = 'PENDING' AND \"attendance_change_requests\".\"kind\" = 'VOID_SESSION'",
+          "concurrently": false
         }
       },
       "foreignKeys": {
@@ -2466,48 +2466,6 @@
         }
       },
       "indexes": {
-        "attendance_sessions_voided_by_idx": {
-          "name": "attendance_sessions_voided_by_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "voided_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "attendance_sessions_void_request_idx": {
-          "name": "attendance_sessions_void_request_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "void_request_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "attendance_sessions_one_open": {
           "name": "attendance_sessions_one_open",
           "columns": [
@@ -13428,6 +13386,136 @@
         }
       },
       "isRLSEnabled": false
+    },
+    "public.staff_branch_schedule_settings": {
+      "name": "staff_branch_schedule_settings",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_shifts_per_day": {
+          "name": "max_shifts_per_day",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "staff_branch_schedule_settings_updated_by_idx": {
+          "name": "staff_branch_schedule_settings_updated_by_idx",
+          "columns": [
+            {
+              "expression": "updated_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "staff_branch_schedule_settings_company_business_idx": {
+          "name": "staff_branch_schedule_settings_company_business_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "staff_branch_schedule_settings_updated_by_user_id_fk": {
+          "name": "staff_branch_schedule_settings_updated_by_user_id_fk",
+          "tableFrom": "staff_branch_schedule_settings",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "staff_branch_schedule_settings_branch_fk": {
+          "name": "staff_branch_schedule_settings_branch_fk",
+          "tableFrom": "staff_branch_schedule_settings",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "branch_id"
+          ],
+          "tableTo": "branches",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "staff_branch_schedule_settings_pkey": {
+          "name": "staff_branch_schedule_settings_pkey",
+          "columns": [
+            "company_id",
+            "branch_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "staff_branch_schedule_settings_max_shifts_per_day": {
+          "name": "staff_branch_schedule_settings_max_shifts_per_day",
+          "value": "\"staff_branch_schedule_settings\".\"max_shifts_per_day\" BETWEEN 1 AND 4"
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {},
@@ -13441,6 +13529,6 @@
     "tables": {},
     "columns": {}
   },
-  "id": "9bfcfd32-7177-4655-be24-76e5c9244622",
-  "prevId": "74932698-976c-477b-8bd5-68ca688d4779"
+  "id": "980c93a4-d776-4307-b7cb-e1d6dbf1dbc6",
+  "prevId": "eba604e0-d7d4-46b4-b7da-6435ee868dbf"
 }

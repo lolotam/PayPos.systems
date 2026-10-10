@@ -31,12 +31,12 @@ only. Migrations are numbered **0116+**. No new dependency, no new grant, no new
   on `(company_id, session_id) WHERE status = 'PENDING' AND kind IN ('VOID_SESSION','RESTORE_SESSION')`
 - [x] T003 Generate the migrations with the repo generator (`packages/db/scripts/generate-migration.ts`, snapshots and
   `meta/_journal.json`, `when` strictly increasing) and shape them per research R5:
-  `0116_2026-10-10_attendance-session-void.sql` (ADD COLUMN ×3; CHECKs and FK added `NOT VALID`; `ALTER TABLE
+  `0120_2026-10-10_attendance-session-void.sql` (ADD COLUMN ×3; CHECKs and FK added `NOT VALID`; `ALTER TABLE
   attendance_sessions ALTER CONSTRAINT attendance_sessions_void_request_fk DEFERRABLE INITIALLY DEFERRED` with an Arabic
   comment pointing to research R3; `kind` CHECK dropped and re-added `NOT VALID`; session-shape CHECK `NOT VALID`),
-  `0117_…_attendance-session-void-validate.sql` (`VALIDATE CONSTRAINT` for each, 0110 precedent),
-  `0118_…_attendance-session-void-indexes.sql` (`CREATE [UNIQUE] INDEX CONCURRENTLY` for the three indexes, ADR-0033
-  leading prefix), `0119_…_attendance-session-void-drop-old-index.sql` (`DROP INDEX CONCURRENTLY
+  `0121_…_attendance-session-void-validate.sql` (`VALIDATE CONSTRAINT` for each, 0110 precedent),
+  `0122_…_attendance-session-void-indexes.sql` (`CREATE [UNIQUE] INDEX CONCURRENTLY` for the three indexes, ADR-0033
+  leading prefix), `0123_…_attendance-session-void-drop-old-index.sql` (`DROP INDEX CONCURRENTLY
   attendance_change_requests_one_pending_void`). Then `node --experimental-strip-types scripts/generate-migration.ts
   drift-check` must print "No schema changes"
 

@@ -24,11 +24,18 @@ export interface ScheduleIds {
 /** عمليات التحقق والقراءة والكتابة ضمن معاملة واحدة للشركة. */
 export interface ScheduleScope {
   /**
-   * يعيد حد النشاط بعد قفل الكتابة لتطبيق القرار الأحدث على الحفظ.
+   * يعيد حد الفرع الموروث بعد قفل الكتابة لتطبيق القرار الأحدث على الحفظ.
+   *
+   * @param businessId النشاط المتحقق منه
+   * @param branchId الفرع المتحقق منه
+   */
+  maxShiftsPerDay(businessId: string, branchId: string): Promise<number>;
+  /**
+   * يعيد أكبر حد فعلي للفروع النشطة حتى يناسب القالب فرعاً واحداً على الأقل.
    *
    * @param businessId النشاط المتحقق منه
    */
-  maxShiftsPerDay(businessId: string): Promise<number>;
+  templateMaxShiftsPerDay(businessId: string): Promise<number>;
   /**
    * يحل الفرع الحقيقي ويثبت صلاحية الإدارة والميزة قبل كشف الموظفين.
    *

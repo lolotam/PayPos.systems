@@ -6,7 +6,10 @@ import type {
   AttendanceChangeKinds,
   AttendanceChangeKind,
 } from '../ports/attendance-change-kinds.port.ts';
-import { ATTENDANCE_CHANGE_KINDS } from '../ports/attendance-change-kinds.port.ts';
+import {
+  ATTENDANCE_CHANGE_KINDS,
+  AttendanceChangeKindRefusal,
+} from '../ports/attendance-change-kinds.port.ts';
 import { AttendanceChangeError } from '../domain/attendance-change-request.ts';
 import { createAttendanceChangeKinds } from '../persistence/attendance-change-kinds.ts';
 import { createAttendanceChangeTransactions } from '../persistence/drizzle-attendance-change-transactions.ts';
@@ -41,7 +44,13 @@ vi.mock('../staff.module.ts', async (original) => {
 });
 
 export async function attendanceChangeFixture(production = false) {
-  const control = { refuse: false, failAfterEffect: false };
+  const control = {
+    refuse: false,
+    failAfterEffect: false,
+    kindRefusal: false,
+    kindRefusalAfterEffect: false,
+    nullSession: false,
+  };
   const kinds = createAttendanceChangeKinds(
     ['ADD_SESSION', 'VOID_SESSION'].map((code) =>
       testKind(code as AttendanceChangeKind['code'], control),
@@ -115,7 +124,13 @@ export const effectCount = (f: ChangeFixture) =>
 
 function testKind(
   code: AttendanceChangeKind['code'],
-  control: { refuse: boolean; failAfterEffect: boolean },
+  control: {
+    refuse: boolean;
+    failAfterEffect: boolean;
+    kindRefusal: boolean;
+    kindRefusalAfterEffect: boolean;
+    nullSession: boolean;
+  },
 ): AttendanceChangeKind {
   return {
     code,
@@ -129,6 +144,8 @@ function testKind(
       return row ?? null;
     },
     check: async (scope) => {
+      if (control.kindRefusal && scope.request)
+        throw new AttendanceChangeKindRefusal('TEST_KIND_REFUSED', 422);
       if (control.refuse) throw new AttendanceChangeError('VALIDATION_FAILED');
       return {
         session_id: scope.input.session_id ?? null,
@@ -143,7 +160,9 @@ function testKind(
         after: { applied: true },
       });
       if (control.failAfterEffect) throw new AttendanceChangeError('VALIDATION_FAILED');
-      return values;
+      if (control.kindRefusalAfterEffect)
+        throw new AttendanceChangeKindRefusal('TEST_KIND_REFUSED', 422);
+      return control.nullSession ? { ...values, session_id: null } : values;
     },
   };
 }
