@@ -6,6 +6,7 @@ import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
+import { ScheduleShiftBreakFields } from './schedule-shift-break-fields';
 export function ScheduleShiftFields({ day, pending }: { day: number; pending: boolean }) {
   const locale = useLocale();
   const maxShiftsPerDay = useContext(ScheduleLimitContext);
@@ -36,6 +37,7 @@ export function ScheduleShiftFields({ day, pending }: { day: number; pending: bo
               {...form.register(`shifts.${index}.end`)}
             />
           </div>
+          <ScheduleShiftBreakFields index={index} pending={pending} />
           <Button type="button" variant="outline" onClick={() => array.remove(index)}>
             {t(locale, 'shell.schedule_remove')}
           </Button>

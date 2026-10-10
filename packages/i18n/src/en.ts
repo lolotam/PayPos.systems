@@ -13,6 +13,7 @@ import { salaryEn } from './salary-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
 import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
+import { scheduleShellEn } from './schedule-shell-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   phoneLock: {
@@ -35,11 +36,7 @@ export const en = {
   personalAttendance: attendanceEn,
   personalStaff: personalStaffEn,
   shell: {
-    schedule_settings_title: 'Schedule settings',
-    schedule_settings_limit: 'Maximum shifts starting per day',
-    schedule_settings_default: 'Default: 3 shifts per day',
-    schedule_settings_save: 'Save schedule settings',
-    schedule_dayLimitDetail: 'Limit {limit} shifts per day: {dates}',
+    ...scheduleShellEn,
     schedule_title: 'Weekly schedules',
     schedule_lead: 'Saturday to Friday in the selected branch timezone.',
     schedule_week: 'Week starts (Saturday)',
@@ -192,6 +189,7 @@ export const en = {
     SCHEDULE_WEEK_INVALID: 'The schedule week must start on Saturday.',
     SCHEDULE_SHIFT_INVALID: 'Use valid shift times, with each shift at most 16 hours',
     SCHEDULE_DAY_LIMIT_EXCEEDED: 'The number of shifts exceeds the business daily limit',
+    SCHEDULE_BREAK_INVALID: 'The break must be inside the shift',
     SCHEDULE_SHIFT_OVERLAP: 'The employee has overlapping shifts.',
     SCHEDULE_LOCAL_TIME_INVALID: 'This local time has no unique occurrence in the branch timezone.',
     SCHEDULE_EMPLOYEE_INELIGIBLE: 'The employee is not eligible at this branch on a scheduled day.',

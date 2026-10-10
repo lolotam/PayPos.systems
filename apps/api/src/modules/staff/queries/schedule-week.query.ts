@@ -20,7 +20,10 @@ export const scheduleProjection = sql`jsonb_build_object('id',s.id,'business_id'
   'week_start',s.week_start,'timezone',s.timezone,'revision',s.revision,
   'shifts',COALESCE((SELECT jsonb_agg(jsonb_build_object('day',ss.day,'start',ss.start,'end',ss."end",'working_date',ss.working_date,
     'starts_at',to_char(ss.starts_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'ends_at',to_char(ss.ends_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) ORDER BY ss.starts_at)
+    'ends_at',to_char(ss.ends_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'break_start',ss.break_start,'break_end',ss.break_end,
+      'break_starts_at',to_char(ss.break_starts_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'break_ends_at',to_char(ss.break_ends_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) ORDER BY ss.starts_at)
     FROM staff_schedule_shifts ss WHERE ss.company_id=s.company_id AND ss.schedule_id=s.id),'[]'::jsonb))`;
 
 // شبكة الفرع تعرض موظفي الأسبوع حتى بدون جدول؛ الفلترة وتحديد الصفحة يأتيان قبل بناء الصفوف.

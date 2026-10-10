@@ -7,6 +7,7 @@ import {
   templatePage,
 } from '@pospay/contracts';
 import { scheduleSettingsStatement } from '../queries/schedule-settings.query.ts';
+import { mySchedule } from '../queries/my-schedule.query.ts';
 import {
   branchScheduleStatement,
   branchScheduleWeek,
@@ -18,6 +19,9 @@ import {
   schedulesFixture,
   scheduleActor,
   setWeek,
+  breakPattern,
+  nullBreak,
+  testPattern,
   testWeek,
   type SchedulesFixture,
 } from './schedules.fixture.ts';
@@ -30,7 +34,7 @@ afterAll(async () => {
   await f?.h.close();
 });
 it('projects Sat..Fri employee grid including unscheduled rows and cursor pages', async () => {
-  await setWeek(f);
+  await setWeek(f, [...breakPattern, testPattern[1]]);
   const unscheduled = await f.useCase.execute({
     ...scheduleActor(f),
     input: {
@@ -57,6 +61,17 @@ it('projects Sat..Fri employee grid including unscheduled rows and cursor pages'
   ]);
   expect(page.items[0]?.employee_id).toBe(f.employee.id);
   expect(page.next_cursor).toBe(f.employee.id);
+  const own = await f.db.withTenant(f.company, (tx) =>
+    mySchedule(tx, f.company, f.business, f.branch, f.employee.id, testWeek),
+  );
+  expect(scheduleWeekResult.parse(own).schedule).toEqual(page.items[0]?.schedule);
+  expect(page.items[0]?.schedule?.shifts[0]).toMatchObject({
+    break_start: '13:00',
+    break_end: '14:00',
+    break_starts_at: '2026-10-03T10:00:00.000Z',
+    break_ends_at: '2026-10-03T11:00:00.000Z',
+  });
+  expect(page.items[0]?.schedule?.shifts[1]).toMatchObject(nullBreak);
   const second = scheduleGrid.parse(
     await f.db.withTenant(f.company, (tx) =>
       branchScheduleWeek(

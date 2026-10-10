@@ -1,6 +1,8 @@
 import { createContext } from 'react';
 import type { ScheduleGrid, SetScheduleInput } from '@pospay/contracts';
 
+export const scheduleDayKeys = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'] as const;
+
 export function branchCivilDate(timezone: string, now: Date): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
@@ -25,7 +27,38 @@ export function scheduleFormDefaults(
   return {
     week_start: week,
     expected_revision: row.schedule?.revision ?? 0,
-    shifts: row.schedule?.shifts.map((s) => ({ day: s.day, start: s.start, end: s.end })) ?? [],
+    shifts:
+      row.schedule?.shifts.map((s) => ({
+        day: s.day,
+        start: s.start,
+        end: s.end,
+        break_start: scheduleBreakValue(s.break_start),
+        break_end: scheduleBreakValue(s.break_end),
+      })) ?? [],
+  };
+}
+
+export function scheduleBreakValue(value: string | null | undefined): string | null {
+  return value || null;
+}
+
+// السيرفر هو اللي بيحكم على مكان البريك؛ الدالة دي بتختار قيمة مبدئية بس جوّه الوردية.
+export function newScheduleBreak(start: string, end: string) {
+  const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
+  const from = minutes(start);
+  const duration = (minutes(end) - from + 1440) % 1440;
+  if (!Number.isFinite(duration) || duration < 3) return null;
+  const preferredStart = (13 * 60 - from + 1440) % 1440;
+  const preferredEnd = (14 * 60 - from + 1440) % 1440;
+  if (0 < preferredStart && preferredStart < preferredEnd && preferredEnd < duration)
+    return { break_start: '13:00', break_end: '14:00' };
+  const time = (offset: number) => {
+    const value = (from + offset) % 1440;
+    return `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
+  };
+  return {
+    break_start: time(Math.floor(duration / 3)),
+    break_end: time(Math.floor((duration * 2) / 3)),
   };
 }
 

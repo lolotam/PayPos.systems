@@ -46,9 +46,9 @@ export async function saveScheduleBatch(
   );
   // jsonb_to_recordset يمنع آلاف معاملات SQL مع الاحتفاظ بإدخال ذري واحد.
   if (shifts.length)
-    await tx.execute(sql`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at)
-    SELECT ${companyId},x.id,x.schedule_id,x.employee_id,x.working_date,x.day,x.start,x."end",x.starts_at,x.ends_at
-    FROM jsonb_to_recordset(${JSON.stringify(shifts)}::jsonb) AS x(id uuid,schedule_id uuid,employee_id uuid,working_date date,day integer,start text,"end" text,starts_at timestamptz,ends_at timestamptz)`);
+    await tx.execute(sql`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at,break_start,break_end,break_starts_at,break_ends_at)
+    SELECT ${companyId},x.id,x.schedule_id,x.employee_id,x.working_date,x.day,x.start,x."end",x.starts_at,x.ends_at,x.break_start,x.break_end,x.break_starts_at,x.break_ends_at
+    FROM jsonb_to_recordset(${JSON.stringify(shifts)}::jsonb) AS x(id uuid,schedule_id uuid,employee_id uuid,working_date date,day integer,start text,"end" text,starts_at timestamptz,ends_at timestamptz,break_start text,break_end text,break_starts_at timestamptz,break_ends_at timestamptz)`);
   await appendAuditLogs(
     tx,
     plans.map(({ before, after }) => ({

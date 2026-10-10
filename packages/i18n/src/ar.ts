@@ -14,6 +14,7 @@ import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, serviceErrorsAr } from './catalog-services.js';
 import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js';
+import { scheduleShellAr } from './schedule-shell-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
@@ -37,11 +38,7 @@ export const ar: Catalog = {
   personalAttendance: attendanceAr,
   personalStaff: personalStaffAr,
   shell: {
-    schedule_settings_title: 'إعدادات الورديات',
-    schedule_settings_limit: 'أقصى عدد ورديات تبدأ في اليوم',
-    schedule_settings_default: 'الافتراضي: 3 ورديات في اليوم',
-    schedule_settings_save: 'حفظ إعدادات الورديات',
-    schedule_dayLimitDetail: 'الحد {limit} ورديات في اليوم: {dates}',
+    ...scheduleShellAr,
     schedule_title: 'جداول العمل الأسبوعية',
     schedule_lead: 'من السبت إلى الجمعة حسب المنطقة الزمنية للفرع المختار.',
     schedule_week: 'بداية الأسبوع (السبت)',
@@ -192,6 +189,7 @@ export const ar: Catalog = {
     SCHEDULE_WEEK_INVALID: 'أسبوع الجدول لازم يبدأ السبت.',
     SCHEDULE_SHIFT_INVALID: 'استخدم أوقات ورديات صحيحة، بحد أقصى 16 ساعة للوردية',
     SCHEDULE_DAY_LIMIT_EXCEEDED: 'عدد الورديات تجاوز الحد اليومي للنشاط',
+    SCHEDULE_BREAK_INVALID: 'وقت البريك لازم يكون جوّه الشيفت',
     SCHEDULE_SHIFT_OVERLAP: 'ورديات الموظف متداخلة.',
     SCHEDULE_LOCAL_TIME_INVALID: 'الساعة دي مش لها وقت واحد محدد في منطقة الفرع الزمنية.',
     SCHEDULE_EMPLOYEE_INELIGIBLE: 'الموظف غير مؤهل للعمل في الفرع في أحد أيام الجدول.',

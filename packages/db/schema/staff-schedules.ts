@@ -70,6 +70,11 @@ export const staffScheduleShifts = pgTable(
     end: text('end').notNull(),
     startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
     endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    // البريك ينسب ليوم بداية الوردية ويحسب ضمن وقت العمل حتى بعد منتصف الليل.
+    breakStart: text('break_start'),
+    breakEnd: text('break_end'),
+    breakStartsAt: timestamp('break_starts_at', { withTimezone: true }),
+    breakEndsAt: timestamp('break_ends_at', { withTimezone: true }),
   },
   (t) => [
     primaryKey({ columns: [t.companyId, t.id] }),
@@ -85,6 +90,14 @@ export const staffScheduleShifts = pgTable(
       sql`${t.endsAt} > ${t.startsAt} AND ${t.endsAt} <= ${t.startsAt} + interval '16 hours'`,
     ),
     check('staff_schedule_shifts_day', sql`${t.day} BETWEEN 0 AND 6`),
+    check(
+      'staff_schedule_shifts_break_pair',
+      sql`(${t.breakStart} IS NULL AND ${t.breakEnd} IS NULL AND ${t.breakStartsAt} IS NULL AND ${t.breakEndsAt} IS NULL) OR (${t.breakStart} IS NOT NULL AND ${t.breakEnd} IS NOT NULL AND ${t.breakStartsAt} IS NOT NULL AND ${t.breakEndsAt} IS NOT NULL)`,
+    ),
+    check(
+      'staff_schedule_shifts_break_inside',
+      sql`${t.breakStartsAt} IS NULL OR (${t.breakStartsAt} > ${t.startsAt} AND ${t.breakEndsAt} > ${t.breakStartsAt} AND ${t.breakEndsAt} < ${t.endsAt})`,
+    ),
   ],
 );
 export const staffShiftTemplates = pgTable(

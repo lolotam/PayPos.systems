@@ -2506,6 +2506,19 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SetScheduleInput"
+              },
+              "example": {
+                "week_start": "2026-10-10",
+                "expected_revision": 0,
+                "shifts": [
+                  {
+                    "day": 0,
+                    "start": "09:00",
+                    "end": "17:00",
+                    "break_start": "13:00",
+                    "break_end": "14:00"
+                  }
+                ]
               }
             }
           }
@@ -9822,6 +9835,16 @@
           "end": {
             "type": "string",
             "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "break_start": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "break_end": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
           }
         },
         "required": [
@@ -9881,6 +9904,16 @@
             "type": "string",
             "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
           },
+          "break_start": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          },
+          "break_end": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          },
           "working_date": {
             "$ref": "#/components/schemas/EmployeeDate"
           },
@@ -9893,15 +9926,31 @@
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "break_starts_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "break_ends_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
           }
         },
         "required": [
           "day",
           "start",
           "end",
+          "break_start",
+          "break_end",
           "working_date",
           "starts_at",
-          "ends_at"
+          "ends_at",
+          "break_starts_at",
+          "break_ends_at"
         ],
         "additionalProperties": false
       },

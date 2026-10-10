@@ -137,18 +137,25 @@ it('MS-04: manager refused, owner grants personally, non-owner cannot grant onwa
   });
   expect(denied.json()).toMatchObject({ code: 'PERMISSION_OWNER_ONLY' });
 });
-it('MS-05: lowering preserves history; unrelated day edit passes, excess day edit fails', async () => {
+it('MS-05: lowering preserves history; unrelated day and break-only edits pass, excess day edit fails', async () => {
   const prior = await f.h.owner`SELECT * FROM staff_schedule_shifts ORDER BY id`;
   await limit(3);
   expect(await f.h.owner`SELECT * FROM staff_schedule_shifts ORDER BY id`).toEqual(prior);
   const saturday = { day: 0, start: '09:00', end: '10:00' };
   expect((await setWeek(f, [...four, saturday], { revision: 2 })).shifts).toHaveLength(5);
+  const withBreaks = four.map((s) => ({
+    ...s,
+    break_start: s.start.replace(':00', ':15'),
+    break_end: s.start.replace(':00', ':30'),
+  }));
+  const breakOnly = await setWeek(f, [...withBreaks, saturday], { revision: 3 });
+  expect(breakOnly.shifts.filter((s) => s.break_start !== null)).toHaveLength(4);
   await expect(
     setWeek(f, [...four.map((s) => ({ ...s, end: s.end.replace(':00', ':30') })), saturday], {
-      revision: 3,
+      revision: 4,
     }),
   ).rejects.toMatchObject({ code: 'SCHEDULE_DAY_LIMIT_EXCEEDED' });
-  expect((await setWeek(f, four.slice(0, 3), { revision: 3 })).shifts).toHaveLength(3);
+  expect((await setWeek(f, four.slice(0, 3), { revision: 4 })).shifts).toHaveLength(3);
 });
 it('MS-06: excess templates allow name-only edits but reject changed days and apply before writing', async () => {
   await limit(4);

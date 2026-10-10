@@ -764,6 +764,20 @@
       "when": 1791588575342,
       "tag": "0108_2026-10-10_passkey-installation-lock-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1791588576342,
+      "tag": "0109_2026-10-10_staff-schedule-breaks",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1791588577342,
+      "tag": "0110_2026-10-10_staff-schedule-breaks-validate",
+      "breakpoints": true
     }
   ]
 }

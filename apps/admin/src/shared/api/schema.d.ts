@@ -2168,6 +2168,8 @@ export interface components {
             day: number;
             start: string;
             end: string;
+            break_start?: string | null;
+            break_end?: string | null;
         };
         SchedulePattern: components["schemas"]["ScheduleShift"][];
         SetScheduleInput: {
@@ -2180,11 +2182,17 @@ export interface components {
             day: number;
             start: string;
             end: string;
+            break_start: string | null;
+            break_end: string | null;
             working_date: components["schemas"]["EmployeeDate"];
             /** Format: date-time */
             starts_at: string;
             /** Format: date-time */
             ends_at: string;
+            /** Format: date-time */
+            break_starts_at: string | null;
+            /** Format: date-time */
+            break_ends_at: string | null;
         };
         StaffSchedule: {
             /** Format: uuid */
@@ -4813,6 +4821,21 @@ export interface operations {
         };
         requestBody: {
             content: {
+                /**
+                 * @example {
+                 *       "week_start": "2026-10-10",
+                 *       "expected_revision": 0,
+                 *       "shifts": [
+                 *         {
+                 *           "day": 0,
+                 *           "start": "09:00",
+                 *           "end": "17:00",
+                 *           "break_start": "13:00",
+                 *           "break_end": "14:00"
+                 *         }
+                 *       ]
+                 *     }
+                 */
                 "application/json": components["schemas"]["SetScheduleInput"];
             };
         };

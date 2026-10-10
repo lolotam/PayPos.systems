@@ -1,14 +1,146 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { sql } from 'drizzle-orm';
+import { staffSchedule, shiftTemplate, templatePage } from '@pospay/contracts';
+import type { ScheduleRecord } from '../domain/schedule-types.ts';
+import { scheduleRecord } from '../persistence/schedule-records.ts';
 import {
   schedulesFixture,
   scheduleActor,
   setWeek,
   testPattern,
+  breakPattern,
+  nullBreak,
+  scheduleIds,
   type SchedulesFixture,
 } from './schedules.fixture.ts';
 let f: SchedulesFixture;
 beforeAll(async () => {
   f = await schedulesFixture();
+});
+
+it('BW-04 copies six breaks to two employees and two weeks and isolates each copy from template edits', async () => {
+  const other = await f.useCase.execute({
+    ...scheduleActor(f),
+    input: {
+      primary_branch_id: f.branch,
+      name_en: 'Synthetic Heba',
+      role_code: 'staff',
+      hire_date: '2026-01-01',
+    },
+  });
+  const headers = { cookie: f.cookie, 'x-company-id': f.company };
+  const url = `/v1/businesses/${f.business}/shift-templates`;
+  const shifts = Array.from({ length: 6 }, (_, day) => ({ ...breakPattern[0], day }));
+  const created = await f.h.app.inject({
+    method: 'POST',
+    url,
+    headers,
+    payload: { name_en: 'Synthetic morning', name_ar: 'دوام الصبح', shifts },
+  });
+  expect(created.statusCode).toBe(201);
+  const template = shiftTemplate.parse(created.json());
+  const applied = await f.applyTemplate.execute({
+    ...scheduleActor(f),
+    templateId: template.id,
+    input: {
+      branch_id: f.branch,
+      employee_ids: [f.employee.id, other.id],
+      weeks: ['2027-06-05', '2027-06-12'],
+      replace: false,
+    },
+  });
+  expectCopiedBreaks(applied.schedules);
+  const changed = await setWeek(
+    f,
+    shifts.map((s) => (s.day === 2 ? { ...s, break_start: '14:00', break_end: '15:00' } : s)),
+    { week: '2027-06-05', revision: 1 },
+  );
+  expect(changed.shifts[2]?.break_start).toBe('14:00');
+  const listed = await f.h.app.inject({ method: 'GET', url, headers });
+  expect(templatePage.parse(listed.json()).items.find((s) => s.id === template.id)?.shifts).toEqual(
+    shifts,
+  );
+  const patched = await f.h.app.inject({
+    method: 'PATCH',
+    url: `${url}/${template.id}`,
+    headers,
+    payload: {
+      name_en: template.name_en,
+      shifts: shifts.map((s) => ({ ...s, break_start: '12:00', break_end: '13:00' })),
+      expected_revision: 1,
+    },
+  });
+  expect(patched.statusCode).toBe(200);
+  for (const copy of applied.schedules) {
+    const read = await f.db.withTenant(f.company, (tx) =>
+      scheduleRecord(tx, f.company, f.business, f.branch, copy.employee_id, copy.week_start),
+    );
+    expect(read?.shifts).toEqual(copy.id === changed.id ? changed.shifts : copy.shifts);
+  }
+});
+
+it('BW-05 reads, edits and applies pre-break JSONB templates as null breaks', async () => {
+  const id = scheduleIds.newId();
+  const legacy = [{ day: 0, start: '09:00', end: '17:00' }];
+  await f.db.withTenant(f.company, (tx) =>
+    tx.execute(sql`INSERT INTO staff_shift_templates(company_id,id,business_id,name_en,shifts,revision)
+    VALUES(${f.company},${id},${f.business},'Synthetic legacy',${JSON.stringify(legacy)}::jsonb,1)`),
+  );
+  const list = await f.h.app.inject({
+    method: 'GET',
+    url: `/v1/businesses/${f.business}/shift-templates`,
+    headers: { cookie: f.cookie, 'x-company-id': f.company },
+  });
+  const shifts = [{ day: 0, start: '09:00', end: '17:00', break_start: null, break_end: null }];
+  expect(templatePage.parse(list.json()).items.find((s) => s.id === id)?.shifts).toEqual(shifts);
+  const copy = await f.applyTemplate.execute({
+    ...scheduleActor(f),
+    templateId: id,
+    input: {
+      branch_id: f.branch,
+      employee_ids: [f.employee.id],
+      weeks: ['2027-07-03'],
+      replace: false,
+    },
+  });
+  expect(copy.schedules[0]?.shifts[0]).toMatchObject(nullBreak);
+  const edited = await f.updateTemplate.execute({
+    ...scheduleActor(f),
+    templateId: id,
+    input: { name_en: 'Synthetic legacy edited', shifts: legacy, expected_revision: 1 },
+  });
+  expect(edited.shifts).toEqual(shifts);
+  const [stored] = await f.h.owner`SELECT shifts FROM staff_shift_templates WHERE id=${id}`;
+  expect(stored?.shifts).toEqual(shifts);
+});
+
+it('BW-05 reads and resaves rows inserted without break columns', async () => {
+  const week = '2027-07-10';
+  const header = await setWeek(f, [], { week });
+  await f.db.withTenant(f.company, (tx) =>
+    tx.execute(sql`INSERT INTO staff_schedule_shifts
+    (company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at)
+    VALUES(${f.company},${scheduleIds.newId()},${header.id},${f.employee.id},${week},0,'09:00','17:00',
+      '2027-07-10T06:00Z','2027-07-10T14:00Z')`),
+  );
+  const read = staffSchedule.parse(
+    await f.db.withTenant(f.company, (tx) =>
+      scheduleRecord(tx, f.company, f.business, f.branch, f.employee.id, week),
+    ),
+  );
+  expect(read.shifts[0]).toMatchObject(nullBreak);
+  const edited = await setWeek(
+    f,
+    read.shifts.map(({ day, start, end, break_start, break_end }) => ({
+      day,
+      start,
+      end,
+      break_start,
+      break_end,
+    })),
+    { week, revision: 1 },
+  );
+  expect(edited.shifts).toEqual(read.shifts);
 });
 afterAll(async () => {
   await f?.db.close();
@@ -184,4 +316,37 @@ it('refuses recurring Fri→Sat overlaps between copies with no partial writes',
   expect(
     await f.h.owner`SELECT id FROM staff_schedules WHERE week_start IN ('2027-04-03','2027-04-10')`,
   ).toHaveLength(0);
+});
+
+function expectCopiedBreaks(copies: ScheduleRecord[]) {
+  expect(copies).toHaveLength(4);
+  for (const copy of copies) {
+    expect(copy.shifts).toHaveLength(6);
+    for (const shift of copy.shifts)
+      expect(shift).toMatchObject({
+        break_start: '13:00',
+        break_end: '14:00',
+        break_starts_at: `${shift.working_date}T10:00:00.000Z`,
+        break_ends_at: `${shift.working_date}T11:00:00.000Z`,
+      });
+  }
+}
+
+it('BW-04 refuses a template with an invalid break over HTTP', async () => {
+  const url = `/v1/businesses/${f.business}/shift-templates`;
+  const headers = { cookie: f.cookie, 'x-company-id': f.company };
+  const invalid = await f.h.app.inject({
+    method: 'POST',
+    url,
+    headers,
+    payload: {
+      name_en: 'Synthetic invalid break',
+      shifts: [{ ...breakPattern[0], break_end: '18:00' }],
+    },
+  });
+  expect(invalid.statusCode).toBe(400);
+  expect(invalid.json()).toMatchObject({
+    code: 'SCHEDULE_BREAK_INVALID',
+    details: { day: 0, start: '09:00' },
+  });
 });
