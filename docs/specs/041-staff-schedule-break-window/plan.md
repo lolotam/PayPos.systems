@@ -2,7 +2,7 @@
 
 **Branch**: `feat/p1-16b-break-window` | **Date**: 2026-10-10 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `docs/specs/041-staff-schedule-break-window/spec.md` (owner answers 2026-10-10,
+**Input**: Feature specification from `docs/specs/041-staff-schedule-break-window/spec.md` (owner answers BW-Q1…Q9, 2026-10-10,
 [owner-questions.ar.md](owner-questions.ar.md)).
 
 ## Summary
@@ -112,8 +112,8 @@ Procedure at implementation time: `git merge origin/main` once 16c is on main, r
   values (`break_start`, `break_end`, `break_starts_at`, `break_ends_at`, `null` when absent).
 - **D5 Hours** (BW-Q4, FR-011): no code computes hours in this row. Nothing subtracts the break; `starts_at`/`ends_at`
   stay the shift's full length. FR-011's worked-hours rule (clocked-out time inside the scheduled break counts as
-  worked) is an input to row 27's spec.
-- **D6 Return detection** (16b-2, BR-005, FR-010): a clock-in is a **return from break** iff the chosen shift has a
+  worked, outside it is not — BW-Q8) is an input to row 27's spec.
+- **D6 Return detection** (16b-2, BR-005, FR-010, BW-Q9): a clock-in is a **return from break** iff the chosen shift has a
   break, `at ≥ break_starts_at`, and the employee has a closed session on that shift — one with
   `clock_out > shift.starts_at AND clock_out ≤ at` (a morning clock-in at 08:58, before the shift start, still
   counts). Then `scheduled_start = break_ends_at` and lateness uses the existing `attendanceLateMinutes`. Otherwise

@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-10
 
-**Status**: Owner questions BW-Q1 … BW-Q7 answered 2026-10-10 (Waleed, binding; the partner has not answered yet —
+**Status**: Owner questions BW-Q1 … BW-Q9 answered 2026-10-10 (Waleed, binding; the partner has not answered yet —
 his notes will be added later). Ready for `/speckit-plan`. Arabic questions and answers:
 [owner-questions.ar.md](owner-questions.ar.md).
 
@@ -41,6 +41,11 @@ Waleed's answer is binding. The partner (Abu Salem, محمد العنزي) has n
   stored before this row stay without a break; adding, changing or removing a break on a past day needs a reason.
 - **BW-Q7 — Everyone on break at once.** Decided (1): **no check in this row.** The manager places breaks; a warning,
   if ever wanted, is its own row.
+- **BW-Q8 — What counts as worked time (follow-up to BW-Q4).** Decided (recommended): time clocked out **inside** the
+  break window counts as worked; time clocked out **outside** it (11:00–11:20) does not.
+- **BW-Q9 — When a clock-in is a return from break.** Decided (recommended): only if she already clocked in earlier in
+  the **same shift**. A first arrival after the break start (هبة at 13:30) is late from the shift start, so no one can
+  hide lateness behind the break.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -113,7 +118,7 @@ the personal QR clock and the card clock with a scheduled break.
 4. **Given** she never clocks out for the break, **Then** nothing is raised: no exception, no alert (BW-Q5).
 5. **Given** the same shift and **no** earlier session on it (she arrives for the first time at 13:30), **When** she
    clocks in, **Then** it is not a return from break: lateness is measured from the shift start, as in spec 027
-   (270 minutes).
+   (270 minutes) (BW-Q9).
 6. **Given** the same shift and a closed morning session, **When** she clocks back in at 13:45 (before the break end),
    **Then** `late_minutes` = 0.
 
@@ -136,9 +141,10 @@ the personal QR clock and the card clock with a scheduled break.
 - **Stored schedules and templates** from before this row read as "no break" and keep working (BW-Q6).
 - **Employees on break at the same time**: not checked (BW-Q7).
 - **First clock-in of the shift after the break start** (she never came in the morning): not a return; measured from
-  the shift start, unchanged from spec 027.
+  the shift start, unchanged from spec 027 (BW-Q9).
 - **Clock-out and back in outside the break** (out 11:00, back 11:20 on a shift with break 13:00–14:00): not a return
-  from break; unchanged from spec 027 (measured from the shift start). Fixing other mid-shift returns is out of scope.
+  from break; unchanged from spec 027 (measured from the shift start), and the 20 minutes out are not worked time
+  (BW-Q8). Fixing other mid-shift returns is out of scope.
 - **Hours** (BW-Q4): a shift with a break is as long as its start–end; the break is never subtracted.
 - **Not-clocked-in alert** (spec 036): unchanged — it is about the shift start; a break never moves it.
 - **Missed clock-out** (spec 029): unchanged — shift end + 4 h.
@@ -166,12 +172,13 @@ the personal QR clock and the card clock with a scheduled break.
 - **FR-010**: When the employee clocks in again on a shift that has a break — she already has an earlier session on
   that shift and the clock-in is at or after the break start — lateness MUST be measured from the break end with the
   10-minute grace of spec 027 (AT-Q7), and the session's stored scheduled start MUST be the break end. Every other
-  clock-in keeps the spec 027 rule. Clocking for the break is never required and its absence raises nothing (BW-Q5).
+  clock-in keeps the spec 027 rule. Clocking for the break is never required and its absence raises nothing (BW-Q5,
+  BW-Q9).
 - **FR-011**: The break MUST NOT reduce any hours figure (BW-Q4). Scheduled hours of a shift = end − start, break
   included (سارة: 8 h). For worked hours (row 27 board/report, not built in this row), time she spends clocked out
   inside her scheduled break window MUST count as worked, so a day 08:58–13:00 + 14:00–17:00 with break 13:00–14:00
-  is not shorter than the same day without the clock-out; time clocked out outside the break window is not credited.
-  This row exposes no hours figure itself; row 27 implements the figure.
+  is not shorter than the same day without the clock-out; time clocked out outside the break window is not credited
+  (BW-Q8). This row exposes no hours figure itself; row 27 implements the figure.
 - **FR-012**: The admin schedule editor MUST show and round-trip the break, so saving a week without touching a break
   never erases it.
 
@@ -191,8 +198,8 @@ the personal QR clock and the card clock with a scheduled break.
   shift 20:00–04:00, the break 00:30–01:00 is valid and 03:30–04:30 is not.
 - **BR-003** (BW-Q2, BW-Q3): at most one break per shift; optional on every shift.
 - **BR-004** (BW-Q4): the break **is** working time: سارة's day is 8 h on the schedule and 8 h of work. No hours
-  figure ever subtracts it.
-- **BR-005** (BW-Q5): return-from-break lateness = whole minutes after break end, 0 up to and including 10 minutes;
+  figure ever subtracts it. Clocked-out time inside the break window is worked; outside it is not (BW-Q8).
+- **BR-005** (BW-Q5, BW-Q9): return-from-break lateness = whole minutes after break end, 0 up to and including 10 minutes;
   it applies only to a return (an earlier session exists on the same shift) at or after the break start. The morning
   session's lateness and a first clock-in after the break start are unchanged.
 - **BR-006**: comparing past days for the reason rule now uses ten canonical values per shift (the six of spec 020 plus
