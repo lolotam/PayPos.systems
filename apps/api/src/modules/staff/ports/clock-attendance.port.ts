@@ -102,7 +102,14 @@ export interface AttendanceContext {
   lastAt: Date | null;
   lastResult: ClockResult | null;
   open: OpenAttendance | null;
-  shifts: { startsAt: Date; endsAt: Date; workingDate: string }[];
+  shifts: {
+    startsAt: Date;
+    endsAt: Date;
+    workingDate: string;
+    breakStartsAt?: Date | null;
+    breakEndsAt?: Date | null;
+    returning?: boolean;
+  }[];
 }
 /** نتيجة الخطة تحمل فقط الحقائق التي تكتب، لا حسبة مخفية في adapter. */
 export interface AttendanceWrite {

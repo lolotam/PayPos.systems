@@ -149,6 +149,9 @@ export async function lockedAttendanceContext(
       startsAt: new Date(s.starts_at),
       endsAt: new Date(s.ends_at),
       workingDate: s.working_date,
+      breakStartsAt: s.break_starts_at === null ? null : new Date(s.break_starts_at),
+      breakEndsAt: s.break_ends_at === null ? null : new Date(s.break_ends_at),
+      returning: s.returning,
     })),
   };
   return { context, at };
@@ -162,7 +165,7 @@ async function lockedEmployee(tx: Tx, scope: PasskeyScope) {
     SELECT branch_id,"from","to" FROM employee_branches WHERE company_id=${scope.companyId} AND employee_id=${scope.employeeId} ORDER BY id FOR SHARE`);
   return { ...employee, attachments: Array.from(attachments) };
 }
-async function scheduleCandidates(
+export async function scheduleCandidates(
   tx: Tx,
   scope: { companyId: string; employeeId: string },
   branchId: string,
@@ -170,8 +173,19 @@ async function scheduleCandidates(
   timezone: string,
 ) {
   const date = attendanceWorkingDate(at, timezone);
-  return tx.execute<{ starts_at: Date; ends_at: Date; working_date: string }>(sql`
-    SELECT ss.starts_at,ss.ends_at,ss.working_date FROM staff_schedule_shifts ss
+  return tx.execute<{
+    starts_at: Date;
+    ends_at: Date;
+    working_date: string;
+    break_starts_at: Date | null;
+    break_ends_at: Date | null;
+    returning: boolean;
+  }>(sql`
+    SELECT ss.starts_at,ss.ends_at,ss.working_date,ss.break_starts_at,ss.break_ends_at,
+      EXISTS (SELECT 1 FROM attendance_sessions a
+        WHERE a.company_id=ss.company_id AND a.employee_id=ss.employee_id
+          AND a.clock_out>ss.starts_at AND a.clock_out<=${at.toISOString()}::timestamptz) AS returning
+    FROM staff_schedule_shifts ss
     JOIN staff_schedules s ON s.company_id=ss.company_id AND s.id=ss.schedule_id
     WHERE ss.company_id=${scope.companyId} AND ss.employee_id=${scope.employeeId} AND s.branch_id=${branchId}
       AND (ss.working_date=${date}::date OR (ss.starts_at<=${at.toISOString()}::timestamptz AND ss.ends_at>${at.toISOString()}::timestamptz))
@@ -276,6 +290,9 @@ async function cardAttendanceFacts(
       startsAt: new Date(s.starts_at),
       endsAt: new Date(s.ends_at),
       workingDate: s.working_date,
+      breakStartsAt: s.break_starts_at === null ? null : new Date(s.break_starts_at),
+      breakEndsAt: s.break_ends_at === null ? null : new Date(s.break_ends_at),
+      returning: s.returning,
     })),
   };
 }
