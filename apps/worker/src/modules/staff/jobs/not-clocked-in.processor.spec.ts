@@ -7,7 +7,6 @@ import {
   NOT_CLOCKED_IN_EVERY_MS,
   startNotClockedInProcessor,
 } from './not-clocked-in.processor.ts';
-import type { DetectNotClockedIns } from '../use-cases/detect-not-clocked-in/detect-not-clocked-in.ts';
 
 const ids = systemUuidV7();
 const redisUrl =
@@ -27,7 +26,7 @@ it('CompanyCreated registers one id-only schedule per company, idempotently, the
   const prefix = `attendance-not-clocked-in-test-${ids.newId()}`;
   const execute = vi.fn(async () => ({ notified: 0 }));
   const processor = startNotClockedInProcessor(
-    { execute } as unknown as DetectNotClockedIns,
+    [{ execute }],
     redisUrl,
     prefix,
   );
@@ -68,7 +67,7 @@ it('CompanyCreated registers one id-only schedule per company, idempotently, the
 it('other events pass through and a Redis failure is retryable without calling next', async () => {
   const prefix = `attendance-not-clocked-in-test-${ids.newId()}`;
   const processor = startNotClockedInProcessor(
-    { execute: vi.fn() } as unknown as DetectNotClockedIns,
+    [{ execute: vi.fn() }],
     redisUrl,
     prefix,
   );
@@ -109,7 +108,7 @@ it('other events pass through and a Redis failure is retryable without calling n
 it('AttendanceClockedIn repairs a lost scheduler and reuses the CompanyCreated identity', async () => {
   const prefix = `attendance-not-clocked-in-test-${ids.newId()}`;
   const processor = startNotClockedInProcessor(
-    { execute: vi.fn(async () => ({ notified: 0 })) } as unknown as DetectNotClockedIns,
+    [{ execute: vi.fn(async () => ({ notified: 0 })) }],
     redisUrl, prefix,
   );
   const queue = new Queue(ATTENDANCE_NOT_CLOCKED_IN_QUEUE, { connection: { url: redisUrl }, prefix });
@@ -131,6 +130,38 @@ it('AttendanceClockedIn repairs a lost scheduler and reuses the CompanyCreated i
       key, every: NOT_CLOCKED_IN_EVERY_MS, template: { data: { companyId: created.companyId } },
     });
     expect(next).toHaveBeenCalledTimes(4);
+  } finally {
+    await processor.close();
+    await queue.obliterate({ force: true });
+    await queue.close();
+  }
+});
+
+it('one company job runs both detectors in order; a failing first one still runs the second and fails the job', async () => {
+  const prefix = `attendance-not-clocked-in-test-${ids.newId()}`;
+  const calls: string[] = [];
+  const notClockedIn = vi.fn(async (companyId: string) => {
+    calls.push(`not-clocked-in:${companyId}`);
+    throw new Error('synthetic failure');
+  });
+  const breakNotReturned = vi.fn(async (companyId: string) => {
+    calls.push(`break:${companyId}`);
+    return { notified: 0 };
+  });
+  const processor = startNotClockedInProcessor(
+    [{ execute: notClockedIn }, { execute: breakNotReturned }],
+    redisUrl,
+    prefix,
+  );
+  const queue = new Queue(ATTENDANCE_NOT_CLOCKED_IN_QUEUE, { connection: { url: redisUrl }, prefix });
+  const companyId = ids.newId();
+  try {
+    await processor.ready();
+    const job = await queue.add('detect', { companyId }, { attempts: 1 });
+    for (let i = 0; i < 200 && !(await job.isFailed()); i++)
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(await job.isFailed()).toBe(true);
+    expect(calls).toEqual([`not-clocked-in:${companyId}`, `break:${companyId}`]);
   } finally {
     await processor.close();
     await queue.obliterate({ force: true });
