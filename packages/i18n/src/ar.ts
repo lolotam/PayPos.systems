@@ -1,3 +1,4 @@
+import { attendanceChangeAr } from './attendance-change.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
 import { attendanceAr } from './attendance-ar.js';
 import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
@@ -27,7 +28,7 @@ export const ar: Catalog = {
   employeeDocuments: employeeDocumentsAr,
   passkeyAdmin: arPasskeyAdmin,
   leave: leaveAr,
-  permissionCodes: { ...permissionCodesAr, requestAttendanceChangeBranch: 'طلب تعديل حضور' },
+  permissionCodes: { ...permissionCodesAr, ...attendanceChangeAr.permissionCodes },
   brand: {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',
@@ -142,13 +143,7 @@ export const ar: Catalog = {
   },
   staffLogin: staffLoginAr,
   inApp: {
-    attendance_change_requested: 'طلب {{change}} لـ {{employee_name_ar}} مستني موافقتك',
-    attendance_change_decided:
-      '{{change}} لـ {{employee_name_ar}}: {{decision}}. السبب: {{reason}}',
-    attendance_change_add: 'إضافة يوم حضور',
-    attendance_change_void: 'إلغاء يوم حضور',
-    attendance_change_approved: 'تمت الموافقة',
-    attendance_change_rejected: 'تم الرفض',
+    ...attendanceChangeAr.inApp,
     title: 'الإشعارات',
     unread: 'غير مقروء',
     read: 'مقروء',
@@ -164,11 +159,7 @@ export const ar: Catalog = {
       'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
   },
   errors: {
-    ATTENDANCE_CHANGE_SELF_FORBIDDEN: 'ماينفعش تطلب تعديل حضورك بنفسك.',
-    ATTENDANCE_CHANGE_NOT_PENDING: 'الطلب لازم يكون مستني عشان يتقرر أو يتسحب.',
-    ATTENDANCE_CHANGE_REVISION_CONFLICT: 'الطلب اتغيّر. حدّث الصفحة وحاول تاني.',
-    ATTENDANCE_CHANGE_DUPLICATE_PENDING: 'فيه طلب مستني لنفس التغيير بالفعل.',
-    ATTENDANCE_CHANGE_KIND_UNAVAILABLE: 'نوع تعديل الحضور ده مش متاح لسه.',
+    ...attendanceChangeAr.errors,
     ATTENDANCE_DEVICE_LOCKED:
       'هذا الهاتف مسجّل لموظف آخر. سجّل الحضور من هاتفك أو بالبطاقة عند الاستقبال.',
     ATTENDANCE_DEVICE_NOT_ENROLLED:

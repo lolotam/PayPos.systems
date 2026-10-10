@@ -16,4 +16,21 @@ export const ATTENDANCE_TABLE_GRANTS = [
   // بند 21b: محاولات الرفض لا تُعدل ولا تُحذف.
   'attendance_device_refusals:SELECT',
   'attendance_device_refusals:INSERT',
+  'attendance_change_requests:INSERT',
+  'attendance_change_requests:SELECT',
+  'attendance_device_signals:INSERT',
+  'attendance_device_signals:SELECT',
+  'attendance_not_clocked_in_notices:INSERT',
+  'attendance_not_clocked_in_notices:SELECT',
 ].sort();
+
+export const ATTENDANCE_CHANGE_COLUMN_GRANTS = [
+  'status',
+  'decided_by',
+  'decided_at',
+  'decision_reason',
+  'cancelled_by',
+  'cancelled_at',
+  'session_id',
+  'revision',
+].map((column) => `attendance_change_requests.${column}:pospay_app:UPDATE`);

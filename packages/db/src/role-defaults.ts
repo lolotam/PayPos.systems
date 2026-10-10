@@ -35,12 +35,13 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** صلاحيات الوثائق وإعداد الورديات متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+/** صلاحيات الوثائق وإعداد الورديات وطلب تعديل الحضور متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
 export const OWNER_GRANTED_PERMISSIONS = [
   'read:files:business',
   'manage:files:business',
   'manage:document-types:company',
   'manage:schedule-settings:business',
+  'request:attendance-change:branch',
 ] as const satisfies readonly Permission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */

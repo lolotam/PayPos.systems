@@ -133,3 +133,110 @@ it('ACR-10 refuses paired devices on all four routes', async () => {
     expect(response.json().code).toBe('FORBIDDEN');
   }
 });
+
+const grant = (
+  membershipId: string,
+  permission: string,
+  scope: 'BRANCH' | 'BUSINESS',
+  scopeId: string,
+) =>
+  f.h.app.inject({
+    method: 'POST',
+    url: `/v1/permissions/memberships/${membershipId}/overrides`,
+    headers: headers(ownerCookie),
+    payload: {
+      permission_code: permission,
+      effect: 'ALLOW',
+      scope_type: scope,
+      scope_id: scopeId,
+      reason: 'Synthetic owner grant',
+      expires_at: null,
+    },
+  });
+
+it('ACR-Q1 owner grants an accountant permission to request only on the granted branch', async () => {
+  await asRole(f, 'accountant');
+  await f.h
+    .owner`UPDATE memberships SET scope_type='BUSINESS',scope_id=${f.business} WHERE id=${f.approverMember}`;
+  const file = (payload = changeInput(f)) =>
+    f.h.app.inject({
+      method: 'POST',
+      url: route(),
+      headers: headers(),
+      payload,
+    });
+  expect((await file()).statusCode).toBe(404);
+  const allowed = await grant(
+    f.approverMember,
+    'request:attendance-change:branch',
+    'BRANCH',
+    f.branch,
+  );
+  expect(allowed.statusCode).toBe(201);
+  const filed = await file();
+  expect(filed.statusCode).toBe(201);
+  expect(attendanceChangeRequest.parse(filed.json())).toMatchObject({
+    status: 'PENDING',
+    branch_id: f.branch,
+    requested_by: f.approverId,
+  });
+  const session_id = await seedSession(f, { employeeId: f.employee.id, branchId: f.secondBranch });
+  const outside = await f.h.app.inject({
+    method: 'POST',
+    url: route(),
+    headers: headers(),
+    payload: { ...changeInput(f), kind: 'VOID_SESSION', session_id },
+  });
+  expect(outside.statusCode).toBe(404);
+  expect(outside.json().code).toBe('NOT_FOUND');
+});
+
+it('ACR-Q1 a non-owner permission administrator cannot grant the request permission', async () => {
+  const management = await grant(f.memberId, 'manage:memberships:business', 'BUSINESS', f.business);
+  expect(management.statusCode).toBe(201);
+  const refused = await f.h.app.inject({
+    method: 'POST',
+    url: `/v1/businesses/${f.business}/permissions/memberships/${f.approverMember}/overrides`,
+    headers: headers(f.cookie),
+    payload: {
+      permission_code: 'request:attendance-change:branch',
+      effect: 'ALLOW',
+      scope_type: 'BRANCH',
+      scope_id: f.secondBranch,
+      reason: 'Synthetic delegated grant',
+      expires_at: null,
+    },
+  });
+  expect(refused.statusCode).toBe(403);
+  expect(refused.json().code).toBe('PERMISSION_OWNER_ONLY');
+  const rows = await f.h.owner`SELECT id FROM permission_overrides
+    WHERE company_id=${f.company} AND membership_id=${f.approverMember}
+    AND permission_code='request:attendance-change:branch' AND scope_id=${f.secondBranch}`;
+  expect(rows).toHaveLength(0);
+});
+
+it('ACR-Q1 ignores a historical Device ALLOW for the request permission', async () => {
+  await asRole(f, 'device');
+  const allowed = await grant(
+    f.approverMember,
+    'request:attendance-change:branch',
+    'BRANCH',
+    f.branch,
+  );
+  expect(allowed.statusCode).toBe(403);
+  expect(allowed.json().code).toBe('PERMISSION_ROLE_FORBIDDEN');
+  await f.h.owner`INSERT INTO permission_overrides
+    (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES(${f.company},${leaveIds.newId()},${f.approverMember},'request:attendance-change:branch',
+      'ALLOW','BRANCH',${f.secondBranch},'Synthetic historical device grant',${f.owner})`;
+  const session_id = await seedSession(f, { employeeId: f.employee.id, branchId: f.secondBranch });
+  const response = await f.h.app.inject({
+    method: 'POST',
+    url: route(),
+    headers: headers(),
+    payload: { ...changeInput(f), kind: 'VOID_SESSION', session_id },
+  });
+  expect(response.statusCode).toBe(404);
+  expect(response.json().code).toBe('NOT_FOUND');
+  await asRole(f, 'business_manager');
+});

@@ -7,6 +7,7 @@ export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
   'manage:files:business',
   'manage:document-types:company',
   'manage:schedule-settings:business',
+  'request:attendance-change:branch',
 ];
 
 /** العضوية المستهدفة، بدون أي بيانات دخول حساسة. */

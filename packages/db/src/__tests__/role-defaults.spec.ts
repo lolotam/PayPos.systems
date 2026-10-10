@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { PERMISSIONS, SYSTEM_ROLES } from '../access-catalog.ts';
 import { ROLE_DEFAULTS } from '../role-defaults.ts';
+import { systemRolePolicy } from '../system-role-policy.ts';
 
 // توقع مستقل لكل دور؛ اختبار catalog كامل يمنع ضياع أكواد slices اللاحقة أو تسرب إذن المنصة.
 const expectations: Record<string, readonly string[]> = {
@@ -108,3 +109,12 @@ for (const role of SYSTEM_ROLES) {
 it('schedule settings default to owner and are eligible for humans only', () => {
   expect(ROLE_DEFAULTS['manage:schedule-settings:business']).toEqual(['owner']);
 });
+
+it.each(SYSTEM_ROLES)(
+  'attendance change permission can be granted to $code only if human',
+  (role) => {
+    expect(
+      systemRolePolicy(role.id, 'global')?.permissions.includes('request:attendance-change:branch'),
+    ).toBe(role.code !== 'device');
+  },
+);

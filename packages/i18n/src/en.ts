@@ -1,3 +1,4 @@
+import { attendanceChangeEn } from './attendance-change.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
 import { attendanceEn } from './attendance-en.js';
@@ -25,10 +26,7 @@ export const en = {
   employeeDocuments: employeeDocumentsEn,
   passkeyAdmin: enPasskeyAdmin,
   leave: leaveEn,
-  permissionCodes: {
-    ...permissionCodesEn,
-    requestAttendanceChangeBranch: 'Request attendance change',
-  },
+  permissionCodes: { ...permissionCodesEn, ...attendanceChangeEn.permissionCodes },
   brand: {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',
@@ -143,14 +141,7 @@ export const en = {
   },
   staffLogin: staffLoginEn,
   inApp: {
-    attendance_change_requested:
-      '{{change}} requested for {{employee_name_en}}; awaiting your approval',
-    attendance_change_decided:
-      '{{change}} for {{employee_name_en}}: {{decision}}. Reason: {{reason}}',
-    attendance_change_add: 'Add attendance day',
-    attendance_change_void: 'Void attendance day',
-    attendance_change_approved: 'Approved',
-    attendance_change_rejected: 'Rejected',
+    ...attendanceChangeEn.inApp,
     title: 'Notifications',
     unread: 'Unread',
     read: 'Read',
@@ -166,12 +157,7 @@ export const en = {
       '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
   },
   errors: {
-    ATTENDANCE_CHANGE_SELF_FORBIDDEN: 'You cannot request a change to your own attendance.',
-    ATTENDANCE_CHANGE_NOT_PENDING:
-      'Only pending attendance change requests can be decided or withdrawn.',
-    ATTENDANCE_CHANGE_REVISION_CONFLICT: 'The request changed. Reload and try again.',
-    ATTENDANCE_CHANGE_DUPLICATE_PENDING: 'A pending request already exists for this change.',
-    ATTENDANCE_CHANGE_KIND_UNAVAILABLE: 'This attendance change kind is not available yet.',
+    ...attendanceChangeEn.errors,
     ATTENDANCE_DEVICE_LOCKED:
       'This phone is registered to another employee. Clock in from your own phone or with the card at reception.',
     ATTENDANCE_DEVICE_NOT_ENROLLED:
