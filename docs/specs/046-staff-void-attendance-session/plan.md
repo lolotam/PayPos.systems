@@ -35,8 +35,9 @@ UNIQUE index. No new table, no new permission, no new grant (`pospay_app` alread
 
 **Performance Goals**: each kind adds two or three indexed statements to 26a's transaction, well under 200 ms
 
-**Constraints**: expand-only migrations numbered **0116+** (26a owns 0111–0113, lane 26b owns 0114–0115; the later PR to
-merge renumbers with `renumber_migrations.py`); **no edit** to `staff/domain/clock-attendance.ts`,
+**Constraints**: expand-only migrations, renumbered on 2026-10-11 to **0118–0121** (main 0111–0112, 26a 0113–0115, lane
+26b 0116–0117; first planned as 0116+). The later PR to
+merge renumbers with `renumber_migrations.py`; **no edit** to `staff/domain/clock-attendance.ts`,
 `staff/persistence/attendance-context.adapter.ts`, `staff/persistence/attendance-writes.ts` or any worker job (lane
 16b-2); edits to `attendance-correction.ts`, `attendance-correction-records.ts`, `schema/staff-attendance.ts` are small
 and additive (lane 26b edits them too); shared registries edited additively only

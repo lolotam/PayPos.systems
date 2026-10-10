@@ -145,3 +145,23 @@ it.each(['ar', 'en'] as const)('renders restore requests and decisions in %s', (
     );
   }
 });
+
+it('renders break_not_returned in the viewer locale with the break end', () => {
+  const base = shift('ar');
+  const item = {
+    ...base,
+    template_key: 'break_not_returned',
+    safe_parameters: [
+      ...base.safe_parameters.slice(0, 4),
+      { name: 'break_end', type: 'text', value: '14:00' },
+    ],
+  } as InAppNotification;
+  const text = (locale: 'ar' | 'en', employee: string, branch: string) =>
+    t(locale, 'inApp.break_not_returned')
+      .replace('{{break_end}}', '14:00')
+      .replace(`{{${locale === 'ar' ? 'employee_name_ar' : 'employee_name_en'}}}`, employee)
+      .replace(`{{${locale === 'ar' ? 'branch_name_ar' : 'branch_name_en'}}}`, branch);
+  expect(renderNotification(item, 'en')).toBe(text('en', 'Laila', 'Salmiya'));
+  expect(renderNotification(item, 'ar')).toBe(text('ar', 'ليلى', 'السالمية'));
+  expect(renderNotification(item, 'en')).toContain('14:00');
+});

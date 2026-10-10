@@ -130,10 +130,19 @@ it('ACR-08 records owner self filing as approved with two audit entries and no r
     requested_by: f.owner,
     revision: 1,
   });
-  expect((await changeAudits(f, row.id)).map((r) => r['action'])).toEqual([
+  const audits = await changeAudits(f, row.id);
+  expect(audits.map((r) => r['action'])).toEqual([
     'attendance_change.requested',
     'attendance_change.approved',
   ]);
+  expect(audits[0]?.['before']).toBeNull();
+  expect(audits[0]?.['after']).toMatchObject({ status: 'PENDING', revision: 0, decided_by: null });
+  expect(audits[1]?.['before']).toMatchObject({ status: 'PENDING', revision: 0, decided_by: null });
+  expect(audits[1]?.['after']).toMatchObject({
+    status: 'APPROVED',
+    revision: 1,
+    decided_by: f.owner,
+  });
   const events = await changeEvents(f, row.id);
   expect(events).toMatchObject([{ event_type: 'AttendanceChangeDecided' }]);
   expect(events[0]?.['payload']).not.toHaveProperty('notification_recipients');

@@ -82,3 +82,38 @@ it('allows the safe in-app templates in supported locales and revision', () => {
     ]),
   ).toBe(false);
 });
+
+it('allows break_not_returned with a break end and rejects it with a shift start or an unsafe name', () => {
+  const names = [
+    { name: 'employee_name_ar', type: 'text' as const, value: 'Synthetic employee' },
+    { name: 'employee_name_en', type: 'text' as const, value: 'Synthetic employee' },
+    { name: 'branch_name_ar', type: 'text' as const, value: 'Studio 2026' },
+    { name: 'branch_name_en', type: 'text' as const, value: 'Studio 2026' },
+  ];
+  for (const locale of ['ar', 'en'])
+    expect(
+      validInAppTemplate('break_not_returned', 1, locale, [
+        ...names,
+        { name: 'break_end', type: 'text', value: '14:00' },
+      ]),
+    ).toBe(true);
+  expect(
+    validInAppTemplate('break_not_returned', 1, 'ar', [
+      ...names,
+      { name: 'shift_start', type: 'text', value: '14:00' },
+    ]),
+  ).toBe(false);
+  expect(
+    validInAppTemplate('break_not_returned', 1, 'ar', [
+      ...names.slice(0, 3),
+      { name: 'branch_name_en', type: 'text', value: 'https://example.test/private' },
+      { name: 'break_end', type: 'text', value: '14:00' },
+    ]),
+  ).toBe(false);
+  expect(
+    validInAppTemplate('break_not_returned', 2, 'ar', [
+      ...names,
+      { name: 'break_end', type: 'text', value: '14:00' },
+    ]),
+  ).toBe(false);
+});

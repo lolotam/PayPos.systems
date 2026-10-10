@@ -100,3 +100,29 @@ eligibility read; otherwise inactive (deleted or contract-ended) employees recor
 before this release needs its replay for day-one coverage; a later clock-in also repairs registration. Recipients are resolved at detection time, so a manager added
 after the alert does not receive it. PR 62 must replace the interim rule (decision 3) and keep decisions 1, 2 and 7.
 Staff push (PR 28b) and the shift-ending reminder (PR 28c) are separate decisions with their own ADRs.
+
+## Addendum 2026-10-10 — the break not-returned alert (spec 041, BW-Q5 option 2)
+
+The owner changed BW-Q5 on 2026-10-10: if an employee clocks out inside her scheduled break and does not clock back
+in, her branch's managers are alerted. This alert rides on this ADR instead of adding a second sweep:
+
+- **Same company job.** The `attendance-not-clocked-in-<companyId>` scheduler runs two detectors in order:
+  not-clocked-in, then break not-returned. Each runs even when the one before it failed. Any failure fails the job,
+  so BullMQ retries it, and both once-only ledgers make the retry harmless. Decisions 1 and 2 (discovery,
+  recipients) are unchanged and shared.
+- **Same rule, recipients and channel.** The break rule takes `roles` and `channel` from
+  `interimNotClockedInRule()`, so PR 62 replaces both from one place. The grace is 10 minutes after the break end.
+- **Same lock order and once-only protocol** (decision 7). The table is separate:
+  `attendance_break_not_returned_notices`, UNIQUE `(company_id, employee_id, shift_starts_at)`, SELECT + INSERT for
+  `pospay_app`. Putting a kind column on the existing ledger would have replaced its unique key, which is not an
+  expand step.
+- **Same delivery.** A new event, `ShiftBreakNotReturned`, is added to the notifications consumer list. It carries
+  the in-app template `break_not_returned`, rev 1: the decision 4 names plus `break_end` `HH:MM` in the schedule's
+  timezone. It reuses the recipient groups of decision 5.
+- **Due page.** Shifts with a break that ended at least 10 minutes ago, and that are still running
+  (`ends_at > now`, `starts_at > now − 16 h`, decision 6). The page is pre-filtered by an `EXISTS` on a `CLOSED`
+  session that the employee ended inside the break, at the shift's branch, carrying the shift's `scheduled_end`
+  snapshot. The clock-out window opens 10 minutes before the break (BW-Q11), and the return must be at the same
+  branch (BW-Q10). The probe uses `attendance_sessions_employee_date_idx`. A finished shift is never re-read, so a session
+  inserted later for a past day raises nothing.
+- **No attendance change.** No session status, exception kind or `attendance_exceptions` column is added.

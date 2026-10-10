@@ -15,6 +15,7 @@
 >
 > **Changelog**
 >
+> - **V3.10 (2026-10-11)** — §1 5b: when Waleed and his partner pick differently, the partner's (Abu Salem's) pick is binding; work proceeds on Waleed's pick until the partner answers (Waleed, 2026-10-10). New 5c: the decisions page's «المشروع أول بأول» tab (`roadmap.json`) is updated after every merge, every new row or task, and every new partner request (Waleed, 2026-10-10/11).
 > - **V3.9 (2026-10-09)** — §5: migration data steps (ADR-0038, accepted by Waleed 2026-10-09) are a recorded exception: the migration owner reads only `companies.id`, every tenant effect runs under `withTenant` on `pospay_app`; no runtime role gains `BYPASSRLS`, no new grant (issue #139).
 > - **V3.8 (2026-10-08)** — §1: owner questions are recorded in the slice's `owner-questions.ar.md` and posted as a numbered batch on the shared "قرارات PosPay" decisions page (Waleed, 2026-10-08).
 > - **V3.7 (2026-10-02)** — §5: public rating links are the fourth session-less entry point, with tenant-local token validation and limited rating/opt-out capabilities (ADR-0011, Proposed; Phase 1 G3).
@@ -42,12 +43,20 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
 5b. **Every owner question goes to two places.**
     - First, the slice's `docs/specs/NNN-…/owner-questions.ar.md`. It holds the question, the options, the recommended option, and Waleed's answer verbatim, all in Arabic.
     - Second, the shared decisions page https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF, as a **new numbered batch**. Batch 1 is the decisions made up to 2026-10-08.
-    - Waleed and his partner pick there. Waleed's pick is final.
+    - Waleed and his partner (Abu Salem) pick there. **When they differ, the partner's pick is binding.** Until the
+      partner answers, work proceeds on Waleed's pick; if the partner later differs, his pick replaces it (the decision
+      record, the slice's `owner-questions.ar.md` with the old answer kept as history, and the spec/code through a
+      follow-up if already merged).
     - Never create a second page. Publish to that same URL.
     - **Who writes where:** only the Claude Code orchestrator session can publish to that page. Any other agent (Codex,
       Grok, a subagent) writes the question into the slice's `owner-questions.ar.md` with the answer marked
       `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then posts the batch to the page and writes
       the owner's answer back into the file.
+5c. **The project-status tab is always current.** The same decisions page has a tab «المشروع أول بأول» fed by its
+    published file `roadmap.json`: every phase, gate, task and sub-task by its code, the product tracks, and every
+    partner request, each marked done / in progress / not started. The orchestrator updates it and republishes **after
+    every merge, whenever a row or task is added or renamed, and whenever the partner asks for something new** — read
+    the live page first and edit `roadmap.json` in place (never rebuild it), so a parallel session's edits survive.
 6. **A slice is not done until the checklist in `CLAUDE.architecture.md` §15 passes.**
 
 > **A doc comment is written with its function, not afterwards** (§3.1). "I'll document it later" means it never gets documented, and by then the author has forgotten the _why_ — which is the only part worth writing down.

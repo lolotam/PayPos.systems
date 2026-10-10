@@ -445,8 +445,8 @@
           "method": "btree",
           "with": {}
         },
-        "attendance_change_requests_one_pending_void": {
-          "name": "attendance_change_requests_one_pending_void",
+        "attendance_change_requests_one_pending_session": {
+          "name": "attendance_change_requests_one_pending_session",
           "columns": [
             {
               "expression": "company_id",
@@ -462,10 +462,10 @@
             }
           ],
           "isUnique": true,
-          "with": {},
+          "where": "\"attendance_change_requests\".\"status\" = 'PENDING' AND \"attendance_change_requests\".\"kind\" IN ('VOID_SESSION','RESTORE_SESSION')",
+          "concurrently": false,
           "method": "btree",
-          "where": "\"attendance_change_requests\".\"status\" = 'PENDING' AND \"attendance_change_requests\".\"kind\" = 'VOID_SESSION'",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -2466,6 +2466,48 @@
         }
       },
       "indexes": {
+        "attendance_sessions_voided_by_idx": {
+          "name": "attendance_sessions_voided_by_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "voided_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attendance_sessions_void_request_idx": {
+          "name": "attendance_sessions_void_request_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "void_request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "attendance_sessions_one_open": {
           "name": "attendance_sessions_one_open",
           "columns": [
@@ -13177,6 +13219,215 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.attendance_break_not_returned_notices": {
+      "name": "attendance_break_not_returned_notices",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_starts_at": {
+          "name": "shift_starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_ends_at": {
+          "name": "shift_ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "break_ends_at": {
+          "name": "break_ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "break_out_at": {
+          "name": "break_out_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alert_due_at": {
+          "name": "alert_due_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notified_at": {
+          "name": "notified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipient_count": {
+          "name": "recipient_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "attendance_break_not_returned_notices_business_branch_idx": {
+          "name": "attendance_break_not_returned_notices_business_branch_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "attendance_break_not_returned_notices_branch_idx": {
+          "name": "attendance_break_not_returned_notices_branch_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "attendance_break_not_returned_notices_company_id_companies_id_fk": {
+          "name": "attendance_break_not_returned_notices_company_id_companies_id_fk",
+          "tableFrom": "attendance_break_not_returned_notices",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "tableTo": "companies",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "attendance_break_not_returned_notices_employee_fk": {
+          "name": "attendance_break_not_returned_notices_employee_fk",
+          "tableFrom": "attendance_break_not_returned_notices",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "employee_id"
+          ],
+          "tableTo": "employees",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "attendance_break_not_returned_notices_branch_fk": {
+          "name": "attendance_break_not_returned_notices_branch_fk",
+          "tableFrom": "attendance_break_not_returned_notices",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "branch_id"
+          ],
+          "tableTo": "branches",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "attendance_break_not_returned_notices_pkey": {
+          "name": "attendance_break_not_returned_notices_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "attendance_break_not_returned_notices_shift_key": {
+          "name": "attendance_break_not_returned_notices_shift_key",
+          "columns": [
+            "company_id",
+            "employee_id",
+            "shift_starts_at"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "attendance_break_not_returned_notices_recipients": {
+          "name": "attendance_break_not_returned_notices_recipients",
+          "value": "\"attendance_break_not_returned_notices\".\"recipient_count\" >= 0"
+        },
+        "attendance_break_not_returned_notices_span": {
+          "name": "attendance_break_not_returned_notices_span",
+          "value": "\"attendance_break_not_returned_notices\".\"shift_ends_at\" > \"attendance_break_not_returned_notices\".\"shift_starts_at\" AND \"attendance_break_not_returned_notices\".\"break_ends_at\" > \"attendance_break_not_returned_notices\".\"shift_starts_at\" AND \"attendance_break_not_returned_notices\".\"break_ends_at\" < \"attendance_break_not_returned_notices\".\"shift_ends_at\""
+        }
+      },
+      "isRLSEnabled": false
     }
   },
   "enums": {},
@@ -13190,6 +13441,6 @@
     "tables": {},
     "columns": {}
   },
-  "id": "eba604e0-d7d4-46b4-b7da-6435ee868dbf",
-  "prevId": "cd71d333-b8c6-44fd-a3c6-a3f2657aa023"
+  "id": "9bfcfd32-7177-4655-be24-76e5c9244622",
+  "prevId": "74932698-976c-477b-8bd5-68ca688d4779"
 }

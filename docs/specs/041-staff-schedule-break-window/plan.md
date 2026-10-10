@@ -12,7 +12,9 @@ template pattern (BW-Q1, BW-Q2, BW-Q3). Breaks are validated by one new pure fun
 resolved to UTC instants in `materializeSchedule`, stored as four nullable columns on `staff_schedule_shifts` guarded by
 two CHECKs, and as two optional keys in the template `shifts` JSONB. Every schedule read returns them; the admin week
 editor shows and round-trips them. The break **counts as working time** (BW-Q4): no hours figure subtracts it. A return
-clock-in on a shift with a break is measured from the break end with the 10-minute grace (BW-Q5).
+clock-in on a shift with a break is measured from the break end with the 10-minute grace (BW-Q5). Since the owner's
+BW-Q5 change on 2026-10-10 (option 2), a clock-out inside the break with no return by the break end + 10 minutes
+alerts the branch's managers in-app, through the spec 036 job (D8).
 
 The work ships as **two PRs** (see "PR split"): **16b-1** the break on schedules and templates; **16b-2** the
 return-from-break lateness in attendance. Both are built **after row 16c (spec 042) merges**, on top of it (see
@@ -66,7 +68,7 @@ House rule: one use case per PR (CLAUDE.md §10). The break touches two differen
 | PR | Scope | Spec parts | Depends on |
 |---|---|---|---|
 | **16b-1** `feat(staff): phase 1 PR 16b — break window on schedules and templates` | contract fields + `SCHEDULE_BREAK_INVALID`; migration (4 columns, 2 CHECKs); `validateShiftBreak` + `materializeShiftBreak` + 10-value past tuple; persistence + `schedule-week.query`; template JSONB mapping; admin break inputs, round-trip, grid label; i18n; OpenAPI + generated clients | US1, US2, FR-001…FR-009, FR-011 (no figure), FR-012; BW-01…BW-06 | 16c merged |
-| **16b-2** `fix(staff): phase 1 PR 16b-2 — return-from-break lateness` | return rule in `attendanceSchedule`/`planAttendance`; `attendance-context.adapter` reads break instants and the "returning" fact for QR and card; tests | US3, FR-010; BW-07, BW-08 | 16b-1 merged (needs the columns) |
+| **16b-2** `16b-2 — return-from-break lateness + not-returned alert` | return rule in `attendanceSchedule`/`planAttendance`; `attendance-context.adapter` reads break instants and the "returning" fact for QR and card; the not-returned alert (D8): notice table + RLS, worker detector in the spec 036 job, `ShiftBreakNotReturned`, `break_not_returned` in-app template; tests | US3, US4, FR-010, FR-013…FR-015; BW-07…BW-10 | 16b-1 merged (needs the columns) |
 
 **Recommendation: split.**
 - 16b-2 changes the stored `late_minutes` on the live clock path of two use cases (`clock-attendance`,
@@ -120,6 +122,28 @@ Procedure at implementation time: `git merge origin/main` once 16c is on main, r
   spec 027 is unchanged. The adapter reads `returning` as a boolean per candidate shift (one `EXISTS` on
   `attendance_sessions_employee_date_idx`); the domain decides. Corrections need no change: they recompute from the
   stored `scheduled_start`.
+  **Note for row 27 (FR-011, BW-Q4):** a return session's stored `scheduled_start` is the break end, not the shift
+  start. Scheduled hours must therefore never be computed per session as `scheduled_end − scheduled_start`; take them
+  from the shift (`ends_at − starts_at`, break included).
+- **D8 Not-returned alert** (16b-2, BW-Q5 (2), FR-013…FR-015, BR-007, BR-008): the owner changed BW-Q5 on 2026-10-10
+  and asked for it in the same PR, so 16b-2 carries a second use case (worker `DetectBreakNotReturned`). It reuses
+  spec 036 / ADR-0037 as closely as possible:
+  - **Sweep**: the same per-company BullMQ scheduler `attendance-not-clocked-in-<companyId>` every 5 minutes. The
+    processor runs both detectors and retries the job when either failed. No new queue, scheduler or registration.
+  - **Recipients and channel**: `interimNotClockedInRule().roles` through the same `BranchManagerRecipients`
+    adapter, IN_APP only, the absent employee removed, groups of ≤ 100.
+  - **Lock and once-only**: the `attendance_states` → `employees FOR SHARE` lock order, then re-read and decide, then
+    `INSERT … ON CONFLICT DO NOTHING` on a new notice table keyed `(company_id, employee_id, shift_starts_at)`. Only
+    an inserted row writes the audit row and the outbox.
+  - **Delivery**: the `ShiftBreakNotReturned` event (additive in `NOTIFICATION_SOURCE_EVENTS`) and the
+    `break_not_returned` template, rendered by the bell in the viewer's locale like `shift_not_clocked_in`.
+  - **Leave and eligibility**: `applyApprovedLeave` anchored at the break end, and the same eligibility rule.
+  - **Due page**: only shifts with a break that has not ended yet (`ends_at > now`, `starts_at > now − 16 h`), so a
+    past day is never re-evaluated. It is pre-filtered by an `EXISTS` break-out session on
+    `attendance_sessions_employee_date_idx`.
+
+  No session status, no exception kind and no `attendance_exceptions` column is added (lane 2: 26b/26c filter on
+  them).
 - **D7 Error**: `SCHEDULE_BREAK_INVALID` 400 — `message_ar` «وقت البريك لازم يكون جوّه الشيفت», `message_en` "The break
   must be inside the shift"; `details` carries the shift `{ day, start }` so the admin form can point at it.
 
@@ -163,6 +187,19 @@ apps/api/src/modules/staff/
 └── __tests__/schedules.spec.ts, schedule-templates.spec.ts, schedule-queries.spec.ts, schedule-rls.spec.ts,
     clock-attendance.spec.ts, clock-by-card.spec.ts, correct-attendance.spec.ts (16b-2)
 
+apps/worker/src/modules/staff/   (16b-2, D8)
+├── domain/break-not-returned.ts (+ __tests__)        decision, alert moment, parameters
+├── ports/break-not-returned.port.ts
+├── persistence/break-not-returned.transactions.ts, break-not-returned-writes.ts
+├── use-cases/detect-break-not-returned/
+├── jobs/not-clocked-in.processor.ts                  runs both detectors
+├── events/published.ts, index.ts, staff.module.ts
+└── __tests__/break-not-returned-*.spec.ts
+apps/worker/src/modules/notifications/events/handlers/on-notification-request.handler.ts   +ShiftBreakNotReturned
+packages/db/schema/staff-attendance-notices.ts + migrations (notice table, RLS)
+packages/contracts/src/in-app-notifications.ts, packages/notifications/src/templates/break-not-returned.ts
+apps/admin/src/notifications/model/render-notification.ts, ui/notification-item.tsx
+
 apps/admin/src/staff/
 ├── model/schedule-form.ts (+ spec)          break round-trip, '' → null
 ├── ui/schedule-shift-break-fields.tsx (new) break inputs per shift
@@ -181,3 +218,5 @@ stays inside the `staff` module, its contracts, the db schema and the admin `sta
 |---|---|---|
 | Store break instants, not only local times | attendance (16b-2) compares instants, like the shift (ADR-0024) | re-deriving instants at clock time re-interprets local times and duplicates timezone logic |
 | Two PRs for one row | one concern per PR; 16b-2 changes the live clock path | one PR mixes editor and attendance review risk |
+| A second use case in 16b-2 (not-returned alert) | the owner changed BW-Q5 on 2026-10-10 while PR #147 was open and asked for it in the same PR | a separate PR would merge the lateness fix without the alert the owner's binding answer now requires |
+| A second notice table instead of a kind column on `attendance_not_clocked_in_notices` | expand-only: a kind column would replace the existing UNIQUE key | changing a live table's unique key is a contract step in the same release |

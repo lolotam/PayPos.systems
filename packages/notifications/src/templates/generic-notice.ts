@@ -1,4 +1,5 @@
 import { validateParameters, type SafeParameter, type TemplateDefinition } from './definition.ts';
+import { breakNotReturned } from './break-not-returned.ts';
 import { shiftNotClockedIn } from './shift-not-clocked-in.ts';
 import { attendanceChangeRequested } from './attendance-change-requested.ts';
 import { attendanceChangeDecided } from './attendance-change-decided.ts';
@@ -21,15 +22,13 @@ export function validInAppTemplate(
   parameters: readonly SafeParameter[],
 ): boolean {
   const definition =
-    key === attendanceChangeRequested.key
-      ? attendanceChangeRequested
-      : key === attendanceChangeDecided.key
-        ? attendanceChangeDecided
-        : key === genericNotice.key
-          ? genericNotice
-          : key === shiftNotClockedIn.key
-            ? shiftNotClockedIn
-            : null;
+    [
+      genericNotice,
+      shiftNotClockedIn,
+      breakNotReturned,
+      attendanceChangeRequested,
+      attendanceChangeDecided,
+    ].find((item) => item.key === key) ?? null;
   return (
     definition !== null &&
     revision === definition.revision &&
