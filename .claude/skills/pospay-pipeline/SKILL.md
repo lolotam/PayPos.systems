@@ -173,6 +173,9 @@ On the `abdulaziz` SSH profile, in `/opt/pospay-staging`:
 the `.env` next to itself, so it must always run from `/opt/pospay-staging/`, never from inside `known-good/`.
 7. Point `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
    local image is removed by the server's cleanup and the nightly backup then fails silently).
+8. Update the decisions page's «المشروع أول بأول» tab (CLAUDE.md §1 5c): read the live page, set the merged rows,
+   sub-tasks and any partner requests they close to done with the PR number, add any new rows, bump `updated`, and
+   republish `roadmap.json` to the same URL. A release is not reported to the owner until this is done.
 
 The server is shared: never touch another project's containers, databases or files.
 
