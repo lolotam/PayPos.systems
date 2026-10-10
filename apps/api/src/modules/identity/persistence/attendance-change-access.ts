@@ -41,15 +41,21 @@ export async function readAttendanceChangeAccess(
           companyId,
           businessId,
         });
-  const [row] = await tx.execute<{ owner: boolean }>(sql`
-    SELECT EXISTS(SELECT 1 FROM memberships m WHERE m.company_id=${companyId} AND m.user_id=${userId}
-      AND m.starts_at<=${now.toISOString()}::timestamptz
-      AND (m.ends_at IS NULL OR m.ends_at>${now.toISOString()}::timestamptz)
-      AND ${canonicalOwnerSql('m', companyId)}) AS owner`);
+  const at = sql`${now.toISOString()}::timestamptz`;
+  const active = sql`m.company_id=${companyId} AND m.user_id=${userId} AND m.starts_at<=${at}
+      AND (m.ends_at IS NULL OR m.ends_at>${at})`;
+  const [row] = await tx.execute<{ owner: boolean; member: boolean }>(sql`
+    SELECT EXISTS(SELECT 1 FROM memberships m WHERE ${active} AND ${canonicalOwnerSql('m', companyId)}) AS owner,
+      EXISTS(SELECT 1 FROM memberships m WHERE ${active} AND (
+        (m.scope_type='COMPANY' AND m.scope_id=${companyId}::uuid)
+        OR (m.scope_type='BUSINESS' AND m.scope_id=${businessId}::uuid)
+        OR (m.scope_type='BRANCH' AND EXISTS(SELECT 1 FROM branches b
+          WHERE b.company_id=m.company_id AND b.id=m.scope_id AND b.business_id=${businessId}::uuid)))) AS member`);
   return {
     canRequest: branches.length > 0,
     canDecide,
     owner: row?.owner === true,
+    member: row?.member === true,
     branches: [...branches],
     decideBranches,
   };

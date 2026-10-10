@@ -33,14 +33,13 @@ type Work = (scope: AttendanceChangeScope) => Promise<AttendanceChangeRequest>;
 function assertAuthority(
   action: Action,
   actor: AttendanceChangeActor,
-  access: { owner: boolean; canRequest: boolean; canDecide: boolean },
+  access: { owner: boolean; member: boolean; canRequest: boolean; canDecide: boolean },
   before: AttendanceChangeRequest | null,
 ) {
   if (
     (action === 'decide' && !access.canDecide) ||
     (action === 'file' && !access.canRequest) ||
-    (action === 'cancel' &&
-      (before?.requested_by !== actor.userId || (!access.owner && !access.canRequest)))
+    (action === 'cancel' && (before?.requested_by !== actor.userId || !access.member))
   )
     throw new AttendanceChangeError('NOT_FOUND');
 }

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { attendanceChangeRequest, attendanceChangeDecisionResult } from '@pospay/contracts';
 import { IdempotencyKeyReusedError } from '@pospay/db';
 import { asRole } from './attendance-exception.fixture.ts';
+import { leaveIds } from './leave.fixture.ts';
 import { linkEmployee, seedSession } from './attendance-correction.fixture.ts';
 import {
   attendanceChangeFixture,
@@ -210,4 +211,32 @@ it('allows only one pending void and maps the partial UNIQUE refusal', async () 
   await expect(f.fileChange.execute(changeActor(f), input)).rejects.toThrow(
     'ATTENDANCE_CHANGE_DUPLICATE_PENDING',
   );
+});
+it('ACR-04 the requester withdraws after losing the request permission, but not after leaving the business', async () => {
+  const kept = await file();
+  const left = await file();
+  const denial = leaveIds.newId();
+  await f.h
+    .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES(${f.company},${denial},${f.approverMember},'request:attendance-change:branch','DENY','COMPANY',${f.company},'Synthetic revocation',${f.owner})`;
+  try {
+    await expect(file()).rejects.toThrow('NOT_FOUND');
+    expect(await f.cancelChange.execute(changeActor(f, kept.id), { revision: 0 })).toMatchObject({
+      status: 'CANCELLED',
+      cancelled_by: f.approverId,
+    });
+    await expect(
+      f.cancelChange.execute(changeActor(f, left.id, f.userId), { revision: 0 }),
+    ).rejects.toThrow('NOT_FOUND');
+    await f.h
+      .owner`UPDATE memberships SET ends_at='2026-10-01' WHERE company_id=${f.company} AND id=${f.approverMember}`;
+    await expect(f.cancelChange.execute(changeActor(f, left.id), { revision: 0 })).rejects.toThrow(
+      'NOT_FOUND',
+    );
+  } finally {
+    await f.h
+      .owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.approverMember}`;
+    await f.h
+      .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${denial}`;
+  }
 });
