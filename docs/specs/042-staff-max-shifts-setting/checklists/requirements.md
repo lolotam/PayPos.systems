@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — five owner questions open as `TODO(spec) → MS-Q1 … MS-Q5`
+- [x] No [NEEDS CLARIFICATION] markers remain — MS-Q1 … MS-Q6 answered by the owner (2026-10-10)
 - [x] Requirements are testable and unambiguous (each open rule carries its recommended option)
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)

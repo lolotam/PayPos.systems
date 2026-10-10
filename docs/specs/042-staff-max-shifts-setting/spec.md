@@ -160,7 +160,7 @@ After Eid the owner lowers the limit from 4 to 3 while some weeks still hold 4 s
   `CLAUDE.md` §8. A no-op change writes nothing.
 - **FR-012**: The schedule grid and template list responses MUST carry the effective limit so the admin "Add shift"
   control follows it; the hard-coded 2 in the admin is removed.
-- **FR-013** (`TODO(spec) → MS-Q6`, measured 2026-10-10: 20 × 1 week ≈ 180–200 ms, 2 × 10 weeks ≈ 270–345 ms at
+- **FR-013** (MS-Q6 answered 2026-10-10: keep the cap of 20, speed-up tracked in issue #145, measured 2026-10-10: 20 × 1 week ≈ 180–200 ms, 2 × 10 weeks ≈ 270–345 ms at
   28 shifts per copy, against ≈ 136 / 169–193 ms at 14): The apply-template synchronous path MUST stay under the 200 ms boundary at the maximum allowed value
   (20 copies × 4 × 7 = 28 shifts per copy). The 20-copy cap is **not** changed by this slice: if the measurement
   exceeds 200 ms, the result is reported to the owner as a question (cap change is owner-visible).
