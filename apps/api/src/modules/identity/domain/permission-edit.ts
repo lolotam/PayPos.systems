@@ -11,6 +11,11 @@ export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
   'decide:attendance-change:company',
 ];
 
+/** صلاحيات طلبات تعديل الحضور: المالك وحده يمنحها أو يمنعها أو يسحبها (ACR-Q1، ACR-Q4)، لأن سحبها يغيّر مين يقدر يطلب أو يوافق. */
+export const OWNER_ONLY_EDIT_PERMISSIONS: readonly string[] = [
+  'request:attendance-change:branch',
+  'decide:attendance-change:company',
+];
 /** العضوية المستهدفة، بدون أي بيانات دخول حساسة. */
 export interface EditableMembership {
   readonly id: string;
@@ -166,7 +171,7 @@ export function permissionEditFailure(
     ((operation === 'SAVE' &&
       terms.effect === 'ALLOW' &&
       OWNER_GRANTED_PERMISSIONS.includes(terms.permission_code)) ||
-      (operation !== 'CHECK' && terms.permission_code === 'decide:attendance-change:company')) &&
+      (operation !== 'CHECK' && OWNER_ONLY_EDIT_PERMISSIONS.includes(terms.permission_code))) &&
     !context.editorIsCompanyOwner
   )
     return 'PERMISSION_OWNER_ONLY';
