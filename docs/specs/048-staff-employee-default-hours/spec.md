@@ -36,6 +36,7 @@ working hours (a day can be 12 hours, not 8) and her break on the employee profi
 | DH-Q5 | Who sets it | **Owner only by default; the owner can grant it to anyone** (recommended) |
 | DH-Q6 | Required | **Optional, but the profile of an employee without hours shows «دوامها مش مكتوب»** (not the recommended plain optional) |
 | DH-Q7 | Per branch | **One default per branch she is linked to** (not the recommended single default) |
+| Rules a, b | Derived rules (no-default weekday never warns; contracted hours do not subtract leave/holidays yet) | **Confirmed by Waleed 2026-10-11**; partner pending |
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -112,7 +113,7 @@ in the audit log.
    default has one, **Then** the warning shows.
 4. **Given** a day with no shift, **Then** no warning (an empty day is not a "saved shift").
 5. **Given** a shift on a weekday with **no** default in this branch, **Then** no warning (nothing to compare with) —
-   derived rule, see Assumptions.
+   confirmed by Waleed 2026-10-11 (rule a).
 
 ---
 
@@ -126,7 +127,7 @@ in the audit log.
    (× 8 h = 168 h) and 5 Thursdays (× 12 h = 60 h); Fridays have no Salmiya default → **228 h**.
 2. **Given** a date before her hire date, after her contract end, or outside her Salmiya link, **Then** it adds 0.
 3. **Given** a default changed on 15 October, **Then** the current default is used for the whole month (no history in
-   this row) — see Assumptions.
+   this row) — confirmed by Waleed 2026-10-11 (rule b).
 
 ---
 
@@ -288,10 +289,10 @@ numbers: next free on `origin/main` at implementation, renumbered at merge.
 ## Assumptions
 
 - The partner's later answer may change any DH decision (Waleed's ruling); a change becomes a follow-up slice.
-- No history of defaults is kept: contracted hours use the current default for the whole range. Approved leave and
-  public holidays are **not** subtracted here; how the report column treats them is decided in row 27's spec.
-- A shift on a weekday with no default does not warn (US4-5), derived from "differs from her default". If the owner
-  wants off-day shifts flagged, it is a one-line change in `dayDiffersFromDefault`.
+- **Confirmed by Waleed 2026-10-11** («موافق على قواعد 16d», partner pending):
+  - (a) A shift on a weekday with no default in this branch does not warn (US4-5).
+  - (b) Contracted hours use the current default for the whole range and do **not** subtract approved leave or public
+    holidays for now; row 27's spec decides how the report column treats them.
 - Defaults use branch-local `HH:mm`, like templates.
 - The POS (`read-my-schedule`) and offline flows are unchanged.
 - Row 16c-2 (spec 047) changes the same grid query and editor; 16c-2 lands first (research R6).
