@@ -35,7 +35,7 @@ Format: `- [ ] Tnnn [P?] [USn?] description — path`.
 ### Database
 
 - [x] T009 Add to `staffScheduleShifts` in `packages/db/schema/staff-schedules.ts`: `breakStart: text('break_start')`, `breakEnd: text('break_end')`, `breakStartsAt: timestamp('break_starts_at', { withTimezone: true })`, `breakEndsAt: timestamp('break_ends_at', { withTimezone: true })` (all nullable; one Arabic line comment: the break belongs to the shift's start day and counts as working time); CHECK `staff_schedule_shifts_break_pair` "all four NULL or all four NOT NULL"; CHECK `staff_schedule_shifts_break_inside` "`break_starts_at IS NULL OR (break_starts_at > starts_at AND break_ends_at > break_starts_at AND break_ends_at < ends_at)`".
-- [x] T010 Generate the migration with drizzle-kit after T001 so it numbers after 16c: `packages/db/migrations/NNNN_<date>_staff-schedule-breaks.sql` (+ journal/snapshot); hand-edit so both CHECKs are added `NOT VALID` then `VALIDATE CONSTRAINT` in the same file; no grant change, no index, no data step. Drift check prints "No schema changes"; `packages/db/src/__tests__/privileges.spec.ts` unchanged and green.
+- [x] T010 Generate the migration with drizzle-kit after T001 so it numbers after 16c: `packages/db/migrations/NNNN_<date>_staff-schedule-breaks.sql` (+ journal/snapshot); hand-edit so both CHECKs are added `NOT VALID`, and `VALIDATE CONSTRAINT` both in a separate following custom migration (DB review round 1: one file is one transaction, so validating in the same file keeps the `ADD COLUMN` lock during the scan); no grant change, no index, no data step. Drift check prints "No schema changes"; `packages/db/src/__tests__/privileges.spec.ts` unchanged and green.
 
 **Checkpoint**: contracts, domain and schema ready — stories can start.
 

@@ -750,6 +750,13 @@
       "when": 1791621453528,
       "tag": "0106_2026-10-10_staff-schedule-breaks",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1791624318328,
+      "tag": "0107_2026-10-10_staff-schedule-breaks-validate",
+      "breakpoints": true
     }
   ]
 }

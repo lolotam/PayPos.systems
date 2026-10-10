@@ -39,7 +39,8 @@ Examples:
 | `break_starts_at` | `timestamptz NULL` | |
 | `break_ends_at` | `timestamptz NULL` | |
 
-CHECKs (added `NOT VALID`, then `VALIDATE` in the same migration — every existing row is all-NULL):
+CHECKs (added `NOT VALID` with the columns, then `VALIDATE` in a separate following migration so the `ADD COLUMN`
+lock is released before the scan — every existing row is all-NULL):
 
 - `staff_schedule_shifts_break_pair`: all four NULL or all four NOT NULL.
 - `staff_schedule_shifts_break_inside`: `break_starts_at IS NULL OR (break_starts_at > starts_at AND
