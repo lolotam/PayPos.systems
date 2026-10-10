@@ -14,7 +14,7 @@ export function ClockAttendanceScreen() {
       {state.scanning ? (
         <AttendanceCamera scanned={state.scanned} failed={state.failed} stop={state.stop} />
       ) : (
-        <Button size="touch" disabled={state.pending || refusal !== null} onClick={state.start}>
+        <Button size="touch" disabled={state.pending} onClick={state.start}>
           {t(locale, 'personalAttendance.scan')}
         </Button>
       )}
@@ -55,9 +55,10 @@ export function ClockAttendanceScreen() {
 }
 
 function phoneRefusal(code: string | null, locale: Locale): string | null {
-  if (code === 'ATTENDANCE_DEVICE_LOCKED' || code === 'PASSKEY_DEVICE_TAKEN')
-    return t(locale, 'errors.ATTENDANCE_DEVICE_LOCKED');
-  if (code === 'ATTENDANCE_DEVICE_NOT_ENROLLED' || code === 'PASSKEY_OTHER_DEVICE')
+  if (code === 'ATTENDANCE_DEVICE_LOCKED') return t(locale, 'errors.ATTENDANCE_DEVICE_LOCKED');
+  if (code === 'ATTENDANCE_DEVICE_NOT_ENROLLED')
     return t(locale, 'errors.ATTENDANCE_DEVICE_NOT_ENROLLED');
+  if (code === 'INSTALLATION_STORAGE_BLOCKED')
+    return t(locale, 'personalAttendance.storageBlocked');
   return null;
 }

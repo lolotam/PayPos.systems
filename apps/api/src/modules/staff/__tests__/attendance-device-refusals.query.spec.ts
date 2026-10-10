@@ -10,15 +10,17 @@ import {
 import { installationHash } from '../persistence/attendance-device-signal.ts';
 import { installationLockStatement } from '../persistence/attendance-context.adapter.ts';
 
+const PHONES = ['3f0c2b1a-4d5e-4f60-8a71-b2c3d4e5f601', '3f0c2b1a-4d5e-4f60-8a71-b2c3d4e5f602'];
 let f: AttendanceFixture;
 beforeAll(async () => {
   f = await attendanceFixture();
   await (await f.prepare()).execute();
-  for (let i = 0; i < 3; i++)
+  // ثلاثة تثبيتات مختلفة بنفس اللحظة؛ الرابع يكرر الأول داخل الدقيقة فيسقطه السقف.
+  for (const installationId of [PHONE_Y, ...PHONES, PHONE_Y])
     await f.refusals.record({
       ...f.scope,
       branchId: f.branchId,
-      installationId: PHONE_Y,
+      installationId,
       step: 'CLOCK',
       reason: 'NOT_ENROLLED',
       holderEmployeeId: null,

@@ -43,8 +43,8 @@ export function createPasskeyTransactions(
               deviceLock: (installationId) => attendanceDeviceLock(tx, scope, installationId, null),
               history: () => bindingHistory(tx, scope),
               insert: async (record) => {
-                await tx.execute(sql`INSERT INTO employee_passkeys(company_id,id,business_id,employee_id,passkey_id,revision,bound_at,bound_by,installation_hash)
-              VALUES(${scope.companyId},${record.id},${scope.businessId},${scope.employeeId},${record.passkeyId},${record.revision},${record.at.toISOString()},${scope.userId},${record.installationId === null ? null : installationHash(scope.companyId, record.installationId)})`);
+                await tx.execute(sql`INSERT INTO employee_passkeys(company_id,id,business_id,employee_id,passkey_id,revision,bound_at,bound_by,installation_hash,installation_locked_at)
+              VALUES(${scope.companyId},${record.id},${scope.businessId},${scope.employeeId},${record.passkeyId},${record.revision},${record.at.toISOString()},${scope.userId},${record.installationId === null ? null : installationHash(scope.companyId, record.installationId)},${record.installationId === null ? null : record.at.toISOString()})`);
                 const payload = {
                   employee_id: scope.employeeId,
                   binding_id: record.id,

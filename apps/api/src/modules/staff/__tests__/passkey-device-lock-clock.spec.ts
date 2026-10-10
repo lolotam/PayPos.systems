@@ -10,6 +10,7 @@ import { installationHash } from '../persistence/attendance-device-signal.ts';
 import { ClockAttendance } from '../use-cases/clock-attendance/clock-attendance.ts';
 import { createAttendanceDeviceRefusals } from '../persistence/attendance-device-refusals.ts';
 import type { TenantWrappers } from '@pospay/db';
+import { passkeyStatusStatement } from '../queries/employee-passkeys.query.ts';
 
 let f: AttendanceFixture;
 beforeAll(async () => {
@@ -31,6 +32,10 @@ it('DL-02/10 attaches a legacy binding only on an accepted clock and replays acr
     (await f.owner`SELECT installation_hash FROM employee_passkeys WHERE id=${f.bindingId}`)[0]
       ?.installation_hash,
   ).toBe(installationHash(f.companyId, PHONE_X));
+  const [status] = await f.database.withTenant(f.companyId, (tx) =>
+    tx.execute(passkeyStatusStatement(f.companyId, f.employeeId)),
+  );
+  expect(status).toMatchObject({ phone_locked: true, phone_locked_since: result.accepted_at });
   expect(
     await f.attendance.execute(
       f.scope,
@@ -42,6 +47,15 @@ it('DL-02/10 attaches a legacy binding only on an accepted clock and replays acr
   expect(
     await f.owner`SELECT id FROM attendance_device_signals WHERE employee_id=${f.employeeId}`,
   ).toHaveLength(1);
+  expect(
+    await f.owner`SELECT entity_id,after FROM audit_log
+    WHERE entity='employee_passkey' AND action='phone_locked'`,
+  ).toEqual([
+    {
+      entity_id: f.bindingId,
+      after: { employee_id: f.employeeId, binding_id: f.bindingId, phone_locked: true },
+    },
+  ]);
 });
 
 it('DL-01/03/04 refuses before consuming the assertion and rolls back all clock effects', async () => {
@@ -183,6 +197,13 @@ it('an accepted duplicate does not attach a legacy binding', async () => {
   expect(
     await f.owner`SELECT id FROM attendance_device_signals WHERE employee_id=${scope.employeeId}`,
   ).toHaveLength(0);
+  expect(
+    await f.owner`SELECT installation_locked_at FROM employee_passkeys WHERE id=${person.bindingId}`,
+  ).toEqual([{ installation_locked_at: null }]);
+  expect(
+    await f.owner`SELECT id FROM audit_log WHERE entity='employee_passkey'
+    AND entity_id=${person.bindingId} AND action='phone_locked'`,
+  ).toEqual([]);
 });
 
 it('HTTP challenge and clock preserve the device refusal envelope', async () => {

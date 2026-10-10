@@ -6,7 +6,7 @@ import { installationHash } from '../persistence/attendance-device-signal.ts';
 let f: CardFixture;
 beforeAll(async () => {
   f = await clockByCardFixture();
-  await f.owner`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)} WHERE id=${f.bindingId}`;
+  await f.owner`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)},installation_locked_at=bound_at WHERE id=${f.bindingId}`;
 });
 afterAll(async () => {
   await f?.close();

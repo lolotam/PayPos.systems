@@ -52,8 +52,8 @@ it('cancelling WebAuthn shows a translated error and keeps first enrollment avai
 
 it.each(['ar', 'en'] as const)('phone enrollment refusals stop retry in %s', async (locale) => {
   for (const [code, message] of [
-    ['PASSKEY_DEVICE_TAKEN', 'errors.ATTENDANCE_DEVICE_LOCKED'],
-    ['PASSKEY_OTHER_DEVICE', 'errors.ATTENDANCE_DEVICE_NOT_ENROLLED'],
+    ['PASSKEY_DEVICE_TAKEN', 'errors.PASSKEY_DEVICE_TAKEN'],
+    ['PASSKEY_OTHER_DEVICE', 'errors.PASSKEY_OTHER_DEVICE'],
   ] as const) {
     vi.mocked(personalCalls.binding).mockResolvedValue({
       bound: false,
@@ -70,4 +70,21 @@ it.each(['ar', 'en'] as const)('phone enrollment refusals stop retry in %s', asy
     expect(button.hasAttribute('disabled')).toBe(true);
     view.unmount();
   }
+});
+
+it('blocked storage shows the storage message and keeps enrollment retryable', async () => {
+  vi.mocked(personalCalls.binding).mockResolvedValue({
+    bound: false,
+    binding_id: null,
+    revision: null,
+    bound_at: null,
+  });
+  vi.mocked(personalCalls.enrol).mockRejectedValue(new Error('INSTALLATION_STORAGE_BLOCKED'));
+  const view = mount('ar');
+  const button = await screen.findByRole('button', { name: t('ar', 'personalStaff.enrol') });
+  fireEvent.click(button);
+  await screen.findByRole('alert');
+  expect(screen.getByRole('alert').textContent).toBe(t('ar', 'personalAttendance.storageBlocked'));
+  await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+  view.unmount();
 });

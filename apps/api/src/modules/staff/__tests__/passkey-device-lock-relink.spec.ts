@@ -15,7 +15,7 @@ import { UnbindPasskeyUseCase } from '../use-cases/unbind-passkey/unbind-passkey
 let f: AttendanceFixture;
 beforeAll(async () => {
   f = await attendanceFixture();
-  await f.owner`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)} WHERE id=${f.bindingId}`;
+  await f.owner`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)},installation_locked_at=bound_at WHERE id=${f.bindingId}`;
 });
 afterAll(async () => {
   await f?.close();

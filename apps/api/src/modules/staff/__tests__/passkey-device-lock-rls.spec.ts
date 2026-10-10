@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { attendanceFixture, type AttendanceFixture } from './clock-attendance.fixture.ts';
-import { PHONE_X, PHONE_Y } from './passkey-device-lock.fixture.ts';
+import { lockEmployee, prepareLockEnrol, PHONE_X, PHONE_Y } from './passkey-device-lock.fixture.ts';
 import { installationHash } from '../persistence/attendance-device-signal.ts';
 
 let f: AttendanceFixture;
@@ -24,7 +24,7 @@ it('FORCE RLS hides another company and refuses cross-tenant inserts and tenant-
     expect(await tx.execute(sql`SELECT id FROM attendance_device_refusals`)).toHaveLength(0);
     expect(
       await tx.execute(
-        sql`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)} RETURNING id`,
+        sql`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)},installation_locked_at=${f.clock.now().toISOString()}::timestamptz RETURNING id`,
       ),
     ).toHaveLength(0);
   });
@@ -38,7 +38,7 @@ it('FORCE RLS hides another company and refuses cross-tenant inserts and tenant-
     ).rejects.toThrow();
 });
 
-it('refusal rows cannot be updated or deleted and only the added binding column is updatable', async () => {
+it('refusal rows cannot be updated or deleted and only the allowed binding columns are updatable', async () => {
   for (const statement of [
     sql`UPDATE attendance_device_refusals SET reason=reason`,
     sql`DELETE FROM attendance_device_refusals`,
@@ -50,7 +50,7 @@ it('refusal rows cannot be updated or deleted and only the added binding column 
   await expect(
     f.database.withTenant(f.companyId, (tx) =>
       tx.execute(
-        sql`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)} WHERE id=${f.bindingId}`,
+        sql`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)},installation_locked_at=installation_locked_at WHERE id=${f.bindingId}`,
       ),
     ),
   ).resolves.toBeDefined();
@@ -68,6 +68,44 @@ it.each([null, 'b'.repeat(64)])(
     ).rejects.toThrow();
   },
 );
+
+it.each([null, '2026-10-11T00:00:00.000Z'])(
+  'the set-once trigger rejects changing the lock timestamp to %s',
+  async (at) => {
+    await expect(
+      f.database.withTenant(f.companyId, (tx) =>
+        tx.execute(sql`
+      UPDATE employee_passkeys SET installation_locked_at=${at}::timestamptz WHERE id=${f.bindingId}`),
+      ),
+    ).rejects.toThrow();
+  },
+);
+
+it('validated binding CHECKs require a hash/timestamp pair and reject invalid hashes', async () => {
+  const person = await lockEmployee(f);
+  const binding = await (await prepareLockEnrol(f, person)).execute();
+  for (const [hash, at] of [
+    ['a'.repeat(64), null],
+    [null, '2026-10-10T12:00:00.000Z'],
+    ['invalid', '2026-10-10T12:00:00.000Z'],
+  ]) {
+    await expect(
+      f.database.withTenant(f.companyId, (tx) =>
+        tx.execute(sql`
+      UPDATE employee_passkeys SET installation_hash=${hash},installation_locked_at=${at}::timestamptz
+      WHERE id=${binding.binding_id}`),
+      ),
+    ).rejects.toThrow();
+  }
+  expect(
+    await f.owner`SELECT conname,convalidated FROM pg_constraint
+    WHERE conrelid='employee_passkeys'::regclass AND conname LIKE 'employee_passkeys_installation_%'
+    ORDER BY conname`,
+  ).toEqual([
+    { conname: 'employee_passkeys_installation_hash_format', convalidated: true },
+    { conname: 'employee_passkeys_installation_lock_pair', convalidated: true },
+  ]);
+});
 
 it('holder/reason and hash CHECKs reject invalid evidence', async () => {
   for (const [reason, holder, hash] of [

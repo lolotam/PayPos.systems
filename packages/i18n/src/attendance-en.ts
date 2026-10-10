@@ -14,4 +14,6 @@ export const attendanceEn = {
   outOfRange: 'Recorded with a location exception: outside the branch range.',
   missedOut: 'The previous session was closed as a missed clock-out.',
   late: 'Reported late minutes (no commission deduction)',
+  storageBlocked:
+    'Storage is blocked in this browser, so this phone cannot be recognised. Allow site data or open the app from the home screen, or use the card at reception.',
 } as const;

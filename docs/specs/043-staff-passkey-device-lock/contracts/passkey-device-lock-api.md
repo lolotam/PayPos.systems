@@ -48,5 +48,7 @@ All routes keep their guards (`@Authenticated()` + PERSONAL purpose for the empl
 
 | Code | ar | en |
 |---|---|---|
-| `ATTENDANCE_DEVICE_LOCKED`, `PASSKEY_DEVICE_TAKEN` | التليفون ده متسجل لموظفة تانية. ابصمي من تليفونك أو بالكارت في الريسبشن. | This phone is registered to another employee. Clock in from your own phone or with the card at reception. |
-| `ATTENDANCE_DEVICE_NOT_ENROLLED`, `PASSKEY_OTHER_DEVICE` | بصمتك متسجلة على تليفون تاني. ابصمي من تليفونك أو بالكارت في الريسبشن، ولو غيّرتي تليفونك اطلبي من المدير يفك الربط. | Your passkey is registered on another phone. Clock in from that phone or with the card at reception. If you changed phones, ask your manager to unbind it. |
+| `ATTENDANCE_DEVICE_LOCKED` | هذا الهاتف مسجّل لموظف آخر. سجّل الحضور من هاتفك أو بالبطاقة عند الاستقبال. | This phone is registered to another employee. Clock in from your own phone or with the card at reception. |
+| `ATTENDANCE_DEVICE_NOT_ENROLLED` | مفتاح المرور الخاص بك مسجّل على هاتف آخر. سجّل الحضور من ذلك الهاتف أو بالبطاقة عند الاستقبال، وإذا غيّرت هاتفك فاطلب من المدير فك الربط. | Your passkey is registered on another phone. Clock in from that phone or with the card at reception. If you changed phones, ask your manager to unbind it. |
+| `PASSKEY_DEVICE_TAKEN` | هذا الهاتف مسجّل لموظف آخر، فلا يمكن تسجيل مفتاح مرورك عليه. سجّل من هاتفك، واستخدم البطاقة عند الاستقبال حتى ذلك الحين. | This phone is registered to another employee, so your passkey cannot be enrolled on it. Enrol from your own phone; until then, use the card at reception. |
+| `PASSKEY_OTHER_DEVICE` | لديك مفتاح مرور مسجّل على هاتف آخر. سجّل من ذلك الهاتف، أو اطلب من المدير فك الربط إذا غيّرت هاتفك. | You already have a passkey on another phone. Enrol from that phone, or ask your manager to unbind it if you changed phones. |

@@ -36,14 +36,15 @@ it('DL-05 records enrollment locks and refuses both pre-check and verify without
   expect(await f.owner`SELECT id FROM passkey WHERE user_id=${other.userId}`).toHaveLength(1);
   expect(
     await f.owner`SELECT step,reason,holder_employee_id,branch_id FROM attendance_device_refusals WHERE employee_id=${other.employeeId}`,
-  ).toEqual(
-    [1, 2].map(() => ({
+  ).toEqual([
+    // الفحص المسبق ثم التحقق من نفس الهاتف خلال دقيقة = محاولة واحدة (سقف 60 ثانية).
+    {
       step: 'ENROL',
       reason: 'DEVICE_TAKEN',
       holder_employee_id: f.employeeId,
       branch_id: f.branchId,
-    })),
-  );
+    },
+  ]);
   const response = await requestFor(f)('GET');
   expect(response.statusCode).toBe(200);
   expect(response.json().status).toMatchObject({

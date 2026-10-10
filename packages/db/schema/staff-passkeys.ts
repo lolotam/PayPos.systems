@@ -38,6 +38,8 @@ export const employeePasskeys = pgTable(
     unboundBy: uuid('unbound_by').references(() => user.id),
     // قفل تثبيت مفصول بالشركة؛ يكتب مرة واحدة ويبقى بعد فك الربط للتاريخ.
     installationHash: text('installation_hash'),
+    // وقت قفل الهاتف الفعلي؛ قد يأتي بعد التسجيل للبصمات القديمة.
+    installationLockedAt: timestamp('installation_locked_at', { withTimezone: true }),
   },
   (t) => [
     primaryKey({ name: 'employee_passkeys_pkey', columns: [t.companyId, t.id] }),
@@ -59,6 +61,10 @@ export const employeePasskeys = pgTable(
     check(
       'employee_passkeys_installation_hash_format',
       sql`${t.installationHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'employee_passkeys_installation_lock_pair',
+      sql`(${t.installationHash} IS NULL) = (${t.installationLockedAt} IS NULL)`,
     ),
     index('employee_passkeys_active_installation_idx')
       .on(t.companyId, t.installationHash)

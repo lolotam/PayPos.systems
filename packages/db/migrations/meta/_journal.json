@@ -734,7 +734,14 @@
       "idx": 104,
       "version": "7",
       "when": 1791589713643,
-      "tag": "0104_2026-10-10_passkey-installation-lock-rls",
+      "tag": "0104_2026-10-10_passkey-installation-lock-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1791589714643,
+      "tag": "0105_2026-10-10_passkey-installation-lock-rls",
       "breakpoints": true
     }
   ]

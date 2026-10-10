@@ -41,6 +41,9 @@ export async function attendanceDeviceLock(
 ): Promise<Omit<DeviceLockFacts, 'step'>> {
   const hash = installationHash(scope.companyId, installationId);
   await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${'pospay:passkey-person:v1:' + scope.companyId + ':' + scope.userId},0))`,
+  );
+  await tx.execute(
     sql`SELECT pg_advisory_xact_lock(hashtextextended(${'pospay:attendance-installation:v1:' + scope.companyId + ':' + hash},0))`,
   );
   const rows = await tx.execute<{

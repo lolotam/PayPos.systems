@@ -5,15 +5,27 @@
 | Column | Type | Rule |
 |---|---|---|
 | `installation_hash` | `text NULL` | CHECK `installation_hash ~ '^[a-f0-9]{64}$'`. ADR-0029 hash `sha256(JSON(['pospay.attendance.installation.v1', company, installation]))`. Written at enrollment, or attached at the first accepted clock of a binding that has none. Set once: a trigger refuses any UPDATE that changes or clears a non-NULL value. Kept after unbind (history); the lock reads active rows only. |
+| `installation_locked_at` | `timestamptz NULL` | Set in the same statement as the hash: `bound_at` at enrollment, the injected clock instant at legacy attachment. The set-once trigger also forbids changing or clearing this timestamp once set. Kept after unbind. |
+
+- Pair CHECK: `(installation_hash IS NULL) = (installation_locked_at IS NULL)`; old bindings start with both NULL.
+- Migration order (2026-10-10): 0103 adds both columns and both binding CHECKs as `NOT VALID`; 0104 validates them;
+  0105 adds the concurrent index, RLS/grants and set-once trigger. The new refusal table's CHECKs are created normally.
 
 - Index `employee_passkeys_active_installation_idx` on `(company_id, installation_hash)` `WHERE unbound_at IS NULL AND
   installation_hash IS NOT NULL` — non-unique (one person may hold two active bindings, one per business, both on the
   same phone). Created `CONCURRENTLY` (ADR-0033).
-- Grants: `pospay_app` gains `UPDATE (installation_hash)`; the existing SELECT / INSERT / UPDATE
+- Grants: `pospay_app` gains `UPDATE (installation_hash, installation_locked_at)`; the existing SELECT / INSERT / UPDATE
   `(unbound_at, unbound_by, revision)` stay.
-- Invariant (enforced in the transaction under the installation advisory lock, not by a constraint): within a company,
-  the active bindings holding one hash all belong to one person (`employees.user_id`), and one person's active
+- Invariant (enforced under person → installation advisory locks after the binding/employee lock): within a company,
+  the active bindings holding one hash all belong to one person (immutable `bound_by`), and one person's active
   bindings carry at most one distinct non-NULL hash.
+- The shared reader takes the person key `pospay:passkey-person:v1:<companyId>:<userId>` before the installation key;
+  both use `hashtextextended(..., 0)` and transaction-scoped advisory locks.
+- Legacy attachment appends an `employee_passkey` audit with action `phone_locked`, entity id = binding id and
+  after = `{ employee_id, binding_id, phone_locked: true }` only when the conditional UPDATE changed a row, in the
+  clock transaction. No raw id or hash reaches audit/events. Rollback removes the lock and audit together.
+- Manager status projects `phone_locked` from the hash's presence and `phone_locked_since` directly from
+  `installation_locked_at` in UTC ISO format, including the actual attach time for legacy bindings.
 
 ## `attendance_device_refusals` (new, tenant table)
 

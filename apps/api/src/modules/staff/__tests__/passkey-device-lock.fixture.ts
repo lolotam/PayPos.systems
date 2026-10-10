@@ -32,7 +32,14 @@ export async function lockEmployee(f: Fixture, samePerson = false, secondBusines
     VALUES(${f.companyId},${f.ids.newId()},${businessId},${employeeId},${branchId},'2026-01-01')`;
   await f.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at)
     SELECT ${f.companyId},${f.ids.newId()},${userId},id,'global','BRANCH',${branchId},'2026-01-01'::timestamptz FROM roles WHERE code='staff' AND company_id IS NULL`;
-  return { companyId: f.companyId, businessId, employeeId, userId, sessionId: f.ids.newId() };
+  return {
+    companyId: f.companyId,
+    businessId,
+    branchId,
+    employeeId,
+    userId,
+    sessionId: f.ids.newId(),
+  };
 }
 
 export function lockEnrol(f: Fixture, database: TenantWrappers = f.database) {

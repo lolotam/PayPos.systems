@@ -158,9 +158,9 @@ export const en = {
     ATTENDANCE_DEVICE_NOT_ENROLLED:
       'Your passkey is registered on another phone. Clock in from that phone or with the card at reception. If you changed phones, ask your manager to unbind it.',
     PASSKEY_DEVICE_TAKEN:
-      'This phone is registered to another employee. Clock in from your own phone or with the card at reception.',
+      'This phone is registered to another employee, so your passkey cannot be enrolled on it. Enrol from your own phone; until then, use the card at reception.',
     PASSKEY_OTHER_DEVICE:
-      'Your passkey is registered on another phone. Clock in from that phone or with the card at reception. If you changed phones, ask your manager to unbind it.',
+      'You already have a passkey on another phone. Enrol from that phone, or ask your manager to unbind it if you changed phones.',
     ...employeeIbanErrorsEn,
     DOCUMENT_TYPE_UNAVAILABLE: 'This document type does not exist or is inactive.',
     DOCUMENT_EXPIRY_REQUIRED: 'This document type needs an expiry date.',

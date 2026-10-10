@@ -9,14 +9,14 @@
 
 The personal-app installation (the random `installation_id` the POS already sends on every clock, hashed per company
 by ADR-0029) becomes a **lock** on the person's active passkey binding. A new nullable, set-once column
-`employee_passkeys.installation_hash` holds it. One pure domain function decides every case (accept / attach /
+`employee_passkeys.installation_hash` holds it, paired with the set-once `installation_locked_at` timestamp. One pure domain function decides every case (accept / attach /
 refuse with a reason) from facts the persistence layer reads under lock; the raw id never leaves memory. The lock is
 enforced at enrollment (options pre-check + verify), at the clock challenge (advisory, before Face ID) and at the clock
 (authoritative, inside the idempotent effect, before the assertion is consumed). Every refusal writes one row to a new
 immutable tenant table `attendance_device_refusals` in a **separate** `withTenant` transaction after the refused one
 has rolled back; a read query (no route yet) serves the attendance board of row 27. The retired ten-minute pair rule,
 its query and contracts are deleted. The POS sends the installation id on challenge / options / verify, asks for
-persistent storage, and shows the two bilingual refusal messages; the admin passkey section shows "phone locked".
+persistent storage, and shows the four bilingual refusal messages; the admin passkey section shows "phone locked".
 
 ## Technical Context
 
@@ -25,7 +25,7 @@ persistent storage, and shows the two bilingual refusal messages; the admin pass
 **Primary Dependencies**: NestJS (Fastify), Drizzle + drizzle-kit, Zod 4, Vite React PWA (POS), Next.js (admin),
 TanStack Query, Better Auth passkey plugin through `packages/auth` / identity — all existing; **no new library**.
 
-**Storage**: PostgreSQL — `employee_passkeys` gains `installation_hash` (+ check, partial index, set-once trigger,
+**Storage**: PostgreSQL — `employee_passkeys` gains `installation_hash` and `installation_locked_at` (+ checks, partial index, set-once trigger,
 column UPDATE grant); new table `attendance_device_refusals` (FORCE RLS, `SELECT`/`INSERT` only).
 
 **Testing**: Vitest — domain unit (no DB); API integration on the T2 compose Postgres (one cloned DB per spec file,
@@ -40,7 +40,7 @@ shape + `EXPLAIN`; POS and admin component/hook tests.
 on refusal; lock lookups use the new partial index; well under 200 ms excluding the WebAuthn ceremony.
 
 **Constraints**: raw installation id never in DB / logs / audit / events (ADR-0029); clock idempotency fingerprint
-unchanged (no `installation_id`); fixed lock order state → membership → employee → binding `FOR UPDATE` → installation
+unchanged (no `installation_id`); fixed lock order state → membership → employee → binding `FOR UPDATE` → person → installation
 advisory lock; expand-only migrations; old cached POS builds keep working (new request fields optional except on the
 clock, where it is already required).
 
@@ -99,16 +99,20 @@ THIS, any other → OTHER.
 ### D2. Persistence
 
 - **Hash**: reuse `installationHash()` from `persistence/attendance-device-signal.ts` (import it; no copy).
-- **Installation lock**: `pg_advisory_xact_lock` on a key derived from
-  `'pospay:attendance-installation:v1:' || company || ':' || hash`, taken **after** the binding `FOR UPDATE`
-  (clock/challenge) or after the employee lock (enrol). Unbind takes employee → binding only, so there is no cycle.
-- **Facts reader**: one SQL over `employee_passkeys p` (no join),
-  `p.company_id = $c AND p.unbound_at IS NULL AND (p.installation_hash = $hash OR p.bound_by = $user)`. The hash branch
-  uses the new partial index.
-- **Attach**: `UPDATE employee_passkeys SET installation_hash=$hash WHERE company_id=$c AND id=$binding AND
-  installation_hash IS NULL AND unbound_at IS NULL` — in the clock transaction, inside `persist`, only for an
-  accepted, non-dedupe clock (dedupe / replay / refusal never reach `persist`).
-- **Enrol**: the binding insert gains the hash (or NULL when the old POS sent no installation id).
+- **Person then installation locks**: the shared `attendanceDeviceLock` takes `pg_advisory_xact_lock` on
+  `hashtextextended('pospay:passkey-person:v1:' || company || ':' || user, 0)` before the installation key
+  `hashtextextended('pospay:attendance-installation:v1:' || company || ':' || hash, 0)`. Both follow the binding
+  `FOR UPDATE` (clock/challenge) or employee lock (enrol). The person lock serializes different installations
+  across the same person's business records (PL-Q4). Unbind takes employee → binding only.
+- **Facts reader**: one SQL with two `UNION ALL` branches over active `employee_passkeys p` (no join), selecting
+  the requested hash and the caller's `bound_by`, ordered by binding id. The hash branch uses the partial index.
+- **Attach**: one conditional UPDATE sets `installation_hash=$hash, installation_locked_at=$at` where the active
+  binding's hash is NULL. It runs inside the accepted clock's `persist`; `$at` is the injected clock instant.
+  Only `UPDATE ... RETURNING id` changing a row appends an `employee_passkey` audit with action `phone_locked`,
+  entity id = binding id, after = `{ employee_id, binding_id, phone_locked: true }`, in that same transaction.
+  Dedupe / replay / refusal never reach `persist`; rollback removes both the attachment and its audit.
+- **Enrol**: the binding insert sets both hash and timestamp (`installation_locked_at = bound_at`), or both NULL
+  when the old POS sent no installation id. No hash or raw installation id appears in audit or events.
 - **Refusal writer** `persistence/attendance-device-refusals.ts` (new): `record(input)` opens its own
   `withTenant(companyId, …)` and inserts one row, hashing the raw id itself. For ENROL the branch is the employee's
   `primary_branch_id` (`INSERT … SELECT … FROM employees`). The use case calls it after the refused transaction
@@ -153,7 +157,8 @@ THIS, any other → OTHER.
 - `packages/contracts/src/staff/passkeys.ts`: `passkeyVerifyInput` gains optional `installation_id`; new
   `passkeyOptionsInput = z.strictObject({ installation_id: … .optional() })` (missing / empty body = `{}`).
   Manager passkey status gains `phone_locked: boolean` and `phone_locked_since: timestamp | null` (`bound_at` when the
-  hash was written at enrollment; `null` for a legacy binding attached at a clock). Never the hash.
+  hash was written at enrollment; the accepted clock instant for a legacy attachment; NULL while unlocked).
+  The timestamp comes from `installation_locked_at`, in the existing UTC ISO format. Never the hash.
 - `packages/contracts/src/staff/unbind-passkey.ts`: delete `sharedInstallationFlag`, `sharedInstallationFlagPage`
   (and their index exports). Keep `attendanceInstallationSignal`.
 - New contract file for the refusal row + page (`id`, `employee_id`, `holder_employee_id`, `branch_id`, `step`,
@@ -164,7 +169,9 @@ THIS, any other → OTHER.
 
 ### D6. Queries
 
-- `queries/employee-passkeys.query.ts`: add the two status fields.
+- `queries/employee-passkeys.query.ts`: project `phone_locked` from `installation_hash IS NOT NULL` and
+  `phone_locked_since` from `installation_locked_at`; no audit JSON lookup. Result-shape coverage includes legacy
+  attachment time, and `EXPLAIN ANALYZE` asserts the active-employee index without an audit scan.
 - `queries/attendance-device-refusals.query.ts` (new, no route; row 27 consumes it): list by business, branch and
   window, newest first, keyset cursor `(attempted_at, id)`, limit ≤ 100, projects straight to the contract shape.
   Result-shape test + `EXPLAIN` on the branch/time index.
@@ -174,15 +181,17 @@ THIS, any other → OTHER.
 
 ### D7. Database (`packages/db`)
 
-- `schema/staff-passkeys.ts`: `installationHash` + check `~ '^[a-f0-9]{64}$'` + partial index
+- `schema/staff-passkeys.ts`: `installationHash`, nullable `installationLockedAt` (`timestamptz`), hash check
+  `~ '^[a-f0-9]{64}$'`, pair check `(installation_hash IS NULL) = (installation_locked_at IS NULL)`, and partial index
   `employee_passkeys_active_installation_idx (company_id, installation_hash) WHERE unbound_at IS NULL AND
   installation_hash IS NOT NULL` (non-unique: one person, two businesses).
 - New `schema/staff-device-refusals.ts` (see [data-model.md](data-model.md)); export from `schema/index.ts`.
-- Migrations (numbers at merge; next free today 0103), following the 0065/0066 split and ADR-0033 for the index on the
-  existing table (`CONCURRENTLY`, recoverable): create (column, check, table, FKs, checks, indexes) and RLS/grants
-  (ENABLE + FORCE RLS + tenant policy; `GRANT SELECT, INSERT` on the new table to `pospay_app`;
-  `GRANT UPDATE (installation_hash) ON employee_passkeys TO pospay_app`; set-once trigger refusing any change once the
-  hash is non-NULL).
+- Migrations dated 2026-10-10: **0103** creates the refusal table and adds the binding columns; both new CHECKs on
+  existing `employee_passkeys` are `NOT VALID`. **0104** validates those CHECKs, mirroring 0101/0102. **0105** starts
+  with the recoverable `CREATE INDEX CONCURRENTLY` prefix (ADR-0033), followed by ENABLE + FORCE RLS, tenant policies,
+  `GRANT SELECT, INSERT` on the new table, and `GRANT UPDATE (installation_hash, installation_locked_at)` on bindings
+  for `pospay_app`. Its set-once trigger refuses changing or clearing either non-NULL lock column. Snapshots follow
+  these stages and journal timestamps strictly increase. No destructive schema change.
 - `src/__tests__/privileges.spec.ts`: add the new grants (minimal, additive). Drift check prints "No schema changes".
 
 ### D8. POS (`apps/pos/src/personal-staff/`)
@@ -190,7 +199,7 @@ THIS, any other → OTHER.
 - `model/installation-id.ts`: call `navigator.storage?.persist?.()` once (ignore failures).
 - `api/attendance-calls.ts`: send `installation_id` on the challenge too. `api/personal-calls.ts` /
   `use-enrol-passkey.ts`: send it on options and verify.
-- `ui/clock-attendance-screen.tsx`, `ui/enrol-passkey-screen.tsx`: map the four codes to the two i18n messages; no
+- `ui/clock-attendance-screen.tsx`, `ui/enrol-passkey-screen.tsx`: map the four codes to their respective i18n messages; no
   retry for these codes. i18n keys additive in `packages/i18n/src/{ar,en}.ts`.
 
 ### D9. Admin (`apps/admin/src/staff/ui/employee-passkey-section.tsx`, `unbind-passkey-form.tsx`)

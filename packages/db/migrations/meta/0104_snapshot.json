@@ -8406,6 +8406,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "installation_locked_at": {
+          "name": "installation_locked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -8556,28 +8562,6 @@
           "with": {},
           "method": "btree",
           "concurrently": false
-        },
-        "employee_passkeys_active_installation_idx": {
-          "name": "employee_passkeys_active_installation_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "installation_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "where": "\"employee_passkeys\".\"unbound_at\" IS NULL AND \"employee_passkeys\".\"installation_hash\" IS NOT NULL",
-          "concurrently": false
         }
       },
       "foreignKeys": {
@@ -8674,6 +8658,10 @@
         "employee_passkeys_unbound_pair": {
           "name": "employee_passkeys_unbound_pair",
           "value": "(\"employee_passkeys\".\"unbound_at\" IS NULL) = (\"employee_passkeys\".\"unbound_by\" IS NULL)"
+        },
+        "employee_passkeys_installation_lock_pair": {
+          "name": "employee_passkeys_installation_lock_pair",
+          "value": "(\"employee_passkeys\".\"installation_hash\" IS NULL) = (\"employee_passkeys\".\"installation_locked_at\" IS NULL)"
         }
       },
       "isRLSEnabled": false

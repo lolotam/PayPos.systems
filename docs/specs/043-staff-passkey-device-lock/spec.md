@@ -104,7 +104,8 @@ Heba is refused on Sara's phone. The refusal tells her what to do. The attempt i
 repeated attempts on the attendance board (row 27). Nobody is notified at that moment.
 
 1. **DL-12** — **Given** any refusal of DL-01, DL-04, DL-05, DL-07b (challenge, clock or enrollment step), **Then**
-   exactly one `attendance_device_refusals` row is written **after** the refused transaction ended, holding: the
+   one `attendance_device_refusals` row is written **after** the refused transaction ended — at most one per employee,
+   step and installation per 60 seconds, so repeated taps stay bounded (Layer 2 review) — holding: the
    employee who tried, the holder employee of the phone (only when it is another person's phone), branch (QR branch
    for challenge/clock; the employee's primary branch for enrollment), step, reason, the company-separated
    installation hash and the time. No raw installation id, no phone number, no name, no audit/outbox/event row.
@@ -112,13 +113,14 @@ repeated attempts on the attendance board (row 27). Nobody is notified at that m
    (the failure is logged without the installation id).
 3. **DL-14** — **Given** refused attempts in a business, **When** the board query lists them for a branch and time
    window, **Then** it returns rows newest first with a cursor, never the hash, and only that company's rows.
-4. **DL-15** — The refusal message is bilingual and tells the employee what to do:
-   - `ATTENDANCE_DEVICE_LOCKED` / `PASSKEY_DEVICE_TAKEN`: «التليفون ده متسجل لموظفة تانية. ابصمي من تليفونك أو بالكارت في
-     الريسبشن.» / "This phone is registered to another employee. Clock in from your own phone or with the card at
-     reception."
-   - `ATTENDANCE_DEVICE_NOT_ENROLLED` / `PASSKEY_OTHER_DEVICE`: «بصمتك متسجلة على تليفون تاني. ابصمي من تليفونك أو بالكارت
-     في الريسبشن، ولو غيّرتي تليفونك اطلبي من المدير يفك الربط.» / "Your passkey is registered on another phone. Clock in
-     from that phone or with the card at reception. If you changed phones, ask your manager to unbind it."
+4. **DL-15** — The refusal message is bilingual, gender-neutral (the product also serves restaurants) and tells the
+   employee what to do (wording reviewed in Layer 2; the owner's intent from PL-Q3 is kept):
+   - `ATTENDANCE_DEVICE_LOCKED`: «هذا الهاتف مسجّل لموظف آخر. سجّل الحضور من هاتفك أو بالبطاقة عند الاستقبال.» / "This phone is registered to another employee. Clock in from your own phone or with the card at reception."
+   - `ATTENDANCE_DEVICE_NOT_ENROLLED`: «مفتاح المرور الخاص بك مسجّل على هاتف آخر. سجّل الحضور من ذلك الهاتف أو بالبطاقة عند الاستقبال، وإذا غيّرت هاتفك فاطلب من المدير فك الربط.» / "Your passkey is registered on another phone. Clock in from that phone or with the card at reception. If you changed phones, ask your manager to unbind it."
+   - `PASSKEY_DEVICE_TAKEN` (enrollment): «هذا الهاتف مسجّل لموظف آخر، فلا يمكن تسجيل مفتاح مرورك عليه. سجّل من هاتفك، واستخدم البطاقة عند الاستقبال حتى ذلك الحين.» / "This phone is registered to another employee, so your passkey cannot be enrolled on it. Enrol from your own phone; until then, use the card at reception."
+   - `PASSKEY_OTHER_DEVICE` (enrollment): «لديك مفتاح مرور مسجّل على هاتف آخر. سجّل من ذلك الهاتف، أو اطلب من المدير فك الربط إذا غيّرت هاتفك.» / "You already have a passkey on another phone. Enrol from that phone, or ask your manager to unbind it if you changed phones."
+   - Blocked browser storage (client-side, no request sent): the POS refuses enrollment and clocking with a storage
+     message instead of sending a page-lifetime installation id.
 
 ### Edge Cases
 

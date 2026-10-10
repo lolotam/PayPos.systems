@@ -12,7 +12,7 @@ REVOKE ALL ON attendance_device_refusals FROM PUBLIC, pospay_app, pospay_auth, p
 --> statement-breakpoint
 GRANT SELECT, INSERT ON attendance_device_refusals TO pospay_app;
 --> statement-breakpoint
-GRANT UPDATE (installation_hash) ON employee_passkeys TO pospay_app;
+GRANT UPDATE (installation_hash, installation_locked_at) ON employee_passkeys TO pospay_app;
 --> statement-breakpoint
 CREATE FUNCTION enforce_passkey_installation_set_once() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog AS $$
@@ -20,11 +20,14 @@ BEGIN
   IF OLD.installation_hash IS NOT NULL AND NEW.installation_hash IS DISTINCT FROM OLD.installation_hash THEN
     RAISE EXCEPTION 'employee_passkeys installation_hash is immutable once set' USING ERRCODE='23514';
   END IF;
+  IF OLD.installation_locked_at IS NOT NULL AND NEW.installation_locked_at IS DISTINCT FROM OLD.installation_locked_at THEN
+    RAISE EXCEPTION 'employee_passkeys installation_locked_at is immutable once set' USING ERRCODE='23514';
+  END IF;
   RETURN NEW;
 END;
 $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION enforce_passkey_installation_set_once() FROM PUBLIC;
 --> statement-breakpoint
-CREATE TRIGGER employee_passkeys_installation_set_once BEFORE UPDATE OF installation_hash ON employee_passkeys
+CREATE TRIGGER employee_passkeys_installation_set_once BEFORE UPDATE OF installation_hash, installation_locked_at ON employee_passkeys
 FOR EACH ROW EXECUTE FUNCTION enforce_passkey_installation_set_once();

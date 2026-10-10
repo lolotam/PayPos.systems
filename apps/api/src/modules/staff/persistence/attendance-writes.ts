@@ -43,11 +43,20 @@ export async function persistAttendance(
   write: AttendanceWrite,
   ids: IdGenerator,
 ) {
-  if (write.attachInstallation)
-    await tx.execute(sql`UPDATE employee_passkeys
-    SET installation_hash=${installationHash(scope.companyId, write.installationId)}
+  if (write.attachInstallation) {
+    const changed = await tx.execute(sql`UPDATE employee_passkeys
+    SET installation_hash=${installationHash(scope.companyId, write.installationId)},
+      installation_locked_at=${write.at.toISOString()}::timestamptz
     WHERE company_id=${scope.companyId} AND id=${context.bindingId}
-      AND installation_hash IS NULL AND unbound_at IS NULL`);
+      AND installation_hash IS NULL AND unbound_at IS NULL RETURNING id`);
+    if (changed.length > 0)
+      await appendAuditLog(tx, ids.newId(), {
+        entity: 'employee_passkey',
+        entityId: context.bindingId,
+        action: 'phone_locked',
+        after: { employee_id: scope.employeeId, binding_id: context.bindingId, phone_locked: true },
+      });
+  }
   return persistAttendanceMovement(
     tx,
     {

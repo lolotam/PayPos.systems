@@ -67,12 +67,13 @@ it('phone status distinguishes enrollment, legacy attachment and unbound history
       phone_locked_since: null,
     },
   });
-  await f.owner`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)} WHERE id=${legacy.binding.binding_id}`;
+  const attachedAt = '2026-10-10T12:34:56.789Z';
+  await f.owner`UPDATE employee_passkeys SET installation_hash=${installationHash(f.companyId, PHONE_X)},installation_locked_at=${attachedAt} WHERE id=${legacy.binding.binding_id}`;
   expect(await read(f.employeeId)).toMatchObject({
     status: {
       bound: true,
       phone_locked: true,
-      phone_locked_since: null,
+      phone_locked_since: attachedAt,
     },
   });
   const result = await read(locked.employeeId);
@@ -111,7 +112,7 @@ function usedIndexes(plan: PlanNode): string[] {
   ];
 }
 
-it('phone status EXPLAIN executes indexed binding and correlated audit lookups', async () => {
+it('phone status EXPLAIN executes only the indexed binding lookup', async () => {
   const plan = await f.database.withTenant(f.companyId, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute<{ 'QUERY PLAN': { Plan: PlanNode }[] }>(sql`EXPLAIN (ANALYZE,FORMAT JSON)
@@ -119,10 +120,6 @@ it('phone status EXPLAIN executes indexed binding and correlated audit lookups',
   });
   const root = plan[0]?.['QUERY PLAN'][0]?.Plan;
   if (root === undefined) throw new Error('MISSING_TEST_PLAN');
-  expect(usedIndexes(root)).toEqual(
-    expect.arrayContaining([
-      'employee_passkeys_active_employee_key',
-      'audit_log_company_id_entity_idx',
-    ]),
-  );
+  expect(usedIndexes(root)).toEqual(['employee_passkeys_active_employee_key']);
+  expect(JSON.stringify(root)).not.toContain('audit_log');
 });

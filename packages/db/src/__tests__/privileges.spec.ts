@@ -289,6 +289,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...SCHEDULE_COLUMN_GRANTS,
         ...PASSKEY_COLUMN_GRANTS,
         'employee_passkeys.installation_hash:pospay_app:UPDATE',
+        'employee_passkeys.installation_locked_at:pospay_app:UPDATE',
         ...DOCUMENT_COLUMN_GRANTS,
         ...IMPORT_COLUMN_GRANTS,
         ...CARD_COLUMN_GRANTS,

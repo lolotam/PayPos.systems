@@ -13,11 +13,11 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — four business rules are `TODO(spec) → PL-Q1…PL-Q4`, PENDING owner
-- [x] Requirements are testable and unambiguous (except the four pending rules)
+- [x] No [NEEDS CLARIFICATION] markers remain — PL-Q1…PL-Q4 ANSWERED by the owner on 2026-10-10
+- [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
-- [x] All acceptance scenarios are defined (DL-04, DL-09 depend on PL-Q1/PL-Q2)
+- [x] All acceptance scenarios are defined (DL-01 … DL-15)
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
@@ -25,12 +25,12 @@
 
 ## Feature Readiness
 
-- [ ] All functional requirements have clear acceptance criteria — FR-004, FR-006, FR-007, FR-008 wait for the owner
+- [x] All functional requirements have clear acceptance criteria (FR-004, FR-006, FR-007, FR-008 decided 2026-10-10)
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
 ## Notes
 
-- Not ready for `/speckit-plan` until PL-Q1 … PL-Q4 are answered and written back into `spec.md`.
-- A new ADR amending ADR-0029 is required at implementation (blocking on the installation signal).
+- PL-Q1 … PL-Q4 answered 2026-10-10 and written back into `spec.md`; plan and tasks generated.
+- ADR-0039 (Proposed) amends ADR-0029 (blocking on the installation signal); the owner accepts it before merge.
