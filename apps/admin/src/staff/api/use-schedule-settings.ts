@@ -1,5 +1,9 @@
 'use client';
-import { scheduleSettings, type SetScheduleSettingsInput } from '@pospay/contracts';
+import {
+  scheduleSettings,
+  type ScheduleSettings,
+  type SetScheduleSettingsInput,
+} from '@pospay/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import type { ScheduleWorkspace } from './use-schedules';
@@ -11,10 +15,10 @@ const params = (scope: ScheduleWorkspace) => ({
   path: { businessId: scope.businessId },
 });
 export function useScheduleSettings(scope: ScheduleWorkspace) {
-  return useQuery({
+  return useQuery<ScheduleSettings>({
     queryKey: settingsKey(scope),
     retry: false,
-    refetchInterval: 30_000,
+    refetchInterval: (query) => (query.state.status === 'error' ? false : 30_000),
     queryFn: async ({ signal }) => {
       const result = await apiClient().GET('/v1/businesses/{businessId}/schedule-settings', {
         params: params(scope),

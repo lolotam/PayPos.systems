@@ -29,6 +29,7 @@ export function scheduleFormDefaults(
   };
 }
 
+// القيمة الأولى تطابق DEFAULT_MAX_SHIFTS_PER_DAY في staff/domain حتى تصل قيمة النشاط مع الشبكة.
 export const ScheduleLimitContext = createContext(3);
 
 export function newScheduleShift(day: number, count: number) {

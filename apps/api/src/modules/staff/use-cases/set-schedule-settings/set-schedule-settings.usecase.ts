@@ -10,8 +10,8 @@ export class SetScheduleSettingsUseCase {
     private readonly clock: ScheduleClock,
   ) {}
   execute(command: ScheduleActor & { businessId: string; input: SetScheduleSettingsInput }) {
-    validateMaxShiftsPerDay(command.input.max_shifts_per_day);
     return this.transactions.run(command, async (scope) => {
+      validateMaxShiftsPerDay(command.input.max_shifts_per_day);
       await scope.authorize(command.businessId);
       const before = await scope.settings(command.businessId);
       if (before.max_shifts_per_day === command.input.max_shifts_per_day) return before;

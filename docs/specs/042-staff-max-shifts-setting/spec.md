@@ -183,7 +183,8 @@ After Eid the owner lowers the limit from 4 to 3 while some weeks still hold 4 s
   write takes (`identity/persistence/schedule-access.ts:27-33`), then locks/creates the settings row. Schedule writes
   read the limit **after** their locks.
 - **TD-3 Error code.** New `SCHEDULE_DAY_LIMIT_EXCEEDED` (422) with
-  `details: { max_shifts_per_day: number, working_dates: string[] }`. `SCHEDULE_SHIFT_INVALID` (400) keeps invalid
+  `details: { max_shifts_per_day: number, working_dates: string[] }` for schedule saves and template apply, and
+  `details: { max_shifts_per_day: number, days: number[] }` (weekday index, 0 = Saturday) for template create/update. `SCHEDULE_SHIFT_INVALID` (400) keeps invalid
   time and > 16 h only; its ar/en text drops "two per day".
 - **TD-4 Contract bound.** `schedulePattern` and `staffSchedule.shifts` `.max(14)` become `.max(28)` (7 × 4, the top
   of the MS-Q3 range). The domain enforces the per-day rule.

@@ -6,7 +6,7 @@ import {
   type WeeklyShift,
 } from './schedule-types.ts';
 
-import { changedScheduleDays, DEFAULT_MAX_SHIFTS_PER_DAY } from './schedule-settings.ts';
+import { changedScheduleDays } from './schedule-settings.ts';
 
 function minute(time: string): number {
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new ScheduleError('SCHEDULE_SHIFT_INVALID');
@@ -24,7 +24,7 @@ function minute(time: string): number {
  */
 export function validateSchedulePattern(
   shifts: readonly WeeklyShift[],
-  limit = DEFAULT_MAX_SHIFTS_PER_DAY,
+  limit: number,
   checkedDays?: readonly number[],
 ): WeeklyShift[] {
   const counts = new Map<number, number>();
@@ -69,7 +69,7 @@ export function materializeSchedule(
   weekStart: string,
   shifts: readonly WeeklyShift[],
   timezone: string,
-  limit = DEFAULT_MAX_SHIFTS_PER_DAY,
+  limit: number,
   checkedDays?: readonly number[],
 ): ConcreteShift[] {
   validateScheduleWeek(weekStart);
@@ -147,7 +147,7 @@ export function validateScheduleEmployee(
 export function validateScheduleOverlap(
   shifts: readonly ConcreteShift[],
   others: readonly ConcreteShift[],
-  limit = DEFAULT_MAX_SHIFTS_PER_DAY,
+  limit: number,
   checkedDates?: readonly string[],
 ): void {
   const dates = [...new Set(checkedDates ?? shifts.map((s) => s.working_date))];

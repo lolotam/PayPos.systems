@@ -36,6 +36,7 @@ export const ar: Catalog = {
     schedule_settings_limit: 'أقصى عدد ورديات تبدأ في اليوم',
     schedule_settings_default: 'الافتراضي: 3 ورديات في اليوم',
     schedule_settings_save: 'حفظ إعدادات الورديات',
+    schedule_dayLimitDetail: 'الحد {limit} ورديات في اليوم: {dates}',
     schedule_title: 'جداول العمل الأسبوعية',
     schedule_lead: 'من السبت إلى الجمعة حسب المنطقة الزمنية للفرع المختار.',
     schedule_week: 'بداية الأسبوع (السبت)',

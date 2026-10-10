@@ -3,7 +3,7 @@ import type { ScheduleGrid } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { useEffect, useRef } from 'react';
 import { FormProvider } from 'react-hook-form';
-import { envelopeMessage } from '@/shared/api/api-error';
+import { scheduleSaveMessage } from '../model/schedule-save-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { ScheduleWorkspace } from '../api/use-schedules';
 import { useScheduleEditor } from '../model/use-schedule-editor';
@@ -52,7 +52,7 @@ export function ScheduleEditDialog({
             day={day}
             past={past}
             pending={save.isPending}
-            error={save.isError ? envelopeMessage(save.error, locale) : null}
+            error={save.isError ? scheduleSaveMessage(save.error, locale) : null}
             onClose={onClose}
           />
         </form>

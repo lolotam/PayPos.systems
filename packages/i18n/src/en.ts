@@ -34,6 +34,7 @@ export const en = {
     schedule_settings_limit: 'Maximum shifts starting per day',
     schedule_settings_default: 'Default: 3 shifts per day',
     schedule_settings_save: 'Save schedule settings',
+    schedule_dayLimitDetail: 'Limit {limit} shifts per day: {dates}',
     schedule_title: 'Weekly schedules',
     schedule_lead: 'Saturday to Friday in the selected branch timezone.',
     schedule_week: 'Week starts (Saturday)',

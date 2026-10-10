@@ -58,8 +58,8 @@ it.each([1, 3, 4])('checks pattern days at limit %s', (limit) => {
     expect(() => validateSchedulePattern(pattern, limit)).toThrow('SCHEDULE_DAY_LIMIT_EXCEEDED');
 });
 it('accepts three by default and reports weekday details for a fourth', () => {
-  expect(validateSchedulePattern(pattern.slice(0, 3))).toHaveLength(3);
-  expect(() => validateSchedulePattern(pattern)).toThrow(
+  expect(validateSchedulePattern(pattern.slice(0, 3), DEFAULT_MAX_SHIFTS_PER_DAY)).toHaveLength(3);
+  expect(() => validateSchedulePattern(pattern, DEFAULT_MAX_SHIFTS_PER_DAY)).toThrow(
     expect.objectContaining({
       code: 'SCHEDULE_DAY_LIMIT_EXCEEDED',
       details: { max_shifts_per_day: 3, days: [5] },

@@ -1,6 +1,6 @@
 import { ScheduleError, type ConcreteShift, type WeeklyShift } from './schedule-types.ts';
 
-/** غياب صف الإعدادات يعطي ثلاث ورديات وفق قرار المالك MS-Q1. */
+/** غياب صف الإعدادات يعطي ثلاث ورديات وفق قرار المالك S020-SHIFTS (9 أكتوبر 2026). */
 export const DEFAULT_MAX_SHIFTS_PER_DAY = 3;
 /** الحدود المعتمدة من المالك MS-Q3 وليست حدوداً مرتبطة بنوع النشاط. */
 export const MAX_SHIFTS_PER_DAY_RANGE = { min: 1, max: 4 } as const;
