@@ -183,6 +183,13 @@ describe('openapi/openapi.json', () => {
     expect(Object.keys(schemas).sort()).toEqual(
       [
         ...expectedSchemas,
+        'AttendanceChangeDecisionResult',
+        'AttendanceChangeListQuery',
+        'AttendanceChangeRequest',
+        'AttendanceChangeRequestInput',
+        'AttendanceChangeRequestPage',
+        'CancelAttendanceChangeInput',
+        'DecideAttendanceChangeInput',
         'EmployeeSalary',
         'SalaryHistoryPage',
         'SalaryHistoryQuery',

@@ -64,3 +64,53 @@ it('renders placeholders within a display name literally', () => {
     sentence('en', '{{shift_start}}', 'Salmiya'),
   );
 });
+
+it.each(['ar', 'en'] as const)(
+  'renders attendance requests and decisions in viewer language %s',
+  (locale) => {
+    const requested: InAppNotification = {
+      ...shift(locale === 'ar' ? 'en' : 'ar'),
+      template_key: 'attendance_change_requested',
+      safe_parameters: [
+        { name: 'employee_name_ar', type: 'text', value: 'ليلى' },
+        { name: 'employee_name_en', type: 'text', value: 'Laila' },
+        { name: 'change', type: 'text', value: 'ADD_SESSION' },
+      ],
+    };
+    const fill = (text: string) =>
+      text.replace('{{employee_name_ar}}', 'ليلى').replace('{{employee_name_en}}', 'Laila');
+    expect(renderNotification(requested, locale)).toBe(
+      fill(t(locale, 'inApp.attendance_change_requested')).replace(
+        '{{change}}',
+        t(locale, 'inApp.attendance_change_add'),
+      ),
+    );
+    for (const decision of ['APPROVED', 'REJECTED'] as const) {
+      const decided: InAppNotification = {
+        ...requested,
+        template_key: 'attendance_change_decided',
+        safe_parameters: [
+          requested.safe_parameters[0],
+          requested.safe_parameters[1],
+          { name: 'change', type: 'text', value: 'VOID_SESSION' },
+          { name: 'decision', type: 'text', value: decision },
+          { name: 'reason', type: 'text', value: '{{change}}' },
+        ],
+      };
+      expect(renderNotification(decided, locale)).toBe(
+        fill(t(locale, 'inApp.attendance_change_decided'))
+          .replace('{{change}}', t(locale, 'inApp.attendance_change_void'))
+          .replace(
+            '{{decision}}',
+            t(
+              locale,
+              decision === 'APPROVED'
+                ? 'inApp.attendance_change_approved'
+                : 'inApp.attendance_change_rejected',
+            ),
+          )
+          .replace('{{reason}}', '{{change}}'),
+      );
+    }
+  },
+);

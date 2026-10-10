@@ -47,6 +47,7 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'clock:attendance:branch': 'permissionCodes.clockAttendanceBranch',
   'resolve:attendance:branch': 'permissionCodes.resolveAttendanceBranch',
   'correct:attendance:branch': 'permissionCodes.correctAttendanceBranch',
+  'request:attendance-change:branch': 'permissionCodes.requestAttendanceChangeBranch',
   'create:companies:platform': 'permissionCodes.createCompaniesPlatform',
 };
 

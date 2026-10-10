@@ -117,5 +117,6 @@ export const ROLE_DEFAULTS = {
   'resolve:attendance:branch': [...managers, 'branch_manager'],
   // قرار المالك 2026-10-08 (CA-Q1): نفس الحائزين، صلاحية مستقلة، والجهاز ممنوع.
   'correct:attendance:branch': [...managers, 'branch_manager'],
+  'request:attendance-change:branch': [...managers, 'branch_manager'],
   'create:companies:platform': [],
 } as const satisfies Record<Permission, readonly string[]>;

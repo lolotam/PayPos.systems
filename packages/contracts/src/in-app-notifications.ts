@@ -43,7 +43,38 @@ const inAppBase = {
   locale: z.enum(['ar', 'en']),
   template_revision: z.literal(1),
 };
+const changeParameter = z.strictObject({
+  name: z.literal('change'),
+  type: z.literal('text'),
+  value: z.enum(['ADD_SESSION', 'VOID_SESSION']),
+});
+export const attendanceChangeRequestedParameters = z.tuple([
+  displayParameter('employee_name_ar'),
+  displayParameter('employee_name_en'),
+  changeParameter,
+]);
+export const attendanceChangeDecidedParameters = z.tuple([
+  displayParameter('employee_name_ar'),
+  displayParameter('employee_name_en'),
+  changeParameter,
+  z.strictObject({
+    name: z.literal('decision'),
+    type: z.literal('text'),
+    value: z.enum(['APPROVED', 'REJECTED']),
+  }),
+  z.strictObject({ name: z.literal('reason'), type: z.literal('text'), value: safeText }),
+]);
 export const inAppRecipient = z.discriminatedUnion('template_key', [
+  z.strictObject({
+    ...inAppBase,
+    template_key: z.literal('attendance_change_requested'),
+    safe_parameters: attendanceChangeRequestedParameters,
+  }),
+  z.strictObject({
+    ...inAppBase,
+    template_key: z.literal('attendance_change_decided'),
+    safe_parameters: attendanceChangeDecidedParameters,
+  }),
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('generic_notice'),
@@ -68,6 +99,16 @@ const inAppNotificationBase = {
 };
 export const inAppNotification = z
   .discriminatedUnion('template_key', [
+    z.strictObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('attendance_change_requested'),
+      safe_parameters: attendanceChangeRequestedParameters,
+    }),
+    z.strictObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('attendance_change_decided'),
+      safe_parameters: attendanceChangeDecidedParameters,
+    }),
     z.strictObject({
       ...inAppNotificationBase,
       template_key: z.literal('generic_notice'),

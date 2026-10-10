@@ -1,4 +1,6 @@
 export const KNOWN_EVENT_TYPES = [
+  'AttendanceChangeRequested',
+  'AttendanceChangeDecided',
   // قرار Waleed في 2026-10-08: PR 50 سيعالج SalaryChanged المنشور قبل المستهلك؛ بوابة ADR-0012 تظل مغلقة حتى المعالجة.
   'SalaryChanged',
   // شاشات الإجازة تقرأ الحالة مباشرة؛ إشعارات الموظف مؤجلة حسب DL-Q3 في spec 025.

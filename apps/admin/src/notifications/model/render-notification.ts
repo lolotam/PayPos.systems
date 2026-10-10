@@ -3,6 +3,26 @@ import { t, type Locale } from '@pospay/i18n';
 
 /** نص الجرس. generic_notice يبقى على locale الصف؛ shift_not_clocked_in يتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
 export function renderNotification(item: InAppNotification, viewerLocale?: Locale): string {
+  if (
+    item.template_key === 'attendance_change_requested' ||
+    item.template_key === 'attendance_change_decided'
+  ) {
+    const locale = viewerLocale ?? item.locale;
+    const values = Object.fromEntries(item.safe_parameters.map((p) => [p.name, p.value]));
+    values['change'] = t(
+      locale,
+      values['change'] === 'ADD_SESSION'
+        ? 'inApp.attendance_change_add'
+        : 'inApp.attendance_change_void',
+    );
+    values['decision'] = t(
+      locale,
+      values['decision'] === 'APPROVED'
+        ? 'inApp.attendance_change_approved'
+        : 'inApp.attendance_change_rejected',
+    );
+    return fill(t(locale, `inApp.${item.template_key}`), values);
+  }
   if (item.template_key === 'shift_not_clocked_in') {
     const locale = viewerLocale ?? item.locale;
     return fill(t(locale, 'inApp.shift_not_clocked_in'), shiftValues(item.safe_parameters));

@@ -21,6 +21,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_app: [
     ...[
       ...ATTENDANCE_TABLE_GRANTS,
+      'attendance_change_requests:INSERT',
+      'attendance_change_requests:SELECT',
       'attendance_device_signals:INSERT',
       'attendance_device_signals:SELECT',
       'attendance_not_clocked_in_notices:INSERT',
@@ -281,6 +283,16 @@ describe('direct privileges match the reviewed allowlist', () => {
     ).toEqual(
       [
         ...OTP_COLUMN_GRANTS,
+        ...[
+          'status',
+          'decided_by',
+          'decided_at',
+          'decision_reason',
+          'cancelled_by',
+          'cancelled_at',
+          'session_id',
+          'revision',
+        ].map((column) => `attendance_change_requests.${column}:pospay_app:UPDATE`),
         ...LEAVE_COLUMN_GRANTS,
         ...FILE_COLUMN_GRANTS,
         ...OUTBOX_COLUMN_GRANTS,

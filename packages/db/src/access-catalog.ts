@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   'clock:attendance:branch',
   'resolve:attendance:branch',
   'correct:attendance:branch',
+  'request:attendance-change:branch',
   'read:schedules:branch',
   'manage:schedules:branch',
   'read:schedules:business',
