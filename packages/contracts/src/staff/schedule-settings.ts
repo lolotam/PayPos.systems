@@ -6,11 +6,11 @@ export const setScheduleSettingsInput = z
     max_shifts_per_day: z.number().int().min(1).max(4),
   })
   .meta({ id: 'SetScheduleSettingsInput' });
-export const scheduleSettingsSource = z.enum(['branch', 'business', 'default']);
+export const scheduleSettingsSourceSchema = z.enum(['branch', 'business', 'default']);
 export const branchScheduleSettings = z.object({
   branch_id: id,
   max_shifts_per_day: z.number().int().min(1).max(4),
-  source: scheduleSettingsSource,
+  source: scheduleSettingsSourceSchema,
   updated_at: z.iso.datetime().nullable(),
 });
 export const scheduleSettings = z

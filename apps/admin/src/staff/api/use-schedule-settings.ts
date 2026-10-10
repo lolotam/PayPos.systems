@@ -3,12 +3,12 @@ import {
   scheduleSettings,
   branchScheduleSettings,
   setScheduleSettingsInput,
-  type MyWorkspacesResponse,
   type ScheduleSettings,
   type SetScheduleSettingsInput,
 } from '@pospay/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
+import { useWorkspaces } from '@/workspace/api/use-workspaces';
 import type { ScheduleWorkspace } from './use-schedules';
 
 const settingsKey = (scope: ScheduleWorkspace) =>
@@ -18,10 +18,7 @@ const params = (scope: ScheduleWorkspace) => ({
   path: { businessId: scope.businessId },
 });
 export function useScheduleWorkspaceBranches(scope: ScheduleWorkspace) {
-  const workspace = useQuery<MyWorkspacesResponse>({
-    queryKey: ['me', 'workspaces'],
-    enabled: false,
-  });
+  const workspace = useWorkspaces(true);
   return (
     workspace.data?.companies
       .find((c) => c.id === scope.companyId)

@@ -94,11 +94,19 @@ it('accepts three by default and reports weekday details for a fourth', () => {
     }),
   );
 });
-it('grandfathers untouched excess days but counts other branches on changed dates', () => {
+it('grandfathers untouched excess days but counts the same branch on changed dates', () => {
   const shifts = concrete();
   expect(() => validateSchedulePattern(pattern, 3, [])).not.toThrow();
-  expect(() => validateScheduleOverlap(shifts, [], 3, [])).not.toThrow();
-  expect(() => validateScheduleOverlap(shifts.slice(0, 2), shifts.slice(2), 3)).toThrow(
+  expect(() => validateScheduleOverlap(shifts, [], 3, [], 'branch')).not.toThrow();
+  expect(() =>
+    validateScheduleOverlap(
+      shifts.slice(0, 2),
+      shifts.slice(2).map((s) => ({ ...s, branch_id: 'branch' })),
+      3,
+      undefined,
+      'branch',
+    ),
+  ).toThrow(
     expect.objectContaining({
       code: 'SCHEDULE_DAY_LIMIT_EXCEEDED',
       details: { max_shifts_per_day: 3, working_dates: ['2026-10-08'] },

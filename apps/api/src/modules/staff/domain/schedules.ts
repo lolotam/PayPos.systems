@@ -208,7 +208,7 @@ export function validateScheduleEmployee(
 }
 /**
  * التقاطع يقارن اللحظات الفعلية ليمنع العمل المتزامن عبر فروع بمناطق زمنية مختلفة.
- * العدد يحسب ورديات الفرع وحده عند تحديده؛ غيابه يبقي حساب كل الفروع للمنادين السابقين.
+ * العدد يحسب ورديات الفرع المحفوظ فيه وحده (MB-Q1)، والتداخل يفحص كل الفروع.
  *
  * @param shifts الورديات المطلوبة
  * @param others الورديات المحفوظة خارج الأسبوع المستبدل
@@ -221,15 +221,12 @@ export function validateScheduleOverlap(
   shifts: readonly ConcreteShift[],
   others: readonly (ConcreteShift & { branch_id?: string })[],
   limit: number,
-  checkedDates?: readonly string[],
-  branchId?: string,
+  checkedDates: readonly string[] | undefined,
+  branchId: string,
 ): void {
   const dates = [...new Set(checkedDates ?? shifts.map((s) => s.working_date))];
   const counts = new Map<string, number>();
-  for (const shift of [
-    ...shifts,
-    ...others.filter((s) => branchId === undefined || s.branch_id === branchId),
-  ])
+  for (const shift of [...shifts, ...others.filter((s) => s.branch_id === branchId)])
     counts.set(shift.working_date, (counts.get(shift.working_date) ?? 0) + 1);
   const working_dates = dates.filter((day) => (counts.get(day) ?? 0) > limit).sort();
   if (working_dates.length)

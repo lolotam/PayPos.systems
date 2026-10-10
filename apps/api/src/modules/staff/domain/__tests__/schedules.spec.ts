@@ -43,7 +43,6 @@ it('counts only the saving branch but checks overlap against every branch', () =
   }));
   const own = shifts(0, '05:00', '06:00');
   expect(() => validateScheduleOverlap(own, otherBranch, 2, undefined, 'salmiya')).not.toThrow();
-  expect(() => validateScheduleOverlap(own, otherBranch, 2)).toThrow('SCHEDULE_DAY_LIMIT_EXCEEDED');
   expect(() =>
     validateScheduleOverlap(
       own,
@@ -263,12 +262,16 @@ describe('cross-boundary overlaps', () => {
       'Asia/Kuwait',
       3,
     );
-    expect(() => validateScheduleOverlap(friday, saturday, 3)).toThrow('SCHEDULE_SHIFT_OVERLAP');
+    expect(() => validateScheduleOverlap(friday, saturday, 3, undefined, 'branch')).toThrow(
+      'SCHEDULE_SHIFT_OVERLAP',
+    );
     expect(() =>
       validateScheduleOverlap(
         friday,
         materializeSchedule('2026-10-10', pattern(0, '06:00', '08:00'), 'Asia/Kuwait', 3),
         3,
+        undefined,
+        'branch',
       ),
     ).not.toThrow();
     expect(() =>
@@ -276,10 +279,12 @@ describe('cross-boundary overlaps', () => {
         shifts(),
         materializeSchedule(week, pattern(0, '10:00', '12:00'), 'Asia/Dubai', 3),
         3,
+        undefined,
+        'branch',
       ),
     ).toThrow('SCHEDULE_SHIFT_OVERLAP');
   });
-  it('counts split shifts across branches too', () =>
+  it('counts split shifts stored in the same branch', () =>
     expect(() =>
       validateScheduleOverlap(
         shifts(0, '01:00', '02:00'),
@@ -287,8 +292,10 @@ describe('cross-boundary overlaps', () => {
           ...shifts(0, '03:00', '04:00'),
           ...shifts(0, '05:00', '06:00'),
           ...shifts(0, '07:00', '08:00'),
-        ],
+        ].map((s) => ({ ...s, branch_id: 'branch' })),
         3,
+        undefined,
+        'branch',
       ),
     ).toThrow('SCHEDULE_DAY_LIMIT_EXCEEDED'));
   it('refuses elapsed durations over 16h on a DST fallback day', () =>
