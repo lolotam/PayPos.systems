@@ -7,7 +7,7 @@ import {
 import { EMPLOYEE_COLUMN_GRANTS } from '../../test/employee-grants.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
 import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
-import { SCHEDULE_COLUMN_GRANTS } from '../../test/schedule-grants.ts';
+import { SCHEDULE_COLUMN_GRANTS, SCHEDULE_TABLE_GRANTS } from '../../test/schedule-grants.ts';
 import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
 import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
 import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
@@ -114,8 +114,7 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'roles:UPDATE',
     'services:INSERT',
     'services:SELECT',
-    'staff_schedule_settings:INSERT',
-    'staff_schedule_settings:SELECT',
+    ...SCHEDULE_TABLE_GRANTS,
     'staff_schedule_shifts:DELETE',
     'staff_schedule_shifts:INSERT',
     'staff_schedule_shifts:SELECT',
@@ -193,6 +192,7 @@ const TENANT_TABLES = [
   'employee_branches',
   'employee_cards',
   'employee_passkeys',
+  'staff_branch_schedule_settings',
   'staff_schedule_settings',
   'staff_schedules',
   'staff_schedule_shifts',

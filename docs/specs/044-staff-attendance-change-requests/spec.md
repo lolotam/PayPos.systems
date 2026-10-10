@@ -226,6 +226,10 @@ branches she may request for.
   planner is refused with `ATTENDANCE_CHANGE_KIND_UNAVAILABLE`. 26b registers `ADD_SESSION`, 26c `VOID_SESSION`.
   Two implementations justify the port (`CLAUDE.architecture.md` §12). The 26a integration tests register a
   test-only kind in the test module to exercise approval end-to-end.
+  The additive `AttendanceChangeKindRefusal` error contract extends `Error` with a readonly `code: string` and
+  `status: 400 | 403 | 404 | 409 | 422`. Kinds throw it from `check` or `apply` to refuse; the transaction rolls
+  back and the request stays PENDING (ACR-Q13). HTTP preserves its code and status, with bilingual messages from
+  the i18n error catalog when available and a generic fallback otherwise.
 - **BR-003 (locks, ADR-0028 order)**: file / approve / reject / withdraw take the employee's `AttendanceState` lock
   first, then identity's company and ordered membership locks (PR 25/26 pattern), then the request row `FOR UPDATE`,
   then (void) the session row. This serialises a request with scans, the missed-out job and corrections of the same
@@ -296,7 +300,12 @@ All under `@Authenticated()` + the use-case permission check (PR 25/26 pattern);
 - `decide:attendance-change:company` (new) — ACR-Q4, decided 2026-10-10 (option 2). Default: owner only. Owner-granted
   (only an owner may grant/revoke it; any human role or person may receive it), device-forbidden, i18n name. See BR-004.
 - The list is readable by holders of the decide permission (whole business) and by holders of the request permission
-  (their branches). `can_decide` is false on rows the viewer may not decide (self rules).
+  (their branches). **orchestrator clarification 2026-10-11**: it also returns rows where `requested_by = viewer`
+  while the viewer is an active member covering the business, using the same membership notion as cancel, even
+  after request/decide permission is revoked on that branch. An active member with neither permission receives
+  only her own filings, rather than NOT_FOUND; `can_cancel` remains true on her PENDING rows. For every non-owner
+  viewer, rows whose employee's `user_id` equals the viewer are excluded (FR-009: the employee is not told).
+  Owners still see everything. `can_decide` is false on rows the viewer may not decide (self rules).
 
 ### Events
 
@@ -305,7 +314,8 @@ All under `@Authenticated()` + the use-case permission check (PR 25/26 pattern);
     (IN_APP, template `attendance_change_requested`) for the approvers (BR-006). Not emitted for the owner's one-step
     request (ACR-Q2, decided 2026-10-10).
   - `AttendanceChangeDecided` — emitted on approve and reject; carries one IN_APP recipient, the requester (template
-    `attendance_change_decided`) unless the decider is the requester (ACR-Q12, decided 2026-10-10).
+    `attendance_change_decided`) only while she remains an active member covering the business and the decider
+    differs from the requester; otherwise the event has no recipients (ACR-Q12, decided 2026-10-10).
   - Withdraw publishes nothing (no consumer).
 - **Consumer**: worker `notifications` (`NOTIFICATION_SOURCE_EVENTS`), which stores one in-app row per recipient.
   Event facts hold ids, kind, status, dates and actor ids only — never reasons (spec 025 pattern). The one exception

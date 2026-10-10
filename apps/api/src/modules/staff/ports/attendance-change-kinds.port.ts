@@ -1,6 +1,25 @@
 import type { ManualSessionPlan } from '../domain/manual-attendance-session.ts';
 import type { AttendanceChangePlan } from '../domain/attendance-change-request.ts';
 
+/** ترمي الأنواع هذا الرفض؛ تتراجع المعاملة ويظل الطلب PENDING حتى يمكن معالجة السبب. */
+export class AttendanceChangeKindRefusal extends Error {
+  readonly code: string;
+  readonly status: 400 | 403 | 404 | 409 | 422;
+
+  /**
+   * يثبت كود الرفض وحالته حتى يصل سبب رفض النوع للعميل دون تحويله لخطأ تخزين.
+   *
+   * @param code كود سبب رفض النوع
+   * @param status حالة الرد التي تميز الرفض المتوقع
+   */
+  constructor(code: string, status: 400 | 403 | 404 | 409 | 422) {
+    super(code);
+    this.name = 'AttendanceChangeKindRefusal';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 /** الأنواع تتوسع في شرائح التطبيق التالية دون تغيير دورة الطلب. */
 export type AttendanceChangeKindCode = 'ADD_SESSION' | 'VOID_SESSION';
 /** مغلف النوع يحمل أوقات وفرع الإضافة أو جلسة الإلغاء. */
@@ -44,7 +63,7 @@ export interface AttendanceChangeKindValues {
   session_id: string | null;
   session_revision: number | null;
 }
-/** مخطط نوع التغيير؛ الفحص والتطبيق يعملان على نفس معاملة القرار. */
+/** مخطط نوع التغيير؛ الفحص والتطبيق يشتركان في المعاملة ويرميان AttendanceChangeKindRefusal لرفضها وإبقاء الطلب PENDING. */
 export interface AttendanceChangeKind {
   code: AttendanceChangeKindCode;
   /**
@@ -68,7 +87,7 @@ export interface AttendanceChangeKind {
    */
   check(scope: AttendanceChangeKindScope): Promise<AttendanceChangeKindValues>;
   /**
-   * يطبق الأثر داخل المعاملة الحالية ويعيد الجلسة الناتجة إن وجدت.
+   * يطبق الأثر داخل المعاملة الحالية ويعيد معرّف الجلسة الناتجة، أو null للاحتفاظ بهدف الطلب.
    *
    * @param scope الحقائق والمعاملة المشتركة
    * @param values نتيجة فحص النوع

@@ -44,9 +44,10 @@ export function createAttendanceChangeReadAccess(clock: AttendanceChangeClock) {
         business.branches.map((b) => b.id),
         clock.now(),
       );
-      if (!access.canDecide && !access.canRequest) return null;
+      if (!access.canDecide && !access.canRequest && !access.member) return null;
       return {
         owner: access.owner,
+        member: access.member,
         canDecide: access.canDecide,
         decideBranches: access.decideBranches,
         branches: access.owner

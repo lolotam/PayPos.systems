@@ -61,11 +61,13 @@ it('projects the contract and paginates tied timestamps in descending id order',
 it('scopes branch managers and projects requester cancellation independently from owner decision', async () => {
   await asRole(f, 'branch_manager');
   const result = attendanceChangeRequestPage.parse(await page({ limit: 50 }, f.approverId));
-  expect(result.items).toHaveLength(3);
-  expect(result.items.every((r) => r.branch_id === f.branch && !r.can_decide && r.can_cancel)).toBe(
-    true,
+  expect(result.items).toHaveLength(4);
+  expect(result.items.every((r) => !r.can_decide && r.can_cancel)).toBe(true);
+  const own = attendanceChangeRequestPage.parse(
+    await page({ limit: 50, branch_id: f.secondBranch }, f.approverId),
   );
-  expect(await page({ limit: 50, branch_id: f.secondBranch }, f.approverId)).toBeNull();
+  expect(own.items).toHaveLength(1);
+  expect(own.items[0]).toMatchObject({ branch_id: f.secondBranch, can_cancel: true });
   const owner = attendanceChangeRequestPage.parse(
     await page({
       limit: 50,

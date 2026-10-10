@@ -53,7 +53,10 @@ it('a delegate with a branch-scoped decide grant lists only that branch (PR #148
   expect(page.items.map((r) => r.id)).toContain(here);
   expect(page.items.map((r) => r.id)).not.toContain(there);
   expect(page.items.every((r) => r.branch_id === f.branch)).toBe(true);
-  expect(await list(f.approverId, { branch_id: f.secondBranch })).toBeNull();
+  expect(
+    attendanceChangeRequestPage.parse(await list(f.approverId, { branch_id: f.secondBranch }))
+      .items,
+  ).toEqual([]);
 });
 
 it('the owner still lists every branch of the business', async () => {

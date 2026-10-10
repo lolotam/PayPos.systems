@@ -797,35 +797,49 @@
       "idx": 113,
       "version": "7",
       "when": 1791655667038,
-      "tag": "0113_2026-10-10_attendance-change-requests",
+      "tag": "0113_2026-10-10_staff-branch-schedule-settings",
       "breakpoints": true
     },
     {
       "idx": 114,
       "version": "7",
       "when": 1791655668038,
-      "tag": "0114_2026-10-10_attendance-change-requests-rls",
+      "tag": "0114_2026-10-10_staff-branch-schedule-settings-rls",
       "breakpoints": true
     },
     {
       "idx": 115,
       "version": "7",
       "when": 1791655669038,
-      "tag": "0115_2026-10-10_attendance-change-decide-permission",
+      "tag": "0115_2026-10-10_attendance-change-requests",
       "breakpoints": true
     },
     {
       "idx": 116,
       "version": "7",
       "when": 1791655670038,
-      "tag": "0116_2026-10-10_manual-attendance-session",
+      "tag": "0116_2026-10-10_attendance-change-requests-rls",
       "breakpoints": true
     },
     {
       "idx": 117,
       "version": "7",
       "when": 1791655671038,
-      "tag": "0117_2026-10-10_manual-attendance-session-validate",
+      "tag": "0117_2026-10-10_attendance-change-decide-permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1791655672038,
+      "tag": "0118_2026-10-10_manual-attendance-session",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1791655673038,
+      "tag": "0119_2026-10-10_manual-attendance-session-validate",
       "breakpoints": true
     }
   ]

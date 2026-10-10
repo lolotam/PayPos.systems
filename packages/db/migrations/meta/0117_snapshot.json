@@ -1,6 +1,6 @@
 {
-  "id": "5c24385c-3532-4a6e-9224-b8cc1480ee36",
-  "prevId": "e94419cc-d809-42b1-8998-8da20d006fa9",
+  "id": "cd71d333-b8c6-44fd-a3c6-a3f2657aa023",
+  "prevId": "b8a24f93-bcaa-4d13-a29e-079ca5087f0d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -9858,12 +9858,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
-        },
-        "change_request_id": {
-          "name": "change_request_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -10113,27 +10107,6 @@
           "with": {},
           "method": "btree",
           "concurrently": false
-        },
-        "attendance_sessions_change_request_idx": {
-          "name": "attendance_sessions_change_request_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "change_request_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -10269,21 +10242,6 @@
           ],
           "onUpdate": "no action",
           "onDelete": "no action"
-        },
-        "attendance_sessions_change_request_fk": {
-          "name": "attendance_sessions_change_request_fk",
-          "tableFrom": "attendance_sessions",
-          "tableTo": "attendance_change_requests",
-          "columnsFrom": [
-            "company_id",
-            "change_request_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -10304,11 +10262,11 @@
         },
         "attendance_sessions_source": {
           "name": "attendance_sessions_source",
-          "value": "\"attendance_sessions\".\"source\" IN ('QR','BARCODE','MANUAL')"
+          "value": "\"attendance_sessions\".\"source\" IN ('QR','BARCODE')"
         },
         "attendance_sessions_close_pair": {
           "name": "attendance_sessions_close_pair",
-          "value": "(\"attendance_sessions\".\"status\" = 'OPEN' AND \"attendance_sessions\".\"clock_out\" IS NULL AND \"attendance_sessions\".\"closed_by\" IS NULL) OR (\"attendance_sessions\".\"status\" <> 'OPEN' AND \"attendance_sessions\".\"clock_out\" >= \"attendance_sessions\".\"clock_in\" AND \"attendance_sessions\".\"closed_by\" IN ('EMPLOYEE','MISSED_OUT','MANUAL'))"
+          "value": "(\"attendance_sessions\".\"status\" = 'OPEN' AND \"attendance_sessions\".\"clock_out\" IS NULL AND \"attendance_sessions\".\"closed_by\" IS NULL) OR (\"attendance_sessions\".\"status\" <> 'OPEN' AND \"attendance_sessions\".\"clock_out\" >= \"attendance_sessions\".\"clock_in\" AND \"attendance_sessions\".\"closed_by\" IN ('EMPLOYEE','MISSED_OUT'))"
         },
         "attendance_sessions_lateness": {
           "name": "attendance_sessions_lateness",
@@ -10337,14 +10295,6 @@
         "attendance_sessions_out_location": {
           "name": "attendance_sessions_out_location",
           "value": "(\"attendance_sessions\".\"out_latitude\" IS NULL AND \"attendance_sessions\".\"out_longitude\" IS NULL AND \"attendance_sessions\".\"out_accuracy\" IS NULL) OR (\"attendance_sessions\".\"out_latitude\" BETWEEN -90 AND 90 AND \"attendance_sessions\".\"out_longitude\" BETWEEN -180 AND 180 AND \"attendance_sessions\".\"out_accuracy\" >= 0)"
-        },
-        "attendance_sessions_manual_link": {
-          "name": "attendance_sessions_manual_link",
-          "value": "(\"attendance_sessions\".\"source\" = 'MANUAL') = (\"attendance_sessions\".\"change_request_id\" IS NOT NULL)"
-        },
-        "attendance_sessions_manual_shape": {
-          "name": "attendance_sessions_manual_shape",
-          "value": "(\"attendance_sessions\".\"closed_by\" <> 'MANUAL' OR \"attendance_sessions\".\"source\" = 'MANUAL') AND (\"attendance_sessions\".\"source\" <> 'MANUAL' OR (\"attendance_sessions\".\"status\" = 'CLOSED' AND \"attendance_sessions\".\"closed_by\" IS NOT NULL AND \"attendance_sessions\".\"closed_by\" = 'MANUAL' AND \"attendance_sessions\".\"clock_out\" IS NOT NULL AND \"attendance_sessions\".\"binding_id\" IS NULL AND \"attendance_sessions\".\"out_binding_id\" IS NULL AND \"attendance_sessions\".\"device_id\" IS NULL AND \"attendance_sessions\".\"out_device_id\" IS NULL AND \"attendance_sessions\".\"operator_id\" IS NULL AND \"attendance_sessions\".\"out_operator_id\" IS NULL AND \"attendance_sessions\".\"qr_window\" IS NULL AND \"attendance_sessions\".\"out_qr_window\" IS NULL AND \"attendance_sessions\".\"latitude\" IS NULL AND \"attendance_sessions\".\"longitude\" IS NULL AND \"attendance_sessions\".\"accuracy\" IS NULL AND \"attendance_sessions\".\"out_latitude\" IS NULL AND \"attendance_sessions\".\"out_longitude\" IS NULL AND \"attendance_sessions\".\"out_accuracy\" IS NULL AND \"attendance_sessions\".\"geo\" = 'NONE' AND (\"attendance_sessions\".\"out_geo\" IS NULL OR \"attendance_sessions\".\"out_geo\" = 'NONE')))"
         }
       },
       "isRLSEnabled": false
@@ -12805,30 +12755,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
-        },
-        "clock_in": {
-          "name": "clock_in",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "clock_out": {
-          "name": "clock_out",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "working_date": {
-          "name": "working_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "timezone": {
-          "name": "timezone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -13036,28 +12962,6 @@
           "method": "btree",
           "where": "\"attendance_change_requests\".\"status\" = 'PENDING' AND \"attendance_change_requests\".\"kind\" = 'VOID_SESSION'",
           "concurrently": false
-        },
-        "attendance_change_requests_pending_add_idx": {
-          "name": "attendance_change_requests_pending_add_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {},
-          "where": "\"attendance_change_requests\".\"kind\" = 'ADD_SESSION' AND \"attendance_change_requests\".\"status\" = 'PENDING'"
         }
       },
       "foreignKeys": {
@@ -13214,14 +13118,6 @@
         "attendance_change_requests_cancelled": {
           "name": "attendance_change_requests_cancelled",
           "value": "\"attendance_change_requests\".\"status\" <> 'CANCELLED' OR (\"attendance_change_requests\".\"cancelled_by\" IS NOT NULL AND \"attendance_change_requests\".\"cancelled_at\" IS NOT NULL AND \"attendance_change_requests\".\"decided_by\" IS NULL AND \"attendance_change_requests\".\"decided_at\" IS NULL AND \"attendance_change_requests\".\"decision_reason\" IS NULL)"
-        },
-        "attendance_change_requests_add_values": {
-          "name": "attendance_change_requests_add_values",
-          "value": "\"attendance_change_requests\".\"kind\" <> 'ADD_SESSION' OR (\"attendance_change_requests\".\"clock_in\" IS NOT NULL AND \"attendance_change_requests\".\"clock_out\" IS NOT NULL AND \"attendance_change_requests\".\"working_date\" IS NOT NULL AND \"attendance_change_requests\".\"timezone\" IS NOT NULL AND \"attendance_change_requests\".\"clock_out\" > \"attendance_change_requests\".\"clock_in\" AND \"attendance_change_requests\".\"session_revision\" IS NULL)"
-        },
-        "attendance_change_requests_add_only": {
-          "name": "attendance_change_requests_add_only",
-          "value": "\"attendance_change_requests\".\"kind\" = 'ADD_SESSION' OR (\"attendance_change_requests\".\"clock_in\" IS NULL AND \"attendance_change_requests\".\"clock_out\" IS NULL AND \"attendance_change_requests\".\"working_date\" IS NULL AND \"attendance_change_requests\".\"timezone\" IS NULL)"
         }
       },
       "isRLSEnabled": false
@@ -13431,6 +13327,136 @@
         "attendance_break_not_returned_notices_span": {
           "name": "attendance_break_not_returned_notices_span",
           "value": "\"attendance_break_not_returned_notices\".\"shift_ends_at\" > \"attendance_break_not_returned_notices\".\"shift_starts_at\" AND \"attendance_break_not_returned_notices\".\"break_ends_at\" > \"attendance_break_not_returned_notices\".\"shift_starts_at\" AND \"attendance_break_not_returned_notices\".\"break_ends_at\" < \"attendance_break_not_returned_notices\".\"shift_ends_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.staff_branch_schedule_settings": {
+      "name": "staff_branch_schedule_settings",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_shifts_per_day": {
+          "name": "max_shifts_per_day",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "staff_branch_schedule_settings_updated_by_idx": {
+          "name": "staff_branch_schedule_settings_updated_by_idx",
+          "columns": [
+            {
+              "expression": "updated_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "staff_branch_schedule_settings_company_business_idx": {
+          "name": "staff_branch_schedule_settings_company_business_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "staff_branch_schedule_settings_updated_by_user_id_fk": {
+          "name": "staff_branch_schedule_settings_updated_by_user_id_fk",
+          "tableFrom": "staff_branch_schedule_settings",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "tableTo": "user",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "staff_branch_schedule_settings_branch_fk": {
+          "name": "staff_branch_schedule_settings_branch_fk",
+          "tableFrom": "staff_branch_schedule_settings",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "branch_id"
+          ],
+          "tableTo": "branches",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "staff_branch_schedule_settings_pkey": {
+          "name": "staff_branch_schedule_settings_pkey",
+          "columns": [
+            "company_id",
+            "branch_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "staff_branch_schedule_settings_max_shifts_per_day": {
+          "name": "staff_branch_schedule_settings_max_shifts_per_day",
+          "value": "\"staff_branch_schedule_settings\".\"max_shifts_per_day\" BETWEEN 1 AND 4"
         }
       },
       "isRLSEnabled": false

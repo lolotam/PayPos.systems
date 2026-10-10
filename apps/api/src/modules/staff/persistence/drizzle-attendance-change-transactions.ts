@@ -9,12 +9,13 @@ import {
 } from '@pospay/db';
 import { createHash } from 'node:crypto';
 import { AttendanceChangeError } from '../domain/attendance-change-request.ts';
-import type {
-  AttendanceChangeKind,
-  AttendanceChangeKindInput,
-  AttendanceChangeKindScope,
-  AttendanceChangeKinds,
-  AttendanceChangeTarget,
+import {
+  AttendanceChangeKindRefusal,
+  type AttendanceChangeKind,
+  type AttendanceChangeKindInput,
+  type AttendanceChangeKindScope,
+  type AttendanceChangeKinds,
+  type AttendanceChangeTarget,
 } from '../ports/attendance-change-kinds.port.ts';
 import type {
   AttendanceChangeActor,
@@ -80,7 +81,6 @@ async function load(
   kinds: AttendanceChangeKinds,
   filing?: Filing,
 ) {
-  if (actor.device) throw new AttendanceChangeError('FORBIDDEN');
   const sample = clock.now();
   const candidate = filing ? null : await readChangeRequest(tx, actor);
   const requestId = filing ? ids.newId() : candidate?.id;
@@ -217,6 +217,7 @@ async function changeOnce(
 function persistenceError(error: unknown): never {
   if (
     error instanceof AttendanceChangeError ||
+    error instanceof AttendanceChangeKindRefusal ||
     error instanceof IdempotencyKeyBusyError ||
     error instanceof IdempotencyKeyReusedError
   )

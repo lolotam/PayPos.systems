@@ -2,6 +2,47 @@ import { ScheduleError, type ConcreteShift, type WeeklyShift } from './schedule-
 
 /** غياب صف الإعدادات يعطي ثلاث ورديات وفق قرار المالك S020-SHIFTS (9 أكتوبر 2026). */
 export const DEFAULT_MAX_SHIFTS_PER_DAY = 3;
+/**
+ * يختار حد الفرع ثم النشاط ثم ثلاث ورديات عند غياب الإعدادين.
+ *
+ * @param branchValue قيمة الفرع الخاصة إن وجدت
+ * @param businessValue قيمة النشاط إن وجدت
+ * @returns الحد الفعلي للفرع
+ */
+export function effectiveMaxShiftsPerDay(
+  branchValue: number | null,
+  businessValue: number | null,
+): number {
+  return branchValue ?? businessValue ?? DEFAULT_MAX_SHIFTS_PER_DAY;
+}
+/**
+ * يحدد مصدر الحد حتى يميز المالك القيمة الخاصة عن الموروثة.
+ *
+ * @param branchValue قيمة الفرع الخاصة
+ * @param businessValue قيمة النشاط
+ * @returns مصدر القيمة الفعلية
+ */
+export function scheduleSettingsSource(
+  branchValue: number | null,
+  businessValue: number | null,
+): 'branch' | 'business' | 'default' {
+  return branchValue !== null ? 'branch' : businessValue !== null ? 'business' : 'default';
+}
+/**
+ * يسمح بحفظ قالب يناسب فرعاً نشطاً واحداً على الأقل؛ غياب الفروع يعيد حد النشاط.
+ *
+ * @param branchValues الحدود الفعلية للفروع النشطة فقط
+ * @param businessValue قيمة النشاط إن وجدت
+ * @returns أكبر حد فعلي أو حد النشاط عند غياب الفروع
+ */
+export function templateMaxShiftsPerDay(
+  branchValues: readonly number[],
+  businessValue: number | null,
+): number {
+  return branchValues.length
+    ? Math.max(...branchValues)
+    : effectiveMaxShiftsPerDay(null, businessValue);
+}
 /** حقول الوردية التي تغير عدد ورديات اليوم؛ البريك لا يضيف وردية فلا يخضع اليوم للحد بسببه. */
 type ScheduleDayShift = Pick<
   ConcreteShift,
