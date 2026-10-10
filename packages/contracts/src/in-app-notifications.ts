@@ -37,6 +37,13 @@ export const shiftNotClockedInParameters = z.tuple([
   displayParameter('branch_name_en'),
   z.strictObject({ name: z.literal('shift_start'), type: z.literal('text'), value: shiftStart }),
 ]);
+export const breakNotReturnedParameters = z.tuple([
+  displayParameter('employee_name_ar'),
+  displayParameter('employee_name_en'),
+  displayParameter('branch_name_ar'),
+  displayParameter('branch_name_en'),
+  z.strictObject({ name: z.literal('break_end'), type: z.literal('text'), value: shiftStart }),
+]);
 const inAppBase = {
   channel: z.literal('IN_APP'),
   user_id: id,
@@ -53,6 +60,11 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
     ...inAppBase,
     template_key: z.literal('shift_not_clocked_in'),
     safe_parameters: shiftNotClockedInParameters,
+  }),
+  z.strictObject({
+    ...inAppBase,
+    template_key: z.literal('break_not_returned'),
+    safe_parameters: breakNotReturnedParameters,
   }),
 ]);
 const inAppNotificationBase = {
@@ -77,6 +89,11 @@ export const inAppNotification = z
       ...inAppNotificationBase,
       template_key: z.literal('shift_not_clocked_in'),
       safe_parameters: shiftNotClockedInParameters,
+    }),
+    z.strictObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('break_not_returned'),
+      safe_parameters: breakNotReturnedParameters,
     }),
   ])
   .meta({ id: 'InAppNotification' });

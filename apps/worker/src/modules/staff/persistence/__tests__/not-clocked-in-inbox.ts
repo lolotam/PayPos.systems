@@ -20,8 +20,8 @@ export function notClockedInInbox(ids: IdGenerator, database: Database) {
   });
   return {
     channel,
-    deliver: (owner: postgres.Sql, company: string) =>
-      deliverNotices(owner, database, notifications, company),
+    deliver: (owner: postgres.Sql, company: string, eventType = 'ShiftNotClockedIn') =>
+      deliverNotices(owner, database, notifications, company, eventType),
   };
 }
 
@@ -30,9 +30,10 @@ async function deliverNotices(
   database: Database,
   notifications: ReturnType<typeof createNotificationModule>,
   company: string,
+  eventType: string,
 ) {
   const rows = await owner`SELECT id, aggregate_type, aggregate_id, event_type, payload FROM outbox
-    WHERE company_id=${company} AND event_type='ShiftNotClockedIn' ORDER BY seq`;
+    WHERE company_id=${company} AND event_type=${eventType} ORDER BY seq`;
   for (const row of rows) await deliverOne(database, notifications, company, row);
 }
 

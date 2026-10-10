@@ -135,11 +135,20 @@ export function attendanceMissedDeadline(open: OpenAttendance): Date {
   // قرار المالك 2026-10-04 (AT-Q6، الخيار الموصى به): قفل MISSED_OUT عند حد ١٦ ساعة وتسجيل الاكتشاف منفصلاً.
   return new Date(open.clockIn.getTime() + 16 * 60 * 60 * 1000);
 }
-/** الحقائق الدنيا التي يحسبها الانتقال؛ المصدر يقرر الاستثناء والموقع يبقى حقيقة الجلسة. */
+/** الحقائق الدنيا للانتقال؛ returning يثبت جلسة مغلقة بعد بداية الشيفت وحتى وقت الحركة.
+ * غياب حقائق البريك يحفظ spec 027؛ الرجوع بعد بدايته يقارن بنهايته (BW-Q5/BW-Q9، 2026-10-10).
+ */
 export interface AttendancePlanInput {
   open: OpenAttendance | null;
   timezone: string;
-  shifts: readonly { startsAt: Date; endsAt: Date; workingDate: string }[];
+  shifts: readonly {
+    startsAt: Date;
+    endsAt: Date;
+    workingDate: string;
+    breakStartsAt?: Date | null;
+    breakEndsAt?: Date | null;
+    returning?: boolean;
+  }[];
   location: ClockLocation | undefined;
   geo: { lat: number; lng: number } | null;
   source: 'QR' | 'BARCODE';
@@ -166,7 +175,8 @@ export function attendanceRaisedExceptions(
   if (source === 'BARCODE') return [];
   return geo === 'OK' ? [] : [geo];
 }
-/** يحسب الرد من نفس قواعد spec 027 لـ QR والكارت. المصدر يقرر الاستثناءات وgeo يبقى حقيقة الموقع.
+/** يحسب حركة QR والكارت بقواعد spec 027 مع مقارنة الرجوع من البريك بنهايته (BW-Q5/BW-Q9، 2026-10-10).
+ * أول وصول يبقى من بداية الشيفت والخروج يحفظ تأخير الجلسة؛ المصدر يقرر الاستثناءات وgeo يبقى حقيقة الموقع.
  *
  * @param input حقائق الجلسة المفتوحة والورديات والموقع ومصدر المسح
  * @param at وقت الطلب الواحد بعد كل الأقفال
@@ -180,7 +190,7 @@ export function planAttendance(
 ): AttendancePlan {
   const transition = attendanceTransition(input.open, at);
   const workingDate = attendanceWorkingDate(at, input.timezone);
-  const schedule = attendanceSchedule(input.shifts, at, workingDate);
+  const schedule = attendanceReturnSchedule(input.shifts, at, workingDate);
   const geo = attendanceGeofence(input.location, input.geo);
   const closing = transition === 'OUT';
   return {
@@ -225,6 +235,34 @@ export function attendanceSchedule(
     sorted.find((s) => s.workingDate === date) ??
     null
   );
+}
+/**
+ * يثبت بداية مقارنة التأخير للوردية المختارة بقواعد spec 027 دون تغيير اختيارها.
+ * قرار المالك BW-Q5/BW-Q9 بتاريخ 2026-10-10: جلسة مغلقة في نفس الشيفت مع رجوع عند بداية البريك أو بعدها
+ * تجعل المقارنة من نهاية البريك ما دام الشيفت لسه ما خلصش؛ الرجوع بعد نهايته وأول وصول وغياب البريك
+ * يحتفظون ببداية الشيفت (spec 027)، ونهاية الشيفت لا تتغير.
+ *
+ * @param shifts الورديات وحقائق البريك والجلسة المغلقة بعد بداية الشيفت وحتى وقت الحركة
+ * @param at وقت الحركة المحقون
+ * @param date تاريخ clock-in المحلي لاختيار الوردية وفق AT-Q5
+ * @returns بداية المقارنة ونهاية الشيفت أو null عند غياب جدول
+ */
+export function attendanceReturnSchedule(
+  shifts: AttendancePlanInput['shifts'],
+  at: Date,
+  date: string,
+): { startsAt: Date; endsAt: Date } | null {
+  const schedule = attendanceSchedule(shifts, at, date);
+  const chosen = shifts.find((shift) => shift === schedule);
+  if (
+    chosen?.returning === true &&
+    chosen.breakStartsAt != null &&
+    chosen.breakEndsAt != null &&
+    at >= chosen.breakStartsAt &&
+    at < chosen.endsAt
+  )
+    return { startsAt: chosen.breakEndsAt, endsAt: chosen.endsAt };
+  return schedule;
 }
 /** أهلية تاريخية للفرع المسجل، لا يكفي primary_branch الذي قد يكون تغير.
  *

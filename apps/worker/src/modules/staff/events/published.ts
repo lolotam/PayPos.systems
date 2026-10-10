@@ -34,6 +34,20 @@ export interface ShiftNotClockedIn {
   readonly detected_at: string;
 }
 
+/** يصدر مع دفتر عدم الرجوع من البريك والتدقيق لكل مجموعة من مئة مستلم كحد أقصى؛ مرة واحدة لكل موظفة وبداية وردية (BW-Q5). */
+export interface ShiftBreakNotReturned {
+  readonly notice_id: string;
+  readonly employee_id: string;
+  readonly business_id: string;
+  readonly branch_id: string;
+  readonly shift_starts_at: string;
+  readonly shift_ends_at: string;
+  readonly break_ends_at: string;
+  readonly break_out_at: string;
+  readonly alert_due_at: string;
+  readonly detected_at: string;
+}
+
 // TODO(spec) MO-Q1: لا notification_recipients قبل وصول AlertRulesPort (PR 62)؛ مستهلك الإشعارات يقبل الحدث بلا إرسال (موصى به).
 /** يصدر مرة واحدة لكل وثيقة لكل تاريخ انتهاء عند دخولها نافذة التنبيه، داخل نفس معاملة دفتر المنع والتدقيق. */
 export interface DocumentExpiring {

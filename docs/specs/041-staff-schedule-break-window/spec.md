@@ -4,9 +4,9 @@
 
 **Created**: 2026-10-10
 
-**Status**: Owner questions BW-Q1 … BW-Q9 answered 2026-10-10 (Waleed, binding; the partner has not answered yet —
-his notes will be added later). Ready for `/speckit-plan`. Arabic questions and answers:
-[owner-questions.ar.md](owner-questions.ar.md).
+**Status**: Owner questions BW-Q1 … BW-Q9 answered 2026-10-10 (Waleed, binding). The partner (Abu Salem) picked the
+same answers; on BW-Q5 Waleed then adopted the partner's pick (option 2, 2026-10-10), which adds the not-returned
+alert (User Story 4). Arabic questions and answers: [owner-questions.ar.md](owner-questions.ar.md).
 
 **Input**: Phase 1 plan row **16b** (`docs/specs/phase-1/IMPLEMENTATION-PLAN.md:59`): "fixed break window per employee
 per shift (from–to) in schedules and templates". Depends on row 16 (spec 020, schedules + templates, merged). Source
@@ -23,8 +23,10 @@ Research: [research.md](research.md).
 
 ## Owner questions — answered 2026-10-10
 
-Waleed's answer is binding. The partner (Abu Salem, محمد العنزي) has not answered yet; his notes will be added to
-`owner-questions.ar.md` later. The owner said to proceed on his own answers.
+Waleed's answer is binding. The partner (Abu Salem, محمد العنزي) picked the same answers on every question; on BW-Q5
+Waleed changed his answer to the partner's pick on 2026-10-10. The partner's BW-Q4 comment (the owner sets the break
+length and the working hours, which may be 12 h, in the staff list) becomes a separate new plan row: default working
+hours and break on the employee profile. It is not part of this row.
 
 - **BW-Q1 — Where the break lives.** Decided (1): **on each shift**, in the week schedule and in the template pattern.
   Applying a template copies the break, and the manager can change one day's break on its own.
@@ -33,9 +35,12 @@ Waleed's answer is binding. The partner (Abu Salem, محمد العنزي) has n
 - **BW-Q4 — Is the break part of her hours.** Decided (2), **not the recommended option**: **the break counts as
   working hours.** سارة 09:00–17:00 with break 13:00–14:00 is **8 hours**. The break never reduces scheduled hours or
   worked hours.
-- **BW-Q5 — Clocking for the break.** Decided (1): she **does not have to clock** for the break. If she clocks out and
-  back in around it, the return is measured against the **break end** with the usual 10-minute grace (back at 14:05 →
-  not late; 14:12 → 12 minutes late). If she does not clock for it, nothing is raised.
+- **BW-Q5 — Clocking for the break.** Decided (2) on 2026-10-10 — Waleed changed from (1) to the partner's pick:
+  «لازم تبصم خروج ودخول للبريك، ولو مارجعتش يظهر تنبيه للمدير». She clocks out and back in for the break; the return
+  is measured against the **break end** with the usual 10-minute grace (back at 14:05 → not late; 14:12 → 12 minutes
+  late). If she clocked out inside the break and has not clocked back in by the break end + 10 minutes, the branch's
+  managers get an in-app alert (User Story 4). If she never clocked out for the break, nothing is raised: the option
+  asks for an alert on a missing **return** only.
 - **BW-Q6 — Smaller rules.** Decided (1), all four: the break lies inside the shift and touches neither its start nor
   its end; an overnight shift may have its break after midnight and it stays on the start day; schedules and templates
   stored before this row stay without a break; adding, changing or removing a break on a past day needs a reason.
@@ -115,12 +120,39 @@ the personal QR clock and the card clock with a scheduled break.
 2. **Given** the same shift, **When** she clocks in at 14:12, **Then** `late_minutes` = 12.
 3. **Given** the same shift without a break, **When** she clocks in at 14:05, **Then** behaviour is unchanged from spec
    027 (compared with 09:00).
-4. **Given** she never clocks out for the break, **Then** nothing is raised: no exception, no alert (BW-Q5).
+4. **Given** she never clocks out for the break, **Then** nothing is raised: no exception, no alert (BW-Q5 — the
+   alert is about a missing return only).
 5. **Given** the same shift and **no** earlier session on it (she arrives for the first time at 13:30), **When** she
    clocks in, **Then** it is not a return from break: lateness is measured from the shift start, as in spec 027
    (270 minutes) (BW-Q9).
 6. **Given** the same shift and a closed morning session, **When** she clocks back in at 13:45 (before the break end),
    **Then** `late_minutes` = 0.
+
+### User Story 4 — The manager learns she did not come back from the break (Priority: P2)
+
+Decided by BW-Q5 (2), 2026-10-10. سارة works 09:00–17:00 at Salmiya with break 13:00–14:00. She clocks in at 08:58
+and clocks out at 13:02 for her break. By 14:10 (break end + the 10-minute grace) she has not clocked back in. The
+owner, the general manager, the business manager and the Salmiya branch manager each see one new message in the admin
+bell: "سارة has not clocked back in from the break that ended at 14:00 at Salmiya".
+
+**Why this priority**: the owner's changed BW-Q5 answer asks for it; it reuses the not-clocked-in alert (spec 036).
+
+**Independent Test**: schedule the shift with a break, a closed morning session ending inside the break, advance the
+injected clock past break end + 10 minutes, run the not-clocked-in job: one break notice, one
+`ShiftBreakNotReturned` event, one unread in-app message per manager; run it again: nothing new.
+
+**Acceptance Scenarios**:
+
+1. **Given** the session above and no later clock-in, **When** the job runs at 14:10 or later before 17:00, **Then**
+   exactly one break notice and one event exist, and each manager covering Salmiya has exactly one unread message.
+2. **Given** the same, **When** the job runs at 14:09, **Then** nothing is recorded or sent.
+3. **Given** she clocked back in at Salmiya at 14:30 and the job first runs at 14:35, **Then** no alert (she is back
+   before the job decides).
+4. **Given** she never clocked out for the break (one session 08:58 still open), **Then** no alert.
+5. **Given** she clocked out at 11:00 (outside the break) and not back, **Then** no alert from this row.
+6. **Given** the job first runs at 17:00 or later (the shift is over), **Then** no alert.
+7. **Given** a notice exists, **When** the job re-runs, restarts or runs on two workers, **Then** no second notice,
+   event or message exists.
 
 ### Edge Cases
 
@@ -147,6 +179,27 @@ the personal QR clock and the card clock with a scheduled break.
   (BW-Q8). Fixing other mid-shift returns is out of scope.
 - **Hours** (BW-Q4): a shift with a break is as long as its start–end; the break is never subtracted.
 - **Not-clocked-in alert** (spec 036): unchanged — it is about the shift start; a break never moves it.
+- **Not-returned alert** (User Story 4):
+  - The alert moment is break end + 10 minutes. A shift whose alert moment is at or after its end never alerts
+    (break 16:00–16:55 on a 09:00–17:00 shift), as in spec 036.
+  - BW-Q11 (Waleed, 2026-10-10): a clock-out from 10 minutes before the break start counts as a break-out. With a
+    13:00 break, 12:50 counts and 12:49 does not. A clock-out exactly at the break end does not count.
+  - Two clock-outs inside the break (out 13:00, in 13:10, out 13:20): the latest one counts, and the return must
+    come after it.
+  - A return clock-in counts from that clock-out up to the moment the job decides, so she is not alerted if she is
+    back when the job runs. A notice already sent is never retracted (spec 036 NC-Q9).
+  - The clock-out must be on the same shift and branch: a closed session she ended herself, at the shift's branch,
+    carrying this shift's end as its snapshot (the 16b-2 link). BW-Q10 (Waleed, 2026-10-10): the return must be at
+    the same branch she clocked out from, otherwise the alert fires.
+  - Return lateness is unchanged by BW-Q11. Out at 12:55 and back at 14:05 is a return, measured from the break end
+    (0 late), because a return needs only an earlier closed session on the shift.
+  - Approved leave applies as in spec 036 (NC-Q6), anchored at the break end. Full-day leave → no alert. Leave
+    covering the break end to the shift end → no alert. Leave ending earlier → the alert moves to the leave end
+    + 10 minutes. Pending leave does not excuse.
+  - A deleted employee or an ended contract → no alert (NC-Q12).
+  - A deleted or moved shift, or a removed break → judged by the schedule as it stands when the job decides (NC-Q9).
+  - Once per shift (NC-Q5): the once-only key is the employee and the shift start.
+  - The job never re-evaluates a shift that has ended. A manual session inserted later for a past day raises nothing.
 - **Missed clock-out** (spec 029): unchanged — shift end + 4 h.
 
 ## Requirements *(mandatory)*
@@ -172,8 +225,11 @@ the personal QR clock and the card clock with a scheduled break.
 - **FR-010**: When the employee clocks in again on a shift that has a break — she already has an earlier session on
   that shift and the clock-in is at or after the break start — lateness MUST be measured from the break end with the
   10-minute grace of spec 027 (AT-Q7), and the session's stored scheduled start MUST be the break end. Every other
-  clock-in keeps the spec 027 rule. Clocking for the break is never required and its absence raises nothing (BW-Q5,
-  BW-Q9).
+  clock-in keeps the spec 027 rule. Never clocking out for the break raises nothing; a clock-out inside the break with
+  no return raises the manager alert of FR-013 (BW-Q5 (2), BW-Q9).
+  Implementation detail (16b-2 review, 2026-10-10): "an earlier session" means one the employee closed herself
+  (`status = 'CLOSED'`); a session the worker closed as `MISSED_OUT` is not a return. A return counts only while the
+  clock-in is before the shift end; a clock-in at or after the shift end keeps the spec 027 rule.
 - **FR-011**: The break MUST NOT reduce any hours figure (BW-Q4). Scheduled hours of a shift = end − start, break
   included (سارة: 8 h). For worked hours (row 27 board/report, not built in this row), time she spends clocked out
   inside her scheduled break window MUST count as worked, so a day 08:58–13:00 + 14:00–17:00 with break 13:00–14:00
@@ -181,6 +237,16 @@ the personal QR clock and the card clock with a scheduled break.
   (BW-Q8). This row exposes no hours figure itself; row 27 implements the figure.
 - **FR-012**: The admin schedule editor MUST show and round-trip the break, so saving a week without touching a break
   never erases it.
+- **FR-013** (BW-Q5 (2), BW-Q10, BW-Q11, 2026-10-10): when the employee clocked out inside her shift's scheduled break
+  (or up to 10 minutes before it starts) and has no
+  clock-in at the shift's branch after that clock-out by the break end + 10 minutes, the system MUST alert the managers
+  of the shift's branch once per shift. The recipients, channel, cadence, once-only protocol and audit are spec 036's
+  (FR-005 … FR-010 there).
+- **FR-014**: The not-returned alert MUST NOT be raised when she never clocked out inside the break (BW-Q5: the
+  option asks for an alert on a missing return only). It is also not raised when she is back before the job decides,
+  when the shift has ended, when approved leave excuses her, or when she is no longer employed.
+- **FR-015**: The not-returned alert MUST NOT change attendance, lateness, sessions or exceptions. It adds no session
+  status and no exception kind.
 
 ### Key Entities
 
@@ -202,6 +268,21 @@ the personal QR clock and the card clock with a scheduled break.
 - **BR-005** (BW-Q5, BW-Q9): return-from-break lateness = whole minutes after break end, 0 up to and including 10 minutes;
   it applies only to a return (an earlier session exists on the same shift) at or after the break start. The morning
   session's lateness and a first clock-in after the break start are unchanged.
+- **BR-007** (BW-Q5 (2), BW-Q10, BW-Q11): the not-returned alert. Break-out = the latest `clock_out` in
+  `[break_starts_at − 10 min, break_ends_at)` (BW-Q11) of a session with `status = 'CLOSED'`, the shift's branch and
+  `scheduled_end = ends_at`. Alert moment = break end + 10 min, moved by approved leave as in spec 036 BR-002 with
+  the break end as the anchor. Returned = any session of hers at the branch with `clock_in` from the break-out up
+  to the decision instant (status `OPEN`, `CLOSED` or `MISSED_OUT`). Decision order:
+  1. `STALE` when now ≥ shift end or alert moment ≥ shift end;
+  2. `INELIGIBLE` for a deleted employee or an ended contract;
+  3. `NO_BREAK_OUT` when there is no break-out;
+  4. `EXCUSED` by leave;
+  5. `RETURNED` when she came back;
+  6. `WAIT` before the alert moment;
+  7. otherwise `ALERT`.
+- **BR-008**: recipients, channel, cadence (every 5 minutes, in the same company job as spec 036) and the interim
+  rule are spec 036's BR-004 and BR-006. The once-only key is `(company_id, employee_id, shift_starts_at)` in a
+  separate notice table, so a not-clocked-in notice and a not-returned notice for one shift never block each other.
 - **BR-006**: comparing past days for the reason rule now uses ten canonical values per shift (the six of spec 020 plus
   break start/end and their two instants), still independent of key and array order.
 
@@ -213,6 +294,7 @@ Expand only; nothing dropped or rewritten. The migration number is assigned at m
 |---|---|---|---|---|
 | `staff_schedule_shifts` | `break_start text NULL`, `break_end text NULL`, `break_starts_at timestamptz NULL`, `break_ends_at timestamptz NULL`; CHECK `staff_schedule_shifts_break_pair` (all four NULL or all four NOT NULL); CHECK `staff_schedule_shifts_break_inside` (`break_starts_at > starts_at AND break_ends_at < ends_at AND break_ends_at > break_starts_at` when present), added `NOT VALID` then `VALIDATE` | unchanged (existing FORCE RLS select/insert/delete; table-level grants already cover new columns) | none — breaks are always read with their shift row | unchanged |
 | `staff_shift_templates` | none — `shifts jsonb` entries gain optional `break_start` / `break_end` keys | unchanged | none | unchanged |
+| `attendance_break_not_returned_notices` (new, 16b-2) | PK `(company_id, id)`, `business_id`, `branch_id`, `employee_id`, `shift_starts_at`, `shift_ends_at`, `break_ends_at`, `break_out_at`, `alert_due_at`, `notified_at`, `recipient_count int`; CHECKs recipients ≥ 0, shift span, break end inside the shift | FORCE RLS `company_id = app_company_id()`; `pospay_app` SELECT + INSERT only | UNIQUE `(company_id, employee_id, shift_starts_at)`; `(company_id, business_id, branch_id)`; `(company_id, branch_id)` | `(company_id, business_id, employee_id)` → `employees`; `(company_id, business_id, branch_id)` → `branches`; no FK to the shift row (spec 036 BR-005) |
 
 No change to the btree_gist exclusion (`0057:40`): breaks are inside the shift interval, so shift overlap is unchanged.
 No grant change: `GRANT SELECT, INSERT, DELETE ON staff_schedule_shifts` is table-level (`0057:37`). The privileges
@@ -242,8 +324,14 @@ No new endpoint, route, guard or permission. Additive fields only.
 
 ### Events
 
-- **Published**: none (spec 020 publishes none for schedules).
-- **Consumed**: none.
+- **Published**: none for schedules (spec 020). New in 16b-2: `ShiftBreakNotReturned` from worker `staff` to
+  `notifications` — once per (employee, shift start) per recipient group of ≤ 100, in the notice's transaction.
+  Payload: `notice_id, employee_id, business_id, branch_id, shift_starts_at, shift_ends_at, break_ends_at,
+  break_out_at, alert_due_at, detected_at` and `notification_recipients` (IN_APP, template
+  `break_not_returned` rev 1, parameters `employee_name_ar/en`, `branch_name_ar/en`, `break_end` `HH:MM`).
+  The bell renders it in the viewer's UI locale, as `shift_not_clocked_in`. Audit: `attendance_notice` /
+  `break_not_returned.detected`, actor NULL.
+- **Consumed**: none new (the job is the spec 036 company job, registered on `CompanyCreated`/`AttendanceClockedIn`).
 - Attendance events (`AttendanceClockedIn`) keep their payload; the stored `late_minutes` value of a return from
   break changes per BW-Q5.
 
@@ -259,7 +347,9 @@ No new endpoint, route, guard or permission. Additive fields only.
   apply → copies carry it; template update leaves copies; `BW-05` stored pre-16b template and week work unchanged;
   `BW-06` DB CHECK rejects a direct insert of a break outside its shift or a half-filled pair; `BW-07` QR clock and
   card clock return-from-break lateness (BW-Q5); `BW-08` attendance correction of a return session recomputes from the
-  stored scheduled start.
+  stored scheduled start; `BW-09` not-returned alert (User Story 4: alert once, 14:09 wait, back before the job, never
+  clocked out, out outside the break, shift over, leave, other branch, other shift, recipients, re-run and two
+  workers); `BW-10` RLS and grants of the new notice table; EXPLAIN of the due-break page.
 - **RLS negative**: existing schedule-table cross-tenant tests extended to read a break column (0 rows) — no new table.
 - **Queries**: `schedule-week.query.ts` result-shape test updated with break fields; existing EXPLAIN assertions kept.
 - **Admin**: shift-fields break inputs, form defaults round-trip, grid shows `13:00–14:00` break label, ar/en keys.
@@ -276,6 +366,9 @@ No new endpoint, route, guard or permission. Additive fields only.
 - **SC-006** (BW-Q4): no schedule read, and no later hours figure, shows a shift with a break as shorter than its
   start–end.
 - **SC-005** (BW-Q5): a return from break within 10 minutes of the break end reports 0 late minutes.
+- **SC-007** (BW-Q5 (2)): every employee who clocked out inside her break and is not back 10 minutes after it ends,
+  while the shift runs, produces exactly one manager alert within 5 minutes; nobody who never clocked out for the
+  break is alerted.
 
 ## Assumptions
 
