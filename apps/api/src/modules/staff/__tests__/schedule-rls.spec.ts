@@ -6,6 +6,7 @@ import {
   scheduleActor,
   scheduleIds,
   setWeek,
+  breakPattern,
   type SchedulesFixture,
 } from './schedules.fixture.ts';
 let f: SchedulesFixture;
@@ -13,7 +14,7 @@ let scheduleId: string;
 let templateId: string;
 beforeAll(async () => {
   f = await schedulesFixture();
-  scheduleId = (await setWeek(f)).id;
+  scheduleId = (await setWeek(f, breakPattern)).id;
   templateId = (
     await f.createTemplate.execute({
       ...scheduleActor(f),
@@ -32,7 +33,9 @@ it.each(['staff_schedules', 'staff_schedule_shifts', 'staff_shift_templates'])(
       .owner`SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname=${table}`;
     expect(flags).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
     const found = await f.db.withTenant(f.otherCompany, (tx) =>
-      tx.execute(sql`SELECT id FROM ${sql.identifier(table)} WHERE company_id=${f.company}`),
+      tx.execute(
+        sql`SELECT ${table === 'staff_schedule_shifts' ? sql`break_starts_at` : sql`id`} FROM ${sql.identifier(table)} WHERE company_id=${f.company}`,
+      ),
     );
     expect(found).toHaveLength(0);
     const updated =
@@ -65,10 +68,10 @@ it('refuses cross-tenant inserts for all three tables and tenant rehoming', asyn
   ).rejects.toThrow();
   await expect(
     f.db.withTenant(f.otherCompany, (tx) =>
-      tx.execute(sql`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at)
-    VALUES(${f.company},${scheduleIds.newId()},${scheduleId},${f.employee.id},'2026-10-03',0,'14:00','15:00','2026-10-03T11:00Z','2026-10-03T12:00Z')`),
+      tx.execute(sql`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at,break_start,break_end,break_starts_at,break_ends_at)
+    VALUES(${f.company},${scheduleIds.newId()},${scheduleId},${f.employee.id},'2026-10-03',0,'18:00','19:00','2026-10-03T15:00Z','2026-10-03T16:00Z','18:15','18:30','2026-10-03T15:15Z','2026-10-03T15:30Z')`),
     ),
-  ).rejects.toThrow();
+  ).rejects.toMatchObject({ cause: { code: '42501' } });
   for (const table of ['staff_schedules', 'staff_shift_templates'])
     await expect(
       f.db.withTenant(f.company, (tx) =>

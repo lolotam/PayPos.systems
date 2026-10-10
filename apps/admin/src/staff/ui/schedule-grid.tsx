@@ -8,11 +8,8 @@ import Link from 'next/link';
 import { useLocale } from '@/shared/locale/locale-context';
 type Row = ScheduleGrid['items'][number];
 export const scheduleDayKeys = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'] as const;
-function gridColumns(
-  locale: Locale,
-  days: string[],
-  onEdit: (row: Row, day: number) => void,
-): ColumnDef<Row>[] {
+type EditSchedule = (row: Row, day: number) => void;
+function gridColumns(locale: Locale, days: string[], onEdit: EditSchedule): ColumnDef<Row>[] {
   return [
     {
       id: 'employee',
@@ -48,8 +45,18 @@ function gridColumns(
           >
             {shifts.length > 0
               ? shifts.map((s) => (
-                  <span key={s.start} dir="ltr">
-                    {s.start}–{s.end}
+                  <span key={s.start}>
+                    <span dir="ltr">
+                      {s.start}–{s.end}
+                    </span>
+                    {s.break_start && s.break_end ? (
+                      <span className="block text-xs text-muted-foreground">
+                        {t(locale, 'shell.schedule_break')}{' '}
+                        <span dir="ltr">
+                          {s.break_start}–{s.break_end}
+                        </span>
+                      </span>
+                    ) : null}
                   </span>
                 ))
               : t(locale, 'shell.schedule_off')}

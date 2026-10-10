@@ -9,7 +9,9 @@ export function shiftTemplatesStatement(
   businessId: string,
   query: { cursor?: string; limit: number },
 ) {
-  return sql`WITH rows AS (SELECT id,jsonb_build_object('id',id,'business_id',business_id,'name_en',name_en,'name_ar',name_ar,'shifts',shifts,'revision',revision,
+  return sql`WITH rows AS (SELECT id,jsonb_build_object('id',id,'business_id',business_id,'name_en',name_en,'name_ar',name_ar,'shifts',COALESCE((SELECT jsonb_agg(entry || jsonb_build_object(
+      'break_start',entry->'break_start','break_end',entry->'break_end') ORDER BY ordinal)
+      FROM jsonb_array_elements(shifts) WITH ORDINALITY AS pattern(entry,ordinal)),'[]'::jsonb),'revision',revision,
     'archived_at',CASE WHEN archived_at IS NULL THEN NULL ELSE to_char(archived_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END) AS record
     FROM staff_shift_templates WHERE company_id=${companyId} AND business_id=${businessId}
       AND (${query.cursor ?? null}::uuid IS NULL OR id > ${query.cursor ?? null}::uuid) ORDER BY id LIMIT ${query.limit + 1})

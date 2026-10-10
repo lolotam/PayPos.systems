@@ -29,10 +29,10 @@ export async function saveScheduleWeek(
   if (after.shifts.length > 0) {
     const values = after.shifts.map(
       (s) =>
-        sql`(${companyId},${ids.newId()},${after.id},${after.employee_id},${s.working_date},${s.day},${s.start},${s.end},${s.starts_at},${s.ends_at})`,
+        sql`(${companyId},${ids.newId()},${after.id},${after.employee_id},${s.working_date},${s.day},${s.start},${s.end},${s.starts_at},${s.ends_at},${s.break_start ?? null},${s.break_end ?? null},${s.break_starts_at ?? null},${s.break_ends_at ?? null})`,
     );
     await tx.execute(
-      sql`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at) VALUES ${sql.join(values, sql`,`)}`,
+      sql`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at,break_start,break_end,break_starts_at,break_ends_at) VALUES ${sql.join(values, sql`,`)}`,
     );
   }
   await appendAuditLog(tx, ids.newId(), {

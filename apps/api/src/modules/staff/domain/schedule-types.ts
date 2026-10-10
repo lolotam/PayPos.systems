@@ -1,14 +1,23 @@
-/** نمط وردية محلية؛ اليوم صفر للسبت والوردية تنسب ليوم بدايتها. */
+/** نمط وردية محلية ببريك اختياري محسوب كعمل؛ اليوم صفر للسبت والوردية تنسب ليوم بدايتها. */
 export interface WeeklyShift {
   day: number;
   start: string;
   end: string;
+  break_start: string | null;
+  break_end: string | null;
 }
-/** نسخة فعلية تحفظ يوم العمل ولحظات البداية والنهاية للتقارير. */
+/** مدخل قديم أو جديد؛ مفاتيح البريك الغائبة تتحول إلى null عند تثبيت النمط. */
+export type WeeklyShiftInput = Omit<WeeklyShift, 'break_start' | 'break_end'> & {
+  break_start?: string | null | undefined;
+  break_end?: string | null | undefined;
+};
+/** نسخة فعلية تحفظ يوم العمل ولحظات الوردية والبريك دون تقليل وقت العمل. */
 export interface ConcreteShift extends WeeklyShift {
   working_date: string;
   starts_at: string;
   ends_at: string;
+  break_starts_at: string | null;
+  break_ends_at: string | null;
 }
 /** أسبوع موظف في فرع محدد مع نسخة تفاؤلية والمنطقة المستخدمة. */
 export interface ScheduleRecord {
@@ -45,6 +54,7 @@ export type ScheduleErrorCode =
   | 'SCHEDULE_WEEK_INVALID'
   | 'SCHEDULE_SHIFT_INVALID'
   | 'SCHEDULE_DAY_LIMIT_EXCEEDED'
+  | 'SCHEDULE_BREAK_INVALID'
   | 'VALIDATION_FAILED'
   | 'SCHEDULE_SHIFT_OVERLAP'
   | 'SCHEDULE_LOCAL_TIME_INVALID'

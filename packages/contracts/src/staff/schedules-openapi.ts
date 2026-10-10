@@ -1,5 +1,18 @@
 const json = (name: string) => ({
-  'application/json': { schema: { $ref: `#/components/schemas/${name}` } },
+  'application/json': {
+    schema: { $ref: `#/components/schemas/${name}` },
+    ...(name === 'SetScheduleInput'
+      ? {
+          example: {
+            week_start: '2026-10-10',
+            expected_revision: 0,
+            shifts: [
+              { day: 0, start: '09:00', end: '17:00', break_start: '13:00', break_end: '14:00' },
+            ],
+          },
+        }
+      : {}),
+  },
 });
 const path = (name: string) => ({
   in: 'path',

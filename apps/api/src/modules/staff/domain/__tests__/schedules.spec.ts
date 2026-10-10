@@ -12,6 +12,7 @@ import {
   validateScheduleEmployee,
   validateScheduleOverlap,
   validateSchedulePattern,
+  validateShiftBreak,
 } from '../schedules.ts';
 import {
   requireActiveTemplate,
@@ -21,7 +22,9 @@ import {
 } from '../schedule-templates.ts';
 import type { ScheduleRecord, SchedulingEmployee, WeeklyShift } from '../schedule-types.ts';
 const week = '2026-10-03';
-const pattern = (day = 0, start = '09:00', end = '17:00'): WeeklyShift[] => [{ day, start, end }];
+const pattern = (day = 0, start = '09:00', end = '17:00'): WeeklyShift[] => [
+  { day, start, end, break_start: null, break_end: null },
+];
 const shifts = (day = 0, start = '09:00', end = '17:00') =>
   materializeSchedule(week, pattern(day, start, end), 'Asia/Kuwait', 3);
 const employee: SchedulingEmployee = {
@@ -32,6 +35,114 @@ const employee: SchedulingEmployee = {
   deleted_at: null,
   attachments: [{ branch_id: 'branch', from: '2026-01-01', to: null }],
 };
+
+it.each([
+  ['09:00', '17:00', '13:00', '14:00', true],
+  ['09:00', '17:00', '16:30', '17:30', false],
+  ['09:00', '17:00', '08:30', '09:30', false],
+  ['09:00', '17:00', '13:00', '17:00', false],
+  ['09:00', '17:00', '09:00', '10:00', false],
+  ['09:00', '17:00', '13:00', '13:00', false],
+  ['09:00', '17:00', '14:00', '13:00', false],
+  ['09:00', '17:00', '13:00', null, false],
+  ['09:00', '17:00', null, '14:00', false],
+  ['20:00', '04:00', '00:30', '01:00', true],
+  ['20:00', '04:00', '23:30', '00:30', true],
+  ['20:00', '04:00', '03:30', '04:30', false],
+  ['09:00', '09:01', null, null, true],
+  ['08:00', '00:00', null, null, true],
+] as const)(
+  'validates break placement %s–%s / %s–%s',
+  (start, end, break_start, break_end, valid) => {
+    const run = () => validateShiftBreak({ day: 0, start, end, break_start, break_end });
+    if (valid) expect(run).not.toThrow();
+    else
+      expect(run).toThrow(
+        expect.objectContaining({ code: 'SCHEDULE_BREAK_INVALID', details: { day: 0, start } }),
+      );
+  },
+);
+it.each([0, 6])('materializes overnight breaks on the next date, keeping start day %s', (day) => {
+  const [shift] = materializeSchedule(
+    week,
+    [{ day, start: '20:00', end: '04:00', break_start: '00:30', break_end: '01:00' }],
+    'Asia/Kuwait',
+    3,
+  );
+  expect(shift).toMatchObject({
+    working_date: addScheduleDays(week, day),
+    break_starts_at: `${addScheduleDays(week, day)}T21:30:00.000Z`,
+    break_ends_at: `${addScheduleDays(week, day)}T22:00:00.000Z`,
+  });
+});
+it('normalises old patterns and keeps the full eight-hour shift with a break', () => {
+  const [plain] = shifts();
+  const [withBreak] = materializeSchedule(
+    week,
+    [{ day: 0, start: '09:00', end: '17:00', break_start: '13:00', break_end: '14:00' }],
+    'Asia/Kuwait',
+    3,
+  );
+  expect(plain).toMatchObject({
+    break_start: null,
+    break_end: null,
+    break_starts_at: null,
+    break_ends_at: null,
+  });
+  expect(withBreak).toMatchObject({
+    starts_at: plain?.starts_at,
+    ends_at: plain?.ends_at,
+    break_starts_at: `${week}T10:00:00.000Z`,
+    break_ends_at: `${week}T11:00:00.000Z`,
+  });
+  if (!withBreak) throw new Error('Missing materialized shift');
+  expect(Date.parse(withBreak.ends_at) - Date.parse(withBreak.starts_at)).toBe(8 * 60 * 60 * 1000);
+});
+it.each(['2026-03-28', '2026-10-24'])(
+  'refuses a break in a Berlin DST gap or fold for week %s',
+  (weekStart) => {
+    expect(() =>
+      materializeSchedule(
+        weekStart,
+        [{ day: 1, start: '00:00', end: '06:00', break_start: '02:15', break_end: '03:30' }],
+        'Europe/Berlin',
+        3,
+      ),
+    ).toThrow('SCHEDULE_LOCAL_TIME_INVALID');
+  },
+);
+it('compares all ten past-shift values independently of key and array order', () => {
+  const original = materializeSchedule(
+    week,
+    [{ day: 0, start: '09:00', end: '17:00', break_start: '13:00', break_end: '14:00' }],
+    'Asia/Kuwait',
+    3,
+  );
+  for (const key of ['break_start', 'break_end', 'break_starts_at', 'break_ends_at'] as const) {
+    const changed = original.map((s) => ({ ...s, [key]: `${s[key]}-changed` }));
+    expect(() => requirePastScheduleReason(original, changed, '2026-10-04')).toThrow(
+      'SCHEDULE_PAST_REASON_REQUIRED',
+    );
+  }
+  for (const [before, after] of [
+    [shifts(), original],
+    [original, shifts()],
+  ] as const) {
+    expect(() => requirePastScheduleReason(before, after, '2026-10-04')).toThrow(
+      'SCHEDULE_PAST_REASON_REQUIRED',
+    );
+    expect(() =>
+      requirePastScheduleReason(before, after, '2026-10-04', 'Synthetic reason'),
+    ).not.toThrow();
+    expect(() => requirePastScheduleReason(before, after, week)).not.toThrow();
+    expect(() => requirePastScheduleReason(before, after, '2026-10-02')).not.toThrow();
+  }
+  const before = [...original, ...shifts(1)];
+  const reordered = [...before]
+    .reverse()
+    .map((s) => Object.fromEntries(Object.entries(s).reverse()) as typeof s);
+  expect(() => requirePastScheduleReason(before, reordered, '2026-10-05')).not.toThrow();
+});
 
 describe('Saturday civil weeks and timezone instants', () => {
   it.each(['2026-10-04', '2026-02-30', 'invalid', '2026-10-02'])(
@@ -94,6 +205,10 @@ describe('split, overnight, duration and overlap rules', () => {
       working_date: '2026-10-09',
       starts_at: '2026-10-09T19:00:00.000Z',
       ends_at: '2026-10-10T03:00:00.000Z',
+      break_start: null,
+      break_end: null,
+      break_starts_at: null,
+      break_ends_at: null,
     });
   });
   it('refuses same-day and neighboring-day overnight overlap', () => {

@@ -11,10 +11,114 @@ import {
   testPattern,
   scheduleIds,
   type SchedulesFixture,
+  breakPattern,
+  putWeek,
+  weekUrl,
+  nullBreak,
+  readPersonalWeek,
 } from './schedules.fixture.ts';
 let f: SchedulesFixture;
 beforeAll(async () => {
   f = await schedulesFixture();
+});
+
+it('BW-01 saves the break over HTTP and returns the full shift in employee and grid reads with one audit', async () => {
+  const week_start = '2027-05-01';
+  const response = await putWeek(f, { week_start, expected_revision: 0, shifts: breakPattern });
+  expect(response.statusCode).toBe(200);
+  const saved = staffSchedule.parse(response.json());
+  const expected = {
+    break_start: '13:00',
+    break_end: '14:00',
+    break_starts_at: `${week_start}T10:00:00.000Z`,
+    break_ends_at: `${week_start}T11:00:00.000Z`,
+    starts_at: `${week_start}T06:00:00.000Z`,
+    ends_at: `${week_start}T14:00:00.000Z`,
+  };
+  expect(saved.shifts[0]).toMatchObject(expected);
+  const headers = { cookie: f.cookie, 'x-company-id': f.company };
+  const employee = await f.h.app.inject({
+    method: 'GET',
+    url: `${weekUrl(f)}/${f.employee.id}?week_start=${week_start}`,
+    headers,
+  });
+  const grid = await f.h.app.inject({
+    method: 'GET',
+    url: `${weekUrl(f)}?week_start=${week_start}`,
+    headers,
+  });
+  expect(employee.statusCode).toBe(200);
+  expect(employee.json().schedule.shifts[0]).toMatchObject(expected);
+  expect(grid.statusCode).toBe(200);
+  expect(
+    grid.json().items.find((r: { employee_id: string }) => r.employee_id === f.employee.id).schedule
+      .shifts[0],
+  ).toMatchObject(expected);
+  const audits = await f.h.owner`SELECT "after" FROM audit_log WHERE entity_id=${saved.id}`;
+  expect(audits).toHaveLength(1);
+  expect(audits[0]?.after.shifts[0]).toMatchObject(expected);
+  const personal = await readPersonalWeek(f, week_start);
+  expect(personal.status).toBe(200);
+  expect(personal.body.schedule.shifts[0]).toMatchObject(expected);
+});
+it('BW-02 refuses placement and one-sided input atomically with their named bilingual errors', async () => {
+  const week_start = '2027-05-08';
+  for (const [fields, code] of [
+    [{ break_start: '16:30', break_end: '17:30' }, 'SCHEDULE_BREAK_INVALID'],
+    [{ break_start: '13:00' }, 'VALIDATION_FAILED'],
+  ] as const) {
+    const result = await putWeek(f, {
+      week_start,
+      expected_revision: 0,
+      shifts: [{ day: 0, start: '09:00', end: '17:00', ...fields }],
+    });
+    expect(result.statusCode).toBe(400);
+    expect(result.json().code).toBe(code);
+    if (code === 'SCHEDULE_BREAK_INVALID')
+      expect(result.json()).toMatchObject({
+        details: { day: 0, start: '09:00' },
+        message_ar: 'وقت البريك لازم يكون جوّه الشيفت',
+        message_en: 'The break must be inside the shift',
+      });
+  }
+  expect(
+    await f.h.owner`SELECT id FROM staff_schedule_shifts WHERE working_date=${week_start}`,
+  ).toHaveLength(0);
+  expect(
+    await f.h
+      .owner`SELECT id FROM audit_log WHERE entity='staff_schedule' AND "after"->>'week_start'=${week_start}`,
+  ).toHaveLength(0);
+});
+it('BW-03 requires a reason for past break addition, change and removal but not identical resaves', async () => {
+  const week_start = '2026-09-19';
+  let revision = (
+    await setWeek(f, [{ day: 0, start: '09:00', end: '17:00' }], {
+      week: week_start,
+      reason: 'Synthetic original',
+    })
+  ).revision;
+  for (const shifts of [
+    breakPattern,
+    [{ ...breakPattern[0], break_start: '14:00', break_end: '15:00' }],
+    [{ day: 0, start: '09:00', end: '17:00', break_start: null, break_end: null }],
+  ]) {
+    const input = { week_start, expected_revision: revision, shifts };
+    const refused = await putWeek(f, input);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().code).toBe('SCHEDULE_PAST_REASON_REQUIRED');
+    const changed = await putWeek(f, { ...input, reason: 'Synthetic break correction' });
+    expect(changed.statusCode).toBe(200);
+    const identical = await putWeek(f, { ...input, expected_revision: ++revision });
+    expect(identical.statusCode).toBe(200);
+    revision++;
+  }
+  const optional = await putWeek(f, {
+    week_start: '2027-05-15',
+    expected_revision: 0,
+    shifts: [{ day: 0, start: '09:00', end: '13:00' }],
+  });
+  expect(optional.statusCode).toBe(200);
+  expect(optional.json().shifts[0]).toMatchObject(nullBreak);
 });
 afterAll(async () => {
   await f?.db.close();

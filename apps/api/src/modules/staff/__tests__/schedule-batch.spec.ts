@@ -28,10 +28,10 @@ beforeAll(async () => {
     employeeIds.push(employee.id);
   }
   const shifts = Array.from({ length: 7 }, (_, day) => [
-    { day, start: '00:00', end: '04:00' },
-    { day, start: '06:00', end: '10:00' },
-    { day, start: '12:00', end: '16:00' },
-    { day, start: '18:00', end: '22:00' },
+    { day, start: '00:00', end: '04:00', break_start: '01:00', break_end: '02:00' },
+    { day, start: '06:00', end: '10:00', break_start: '07:00', break_end: '08:00' },
+    { day, start: '12:00', end: '16:00', break_start: '13:00', break_end: '14:00' },
+    { day, start: '18:00', end: '22:00', break_start: '19:00', break_end: '20:00' },
   ]).flat();
   const template = await f.createTemplate.execute({
     ...scheduleActor(f),
@@ -67,7 +67,8 @@ it.each([
     expect(result.schedules).toHaveLength(20);
     const ids = result.schedules.map((s) => s.id);
     expect(
-      await f.h.owner`SELECT id FROM staff_schedule_shifts WHERE schedule_id=ANY(${ids}::uuid[])`,
+      await f.h
+        .owner`SELECT id FROM staff_schedule_shifts WHERE schedule_id=ANY(${ids}::uuid[]) AND break_starts_at IS NOT NULL AND break_ends_at IS NOT NULL`,
     ).toHaveLength(560);
     expect(
       await f.h

@@ -5,12 +5,26 @@ import { nameAr, nameEn } from '../bilingual/names.js';
 import { employeeDate, employeeInputId } from './employee.js';
 import { timeZone } from '../reference/time-zone.js';
 
+export const shiftBreakFields = {
+  break_start: z
+    .string()
+    .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+    .nullable()
+    .optional(),
+  break_end: z
+    .string()
+    .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+    .nullable()
+    .optional(),
+};
 export const scheduleShift = z
   .strictObject({
     day: z.number().int().min(0).max(6),
     start: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
     end: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
+    ...shiftBreakFields,
   })
+  .refine((shift) => (shift.break_start != null) === (shift.break_end != null))
   .meta({ id: 'ScheduleShift' });
 export const schedulePattern = z.array(scheduleShift).max(28).meta({ id: 'SchedulePattern' });
 export const scheduleReason = z.string().trim().min(1).max(500);
@@ -23,10 +37,14 @@ export const setScheduleInput = z
   })
   .meta({ id: 'SetScheduleInput' });
 export const concreteShift = scheduleShift
-  .extend({
+  .safeExtend({
     working_date: employeeDate,
     starts_at: z.iso.datetime(),
     ends_at: z.iso.datetime(),
+    break_start: shiftBreakFields.break_start.unwrap(),
+    break_end: shiftBreakFields.break_end.unwrap(),
+    break_starts_at: z.iso.datetime().nullable(),
+    break_ends_at: z.iso.datetime().nullable(),
   })
   .meta({ id: 'ConcreteShift' });
 export const staffSchedule = z

@@ -743,6 +743,13 @@
       "when": 1791588572342,
       "tag": "0105_2026-10-10_schedule-settings-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1791621453528,
+      "tag": "0106_2026-10-10_staff-schedule-breaks",
+      "breakpoints": true
     }
   ]
 }

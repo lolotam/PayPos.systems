@@ -1,0 +1,10 @@
+ALTER TABLE "staff_schedule_shifts" ADD COLUMN "break_start" text;--> statement-breakpoint
+ALTER TABLE "staff_schedule_shifts" ADD COLUMN "break_end" text;--> statement-breakpoint
+ALTER TABLE "staff_schedule_shifts" ADD COLUMN "break_starts_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "staff_schedule_shifts" ADD COLUMN "break_ends_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "staff_schedule_shifts" ADD CONSTRAINT "staff_schedule_shifts_break_pair" CHECK (("staff_schedule_shifts"."break_start" IS NULL AND "staff_schedule_shifts"."break_end" IS NULL AND "staff_schedule_shifts"."break_starts_at" IS NULL AND "staff_schedule_shifts"."break_ends_at" IS NULL) OR ("staff_schedule_shifts"."break_start" IS NOT NULL AND "staff_schedule_shifts"."break_end" IS NOT NULL AND "staff_schedule_shifts"."break_starts_at" IS NOT NULL AND "staff_schedule_shifts"."break_ends_at" IS NOT NULL)) NOT VALID;--> statement-breakpoint
+ALTER TABLE "staff_schedule_shifts" ADD CONSTRAINT "staff_schedule_shifts_break_inside" CHECK ("staff_schedule_shifts"."break_starts_at" IS NULL OR ("staff_schedule_shifts"."break_starts_at" > "staff_schedule_shifts"."starts_at" AND "staff_schedule_shifts"."break_ends_at" > "staff_schedule_shifts"."break_starts_at" AND "staff_schedule_shifts"."break_ends_at" < "staff_schedule_shifts"."ends_at")) NOT VALID;
+--> statement-breakpoint
+ALTER TABLE "staff_schedule_shifts" VALIDATE CONSTRAINT "staff_schedule_shifts_break_pair";
+--> statement-breakpoint
+ALTER TABLE "staff_schedule_shifts" VALIDATE CONSTRAINT "staff_schedule_shifts_break_inside";
