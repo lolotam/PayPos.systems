@@ -1,6 +1,7 @@
 import {
   breakNotReturnedDecision,
   breakNotReturnedParameters,
+  breakOutWindowStart,
   breakReturnDeadline,
   dueBreakCutoff,
   interimBreakNotReturnedRule,
@@ -52,6 +53,7 @@ export class DetectBreakNotReturned {
         companyId,
         dueBreakCutoff(now, rule.graceMs),
         now,
+        rule.breakOutLeadMs,
         after,
         BREAK_NOT_RETURNED_PAGE_SIZE,
       );
@@ -101,7 +103,11 @@ export class DetectBreakNotReturned {
       leaves,
       rule.graceMs,
     );
-    const breakOutAt = await tx.breakOut(shift);
+    const breakStartsAt = shift.breakStartsAt;
+    if (breakStartsAt === null) return false;
+    const breakOutAt = await tx.breakOut(
+      shift, breakOutWindowStart(breakStartsAt, rule.breakOutLeadMs),
+    );
     const decision = breakNotReturnedDecision({
       now: at,
       shiftEndsAt: shift.endsAt,

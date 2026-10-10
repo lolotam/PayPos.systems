@@ -122,6 +122,7 @@ in, her branch's managers are alerted. This alert rides on this ADR instead of a
 - **Due page.** Shifts with a break that ended at least 10 minutes ago, and that are still running
   (`ends_at > now`, `starts_at > now − 16 h`, decision 6). The page is pre-filtered by an `EXISTS` on a `CLOSED`
   session that the employee ended inside the break, at the shift's branch, carrying the shift's `scheduled_end`
-  snapshot. The probe uses `attendance_sessions_employee_date_idx`. A finished shift is never re-read, so a session
+  snapshot. The clock-out window opens 10 minutes before the break (BW-Q11), and the return must be at the same
+  branch (BW-Q10). The probe uses `attendance_sessions_employee_date_idx`. A finished shift is never re-read, so a session
   inserted later for a past day raises nothing.
 - **No attendance change.** No session status, exception kind or `attendance_exceptions` column is added.

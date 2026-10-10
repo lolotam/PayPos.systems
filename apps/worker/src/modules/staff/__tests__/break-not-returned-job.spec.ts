@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { notClockedInInbox } from '../persistence/__tests__/not-clocked-in-inbox.ts';
-import { ROLE, SHIFT_END, SHIFT_START, type Tenant } from './not-clocked-in.fixture.ts';
+import { ROLE, SHIFT_END, SHIFT_START, WEEK, type Tenant } from './not-clocked-in.fixture.ts';
 import {
   BREAK_ALERT_AT,
   BREAK_END,
@@ -208,4 +208,100 @@ it('partial leave covering the break end moves the alert to its end + 10 minutes
   f.setNow(minute(BREAK_END, 70));
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
   expect(f.breakFailures).toEqual([]);
+});
+
+it.each([
+  ['12:50 (10 minutes before the break)', -10, 1],
+  ['12:49 (11 minutes before the break)', -11, 0],
+])('BW-Q11 out at %s with no return', async (_label, offset, notified) => {
+  const { tenant, employee } = await onBreak([
+    { clockIn: MORNING_IN, clockOut: minute(BREAK_START, offset) },
+  ]);
+  f.setNow(BREAK_ALERT_AT);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified });
+  expect(await f.breakNotices(tenant.company, employee)).toHaveLength(notified);
+});
+
+/** وردية بتوقيت الكويت ببريك، مكتوبة مباشرة بلحظاتها. */
+async function shiftWithBreak(
+  tenant: Tenant,
+  employee: string,
+  local: { start: string; end: string; breakStart: string; breakEnd: string },
+  utc: { startsAt: Date; endsAt: Date; breakStartsAt: Date; breakEndsAt: Date },
+) {
+  const shift = await f.shift(tenant, employee, {
+    start: local.start, end: local.end, startsAt: utc.startsAt, endsAt: utc.endsAt, week: WEEK,
+  });
+  await f.owner`UPDATE staff_schedule_shifts SET break_start=${local.breakStart}, break_end=${local.breakEnd},
+    break_starts_at=${utc.breakStartsAt}, break_ends_at=${utc.breakEndsAt}
+    WHERE company_id=${tenant.company} AND id=${shift}`;
+}
+
+it('overnight 20:00–04:00 with break 00:30–01:00: a break-out alerts at 01:10, a return stays quiet', async () => {
+  const tenant = await f.tenant();
+  const night = {
+    startsAt: new Date('2026-10-04T17:00:00.000Z'),
+    endsAt: new Date('2026-10-05T01:00:00.000Z'),
+    breakStartsAt: new Date('2026-10-04T21:30:00.000Z'),
+    breakEndsAt: new Date('2026-10-04T22:00:00.000Z'),
+  };
+  const local = { start: '20:00', end: '04:00', breakStart: '00:30', breakEnd: '01:00' };
+  const away = await f.employee(tenant, { nameEn: 'Away' });
+  const back = await f.employee(tenant, { nameEn: 'Back' });
+  for (const employee of [away, back]) {
+    await shiftWithBreak(tenant, employee, local, night);
+    await f.session(tenant, employee, {
+      clockIn: minute(night.startsAt, -2), clockOut: minute(night.breakStartsAt, 2), scheduledEnd: night.endsAt,
+    });
+  }
+  await f.session(tenant, back, { clockIn: minute(night.breakEndsAt, 5), scheduledEnd: night.endsAt });
+  f.setNow(minute(night.breakEndsAt, 10));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
+  expect(await f.breakNotices(tenant.company, back)).toHaveLength(0);
+  const [notice] = await f.breakNotices(tenant.company, away);
+  expect(new Date(notice?.['break_ends_at'] as string | Date).toISOString()).toBe(
+    night.breakEndsAt.toISOString(),
+  );
+  const [event] = await f.breakEvents(tenant.company);
+  const payload = event?.['payload'] as { shift_starts_at: string };
+  expect(payload.shift_starts_at).toBe(night.startsAt.toISOString());
+});
+
+it('two shifts in one day, each with its own break: each gets its own notice and event', async () => {
+  const tenant = await f.tenant();
+  const manager = await f.user('manager');
+  await f.member({
+    tenant, userId: manager, roleId: ROLE.branch_manager, scopeType: 'BRANCH', scopeId: tenant.branch,
+  });
+  const employee = await f.employee(tenant, { nameEn: 'Split' });
+  const morning = {
+    startsAt: new Date('2026-10-04T06:00:00.000Z'), endsAt: new Date('2026-10-04T10:00:00.000Z'),
+    breakStartsAt: new Date('2026-10-04T07:30:00.000Z'), breakEndsAt: new Date('2026-10-04T08:00:00.000Z'),
+  };
+  const evening = {
+    startsAt: new Date('2026-10-04T12:00:00.000Z'), endsAt: new Date('2026-10-04T18:00:00.000Z'),
+    breakStartsAt: new Date('2026-10-04T14:00:00.000Z'), breakEndsAt: new Date('2026-10-04T14:30:00.000Z'),
+  };
+  await shiftWithBreak(tenant, employee, { start: '09:00', end: '13:00', breakStart: '10:30', breakEnd: '11:00' }, morning);
+  await shiftWithBreak(tenant, employee, { start: '15:00', end: '21:00', breakStart: '17:00', breakEnd: '17:30' }, evening);
+  await f.session(tenant, employee, {
+    clockIn: minute(morning.startsAt, -2), clockOut: minute(morning.breakStartsAt, 5), scheduledEnd: morning.endsAt,
+  });
+  await f.session(tenant, employee, {
+    clockIn: minute(evening.startsAt, -2), clockOut: minute(evening.breakStartsAt, 5), scheduledEnd: evening.endsAt,
+  });
+  f.setNow(minute(morning.breakEndsAt, 10));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
+  f.setNow(minute(evening.breakEndsAt, 10));
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  const notices = await f.breakNotices(tenant.company, employee);
+  expect(notices.map((row) => new Date(row['shift_starts_at'] as string | Date).toISOString())).toEqual([
+    morning.startsAt.toISOString(), evening.startsAt.toISOString(),
+  ]);
+  const events = await f.breakEvents(tenant.company);
+  expect(events).toHaveLength(2);
+  expect(events.map((row) => (row['payload'] as { break_ends_at: string }).break_ends_at)).toEqual([
+    morning.breakEndsAt.toISOString(), evening.breakEndsAt.toISOString(),
+  ]);
 });

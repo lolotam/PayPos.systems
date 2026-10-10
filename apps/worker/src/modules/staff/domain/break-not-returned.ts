@@ -12,6 +12,9 @@ import {
 /** مهلة الرجوع من البريك: نفس مهلة التأخير العشر دقائق (AT-Q7)، منقضية من آخر البريك. */
 export const BREAK_RETURN_GRACE_MS = 10 * 60 * 1000;
 
+/** خروج قبل بداية البريك بعشر دقائق أو أقل يُحسب خروجاً للبريك (BW-Q11). */
+export const BREAK_OUT_LEAD_MS = 10 * 60 * 1000;
+
 /** قرار الوظيفة لبريك وردية واحدة في لحظة واحدة؛ ALERT وحده يكتب إشعاراً. */
 export type BreakNotReturnedDecision =
   'ALERT' | 'WAIT' | 'NO_BREAK_OUT' | 'RETURNED' | 'EXCUSED' | 'STALE' | 'INELIGIBLE';
@@ -20,6 +23,7 @@ export type BreakNotReturnedDecision =
 export interface InterimBreakNotReturnedRule {
   readonly enabled: boolean;
   readonly graceMs: number;
+  readonly breakOutLeadMs: number;
   readonly channel: InterimNotClockedInRule['channel'];
   readonly roles: InterimNotClockedInRule['roles'];
 }
@@ -55,13 +59,14 @@ export interface BreakNoticeParameter {
  * القاعدة المؤقتة لتنبيه عدم الرجوع من البريك (BW-Q5، الاختيار 2).
  * تأخذ أدوار المستلمين والقناة من قاعدة تنبيه عدم الحضور حتى يبدلهما PR 62 معاً من مكان واحد.
  *
- * @returns القاعدة: مفعّلة، بمهلة عشر دقائق، داخل التطبيق، لمديري الفرع
+ * @returns القاعدة: مفعّلة، بمهلة رجوع عشر دقائق، وخروج حتى عشر دقائق قبل البريك، داخل التطبيق، لمديري الفرع
  */
 export function interimBreakNotReturnedRule(): InterimBreakNotReturnedRule {
   const shared = interimNotClockedInRule();
   return {
     enabled: shared.enabled,
     graceMs: BREAK_RETURN_GRACE_MS,
+    breakOutLeadMs: BREAK_OUT_LEAD_MS,
     channel: shared.channel,
     roles: shared.roles,
   };
@@ -120,6 +125,17 @@ export function breakNotReturnedDecision(facts: BreakNotReturnedFacts): BreakNot
  */
 export function dueBreakCutoff(now: Date, graceMs: number): Date {
   return new Date(now.getTime() - graceMs);
+}
+
+/**
+ * أول لحظة يُحسب عندها الخروج خروجاً للبريك: بدايته ناقص المهلة، فخروج 12:50 لبريك 13:00 خروج للبريك (BW-Q11).
+ *
+ * @param breakStartsAt بداية البريك
+ * @param leadMs كم قبل البداية يُقبل الخروج
+ * @returns بداية نافذة الخروج، شاملة
+ */
+export function breakOutWindowStart(breakStartsAt: Date, leadMs: number): Date {
+  return new Date(breakStartsAt.getTime() - leadMs);
 }
 
 /**

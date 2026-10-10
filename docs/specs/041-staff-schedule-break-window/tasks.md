@@ -131,7 +131,9 @@ BW-04, BW-05.
 ## Phase 10: Polish (16b-2 rework)
 
 - [x] T045 Gates as T027 plus `pnpm --filter @pospay/worker test`; DB review (touches `packages/db`); review layer 1.
-- [ ] T046 Push without force, PR #147 title "16b-2 — return-from-break lateness + not-returned alert", `@codex review`.
+- [x] T047 [US4] BW-Q10/BW-Q11 (Waleed, 2026-10-10): keep the same-branch return; widen the break-out window to `[break start − 10 min, break end)` in the candidate `EXISTS` and the locked probe (`BREAK_OUT_LEAD_MS`, `breakOutWindowStart`). Tests: 12:50 alerts, 12:49 does not; QR out 12:55, back 14:05 → 0 late (`clock-break-return.spec.ts`, no lateness change needed).
+- [x] T048 [US4] L2 fixes: remove the stray `persistence/=` file; overnight-break job test (20:00–04:00, break 00:30–01:00, sweep 01:10); two shifts in one day with their own notices and events; journal trailing newline.
+- [x] T046 Push without force, PR #147 title "16b-2 — return-from-break lateness + not-returned alert", `@codex review`.
 
 ## Dependencies
 

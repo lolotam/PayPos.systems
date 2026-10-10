@@ -144,3 +144,16 @@ it('BW-07 QR closed session at another branch is not a return', async () => {
   expect(arrival).toMatchObject({ operation: 'CLOCK_IN', late_minutes: 305 });
   await clock(date, '17:00');
 });
+
+it('BW-Q11 QR out at 12:55 (10 minutes before the break or less) and back at 14:05 is a return, not late', async () => {
+  const date = '2026-11-28';
+  await seedAttendanceBreak(f, date);
+  expect(await clock(date, '08:58')).toMatchObject({ operation: 'CLOCK_IN', late_minutes: 0 });
+  expect(await clock(date, '12:55')).toMatchObject({ operation: 'CLOCK_OUT', late_minutes: 0 });
+  const returned = await clock(date, '14:05');
+  expect(returned).toMatchObject({ operation: 'CLOCK_IN', late_minutes: 0, exceptions: [] });
+  expect(
+    await f.owner`SELECT scheduled_start FROM attendance_sessions WHERE id=${returned.session_id}`,
+  ).toMatchObject([{ scheduled_start: new Date(`${date}T14:00:00+03:00`) }]);
+  await clock(date, '17:00');
+});

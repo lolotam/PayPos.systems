@@ -51,12 +51,13 @@ export interface LockedBreakNotReturned {
     workingDate: string,
   ): Promise<readonly LeaveInterval[]>;
   /**
-   * آخر خروج بصمته الموظفة بنفسها جوّه البريك على نفس الوردية ونفس الفرع، لأن التنبيه عن عدم الرجوع بعده.
+   * آخر خروج بصمته الموظفة بنفسها في نافذة البريك على نفس الوردية ونفس الفرع، لأن التنبيه عن عدم الرجوع بعده.
    *
    * @param shift الوردية وبريكها وفرعها
-   * @returns لحظة الخروج أو null إن لم تبصم خروجاً في البريك
+   * @param from أول لحظة في نافذة الخروج (بداية البريك ناقص المهلة)
+   * @returns لحظة الخروج أو null إن لم تبصم خروجاً في النافذة
    */
-  breakOut(shift: LockedBreakShift): Promise<Date | null>;
+  breakOut(shift: LockedBreakShift, from: Date): Promise<Date | null>;
   /**
    * هل بصمت دخولاً في فرع الوردية بعد خروج البريك وحتى لحظة القرار، فيسقط التنبيه.
    *
@@ -97,6 +98,7 @@ export interface BreakNotReturnedTransactions {
    * @param companyId الشركة المجدولة
    * @param breakEndsAtOrBefore أحدث نهاية بريك مستحقة
    * @param endsAfter الورديات التي تنتهي بعد هذه اللحظة فقط
+   * @param breakOutLeadMs كم قبل بداية البريك يُحسب الخروج خروجاً للبريك
    * @param after موضع الصفحة السابقة
    * @param limit حجم الصفحة
    * @returns المرشحون
@@ -105,6 +107,7 @@ export interface BreakNotReturnedTransactions {
     companyId: string,
     breakEndsAtOrBefore: Date,
     endsAfter: Date,
+    breakOutLeadMs: number,
     after: NotClockedInCursor | null,
     limit: number,
   ): Promise<readonly DueBreak[]>;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BREAK_OUT_LEAD_MS,
   BREAK_RETURN_GRACE_MS,
+  breakOutWindowStart,
   breakNotReturnedDecision,
   breakNotReturnedParameters,
   breakReturnDeadline,
@@ -47,6 +49,7 @@ describe('interim rule', () => {
     expect(rule).toEqual({
       enabled: true,
       graceMs: 10 * 60 * 1000,
+      breakOutLeadMs: 10 * 60 * 1000,
       channel: 'IN_APP',
       roles: interimNotClockedInRule().roles,
     });
@@ -149,5 +152,11 @@ describe('breakNotReturnedParameters', () => {
       breakNotReturnedParameters('https://example.test', 'www.example.test', null, 'Salmiya', '14:00')?.[1],
     ).toEqual({ name: 'employee_name_en', type: 'text', value: 'Employee' });
     expect(breakNotReturnedParameters('سارة', 'Sara', null, 'Salmiya', '24:00')).toBeNull();
+  });
+});
+
+describe('breakOutWindowStart (BW-Q11)', () => {
+  it('opens the break-out window 10 minutes before the break start', () => {
+    expect(breakOutWindowStart(at('13:00'), BREAK_OUT_LEAD_MS)).toEqual(at('12:50'));
   });
 });

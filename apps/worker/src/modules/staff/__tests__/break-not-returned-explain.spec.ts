@@ -6,6 +6,7 @@ import {
   dueBreaksStatement,
   returnedStatement,
 } from '../persistence/break-not-returned.transactions.ts';
+import { BREAK_OUT_LEAD_MS, breakOutWindowStart } from '../domain/break-not-returned.ts';
 import { BREAK_NOT_RETURNED_PAGE_SIZE } from '../use-cases/detect-break-not-returned/detect-break-not-returned.ts';
 import { SHIFT_END, SHIFT_START, WEEK, WORKING } from './not-clocked-in.fixture.ts';
 import {
@@ -33,13 +34,13 @@ it('pages past one hundred due breaks and every probe uses its named index', asy
   await seedPage(tenant);
   await seedHistory(tenant);
   await f.owner`ANALYZE staff_schedule_shifts, attendance_sessions`;
-  const dueNow = dueBreaksStatement(tenant.company, BREAK_END, BREAK_ALERT_AT, null, 100);
+  const dueNow = dueBreaksStatement(tenant.company, BREAK_END, BREAK_ALERT_AT, BREAK_OUT_LEAD_MS, null, 100);
   const due = await plan(tenant.company, dueNow, false);
   assertStartRange(due);
   assertAttendanceProbe(due);
   expect(await f.db.withTenant(tenant.company, (tx) => tx.execute(dueNow))).toHaveLength(100);
   const shift = await lockedSample(tenant);
-  assertAttendanceProbe(await plan(tenant.company, breakOutStatement(tenant.company, shift), false));
+  assertAttendanceProbe(await plan(tenant.company, breakOutStatement(tenant.company, shift, breakOutWindowStart(BREAK_START, BREAK_OUT_LEAD_MS)), false));
   assertAttendanceProbe(
     await plan(tenant.company, returnedStatement(tenant.company, shift, BREAK_OUT, BREAK_ALERT_AT), false),
   );
@@ -49,7 +50,7 @@ it('pages past one hundred due breaks and every probe uses its named index', asy
   );
   expect(f.breakFailures).toEqual([]);
   const idleAt = new Date('2026-10-06T11:10:00Z');
-  assertStartRange(await plan(tenant.company, dueBreaksStatement(tenant.company, idleAt, idleAt, null, 100), false));
+  assertStartRange(await plan(tenant.company, dueBreaksStatement(tenant.company, idleAt, idleAt, BREAK_OUT_LEAD_MS, null, 100), false));
 }, 120_000);
 
 // كل probe على الجلسات لوحده: فهرس الموظف ويوم العمل بحد يوم العمل، مش مسح للتاريخ كله.

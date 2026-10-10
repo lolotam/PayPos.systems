@@ -50,6 +50,7 @@ export function dueBreaksStatement(
   companyId: string,
   breakEndsAtOrBefore: Date,
   endsAfter: Date,
+  breakOutLeadMs: number,
   after: NotClockedInCursor | null,
   limit: number,
 ) {
@@ -72,22 +73,23 @@ export function dueBreaksStatement(
         WHERE a.company_id = sh.company_id AND a.employee_id = sh.employee_id
           AND a.working_date BETWEEN ${dayAround(endsAfter, -2)}::date AND ${dayAround(endsAfter, 1)}::date
           AND a.branch_id = sc.branch_id AND a.scheduled_end = sh.ends_at AND a.status = 'CLOSED'
-          AND a.clock_out >= sh.break_starts_at AND a.clock_out < sh.break_ends_at)
+          AND a.clock_out >= sh.break_starts_at - make_interval(secs => ${breakOutLeadMs / 1000}::float8)
+          AND a.clock_out < sh.break_ends_at)
       ${page}
     ORDER BY sh.starts_at, sh.id
     LIMIT ${limit}`;
 }
 
 // الخروج لازم يكون جلسة قفلتها الموظفة بنفسها على نفس الوردية والفرع (رابط 16b-2: scheduled_end = ends_at).
-export function breakOutStatement(companyId: string, shift: LockedBreakShift) {
-  if (shift.breakStartsAt === null || shift.breakEndsAt === null)
+export function breakOutStatement(companyId: string, shift: LockedBreakShift, from: Date) {
+  if (shift.breakEndsAt === null)
     return sql`SELECT NULL::timestamptz AS clock_out`;
   return sql`SELECT max(clock_out) AS clock_out FROM attendance_sessions
     WHERE company_id = ${companyId} AND employee_id = ${shift.employeeId}
       AND working_date BETWEEN ${dayAround(shift.startsAt, -2)}::date AND ${dayAround(shift.endsAt, 1)}::date
       AND branch_id = ${shift.branchId} AND scheduled_end = ${shift.endsAt.toISOString()}::timestamptz
       AND status = 'CLOSED'
-      AND clock_out >= ${shift.breakStartsAt.toISOString()}::timestamptz
+      AND clock_out >= ${from.toISOString()}::timestamptz
       AND clock_out < ${shift.breakEndsAt.toISOString()}::timestamptz`;
 }
 
@@ -113,13 +115,13 @@ export function breakNotReturnedTransactions(
 ): BreakNotReturnedTransactions {
   const options = { timeoutMs: NOT_CLOCKED_IN_TRANSACTION_TIMEOUT_MS };
   return {
-    candidates: (companyId, breakEndsAtOrBefore, endsAfter, after, limit) =>
+    candidates: (companyId, breakEndsAtOrBefore, endsAfter, breakOutLeadMs, after, limit) =>
       database.withTenant(
         companyId,
         async (tx) => {
           if (!(await branchManagerRecipientsAdapter.companyOpen(tx, companyId))) return [];
           const rows = await tx.execute<{ id: string; employee_id: string; starts_at: Moment }>(
-            dueBreaksStatement(companyId, breakEndsAtOrBefore, endsAfter, after, limit),
+            dueBreaksStatement(companyId, breakEndsAtOrBefore, endsAfter, breakOutLeadMs, after, limit),
           );
           return rows.map(toDueBreak);
         },
@@ -150,9 +152,9 @@ function locked(
     shift: (shiftId) => readShift(tx, companyId, employeeId, shiftId, places),
     approvedLeaves: (id, from, to, workingDate) =>
       readLeaves(tx, companyId, id, from, to, workingDate),
-    breakOut: async (shift) => {
+    breakOut: async (shift, from) => {
       const [row] = await tx.execute<{ clock_out: Moment | null }>(
-        breakOutStatement(companyId, shift),
+        breakOutStatement(companyId, shift, from),
       );
       return row?.clock_out == null ? null : instant(row.clock_out);
     },

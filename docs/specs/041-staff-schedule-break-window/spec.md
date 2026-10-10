@@ -182,13 +182,17 @@ injected clock past break end + 10 minutes, run the not-clocked-in job: one brea
 - **Not-returned alert** (User Story 4):
   - The alert moment is break end + 10 minutes. A shift whose alert moment is at or after its end never alerts
     (break 16:00–16:55 on a 09:00–17:00 shift), as in spec 036.
-  - A clock-out exactly at the break start counts as inside the break; one exactly at the break end does not.
+  - BW-Q11 (Waleed, 2026-10-10): a clock-out from 10 minutes before the break start counts as a break-out. With a
+    13:00 break, 12:50 counts and 12:49 does not. A clock-out exactly at the break end does not count.
   - Two clock-outs inside the break (out 13:00, in 13:10, out 13:20): the latest one counts, and the return must
     come after it.
   - A return clock-in counts from that clock-out up to the moment the job decides, so she is not alerted if she is
     back when the job runs. A notice already sent is never retracted (spec 036 NC-Q9).
   - The clock-out must be on the same shift and branch: a closed session she ended herself, at the shift's branch,
-    carrying this shift's end as its snapshot (the 16b-2 link). The return must be at the same branch.
+    carrying this shift's end as its snapshot (the 16b-2 link). BW-Q10 (Waleed, 2026-10-10): the return must be at
+    the same branch she clocked out from, otherwise the alert fires.
+  - Return lateness is unchanged by BW-Q11. Out at 12:55 and back at 14:05 is a return, measured from the break end
+    (0 late), because a return needs only an earlier closed session on the shift.
   - Approved leave applies as in spec 036 (NC-Q6), anchored at the break end. Full-day leave → no alert. Leave
     covering the break end to the shift end → no alert. Leave ending earlier → the alert moves to the leave end
     + 10 minutes. Pending leave does not excuse.
@@ -233,7 +237,8 @@ injected clock past break end + 10 minutes, run the not-clocked-in job: one brea
   (BW-Q8). This row exposes no hours figure itself; row 27 implements the figure.
 - **FR-012**: The admin schedule editor MUST show and round-trip the break, so saving a week without touching a break
   never erases it.
-- **FR-013** (BW-Q5 (2), 2026-10-10): when the employee clocked out inside her shift's scheduled break and has no
+- **FR-013** (BW-Q5 (2), BW-Q10, BW-Q11, 2026-10-10): when the employee clocked out inside her shift's scheduled break
+  (or up to 10 minutes before it starts) and has no
   clock-in at the shift's branch after that clock-out by the break end + 10 minutes, the system MUST alert the managers
   of the shift's branch once per shift. The recipients, channel, cadence, once-only protocol and audit are spec 036's
   (FR-005 … FR-010 there).
@@ -263,8 +268,8 @@ injected clock past break end + 10 minutes, run the not-clocked-in job: one brea
 - **BR-005** (BW-Q5, BW-Q9): return-from-break lateness = whole minutes after break end, 0 up to and including 10 minutes;
   it applies only to a return (an earlier session exists on the same shift) at or after the break start. The morning
   session's lateness and a first clock-in after the break start are unchanged.
-- **BR-007** (BW-Q5 (2)): the not-returned alert. Break-out = the latest `clock_out` in
-  `[break_starts_at, break_ends_at)` of a session with `status = 'CLOSED'`, the shift's branch and
+- **BR-007** (BW-Q5 (2), BW-Q10, BW-Q11): the not-returned alert. Break-out = the latest `clock_out` in
+  `[break_starts_at − 10 min, break_ends_at)` (BW-Q11) of a session with `status = 'CLOSED'`, the shift's branch and
   `scheduled_end = ends_at`. Alert moment = break end + 10 min, moved by approved leave as in spec 036 BR-002 with
   the break end as the anchor. Returned = any session of hers at the branch with `clock_in` from the break-out up
   to the decision instant (status `OPEN`, `CLOSED` or `MISSED_OUT`). Decision order:
