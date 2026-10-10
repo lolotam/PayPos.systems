@@ -79,7 +79,7 @@ reformatting of unrelated code. Do not touch the 16c business endpoints' behavio
   `packages/i18n/src/schedule-shell-catalog.ts`
 - [x] T022 `pnpm contracts:openapi`; regenerate admin and pos `schema.d.ts`
 - [x] T023 Re-measure apply-template 20 × 28 (`schedule-batch.spec.ts`) and record the numbers for the PR
-- [ ] T024 Gates: typecheck, lint, lint:docs, module-map:check, `@pospay/db`, full `@pospay/api`, `@pospay/admin`,
+- [x] T024 Gates: typecheck, lint, lint:docs, module-map:check, `@pospay/db`, full `@pospay/api`, `@pospay/admin`,
   drift-check "No schema changes"
 
 ## Dependencies
