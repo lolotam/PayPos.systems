@@ -31,6 +31,7 @@ beforeAll(async () => {
       employee_id: subject,
       kind: 'VOID_SESSION',
       session_id,
+      session_revision: 0,
     })
   ).id;
 });
