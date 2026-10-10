@@ -663,6 +663,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Requires manage:schedule-settings:business and staff feature. Active branch only. Actual changes are audited; repeated own values and absent clears are no-ops. */
+        put: operations["setBranchScheduleSettings"];
+        post?: never;
+        /** @description Requires manage:schedule-settings:business and staff feature. Active branch only. Actual changes are audited; repeated own values and absent clears are no-ops. */
+        delete: operations["clearBranchScheduleSettings"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/schedule-settings": {
         parameters: {
             query?: never;
@@ -2154,6 +2172,15 @@ export interface components {
             is_default: boolean;
             /** Format: date-time */
             updated_at: string | null;
+            branches?: {
+                /** Format: uuid */
+                branch_id: string;
+                max_shifts_per_day: number;
+                /** @enum {string} */
+                source: "branch" | "business" | "default";
+                /** Format: date-time */
+                updated_at: string | null;
+            }[];
         };
         SetScheduleSettingsInput: {
             max_shifts_per_day: number;
@@ -2904,6 +2931,58 @@ export interface components {
             } | {
                 /** @enum {string} */
                 name: "shift_start";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "break_not_returned";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "employee_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "break_end";
                 /** @enum {string} */
                 type: "text";
                 value: string;
@@ -5034,6 +5113,148 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApplyTemplateResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setBranchScheduleSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetScheduleSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description Effective branch schedule settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        branch_id: string;
+                        max_shifts_per_day: number;
+                        /** @enum {string} */
+                        source: "branch" | "business" | "default";
+                        /** Format: date-time */
+                        updated_at: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    clearBranchScheduleSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Effective branch schedule settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        branch_id: string;
+                        max_shifts_per_day: number;
+                        /** @enum {string} */
+                        source: "branch" | "business" | "default";
+                        /** Format: date-time */
+                        updated_at: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */

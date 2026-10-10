@@ -8,6 +8,7 @@ export function shiftTemplatesStatement(
   companyId: string,
   businessId: string,
   query: { cursor?: string; limit: number },
+  branchIds: readonly string[] = [],
 ) {
   return sql`WITH rows AS (SELECT id,jsonb_build_object('id',id,'business_id',business_id,'name_en',name_en,'name_ar',name_ar,'shifts',COALESCE((SELECT jsonb_agg(entry || jsonb_build_object(
       'break_start',entry->'break_start','break_end',entry->'break_end') ORDER BY ordinal)
@@ -16,7 +17,11 @@ export function shiftTemplatesStatement(
     FROM staff_shift_templates WHERE company_id=${companyId} AND business_id=${businessId}
       AND (${query.cursor ?? null}::uuid IS NULL OR id > ${query.cursor ?? null}::uuid) ORDER BY id LIMIT ${query.limit + 1})
     SELECT COALESCE(jsonb_agg(record ORDER BY id),'[]'::jsonb) AS items,
-      COALESCE((SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}),3) AS max_shifts_per_day FROM rows`;
+      COALESCE((SELECT max(COALESCE(b.max_shifts_per_day,
+        (SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}),3))
+        FROM jsonb_array_elements_text(${JSON.stringify(branchIds)}::jsonb) active(id)
+        LEFT JOIN staff_branch_schedule_settings b ON b.company_id=${companyId} AND b.business_id=${businessId} AND b.branch_id=active.id::uuid),
+        (SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}),3) AS max_shifts_per_day FROM rows`;
 }
 export async function listShiftTemplates(
   tx: Tx,
@@ -29,7 +34,7 @@ export async function listShiftTemplates(
   const context = await access.read(tx, companyId, userId, businessId, null);
   if (typeof context === 'string') return context;
   const [page] = await tx.execute<{ items: ShiftTemplate[]; max_shifts_per_day: number }>(
-    shiftTemplatesStatement(companyId, businessId, query),
+    shiftTemplatesStatement(companyId, businessId, query, context.branchIds ?? []),
   );
   if (!page) throw new Error('SCHEDULE_QUERY_FAILED');
   const rows = page.items;

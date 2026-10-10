@@ -16,4 +16,7 @@ export const ATTENDANCE_TABLE_GRANTS = [
   // بند 21b: محاولات الرفض لا تُعدل ولا تُحذف.
   'attendance_device_refusals:SELECT',
   'attendance_device_refusals:INSERT',
+  // بند 16b-2: دفتر «مارجعتش من البريك» يُدرج ولا يُعدّل ولا يُحذف.
+  'attendance_break_not_returned_notices:SELECT',
+  'attendance_break_not_returned_notices:INSERT',
 ].sort();

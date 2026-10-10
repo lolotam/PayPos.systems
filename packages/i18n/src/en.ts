@@ -153,6 +153,8 @@ export const en = {
     generic_branch: 'Branch',
     shift_not_clocked_in:
       '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
+    break_not_returned:
+      '{{employee_name_en}} has not clocked back in from the break that ended at {{break_end}} at {{branch_name_en}}',
   },
   errors: {
     ATTENDANCE_DEVICE_LOCKED:

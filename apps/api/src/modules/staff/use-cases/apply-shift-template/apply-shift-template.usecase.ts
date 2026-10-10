@@ -41,7 +41,7 @@ export class ApplyShiftTemplateUseCase {
       validateTemplateWeeks(command.input.weeks);
       validateTemplateBatch(command.input.employee_ids.length, command.input.weeks.length);
       const targets = await this.loadTargets(scope, command);
-      const limit = await scope.maxShiftsPerDay(command.businessId);
+      const limit = await scope.maxShiftsPerDay(command.businessId, command.input.branch_id);
       for (const target of targets)
         validateScheduleEmployeeWeek(target.employee, command.input.branch_id, target.weekStart);
       requireActiveTemplate(template);
@@ -73,8 +73,10 @@ export class ApplyShiftTemplateUseCase {
           plan.after.shifts,
           plans
             .filter((p) => p !== plan && p.after.employee_id === plan.after.employee_id)
-            .flatMap((p) => p.after.shifts),
+            .flatMap((p) => p.after.shifts.map((s) => ({ ...s, branch_id: p.after.branch_id }))),
           limit,
+          undefined,
+          command.input.branch_id,
         );
       await scope.saveWeeks(plans, command.input.reason);
       return { schedules: plans.map((p) => p.after) };
@@ -105,7 +107,7 @@ export class ApplyShiftTemplateUseCase {
       (s) =>
         !(s.branch_id === command.input.branch_id && command.input.weeks.includes(s.week_start)),
     );
-    validateScheduleOverlap(shifts, others, limit);
+    validateScheduleOverlap(shifts, others, limit, undefined, command.input.branch_id);
     requirePastScheduleReason(target.before?.shifts ?? [], shifts, today, command.input.reason);
     return {
       before: target.before,

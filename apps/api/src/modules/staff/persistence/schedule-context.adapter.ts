@@ -12,7 +12,14 @@ export async function schedulingContext(
   const business =
     tree?.id === companyId ? tree.businesses.find((b) => b.id === businessId) : undefined;
   if (!business) return null;
-  if (branchId === null) return { timezone: 'Asia/Kuwait' };
+  if (branchId === null)
+    return {
+      timezone: 'Asia/Kuwait',
+      branchIds: business.branches
+        .filter((b) => b.is_active)
+        .map((b) => b.id)
+        .sort(),
+    };
   const branch = business.branches.find((b) => b.id === branchId && b.is_active);
   return branch ? { timezone: branch.effective_timezone } : null;
 }

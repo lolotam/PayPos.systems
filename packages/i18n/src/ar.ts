@@ -155,6 +155,8 @@ export const ar: Catalog = {
     generic_branch: 'فرع',
     shift_not_clocked_in:
       'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
+    break_not_returned:
+      'لم يُسجَّل رجوع {{employee_name_ar}} من البريك المنتهي الساعة {{break_end}} في {{branch_name_ar}}',
   },
   errors: {
     ATTENDANCE_DEVICE_LOCKED:

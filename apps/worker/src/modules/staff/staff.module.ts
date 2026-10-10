@@ -22,6 +22,8 @@ import { startDocumentExpiryProcessor } from './jobs/document-expiry.processor.t
 import { DetectNotClockedIns } from './use-cases/detect-not-clocked-in/detect-not-clocked-in.ts';
 import { notClockedInTransactions } from './persistence/not-clocked-in.transactions.ts';
 import { startNotClockedInProcessor } from './jobs/not-clocked-in.processor.ts';
+import { DetectBreakNotReturned } from './use-cases/detect-break-not-returned/detect-break-not-returned.ts';
+import { breakNotReturnedTransactions } from './persistence/break-not-returned.transactions.ts';
 
 // أحداث الحضور التي يعرفها هذا الإصدار؛ AttendanceClockedIn وحده يسجل جدول الشركة ولا مستهلك أعمال لأي منها.
 const ATTENDANCE_EVENT_TYPES = [
@@ -56,7 +58,7 @@ export function startStaffWorker(
     prefix,
   );
   const notClockedIn = startNotClockedInProcessor(
-    createNotClockedInDetector(database, ids, clock),
+    createNotClockedInDetectors(database, ids, clock),
     redisUrl,
     prefix,
   );
@@ -102,15 +104,25 @@ export function startStaffWorker(
   };
 }
 
-function createNotClockedInDetector(
+// تنبيه عدم الرجوع من البريك يركب نفس جدولة الشركة (BW-Q5)، فلا طابور ولا تسجيل جديد.
+function createNotClockedInDetectors(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
   clock: Clock,
 ) {
-  return new DetectNotClockedIns(
-    notClockedInTransactions(database, ids, branchPlaceAdapter),
-    clock,
-    NOT_CLOCKED_IN_NAME_FALLBACK,
-    notClockedInDiagnostics(createLogger('error')),
-  );
+  const logger = createLogger('error');
+  return [
+    new DetectNotClockedIns(
+      notClockedInTransactions(database, ids, branchPlaceAdapter),
+      clock,
+      NOT_CLOCKED_IN_NAME_FALLBACK,
+      notClockedInDiagnostics(logger),
+    ),
+    new DetectBreakNotReturned(
+      breakNotReturnedTransactions(database, ids, branchPlaceAdapter),
+      clock,
+      NOT_CLOCKED_IN_NAME_FALLBACK,
+      notClockedInDiagnostics(logger, 'ATTENDANCE_BREAK_NOT_RETURNED_RETRY'),
+    ),
+  ];
 }
