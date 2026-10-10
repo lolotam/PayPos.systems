@@ -55,6 +55,7 @@ export class PasskeysController {
     @Body(new ZodValidationPipe(passkeyOptionsInput)) input: PasskeyOptionsInput,
   ) {
     if (this.options === null || this.enrol === null) throw new ApiError('NOT_READY');
+    if ((await this.status(request)).bound) throw new ApiError('PASSKEY_ALREADY_BOUND');
     try {
       if (input.installation_id !== undefined)
         await this.enrol.checkInstallation(scopeOf(request), input.installation_id);
@@ -62,7 +63,6 @@ export class PasskeysController {
       if (error instanceof PasskeyBindingError) throw new ApiError(error.code);
       throw error;
     }
-    if ((await this.status(request)).bound) throw new ApiError('PASSKEY_ALREADY_BOUND');
     const generated = await this.options.enrollmentOptions(scopeOf(request));
     return { challenge_id: generated.challengeId, options: generated.options };
   }

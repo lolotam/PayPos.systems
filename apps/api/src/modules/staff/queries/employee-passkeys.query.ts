@@ -16,6 +16,17 @@ export function passkeyHistoryStatement(
       ${query.cursor === undefined ? sql`` : sql`AND id<${query.cursor}`}
     ORDER BY id DESC LIMIT ${query.limit + 1}`;
 }
+// شاشة الموظف تميز الهاتف المقفول منذ التسجيل عن الربط القديم الملحق عند الحضور.
+export function passkeyStatusStatement(companyId: string, employeeId: string) {
+  return sql`
+    SELECT p.id AS binding_id,p.revision,to_char(p.bound_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS bound_at,
+      p.installation_hash IS NOT NULL AS phone_locked,
+      CASE WHEN p.installation_hash IS NOT NULL AND EXISTS (
+        SELECT 1 FROM audit_log a WHERE a.company_id=p.company_id AND a.entity='employee_passkey'
+          AND a.entity_id=p.id AND a.action='bound' AND a.after->>'phone_locked'='true'
+      ) THEN to_char(p.bound_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') ELSE NULL END AS phone_locked_since
+    FROM employee_passkeys p WHERE p.company_id=${companyId} AND p.employee_id=${employeeId} AND p.unbound_at IS NULL`;
+}
 export async function employeePasskeys(
   tx: Tx,
   scope: { companyId: string; businessId: string; employeeId: string; userId: string },
@@ -35,14 +46,7 @@ export async function employeePasskeys(
     bound_at: string;
     phone_locked: boolean;
     phone_locked_since: string | null;
-  }>(sql`
-    SELECT p.id AS binding_id,p.revision,to_char(p.bound_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS bound_at,
-      p.installation_hash IS NOT NULL AS phone_locked,
-      CASE WHEN p.installation_hash IS NOT NULL AND EXISTS (
-        SELECT 1 FROM audit_log a WHERE a.company_id=p.company_id AND a.entity='employee_passkey'
-          AND a.entity_id=p.id AND a.action='bound' AND a.after->>'phone_locked'='true'
-      ) THEN to_char(p.bound_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') ELSE NULL END AS phone_locked_since
-    FROM employee_passkeys p WHERE p.company_id=${scope.companyId} AND p.employee_id=${scope.employeeId} AND p.unbound_at IS NULL`);
+  }>(passkeyStatusStatement(scope.companyId, scope.employeeId));
   return employeePasskeyHistory.parse({
     status:
       phone === undefined

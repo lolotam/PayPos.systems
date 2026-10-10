@@ -20,17 +20,17 @@ import type { CardClockContext, CardClockScope } from '../ports/clock-by-card.po
 import type { DeviceLockFacts } from '../domain/passkey-device-lock.ts';
 import { installationHash } from './attendance-device-signal.ts';
 
+// الشخص هو bound_by (من سجّل البصمة بنفسه) وليس employees.user_id القابل للتعديل،
+// حتى لا ينقل تعديل ربط الموظف هاتف شخص إلى شخص آخر من غير فك ربط.
 export function installationLockStatement(scope: PasskeyScope, hash: string) {
-  return sql`SELECT p.employee_id,p.installation_hash,e.user_id,p.id
-    FROM employee_passkeys p JOIN employees e ON e.company_id=p.company_id
-      AND e.business_id=p.business_id AND e.id=p.employee_id
+  return sql`SELECT p.employee_id,p.installation_hash,p.bound_by AS user_id,p.id
+    FROM employee_passkeys p
     WHERE p.company_id=${scope.companyId} AND p.unbound_at IS NULL
       AND p.installation_hash=${hash}
     UNION ALL
-    SELECT p.employee_id,p.installation_hash,e.user_id,p.id
-    FROM employees e JOIN employee_passkeys p ON p.company_id=e.company_id
-      AND p.business_id=e.business_id AND p.employee_id=e.id
-    WHERE e.company_id=${scope.companyId} AND e.user_id=${scope.userId} AND p.unbound_at IS NULL
+    SELECT p.employee_id,p.installation_hash,p.bound_by AS user_id,p.id
+    FROM employee_passkeys p
+    WHERE p.company_id=${scope.companyId} AND p.bound_by=${scope.userId} AND p.unbound_at IS NULL
     ORDER BY id`;
 }
 export async function attendanceDeviceLock(

@@ -89,9 +89,11 @@ Order (BR-009): `heldByOther` → REFUSE (`DEVICE_TAKEN` on ENROL, else `DEVICE_
 `DEVICE_LOCKED → ATTENDANCE_DEVICE_LOCKED`, `NOT_ENROLLED → ATTENDANCE_DEVICE_NOT_ENROLLED`,
 `DEVICE_TAKEN → PASSKEY_DEVICE_TAKEN`, `OTHER_DEVICE → PASSKEY_OTHER_DEVICE`.
 
-"Person" = `employees.user_id`. Facts are computed only from **active** bindings (`unbound_at IS NULL`) in the
-company: `heldByOther` = an active binding with this hash whose employee's `user_id` differs from the caller's;
-`own` = the set of non-NULL hashes on the caller's active bindings (same `user_id`): empty → NONE, only this hash →
+"Person" = the binding's `bound_by` (the user who enrolled it herself through her personal session; immutable),
+not `employees.user_id`, which an employee edit can relink (database review round 1). Facts are computed only from
+**active** bindings (`unbound_at IS NULL`) in the company: `heldByOther` = an active binding with this hash whose
+`bound_by` differs from the caller's user; `own` = the set of non-NULL hashes on the caller's active bindings (same
+`bound_by`): empty → NONE, only this hash →
 THIS, any other → OTHER.
 
 ### D2. Persistence
@@ -100,8 +102,8 @@ THIS, any other → OTHER.
 - **Installation lock**: `pg_advisory_xact_lock` on a key derived from
   `'pospay:attendance-installation:v1:' || company || ':' || hash`, taken **after** the binding `FOR UPDATE`
   (clock/challenge) or after the employee lock (enrol). Unbind takes employee → binding only, so there is no cycle.
-- **Facts reader**: one SQL over `employee_passkeys p JOIN employees e ON (company_id, business_id, employee_id)`,
-  `p.company_id = $c AND p.unbound_at IS NULL AND (p.installation_hash = $hash OR e.user_id = $user)`. The hash branch
+- **Facts reader**: one SQL over `employee_passkeys p` (no join),
+  `p.company_id = $c AND p.unbound_at IS NULL AND (p.installation_hash = $hash OR p.bound_by = $user)`. The hash branch
   uses the new partial index.
 - **Attach**: `UPDATE employee_passkeys SET installation_hash=$hash WHERE company_id=$c AND id=$binding AND
   installation_hash IS NULL AND unbound_at IS NULL` — in the clock transaction, inside `persist`, only for an

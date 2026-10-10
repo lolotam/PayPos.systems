@@ -173,7 +173,8 @@ repeated attempts on the attendance board (row 27). Nobody is notified at that m
 
 - **BR-001** (owner, UNB-Q2): phone locked to Sara refuses Heba's clock, refusal before Face ID where possible.
 - **BR-002**: enrollment is locked the same way (follows from BR-001; otherwise the lock is empty).
-- **BR-003**: "another employee" means another person (different linked user).
+- **BR-003**: "another employee" means another person: a different user enrolled the binding (`bound_by`, always the
+  employee's own user at enrollment; immutable, so relinking an employee record never moves a phone).
 - **BR-004** (PL-Q2): the lock is released only by unbind (row 21 permissions, UNB-Q1). No self-service move.
 - **BR-005**: legacy bindings attach on first accepted clock (technical default; no live tenant yet — research R3).
 - **BR-006** (PL-Q1): two-way — the phone accepts only its owner, and the owner clocks only from her phone (or card).
