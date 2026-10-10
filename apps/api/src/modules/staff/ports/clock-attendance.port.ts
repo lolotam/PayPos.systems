@@ -102,6 +102,7 @@ export interface AttendanceContext {
   lastAt: Date | null;
   lastResult: ClockResult | null;
   open: OpenAttendance | null;
+  // لحظتا البريك من الجدول، وreturning يعني جلسة قفلها الموظف بنفسه جوّه الوردية قبل الحركة (BW-Q5/BW-Q9).
   shifts: {
     startsAt: Date;
     endsAt: Date;

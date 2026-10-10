@@ -172,7 +172,6 @@ export async function scheduleCandidates(
   at: Date,
   timezone: string,
 ) {
-  const date = attendanceWorkingDate(at, timezone);
   return tx.execute<{
     starts_at: Date;
     ends_at: Date;
@@ -180,16 +179,29 @@ export async function scheduleCandidates(
     break_starts_at: Date | null;
     break_ends_at: Date | null;
     returning: boolean;
-  }>(sql`
+  }>(scheduleCandidatesStatement(scope, branchId, at, timezone));
+}
+// الجلسة اللي الموظف قفلها بنفسه بس هي اللي تثبت الرجوع؛ قفل MISSED_OUT من الـ worker مش رجوع (BW-Q9).
+// الجلسة حدها ١٦ ساعة، فتاريخها بين يوم الوردية السابق ويوم الحركة، وده بيقصر البحث على الـ index.
+export function scheduleCandidatesStatement(
+  scope: { companyId: string; employeeId: string },
+  branchId: string,
+  at: Date,
+  timezone: string,
+) {
+  const date = attendanceWorkingDate(at, timezone);
+  const instant = at.toISOString();
+  return sql`
     SELECT ss.starts_at,ss.ends_at,ss.working_date,ss.break_starts_at,ss.break_ends_at,
       EXISTS (SELECT 1 FROM attendance_sessions a
         WHERE a.company_id=ss.company_id AND a.employee_id=ss.employee_id
-          AND a.clock_out>ss.starts_at AND a.clock_out<=${at.toISOString()}::timestamptz) AS returning
+          AND a.working_date BETWEEN ss.working_date - 1 AND ${date}::date AND a.clock_in<${instant}::timestamptz
+          AND a.status='CLOSED' AND a.clock_out>ss.starts_at AND a.clock_out<=${instant}::timestamptz) AS returning
     FROM staff_schedule_shifts ss
     JOIN staff_schedules s ON s.company_id=ss.company_id AND s.id=ss.schedule_id
     WHERE ss.company_id=${scope.companyId} AND ss.employee_id=${scope.employeeId} AND s.branch_id=${branchId}
-      AND (ss.working_date=${date}::date OR (ss.starts_at<=${at.toISOString()}::timestamptz AND ss.ends_at>${at.toISOString()}::timestamptz))
-    ORDER BY ss.starts_at`);
+      AND (ss.working_date=${date}::date OR (ss.starts_at<=${instant}::timestamptz AND ss.ends_at>${instant}::timestamptz))
+    ORDER BY ss.starts_at`;
 }
 async function openAttendance(tx: Tx, scope: { companyId: string; employeeId: string }) {
   const [open] = await tx.execute<{

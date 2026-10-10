@@ -120,6 +120,9 @@ Procedure at implementation time: `git merge origin/main` once 16c is on main, r
   spec 027 is unchanged. The adapter reads `returning` as a boolean per candidate shift (one `EXISTS` on
   `attendance_sessions_employee_date_idx`); the domain decides. Corrections need no change: they recompute from the
   stored `scheduled_start`.
+  **Note for row 27 (FR-011, BW-Q4):** a return session's stored `scheduled_start` is the break end, not the shift
+  start. Scheduled hours must therefore never be computed per session as `scheduled_end − scheduled_start`; take them
+  from the shift (`ends_at − starts_at`, break included).
 - **D7 Error**: `SCHEDULE_BREAK_INVALID` 400 — `message_ar` «وقت البريك لازم يكون جوّه الشيفت», `message_en` "The break
   must be inside the shift"; `details` carries the shift `{ day, start }` so the admin form can point at it.
 

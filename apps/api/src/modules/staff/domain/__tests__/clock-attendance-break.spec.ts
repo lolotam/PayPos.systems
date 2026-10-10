@@ -43,6 +43,15 @@ describe('BW-Q5/BW-Q9 return comparison and stored schedule', () => {
 });
 
 describe('clock-ins outside the return rule retain spec 027', () => {
+  it('a return at or after the shift end is measured from the shift start', () => {
+    for (const time of ['17:00', '18:00']) {
+      const plan = planAttendance(input, at(time), 'late-return');
+      expect(plan.schedule?.startsAt).toEqual(shift.startsAt);
+      expect(attendanceReturnSchedule([shift], at(time), shift.workingDate)).toBe(shift);
+    }
+    expect(planAttendance(input, at('18:00'), 'late-return').result.late_minutes).toBe(540);
+  });
+
   it('first arrival after break start stays late from shift start', () => {
     const plan = planAttendance(
       { ...input, shifts: [{ ...shift, returning: false }] },

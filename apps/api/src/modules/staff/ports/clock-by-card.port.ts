@@ -23,6 +23,7 @@ export interface CardClockContext {
   readonly lastAt: Date | null;
   readonly lastResult: ClockResult | null;
   readonly open: OpenAttendance | null;
+  // لحظتا البريك من الجدول، وreturning يعني جلسة قفلها الموظف بنفسه جوّه الوردية قبل الحركة (BW-Q5/BW-Q9).
   readonly shifts: readonly {
     startsAt: Date;
     endsAt: Date;

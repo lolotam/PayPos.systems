@@ -239,7 +239,8 @@ export function attendanceSchedule(
 /**
  * يثبت بداية مقارنة التأخير للوردية المختارة بقواعد spec 027 دون تغيير اختيارها.
  * قرار المالك BW-Q5/BW-Q9 بتاريخ 2026-10-10: جلسة مغلقة في نفس الشيفت مع رجوع عند بداية البريك أو بعدها
- * تجعل المقارنة من نهاية البريك؛ أول وصول وغياب البريك يحتفظان ببداية الشيفت ونهايته لا تتغير.
+ * تجعل المقارنة من نهاية البريك ما دام الشيفت لسه ما خلصش؛ الرجوع بعد نهايته وأول وصول وغياب البريك
+ * يحتفظون ببداية الشيفت (spec 027)، ونهاية الشيفت لا تتغير.
  *
  * @param shifts الورديات وحقائق البريك والجلسة المغلقة بعد بداية الشيفت وحتى وقت الحركة
  * @param at وقت الحركة المحقون
@@ -257,7 +258,8 @@ export function attendanceReturnSchedule(
     chosen?.returning === true &&
     chosen.breakStartsAt != null &&
     chosen.breakEndsAt != null &&
-    at >= chosen.breakStartsAt
+    at >= chosen.breakStartsAt &&
+    at < chosen.endsAt
   )
     return { startsAt: chosen.breakEndsAt, endsAt: chosen.endsAt };
   return schedule;

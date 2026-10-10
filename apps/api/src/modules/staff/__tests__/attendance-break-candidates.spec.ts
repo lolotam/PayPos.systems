@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { scheduleCandidates } from '../persistence/attendance-context.adapter.ts';
+import { sql } from 'drizzle-orm';
+import {
+  scheduleCandidates,
+  scheduleCandidatesStatement,
+} from '../persistence/attendance-context.adapter.ts';
 import {
   attendanceFixture,
   seedAttendanceBreak,
@@ -85,4 +89,21 @@ it('a closed session from an earlier shift on the same date does not make the la
     ),
   );
   expect(rows).toMatchObject([{ returning: false }]);
+});
+
+it('only an employee-closed session is a return fact, and the EXISTS stays on the employee/date index', async () => {
+  await f.owner`UPDATE attendance_sessions SET clock_in='2026-10-03T08:58:00+03:00',clock_out='2026-10-03T13:00:00+03:00',
+    working_date='2026-10-03',status='MISSED_OUT',closed_by='MISSED_OUT' WHERE id=${sessionId}`;
+  await f.owner`ANALYZE attendance_sessions`;
+  await f.database.withTenant(f.companyId, async (tx) => {
+    expect(await scheduleCandidates(tx, f.scope, f.branchId, at, 'Asia/Kuwait')).toMatchObject([
+      { returning: false },
+    ]);
+    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    const plan = await tx.execute(
+      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${scheduleCandidatesStatement(f.scope, f.branchId, at, 'Asia/Kuwait')}`,
+    );
+    expect(JSON.stringify(plan)).toContain('attendance_sessions_employee_date_idx');
+  });
+  await f.owner`UPDATE attendance_sessions SET status='CLOSED',closed_by='EMPLOYEE' WHERE id=${sessionId}`;
 });

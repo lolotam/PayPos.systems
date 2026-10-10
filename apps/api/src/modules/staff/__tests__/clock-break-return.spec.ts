@@ -75,3 +75,34 @@ it('BW-07 QR needs no break clocking and creates no exception or alert', async (
     'AttendanceClockedOut',
   ]);
 });
+
+it('BW-07 QR first arrival after a worker MISSED_OUT close is not a return', async () => {
+  const date = '2026-10-31';
+  await seedAttendanceBreak(f, date);
+  await f.owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,
+      clock_in,clock_out,status,source,closed_by,geo,late_minutes)
+    VALUES(${f.companyId},${f.ids.newId()},${f.businessId},${f.branchId},${f.employeeId},'2026-10-30','Asia/Kuwait',
+      '2026-10-30T18:00:00+03:00','2026-10-31T10:00:00+03:00','MISSED_OUT','QR','MISSED_OUT','OK',0)`;
+  const first = await clock(date, '13:30');
+  expect(first).toMatchObject({ operation: 'CLOCK_IN', late_minutes: 270 });
+  expect(
+    await f.owner`SELECT scheduled_start FROM attendance_sessions WHERE id=${first.session_id}`,
+  ).toMatchObject([{ scheduled_start: new Date(`${date}T09:00:00+03:00`) }]);
+  await clock(date, '17:00');
+});
+
+it('BW-07 QR clock-out for the break without a return keeps the morning lateness', async () => {
+  const date = '2026-11-07';
+  await seedAttendanceBreak(f, date);
+  const first = await clock(date, '09:20');
+  expect(first).toMatchObject({ operation: 'CLOCK_IN', late_minutes: 20 });
+  expect(await clock(date, '13:00')).toMatchObject({
+    session_id: first.session_id,
+    operation: 'CLOCK_OUT',
+    late_minutes: 20,
+    exceptions: [],
+  });
+  expect(
+    await f.owner`SELECT id FROM attendance_exceptions WHERE session_id=${first.session_id}`,
+  ).toHaveLength(0);
+});

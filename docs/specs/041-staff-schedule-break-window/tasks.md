@@ -109,7 +109,7 @@ BW-04, BW-05.
 ## Phase 8: Polish (16b-2)
 
 - [x] T036 Gates as T027 (no contract or migration change expected; OpenAPI unchanged).
-- [ ] T037 Commit, review rounds and PR per the pipeline (`fix(staff): phase 1 PR 16b-2 — return-from-break lateness`).
+- [x] T037 Commit, review rounds and PR per the pipeline (`fix(staff): phase 1 PR 16b-2 — return-from-break lateness`).
 
 ## Dependencies
 

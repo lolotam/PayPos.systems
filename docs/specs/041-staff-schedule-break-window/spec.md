@@ -174,6 +174,9 @@ the personal QR clock and the card clock with a scheduled break.
   10-minute grace of spec 027 (AT-Q7), and the session's stored scheduled start MUST be the break end. Every other
   clock-in keeps the spec 027 rule. Clocking for the break is never required and its absence raises nothing (BW-Q5,
   BW-Q9).
+  Implementation detail (16b-2 review, 2026-10-10): "an earlier session" means one the employee closed herself
+  (`status = 'CLOSED'`); a session the worker closed as `MISSED_OUT` is not a return. A return counts only while the
+  clock-in is before the shift end; a clock-in at or after the shift end keeps the spec 027 rule.
 - **FR-011**: The break MUST NOT reduce any hours figure (BW-Q4). Scheduled hours of a shift = end − start, break
   included (سارة: 8 h). For worked hours (row 27 board/report, not built in this row), time she spends clocked out
   inside her scheduled break window MUST count as worked, so a day 08:58–13:00 + 14:00–17:00 with break 13:00–14:00
