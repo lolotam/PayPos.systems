@@ -22,6 +22,7 @@ export const PERMISSIONS = [
   'manage:schedules:branch',
   'read:schedules:business',
   'manage:schedules:business',
+  'manage:schedule-settings:business',
   'read:salaries:business',
   'manage:salaries:business',
   'manage:files:business',

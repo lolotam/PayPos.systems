@@ -11,6 +11,7 @@ it.each(['ar', 'en'] as const)(
       'manage:schedules:branch',
       'read:schedules:business',
       'manage:schedules:business',
+      'manage:schedule-settings:business',
       'read:memberships:business',
       'manage:memberships:business',
       'manage:employees:business',

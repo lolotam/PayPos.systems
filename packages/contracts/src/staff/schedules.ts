@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { scheduleSettings, setScheduleSettingsInput } from './schedule-settings.js';
 import { id } from '../scalars/id.js';
 import { nameAr, nameEn } from '../bilingual/names.js';
 import { employeeDate, employeeInputId } from './employee.js';
@@ -11,7 +12,7 @@ export const scheduleShift = z
     end: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
   })
   .meta({ id: 'ScheduleShift' });
-export const schedulePattern = z.array(scheduleShift).max(14).meta({ id: 'SchedulePattern' });
+export const schedulePattern = z.array(scheduleShift).max(28).meta({ id: 'SchedulePattern' });
 export const scheduleReason = z.string().trim().min(1).max(500);
 export const setScheduleInput = z
   .strictObject({
@@ -37,7 +38,7 @@ export const staffSchedule = z
     week_start: employeeDate,
     timezone: timeZone,
     revision: z.number().int().positive(),
-    shifts: z.array(concreteShift).max(14),
+    shifts: z.array(concreteShift).max(28),
   })
   .meta({ id: 'StaffSchedule' });
 export const scheduleWeekQuery = z
@@ -65,6 +66,7 @@ export const scheduleGrid = z
     week_start: employeeDate,
     days: z.array(employeeDate).length(7),
     timezone: timeZone,
+    max_shifts_per_day: z.number().int().min(1).max(4),
     items: z.array(scheduleGridRow),
     next_cursor: id.nullable(),
   })
@@ -90,7 +92,11 @@ export const shiftTemplate = z
   })
   .meta({ id: 'ShiftTemplate' });
 export const templatePage = z
-  .object({ items: z.array(shiftTemplate), next_cursor: id.nullable() })
+  .object({
+    items: z.array(shiftTemplate),
+    next_cursor: id.nullable(),
+    max_shifts_per_day: z.number().int().min(1).max(4),
+  })
   .meta({ id: 'TemplatePage' });
 export const templateListQuery = z
   .strictObject({
@@ -131,6 +137,8 @@ export type UpdateTemplateInput = z.infer<typeof updateTemplateInput>;
 export type ShiftTemplate = z.infer<typeof shiftTemplate>;
 export type ApplyTemplateInput = z.infer<typeof applyTemplateInput>;
 export const scheduleSchemas = [
+  scheduleSettings,
+  setScheduleSettingsInput,
   templateListQuery,
   scheduleShift,
   schedulePattern,

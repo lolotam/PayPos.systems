@@ -17,6 +17,7 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'manage:schedules:branch': 'permissionCodes.manageSchedulesBranch',
   'read:schedules:business': 'permissionCodes.readSchedulesBusiness',
   'manage:schedules:business': 'permissionCodes.manageSchedulesBusiness',
+  'manage:schedule-settings:business': 'permissionCodes.manageScheduleSettingsBusiness',
   'read:memberships:company': 'permissionCodes.readMembershipsCompany',
   'manage:memberships:company': 'permissionCodes.manageMembershipsCompany',
   'read:memberships:business': 'permissionCodes.readMembershipsBusiness',

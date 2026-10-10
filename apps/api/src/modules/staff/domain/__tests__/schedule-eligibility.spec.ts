@@ -50,6 +50,7 @@ it('compares canonical values regardless of key order, array order or unrelated 
       { day: 0, start: '14:00', end: '18:00' },
     ],
     'Asia/Kuwait',
+    3,
   );
   const reordered = [...shifts].reverse().map((s) => ({
     ends_at: s.ends_at,
@@ -69,6 +70,7 @@ it.each(['day', 'working_date', 'start', 'end', 'starts_at', 'ends_at'] as const
       week,
       [{ day: 0, start: '09:00', end: '12:00' }],
       'Asia/Kuwait',
+      3,
     );
     const before = shifts[0];
     if (!before) throw new Error('Synthetic shift missing');

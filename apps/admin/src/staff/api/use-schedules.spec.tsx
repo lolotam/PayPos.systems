@@ -10,6 +10,7 @@ const other = '01920000-0000-7000-8000-000000000102';
 const scope = { companyId: id, businessId: id, branchId: id, userId: id };
 const week = '2026-10-03';
 const data = {
+  max_shifts_per_day: 3,
   week_start: week,
   timezone: 'Asia/Kuwait',
   days: [

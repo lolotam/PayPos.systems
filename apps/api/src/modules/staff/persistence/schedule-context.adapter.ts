@@ -22,7 +22,7 @@ export function schedulingAccess(
   userId: string,
   businessId: string,
   branchId: string | null,
-  action: 'read' | 'manage',
+  action: 'read' | 'manage' | 'settings',
   lock = false,
 ) {
   return scheduleAccess(tx, companyId, userId, { businessId, branchId, action }, lock);

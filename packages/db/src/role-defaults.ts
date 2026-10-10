@@ -35,11 +35,12 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** صلاحيات الوثائق متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+/** صلاحيات الوثائق وإعداد الورديات متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
 export const OWNER_GRANTED_PERMISSIONS = [
   'read:files:business',
   'manage:files:business',
   'manage:document-types:company',
+  'manage:schedule-settings:business',
 ] as const satisfies readonly Permission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
@@ -70,6 +71,8 @@ export const ROLE_DEFAULTS = {
   'manage:schedules:branch': [...managers, 'branch_manager'],
   'read:schedules:business': managers,
   'manage:schedules:business': managers,
+  // قرار المالك MS-Q2 بتاريخ 2026-10-10: المالك وحده افتراضياً مع تفويض شخصي للبشر.
+  'manage:schedule-settings:business': ['owner'],
   'read:memberships:company': ['owner'],
   'manage:memberships:company': ['owner'],
   'read:memberships:business': ['owner'],

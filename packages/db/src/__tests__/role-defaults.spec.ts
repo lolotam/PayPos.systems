@@ -101,3 +101,7 @@ for (const role of SYSTEM_ROLES) {
     expect(actual.includes(role.code)).toBe(leaveDefault);
   });
 }
+
+it('schedule settings default to owner and are eligible for humans only', () => {
+  expect(ROLE_DEFAULTS['manage:schedule-settings:business']).toEqual(['owner']);
+});

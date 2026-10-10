@@ -15,6 +15,7 @@ const deviceForbidden = [
   ...LEAVE_PERMISSIONS,
   ...OWNER_DERIVED_PERMISSIONS,
   ...SCHEDULE_PERMISSIONS,
+  'manage:schedule-settings:business',
   'read:memberships:company',
   'manage:memberships:company',
   'read:memberships:business',

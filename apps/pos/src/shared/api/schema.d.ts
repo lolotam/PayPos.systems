@@ -663,6 +663,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires manage:schedule-settings:business and staff feature. */
+        get: operations["getScheduleSettings"];
+        /** @description Requires manage:schedule-settings:business and staff feature. Same value writes no audit. Existing schedules remain unchanged. */
+        put: operations["setScheduleSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/name-matches": {
         parameters: {
             query?: never;
@@ -2112,6 +2130,17 @@ export interface components {
             items: components["schemas"]["SharedInstallationFlag"][];
             next_cursor: string | null;
         };
+        ScheduleSettings: {
+            /** Format: uuid */
+            business_id: string;
+            max_shifts_per_day: number;
+            is_default: boolean;
+            /** Format: date-time */
+            updated_at: string | null;
+        };
+        SetScheduleSettingsInput: {
+            max_shifts_per_day: number;
+        };
         TemplateListQuery: {
             /** Format: uuid */
             cursor?: string;
@@ -2178,6 +2207,7 @@ export interface components {
             week_start: components["schemas"]["EmployeeDate"];
             days: components["schemas"]["EmployeeDate"][];
             timezone: components["schemas"]["TimeZone"];
+            max_shifts_per_day: number;
             items: components["schemas"]["ScheduleGridRow"][];
             /** Format: uuid */
             next_cursor: string | null;
@@ -2212,6 +2242,7 @@ export interface components {
             items: components["schemas"]["ShiftTemplate"][];
             /** Format: uuid */
             next_cursor: string | null;
+            max_shifts_per_day: number;
         };
         /** @description At most 12 weeks and 20 employee-week copies per synchronous application; larger applications require a future worker path. */
         ApplyTemplateInput: {
@@ -4959,6 +4990,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApplyTemplateResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getScheduleSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Effective business schedule settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleSettings"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setScheduleSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetScheduleSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description Effective business schedule settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleSettings"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */

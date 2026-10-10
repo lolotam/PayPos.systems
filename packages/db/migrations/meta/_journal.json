@@ -722,6 +722,27 @@
       "when": 1791567179164,
       "tag": "0102_2026-10-09_employee-name-key-validate",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1791588545710,
+      "tag": "0103_2026-10-10_staff-schedule-settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1791588565478,
+      "tag": "0104_2026-10-10_staff-schedule-settings-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1791588572342,
+      "tag": "0105_2026-10-10_schedule-settings-permission",
+      "breakpoints": true
     }
   ]
 }
