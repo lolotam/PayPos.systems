@@ -1,3 +1,5 @@
+import { containsPhoneLikeNumber } from '@pospay/domain';
+
 /** القيم المشتركة بين الطلب والقرار؛ النصوص الحرة تظل في سجل الطلب فقط. */
 export interface AttendanceChangePlan {
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
@@ -186,13 +188,26 @@ export function attendanceChangeRecipients(
 }
 
 const unsafeDisplayName =
-  /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\p{Nd}(?:[\s().+-]*\p{Nd}){6,}|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu;
-const unsafeText = /(?:https?:|\+[1-9]\d{7,14}|\b(?:bearer|token|otp|code)\b|\b\d{4,8}\b)/i;
+  /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu;
+// كود من ٤ لـ ٨ أرقام لوحده يترفض بأي نظام أرقام، زي ما عقد الإشعار بيرفضه بالأرقام اللاتيني.
+const unsafeText =
+  /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b(?:bearer|token|otp|code)\b|(?<!\p{Nd})\p{Nd}{4,8}(?!\p{Nd}))/iu;
 function displayName(value: string | null): string | null {
   const trimmed = value?.trim() ?? '';
-  return trimmed.length > 0 && trimmed.length <= 255 && !unsafeDisplayName.test(trimmed)
+  return trimmed.length > 0 &&
+    trimmed.length <= 255 &&
+    !unsafeDisplayName.test(trimmed) &&
+    !containsPhoneLikeNumber(trimmed)
     ? trimmed
     : null;
+}
+function safeReason(reason: string | null): string {
+  return reason &&
+    reason.length <= 255 &&
+    !unsafeText.test(reason) &&
+    !containsPhoneLikeNumber(reason)
+    ? reason
+    : '-';
 }
 /**
  * يحمي نص الجرس من الروابط والأرقام الحساسة دون إسقاط إشعار القرار.
@@ -214,6 +229,6 @@ export function attendanceChangeNoticeText(
   return {
     employee_name_ar: displayName(names.name_ar) ?? displayName(names.name_en) ?? fallback.ar,
     employee_name_en: displayName(names.name_en) ?? fallback.en,
-    reason: reason && reason.length <= 255 && !unsafeText.test(reason) ? reason : '-',
+    reason: safeReason(reason),
   };
 }
