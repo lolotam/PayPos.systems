@@ -1,4 +1,5 @@
 import { attendanceChangeEn } from './attendance-change.js';
+import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
 import { attendanceEn } from './attendance-en.js';
@@ -140,22 +141,7 @@ export const en = {
     expired: 'Expired',
   },
   staffLogin: staffLoginEn,
-  inApp: {
-    ...attendanceChangeEn.inApp,
-    title: 'Notifications',
-    unread: 'Unread',
-    read: 'Read',
-    markRead: 'Mark read',
-    markAllRead: 'Mark all read',
-    empty: 'No notifications yet.',
-    loading: 'Loading notifications…',
-    error: 'Notifications could not be updated. Try again.',
-    generic_notice: 'Update for {{subject}}',
-    generic_employee: 'Employee',
-    generic_branch: 'Branch',
-    shift_not_clocked_in:
-      '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
-  },
+  inApp: inAppEn,
   errors: {
     ...attendanceChangeEn.errors,
     ATTENDANCE_DEVICE_LOCKED:

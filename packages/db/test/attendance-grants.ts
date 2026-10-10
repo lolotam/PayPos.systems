@@ -25,6 +25,9 @@ export const ATTENDANCE_TABLE_GRANTS = [
   'attendance_device_signals:SELECT',
   'attendance_not_clocked_in_notices:INSERT',
   'attendance_not_clocked_in_notices:SELECT',
+  // بند 16b-2: دفتر «مارجعتش من البريك» يُدرج ولا يُعدّل ولا يُحذف.
+  'attendance_break_not_returned_notices:SELECT',
+  'attendance_break_not_returned_notices:INSERT',
 ].sort();
 
 export const ATTENDANCE_CHANGE_COLUMN_GRANTS = [

@@ -14,7 +14,7 @@ export function NotificationItem({
   pending: boolean;
   onRead: (id: string) => void;
 }) {
-  const textLocale = item.template_key === 'shift_not_clocked_in' ? locale : item.locale;
+  const textLocale = item.template_key === 'generic_notice' ? item.locale : locale;
   return (
     <li className="flex flex-col gap-2 border-b border-border py-4 text-start last:border-b-0">
       <p lang={textLocale} dir={textLocale === 'ar' ? 'rtl' : 'ltr'}>

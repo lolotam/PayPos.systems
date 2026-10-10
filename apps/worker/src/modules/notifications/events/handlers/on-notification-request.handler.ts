@@ -31,6 +31,7 @@ export const NOTIFICATION_SOURCE_EVENTS = [
   'LowRatingReceived',
   'AttendanceExceptionRaised',
   'ShiftNotClockedIn',
+  'ShiftBreakNotReturned',
   'DocumentExpiring',
   'StatementAwaitingReview',
   'StatementAwaitingApproval',

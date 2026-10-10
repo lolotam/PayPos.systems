@@ -111,3 +111,28 @@ it('shares the result envelope without exposing parameters or a destination', ()
     notificationResult.safeParse({ ...result, safe_parameters: recipient.safe_parameters }).success,
   ).toBe(false);
 });
+
+it('accepts the break_not_returned in-app recipient with a break end only', () => {
+  const names = [
+    { name: 'employee_name_ar', type: 'text', value: 'Synthetic employee' },
+    { name: 'employee_name_en', type: 'text', value: 'Synthetic employee' },
+    { name: 'branch_name_ar', type: 'text', value: 'Studio 2026' },
+    { name: 'branch_name_en', type: 'text', value: 'Studio 2026' },
+  ];
+  const breakAlert = {
+    ...recipient,
+    template_key: 'break_not_returned',
+    safe_parameters: [...names, { name: 'break_end', type: 'text', value: '14:00' }],
+  };
+  expect(inAppRecipient.parse(breakAlert)).toEqual(breakAlert);
+  expect(notificationRequest.safeParse({ notification_recipients: [breakAlert] }).success).toBe(
+    true,
+  );
+  for (const last of [
+    { name: 'shift_start', type: 'text', value: '14:00' },
+    { name: 'break_end', type: 'text', value: '24:00' },
+  ])
+    expect(
+      inAppRecipient.safeParse({ ...breakAlert, safe_parameters: [...names, last] }).success,
+    ).toBe(false);
+});
