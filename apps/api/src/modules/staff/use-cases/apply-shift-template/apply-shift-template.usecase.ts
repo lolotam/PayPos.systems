@@ -41,6 +41,7 @@ export class ApplyShiftTemplateUseCase {
       validateTemplateWeeks(command.input.weeks);
       validateTemplateBatch(command.input.employee_ids.length, command.input.weeks.length);
       const targets = await this.loadTargets(scope, command);
+      const limit = await scope.maxShiftsPerDay(command.businessId);
       for (const target of targets)
         validateScheduleEmployeeWeek(target.employee, command.input.branch_id, target.weekStart);
       requireActiveTemplate(template);
@@ -53,12 +54,19 @@ export class ApplyShiftTemplateUseCase {
       const patterns = new Map(
         command.input.weeks.map((week) => [
           week,
-          materializeSchedule(week, template.shifts, context.timezone),
+          materializeSchedule(week, template.shifts, context.timezone, limit, []),
         ]),
       );
       const today = scheduleToday(this.clock.now(), context.timezone);
       const plans = targets.map((target) =>
-        this.plan(command, context.timezone, patterns.get(target.weekStart) ?? [], today, target),
+        this.plan(
+          command,
+          context.timezone,
+          patterns.get(target.weekStart) ?? [],
+          today,
+          target,
+          limit,
+        ),
       );
       for (const plan of plans)
         validateScheduleOverlap(
@@ -66,6 +74,7 @@ export class ApplyShiftTemplateUseCase {
           plans
             .filter((p) => p !== plan && p.after.employee_id === plan.after.employee_id)
             .flatMap((p) => p.after.shifts),
+          limit,
         );
       await scope.saveWeeks(plans, command.input.reason);
       return { schedules: plans.map((p) => p.after) };
@@ -88,6 +97,7 @@ export class ApplyShiftTemplateUseCase {
     shifts: ScheduleRecord['shifts'],
     today: string,
     target: ScheduleTarget,
+    limit: number,
   ): { before: ScheduleRecord | null; after: ScheduleRecord } {
     validateScheduleEmployee(target.employee, command.input.branch_id, shifts);
     // الأسابيع التي سيستبدلها التطبيق تستبعد من المقارنة؛ تقارن النسخ الجديدة ببعضها لاحقاً.
@@ -95,7 +105,7 @@ export class ApplyShiftTemplateUseCase {
       (s) =>
         !(s.branch_id === command.input.branch_id && command.input.weeks.includes(s.week_start)),
     );
-    validateScheduleOverlap(shifts, others);
+    validateScheduleOverlap(shifts, others, limit);
     requirePastScheduleReason(target.before?.shifts ?? [], shifts, today, command.input.reason);
     return {
       before: target.before,

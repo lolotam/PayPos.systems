@@ -1,3 +1,4 @@
+import { changedPatternDays } from '../../domain/schedule-settings.ts';
 import type { UpdateTemplateInput } from '@pospay/contracts';
 import { requireActiveTemplate } from '../../domain/schedule-templates.ts';
 import { nextScheduleRevision, validateSchedulePattern } from '../../domain/schedules.ts';
@@ -13,7 +14,12 @@ export class UpdateShiftTemplateUseCase {
       const before = await scope.template(command.businessId, command.templateId);
       requireActiveTemplate(before);
       const revision = nextScheduleRevision(before.revision, command.input.expected_revision);
-      const shifts = validateSchedulePattern(command.input.shifts);
+      const limit = await scope.maxShiftsPerDay(command.businessId);
+      const shifts = validateSchedulePattern(
+        command.input.shifts,
+        limit,
+        changedPatternDays(before.shifts, command.input.shifts),
+      );
       const after = {
         ...before,
         name_en: command.input.name_en,

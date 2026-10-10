@@ -2841,6 +2841,170 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/schedule-settings": {
+      "get": {
+        "operationId": "getScheduleSettings",
+        "description": "Requires manage:schedule-settings:business and staff feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Effective business schedule settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setScheduleSettings",
+        "description": "Requires manage:schedule-settings:business and staff feature. Same value writes no audit. Existing schedules remain unchanged.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetScheduleSettingsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Effective business schedule settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/employees/name-matches": {
       "post": {
         "operationId": "employeeNameMatches",
@@ -9506,6 +9670,50 @@
         ],
         "additionalProperties": false
       },
+      "ScheduleSettings": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "max_shifts_per_day": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "updated_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "business_id",
+          "max_shifts_per_day",
+          "is_default",
+          "updated_at"
+        ]
+      },
+      "SetScheduleSettingsInput": {
+        "type": "object",
+        "properties": {
+          "max_shifts_per_day": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          }
+        },
+        "required": [
+          "max_shifts_per_day"
+        ],
+        "additionalProperties": false
+      },
       "TemplateListQuery": {
         "type": "object",
         "properties": {
@@ -9548,7 +9756,7 @@
         "additionalProperties": false
       },
       "SchedulePattern": {
-        "maxItems": 14,
+        "maxItems": 28,
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/ScheduleShift"
@@ -9657,7 +9865,7 @@
             "maximum": 9007199254740991
           },
           "shifts": {
-            "maxItems": 14,
+            "maxItems": 28,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ConcreteShift"
@@ -9778,6 +9986,11 @@
           "timezone": {
             "$ref": "#/components/schemas/TimeZone"
           },
+          "max_shifts_per_day": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
           "items": {
             "type": "array",
             "items": {
@@ -9795,6 +10008,7 @@
           "week_start",
           "days",
           "timezone",
+          "max_shifts_per_day",
           "items",
           "next_cursor"
         ]
@@ -9933,11 +10147,17 @@
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "max_shifts_per_day": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
           }
         },
         "required": [
           "items",
-          "next_cursor"
+          "next_cursor",
+          "max_shifts_per_day"
         ]
       },
       "ApplyTemplateInput": {

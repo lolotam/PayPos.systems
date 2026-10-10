@@ -23,7 +23,7 @@ import type { ScheduleRecord, SchedulingEmployee, WeeklyShift } from '../schedul
 const week = '2026-10-03';
 const pattern = (day = 0, start = '09:00', end = '17:00'): WeeklyShift[] => [{ day, start, end }];
 const shifts = (day = 0, start = '09:00', end = '17:00') =>
-  materializeSchedule(week, pattern(day, start, end), 'Asia/Kuwait');
+  materializeSchedule(week, pattern(day, start, end), 'Asia/Kuwait', 3);
 const employee: SchedulingEmployee = {
   id: 'synthetic',
   business_id: 'synthetic',
@@ -67,9 +67,9 @@ describe('split, overnight, duration and overlap rules', () => {
       { day: 0, start: '13:00', end: '17:00' },
       { day: 0, start: '09:00', end: '13:00' },
     ];
-    expect(validateSchedulePattern(input)[0]?.start).toBe('09:00');
+    expect(validateSchedulePattern(input, 3)[0]?.start).toBe('09:00');
     expect(input[0]?.start).toBe('13:00');
-    expect(validateSchedulePattern([])).toEqual([]);
+    expect(validateSchedulePattern([], 3)).toEqual([]);
   });
   it.each(
     [
@@ -81,10 +81,9 @@ describe('split, overnight, duration and overlap rules', () => {
       pattern(-1),
       pattern(7),
       pattern(0.5),
-      [...pattern(), ...pattern(0, '18:00', '19:00'), ...pattern(0, '20:00', '21:00')],
     ].map((input) => ({ input })),
   )('refuses invalid day/time/duration/count %j', ({ input }) =>
-    expect(() => validateSchedulePattern(input)).toThrow('SCHEDULE_SHIFT_INVALID'),
+    expect(() => validateSchedulePattern(input, 3)).toThrow('SCHEDULE_SHIFT_INVALID'),
   );
   it('permits exactly 16h including overnight and preserves Friday start day across weeks', () => {
     expect(shifts(0, '08:00', '00:00')[0]?.ends_at).toBe('2026-10-03T21:00:00.000Z');
@@ -98,42 +97,57 @@ describe('split, overnight, duration and overlap rules', () => {
     });
   });
   it('refuses same-day and neighboring-day overnight overlap', () => {
-    expect(() => validateSchedulePattern([...pattern(), ...pattern(0, '16:00', '18:00')])).toThrow(
-      'SCHEDULE_SHIFT_OVERLAP',
-    );
     expect(() =>
-      validateSchedulePattern([...pattern(0, '22:00', '06:00'), ...pattern(1, '05:00', '08:00')]),
+      validateSchedulePattern([...pattern(), ...pattern(0, '16:00', '18:00')], 3),
+    ).toThrow('SCHEDULE_SHIFT_OVERLAP');
+    expect(() =>
+      validateSchedulePattern(
+        [...pattern(0, '22:00', '06:00'), ...pattern(1, '05:00', '08:00')],
+        3,
+      ),
     ).toThrow('SCHEDULE_SHIFT_OVERLAP');
   });
 });
 describe('cross-boundary overlaps', () => {
   it('compares Friday→Saturday and cross-zone/cross-branch shifts as half-open intervals', () => {
     const friday = shifts(6, '22:00', '06:00');
-    const saturday = materializeSchedule('2026-10-10', pattern(0, '05:00', '08:00'), 'Asia/Kuwait');
-    expect(() => validateScheduleOverlap(friday, saturday)).toThrow('SCHEDULE_SHIFT_OVERLAP');
+    const saturday = materializeSchedule(
+      '2026-10-10',
+      pattern(0, '05:00', '08:00'),
+      'Asia/Kuwait',
+      3,
+    );
+    expect(() => validateScheduleOverlap(friday, saturday, 3)).toThrow('SCHEDULE_SHIFT_OVERLAP');
     expect(() =>
       validateScheduleOverlap(
         friday,
-        materializeSchedule('2026-10-10', pattern(0, '06:00', '08:00'), 'Asia/Kuwait'),
+        materializeSchedule('2026-10-10', pattern(0, '06:00', '08:00'), 'Asia/Kuwait', 3),
+        3,
       ),
     ).not.toThrow();
     expect(() =>
       validateScheduleOverlap(
         shifts(),
-        materializeSchedule(week, pattern(0, '10:00', '12:00'), 'Asia/Dubai'),
+        materializeSchedule(week, pattern(0, '10:00', '12:00'), 'Asia/Dubai', 3),
+        3,
       ),
     ).toThrow('SCHEDULE_SHIFT_OVERLAP');
   });
   it('counts split shifts across branches too', () =>
     expect(() =>
-      validateScheduleOverlap(shifts(0, '01:00', '02:00'), [
-        ...shifts(0, '03:00', '04:00'),
-        ...shifts(0, '05:00', '06:00'),
-      ]),
-    ).toThrow('SCHEDULE_SHIFT_INVALID'));
+      validateScheduleOverlap(
+        shifts(0, '01:00', '02:00'),
+        [
+          ...shifts(0, '03:00', '04:00'),
+          ...shifts(0, '05:00', '06:00'),
+          ...shifts(0, '07:00', '08:00'),
+        ],
+        3,
+      ),
+    ).toThrow('SCHEDULE_DAY_LIMIT_EXCEEDED'));
   it('refuses elapsed durations over 16h on a DST fallback day', () =>
     expect(() =>
-      materializeSchedule('2026-10-31', pattern(1, '00:00', '16:00'), 'America/New_York'),
+      materializeSchedule('2026-10-31', pattern(1, '00:00', '16:00'), 'America/New_York', 3),
     ).toThrow('SCHEDULE_SHIFT_INVALID'));
 });
 describe('eligibility, reasons and revisions', () => {

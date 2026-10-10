@@ -1,3 +1,5 @@
+import { sql } from 'drizzle-orm';
+import { DEFAULT_MAX_SHIFTS_PER_DAY } from '../domain/schedule-settings.ts';
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { ScheduleError } from '../domain/schedule-types.ts';
 import type { ScheduleScope, ScheduleTransactions } from '../ports/schedules.port.ts';
@@ -56,6 +58,12 @@ function transactionScope(
     return result;
   };
   return {
+    maxShiftsPerDay: async (businessId) => {
+      const [row] = await tx.execute<{ max_shifts_per_day: number }>(
+        sql`SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}`,
+      );
+      return row?.max_shifts_per_day ?? DEFAULT_MAX_SHIFTS_PER_DAY;
+    },
     branch: (businessId, branchId) => access(businessId, branchId, 'manage'),
     business: async (businessId, action) => {
       await access(businessId, null, action);

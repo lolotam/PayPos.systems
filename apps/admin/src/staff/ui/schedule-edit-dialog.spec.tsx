@@ -35,6 +35,7 @@ const saved = {
 };
 const row = { employee_id: id, name_en: 'Synthetic employee', name_ar: null, schedule: saved };
 const grid = {
+  max_shifts_per_day: 3,
   week_start: '2000-01-01',
   timezone: 'Asia/Kuwait',
   days: [
