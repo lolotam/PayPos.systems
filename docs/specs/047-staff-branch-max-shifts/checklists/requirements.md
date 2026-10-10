@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — three business rules are open as `TODO(spec) → MB-Q1 … MB-Q3`
+- [x] No [NEEDS CLARIFICATION] markers remain — MB-Q1 … MB-Q3 answered 2026-10-10
 - [x] Requirements are testable and unambiguous (apart from the three open rules, each with its listed options)
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -27,10 +27,10 @@
 
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
-- [ ] Feature meets measurable outcomes defined in Success Criteria — after MB-Q1 … MB-Q3
+- [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
 ## Notes
 
-- Not ready for `/speckit-plan` until the owner answers MB-Q1 … MB-Q3 (`owner-questions.ar.md`).
+- Owner answered MB-Q1 … MB-Q3 on 2026-10-10 (provisional until the partner answers; his pick wins on a difference).
 - MS-Q2 … MS-Q6 and S020-SHIFTS from spec 042 stay binding and are not re-asked.

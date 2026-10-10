@@ -127,3 +127,8 @@ or no count check at save (apply checks). Apply always uses the target branch's 
   OpenAPI/`schema.d.ts`, `privileges.spec.ts` and migration numbering. Land one after the other; 16c-2 first is the
   smaller rebase (its grid change is one sub-select).
 - **26a–26c:** no shared file; only migration numbering (they own 0111+).
+
+## R9. After the owner's answers (2026-10-10)
+
+MB-Q1 = A (each branch counts its own shifts), MB-Q2 = A (business number kept, branch overrides, pure expand),
+MB-Q3 = largest effective number among active branches for template save. Design in [plan.md](plan.md).
