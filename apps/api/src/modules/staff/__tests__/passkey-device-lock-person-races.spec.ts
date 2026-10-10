@@ -133,3 +133,51 @@ it('the shared adapter serializes different phones without relying on the eligib
     { status: 'fulfilled', value: { own: 'OTHER', heldByOther: null, bindingUnlocked: true } },
   ]);
 });
+
+it.each(['enrol', 'attach'] as const)(
+  'a relinked hashless binding locks its bound_by person: the first clock by the new user serializes with %s by the enrolling user',
+  async (kind) => {
+    const original = await lockEmployee(f, false, true);
+    const binding = await (await prepareLockEnrol(f, original)).execute();
+    const relinked = f.ids.newId();
+    await f.owner`INSERT INTO "user"(id,name,email) VALUES(${relinked},'Synthetic relink',${relinked + '@example.test'})`;
+    await f.owner`UPDATE employees SET user_id=${relinked} WHERE company_id=${f.companyId} AND id=${original.employeeId}`;
+    const other = await lockEmployee({ ...f, userId: original.userId }, true, true);
+    const phone = randomUUID();
+    const otherPhone = randomUUID();
+    const lose = await prepareRequest(kind, other, otherPhone);
+    // أول مسح للمستخدم الجديد يربط الهاتف بصف يملكه صاحب التسجيل؛ نفس ترتيب الأقفال في المسار الحقيقي.
+    const firstClock = (database: TenantWrappers) =>
+      database.withTenant(f.companyId, async (tx) => {
+        await tx.execute(
+          sql`SELECT id FROM employee_passkeys WHERE company_id=${f.companyId} AND id=${binding.binding_id} FOR UPDATE`,
+        );
+        const facts = await attendanceDeviceLock(
+          tx,
+          { ...original, userId: relinked },
+          phone,
+          binding.binding_id,
+        );
+        await tx.execute(sql`UPDATE employee_passkeys
+        SET installation_hash=${installationHash(f.companyId, phone)},installation_locked_at=${f.clock.now().toISOString()}::timestamptz
+        WHERE company_id=${f.companyId} AND id=${binding.binding_id} AND installation_hash IS NULL`);
+        return facts;
+      });
+    const results = await coordinatedLockRace(f, firstClock, () => lose());
+    expect(results[0]).toMatchObject({
+      status: 'fulfilled',
+      value: { own: 'NONE', heldByOther: null, bindingUnlocked: true },
+    });
+    expect(results[1]).toMatchObject({
+      status: 'rejected',
+      reason: {
+        code: kind === 'enrol' ? 'PASSKEY_OTHER_DEVICE' : 'ATTENDANCE_DEVICE_NOT_ENROLLED',
+      },
+    });
+    expect(
+      await f.owner`SELECT DISTINCT installation_hash FROM employee_passkeys
+    WHERE company_id=${f.companyId} AND bound_by=${original.userId}
+      AND unbound_at IS NULL AND installation_hash IS NOT NULL`,
+    ).toEqual([{ installation_hash: installationHash(f.companyId, phone) }]);
+  },
+);

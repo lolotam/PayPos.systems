@@ -78,7 +78,7 @@ it('EXPLAIN uses the branch/time index and the active-installation partial index
     );
     expect(JSON.stringify(board)).toContain('attendance_device_refusals_branch_time_idx');
     const lock = await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON)
-      ${installationLockStatement(f.scope, installationHash(f.companyId, PHONE_X))}`);
+      ${installationLockStatement(f.companyId, f.userId, installationHash(f.companyId, PHONE_X))}`);
     expect(JSON.stringify(lock)).toContain('employee_passkeys_active_installation_idx');
   });
 });
