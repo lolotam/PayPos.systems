@@ -1,6 +1,8 @@
 import { createContext } from 'react';
 import type { ScheduleGrid, SetScheduleInput } from '@pospay/contracts';
 
+export const scheduleDayKeys = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'] as const;
+
 export function branchCivilDate(timezone: string, now: Date): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
@@ -40,6 +42,7 @@ export function scheduleBreakValue(value: string | null | undefined): string | n
   return value || null;
 }
 
+// السيرفر هو اللي بيحكم على مكان البريك؛ الدالة دي بتختار قيمة مبدئية بس جوّه الوردية.
 export function newScheduleBreak(start: string, end: string) {
   const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
   const from = minutes(start);

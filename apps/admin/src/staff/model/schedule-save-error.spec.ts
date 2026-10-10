@@ -17,3 +17,15 @@ it('keeps the envelope message for other errors', () =>
   expect(scheduleSaveMessage({ ...envelope, code: 'SCHEDULE_SHIFT_OVERLAP' }, 'en')).toBe(
     'Refused',
   ));
+it('names the refused shift by its day and start for the break error', () => {
+  const error = {
+    ...envelope,
+    code: 'SCHEDULE_BREAK_INVALID',
+    details: { day: 2, start: '09:00' },
+  };
+  expect(scheduleSaveMessage(error, 'en')).toBe('Refused — Shift on Monday starting 09:00');
+  expect(scheduleSaveMessage(error, 'ar')).toBe('مرفوض — وردية يوم الاثنين اللي بتبدأ 09:00');
+  expect(scheduleSaveMessage({ ...error, details: { day: 9, start: '09:00' } }, 'en')).toBe(
+    'Refused',
+  );
+});

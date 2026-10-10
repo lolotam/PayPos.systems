@@ -6,8 +6,8 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tan
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useLocale } from '@/shared/locale/locale-context';
+import { scheduleDayKeys } from '../model/schedule-form';
 type Row = ScheduleGrid['items'][number];
-export const scheduleDayKeys = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'] as const;
 type EditSchedule = (row: Row, day: number) => void;
 function gridColumns(locale: Locale, days: string[], onEdit: EditSchedule): ColumnDef<Row>[] {
   return [

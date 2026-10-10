@@ -52,6 +52,17 @@ it('compares canonical sets, including additions, removals and instant changes',
   expect(changedPatternDays(pattern, pattern.slice(1))).toEqual([5]);
   expect(changedPatternDays([], pattern)).toEqual([5]);
 });
+it('treats a break-only edit as an unchanged day, so a lowered limit never blocks it', () => {
+  const withBreaks = pattern.map((s) => ({
+    ...s,
+    break_start: s.start.replace(':00', ':15'),
+    break_end: s.start.replace(':00', ':30'),
+  }));
+  const after = materializeSchedule('2026-10-03', withBreaks, 'Asia/Kuwait', 4);
+  expect(after.every((s) => s.break_starts_at !== null)).toBe(true);
+  expect(changedScheduleDays(concrete(), after)).toEqual([]);
+  expect(changedPatternDays(pattern, withBreaks)).toEqual([]);
+});
 it.each([1, 3, 4])('checks pattern days at limit %s', (limit) => {
   expect(validateSchedulePattern(pattern.slice(0, limit), limit)).toHaveLength(limit);
   if (limit < 4)
