@@ -10,6 +10,7 @@ import type {
   AttendanceChangeTransactions,
 } from '../../ports/attendance-change-transactions.port.ts';
 export { AttendanceChangeError } from '../../domain/attendance-change-request.ts';
+export { AttendanceChangeKindRefusal } from '../../ports/attendance-change-kinds.port.ts';
 
 /** يسجل الطلب بعد فحص السلطة ويطبق طلب المالك فوراً في المعاملة نفسها. */
 export class RequestAttendanceChangeUseCase {
@@ -19,7 +20,6 @@ export class RequestAttendanceChangeUseCase {
     private readonly kinds: AttendanceChangeKinds,
   ) {}
   async execute(actor: AttendanceChangeActor, input: AttendanceChangeRequestInput) {
-    if (actor.device) throw new AttendanceChangeError('FORBIDDEN');
     const kind = this.kinds.find(input.kind);
     if (!kind) throw new AttendanceChangeError('ATTENDANCE_CHANGE_KIND_UNAVAILABLE');
     return this.transactions.file(actor, input, kind, this.clock, async (scope) => {

@@ -177,7 +177,8 @@ it('delegated inbox covers the business and can_decide respects requester, emplo
   try {
     const rows = (await page()).items;
     expect(rows.find((r) => r.id === other.id)?.can_decide).toBe(true);
-    for (const row of [mine, aboutMe, done, elsewhere])
+    expect(rows.find((r) => r.id === aboutMe.id)).toBeUndefined();
+    for (const row of [mine, done, elsewhere])
       expect(rows.find((r) => r.id === row.id)?.can_decide).toBe(false);
     expect((await decide(elsewhere.id)).statusCode).toBe(404);
     expect(

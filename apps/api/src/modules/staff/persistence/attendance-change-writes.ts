@@ -15,7 +15,10 @@ import type {
   AttendanceChangeTarget,
 } from '../ports/attendance-change-kinds.port.ts';
 import type { AttendanceChangeActor } from '../ports/attendance-change-transactions.port.ts';
-import { attendanceChangeApprovers } from './attendance-change-context.adapter.ts';
+import {
+  attendanceChangeApprovers,
+  attendanceChangeAuthority,
+} from './attendance-change-context.adapter.ts';
 
 interface SaveContext {
   before: AttendanceChangeRequest | null;
@@ -34,6 +37,10 @@ export async function saveAttendanceChange(
   plan: AttendanceChangePlan,
   values: AttendanceChangeKindValues,
 ): Promise<AttendanceChangeRequest> {
+  values = {
+    ...values,
+    session_id: values.session_id ?? context.before?.session_id ?? context.input.session_id ?? null,
+  };
   const id = context.before?.id ?? ids.newId();
   if (context.before) await update(tx, actor, context.before, plan, values);
   else await insert(tx, actor, id, context, plan, values);
@@ -133,21 +140,28 @@ async function eventRecipients(
   context: SaveContext,
   row: AttendanceChangeRequest,
 ) {
-  return row.status === 'PENDING'
-    ? attendanceChangeRecipients(
-        await attendanceChangeApprovers(
-          tx,
-          actor.companyId,
-          row.business_id,
-          row.branch_id,
-          context.now,
-        ),
-        actor.userId,
-        context.employeeUserId,
-      )
-    : row.requested_by === actor.userId
-      ? []
-      : [row.requested_by];
+  if (row.status === 'PENDING')
+    return attendanceChangeRecipients(
+      await attendanceChangeApprovers(
+        tx,
+        actor.companyId,
+        row.business_id,
+        row.branch_id,
+        context.now,
+      ),
+      actor.userId,
+      context.employeeUserId,
+    );
+  if (row.requested_by === actor.userId) return [];
+  const requester = await attendanceChangeAuthority(
+    tx,
+    actor.companyId,
+    row.requested_by,
+    row.business_id,
+    row.branch_id,
+    context.now,
+  );
+  return requester.member ? [row.requested_by] : [];
 }
 async function events(
   tx: Tx,

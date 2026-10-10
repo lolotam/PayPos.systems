@@ -18,6 +18,7 @@ export interface AttendanceChangeReadAccess {
     context: AttendanceChangeReadContext,
   ): Promise<{
     owner: boolean;
+    member?: boolean;
     canDecide: boolean;
     decideBranches: string[];
     branches: string[];
@@ -31,7 +32,13 @@ const uuidArray = (ids: readonly string[]) =>
 export function attendanceChangePageStatement(
   context: AttendanceChangeReadContext,
   query: AttendanceChangeListQuery,
-  access: { owner: boolean; canDecide: boolean; decideBranches: string[]; branches: string[] },
+  access: {
+    owner: boolean;
+    member?: boolean;
+    canDecide: boolean;
+    decideBranches: string[];
+    branches: string[];
+  },
 ) {
   const cursor =
     query.cursor === undefined
@@ -39,7 +46,7 @@ export function attendanceChangePageStatement(
       : attendanceChangeCursor.parse(
           JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')),
         );
-  // المالك يشوف النشاط كله؛ غيره يشوف بس فروع صلاحية الطلب أو القرار، وزر القرار يراعي نطاق الفرع ومنع القرار الذاتي.
+  // قائمة الطلبات تعرض فروع الصلاحية وطلبات العضو نفسه بعد سحبها، وتخفي حضور المشاهد غير المالك حتى لا يُبلّغ الموظف.
   return sql`SELECT jsonb_build_object('id',r.id,'business_id',r.business_id,'branch_id',r.branch_id,
     'kind',r.kind,'status',r.status,'employee',jsonb_build_object('id',e.id,'name_ar',e.name_ar,'name_en',e.name_en),
     'session_id',r.session_id,'session_revision',r.session_revision,'reason',r.reason,
@@ -52,7 +59,13 @@ export function attendanceChangePageStatement(
     'can_cancel',r.status='PENDING' AND r.requested_by=${context.userId}) AS record
     FROM attendance_change_requests r JOIN employees e ON e.company_id=r.company_id AND e.business_id=r.business_id AND e.id=r.employee_id
     WHERE r.company_id=${context.companyId} AND r.business_id=${context.businessId}
-    ${access.owner ? sql`` : sql`AND r.branch_id=ANY(${uuidArray(access.branches)})`}
+    ${
+      access.owner
+        ? sql``
+        : sql`AND (r.branch_id=ANY(${uuidArray(access.branches)})
+      OR (${access.member ?? false} AND r.requested_by=${context.userId}))
+      AND e.user_id IS DISTINCT FROM ${context.userId}`
+    }
     ${query.status === undefined ? sql`` : sql`AND r.status=${query.status}`}
     ${query.branch_id === undefined ? sql`` : sql`AND r.branch_id=${query.branch_id}::uuid`}
     ${query.employee_id === undefined ? sql`` : sql`AND r.employee_id=${query.employee_id}::uuid`}
@@ -68,7 +81,7 @@ export async function listAttendanceChangeRequests(
 ): Promise<AttendanceChangeRequestPage | 'VALIDATION_FAILED' | null> {
   const access = await reader.check(tx, context);
   if (!access) return null;
-  if (query.branch_id && !access.branches.includes(query.branch_id)) return null;
+  if (query.branch_id && !access.member && !access.branches.includes(query.branch_id)) return null;
   let statement;
   try {
     statement = attendanceChangePageStatement(context, query, access);

@@ -15,7 +15,6 @@ export interface AttendanceChangeActor {
   key: string;
   fingerprint: string;
   requestId?: string;
-  device?: boolean;
 }
 /** لحظة الفحص الأولي تختلف عن لحظة القرار بعد انتظار الأقفال. */
 export interface AttendanceChangeClock {

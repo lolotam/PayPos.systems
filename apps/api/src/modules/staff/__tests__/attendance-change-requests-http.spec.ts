@@ -1,6 +1,9 @@
 import {
   attendanceChangeFixture,
   changeInput,
+  changeAudits,
+  changeEvents,
+  effectCount,
   type ChangeFixture,
 } from './attendance-change.fixture.ts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -88,6 +91,42 @@ it('ACR-03 validates reason and decision envelopes', async () => {
     payload: { decision: 'REJECTED', revision: 0 },
   });
   expect(rejected.statusCode).toBe(400);
+});
+it('ACR-13 preserves a kind refusal over HTTP and leaves PENDING without audit or event effects', async () => {
+  const filed = await f.h.app.inject({
+    method: 'POST',
+    url: route(),
+    headers: headers(),
+    payload: changeInput(f),
+  });
+  expect(filed.statusCode).toBe(201);
+  const row = attendanceChangeRequest.parse(filed.json());
+  const audits = await changeAudits(f, row.id);
+  const events = await changeEvents(f, row.id);
+  const effects = await effectCount(f);
+  f.control.kindRefusal = true;
+  try {
+    const response = await f.h.app.inject({
+      method: 'POST',
+      url: `${route()}/${row.id}/decide`,
+      headers: headers(ownerCookie),
+      payload: { decision: 'APPROVED', revision: 0 },
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toMatchObject({
+      code: 'TEST_KIND_REFUSED',
+      message_ar: expect.any(String),
+      message_en: expect.any(String),
+    });
+    expect(
+      await f.h.owner`SELECT status,revision FROM attendance_change_requests WHERE id=${row.id}`,
+    ).toEqual([{ status: 'PENDING', revision: 0 }]);
+    expect(await changeAudits(f, row.id)).toEqual(audits);
+    expect(await changeEvents(f, row.id)).toEqual(events);
+    expect(await effectCount(f)).toEqual(effects);
+  } finally {
+    f.control.kindRefusal = false;
+  }
 });
 it('ACR-09 out-of-scope and foreign ids share identical NOT_FOUND envelopes', async () => {
   await asRole(f, 'branch_manager');
