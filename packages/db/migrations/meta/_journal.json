@@ -792,6 +792,20 @@
       "when": 1791655666038,
       "tag": "0112_2026-10-10_attendance-break-not-returned-notices-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1791655667038,
+      "tag": "0113_2026-10-10_staff-branch-schedule-settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1791655668038,
+      "tag": "0114_2026-10-10_staff-branch-schedule-settings-rls",
+      "breakpoints": true
     }
   ]
 }

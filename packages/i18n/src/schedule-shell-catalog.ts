@@ -10,6 +10,14 @@ export const scheduleShellEn = {
   schedule_settings_limit: 'Maximum shifts starting per day',
   schedule_settings_default: 'Default: 3 shifts per day',
   schedule_settings_save: 'Save schedule settings',
+  schedule_settings_branch_limit: 'This branch’s maximum shifts per day',
+  schedule_settings_branch_save: 'Save branch number',
+  schedule_settings_inherit: 'Use the business number',
+  schedule_settings_effective: 'This branch: {limit} shifts per day',
+  schedule_settings_source_branch: 'Branch number',
+  schedule_settings_source_business: 'Business number',
+  schedule_settings_source_default: 'Default number',
+  schedule_settings_branches: 'Active branches',
   schedule_dayLimitDetail: 'Limit {limit} shifts per day: {dates}',
 };
 
@@ -24,5 +32,13 @@ export const scheduleShellAr: Record<keyof typeof scheduleShellEn, string> = {
   schedule_settings_limit: 'أقصى عدد ورديات تبدأ في اليوم',
   schedule_settings_default: 'الافتراضي: 3 ورديات في اليوم',
   schedule_settings_save: 'حفظ إعدادات الورديات',
+  schedule_settings_branch_limit: 'أقصى عدد ورديات يومياً للفرع ده',
+  schedule_settings_branch_save: 'حفظ رقم الفرع',
+  schedule_settings_inherit: 'استخدام رقم النشاط',
+  schedule_settings_effective: 'الفرع ده: {limit} ورديات في اليوم',
+  schedule_settings_source_branch: 'رقم خاص بالفرع',
+  schedule_settings_source_business: 'رقم النشاط',
+  schedule_settings_source_default: 'الرقم الافتراضي',
+  schedule_settings_branches: 'الفروع النشطة',
   schedule_dayLimitDetail: 'الحد {limit} ورديات في اليوم: {dates}',
 };

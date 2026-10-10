@@ -64,7 +64,7 @@ it('MS-01: default three saves, fourth refuses atomically with date details', as
     { revision: 1 },
   ]);
   await expect(setWeek(f, four.slice(2), { branch: f.secondBranch })).rejects.toMatchObject({
-    code: 'SCHEDULE_DAY_LIMIT_EXCEEDED',
+    code: 'SCHEDULE_SHIFT_OVERLAP',
   });
 });
 it('MS-02/03: default reads, no-op stays default, changes audit once with actor', async () => {
@@ -73,6 +73,14 @@ it('MS-02/03: default reads, no-op stays default, changes audit once with actor'
     max_shifts_per_day: 3,
     is_default: true,
     updated_at: null,
+    branches: [f.branch, f.secondBranch]
+      .sort()
+      .map((branch_id) => ({
+        branch_id,
+        max_shifts_per_day: 3,
+        source: 'default',
+        updated_at: null,
+      })),
   });
   await limit(3);
   expect(await audits()).toHaveLength(0);
