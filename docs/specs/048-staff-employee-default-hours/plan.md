@@ -5,8 +5,11 @@
 **Input**: Feature specification from `docs/specs/048-staff-employee-default-hours/spec.md` (owner answers DH-Q1 …
 DH-Q7, Waleed 2026-10-10, provisional until the partner answers — his pick wins on a difference).
 
-**Not implemented yet** (orchestrator, 2026-10-10): this plan and `tasks.md` are ready; implementation waits for
-row 16c-2 (spec 047) to land, because both change the schedule grid query and the admin editor.
+**Refreshed 2026-10-11**: row 16c-2 (spec 047, PR #151) has landed on `main` (605d627); this branch is merged on it.
+16c-2 took migrations 0113/0114 (`staff_branch_schedule_settings`) and moved the schedule wiring into
+`apps/api/src/modules/staff/staff-schedule.providers.ts`. 16d therefore starts its migrations at **0115** and wires its
+providers in a new `staff-default-shifts.providers.ts` (`staff.module.ts` is already 337 lines, warn at 300). Derived
+rules (a) and (b) were confirmed by Waleed on 2026-10-11 and need no design change.
 
 ## Summary
 
@@ -95,7 +98,8 @@ Post-design re-check: unchanged, ✅.
    `OWNER_GRANTED_PERMISSIONS` (db + identity), `system-role-policy.ts` human-only, a migration inserting the permission
    and the owner role row (pattern `0105_…schedule-settings-permission.sql`), i18n permission catalogs; identity
    exposes the reader through `identity/index.ts`.
-7. **Errors**: `EMPLOYEE_BRANCH_NOT_LINKED: 422` (`apps/api/src/shared/errors.ts`, ar/en); reuse the schedule codes.
+7. **Errors**: `EMPLOYEE_BRANCH_NOT_LINKED: 422` (`apps/api/src/shared/errors.ts`, ar/en), also listed in
+   `RAISED_BY_THE_API_ONLY` (a bare framework 422 must never be reported as it); reuse the schedule codes.
 8. **Admin**: `ui/employee-default-hours-section.tsx` (+ form), `api/use-employee-default-hours.ts`, added to
    `employee-record-sections.tsx`; editor: `newScheduleShift(day, count, defaults)` uses the weekday default when
    `count === 0`; `ui/schedule-day-warning.tsx` calls `dayDiffersFromDefault` per day.
@@ -132,7 +136,7 @@ apps/api/src/modules/staff/
 ├── use-cases/set-employee-default-shifts/ (new)
 ├── persistence/employee-default-shifts.adapter.ts (new)
 ├── queries/employee-default-shifts.query.ts (new) · employee-contracted-minutes.query.ts (new) · schedule-week.query.ts
-├── http/employee-default-shifts.controller.ts (new) · staff.module.ts
+├── http/employee-default-shifts.controller.ts (new) · staff-default-shifts.providers.ts (new) · staff.module.ts
 └── __tests__/employee-default-shifts.spec.ts · employee-default-shifts-rls.spec.ts (new) · schedule-queries.spec.ts
 apps/admin/src/staff/
 ├── ui/employee-default-hours-section.tsx · employee-default-hours-form.tsx · schedule-day-warning.tsx (new)

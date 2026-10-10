@@ -6,7 +6,8 @@ partner answers).
 
 **Tests are mandatory** (`CLAUDE.md` §9) and come first in each phase; they must fail before the code exists.
 
-**Start condition**: do not start until row 16c-2 (spec 047) is merged; rebase on it first. Touch only the lines this
+**Start condition**: met 2026-10-11 — row 16c-2 (spec 047, PR #151) is merged and this branch is merged on it;
+migrations start at 0115. Touch only the lines this
 slice needs in the shared schedule files (`queries/schedule-week.query.ts`, `contracts/staff/schedules.ts`, the admin
 schedule editor). No reformatting of unrelated code.
 
@@ -42,7 +43,8 @@ schedule editor). No reformatting of unrelated code.
   `role-defaults.ts` **and** `apps/api/src/modules/identity/domain/permission-edit.ts`; human-only in
   `system-role-policy.ts`; their specs; i18n `permission-codes-catalog.ts` and `permission-name.ts`
 - [ ] T010 Fill the permission migration (pattern `0105_2026-10-10_schedule-settings-permission.sql`)
-- [ ] T011 `EMPLOYEE_BRANCH_NOT_LINKED: 422` in `apps/api/src/shared/errors.ts` with ar/en messages
+- [ ] T011 `EMPLOYEE_BRANCH_NOT_LINKED: 422` in `apps/api/src/shared/errors.ts` with ar/en messages, and in
+  `RAISED_BY_THE_API_ONLY` in the same file
 - [ ] T012 Implement `apps/api/src/modules/staff/domain/employee-default-shifts.ts` (Arabic JSDoc)
 
 ## Phase 3: User Story 1 — set a branch's default week (P1)
@@ -61,7 +63,8 @@ schedule editor). No reformatting of unrelated code.
 - [ ] T018 [US1] Use case `use-cases/set-employee-default-shifts/set-employee-default-shifts.usecase.ts` (`Clock`
   injected; no arithmetic, no SQL)
 - [ ] T019 [US1] Query `queries/employee-default-shifts.query.ts` (+ `can_manage`, linked + unlinked branches) and
-  controller `http/employee-default-shifts.controller.ts` (GET + PUT, guards); wire in `staff.module.ts`
+  controller `http/employee-default-shifts.controller.ts` (GET + PUT, guards); providers in a new
+  `staff-default-shifts.providers.ts` spread into `staff.module.ts` (pattern `staff-schedule.providers.ts`)
 
 ## Phase 4: User Story 2 — profile notice (P1)
 
