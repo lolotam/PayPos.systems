@@ -41,7 +41,8 @@ decisions page (choice index 1):
   26c (spec 046); 26a only keeps the `kind` CHECK extendable.
 
 Each rule below cites its decision as `ACR-Qn, decided 2026-10-10`. Rules marked **orchestrator default** follow from
-the purpose of the feature (no manipulation) and await the owner's review.
+the purpose of the feature (no manipulation). Waleed approved them on 2026-10-10 ("نعم"), and they are recorded as ACR-Q23.
+They are posted for the partner's review; per the owner's 2026-10-10 rule, a different pick by Abu Salem would win.
 
 | ID | Topic | Decision (Waleed, 2026-10-10) | Slice |
 |---|---|---|---|
