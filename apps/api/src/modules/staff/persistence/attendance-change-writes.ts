@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import {
   AttendanceChangeError,
   attendanceChangeRecipientGroups,
+  attendanceChangeRecipients,
   attendanceChangeNoticeText,
   type AttendanceChangePlan,
 } from '../domain/attendance-change-request.ts';
@@ -23,6 +24,7 @@ interface SaveContext {
   employee: { id: string; name_ar: string | null; name_en: string };
   now: Date;
   owner: boolean;
+  employeeUserId: string | null;
 }
 export async function saveAttendanceChange(
   tx: Tx,
@@ -112,6 +114,28 @@ async function audit(
     after: snapshot(after),
   });
 }
+async function eventRecipients(
+  tx: Tx,
+  actor: AttendanceChangeActor,
+  context: SaveContext,
+  row: AttendanceChangeRequest,
+) {
+  return row.status === 'PENDING'
+    ? attendanceChangeRecipients(
+        await attendanceChangeApprovers(
+          tx,
+          actor.companyId,
+          row.business_id,
+          row.branch_id,
+          context.now,
+        ),
+        actor.userId,
+        context.employeeUserId,
+      )
+    : row.requested_by === actor.userId
+      ? []
+      : [row.requested_by];
+}
 async function events(
   tx: Tx,
   ids: IdGenerator,
@@ -120,13 +144,7 @@ async function events(
   row: AttendanceChangeRequest,
 ) {
   const pending = row.status === 'PENDING';
-  const users = pending
-    ? (await attendanceChangeApprovers(tx, actor.companyId, context.now)).filter(
-        (id) => id !== actor.userId,
-      )
-    : row.requested_by === actor.userId
-      ? []
-      : [row.requested_by];
+  const users = await eventRecipients(tx, actor, context, row);
   const groups = attendanceChangeRecipientGroups(users);
   const facts = {
     request_id: row.id,

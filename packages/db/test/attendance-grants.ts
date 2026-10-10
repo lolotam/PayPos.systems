@@ -1,4 +1,7 @@
 // صلاحيات PR 22 المقصودة؛ لا حذف للحضور ولا إعادة كتابة لسياق التحدي.
+import type { Sql } from 'postgres';
+import { expect, it } from 'vitest';
+
 export const ATTENDANCE_TABLE_GRANTS = [
   'attendance_states:SELECT',
   'attendance_states:INSERT',
@@ -34,3 +37,14 @@ export const ATTENDANCE_CHANGE_COLUMN_GRANTS = [
   'session_id',
   'revision',
 ].map((column) => `attendance_change_requests.${column}:pospay_app:UPDATE`);
+
+export function testAttendanceDecisionPrivileges(database: () => Sql) {
+  it('attendance decision migration grants only the global owner default', async () => {
+    const owner = database();
+    const rows = await owner`SELECT r.code FROM role_permissions rp JOIN roles r
+      ON r.id=rp.role_id AND r.owner_key=rp.role_owner_key
+      WHERE rp.permission_code='decide:attendance-change:company'
+        AND rp.role_owner_key='global' AND rp.company_id IS NULL ORDER BY r.code`;
+    expect(rows.map((row) => row['code'])).toEqual(['owner']);
+  });
+}

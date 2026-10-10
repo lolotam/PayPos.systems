@@ -17,8 +17,13 @@ export const attendanceChangeAuthority = (
   branchId: string,
   now: Date,
 ) => readAttendanceChangeAccess(tx, companyId, userId, businessId, branchId, now);
-export const attendanceChangeApprovers = (tx: Tx, companyId: string, now: Date) =>
-  readAttendanceChangeApprovers(tx, companyId, now);
+export const attendanceChangeApprovers = (
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  branchId: string,
+  now: Date,
+) => readAttendanceChangeApprovers(tx, companyId, businessId, branchId, now);
 
 export function createAttendanceChangeReadAccess(clock: AttendanceChangeClock) {
   return {
@@ -39,10 +44,12 @@ export function createAttendanceChangeReadAccess(clock: AttendanceChangeClock) {
         business.branches.map((b) => b.id),
         clock.now(),
       );
-      if (!access.owner && !access.canRequest) return null;
+      if (!access.canDecide && !access.canRequest) return null;
       return {
         owner: access.owner,
-        branches: access.owner ? business.branches.map((b) => b.id) : access.branches,
+        canDecide: access.canDecide,
+        decideBranches: access.decideBranches,
+        branches: access.canDecide ? business.branches.map((b) => b.id) : access.branches,
       };
     },
   };

@@ -110,14 +110,14 @@ export function planChangeCancel(
   };
 }
 /**
- * يقرر المالك فقط نسخة معلقة، والرفض يحتاج سبباً بينما سبب الموافقة اختياري.
+ * يقرر حامل الصلاحية نسخة معلقة؛ غير المالك لا يقرر طلبه ولا حضوره، والرفض يحتاج سبباً.
  *
  * @param request الطلب المقفول
  * @param decision القرار والنسخة والسبب الاختياري
  * @param decision.decision الموافقة أو الرفض
  * @param decision.revision نسخة العميل
  * @param decision.reason سبب القرار الاختياري
- * @param context المالك واللحظة المعتمدة
+ * @param context الصلاحية وهوية المالك والموظف واللحظة المعتمدة بعد الأقفال
  * @returns خطة القرار دون تطبيق نوع التغيير
  */
 export function planChangeDecision(
@@ -127,9 +127,14 @@ export function planChangeDecision(
     revision: number;
     reason?: string | undefined;
   },
-  context: AttendanceChangeContext,
+  context: AttendanceChangeContext & { canDecide: boolean; employeeUserId: string | null },
 ): AttendanceChangePlan {
-  if (!context.owner) throw new AttendanceChangeError('NOT_FOUND');
+  if (!context.canDecide) throw new AttendanceChangeError('NOT_FOUND');
+  if (
+    !context.owner &&
+    (request.requested_by === context.userId || context.employeeUserId === context.userId)
+  )
+    throw new AttendanceChangeError('ATTENDANCE_CHANGE_SELF_FORBIDDEN');
   const revision = nextRevision(request, decision.revision);
   const reason = decision.reason === undefined ? null : attendanceChangeReason(decision.reason);
   if (decision.decision === 'REJECTED' && reason === null)
@@ -155,6 +160,24 @@ export function attendanceChangeRecipientGroups(users: readonly string[]): strin
   for (let offset = 0; offset < unique.length; offset += 100)
     groups.push(unique.slice(offset, offset + 100));
   return groups;
+}
+
+/**
+ * يستبعد طالب التعديل والموظف من إشعار الانتظار؛ المالك يقدر يقرر حضوره لذلك يظل مستلماً.
+ *
+ * @param approvers الحائزون الفعليون للصلاحية مع هوية المالك
+ * @param requesterId صاحب الطلب المستبعد دائماً
+ * @param employeeUserId حساب الموظف أو null
+ * @returns معرّفات المستلمين المسموح لهم بالقرار
+ */
+export function attendanceChangeRecipients(
+  approvers: readonly { userId: string; owner: boolean }[],
+  requesterId: string,
+  employeeUserId: string | null,
+): string[] {
+  return approvers
+    .filter((a) => a.userId !== requesterId && (a.owner || a.userId !== employeeUserId))
+    .map((a) => a.userId);
 }
 
 const unsafeDisplayName =

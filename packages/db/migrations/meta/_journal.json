@@ -792,6 +792,13 @@
       "when": 1791649441243,
       "tag": "0112_2026-10-10_attendance-change-requests-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1791656771195,
+      "tag": "0113_2026-10-10_attendance-change-decide-permission",
+      "breakpoints": true
     }
   ]
 }

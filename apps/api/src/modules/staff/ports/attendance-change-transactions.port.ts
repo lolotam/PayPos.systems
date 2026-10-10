@@ -26,6 +26,7 @@ export interface AttendanceChangeClock {
 export interface AttendanceChangeScope extends AttendanceChangeKindScope {
   owner: boolean;
   canRequest: boolean;
+  canDecide: boolean;
   employeeUserId: string | null;
   before: AttendanceChangeRequest | null;
   /**
@@ -70,9 +71,9 @@ export interface AttendanceChangeTransactions {
     work: (scope: AttendanceChangeScope) => Promise<AttendanceChangeRequest>,
   ): Promise<AttendanceChangeRequest>;
   /**
-   * يثبت هوية المالك ويقرر النسخة المقفولة داخل المعاملة.
+   * يثبت صلاحية القرار وهوية المالك والموظف ليمنع القرار الذاتي لغير المالك داخل المعاملة.
    *
-   * @param actor هوية المالك والمفتاح
+   * @param actor هوية صاحب القرار والمفتاح
    * @param clock الساعة المحقونة
    * @param work العمل داخل المعاملة
    */

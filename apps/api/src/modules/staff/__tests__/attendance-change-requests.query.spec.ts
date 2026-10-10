@@ -90,7 +90,12 @@ it('the HTTP list uses the same access policy and contract', async () => {
 it('EXPLAIN ANALYZE uses inbox and branch indexes for the owner inbox filters', async () => {
   await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
-    const access = { owner: true, branches: [f.branch, f.secondBranch] };
+    const access = {
+      owner: true,
+      canDecide: true,
+      decideBranches: [f.branch, f.secondBranch],
+      branches: [f.branch, f.secondBranch],
+    };
     for (const [query, index] of [
       [{ status: 'PENDING', limit: 50 }, 'attendance_change_requests_inbox_idx'],
       [

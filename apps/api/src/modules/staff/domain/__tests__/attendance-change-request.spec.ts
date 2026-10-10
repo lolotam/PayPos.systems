@@ -5,10 +5,18 @@ import {
   planChangeCancel,
   planChangeDecision,
   attendanceChangeRecipientGroups,
+  attendanceChangeRecipients,
   attendanceChangeNoticeText,
 } from '../attendance-change-request.ts';
 const now = new Date('2026-10-10T08:00:00Z');
-const context = { userId: 'manager', owner: false, canRequest: true, employeeUserId: null, now };
+const context = {
+  userId: 'manager',
+  owner: false,
+  canRequest: true,
+  canDecide: false,
+  employeeUserId: null,
+  now,
+};
 const pending = () => planChangeRequest({ reason: ' why ' }, context);
 it.each(['', ' ', 'x'.repeat(501)])('rejects an invalid reason', (reason) => {
   expect(() => attendanceChangeReason(reason)).toThrow('VALIDATION_FAILED');
@@ -36,7 +44,7 @@ it('checks authority before self and permits only the owner self path', () => {
   });
   expect(pending()).toMatchObject({ status: 'PENDING', reason: 'why', revision: 0 });
 });
-it('only the requester can withdraw and only owners decide', () => {
+it('only the requester can withdraw and only permission holders decide', () => {
   expect(() => planChangeCancel(pending(), { ...context, userId: 'other', revision: 7 })).toThrow(
     'NOT_FOUND',
   );
@@ -61,7 +69,7 @@ it.each(['APPROVED', 'REJECTED', 'CANCELLED'] as const)(
         planChangeDecision(
           row,
           { decision, revision: 7, reason: 'why' },
-          { ...context, owner: true },
+          { ...context, owner: true, canDecide: true },
         ),
       ).toThrow('ATTENDANCE_CHANGE_NOT_PENDING');
     }
@@ -77,13 +85,13 @@ it('rejects stale and exhausted revisions on all transitions', () => {
         planChangeDecision(
           row,
           { decision, revision: 7, reason: 'why' },
-          { ...context, owner: true },
+          { ...context, owner: true, canDecide: true },
         ),
       ).toThrow('ATTENDANCE_CHANGE_REVISION_CONFLICT');
   }
 });
 it('requires a rejection reason and allows an optional approval reason', () => {
-  const owner = { ...context, owner: true, userId: 'owner' };
+  const owner = { ...context, owner: true, canDecide: true, userId: 'owner' };
   expect(() => planChangeDecision(pending(), { decision: 'REJECTED', revision: 0 }, owner)).toThrow(
     'VALIDATION_FAILED',
   );
@@ -106,6 +114,24 @@ it('groups all distinct recipients into at most one hundred per event', () => {
   expect(groups.map((g) => g.length)).toEqual([100, 100, 1]);
   expect(groups.flat()).toEqual([...users].sort());
   expect(attendanceChangeRecipientGroups([])).toEqual([]);
+});
+
+it('notifies eligible approvers excluding the requester and non-owner employee', () => {
+  const approvers = [
+    { userId: 'requester', owner: true },
+    { userId: 'employee', owner: false },
+    { userId: 'delegate', owner: false },
+    { userId: 'owner', owner: true },
+  ];
+  expect(attendanceChangeRecipients(approvers, 'requester', 'employee')).toEqual([
+    'delegate',
+    'owner',
+  ]);
+  expect(attendanceChangeRecipients(approvers, 'requester', 'owner')).toEqual([
+    'employee',
+    'delegate',
+    'owner',
+  ]);
 });
 it('uses safe display fallbacks and preserves a decision notice when its reason is unsafe', () => {
   const fallback = { ar: 'موظف', en: 'Employee' };
@@ -146,7 +172,33 @@ it('refuses revision overflow even with a matching client revision', () => {
     planChangeDecision(
       row,
       { decision: 'APPROVED', revision: row.revision },
-      { ...context, owner: true },
+      { ...context, owner: true, canDecide: true },
     ),
   ).toThrow('ATTENDANCE_CHANGE_REVISION_CONFLICT');
 });
+
+it.each(['APPROVED', 'REJECTED'] as const)(
+  'delegated %s checks authority, self, then state',
+  (decision) => {
+    const terms = { decision, revision: 0, reason: 'reviewed' };
+    const delegate = { ...context, userId: 'delegate', canDecide: true };
+    expect(planChangeDecision(pending(), terms, delegate).decided_by).toBe('delegate');
+    for (const self of [
+      { ...delegate, userId: 'manager' },
+      { ...delegate, employeeUserId: 'delegate' },
+    ]) {
+      const terminal = { ...pending(), status: 'CANCELLED' as const };
+      expect(() => planChangeDecision(terminal, terms, self)).toThrow(
+        'ATTENDANCE_CHANGE_SELF_FORBIDDEN',
+      );
+      expect(() => planChangeDecision(terminal, terms, { ...self, canDecide: false })).toThrow(
+        'NOT_FOUND',
+      );
+      expect(planChangeDecision(pending(), terms, { ...self, owner: true }).status).toBe(decision);
+    }
+    expect(() =>
+      planChangeDecision(pending(), terms, { ...delegate, owner: true, canDecide: false }),
+    ).toThrow('NOT_FOUND');
+    expect(planChangeRequest({ reason: 'why' }, delegate).status).toBe('PENDING');
+  },
+);

@@ -13,7 +13,7 @@ import type {
   AttendanceChangeTransactions,
 } from '../../ports/attendance-change-transactions.port.ts';
 
-/** يقرر المالك الطلب ويعيد فحص النوع قبل تطبيقه؛ أي رفض يعيد المعاملة كلها. */
+/** يقرر حامل الصلاحية الطلب بعد منع القرار الذاتي لغير المالك ويعيد فحص النوع؛ أي رفض يعيد المعاملة كلها. */
 export class DecideAttendanceChangeUseCase {
   constructor(
     private readonly transactions: AttendanceChangeTransactions,

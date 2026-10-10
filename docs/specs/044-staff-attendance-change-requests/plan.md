@@ -74,7 +74,7 @@ Post-design re-check: unchanged, ✅. The kinds port has no production implement
 2. **Ports**:
    - `ports/attendance-change-transactions.port.ts` — `file`, `cancel`, `decide`: each runs `work(scope)` inside one
      tenant transaction after the locks, under `runIdempotent`, and gives the scope the locked facts (request row,
-     employee `user_id`, owner flag, `now`) and `save` callbacks.
+     employee `user_id`, owner flag, `canDecide`, `now`) and `save` callbacks.
    - `ports/attendance-change-kinds.port.ts` — `AttendanceChangeKinds.find(kind)` returns an
      `AttendanceChangeKind | null`. A kind exposes `target(input)` (employee + branch, read without locks, for the
      authority precheck), `check(scope)` (kind rules under locks; returns the values to store) and `apply(scope)`
@@ -96,11 +96,12 @@ Post-design re-check: unchanged, ✅. The kinds port has no production implement
 5. **Identity** (`identity/persistence/attendance-change-access.ts`, exported from `identity/index.ts`):
    - `readAttendanceChangeAccess(tx, companyId, userId, businessId, branchId, now)` → `{ canRequest, canDecide,
      owner }` — both permissions via `evaluateAccess`, owner via `canonicalOwnerSql` (every owner membership).
-   - `readAttendanceChangeApprovers(tx, companyId, businessId, branchId, now)` → distinct `user_id` of active members
-     for whom `decide:attendance-change:company` evaluates true there (owners always included).
+   - `readAttendanceChangeApprovers(tx, companyId, businessId, branchId, now)` → distinct, sorted `{ userId, owner }`
+     entries for active members for whom `decide:attendance-change:company` evaluates true there (owners always included).
 6. **Events and notices** (`events/published.ts`, staff `index.ts`, worker `known-event-types.ts`,
    `NOTIFICATION_SOURCE_EVENTS`, `docs/specs/worker/known-event-types.md`, `docs/module-map.md`):
-   - `AttendanceChangeRequested` (PENDING filed) — IN_APP to every owner except the requester, groups ≤ 100,
+   - `AttendanceChangeRequested` (PENDING filed) — IN_APP to every approver in scope except the requester and the
+     request's employee unless she is an owner (BR-006), groups ≤ 100,
      template `attendance_change_requested` rev 1, parameters `employee_name_ar`, `employee_name_en` (display names),
      `change` (enum `ADD_SESSION` | `VOID_SESSION`). Not emitted for the owner one-step (nobody to ask).
    - `AttendanceChangeDecided` (approve/reject) — IN_APP to the requester when the decider is someone else, template

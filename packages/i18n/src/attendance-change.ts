@@ -1,6 +1,7 @@
 export const attendanceChangeAr = {
   permissionCodes: {
     requestAttendanceChangeBranch: 'طلب تعديل حضور',
+    decideAttendanceChangeCompany: 'الموافقة على طلبات تعديل الحضور ورفضها',
   },
   inApp: {
     attendance_change_requested: 'طلب {{change}} لـ {{employee_name_ar}} مستني موافقتك',
@@ -12,7 +13,7 @@ export const attendanceChangeAr = {
     attendance_change_rejected: 'تم الرفض',
   },
   errors: {
-    ATTENDANCE_CHANGE_SELF_FORBIDDEN: 'ماينفعش تطلب تعديل حضورك بنفسك.',
+    ATTENDANCE_CHANGE_SELF_FORBIDDEN: 'ماينفعش تطلب أو تقرر تعديل حضورك، ولا تقرر طلب إنت قدمته.',
     ATTENDANCE_CHANGE_NOT_PENDING: 'الطلب لازم يكون مستني عشان يتقرر أو يتسحب.',
     ATTENDANCE_CHANGE_REVISION_CONFLICT: 'الطلب اتغيّر. حدّث الصفحة وحاول تاني.',
     ATTENDANCE_CHANGE_DUPLICATE_PENDING: 'فيه طلب مستني لنفس التغيير بالفعل.',
@@ -23,6 +24,7 @@ export const attendanceChangeAr = {
 export const attendanceChangeEn = {
   permissionCodes: {
     requestAttendanceChangeBranch: 'Request attendance change',
+    decideAttendanceChangeCompany: 'Approve or reject attendance change requests',
   },
   inApp: {
     attendance_change_requested:
@@ -35,7 +37,8 @@ export const attendanceChangeEn = {
     attendance_change_rejected: 'Rejected',
   },
   errors: {
-    ATTENDANCE_CHANGE_SELF_FORBIDDEN: 'You cannot request a change to your own attendance.',
+    ATTENDANCE_CHANGE_SELF_FORBIDDEN:
+      'You cannot request or decide a change to your own attendance, or decide a request you filed.',
     ATTENDANCE_CHANGE_NOT_PENDING:
       'Only pending attendance change requests can be decided or withdrawn.',
     ATTENDANCE_CHANGE_REVISION_CONFLICT: 'The request changed. Reload and try again.',

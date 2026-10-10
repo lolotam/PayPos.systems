@@ -16,7 +16,12 @@ export interface AttendanceChangeReadAccess {
   check(
     tx: Tx,
     context: AttendanceChangeReadContext,
-  ): Promise<{ owner: boolean; branches: string[] } | null>;
+  ): Promise<{
+    owner: boolean;
+    canDecide: boolean;
+    decideBranches: string[];
+    branches: string[];
+  } | null>;
 }
 const uuidArray = (ids: readonly string[]) =>
   sql`ARRAY[${sql.join(
@@ -26,7 +31,7 @@ const uuidArray = (ids: readonly string[]) =>
 export function attendanceChangePageStatement(
   context: AttendanceChangeReadContext,
   query: AttendanceChangeListQuery,
-  access: { owner: boolean; branches: string[] },
+  access: { owner: boolean; canDecide: boolean; decideBranches: string[]; branches: string[] },
 ) {
   const cursor =
     query.cursor === undefined
@@ -34,7 +39,7 @@ export function attendanceChangePageStatement(
       : attendanceChangeCursor.parse(
           JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')),
         );
-  // صندوق طلبات المالك وقائمة المدير يقرآن المجال المسموح قبل الترتيب والحد.
+  // صندوق حائز صلاحية القرار يعرض النشاط؛ زر القرار يراعي نطاق الفرع ومنع القرار الذاتي لغير المالك.
   return sql`SELECT jsonb_build_object('id',r.id,'business_id',r.business_id,'branch_id',r.branch_id,
     'kind',r.kind,'status',r.status,'employee',jsonb_build_object('id',e.id,'name_ar',e.name_ar,'name_en',e.name_en),
     'session_id',r.session_id,'session_revision',r.session_revision,'reason',r.reason,
@@ -42,11 +47,12 @@ export function attendanceChangePageStatement(
     'decided_by',r.decided_by,'decided_at',to_char(r.decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
     'decision_reason',r.decision_reason,'cancelled_by',r.cancelled_by,
     'cancelled_at',to_char(r.cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'revision',r.revision,'can_decide',${access.owner} AND r.status='PENDING',
+    'revision',r.revision,'can_decide',${access.canDecide} AND r.branch_id=ANY(${uuidArray(access.decideBranches)})
+      AND r.status='PENDING' AND (${access.owner} OR (r.requested_by<>${context.userId} AND e.user_id IS DISTINCT FROM ${context.userId})),
     'can_cancel',r.status='PENDING' AND r.requested_by=${context.userId}) AS record
     FROM attendance_change_requests r JOIN employees e ON e.company_id=r.company_id AND e.business_id=r.business_id AND e.id=r.employee_id
     WHERE r.company_id=${context.companyId} AND r.business_id=${context.businessId}
-    ${access.owner ? sql`` : sql`AND r.branch_id=ANY(${uuidArray(access.branches)})`}
+    ${access.canDecide ? sql`` : sql`AND r.branch_id=ANY(${uuidArray(access.branches)})`}
     ${query.status === undefined ? sql`` : sql`AND r.status=${query.status}`}
     ${query.branch_id === undefined ? sql`` : sql`AND r.branch_id=${query.branch_id}::uuid`}
     ${query.employee_id === undefined ? sql`` : sql`AND r.employee_id=${query.employee_id}::uuid`}

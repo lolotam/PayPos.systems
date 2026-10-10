@@ -2,6 +2,7 @@ import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
 import {
   ATTENDANCE_TABLE_GRANTS,
   ATTENDANCE_CHANGE_COLUMN_GRANTS,
+  testAttendanceDecisionPrivileges,
 } from '../../test/attendance-grants.ts';
 import { EMPLOYEE_COLUMN_GRANTS } from '../../test/employee-grants.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
@@ -384,6 +385,7 @@ describe('no application role can switch to another role', () => {
 });
 
 describe('effective access', () => {
+  testAttendanceDecisionPrivileges(() => owner);
   it('neither pospay_app nor pospay_dispatcher can reach a global-identity table', async () => {
     const rows = await withClusterRoleLock(
       'shared',

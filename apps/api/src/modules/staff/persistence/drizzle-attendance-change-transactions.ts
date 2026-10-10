@@ -33,11 +33,11 @@ type Work = (scope: AttendanceChangeScope) => Promise<AttendanceChangeRequest>;
 function assertAuthority(
   action: Action,
   actor: AttendanceChangeActor,
-  access: { owner: boolean; canRequest: boolean },
+  access: { owner: boolean; canRequest: boolean; canDecide: boolean },
   before: AttendanceChangeRequest | null,
 ) {
   if (
-    (action === 'decide' && !access.owner) ||
+    (action === 'decide' && !access.canDecide) ||
     (action === 'file' && !access.canRequest) ||
     (action === 'cancel' &&
       (before?.requested_by !== actor.userId || (!access.owner && !access.canRequest)))
@@ -101,6 +101,7 @@ async function load(
     now,
     owner: access.owner,
     canRequest: access.canRequest,
+    canDecide: access.canDecide,
   };
 }
 function inputFrom(row: AttendanceChangeRequest): AttendanceChangeKindInput {
