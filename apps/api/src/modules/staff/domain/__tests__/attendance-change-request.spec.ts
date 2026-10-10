@@ -154,6 +154,13 @@ it('uses safe display fallbacks and preserves a decision notice when its reason 
     '+96512345678',
     'token',
     '1234',
+    '96512345678',
+    '+965 1234 5678',
+    '965-1234-5678',
+    'كلمها على ٩٦٥١٢٣٤٥٦٧٨',
+    'رقمها ۹۶۵۱۲۳۴۵۶۷۸',
+    '٩٦٥ ١٢٣٤ ٥٦٧٨',
+    'الكود ١٢٣٤',
   ]) {
     expect(
       attendanceChangeNoticeText({ name_ar: null, name_en: 'Laila' }, fallback, reason),
@@ -162,6 +169,15 @@ it('uses safe display fallbacks and preserves a decision notice when its reason 
   expect(
     attendanceChangeNoticeText({ name_ar: ' ليلى ', name_en: 'Laila' }, fallback, 'x'.repeat(255)),
   ).toEqual({ employee_name_ar: 'ليلى', employee_name_en: 'Laila', reason: 'x'.repeat(255) });
+  for (const reason of ['شيفت 3', 'شيفت ٣', 'اتأخرت 10 دقايق']) {
+    expect(
+      attendanceChangeNoticeText({ name_ar: null, name_en: 'Laila' }, fallback, reason).reason,
+    ).toBe(reason);
+  }
+  expect(
+    attendanceChangeNoticeText({ name_ar: 'ليلى ٩٦٥١٢٣٤٥٦٧٨', name_en: 'Laila' }, fallback, null)
+      .employee_name_ar,
+  ).toBe('Laila');
 });
 it('refuses revision overflow even with a matching client revision', () => {
   const row = { ...pending(), revision: 2147483647 };
