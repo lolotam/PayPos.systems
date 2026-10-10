@@ -159,6 +159,10 @@ export const ar: Catalog = {
       'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
   },
   errors: {
+    ATTENDANCE_MANUAL_INVALID_TIMES: 'أوقات اليوم اليدوي مش صحيحة: الخروج لازم بعد الدخول، مش في المستقبل، ١٦ ساعة بالكتير، ومن غير تداخل مع حضور تاني',
+    ATTENDANCE_MANUAL_NOT_ELIGIBLE: 'الموظفة مش مرتبطة بالفرع ده في اليوم ده أو اليوم برّه عقدها',
+    ATTENDANCE_CORRECTION_MANUAL_SESSION: 'اليوم اليدوي مايتصححش؛ اطلب إلغاءه وإضافة يوم جديد',
+
     ...attendanceChangeAr.errors,
     ATTENDANCE_DEVICE_LOCKED:
       'هذا الهاتف مسجّل لموظف آخر. سجّل الحضور من هاتفك أو بالبطاقة عند الاستقبال.',

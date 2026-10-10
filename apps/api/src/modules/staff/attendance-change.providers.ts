@@ -1,3 +1,4 @@
+import { createAddSessionKind } from './persistence/add-session-kind.ts';
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
@@ -19,7 +20,10 @@ export function attendanceChangeProviders(
 ): Provider[] {
   const tx = database === undefined ? null : createAttendanceChangeTransactions(database, ids);
   return [
-    { provide: ATTENDANCE_CHANGE_KINDS, useValue: createAttendanceChangeKinds([]) },
+    {
+      provide: ATTENDANCE_CHANGE_KINDS,
+      useValue: createAttendanceChangeKinds([createAddSessionKind(ids)]),
+    },
     {
       provide: ATTENDANCE_CHANGE_READ_ACCESS,
       useValue: createAttendanceChangeReadAccess(systemClock),

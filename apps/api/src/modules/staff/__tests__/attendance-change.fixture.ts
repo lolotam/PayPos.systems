@@ -9,6 +9,7 @@ import type {
 import { ATTENDANCE_CHANGE_KINDS } from '../ports/attendance-change-kinds.port.ts';
 import { AttendanceChangeError } from '../domain/attendance-change-request.ts';
 import { createAttendanceChangeKinds } from '../persistence/attendance-change-kinds.ts';
+import { createAddSessionKind } from '../persistence/add-session-kind.ts';
 import { createAttendanceChangeTransactions } from '../persistence/drizzle-attendance-change-transactions.ts';
 import { RequestAttendanceChangeUseCase } from '../use-cases/request-attendance-change/request-attendance-change.usecase.ts';
 import { CancelAttendanceChangeUseCase } from '../use-cases/cancel-attendance-change/cancel-attendance-change.usecase.ts';
@@ -38,9 +39,11 @@ vi.mock('../staff.module.ts', async (original) => {
 export async function attendanceChangeFixture(production = false) {
   const control = { refuse: false, failAfterEffect: false };
   const kinds = createAttendanceChangeKinds(
-    ['ADD_SESSION', 'VOID_SESSION'].map((code) =>
-      testKind(code as AttendanceChangeKind['code'], control),
-    ),
+    production
+      ? [createAddSessionKind(leaveIds)]
+      : ['ADD_SESSION', 'VOID_SESSION'].map((code) =>
+          testKind(code as AttendanceChangeKind['code'], control),
+        ),
   );
   override.current = production ? null : kinds;
   const f = await attendanceCorrectionFixture();
@@ -70,6 +73,9 @@ export const changeActor = (f: ChangeFixture, requestId?: string, userId = f.app
 export const changeInput = (f: ChangeFixture) => ({
   kind: 'ADD_SESSION' as const,
   employee_id: f.employee.id,
+  branch_id: f.branch,
+  clock_in: '2026-10-03T07:00:00.000Z',
+  clock_out: '2026-10-03T16:00:00.000Z',
   reason: '  missing attendance  ',
 });
 export const changeAudits = (f: ChangeFixture, id: string) =>
@@ -98,6 +104,16 @@ function testKind(
     check: async (scope) => {
       if (control.refuse) throw new AttendanceChangeError('VALIDATION_FAILED');
       return {
+        ...(code === 'ADD_SESSION'
+          ? {
+              manual: {
+                clock_in: scope.input.clock_in ?? '',
+                clock_out: scope.input.clock_out ?? '',
+                working_date: '2026-10-03',
+                timezone: 'Asia/Kuwait',
+              },
+            }
+          : {}),
         session_id: scope.input.session_id ?? null,
         session_revision: scope.input.session_revision ?? null,
       };

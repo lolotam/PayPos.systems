@@ -18,6 +18,7 @@ import type { AttendanceChangeActor } from '../ports/attendance-change-transacti
 import { attendanceChangeApprovers } from './attendance-change-context.adapter.ts';
 
 interface SaveContext {
+  requestId: string;
   before: AttendanceChangeRequest | null;
   target: AttendanceChangeTarget;
   input: AttendanceChangeKindInput;
@@ -34,11 +35,12 @@ export async function saveAttendanceChange(
   plan: AttendanceChangePlan,
   values: AttendanceChangeKindValues,
 ): Promise<AttendanceChangeRequest> {
-  const id = context.before?.id ?? ids.newId();
+  const id = context.requestId;
   if (context.before) await update(tx, actor, context.before, plan, values);
   else await insert(tx, actor, id, context, plan, values);
   const row: AttendanceChangeRequest = {
     ...plan,
+    requested: context.before ? context.before.requested : (values.manual ?? null),
     session_id: values.session_id,
     session_revision: context.before ? context.before.session_revision : values.session_revision,
     id,
@@ -68,9 +70,9 @@ async function insert(
   v: AttendanceChangeKindValues,
 ) {
   await tx.execute(sql`INSERT INTO attendance_change_requests(company_id,id,business_id,branch_id,employee_id,kind,status,
-    session_id,session_revision,reason,requested_by,requested_at,decided_by,decided_at,decision_reason,cancelled_by,cancelled_at,revision)
+    session_id,session_revision,reason,requested_by,requested_at,decided_by,decided_at,decision_reason,cancelled_by,cancelled_at,revision,clock_in,clock_out,working_date,timezone)
     VALUES(${actor.companyId},${id},${actor.businessId},${context.target.branch_id},${context.target.employee_id},${context.input.kind},${p.status},
-      ${v.session_id},${v.session_revision},${p.reason},${p.requested_by},${p.requested_at},${p.decided_by},${p.decided_at},${p.decision_reason},${p.cancelled_by},${p.cancelled_at},${p.revision})`);
+      ${v.session_id},${v.session_revision},${p.reason},${p.requested_by},${p.requested_at},${p.decided_by},${p.decided_at},${p.decision_reason},${p.cancelled_by},${p.cancelled_at},${p.revision},${v.manual?.clock_in ?? null},${v.manual?.clock_out ?? null},${v.manual?.working_date ?? null},${v.manual?.timezone ?? null})`);
 }
 async function update(
   tx: Tx,

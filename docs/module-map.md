@@ -258,6 +258,7 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/manual-session-context.adapter.ts
   - staff -> identity.lockAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
   - staff -> identity.readAttendanceChangeAccess @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
   - staff -> identity.readAttendanceChangeApprovers @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts

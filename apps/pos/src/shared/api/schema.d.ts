@@ -1997,14 +1997,17 @@ export interface components {
             }[];
         };
         AttendanceChangeRequestInput: {
-            /** Format: uuid */
-            employee_id: string;
-            reason: string;
-            /** Format: uuid */
-            session_id?: string;
-            session_revision?: number;
             /** @enum {string} */
             kind: "ADD_SESSION";
+            /** Format: uuid */
+            employee_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: date-time */
+            clock_in: string;
+            /** Format: date-time */
+            clock_out: string;
+            reason: string;
         } | {
             /** Format: uuid */
             employee_id: string;
@@ -2062,6 +2065,15 @@ export interface components {
             /** Format: uuid */
             session_id: string | null;
             session_revision: number | null;
+            requested: {
+                /** Format: date-time */
+                clock_in: string;
+                /** Format: date-time */
+                clock_out: string;
+                /** Format: date */
+                working_date: string;
+                timezone: string;
+            } | null;
             reason: string;
             /** Format: uuid */
             requested_by: string;
@@ -2100,6 +2112,15 @@ export interface components {
             /** Format: uuid */
             session_id: string | null;
             session_revision: number | null;
+            requested: {
+                /** Format: date-time */
+                clock_in: string;
+                /** Format: date-time */
+                clock_out: string;
+                /** Format: date */
+                working_date: string;
+                timezone: string;
+            } | null;
             reason: string;
             /** Format: uuid */
             requested_by: string;

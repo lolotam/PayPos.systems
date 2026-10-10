@@ -799,6 +799,20 @@
       "when": 1791656771195,
       "tag": "0113_2026-10-10_attendance-change-decide-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1791656771196,
+      "tag": "0114_2026-10-10_manual-attendance-session",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1791656771197,
+      "tag": "0115_2026-10-10_manual-attendance-session-validate",
+      "breakpoints": true
     }
   ]
 }

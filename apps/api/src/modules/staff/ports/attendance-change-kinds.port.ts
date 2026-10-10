@@ -1,12 +1,19 @@
+import type { ManualSessionPlan } from '../domain/manual-attendance-session.ts';
 import type { AttendanceChangePlan } from '../domain/attendance-change-request.ts';
 
 /** الأنواع تتوسع في شرائح التطبيق التالية دون تغيير دورة الطلب. */
 export type AttendanceChangeKindCode = 'ADD_SESSION' | 'VOID_SESSION';
-/** مغلف النوع قبل إضافة حقول الإضافة والإلغاء في شريحتيهما. */
+/** مغلف النوع يحمل أوقات وفرع الإضافة أو جلسة الإلغاء. */
 export interface AttendanceChangeKindInput {
   kind: AttendanceChangeKindCode;
   employee_id: string;
   reason: string;
+  /** فرع اليوم اليدوي لفحص الأهلية التاريخية. */
+  branch_id?: string | undefined;
+  /** بداية اليوم اليدوي كوقت مطلق. */
+  clock_in?: string | undefined;
+  /** نهاية اليوم اليدوي المطلوبة بلا استراحات. */
+  clock_out?: string | undefined;
   session_id?: string | undefined;
   session_revision?: number | undefined;
 }
@@ -17,6 +24,8 @@ export interface AttendanceChangeTarget {
 }
 /** قدرة معاملة معتمة؛ محول النوع وحده يفسرها داخل طبقة التخزين. */
 export interface AttendanceChangeKindScope {
+  /** معرّف يولّد قبل التطبيق لربط الجلسة بطلب المالك المباشر. */
+  requestId: string;
   transaction: unknown;
   companyId: string;
   businessId: string;
@@ -28,6 +37,10 @@ export interface AttendanceChangeKindScope {
 }
 /** حقائق الجلسة التي يثبتها النوع بعد فحصه. */
 export interface AttendanceChangeKindValues {
+  /** القيم المثبتة وقت تقديم الطلب. */
+  manual?: { clock_in: string; clock_out: string; working_date: string; timezone: string };
+  /** لقطة الوردية والتأخير المحسوبة تحت القفل للتطبيق. */
+  manualPlan?: ManualSessionPlan;
   session_id: string | null;
   session_revision: number | null;
 }
@@ -59,7 +72,7 @@ export interface AttendanceChangeKind {
     values: AttendanceChangeKindValues,
   ): Promise<AttendanceChangeKindValues>;
 }
-/** السجل الفارغ يمنع انتظار طلب لنوع لم تصل شريحته بعد. */
+/** السجل يمنع انتظار طلب لنوع لم تصل شريحته بعد. */
 export interface AttendanceChangeKinds {
   /**
    * يعيد مخطط النوع أو غيابه لرفض الطلب قبل أي كتابة.

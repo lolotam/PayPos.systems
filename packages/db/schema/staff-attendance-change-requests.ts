@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -33,6 +34,11 @@ export const attendanceChangeRequests = pgTable(
     sessionId: uuid('session_id'),
     // نسخة جلسة الإلغاء التي شاهدها مقدم الطلب.
     sessionRevision: integer('session_revision'),
+    clockIn: timestamp('clock_in', { withTimezone: true }),
+    clockOut: timestamp('clock_out', { withTimezone: true }),
+    // تاريخ الدخول المحلي المثبت وقت الطلب للمراجعة عند الموافقة.
+    workingDate: date('working_date'),
+    timezone: text('timezone'),
     reason: text('reason').notNull(),
     requestedBy: uuid('requested_by')
       .notNull()
@@ -84,6 +90,17 @@ export const attendanceChangeRequests = pgTable(
     uniqueIndex('attendance_change_requests_one_pending_void')
       .on(t.companyId, t.sessionId)
       .where(sql`${t.status} = 'PENDING' AND ${t.kind} = 'VOID_SESSION'`),
+    index('attendance_change_requests_pending_add_idx')
+      .on(t.companyId, t.employeeId)
+      .where(sql`${t.kind} = 'ADD_SESSION' AND ${t.status} = 'PENDING'`),
+    check(
+      'attendance_change_requests_add_values',
+      sql`${t.kind} <> 'ADD_SESSION' OR (${t.clockIn} IS NOT NULL AND ${t.clockOut} IS NOT NULL AND ${t.workingDate} IS NOT NULL AND ${t.timezone} IS NOT NULL AND ${t.clockOut} > ${t.clockIn} AND ${t.sessionRevision} IS NULL)`,
+    ),
+    check(
+      'attendance_change_requests_add_only',
+      sql`${t.kind} = 'ADD_SESSION' OR (${t.clockIn} IS NULL AND ${t.clockOut} IS NULL AND ${t.workingDate} IS NULL AND ${t.timezone} IS NULL)`,
+    ),
     ...changeChecks(t),
   ],
 );

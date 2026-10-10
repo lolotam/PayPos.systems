@@ -42,7 +42,11 @@ export function attendanceChangePageStatement(
   // صندوق حائز صلاحية القرار يعرض النشاط؛ زر القرار يراعي نطاق الفرع ومنع القرار الذاتي لغير المالك.
   return sql`SELECT jsonb_build_object('id',r.id,'business_id',r.business_id,'branch_id',r.branch_id,
     'kind',r.kind,'status',r.status,'employee',jsonb_build_object('id',e.id,'name_ar',e.name_ar,'name_en',e.name_en),
-    'session_id',r.session_id,'session_revision',r.session_revision,'reason',r.reason,
+    'requested',CASE WHEN r.kind='ADD_SESSION' THEN jsonb_build_object(
+        'clock_in',to_char(r.clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'clock_out',to_char(r.clock_out AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'working_date',r.working_date::text,'timezone',r.timezone) ELSE NULL END,
+      'session_id',r.session_id,'session_revision',r.session_revision,'reason',r.reason,
     'requested_by',r.requested_by,'requested_at',to_char(r.requested_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
     'decided_by',r.decided_by,'decided_at',to_char(r.decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
     'decision_reason',r.decision_reason,'cancelled_by',r.cancelled_by,

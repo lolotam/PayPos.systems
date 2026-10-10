@@ -39,7 +39,7 @@ export async function lockedCorrectionSession(
     SELECT id, employee_id, branch_id, working_date::text AS working_date, timezone,
       ${sql.raw(stamp('clock_in'))} AS clock_in,
       ${sql.raw(stamp('clock_out'))} AS clock_out,
-      status, closed_by, late_minutes, revision,
+      source, status, closed_by, late_minutes, revision,
       ${sql.raw(stamp('scheduled_start'))} AS scheduled_start
     FROM attendance_sessions
     WHERE company_id=${actor.companyId} AND id=${actor.sessionId} AND business_id=${actor.businessId}

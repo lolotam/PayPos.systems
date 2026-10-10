@@ -14,7 +14,14 @@ const envelope = {
 };
 export const attendanceChangeRequestInput = z
   .discriminatedUnion('kind', [
-    z.strictObject({ ...envelope, kind: z.literal('ADD_SESSION') }),
+    z.strictObject({
+      kind: z.literal('ADD_SESSION'),
+      employee_id: id,
+      branch_id: id,
+      clock_in: timestamp,
+      clock_out: timestamp,
+      reason,
+    }),
     z.strictObject({ ...envelope, kind: z.literal('VOID_SESSION') }),
   ])
   .meta({ id: 'AttendanceChangeRequestInput' });
@@ -48,6 +55,14 @@ export const attendanceChangeRequest = z
     employee: z.strictObject({ id, name_ar: z.string().nullable(), name_en: z.string() }),
     session_id: id.nullable(),
     session_revision: revision.nullable(),
+    requested: z
+      .strictObject({
+        clock_in: timestamp,
+        clock_out: timestamp,
+        working_date: z.iso.date(),
+        timezone: z.string(),
+      })
+      .nullable(),
     reason: z.string(),
     requested_by: id,
     requested_at: timestamp,

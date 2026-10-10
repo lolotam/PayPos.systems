@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   type AnyPgColumn,
+  type PgTableExtraConfigValue,
   date,
   doublePrecision,
   foreignKey,
@@ -20,6 +21,7 @@ import { employees } from './staff.ts';
 import { employeePasskeys } from './staff-passkeys.ts';
 import { devices } from './identity-devices.ts';
 import { user } from './identity-auth.ts';
+import { attendanceChangeRequests } from './staff-attendance-change-requests.ts';
 
 export const attendanceStates = pgTable(
   'attendance_states',
@@ -67,6 +69,8 @@ export const attendanceSessions = pgTable(
     status: text('status').notNull(),
     source: text('source').notNull(),
     closedBy: text('closed_by'),
+    // الطلب الموافق عليه الذي أنشأ اليوم اليدوي.
+    changeRequestId: uuid('change_request_id'),
     bindingId: uuid('binding_id'),
     bindingRevision: integer('binding_revision'),
     outBindingId: uuid('out_binding_id'),
@@ -92,7 +96,7 @@ export const attendanceSessions = pgTable(
     // عدّاد عادي يزيد مع كل كتابة تغيّر الجلسة حتى يتعارض الطلب القديم. إلغاء 26c يزيده أيضاً.
     revision: integer('revision').notNull().default(0),
   },
-  (t) => [
+  (t): PgTableExtraConfigValue[] => [
     primaryKey({ columns: [t.companyId, t.id] }),
     foreignKey({
       columns: [t.companyId, t.businessId, t.employeeId],
@@ -118,6 +122,20 @@ export const attendanceSessions = pgTable(
       columns: [t.companyId, t.outDeviceId],
       foreignColumns: [devices.companyId, devices.id],
     }),
+    foreignKey({
+      name: 'attendance_sessions_change_request_fk',
+      columns: [t.companyId, t.changeRequestId],
+      foreignColumns: [attendanceChangeRequests.companyId, attendanceChangeRequests.id],
+    }),
+    index('attendance_sessions_change_request_idx').on(t.companyId, t.changeRequestId),
+    check(
+      'attendance_sessions_manual_link',
+      sql`(${t.source} = 'MANUAL') = (${t.changeRequestId} IS NOT NULL)`,
+    ),
+    check(
+      'attendance_sessions_manual_shape',
+      sql`(${t.closedBy} <> 'MANUAL' OR ${t.source} = 'MANUAL') AND (${t.source} <> 'MANUAL' OR (${t.status} = 'CLOSED' AND ${t.closedBy} IS NOT NULL AND ${t.closedBy} = 'MANUAL' AND ${t.clockOut} IS NOT NULL AND ${t.bindingId} IS NULL AND ${t.outBindingId} IS NULL AND ${t.deviceId} IS NULL AND ${t.outDeviceId} IS NULL AND ${t.operatorId} IS NULL AND ${t.outOperatorId} IS NULL AND ${t.qrWindow} IS NULL AND ${t.outQrWindow} IS NULL AND ${t.latitude} IS NULL AND ${t.longitude} IS NULL AND ${t.accuracy} IS NULL AND ${t.outLatitude} IS NULL AND ${t.outLongitude} IS NULL AND ${t.outAccuracy} IS NULL AND ${t.geo} = 'NONE' AND (${t.outGeo} IS NULL OR ${t.outGeo} = 'NONE')))`,
+    ),
     uniqueIndex('attendance_sessions_one_open')
       .on(t.companyId, t.employeeId)
       .where(sql`${t.status} = 'OPEN'`),
@@ -359,10 +377,10 @@ function attendanceSessionChecks(
 ) {
   return [
     check('attendance_sessions_status', sql`${t.status} IN ('OPEN','CLOSED','MISSED_OUT')`),
-    check('attendance_sessions_source', sql`${t.source} IN ('QR','BARCODE')`),
+    check('attendance_sessions_source', sql`${t.source} IN ('QR','BARCODE','MANUAL')`),
     check(
       'attendance_sessions_close_pair',
-      sql`(${t.status} = 'OPEN' AND ${t.clockOut} IS NULL AND ${t.closedBy} IS NULL) OR (${t.status} <> 'OPEN' AND ${t.clockOut} >= ${t.clockIn} AND ${t.closedBy} IN ('EMPLOYEE','MISSED_OUT'))`,
+      sql`(${t.status} = 'OPEN' AND ${t.clockOut} IS NULL AND ${t.closedBy} IS NULL) OR (${t.status} <> 'OPEN' AND ${t.clockOut} >= ${t.clockIn} AND ${t.closedBy} IN ('EMPLOYEE','MISSED_OUT','MANUAL'))`,
     ),
     check('attendance_sessions_lateness', sql`${t.lateMinutes} >= 0`),
     check('attendance_sessions_revision', sql`${t.revision} >= 0`),

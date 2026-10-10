@@ -157,13 +157,14 @@ export const en = {
       '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
   },
   errors: {
+    ATTENDANCE_MANUAL_INVALID_TIMES: 'Manual attendance times must end after they start, not be in the future, last at most 16 hours, and not overlap another session.',
+    ATTENDANCE_MANUAL_NOT_ELIGIBLE: 'The employee is not attached to this branch on that date or the date is outside her contract.',
+    ATTENDANCE_CORRECTION_MANUAL_SESSION: 'A manual session cannot be corrected; request a void and a new session.',
+
     ...attendanceChangeEn.errors,
-    ATTENDANCE_DEVICE_LOCKED:
-      'This phone is registered to another employee. Clock in from your own phone or with the card at reception.',
-    ATTENDANCE_DEVICE_NOT_ENROLLED:
-      'Your passkey is registered on another phone. Clock in from that phone or with the card at reception. If you changed phones, ask your manager to unbind it.',
-    PASSKEY_DEVICE_TAKEN:
-      'This phone is registered to another employee, so your passkey cannot be enrolled on it. Enrol from your own phone; until then, use the card at reception.',
+    ATTENDANCE_DEVICE_LOCKED: 'This phone is registered to another employee. Clock in from your own phone or with the card at reception.',
+    ATTENDANCE_DEVICE_NOT_ENROLLED: 'Your passkey is registered on another phone. Clock in from that phone or with the card at reception. If you changed phones, ask your manager to unbind it.',
+    PASSKEY_DEVICE_TAKEN: 'This phone is registered to another employee, so your passkey cannot be enrolled on it. Enrol from your own phone; until then, use the card at reception.',
     PASSKEY_OTHER_DEVICE:
       'You already have a passkey on another phone. Enrol from that phone, or ask your manager to unbind it if you changed phones.',
     ...employeeIbanErrorsEn,
