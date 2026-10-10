@@ -4,6 +4,9 @@ import {
   changedPatternDays,
   changedScheduleDays,
   validateMaxShiftsPerDay,
+  effectiveMaxShiftsPerDay,
+  scheduleSettingsSource,
+  templateMaxShiftsPerDay,
 } from '../schedule-settings.ts';
 import {
   materializeSchedule,
@@ -17,6 +20,20 @@ const pattern = Array.from({ length: 4 }, (_, i) => ({
   end: `0${i * 2 + 1}:00`,
 }));
 const concrete = () => materializeSchedule('2026-10-03', pattern, 'Asia/Kuwait', 4);
+it.each([
+  [4, 3, 4, 'branch'],
+  [null, 2, 2, 'business'],
+  [null, null, 3, 'default'],
+] as const)('resolves branch %s over business %s', (branch, business, value, source) => {
+  expect(effectiveMaxShiftsPerDay(branch, business)).toBe(value);
+  expect(scheduleSettingsSource(branch, business)).toBe(source);
+});
+it('uses the largest active branch value, with business/default fallback only without branches', () => {
+  expect(templateMaxShiftsPerDay([2, 4], 3)).toBe(4);
+  expect(templateMaxShiftsPerDay([2, 2], 4)).toBe(2);
+  expect(templateMaxShiftsPerDay([], 2)).toBe(2);
+  expect(templateMaxShiftsPerDay([], null)).toBe(3);
+});
 it('defaults to three and accepts the four integer settings', () => {
   expect(DEFAULT_MAX_SHIFTS_PER_DAY).toBe(3);
   for (const value of [1, 2, 3, 4]) expect(() => validateMaxShiftsPerDay(value)).not.toThrow();

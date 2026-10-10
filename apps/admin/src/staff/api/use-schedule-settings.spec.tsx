@@ -2,9 +2,15 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import { useScheduleSettings, useSetScheduleSettings } from './use-schedule-settings';
+import {
+  useScheduleSettings,
+  useSetScheduleSettings,
+  useSetBranchScheduleSettings,
+  useClearBranchScheduleSettings,
+  useScheduleWorkspaceBranches,
+} from './use-schedule-settings';
 
-const api = vi.hoisted(() => ({ GET: vi.fn(), PUT: vi.fn() }));
+const api = vi.hoisted(() => ({ GET: vi.fn(), PUT: vi.fn(), DELETE: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 const id = '01920000-0000-7000-8000-000000000101';
 const other = '01920000-0000-7000-8000-000000000102';
@@ -40,6 +46,46 @@ it('isolates settings reads by company, business and user and preserves forbidde
   expect(hook.result.current.data).toBeUndefined();
   expect(client.getQueryData(['schedule-settings', id, id, id])).toEqual(data);
   expect(api.GET).toHaveBeenCalledTimes(2);
+});
+it.each(['PUT', 'DELETE'] as const)(
+  'uses the branch %s route and invalidates settings, grid and templates',
+  async (method) => {
+    const branch = { branch_id: id, max_shifts_per_day: 4, source: 'branch', updated_at: null };
+    api[method].mockReset().mockResolvedValue({ data: branch });
+    const { client, wrapper } = setup();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const hook = renderHook(
+      () => ({
+        set: useSetBranchScheduleSettings(scope),
+        clear: useClearBranchScheduleSettings(scope),
+      }),
+      { wrapper },
+    );
+    await act(async () => {
+      if (method === 'PUT') await hook.result.current.set.mutateAsync({ max_shifts_per_day: 4 });
+      else await hook.result.current.clear.mutateAsync();
+    });
+    expect(api[method]).toHaveBeenCalledWith(
+      '/v1/businesses/{businessId}/branches/{branchId}/schedule-settings',
+      expect.objectContaining({
+        params: { header: { 'x-company-id': id }, path: { businessId: id, branchId: id } },
+      }),
+    );
+    expect(invalidate.mock.calls).toEqual([
+      [{ queryKey: ['schedule-settings', id, id, id] }],
+      [{ queryKey: ['schedules', id, id] }],
+      [{ queryKey: ['shift-templates', id, id] }],
+    ]);
+  },
+);
+it('reuses cached workspace names for the selected business', () => {
+  const { client, wrapper } = setup();
+  const branches = [{ id, name_en: 'Synthetic branch', name_ar: null }];
+  client.setQueryData(['me', 'workspaces'], {
+    companies: [{ id, businesses: [{ id, branches }] }],
+  });
+  const hook = renderHook(() => useScheduleWorkspaceBranches(scope), { wrapper });
+  expect(hook.result.current).toEqual(branches);
 });
 it('refreshes all affected schedule/template pages in the saved business after a scope change', async () => {
   let resolve!: (value: { data: typeof data }) => void;

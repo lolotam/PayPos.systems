@@ -36,6 +36,37 @@ const employee: SchedulingEmployee = {
   attachments: [{ branch_id: 'branch', from: '2026-01-01', to: null }],
 };
 
+it('counts only the saving branch but checks overlap against every branch', () => {
+  const otherBranch = [...shifts(0, '01:00', '02:00'), ...shifts(0, '03:00', '04:00')].map((s) => ({
+    ...s,
+    branch_id: 'hawalli',
+  }));
+  const own = shifts(0, '05:00', '06:00');
+  expect(() => validateScheduleOverlap(own, otherBranch, 2, undefined, 'salmiya')).not.toThrow();
+  expect(() => validateScheduleOverlap(own, otherBranch, 2)).toThrow('SCHEDULE_DAY_LIMIT_EXCEEDED');
+  expect(() =>
+    validateScheduleOverlap(
+      own,
+      otherBranch.map((s) => ({ ...s, branch_id: 'salmiya' })),
+      2,
+      undefined,
+      'salmiya',
+    ),
+  ).toThrow(expect.objectContaining({ details: { max_shifts_per_day: 2, working_dates: [week] } }));
+  expect(() =>
+    validateScheduleOverlap(shifts(0, '01:30', '02:30'), otherBranch, 2, undefined, 'salmiya'),
+  ).toThrow('SCHEDULE_SHIFT_OVERLAP');
+  expect(() =>
+    validateScheduleOverlap(
+      [...own, ...shifts(0, '07:00', '08:00'), ...shifts(0, '09:00', '10:00')],
+      [],
+      2,
+      [],
+      'salmiya',
+    ),
+  ).not.toThrow();
+});
+
 it.each([
   ['09:00', '17:00', '13:00', '14:00', true],
   ['09:00', '17:00', '16:30', '17:30', false],

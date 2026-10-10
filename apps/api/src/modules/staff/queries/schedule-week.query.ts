@@ -13,7 +13,7 @@ export interface ScheduleReadAccess {
     businessId: string,
     branchId: string | null,
     week?: string,
-  ): Promise<{ timezone: string } | ScheduleReadFailure>;
+  ): Promise<{ timezone: string; branchIds?: string[] } | ScheduleReadFailure>;
 }
 // ورديات شبكة الفرع تخرج كـ DTO واحد دون قراءة راتب أو ورديات فرع آخر.
 export const scheduleProjection = sql`jsonb_build_object('id',s.id,'business_id',s.business_id,'branch_id',s.branch_id,'employee_id',s.employee_id,
@@ -44,7 +44,8 @@ export function branchScheduleStatement(
         AND (eb."to" IS NULL OR eb."to" > GREATEST(${query.week_start}::date,e.hire_date)))
     ORDER BY e.id LIMIT ${query.limit + 1}) SELECT
     (SELECT array_agg(to_char(${query.week_start}::date + n,'YYYY-MM-DD') ORDER BY n) FROM generate_series(0,6) AS n) AS days,
-    COALESCE((SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}),3) AS max_shifts_per_day,
+    COALESCE((SELECT max_shifts_per_day FROM staff_branch_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId} AND branch_id=${branchId}),
+      (SELECT max_shifts_per_day FROM staff_schedule_settings WHERE company_id=${companyId} AND business_id=${businessId}),3) AS max_shifts_per_day,
     COALESCE(jsonb_agg(rows.row ORDER BY rows.id),'[]'::jsonb) AS items FROM rows`;
 }
 export async function branchScheduleWeek(

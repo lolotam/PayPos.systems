@@ -47,6 +47,9 @@ import { RequestLeaveUseCase } from './use-cases/request-leave/request-leave.use
 import { CancelLeaveUseCase } from './use-cases/cancel-leave/cancel-leave.usecase.ts';
 import { StaffLeaveGuard } from './http/staff-leave.guard.ts';
 import { ScheduleSettingsController } from './http/schedule-settings.controller.ts';
+import { BranchScheduleSettingsController } from './http/branch-schedule-settings.controller.ts';
+import { SetBranchScheduleSettingsUseCase } from './use-cases/set-branch-schedule-settings/set-branch-schedule-settings.usecase.ts';
+import { ClearBranchScheduleSettingsUseCase } from './use-cases/clear-branch-schedule-settings/clear-branch-schedule-settings.usecase.ts';
 import {
   createScheduleSettingsAccess,
   createScheduleSettingsTransactions,
@@ -123,6 +126,7 @@ export const staffControllers = [
   EmployeesController,
   SchedulesController,
   ScheduleSettingsController,
+  BranchScheduleSettingsController,
   ShiftTemplatesController,
   EmployeeSalariesController,
   DocumentTypesController,
@@ -132,7 +136,18 @@ export const staffControllers = [
 
 function scheduleProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   const transactions = database === undefined ? null : createScheduleTransactions(database, ids);
+  const settings =
+    database === undefined ? null : createScheduleSettingsTransactions(database, ids);
   return [
+    {
+      provide: SetBranchScheduleSettingsUseCase,
+      useValue:
+        settings === null ? null : new SetBranchScheduleSettingsUseCase(settings, systemClock),
+    },
+    {
+      provide: ClearBranchScheduleSettingsUseCase,
+      useValue: settings === null ? null : new ClearBranchScheduleSettingsUseCase(settings),
+    },
     { provide: SCHEDULE_SETTINGS_ACCESS, useValue: createScheduleSettingsAccess() },
     {
       provide: SetScheduleSettingsUseCase,

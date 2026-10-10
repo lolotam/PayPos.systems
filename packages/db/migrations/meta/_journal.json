@@ -778,6 +778,20 @@
       "when": 1791588577342,
       "tag": "0110_2026-10-10_staff-schedule-breaks-validate",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1791588577343,
+      "tag": "0111_2026-10-10_staff-branch-schedule-settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1791588577344,
+      "tag": "0112_2026-10-10_staff-branch-schedule-settings-rls",
+      "breakpoints": true
     }
   ]
 }

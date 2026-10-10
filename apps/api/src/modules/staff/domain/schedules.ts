@@ -23,7 +23,7 @@ function minute(time: string): number {
  * البريك اختياري وداخل الوردية حصراً؛ التداخل مع الأسبوع المجاور يفحص بعد تحويل النسخ إلى لحظات فعلية.
  *
  * @param shifts النمط الأسبوعي
- * @param limit حد ورديات يوم البداية للنشاط
+ * @param limit حد ورديات يوم البداية للفرع أو الحد الأقصى للقالب
  * @param checkedDays الأيام المتغيرة أو كل الأيام عند غيابها
  * @returns النمط مرتباً دون تعديل المدخل
  */
@@ -121,7 +121,7 @@ export function materializeShiftBreak(
  * @param weekStart السبت المدني
  * @param shifts النمط المطلوب
  * @param timezone منطقة الفرع
- * @param limit حد ورديات يوم البداية للنشاط
+ * @param limit حد ورديات يوم البداية للفرع
  * @param checkedDays الأيام المطلوب فحص عددها؛ الحفظ يفحص التواريخ الفعلية بعد التحويل
  * @returns الورديات المحلية ولحظاتها الفعلية
  */
@@ -208,22 +208,28 @@ export function validateScheduleEmployee(
 }
 /**
  * التقاطع يقارن اللحظات الفعلية ليمنع العمل المتزامن عبر فروع بمناطق زمنية مختلفة.
+ * العدد يحسب ورديات الفرع وحده عند تحديده؛ غيابه يبقي حساب كل الفروع للمنادين السابقين.
  *
  * @param shifts الورديات المطلوبة
  * @param others الورديات المحفوظة خارج الأسبوع المستبدل
- * @param limit حد ورديات يوم البداية للنشاط
+ * @param limit حد ورديات يوم البداية للفرع
  * @param checkedDates تواريخ البداية المتغيرة أو جميع تواريخ النسخة عند غيابها
+ * @param branchId الفرع الذي يحسب عدد وردياته دون تقييد فحص التداخل
  * @returns لا قيمة؛ يرفض العدد الزائد في الأيام المفحوصة والتداخل، ويسمح بالتلامس
  */
 export function validateScheduleOverlap(
   shifts: readonly ConcreteShift[],
-  others: readonly ConcreteShift[],
+  others: readonly (ConcreteShift & { branch_id?: string })[],
   limit: number,
   checkedDates?: readonly string[],
+  branchId?: string,
 ): void {
   const dates = [...new Set(checkedDates ?? shifts.map((s) => s.working_date))];
   const counts = new Map<string, number>();
-  for (const shift of [...shifts, ...others])
+  for (const shift of [
+    ...shifts,
+    ...others.filter((s) => branchId === undefined || s.branch_id === branchId),
+  ])
     counts.set(shift.working_date, (counts.get(shift.working_date) ?? 0) + 1);
   const working_dates = dates.filter((day) => (counts.get(day) ?? 0) > limit).sort();
   if (working_dates.length)
