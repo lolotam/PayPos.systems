@@ -6,6 +6,7 @@ import {
 } from '../permission-edit.ts';
 
 const permission = 'decide:attendance-change:company';
+const request = 'request:attendance-change:branch';
 const terms: OverrideTerms = {
   permission_code: permission,
   effect: 'ALLOW',
@@ -19,7 +20,7 @@ const context: PermissionEditContext = {
   editorUserId: 'editor',
   editorIsCompanyOwner: false,
   now: new Date('2026-10-10'),
-  catalog: [permission],
+  catalog: [permission, request],
   target: { companyId: 'company' },
   descendantTargets: [],
   holderMemberships: [],
@@ -29,14 +30,14 @@ const context: PermissionEditContext = {
     employeeId: null,
     roleCode: 'general_manager',
     systemRoleCode: 'general_manager',
-    allowedPermissions: [permission],
+    allowedPermissions: [permission, request],
     isCompanyOwner: false,
     scopeType: 'COMPANY',
     scopeId: 'company',
     startsAt: new Date('2026-01-01'),
     endsAt: null,
   },
-  grants: [permission, 'manage:memberships:company'].map((code) => ({
+  grants: [permission, request, 'manage:memberships:company'].map((code) => ({
     permission: code,
     effect: 'ALLOW',
     scopeType: 'COMPANY',
@@ -44,20 +45,17 @@ const context: PermissionEditContext = {
   })),
 };
 
-it.each(['SAVE', 'REVOKE'] as const)(
-  'only an owner may %s an attendance decision grant',
-  (operation) => {
-    for (const effect of ['ALLOW', 'DENY'] as const) {
-      expect(permissionEditFailure({ ...terms, effect }, context, operation)).toBe(
-        'PERMISSION_OWNER_ONLY',
-      );
-      expect(
-        permissionEditFailure(
-          { ...terms, effect },
-          { ...context, editorIsCompanyOwner: true },
-          operation,
-        ),
-      ).toBeNull();
-    }
-  },
-);
+it.each([
+  ['SAVE', permission],
+  ['REVOKE', permission],
+  ['SAVE', request],
+  ['REVOKE', request],
+] as const)('only an owner may %s an override of %s', (operation, code) => {
+  for (const effect of ['ALLOW', 'DENY'] as const) {
+    const edit = { ...terms, permission_code: code, effect };
+    expect(permissionEditFailure(edit, context, operation)).toBe('PERMISSION_OWNER_ONLY');
+    expect(
+      permissionEditFailure(edit, { ...context, editorIsCompanyOwner: true }, operation),
+    ).toBeNull();
+  }
+});
