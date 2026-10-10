@@ -5,6 +5,10 @@ Created: 2026-10-04. Status: implemented with provisional owner questions below.
 Sources: Phase 1 SPEC §§4/7/11, plan rows 22–28 and D-53 verdict, ADR-0013 §8,
 ADR-0020, ADR-0024, ADR-0027, specs 008/024. Scope is personal QR attendance only.
 
+> **Amended 2026-10-10 by spec 043 / ADR-0039 (row 21b):** the challenge accepts an optional `installation_id`;
+> challenge and clock refuse another person's phone (`ATTENDANCE_DEVICE_LOCKED`) and the person's other phones
+> (`ATTENDANCE_DEVICE_NOT_ENROLLED`); refused attempts are recorded in `attendance_device_refusals`.
+
 ## User scenarios and requirements
 
 P1: an eligible employee signs in on their own phone, scans the reception QR,

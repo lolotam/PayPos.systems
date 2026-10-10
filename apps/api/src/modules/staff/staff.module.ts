@@ -1,5 +1,8 @@
-import { attendanceProviders, cardProviders } from './staff-attendance.providers.ts';
-import { createAttendanceDeviceRefusals } from './persistence/attendance-device-refusals.ts';
+import {
+  attendanceProviders,
+  attendanceRefusals,
+  cardProviders,
+} from './staff-attendance.providers.ts';
 import { GCC_BANKS } from '@pospay/domain';
 import { EmployeeIbanController } from './http/employee-iban.controller.ts';
 import { SetEmployeeIbanUseCase } from './use-cases/set-employee-iban/set-employee-iban.usecase.ts';
@@ -303,12 +306,7 @@ function enrolProviders(
               createPasskeyTransactions(database, ids),
               ids,
               systemClock,
-              createAttendanceDeviceRefusals(database, ids, (companyId, employeeId) => {
-                logger?.warn(
-                  { company_id: companyId, employee_id: employeeId },
-                  'attendance device refusal unrecorded',
-                );
-              }),
+              attendanceRefusals(database, ids, logger),
             ),
     },
   ];
@@ -324,7 +322,7 @@ export function staffProviders(
 ): Provider[] {
   const ids = systemUuidV7();
   return [
-    ...attendanceProviders(database, redis, passkeys, ids),
+    ...attendanceProviders(database, redis, passkeys, ids, logger),
     ...cardProviders(database, ids, employeeCardKey, redis, logger),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
     ...unbindProviders(database, ids),

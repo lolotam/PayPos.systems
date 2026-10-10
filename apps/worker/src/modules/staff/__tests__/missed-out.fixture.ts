@@ -173,6 +173,7 @@ function closeWrite(
     at,
     schedule: null,
     installationId: '12345678-1234-4234-8234-123456789abc',
+    attachInstallation: false,
   };
   return { context, write };
 }

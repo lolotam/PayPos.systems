@@ -10,6 +10,11 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog'],
   },
   {
+    proname: 'enforce_passkey_installation_set_once',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog'],
+  },
+  {
     proname: 'enforce_staff_otp_attempt',
     prosecdef: false,
     proconfig: ['search_path=pg_catalog'],

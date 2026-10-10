@@ -9,7 +9,7 @@ Paths below are relative to the repo root. `staff/` = `apps/api/src/modules/staf
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm no new library is needed and the next free migration number (today 0103) in `packages/db/migrations/meta/_journal.json`; numbers are reassigned at merge
+- [x] T001 Confirm no new library is needed and the next free migration number (today 0103) in `packages/db/migrations/meta/_journal.json`; numbers are reassigned at merge
 
 ## Phase 2: Foundational (blocks every story)
 
@@ -21,7 +21,7 @@ Paths below are relative to the repo root. `staff/` = `apps/api/src/modules/staf
 - [x] T007 Update the grant allowlist in `packages/db/src/__tests__/privileges.spec.ts` (additive) and run the drift check (`No schema changes`)
 - [x] T008 [P] Write the RLS negative spec (new file next to the existing staff RLS specs in `staff/__tests__/`): cross-tenant read of `attendance_device_refusals` = 0 rows, cross-tenant insert refused, cross-tenant FK refused, UPDATE/DELETE refused for `pospay_app`; `employee_passkeys.installation_hash` cross-tenant update refused; trigger refuses change and clear; only `installation_hash` is newly updatable
 - [x] T009 Add error codes `ATTENDANCE_DEVICE_LOCKED: 403`, `ATTENDANCE_DEVICE_NOT_ENROLLED: 403`, `PASSKEY_DEVICE_TAKEN: 409`, `PASSKEY_OTHER_DEVICE: 409` with DL-15 messages in `apps/api/src/shared/errors.ts` (additive, follow the file's lists)
-- [ ] T010 [P] Write the port `staff/ports/attendance-device-refusals.port.ts` (Arabic JSDoc) and the writer `staff/persistence/attendance-device-refusals.ts` (own `withTenant`, hashes with `installationHash()`, ENROL branch = employee `primary_branch_id`, injected failure reporter that never logs the installation id); wire in `staff/staff.module.ts`
+- [x] T010 [P] Write the port `staff/ports/attendance-device-refusals.port.ts` (Arabic JSDoc) and the writer `staff/persistence/attendance-device-refusals.ts` (own `withTenant`, hashes with `installationHash()`, ENROL branch = employee `primary_branch_id`, injected failure reporter that never logs the installation id); wire in `staff/staff.module.ts`
 
 ## Phase 3: User Story 1 — My phone clocks only me (P1)
 
@@ -29,7 +29,7 @@ Paths below are relative to the repo root. `staff/` = `apps/api/src/modules/staf
 **Independent test**: DL-01 … DL-04, DL-10, DL-11 on real Postgres with the synthetic authenticator.
 
 - [x] T011 [P] [US1] Contract tests: `clockChallengeInput` accepts optional `installation_id`; `clockAttendanceInput` still requires it, in `packages/contracts/src/staff/__tests__/` (existing contract test file for clock-attendance)
-- [ ] T012 [P] [US1] Integration spec `staff/__tests__/passkey-device-lock-clock.spec.ts`: DL-01 (B on A's X → `ATTENDANCE_DEVICE_LOCKED` at challenge and clock, no ceremony issued, no session/audit/outbox/idempotency/signal row), DL-02 (A on X unchanged), DL-03 (lock change between challenge and clock → clock decides), DL-04 (A on Y → `ATTENDANCE_DEVICE_NOT_ENROLLED`), DL-10 (legacy binding attaches on first accepted clock; refused if X held by another person), dedupe never attaches, replay of an accepted clock from another installation returns the stored response, concurrent attach of one installation by two people → exactly one wins, DL-11 card regression
+- [x] T012 [P] [US1] Integration spec `staff/__tests__/passkey-device-lock-clock.spec.ts`: DL-01 (B on A's X → `ATTENDANCE_DEVICE_LOCKED` at challenge and clock, no ceremony issued, no session/audit/outbox/idempotency/signal row), DL-02 (A on X unchanged), DL-03 (lock change between challenge and clock → clock decides), DL-04 (A on Y → `ATTENDANCE_DEVICE_NOT_ENROLLED`), DL-10 (legacy binding attaches on first accepted clock; refused if X held by another person), dedupe never attaches, replay of an accepted clock from another installation returns the stored response, concurrent attach of one installation by two people → exactly one wins, DL-11 card regression
 - [x] T013 [US1] `packages/contracts/src/staff/clock-attendance.ts`: add optional `installation_id` to `clockChallengeInput`, keep it required in `clockAttendanceInput` (override in `extend`)
 - [x] T014 [US1] Ports: `AttendanceTransaction.deviceLock(installationId)` and `AttendanceWrite.attachInstallation` with Arabic JSDoc in `staff/ports/clock-attendance.port.ts`
 - [x] T015 [US1] Persistence: facts reader + installation advisory lock (after binding `FOR UPDATE`) in `staff/persistence/attendance-transactions.ts` / `attendance-context.adapter.ts`; attach UPDATE (`… AND installation_hash IS NULL AND unbound_at IS NULL`) in `staff/persistence/attendance-writes.ts` when `attachInstallation`
@@ -74,8 +74,8 @@ Paths below are relative to the repo root. `staff/` = `apps/api/src/modules/staf
 
 - [x] T034 Retire the pair rule: delete `staff/domain/shared-installation.ts` + test, `staff/queries/shared-installations.query.ts`, `sharedInstallationFlag*` in `packages/contracts/src/staff/unbind-passkey.ts` and index; trim `staff/__tests__/attendance-device-signals.spec.ts` and `shared-installation-flow.spec.ts` to the observation assertions
 - [x] T035 Regenerate OpenAPI (`pnpm contracts:openapi`) and `apps/admin` / `apps/pos` `schema.d.ts`
-- [ ] T036 [P] Docs: notes in `docs/specs/026-*/spec.md` and `docs/specs/027-*/spec.md` pointing to 043 / ADR-0039; row 27 note in `docs/specs/phase-1/IMPLEMENTATION-PLAN.md`
-- [ ] T037 Gates: `pnpm run typecheck`, `lint`, `lint:docs`, `module-map:check`, API/db/contracts/pos/admin tests, drift check
+- [x] T036 [P] Docs: notes in `docs/specs/026-*/spec.md` and `docs/specs/027-*/spec.md` pointing to 043 / ADR-0039; row 27 note in `docs/specs/phase-1/IMPLEMENTATION-PLAN.md`
+- [x] T037 Gates: `pnpm run typecheck`, `lint`, `lint:docs`, `module-map:check`, API/db/contracts/pos/admin tests, drift check
 
 ## Dependencies
 

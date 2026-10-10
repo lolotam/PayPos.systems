@@ -6,6 +6,8 @@ import type { AttendancePasskeys } from './ports/clock-attendance.port.ts';
 import { createRedisRateLimiter } from '../../shared/adapters/redis-rate-limiter.ts';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { createAttendanceTransactions } from './persistence/attendance-transactions.ts';
+import { createAttendanceDeviceRefusals } from './persistence/attendance-device-refusals.ts';
+import type { AttendanceDeviceRefusals } from './ports/attendance-device-refusals.port.ts';
 import { createLockedAttendanceQrVerifier } from './persistence/locked-attendance-qr.ts';
 import { ClockAttendance } from './use-cases/clock-attendance/clock-attendance.ts';
 import { RequestClockChallenge } from './use-cases/request-clock-challenge/request-clock-challenge.ts';
@@ -27,11 +29,26 @@ import type { EmployeeCardsPort } from './ports/employee-cards.port.ts';
 import { createEmployeeCardAccess } from './persistence/employee-card-access.adapter.ts';
 import { EMPLOYEE_CARD_ACCESS } from './ports/employee-card-access.port.ts';
 
+// فشل كتابة سجل الرفض لا يغير الرفض نفسه؛ السطر يحمل الشركة والموظف فقط، أبداً معرف التثبيت.
+export function attendanceRefusals(
+  database: TenantWrappers,
+  ids: IdGenerator,
+  logger: Logger | undefined,
+): AttendanceDeviceRefusals {
+  return createAttendanceDeviceRefusals(database, ids, (companyId, employeeId) => {
+    logger?.warn(
+      { company_id: companyId, employee_id: employeeId },
+      'attendance device refusal unrecorded',
+    );
+  });
+}
+
 export function attendanceProviders(
   database: TenantWrappers | undefined,
   redis: Redis | undefined,
   passkeys: AttendancePasskeys | null,
   ids: IdGenerator,
+  logger?: Logger,
 ): Provider[] {
   const secrets = redis === undefined ? null : createRedisAttendanceQrSecrets(redis);
   const branches = database === undefined ? null : createAttendanceBranchReader(database);
@@ -59,15 +76,16 @@ export function attendanceProviders(
     ];
   const qr = createLockedAttendanceQrVerifier(secrets, hmacAttendanceQr);
   const transactions = createAttendanceTransactions(database, ids);
+  const refusals = attendanceRefusals(database, ids, logger);
   return [
     ...qrProviders,
     {
       provide: ClockAttendance,
-      useValue: new ClockAttendance(transactions, passkeys, qr, systemClock, ids),
+      useValue: new ClockAttendance(transactions, passkeys, qr, systemClock, ids, refusals),
     },
     {
       provide: RequestClockChallenge,
-      useValue: new RequestClockChallenge(transactions, passkeys, qr, systemClock),
+      useValue: new RequestClockChallenge(transactions, passkeys, qr, systemClock, refusals),
     },
   ];
 }
