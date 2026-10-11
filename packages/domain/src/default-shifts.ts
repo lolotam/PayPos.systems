@@ -1,9 +1,14 @@
+/**
+ * دوام يوم واحد بالتوقيت المحلي للفرع (HH:MM)، والبريك اختياري لازم يكون جوه الدوام.
+ * نفس الشكل بيستخدمه الـ API وشاشة الإدارة عشان المقارنة بالجدول تطلع واحدة في الاتنين.
+ */
 export type DefaultShift = {
   start: string;
   end: string;
   break_start?: string | null | undefined;
   break_end?: string | null | undefined;
 };
+/** دوام افتراضي مربوط بيوم في الأسبوع (السبت صفر)، وده الشكل المتخزن لكل فرع في ملف الموظفة. */
 export type WeekdayDefaultShift = DefaultShift & { day: number };
 
 /**
