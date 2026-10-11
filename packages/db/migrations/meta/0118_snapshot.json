@@ -10130,10 +10130,11 @@
               "nulls": "last"
             }
           ],
-          "isUnique": false,
+          "isUnique": true,
           "concurrently": false,
           "method": "btree",
-          "with": {}
+          "with": {},
+          "where": "\"attendance_sessions\".\"change_request_id\" IS NOT NULL"
         }
       },
       "foreignKeys": {
@@ -13222,6 +13223,10 @@
         "attendance_change_requests_add_only": {
           "name": "attendance_change_requests_add_only",
           "value": "\"attendance_change_requests\".\"kind\" = 'ADD_SESSION' OR (\"attendance_change_requests\".\"clock_in\" IS NULL AND \"attendance_change_requests\".\"clock_out\" IS NULL AND \"attendance_change_requests\".\"working_date\" IS NULL AND \"attendance_change_requests\".\"timezone\" IS NULL)"
+        },
+        "attendance_change_requests_add_linked": {
+          "name": "attendance_change_requests_add_linked",
+          "value": "\"attendance_change_requests\".\"kind\" <> 'ADD_SESSION' OR \"attendance_change_requests\".\"status\" <> 'APPROVED' OR \"attendance_change_requests\".\"session_id\" IS NOT NULL"
         }
       },
       "isRLSEnabled": false

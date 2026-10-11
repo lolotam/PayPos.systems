@@ -55,7 +55,7 @@ registries additive; migrations numbered 0118–0119 after 26a's 0115–0117 (la
 | VI. Arabic-first | 3 error codes with `message_ar`/`message_en` via i18n | ✅ |
 | VII. Documented why | Arabic JSDoc on `planManualSession`, the interval helper, every new port field | ✅ |
 
-Post-design re-check: unchanged, ✅. One recorded deviation: a `DEFERRABLE INITIALLY DEFERRED` FK (research R1).
+Post-design re-check: unchanged, ✅. No deviation: 26a's `hold()` persists the request before `apply`, so the FK is immediate (research R1).
 
 ## Design notes
 
@@ -155,5 +155,4 @@ docs/module-map.md · docs/adr/0040-attendance-change-requests.md (ADD kind note
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
-| `DEFERRABLE INITIALLY DEFERRED` FK `attendance_sessions(company_id, change_request_id)` | Owner one-step (ACR-Q2) inserts the session in `apply` before 26a's `save` inserts the request row; the request row also references the session | Re-ordering 26a's save into insert-then-link would rewrite the mechanism under review in #148; dropping the FK loses the tenant-qualified link the spec requires |
 | Schedule query duplicated from `attendance-context.adapter.ts` | That file belongs to lane 16b-2 and must not be edited | Extracting now collides with 16b-2; a follow-up extracts it after 16b-2 merges |

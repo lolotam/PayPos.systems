@@ -5,12 +5,12 @@ All owner questions are answered (044 owner-questions, 2026-10-10). These are th
 ## R1 — Linking the session and the request, including the owner one-step
 
 - **Decision**: `attendance_sessions.change_request_id` with a tenant-qualified FK to
-  `attendance_change_requests(company_id, id)`, declared `DEFERRABLE INITIALLY DEFERRED` (hand-added to the generated
-  SQL; Drizzle has no deferrable builder, the snapshot still carries the FK so the drift check stays clean). The
+  `attendance_change_requests(company_id, id)`, checked immediately. A partial UNIQUE index keeps one session per
+  request. The
   request id is generated once before the kind runs and passed to it as `scope.requestId`.
-- **Rationale**: 26a's request use case calls `kind.apply` (inserts the session) **before** `save` (inserts the
-  request) on the owner one-step, and the request row already references the session (`session_id` FK). A deferred FK
-  is checked at commit, when both rows exist. Approval of a PENDING request is unaffected (the request row exists).
+- **Rationale**: 26a's `hold()` (bf763299) persists the request PENDING before `kind.apply`, also on the owner
+  one-step (ACR-Q2), so the request row exists when the session is inserted and an immediate FK is enough. An earlier
+  draft used a deferred FK because the session was inserted before the request; that order no longer exists.
 - **Alternatives**: re-order 26a's save into insert → apply → link (rewrites the mechanism under review in #148);
   drop the session-side FK and rely on `attendance_change_requests.session_id` alone (loses the
   `(source = 'MANUAL') = (change_request_id IS NOT NULL)` guarantee in the database).

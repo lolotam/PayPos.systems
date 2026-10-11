@@ -98,6 +98,10 @@ export const attendanceChangeRequests = pgTable(
       sql`${t.kind} <> 'ADD_SESSION' OR (${t.clockIn} IS NOT NULL AND ${t.clockOut} IS NOT NULL AND ${t.workingDate} IS NOT NULL AND ${t.timezone} IS NOT NULL AND ${t.clockOut} > ${t.clockIn} AND ${t.sessionRevision} IS NULL)`,
     ),
     check(
+      'attendance_change_requests_add_linked',
+      sql`${t.kind} <> 'ADD_SESSION' OR ${t.status} <> 'APPROVED' OR ${t.sessionId} IS NOT NULL`,
+    ),
+    check(
       'attendance_change_requests_add_only',
       sql`${t.kind} = 'ADD_SESSION' OR (${t.clockIn} IS NULL AND ${t.clockOut} IS NULL AND ${t.workingDate} IS NULL AND ${t.timezone} IS NULL)`,
     ),

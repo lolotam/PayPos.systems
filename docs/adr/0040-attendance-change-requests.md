@@ -71,6 +71,9 @@ The kind CHECK remains the explicit `IN ('ADD_SESSION','VOID_SESSION')` list.
 The registry now includes ADD_SESSION. The kind scope carries a pre-generated
 `requestId`; requested clock-in/out, working date and timezone are stored on filing.
 Approval rechecks the manual-day rules under AttendanceState and inserts one CLOSED
-MANUAL session. The tenant-qualified session-to-request FK is DEFERRABLE INITIALLY
-DEFERRED so the owner one-step can apply before saving its request (045 research R1).
+MANUAL session. The tenant-qualified session-to-request FK is checked immediately (not
+deferrable): 26a's `hold()` persists the request PENDING before `apply`, also on the owner
+one-step, so the row the session points at always exists (045 research R1). A partial UNIQUE
+index gives each request at most one session, and the CHECK
+`attendance_change_requests_add_linked` requires an APPROVED ADD_SESSION to name its session.
 VOID_SESSION remains unavailable until 26c. Manual sessions cannot be corrected.

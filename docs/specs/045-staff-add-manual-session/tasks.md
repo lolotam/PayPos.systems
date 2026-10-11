@@ -35,7 +35,7 @@ only. Migrations are **0114** and **0115** only. `VOID_SESSION` stays unavailabl
   status = 'PENDING'`
 - [x] T003 Generate `packages/db/migrations/0114_2026-10-10_manual-attendance-session.sql` with `pnpm db:generate
   manual-attendance-session` (snapshot + journal, `when` strictly increasing after 0113), then hand-edit: every new/
-  re-added CHECK on `attendance_sessions` gets `NOT VALID`; the FK gets `DEFERRABLE INITIALLY DEFERRED NOT VALID`; the
+  re-added CHECK on `attendance_sessions` gets `NOT VALID`; the FK gets `NOT VALID` (immediate, see research R1); the
   `attendance_sessions_change_request_idx` index statement is moved out (to 0115); a short Arabic header comment
 - [x] T004 Add `packages/db/migrations/0115_2026-10-10_manual-attendance-session-validate.sql` (custom, `--custom`,
   snapshot equal to 0114's schema + the index): first `CREATE INDEX CONCURRENTLY "attendance_sessions_change_request_idx"
@@ -156,7 +156,7 @@ only. Migrations are **0114** and **0115** only. `VOID_SESSION` stays unavailabl
 
 ## Phase 6: Polish
 
-- [x] T025 [P] `docs/adr/0040-attendance-change-requests.md`: short "ADD_SESSION (26b)" note — the deferred FK
+- [x] T025 [P] `docs/adr/0040-attendance-change-requests.md`: short "ADD_SESSION (26b)" note — the immediate FK
   (research R1), `requestId` in the kind scope, the stored ADD values
 - [ ] T026 Run the gates: `pnpm run typecheck`, `lint`, `lint:docs`, `module-map:check`, `pnpm --filter @pospay/db test`,
   `pnpm --filter @pospay/contracts test`, `pnpm --filter @pospay/api test`, drift check; tick this file's boxes

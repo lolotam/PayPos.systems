@@ -102,7 +102,8 @@ it('rechecks contract eligibility and timezone snapshots at approval', async () 
   await f.h.owner`UPDATE branches SET timezone='UTC' WHERE id=${f.branch}`;
   try {
     await expect(approve(row.id)).rejects.toMatchObject({
-      code: 'ATTENDANCE_MANUAL_INVALID_TIMES',
+      code: 'ATTENDANCE_MANUAL_TIMEZONE_CHANGED',
+      status: 409,
     });
   } finally {
     await f.h.owner`UPDATE branches SET timezone='Asia/Kuwait' WHERE id=${f.branch}`;
@@ -163,7 +164,7 @@ it('refuses device actors before the manual kind', async () => {
   expect(response.json().code).toBe('FORBIDDEN');
 });
 
-it('tenant-qualified deferred FK refuses another company request at commit and RLS hides manual sessions', async () => {
+it('tenant-qualified immediate FK refuses another company request on insert and RLS hides manual sessions', async () => {
   const own = await f.fileChange.execute(changeActor(f, undefined, f.owner), terms('2026-09-25'));
   const [branchB] = await f.h
     .owner`SELECT business_id FROM branches WHERE company_id=${f.otherCompany} AND id=${f.foreignBranch}`;
@@ -175,8 +176,8 @@ it('tenant-qualified deferred FK refuses another company request at commit and R
     .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
     VALUES(${f.otherCompany},${employeeB},${branchB.business_id},${f.foreignBranch},'Synthetic foreign manual','synthetic foreign manual','staff','2026-01-01')`;
   await f.h
-    .owner`INSERT INTO attendance_change_requests(company_id,id,business_id,branch_id,employee_id,kind,status,reason,requested_by,requested_at,decided_by,decided_at,clock_in,clock_out,working_date,timezone)
-    VALUES(${f.otherCompany},${requestB},${branchB.business_id},${f.foreignBranch},${employeeB},'ADD_SESSION','APPROVED','foreign day',${f.userId},now(),${f.userId},now(),'2026-09-26T07:00:00Z','2026-09-26T08:00:00Z','2026-09-26','Asia/Kuwait')`;
+    .owner`INSERT INTO attendance_change_requests(company_id,id,business_id,branch_id,employee_id,kind,status,reason,requested_by,requested_at,clock_in,clock_out,working_date,timezone)
+    VALUES(${f.otherCompany},${requestB},${branchB.business_id},${f.foreignBranch},${employeeB},'ADD_SESSION','PENDING','foreign day',${f.userId},now(),'2026-09-26T07:00:00Z','2026-09-26T08:00:00Z','2026-09-26','Asia/Kuwait')`;
   await f.h
     .owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,clock_in,clock_out,status,source,closed_by,geo,late_minutes,change_request_id)
     VALUES(${f.otherCompany},${sessionB},${branchB.business_id},${f.foreignBranch},${employeeB},'2026-09-26','Asia/Kuwait','2026-09-26T07:00:00Z','2026-09-26T08:00:00Z','CLOSED','MANUAL','MANUAL','NONE',0,${requestB})`;
@@ -197,8 +198,8 @@ it('tenant-qualified deferred FK refuses another company request at commit and R
       VALUES(${f.company},${leaveIds.newId()},${f.business},${f.branch},${f.employee.id},'2026-09-26','Asia/Kuwait','2026-09-26T07:00:00Z','2026-09-26T08:00:00Z','CLOSED','MANUAL','MANUAL','NONE',0,${requestB})`);
       inserted = true;
     }),
-  ).rejects.toMatchObject({ code: '23503' });
-  expect(inserted).toBe(true);
+  ).rejects.toMatchObject({ cause: { code: '23503' } });
+  expect(inserted).toBe(false);
 });
 
 it('ACR-Q13 refuses an ADD_SESSION approval over HTTP with its spec code and keeps the request PENDING', async () => {

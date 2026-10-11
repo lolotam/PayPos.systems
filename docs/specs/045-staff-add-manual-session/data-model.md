@@ -10,10 +10,11 @@ prefix, then `VALIDATE CONSTRAINT`), the 0109/0110 pattern.
 | `source` CHECK | `IN ('QR','BARCODE','MANUAL')` (drop + re-add `NOT VALID`, validate in 0119) |
 | `close_pair` CHECK | closed branch accepts `closed_by IN ('EMPLOYEE','MISSED_OUT','MANUAL')` |
 | `change_request_id uuid NULL` | the approved request that created a MANUAL session |
-| FK `attendance_sessions_change_request_fk` | `(company_id, change_request_id)` → `attendance_change_requests(company_id, id)`, `DEFERRABLE INITIALLY DEFERRED` (research R1) |
+| FK `attendance_sessions_change_request_fk` | `(company_id, change_request_id)` → `attendance_change_requests(company_id, id)`, immediate (26a's `hold()` inserts the request before `apply`; research R1) |
 | CHECK `attendance_sessions_manual_link` | `(source = 'MANUAL') = (change_request_id IS NOT NULL)` |
 | CHECK `attendance_sessions_manual_shape` | `source <> 'MANUAL' OR (status = 'CLOSED' AND closed_by = 'MANUAL' AND binding_id IS NULL AND out_binding_id IS NULL AND device_id IS NULL AND out_device_id IS NULL AND operator_id IS NULL AND out_operator_id IS NULL AND qr_window IS NULL AND out_qr_window IS NULL AND latitude IS NULL AND out_latitude IS NULL AND geo = 'NONE' AND (out_geo IS NULL OR out_geo = 'NONE'))` |
-| Index `attendance_sessions_change_request_idx` | `(company_id, change_request_id)`, `CONCURRENTLY` in 0119 |
+| Index `attendance_sessions_change_request_idx` | UNIQUE `(company_id, change_request_id) WHERE change_request_id IS NOT NULL` (one session per request), `CONCURRENTLY` in 0119 |
+| CHECK `attendance_change_requests_add_linked` | `kind <> 'ADD_SESSION' OR status <> 'APPROVED' OR session_id IS NOT NULL`, `NOT VALID` in 0118, validated in 0119 |
 
 Also `closed_by = 'MANUAL'` only with `source = 'MANUAL'` (part of the manual-shape pair:
 `closed_by <> 'MANUAL' OR source = 'MANUAL'`).

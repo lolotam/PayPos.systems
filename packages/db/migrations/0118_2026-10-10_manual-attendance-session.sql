@@ -1,4 +1,4 @@
--- إضافة اليوم اليدوي وربطه بالطلب؛ تأجيل القيد يسمح بموافقة المالك المباشرة.
+-- إضافة اليوم اليدوي وربطه بالطلب؛ القيد فوري لأن 26a يحفظ الطلب PENDING قبل أثر النوع حتى في خطوة المالك الواحدة.
 CREATE INDEX CONCURRENTLY "attendance_change_requests_pending_add_idx" ON "attendance_change_requests" USING btree ("company_id","employee_id") WHERE "attendance_change_requests"."kind" = 'ADD_SESSION' AND "attendance_change_requests"."status" = 'PENDING';
 --> statement-breakpoint
 ALTER TABLE "attendance_sessions" ADD COLUMN "change_request_id" uuid;
@@ -25,6 +25,8 @@ ALTER TABLE "attendance_change_requests" ADD COLUMN "timezone" text;
 --> statement-breakpoint
 ALTER TABLE "attendance_change_requests" ADD CONSTRAINT "attendance_change_requests_add_values" CHECK ("attendance_change_requests"."kind" <> 'ADD_SESSION' OR ("attendance_change_requests"."clock_in" IS NOT NULL AND "attendance_change_requests"."clock_out" IS NOT NULL AND "attendance_change_requests"."working_date" IS NOT NULL AND "attendance_change_requests"."timezone" IS NOT NULL AND "attendance_change_requests"."clock_out" > "attendance_change_requests"."clock_in" AND "attendance_change_requests"."session_revision" IS NULL)) NOT VALID;
 --> statement-breakpoint
+ALTER TABLE "attendance_change_requests" ADD CONSTRAINT "attendance_change_requests_add_linked" CHECK ("attendance_change_requests"."kind" <> 'ADD_SESSION' OR "attendance_change_requests"."status" <> 'APPROVED' OR "attendance_change_requests"."session_id" IS NOT NULL) NOT VALID;
+--> statement-breakpoint
 ALTER TABLE "attendance_change_requests" ADD CONSTRAINT "attendance_change_requests_add_only" CHECK ("attendance_change_requests"."kind" = 'ADD_SESSION' OR ("attendance_change_requests"."clock_in" IS NULL AND "attendance_change_requests"."clock_out" IS NULL AND "attendance_change_requests"."working_date" IS NULL AND "attendance_change_requests"."timezone" IS NULL)) NOT VALID;
 --> statement-breakpoint
-ALTER TABLE "attendance_sessions" ADD CONSTRAINT "attendance_sessions_change_request_fk" FOREIGN KEY ("company_id","change_request_id") REFERENCES "public"."attendance_change_requests"("company_id","id") ON DELETE no action ON UPDATE no action DEFERRABLE INITIALLY DEFERRED NOT VALID;
+ALTER TABLE "attendance_sessions" ADD CONSTRAINT "attendance_sessions_change_request_fk" FOREIGN KEY ("company_id","change_request_id") REFERENCES "public"."attendance_change_requests"("company_id","id") ON DELETE no action ON UPDATE no action NOT VALID;

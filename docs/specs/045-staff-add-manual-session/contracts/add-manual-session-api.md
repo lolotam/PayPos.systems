@@ -35,6 +35,7 @@ Strict object; `Idempotency-Key` required (26a). `201` → `AttendanceChangeRequ
 |---|---|---|
 | `ATTENDANCE_MANUAL_INVALID_TIMES` | 422 | out ≤ in, in the future, > 16 h, overlaps a session of the employee (filing or approval) |
 | `ATTENDANCE_MANUAL_NOT_ELIGIBLE` | 422 | branch not attached on the working date, or date outside hire…contract end |
+| `ATTENDANCE_MANUAL_TIMEZONE_CHANGED` | 409 | approval only: the branch time zone changed after filing; reject the request and file the day again |
 | `ATTENDANCE_CORRECTION_MANUAL_SESSION` | 409 | `correct-attendance` (PR 26) on a MANUAL session |
 
 Reused: `ATTENDANCE_CHANGE_DUPLICATE_PENDING` 409 (overlapping PENDING ADD of the same employee), `NOT_FOUND`,

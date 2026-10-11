@@ -3,6 +3,7 @@ import type * as StaffModule from '../staff.module.ts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type {
+  AttendanceChangeApplyScope,
   AttendanceChangeKinds,
   AttendanceChangeKind,
 } from '../ports/attendance-change-kinds.port.ts';
@@ -147,7 +148,21 @@ function testKind(
       if (control.failAfterEffect) throw new AttendanceChangeError('VALIDATION_FAILED');
       if (control.kindRefusalAfterEffect)
         throw new AttendanceChangeKindRefusal('TEST_KIND_REFUSED', 422);
-      return control.nullSession ? { ...values, session_id: null } : values;
+      if (control.nullSession) return { ...values, session_id: null };
+      return code === 'ADD_SESSION' && !values.session_id
+        ? { ...values, session_id: await testManualSession(scope) }
+        : values;
     },
   };
+}
+// الـ CHECK attendance_change_requests_add_linked يطلب جلسة لكل ADD معتمد، فنوع الاختبار يكتب جلسة يدوية مربوطة.
+async function testManualSession(scope: AttendanceChangeApplyScope) {
+  const id = leaveIds.newId();
+  const day = (scope.input.clock_in ?? '2026-10-03T07:00:00.000Z').slice(0, 10);
+  await (scope.transaction as Tx).execute(
+    sql`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,clock_in,clock_out,status,source,closed_by,geo,late_minutes,change_request_id)
+      VALUES(${scope.companyId},${id},${scope.businessId},${scope.target.branch_id},${scope.target.employee_id},${day},'Asia/Kuwait',
+        ${scope.input.clock_in ?? `${day}T07:00:00.000Z`},${scope.input.clock_out ?? `${day}T16:00:00.000Z`},'CLOSED','MANUAL','MANUAL','NONE',0,${scope.requestId})`,
+  );
+  return id;
 }

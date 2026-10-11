@@ -37,7 +37,7 @@ export interface ManualSessionPlan {
 
 /**
  * يخطط يوماً يدوياً وفق ACR-Q14…Q17: الوقت ثم الأهلية والتداخل ثم لقطة الوردية والتأخير.
- * يعاد الفحص عند الموافقة، وتغير اليوم المثبت أو توقيته يرفض الطلب دون تعديله.
+ * يعاد الفحص عند الموافقة، وتغير توقيت الفرع بعد التقديم يرفض الموافقة بكود مستقل حتى يُرفض الطلب ويُقدَّم من جديد.
  *
  * @param input الفرع وطرفا اليوم المطلوب
  * @param context حقائق الموظف والجلسات والطلبات والوقت المحقون
@@ -58,7 +58,7 @@ export function planManualSession(
     context.stored &&
     (context.stored.working_date !== date || context.stored.timezone !== context.timezone)
   )
-    throw new AttendanceChangeError('ATTENDANCE_MANUAL_INVALID_TIMES');
+    throw new AttendanceChangeError('ATTENDANCE_MANUAL_TIMEZONE_CHANGED');
   if (attendanceIntervalRefused(start, end, context.now, context.neighbours, null))
     throw new AttendanceChangeError('ATTENDANCE_MANUAL_INVALID_TIMES');
   if (attendanceIntervalRefused(start, end, context.now, context.pending, context.selfRequestId))

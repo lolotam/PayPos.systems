@@ -15,6 +15,7 @@ import { insertManualSession } from './manual-session-writes.ts';
 const REFUSALS: Readonly<Record<string, 409 | 422>> = {
   ATTENDANCE_MANUAL_INVALID_TIMES: 422,
   ATTENDANCE_MANUAL_NOT_ELIGIBLE: 422,
+  ATTENDANCE_MANUAL_TIMEZONE_CHANGED: 409,
   ATTENDANCE_CHANGE_DUPLICATE_PENDING: 409,
 };
 

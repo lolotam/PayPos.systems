@@ -133,3 +133,18 @@ it('rejects another pending ADD but excludes its own request at approval', () =>
   );
   expect(planManualSession(input, { ...context, pending, selfRequestId: 'other' })).toBeDefined();
 });
+it('refuses a branch time-zone change after filing with its own code, not invalid times', () => {
+  expect(() =>
+    planManualSession(input, {
+      ...context,
+      timezone: 'UTC',
+      stored: { working_date: '2026-10-08', timezone: 'Asia/Kuwait' },
+    }),
+  ).toThrow(expect.objectContaining({ code: 'ATTENDANCE_MANUAL_TIMEZONE_CHANGED' }));
+  expect(
+    planManualSession(input, {
+      ...context,
+      stored: { working_date: '2026-10-08', timezone: 'Asia/Kuwait' },
+    }).timezone,
+  ).toBe('Asia/Kuwait');
+});

@@ -38,6 +38,7 @@ export class AttendanceChangeError extends Error {
       | 'ATTENDANCE_CHANGE_KIND_UNAVAILABLE'
       | 'ATTENDANCE_MANUAL_INVALID_TIMES'
       | 'ATTENDANCE_MANUAL_NOT_ELIGIBLE'
+      | 'ATTENDANCE_MANUAL_TIMEZONE_CHANGED'
       | 'TRANSACTION_RETRY_REQUIRED',
   ) {
     super(code);

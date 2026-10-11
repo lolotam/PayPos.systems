@@ -88,10 +88,12 @@ export interface AttendanceChangeTransactions {
    * @param actor هوية صاحب القرار والمفتاح
    * @param clock الساعة المحقونة
    * @param work العمل داخل المعاملة
+   * @param decision القرار المطلوب؛ الرفض لا يأخذ أقفال النوع حتى يظل ممكناً بعد إيقاف الفرع
    */
   decide(
     actor: AttendanceChangeActor,
     clock: AttendanceChangeClock,
     work: (scope: AttendanceChangeScope) => Promise<AttendanceChangeRequest>,
+    decision?: 'APPROVED' | 'REJECTED',
   ): Promise<AttendanceChangeRequest>;
 }

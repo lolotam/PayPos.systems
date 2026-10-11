@@ -79,16 +79,13 @@ async function load(
   clock: AttendanceChangeClock,
   kinds: AttendanceChangeKinds,
   filing?: Filing,
+  reject = false,
 ) {
   const sample = clock.now();
   const candidate = filing ? null : await readChangeRequest(tx, actor);
   const requestId = filing ? filing.requestId : candidate?.id;
   if (!requestId) throw new AttendanceChangeError('NOT_FOUND');
-  const target = await loadTarget(
-    { transaction: tx, ...actor, now: sample },
-    candidate,
-    filing,
-  );
+  const target = await loadTarget({ transaction: tx, ...actor, now: sample }, candidate, filing);
   if (!target) throw new AttendanceChangeError('NOT_FOUND');
   const initial = await readAuthority(tx, actor, target.branch_id, sample);
   assertAuthority(action, actor, initial, candidate);
@@ -101,7 +98,11 @@ async function load(
   if (!filing && !before) throw new AttendanceChangeError('NOT_FOUND');
   const input = filing ? filing.input : inputFrom(before as AttendanceChangeRequest);
   const kind =
-    action === 'file' ? filing?.kind : action === 'decide' ? kinds.find(input.kind) : null;
+    action === 'file'
+      ? filing?.kind
+      : action === 'decide' && !reject
+        ? kinds.find(input.kind)
+        : null;
   await kind?.lock?.({
     transaction: tx,
     ...actor,
@@ -155,12 +156,14 @@ export function createAttendanceChangeTransactions(
     clock: AttendanceChangeClock,
     work: Work,
     filing?: Filing,
-  ) => changeOnce(database, ids, kinds, actor, action, clock, work, filing);
+    reject = false,
+  ) => changeOnce(database, ids, kinds, actor, action, clock, work, filing, reject);
   return {
     file: (actor, input, kind, clock, requestId, work) =>
       run(actor, 'file', clock, work, { input, kind, requestId }),
     cancel: (actor, clock, work) => run(actor, 'cancel', clock, work),
-    decide: (actor, clock, work) => run(actor, 'decide', clock, work),
+    decide: (actor, clock, work, decision) =>
+      run(actor, 'decide', clock, work, undefined, decision === 'REJECTED'),
   };
 }
 async function changeOnce(
@@ -172,12 +175,13 @@ async function changeOnce(
   clock: AttendanceChangeClock,
   work: Work,
   filing?: Filing,
+  reject = false,
 ): Promise<AttendanceChangeRequest> {
   try {
     return await database.withTenant(
       actor.companyId,
       async (tx) => {
-        const context = await load(tx, actor, action, clock, kinds, filing);
+        const context = await load(tx, actor, action, clock, kinds, filing, reject);
         const result = await runIdempotent(
           tx,
           {
