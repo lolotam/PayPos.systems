@@ -12,9 +12,23 @@ import { installationLockStatement } from '../persistence/attendance-context.ada
 
 const PHONES = ['3f0c2b1a-4d5e-4f60-8a71-b2c3d4e5f601', '3f0c2b1a-4d5e-4f60-8a71-b2c3d4e5f602'];
 let f: AttendanceFixture;
+let holderId: string;
 beforeAll(async () => {
   f = await attendanceFixture();
   await (await f.prepare()).execute();
+  holderId = f.ids.newId();
+  await f.owner`UPDATE employees SET name_ar='موظفة اختبار' WHERE company_id=${f.companyId} AND id=${f.employeeId}`;
+  await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date)
+    VALUES(${f.companyId},${holderId},${f.businessId},${f.branchId},NULL,'Synthetic holder','synthetic holder','staff','2026-01-01')`;
+  await f.refusals.record({
+    ...f.scope,
+    branchId: f.branchId,
+    installationId: PHONE_Y,
+    step: 'CHALLENGE',
+    reason: 'DEVICE_LOCKED',
+    holderEmployeeId: holderId,
+    at: new Date('2026-10-09T12:00:00Z'),
+  });
   // ثلاثة تثبيتات مختلفة بنفس اللحظة؛ الرابع يكرر الأول داخل الدقيقة فيسقطه السقف.
   for (const installationId of [PHONE_Y, ...PHONES, PHONE_Y])
     await f.refusals.record({
@@ -48,7 +62,9 @@ it('projects only the board contract and paginates tied timestamps without missi
   expect(Object.keys(first.items[0] ?? {}).sort()).toEqual([
     'attempted_at',
     'branch_id',
+    'employee',
     'employee_id',
+    'holder',
     'holder_employee_id',
     'id',
     'reason',
@@ -64,10 +80,37 @@ it('projects only the board contract and paginates tied timestamps without missi
   expect(ids).toEqual([...ids].sort().reverse());
   expect(second.next_cursor).toBeNull();
   expect(JSON.stringify(first)).not.toContain('installation');
+  expect(first.items.every((row) => row.holder === null && row.holder_employee_id === null)).toBe(
+    true,
+  );
+  expect(first.items[0]?.employee).toEqual({
+    id: f.employeeId,
+    name_ar: 'موظفة اختبار',
+    name_en: 'Synthetic staff',
+  });
   expect(
     (await f.database.withTenant(f.otherCompany, (tx) => attendanceDeviceRefusals(tx, query())))
       .items,
   ).toEqual([]);
+});
+
+it('joins employee and holder names independently of attendance sessions and keeps the legacy ids', async () => {
+  const page = await f.database.withTenant(f.companyId, (tx) =>
+    attendanceDeviceRefusals(tx, {
+      ...query(),
+      from: new Date('2026-10-09'),
+      to: new Date('2026-10-10'),
+    }),
+  );
+  expect(page.items).toHaveLength(1);
+  expect(page.items[0]).toMatchObject({
+    employee_id: f.employeeId,
+    employee: { id: f.employeeId, name_ar: 'موظفة اختبار', name_en: 'Synthetic staff' },
+    holder_employee_id: holderId,
+    holder: { id: holderId, name_ar: null, name_en: 'Synthetic holder' },
+  });
+  for (const person of [page.items[0]?.employee, page.items[0]?.holder])
+    expect(Object.keys(person ?? {}).sort()).toEqual(['id', 'name_ar', 'name_en']);
 });
 
 it('EXPLAIN uses the branch/time index and the active-installation partial index', async () => {
@@ -77,6 +120,7 @@ it('EXPLAIN uses the branch/time index and the active-installation partial index
       sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceDeviceRefusalsStatement(query())}`,
     );
     expect(JSON.stringify(board)).toContain('attendance_device_refusals_branch_time_idx');
+    expect(JSON.stringify(board)).toMatch(/employees_(pkey|company_business_id)/);
     const lock = await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON)
       ${installationLockStatement(f.companyId, f.userId, installationHash(f.companyId, PHONE_X))}`);
     expect(JSON.stringify(lock)).toContain('employee_passkeys_active_installation_idx');

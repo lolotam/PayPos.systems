@@ -11,15 +11,30 @@ import { leaveIds } from './leave.fixture.ts';
 
 let f: BoardFixture;
 let manual: Awaited<ReturnType<typeof seedManual>>;
+const refusedEmployee = {
+  id: leaveIds.newId(),
+  name_ar: 'موظفة مرفوضة للاختبار',
+  name_en: 'Synthetic refused employee',
+};
+const holder = {
+  id: leaveIds.newId(),
+  name_ar: 'حاملة جهاز للاختبار',
+  name_en: 'Synthetic device holder',
+};
 beforeAll(async () => {
   f = await attendanceBoardFixture();
   await seedSession(f, { employeeId: f.employee.id });
   manual = await seedManual(f);
+  for (const employee of [refusedEmployee, holder])
+    await f.h
+      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date)
+      VALUES(${f.company},${employee.id},${f.business},${f.branch},${employee.name_ar},${employee.name_en},
+        ${employee.name_en.toLowerCase()},'staff','2026-01-01')`;
   await f.h
     .owner`INSERT INTO attendance_device_refusals(company_id,id,business_id,branch_id,employee_id,
-    installation_hash,step,reason,attempted_at) VALUES(${f.company},${leaveIds.newId()},${f.business},${f.branch},
-      ${f.employee.id},repeat('a',64),'CLOCK','NOT_ENROLLED','2026-10-04T12:00:00Z'),
-    (${f.company},${leaveIds.newId()},${f.business},${f.branch},${f.employee.id},repeat('b',64),'CLOCK','NOT_ENROLLED','2026-10-04T12:00:00Z')`;
+    holder_employee_id,installation_hash,step,reason,attempted_at) VALUES(${f.company},${leaveIds.newId()},${f.business},${f.branch},
+      ${refusedEmployee.id},${holder.id},repeat('a',64),'CLOCK','DEVICE_LOCKED','2026-10-04T12:00:00Z'),
+    (${f.company},${leaveIds.newId()},${f.business},${f.branch},${refusedEmployee.id},NULL,repeat('b',64),'CLOCK','NOT_ENROLLED','2026-10-04T12:00:00Z')`;
 });
 afterAll(async () => {
   await f?.db.close();
@@ -119,12 +134,13 @@ it('defaults to branch-local today via the injected clock and returns empty list
     sessions: [],
   });
 });
-it('refusals returns the existing page, paginates ties and exposes no installation hash', async () => {
+it('refusals names employees absent from the board, paginates ties and exposes no hash or phone', async () => {
   const first = await send('/refusals', f.branch, '&limit=1');
   expect(first.status).toBe(200);
   const page = attendanceDeviceRefusalPage.parse(first.body);
   expect(page.items).toHaveLength(1);
   expect(first.text).not.toContain('hash');
+  expect(first.text).not.toContain('phone');
   const second = attendanceDeviceRefusalPage.parse(
     (
       await send(
@@ -137,6 +153,17 @@ it('refusals returns the existing page, paginates ties and exposes no installati
   expect(second.items).toHaveLength(1);
   expect(second.items[0]?.id).not.toBe(page.items[0]?.id);
   expect(second.next_cursor).toBeNull();
+  const items = [...page.items, ...second.items];
+  expect(items.every((row) => row.employee_id === refusedEmployee.id)).toBe(true);
+  for (const row of items) expect(row.employee).toEqual(refusedEmployee);
+  expect(items.find((row) => row.holder_employee_id === holder.id)?.holder).toEqual(holder);
+  expect(items.find((row) => row.holder_employee_id === null)?.holder).toBeNull();
+  const board = attendanceBoard.parse((await send('', f.branch, '&date=2026-10-04')).body);
+  expect(
+    board.sessions.some(
+      (row) => row.employee_id === refusedEmployee.id || row.employee_id === holder.id,
+    ),
+  ).toBe(false);
 });
 it('FEATURE_DISABLED is consistent for both board endpoints after authorized branch scope', async () => {
   await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)

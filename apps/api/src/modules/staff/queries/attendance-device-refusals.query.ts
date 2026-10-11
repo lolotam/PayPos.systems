@@ -13,14 +13,19 @@ export interface AttendanceDeviceRefusalsQuery {
 }
 // لوحة الحضور في الصف ٢٧ تعرض المحاولات المرفوضة دون أي معرف تثبيت أو hash.
 export function attendanceDeviceRefusalsStatement(query: AttendanceDeviceRefusalsQuery) {
-  return sql`SELECT id,employee_id,holder_employee_id,branch_id,step,reason,
-    to_char(attempted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS attempted_at
-    FROM attendance_device_refusals WHERE company_id=${query.companyId} AND business_id=${query.businessId}
-      AND branch_id=${query.branchId}
-      ${query.from === undefined ? sql`` : sql`AND attempted_at>=${query.from.toISOString()}`}
-      ${query.to === undefined ? sql`` : sql`AND attempted_at<${query.to.toISOString()}`}
-      ${query.cursor === undefined ? sql`` : sql`AND (attempted_at,id)<(${query.cursor.attemptedAt}::timestamptz,${query.cursor.id}::uuid)`}
-    ORDER BY attendance_device_refusals.attempted_at DESC,attendance_device_refusals.id DESC LIMIT ${query.limit + 1}`;
+  return sql`SELECT r.id,r.employee_id,r.holder_employee_id,r.branch_id,r.step,r.reason,
+    jsonb_build_object('id',e.id,'name_ar',e.name_ar,'name_en',e.name_en) AS employee,
+    CASE WHEN h.id IS NULL THEN NULL ELSE
+      jsonb_build_object('id',h.id,'name_ar',h.name_ar,'name_en',h.name_en) END AS holder,
+    to_char(r.attempted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS attempted_at
+    FROM attendance_device_refusals r
+    JOIN employees e ON e.company_id=r.company_id AND e.business_id=r.business_id AND e.id=r.employee_id
+    LEFT JOIN employees h ON h.company_id=r.company_id AND h.business_id=r.business_id AND h.id=r.holder_employee_id
+    WHERE r.company_id=${query.companyId} AND r.business_id=${query.businessId} AND r.branch_id=${query.branchId}
+      ${query.from === undefined ? sql`` : sql`AND r.attempted_at>=${query.from.toISOString()}`}
+      ${query.to === undefined ? sql`` : sql`AND r.attempted_at<${query.to.toISOString()}`}
+      ${query.cursor === undefined ? sql`` : sql`AND (r.attempted_at,r.id)<(${query.cursor.attemptedAt}::timestamptz,${query.cursor.id}::uuid)`}
+    ORDER BY r.attempted_at DESC,r.id DESC LIMIT ${query.limit + 1}`;
 }
 export async function attendanceDeviceRefusals(
   tx: Tx,
