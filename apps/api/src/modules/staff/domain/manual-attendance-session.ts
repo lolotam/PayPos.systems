@@ -52,13 +52,13 @@ export function planManualSession(
   if (attendanceIntervalRefused(start, end, context.now, [], null))
     throw new AttendanceChangeError('ATTENDANCE_MANUAL_INVALID_TIMES');
   const date = attendanceWorkingDate(start, context.timezone);
-  if (!attendanceEligible(context.employee, input.branch_id, date))
-    throw new AttendanceChangeError('ATTENDANCE_MANUAL_NOT_ELIGIBLE');
   if (
     context.stored &&
     (context.stored.working_date !== date || context.stored.timezone !== context.timezone)
   )
     throw new AttendanceChangeError('ATTENDANCE_MANUAL_TIMEZONE_CHANGED');
+  if (!attendanceEligible(context.employee, input.branch_id, date))
+    throw new AttendanceChangeError('ATTENDANCE_MANUAL_NOT_ELIGIBLE');
   if (attendanceIntervalRefused(start, end, context.now, context.neighbours, null))
     throw new AttendanceChangeError('ATTENDANCE_MANUAL_INVALID_TIMES');
   if (attendanceIntervalRefused(start, end, context.now, context.pending, context.selfRequestId))

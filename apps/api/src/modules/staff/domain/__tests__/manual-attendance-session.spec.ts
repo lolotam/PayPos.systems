@@ -141,6 +141,14 @@ it('refuses a branch time-zone change after filing with its own code, not invali
       stored: { working_date: '2026-10-08', timezone: 'Asia/Kuwait' },
     }),
   ).toThrow(expect.objectContaining({ code: 'ATTENDANCE_MANUAL_TIMEZONE_CHANGED' }));
+  expect(() =>
+    planManualSession(input, {
+      ...context,
+      timezone: 'UTC',
+      employee: { ...context.employee, attachments: [] },
+      stored: { working_date: '2026-10-08', timezone: 'Asia/Kuwait' },
+    }),
+  ).toThrow(expect.objectContaining({ code: 'ATTENDANCE_MANUAL_TIMEZONE_CHANGED' }));
   expect(
     planManualSession(input, {
       ...context,
