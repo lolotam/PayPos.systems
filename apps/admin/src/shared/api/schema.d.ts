@@ -567,6 +567,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Open sessions from any working date; non-voided sessions for the requested working date. Future dates return empty lists. No private employee fields or hours. */
+        get: operations["attendanceBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-board/refusals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Newest first keyset page of branch refusals, without installation hashes. */
+        get: operations["attendanceBoardRefusals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/default-shifts": {
         parameters: {
             query?: never;
@@ -5155,6 +5189,212 @@ export interface operations {
                 };
             };
             /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceBoard: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance board */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        branch_id: string;
+                        /** Format: date */
+                        date: string;
+                        timezone: string;
+                        /** Format: date-time */
+                        generated_at: string;
+                        in_now: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            /** Format: date-time */
+                            clock_in: string;
+                            /** @enum {string} */
+                            source: "QR" | "BARCODE" | "MANUAL";
+                            /** Format: date-time */
+                            scheduled_end: string | null;
+                        }[];
+                        sessions: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            /** Format: date-time */
+                            clock_in: string;
+                            /** Format: date-time */
+                            clock_out: string | null;
+                            /** @enum {string} */
+                            status: "OPEN" | "CLOSED" | "MISSED_OUT";
+                            /** @enum {string} */
+                            source: "QR" | "BARCODE" | "MANUAL";
+                            late_minutes: number;
+                            /** Format: date-time */
+                            scheduled_start: string | null;
+                            /** Format: date-time */
+                            scheduled_end: string | null;
+                            /** @enum {string} */
+                            geo: "OK" | "NONE" | "OUT_OF_RANGE";
+                            /** @enum {string|null} */
+                            out_geo: "OK" | "NONE" | "OUT_OF_RANGE" | null;
+                            corrected: boolean;
+                            revision: number;
+                            open_exceptions: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                kind: "NONE" | "OUT_OF_RANGE" | "SUSPECTED_MISSED_OUT";
+                            }[];
+                            manual: {
+                                /** Format: uuid */
+                                change_request_id: string;
+                                /** Format: uuid */
+                                requested_by: string;
+                                /** Format: uuid */
+                                approved_by: string;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceBoardRefusals: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refused attendance attempts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            employee_id: string;
+                            /** Format: uuid */
+                            holder_employee_id: string | null;
+                            /** Format: uuid */
+                            branch_id: string;
+                            /** @enum {string} */
+                            step: "CHALLENGE" | "CLOCK" | "ENROL";
+                            /** @enum {string} */
+                            reason: "DEVICE_LOCKED" | "NOT_ENROLLED" | "DEVICE_TAKEN" | "OTHER_DEVICE";
+                            /** Format: date-time */
+                            attempted_at: string;
+                        }[];
+                        next_cursor: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
             default: {
                 headers: {
                     [name: string]: unknown;

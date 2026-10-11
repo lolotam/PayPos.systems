@@ -1,0 +1,238 @@
+import { t, formatInstant } from '@pospay/i18n';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { beforeEach, expect, it, vi } from 'vitest';
+import {
+  boardBranches,
+  boardFixture,
+  boardId,
+  boardScope,
+  otherBoardId,
+  refusalFixture,
+} from '../api/attendance-board.fixture';
+import { AttendanceBoardPage } from './attendance-board-page';
+const state = vi.hoisted(() => ({ locale: 'en' as 'en' | 'ar' }));
+const api = vi.hoisted(() => ({ GET: vi.fn() }));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
+vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
+beforeEach(() => {
+  state.locale = 'en';
+  api.GET.mockReset();
+  api.GET.mockImplementation(async (path: string) => ({
+    data: path.endsWith('refusals') ? refusalFixture : boardFixture,
+  }));
+});
+function setup() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const onDate = vi.fn();
+  const onBranch = vi.fn();
+  const view = render(
+    <QueryClientProvider client={client}>
+      <AttendanceBoardPage
+        scope={boardScope}
+        branches={boardBranches}
+        date={undefined}
+        onDate={onDate}
+        onBranch={onBranch}
+      />
+    </QueryClientProvider>,
+  );
+  return {
+    client,
+    onDate,
+    onBranch,
+    close: () => {
+      view.unmount();
+      client.clear();
+    },
+  };
+}
+it.each(['ar', 'en'] as const)(
+  'renders all sections, local times, overnight attendance and badges in %s',
+  async (locale) => {
+    state.locale = locale;
+    const view = setup();
+    const inNow = await screen.findByRole('region', { name: t(locale, 'attendanceBoard.inNow') });
+    expect(within(inNow).getByText('2:45')).toBeTruthy();
+    expect(
+      within(inNow).getByText(
+        formatInstant(
+          new Date(boardFixture.in_now[0]?.clock_in ?? ''),
+          locale,
+          boardFixture.timezone,
+        ),
+      ),
+    ).toBeTruthy();
+    const daily = screen.getByRole('region', { name: t(locale, 'attendanceBoard.sessions') });
+    for (const key of [
+      'MISSED_OUT',
+      'corrected',
+      'NONE',
+      'OUT_OF_RANGE',
+      'SUSPECTED_MISSED_OUT',
+      'MANUAL',
+    ] as const)
+      expect(within(daily).getByText(t(locale, `attendanceBoard.${key}`))).toBeTruthy();
+    expect(within(daily).getByTitle(t(locale, 'attendanceBoard.manualDetail'))).toBeTruthy();
+    expect(within(daily).getByText('12')).toBeTruthy();
+    expect(
+      (screen.getByLabelText(t(locale, 'attendanceBoard.date')) as HTMLInputElement).value,
+    ).toBe('2026-10-11');
+    const attempts = screen.getByRole('region', { name: t(locale, 'attendanceBoard.refusals') });
+    await within(attempts).findByText(t(locale, 'attendanceBoard.DEVICE_LOCKED'));
+    expect(within(attempts).getByText('Synthetic employee')).toBeTruthy();
+    expect(within(attempts).getByText('Synthetic manual employee')).toBeTruthy();
+    view.close();
+  },
+);
+it('loads more refusals by cursor, preserves newest first and removes duplicates', async () => {
+  api.GET.mockImplementation(
+    async (path: string, options: { params: { query: { cursor?: string } } }) => ({
+      data: !path.endsWith('refusals')
+        ? boardFixture
+        : options.params.query.cursor
+          ? {
+              items: [
+                refusalFixture.items[0],
+                {
+                  ...refusalFixture.items[0],
+                  id: otherBoardId,
+                  step: 'ENROL',
+                  reason: 'NOT_ENROLLED',
+                  holder_employee_id: null,
+                  employee_id: '01920000-0000-7000-8000-0000000000a5',
+                  attempted_at: '2026-10-10T21:00:00Z',
+                },
+              ],
+              next_cursor: null,
+            }
+          : refusalFixture,
+    }),
+  );
+  const view = setup();
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'attendanceBoard.loadMore') }));
+  await screen.findByText(t('en', 'attendanceBoard.NOT_ENROLLED'));
+  const list = within(
+    screen.getByRole('region', { name: t('en', 'attendanceBoard.refusals') }),
+  ).getAllByRole('listitem');
+  expect(list).toHaveLength(2);
+  expect(list[0]?.textContent).toContain(t('en', 'attendanceBoard.DEVICE_LOCKED'));
+  expect(list[1]?.textContent).toContain('01920000-0000-7000-8000-0000000000a5');
+  expect(screen.queryByRole('button', { name: t('en', 'attendanceBoard.loadMore') })).toBeNull();
+  view.close();
+});
+it.each(['OPEN', 'CLOSED'] as const)('renders the %s badge and card source', async (status) => {
+  api.GET.mockImplementation(async (path: string) => ({
+    data: path.endsWith('refusals')
+      ? { items: [], next_cursor: null }
+      : {
+          ...boardFixture,
+          sessions: boardFixture.sessions.map((row) => ({
+            ...row,
+            status,
+            source: 'BARCODE',
+            corrected: false,
+            open_exceptions: [],
+            manual: null,
+            clock_out: status === 'OPEN' ? null : row.clock_out,
+          })),
+        },
+  }));
+  const view = setup();
+  const daily = await screen.findByRole('region', { name: t('en', 'attendanceBoard.sessions') });
+  expect(within(daily).getByText(t('en', `attendanceBoard.${status}`))).toBeTruthy();
+  expect(within(daily).getByText(t('en', 'attendanceBoard.BARCODE'))).toBeTruthy();
+  expect(within(daily).queryByText(t('en', 'attendanceBoard.corrected'))).toBeNull();
+  view.close();
+});
+it('allows past dates, rejects future dates and selects branches from the business', async () => {
+  const view = setup();
+  await screen.findByRole('table');
+  const date = screen.getByLabelText(t('en', 'attendanceBoard.date')) as HTMLInputElement;
+  expect(date.max).toBe('2026-10-11');
+  fireEvent.change(date, { target: { value: '2026-10-12' } });
+  expect(view.onDate).not.toHaveBeenCalled();
+  fireEvent.change(date, { target: { value: '2026-10-09' } });
+  expect(view.onDate).toHaveBeenCalledWith('2026-10-09');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'attendanceBoard.today') }));
+  expect(view.onDate).toHaveBeenLastCalledWith(undefined);
+  fireEvent.change(screen.getByLabelText(t('en', 'attendanceBoard.branch')), {
+    target: { value: otherBoardId },
+  });
+  expect(view.onBranch).toHaveBeenCalledWith(otherBoardId);
+  view.close();
+});
+it('renders loading and every empty section', async () => {
+  api.GET.mockImplementation(async (path: string) => ({
+    data: path.endsWith('refusals')
+      ? { items: [], next_cursor: null }
+      : { ...boardFixture, in_now: [], sessions: [] },
+  }));
+  const view = setup();
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'admin.loading'));
+  for (const key of ['emptyInNow', 'emptySessions', 'emptyRefusals'] as const)
+    await screen.findByText(t('en', `attendanceBoard.${key}`));
+  view.close();
+});
+it.each(['NOT_FOUND', 'FEATURE_DISABLED', 'NOT_READY'] as const)(
+  'renders board error %s',
+  async (code) => {
+    api.GET.mockResolvedValue({
+      error: { code },
+      response: { status: code === 'NOT_FOUND' ? 404 : 403 },
+    });
+    const view = setup();
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain(
+      t(
+        'en',
+        code === 'NOT_FOUND'
+          ? 'attendanceBoard.notFound'
+          : code === 'FEATURE_DISABLED'
+            ? 'attendanceBoard.featureDisabled'
+            : 'admin.unexpected',
+      ),
+    );
+    expect(screen.queryByRole('table')).toBeNull();
+    view.close();
+  },
+);
+it('keeps data and the last updated note when refreshing fails', async () => {
+  const view = setup();
+  await screen.findByRole('table');
+  api.GET.mockRejectedValue(new Error('Synthetic outage'));
+  await view.client.invalidateQueries({
+    queryKey: ['attendance-board', boardId, boardId, boardId, boardId, 'day'],
+  });
+  await screen.findByText(t('en', 'attendanceBoard.refreshError'));
+  expect(screen.getByRole('table')).toBeTruthy();
+  expect(screen.getByText(/Last updated/)).toBeTruthy();
+  view.close();
+});
+it('hides cached attendance when the server revokes access', async () => {
+  const view = setup();
+  await screen.findByRole('table');
+  api.GET.mockResolvedValue({ error: { code: 'NOT_FOUND' }, response: { status: 404 } });
+  await view.client.invalidateQueries({
+    queryKey: ['attendance-board', boardId, boardId, boardId, boardId, 'day'],
+  });
+  await screen.findByText(t('en', 'attendanceBoard.notFound'));
+  expect(screen.queryByRole('table')).toBeNull();
+  view.close();
+});
+it('handles a refusal endpoint error independently and retries', async () => {
+  api.GET.mockImplementation(async (path: string) =>
+    path.endsWith('refusals')
+      ? { error: { code: 'FEATURE_DISABLED' }, response: { status: 403 } }
+      : { data: boardFixture },
+  );
+  const view = setup();
+  await screen.findByText(t('en', 'attendanceBoard.featureDisabled'));
+  expect(screen.getByRole('table')).toBeTruthy();
+  api.GET.mockImplementation(async (path: string) => ({
+    data: path.endsWith('refusals') ? { ...refusalFixture, next_cursor: null } : boardFixture,
+  }));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'attendanceBoard.retry') }));
+  await screen.findByText(t('en', 'attendanceBoard.DEVICE_LOCKED'));
+  view.close();
+});

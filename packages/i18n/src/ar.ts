@@ -1,4 +1,5 @@
 import { attendanceChangeAr } from './attendance-change.js';
+import { attendanceBoardAr } from './attendance-board-catalog.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
 import { attendanceAr } from './attendance-ar.js';
@@ -21,6 +22,7 @@ import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
+  attendanceBoard: attendanceBoardAr,
   phoneLock: {
     locked: 'التليفون مربوط',
     since: 'منذ',

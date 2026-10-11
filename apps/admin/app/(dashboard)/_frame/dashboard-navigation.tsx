@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
 import { CatalogNavItem } from './catalog-nav-item';
+import { AttendanceBoardNavItem } from './attendance-board-nav-item';
 
 export function DashboardNavigation() {
   const locale = useLocale();
@@ -57,7 +58,7 @@ export function DashboardNavigation() {
         asChild
         icon={<UserRound />}
         label={t(locale, 'staff.listTitle')}
-        active={pathname.startsWith('/staff') && !pathname.startsWith('/staff/import')}
+        active={pathname.startsWith('/staff') && !pathname.startsWith('/staff/import') && !pathname.startsWith('/staff/attendance')}
       >
         <Link href="/staff" />
       </AppSidebarItem>
@@ -69,6 +70,7 @@ export function DashboardNavigation() {
       >
         <Link href="/staff/import" />
       </AppSidebarItem>
+      <AttendanceBoardNavItem />
     </AppSidebarGroup>
   );
 }
