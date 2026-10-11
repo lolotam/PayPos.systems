@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
 import { employeeIbanSchemas } from './staff/employee-iban.js';
 import { employeeIbanPaths } from './staff/employee-iban-openapi.js';
 import { unbindPasskeySchemas } from './staff/unbind-passkey.js';
@@ -233,6 +234,7 @@ function operation(
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...attendanceMonthlyReportPaths,
   ...employeeIbanPaths,
   ...employeeDocumentPaths,
   ...employeeImportPaths,

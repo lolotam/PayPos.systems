@@ -1,3 +1,4 @@
+import { attendanceReportEn } from './attendance-report-catalog.js';
 import { attendanceChangeEn } from './attendance-change.js';
 import { attendanceBoardEn } from './attendance-board-catalog.js';
 import { inAppEn } from './in-app-catalog.js';
@@ -20,6 +21,7 @@ import { scheduleShellEn } from './schedule-shell-catalog.js'; import { employee
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   attendanceBoard: attendanceBoardEn,
+  attendanceReport: attendanceReportEn,
   phoneLock: {
     locked: 'Phone locked',
     since: 'Since',
