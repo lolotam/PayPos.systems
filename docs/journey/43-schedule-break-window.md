@@ -32,7 +32,7 @@ What the break does at the clock (lateness on return, the manager alert) is in [
    (`SCHEDULE_PAST_REASON_REQUIRED`، 400). اكتب **السبب** ← يتحفظ، وسطر التدقيق فيه القبل والبعد. إعادة حفظ نفس البريك
    بالظبط ما بتطلبش سبب.
 8. **القالب (API فقط، مفيش شاشة قوالب):** اعمل قالب فيه وردية السبت `09:00`–`17:00` وبريك `13:00`–`14:00` وطبّقه على سارة وهبة
-   لأسبوعين (الخطوات في [19](19-schedules.md)، البنود 11 لـ 13) ← الأربع نسخ كلها فيها البريك. غيّر بريك الاثنين لسارة بس لـ `14:00`–`15:00` ←
+   لأسبوعين (الخطوات في [19](19-schedules.md)، البنود 11 لـ 13) ← الأربع نسخ كلها فيها البريك. غيّر بريك سبت الأسبوع الأول لسارة بس لـ `14:00`–`15:00` ←
    بريك هبة والقالب ما يتغيروش. تعديل القالب بعد كده ما بيغيرش النسخ اللي اتعملت.
 9. **قديم قبل الميزة:** أي جدول أو قالب اتحفظ قبل ميزة البريك يتقرا ويتعدل ويتطبق من غير بريك، من غير أي خطوة ترحيل.
 10. **مفيش فحص لو الكل في بريك مع بعض:** اعمل بريك `13:00`–`14:00` لسارة وهبة في نفس اليوم ← يتحفظ (BW-Q7: مفيش فحص).
@@ -65,7 +65,7 @@ What the break does at the clock (lateness on return, the manager alert) is in [
    Re-saving the identical break asks for no reason.
 8. **Templates (API only, there is no template screen):** create a template whose Saturday has `09:00`–`17:00` with break
    `13:00`–`14:00` and apply it to Sara and Heba for two weeks (steps in [19](19-schedules.md), items 11 to 13) → all four
-   copies carry the break. Change only Sara's Monday break to `14:00`–`15:00` → Heba's Monday and the template stay
+   copies carry the break. Change only Sara's first-week Saturday break to `14:00`–`15:00` → Heba's Saturday and the template stay
    unchanged. Editing the template later never changes copies already made.
 9. **Old data:** any schedule or template saved before this feature reads, edits and applies with no break; no data step.
 10. **No clash check:** give Sara and Heba the same break `13:00`–`14:00` on the same day → saved (BW-Q7: no check).
