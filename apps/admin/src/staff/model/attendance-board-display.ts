@@ -1,4 +1,4 @@
-import type { AttendanceBoard } from '@pospay/contracts';
+import type { AttendanceDeviceRefusalPage } from '@pospay/contracts';
 import { formatInstant, t, type Locale } from '@pospay/i18n';
 
 export function boardTime(instant: string | null, locale: Locale, timezone: string): string {
@@ -21,13 +21,9 @@ export function boardAccessLost(error: unknown): boolean {
   return value?.code === 'FEATURE_DISABLED' || value?.status === 403 || value?.status === 404;
 }
 export function boardEmployeeName(
-  board: AttendanceBoard,
-  employeeId: string | null,
+  employee: AttendanceDeviceRefusalPage['items'][number]['holder'],
   locale: Locale,
 ): string {
-  const employee = [...board.sessions, ...board.in_now].find(
-    (row) => row.employee_id === employeeId,
-  );
   if (employee) return locale === 'ar' ? (employee.name_ar ?? employee.name_en) : employee.name_en;
-  return employeeId ?? t(locale, 'attendanceBoard.unavailable');
+  return t(locale, 'attendanceBoard.unavailable');
 }

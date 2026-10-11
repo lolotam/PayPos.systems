@@ -1,4 +1,19 @@
 export const attendanceReportEn = {
+  title: 'Monthly attendance report',
+  month: 'Month',
+  branch: 'Branch',
+  allBranches: 'All branches',
+  leave: 'Leave',
+  download: 'Download CSV',
+  downloading: 'Downloading CSV…',
+  empty: 'No attendance report rows for this month.',
+  notFound: "You can't view attendance for this selection.",
+  featureDisabled: 'Attendance is disabled for this business.',
+  retry: 'Retry',
+  sortAscending: 'Sort ascending',
+  sortDescending: 'Sort descending',
+  hoursFormat:
+    'Hours are shown as h:mm. Difference is worked minus contracted hours after approved leave.',
   employeeName: 'Employee name',
   daysPresent: 'Days present',
   workedHours: 'Worked hours',
@@ -24,6 +39,21 @@ export const attendanceReportEn = {
 };
 
 export const attendanceReportAr: Record<keyof typeof attendanceReportEn, string> = {
+  title: 'تقرير الحضور الشهري',
+  month: 'الشهر',
+  branch: 'الفرع',
+  allBranches: 'كل الفروع',
+  leave: 'الإجازات',
+  download: 'تنزيل CSV',
+  downloading: 'جاري تنزيل CSV…',
+  empty: 'مفيش بيانات في تقرير الشهر ده.',
+  notFound: 'مالكش صلاحية تشوف الحضور للاختيار ده.',
+  featureDisabled: 'الحضور مش مفعّل للنشاط ده.',
+  retry: 'حاول تاني',
+  sortAscending: 'ترتيب تصاعدي',
+  sortDescending: 'ترتيب تنازلي',
+  hoursFormat:
+    'الساعات بتتعرض ساعات:دقايق. الفرق هو الفعلي ناقص المتفق عليه بعد طرح الإجازات المقبولة.',
   employeeName: 'اسم الموظفة',
   daysPresent: 'أيام الحضور',
   workedHours: 'ساعات العمل',

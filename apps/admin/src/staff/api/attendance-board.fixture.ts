@@ -75,6 +75,8 @@ export const refusalFixture: AttendanceDeviceRefusalPage = {
       id: boardId,
       employee_id: boardId,
       holder_employee_id: otherBoardId,
+      employee: { id: boardId, name_ar: null, name_en: 'Synthetic employee' },
+      holder: { id: otherBoardId, name_ar: null, name_en: 'Synthetic manual employee' },
       branch_id: boardId,
       step: 'CLOCK',
       reason: 'DEVICE_LOCKED',

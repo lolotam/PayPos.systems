@@ -15,9 +15,9 @@ export function AttendanceRefusalRow({
     <li className="rounded-xl border p-3">
       <dl className="grid gap-1 sm:grid-cols-2">
         <dt>{t(locale, 'attendanceBoard.employee')}</dt>
-        <dd className="break-all">{boardEmployeeName(board, row.employee_id, locale)}</dd>
+        <dd className="break-all">{boardEmployeeName(row.employee, locale)}</dd>
         <dt>{t(locale, 'attendanceBoard.holder')}</dt>
-        <dd className="break-all">{boardEmployeeName(board, row.holder_employee_id, locale)}</dd>
+        <dd className="break-all">{boardEmployeeName(row.holder, locale)}</dd>
         <dt>{t(locale, 'attendanceBoard.step')}</dt>
         <dd>{t(locale, `attendanceBoard.${row.step}`)}</dd>
         <dt>{t(locale, 'attendanceBoard.reason')}</dt>

@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. */
+        get: operations["attendanceMonthlyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-report.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, names only. One audit per successful export. */
+        get: operations["attendanceMonthlyReportCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/attendance-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Every active branch of this business must have a covering grant and no covering DENY. */
+        get: operations["attendanceMonthlyReportAll"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/attendance-report.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Every active branch of this business must have a covering grant and no covering DENY. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, names only. One audit per successful export. */
+        get: operations["attendanceMonthlyReportAllCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/iban": {
         parameters: {
             query?: never;
@@ -2383,6 +2451,18 @@ export interface components {
             employee_id: string;
             /** Format: uuid */
             holder_employee_id: string | null;
+            employee: {
+                /** Format: uuid */
+                id: string;
+                name_ar: string | null;
+                name_en: string;
+            };
+            holder: {
+                /** Format: uuid */
+                id: string;
+                name_ar: string | null;
+                name_en: string;
+            } | null;
             /** Format: uuid */
             branch_id: string;
             /** @enum {string} */
@@ -3655,6 +3735,200 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    attendanceMonthlyReport: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monthly attendance rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        business_id: string;
+                        branch_id: string | "all";
+                        month: string;
+                        rows: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            days_present: number;
+                            worked_minutes: number;
+                            scheduled_minutes: number;
+                            contracted_minutes: number;
+                            leave: {
+                                /** @enum {string} */
+                                type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+                                days: number;
+                                partial_minutes: number;
+                            }[];
+                            difference_minutes: number;
+                            late_count: number;
+                            late_minutes: number;
+                            missing_clock_out: number;
+                            manual_days: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceMonthlyReportCsv: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description UTF-8 attendance CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceMonthlyReportAll: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monthly attendance rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        business_id: string;
+                        branch_id: string | "all";
+                        month: string;
+                        rows: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            days_present: number;
+                            worked_minutes: number;
+                            scheduled_minutes: number;
+                            contracted_minutes: number;
+                            leave: {
+                                /** @enum {string} */
+                                type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+                                days: number;
+                                partial_minutes: number;
+                            }[];
+                            difference_minutes: number;
+                            late_count: number;
+                            late_minutes: number;
+                            missing_clock_out: number;
+                            manual_days: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceMonthlyReportAllCsv: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description UTF-8 attendance CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getEmployeeIban: {
         parameters: {
             query?: never;
@@ -5354,6 +5628,18 @@ export interface operations {
                             employee_id: string;
                             /** Format: uuid */
                             holder_employee_id: string | null;
+                            employee: {
+                                /** Format: uuid */
+                                id: string;
+                                name_ar: string | null;
+                                name_en: string;
+                            };
+                            holder: {
+                                /** Format: uuid */
+                                id: string;
+                                name_ar: string | null;
+                                name_en: string;
+                            } | null;
                             /** Format: uuid */
                             branch_id: string;
                             /** @enum {string} */

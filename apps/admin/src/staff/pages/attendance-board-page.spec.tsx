@@ -100,7 +100,13 @@ it('loads more refusals by cursor, preserves newest first and removes duplicates
                   step: 'ENROL',
                   reason: 'NOT_ENROLLED',
                   holder_employee_id: null,
+                  holder: null,
                   employee_id: '01920000-0000-7000-8000-0000000000a5',
+                  employee: {
+                    id: '01920000-0000-7000-8000-0000000000a5',
+                    name_ar: null,
+                    name_en: 'Synthetic absent employee',
+                  },
                   attempted_at: '2026-10-10T21:00:00Z',
                 },
               ],
@@ -117,7 +123,9 @@ it('loads more refusals by cursor, preserves newest first and removes duplicates
   ).getAllByRole('listitem');
   expect(list).toHaveLength(2);
   expect(list[0]?.textContent).toContain(t('en', 'attendanceBoard.DEVICE_LOCKED'));
-  expect(list[1]?.textContent).toContain('01920000-0000-7000-8000-0000000000a5');
+  expect(list[1]?.textContent).toContain('Synthetic absent employee');
+  expect(list[1]?.textContent).toContain(t('en', 'attendanceBoard.unavailable'));
+  expect(list[1]?.textContent).not.toContain('01920000-0000-7000-8000-0000000000a5');
   expect(screen.queryByRole('button', { name: t('en', 'attendanceBoard.loadMore') })).toBeNull();
   view.close();
 });
