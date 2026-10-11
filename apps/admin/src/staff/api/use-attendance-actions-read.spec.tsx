@@ -7,14 +7,12 @@ import {
   exceptionPage,
   historyFixture,
   requestPage,
-  employeesFixture,
 } from './attendance-actions.fixture';
 import {
   useAttendanceExceptions,
   useAttendanceHistory,
   useAttendanceRequests,
 } from './use-attendance-actions-read';
-import { useAttendanceEmployees } from './use-attendance-employees';
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 beforeEach(() => api.GET.mockReset());
@@ -79,20 +77,6 @@ it('reads scoped requests, pages by cursor and lets the server supply action fla
   });
   await act(() => hook.result.current.fetchNextPage());
   expect(api.GET.mock.calls.at(-1)?.[1].params.query.cursor).toBe(requestPage.next_cursor);
-  hook.unmount();
-  test.client.clear();
-});
-it('pages the employee picker using the existing directory route', async () => {
-  api.GET.mockResolvedValue({ data: { ...employeesFixture, next_cursor: 'employees-next' } });
-  const test = attendanceTestClient();
-  const hook = renderHook(() => useAttendanceEmployees(boardScope), { wrapper: test.wrapper });
-  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
-  await act(() => hook.result.current.fetchNextPage());
-  expect(api.GET.mock.calls.at(-1)?.[0]).toBe('/v1/businesses/{businessId}/employees');
-  expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({
-    limit: 50,
-    cursor: 'employees-next',
-  });
   hook.unmount();
   test.client.clear();
 });

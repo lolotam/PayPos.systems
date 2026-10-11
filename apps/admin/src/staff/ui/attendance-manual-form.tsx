@@ -8,19 +8,14 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { attendanceUtc } from '../model/attendance-local-time';
 import { AttendanceEmployeePicker } from './attendance-employee-picker';
-export function AttendanceManualForm({
-  scope,
-  timezone,
-  pending,
-  onSave,
-  onClose,
-}: {
+type Props = {
   scope: AttendanceBoardScope;
   timezone: string;
   pending: boolean;
   onSave: (input: AttendanceChangeRequestInput) => void;
   onClose: () => void;
-}) {
+};
+export function AttendanceManualForm({ scope, timezone, pending, onSave, onClose }: Props) {
   const locale = useLocale();
   const form = useForm<AttendanceChangeRequestInput>({
     resolver: zodResolver(attendanceChangeRequestInput),
@@ -33,7 +28,12 @@ export function AttendanceManualForm({
         {t(locale, 'attendanceActions.timezone')}: <bdi>{timezone}</bdi>
       </p>
       <fieldset disabled={pending} className="flex flex-col gap-3">
-        <AttendanceEmployeePicker scope={scope} register={form.register} />
+        <AttendanceEmployeePicker
+          scope={scope}
+          register={form.register}
+          employeeId={form.watch('employee_id')}
+          onSearchChanged={() => form.setValue('employee_id', '', { shouldValidate: false })}
+        />
         {(['clock_in', 'clock_out'] as const).map((field) => (
           <div key={field} className="grid gap-1">
             <Label htmlFor={`manual-${field}`}>

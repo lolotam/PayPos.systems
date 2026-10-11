@@ -1,7 +1,8 @@
 'use client';
 import type { AttendanceChangeRequestInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, Label, NativeSelect } from '@pospay/ui';
+import { Input, Label, NativeSelect } from '@pospay/ui';
+import { useState } from 'react';
 import type { UseFormRegister } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
@@ -9,20 +10,35 @@ import { useAttendanceEmployees } from '../api/use-attendance-employees';
 import { attendancePages } from '../model/attendance-action-display';
 import { boardAccessLost } from '../model/attendance-board-display';
 import { AttendanceActionFeedback } from './attendance-action-feedback';
-export function AttendanceEmployeePicker({
-  scope,
-  register,
-}: {
+import { AttendanceActionPagination } from './attendance-action-pagination';
+type Props = {
   scope: AttendanceBoardScope;
   register: UseFormRegister<AttendanceChangeRequestInput>;
-}) {
+  employeeId: string;
+  onSearchChanged: () => void;
+};
+export function AttendanceEmployeePicker({ scope, register, employeeId, onSearchChanged }: Props) {
   const locale = useLocale();
-  const query = useAttendanceEmployees(scope);
+  const [search, setSearch] = useState('');
+  const query = useAttendanceEmployees(scope, search);
   const items = boardAccessLost(query.error) ? [] : attendancePages(query.data?.pages);
   return (
     <div className="grid gap-2">
+      <Label htmlFor="manual-employee-search">
+        {t(locale, 'attendanceActions.searchEmployee')}
+      </Label>
+      <Input
+        id="manual-employee-search"
+        type="search"
+        maxLength={100}
+        value={search}
+        onChange={(event) => {
+          setSearch(event.target.value);
+          onSearchChanged();
+        }}
+      />
       <Label htmlFor="manual-employee">{t(locale, 'attendanceBoard.employee')}</Label>
-      <NativeSelect id="manual-employee" {...register('employee_id')}>
+      <NativeSelect id="manual-employee" {...register('employee_id')} value={employeeId}>
         <option value="">{t(locale, 'attendanceActions.chooseEmployee')}</option>
         {items.map((row) => (
           <option key={row.id} value={row.id}>
@@ -30,6 +46,9 @@ export function AttendanceEmployeePicker({
           </option>
         ))}
       </NativeSelect>
+      {query.isSuccess && !items.length ? (
+        <p role="status">{t(locale, 'attendanceActions.noEmployees')}</p>
+      ) : null}
       <AttendanceActionFeedback
         error={query.error}
         loading={query.isPending}
@@ -37,18 +56,13 @@ export function AttendanceEmployeePicker({
           void query.refetch();
         }}
       />
-      {query.hasNextPage && !boardAccessLost(query.error) ? (
-        <Button
-          type="button"
-          variant="outline"
-          disabled={query.isFetching}
-          onClick={() => {
-            void query.fetchNextPage();
-          }}
-        >
-          {t(locale, 'attendanceBoard.loadMore')}
-        </Button>
-      ) : null}
+      <AttendanceActionPagination
+        hasMore={query.hasNextPage && !boardAccessLost(query.error)}
+        fetching={query.isFetching}
+        onMore={() => {
+          void query.fetchNextPage();
+        }}
+      />
     </div>
   );
 }

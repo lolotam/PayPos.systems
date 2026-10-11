@@ -21,7 +21,7 @@ export function AttendanceActionFeedback({
       <div role="alert" className="flex flex-wrap items-center gap-2">
         <p>{attendanceActionError(error, locale)}</p>
         {onRetry ? (
-          <Button variant="outline" onClick={onRetry}>
+          <Button type="button" variant="outline" onClick={onRetry}>
             {t(locale, 'attendanceBoard.retry')}
           </Button>
         ) : null}

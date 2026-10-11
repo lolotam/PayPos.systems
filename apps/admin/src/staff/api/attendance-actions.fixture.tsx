@@ -2,7 +2,7 @@ import type {
   AttendanceExceptionPage,
   AttendanceChangeRequestPage,
   AttendanceCorrectionHistory,
-  EmployeePage,
+  AttendanceEmployeePage,
 } from '@pospay/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -108,15 +108,12 @@ export const correctionResult = {
   },
   corrections: [],
 };
-export const employeesFixture: EmployeePage = {
+export const employeesFixture: AttendanceEmployeePage = {
   items: [
     {
       id: otherBoardId,
-      primary_branch_id: boardId,
       name_ar: null,
       name_en: 'Synthetic employee',
-      role_code: 'staff',
-      hire_date: '2026-01-01',
     },
   ],
   next_cursor: null,

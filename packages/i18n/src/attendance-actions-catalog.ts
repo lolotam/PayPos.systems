@@ -57,6 +57,8 @@ export const attendanceActionsEn = {
   restoreHint:
     'Restore starts from an approved cancellation. The server checks that it is still current.',
   chooseEmployee: 'Choose an employee',
+  searchEmployee: 'Search employees',
+  noEmployees: 'No employees match this search.',
 };
 
 export const attendanceActionsAr: Record<keyof typeof attendanceActionsEn, string> = {
@@ -115,4 +117,6 @@ export const attendanceActionsAr: Record<keyof typeof attendanceActionsEn, strin
   manualHint: 'يُضاف اليوم بعد الموافقة. طلب المالك يُوافق عليه فورًا.',
   restoreHint: 'الرجوع يبدأ من طلب إلغاء موافق عليه. الخادم يتحقق أن الإلغاء ما زال قائمًا.',
   chooseEmployee: 'اختر الموظفة',
+  searchEmployee: 'البحث عن الموظفة',
+  noEmployees: 'لا توجد موظفات تطابق البحث.',
 };

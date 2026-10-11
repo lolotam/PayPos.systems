@@ -13,7 +13,7 @@ export function AttendanceActionPagination({
 }) {
   const locale = useLocale();
   return hasMore ? (
-    <Button variant="outline" disabled={fetching} onClick={onMore}>
+    <Button type="button" variant="outline" disabled={fetching} onClick={onMore}>
       {t(locale, 'attendanceBoard.loadMore')}
     </Button>
   ) : null;
