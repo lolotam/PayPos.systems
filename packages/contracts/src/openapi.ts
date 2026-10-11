@@ -12,6 +12,8 @@ import { attendanceExceptionSchemas } from './staff/attendance-exception.js';
 import { attendanceExceptionPaths } from './staff/attendance-exception-openapi.js';
 import { attendanceCorrectionSchemas } from './staff/attendance-correction.js';
 import { attendanceCorrectionPaths } from './staff/attendance-correction-openapi.js';
+import { attendanceChangeSchemas } from './staff/attendance-change-request.js';
+import { attendanceChangePaths } from './staff/attendance-change-request-openapi.js';
 import { passkeySchemas } from './staff/passkeys.js';
 import { clockAttendanceSchemas } from './staff/clock-attendance.js';
 import { clockAttendancePaths } from './staff/clock-attendance-openapi.js';
@@ -122,6 +124,7 @@ const SCHEMAS = [
   ...leaveDecisionSchemas,
   ...attendanceExceptionSchemas,
   ...attendanceCorrectionSchemas,
+  ...attendanceChangeSchemas,
   ...passkeySchemas,
   ...unbindPasskeySchemas,
   ...scheduleSchemas,
@@ -244,6 +247,7 @@ const PATHS = {
   ...leavePaths,
   ...attendanceExceptionPaths,
   ...attendanceCorrectionPaths,
+  ...attendanceChangePaths,
   ...permissionPaths,
   ...customerPaths,
   ...catalogPaths,

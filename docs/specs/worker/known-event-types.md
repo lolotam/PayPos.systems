@@ -2,6 +2,11 @@
 
 Date: 2026-10-08. Owner decision: Waleed.
 
+Spec 044 (2026-10-10, ADR-0040) adds `AttendanceChangeRequested` and
+`AttendanceChangeDecided`. Both are known dispatcher types and notification source
+events. IN_APP recipients are delivered by the existing notifications consumer;
+events without recipients are acknowledged without creating inbox rows.
+
 The dispatcher must recognize every event emitted by the API and worker, even when
 its business consumer has not shipped. An unknown event retries and eventually
 parks, blocking later events for the same aggregate.

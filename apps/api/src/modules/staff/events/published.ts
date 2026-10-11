@@ -106,3 +106,30 @@ export interface ImportCommitted {
 export interface EmployeeImportCommitRequested {
   readonly preview_id: string;
 }
+
+/** يصدر عند تسجيل طلب معلق فقط لإبلاغ الملاك، دون سبب الطلب في حقائق الحدث. */
+export interface AttendanceChangeRequested {
+  readonly request_id: string;
+  readonly business_id: string;
+  readonly branch_id: string;
+  readonly employee_id: string;
+  readonly kind: 'ADD_SESSION' | 'VOID_SESSION';
+  readonly status: 'PENDING';
+  readonly requested_by: string;
+  readonly requested_at: string;
+  readonly revision: number;
+}
+/** يصدر عند الموافقة أو الرفض داخل معاملة القرار، بما فيها موافقة المالك الفورية. */
+export interface AttendanceChangeDecided {
+  readonly request_id: string;
+  readonly business_id: string;
+  readonly branch_id: string;
+  readonly employee_id: string;
+  readonly kind: 'ADD_SESSION' | 'VOID_SESSION';
+  readonly status: 'APPROVED' | 'REJECTED';
+  readonly requested_by: string;
+  readonly requested_at: string;
+  readonly decided_by: string;
+  readonly decided_at: string;
+  readonly revision: number;
+}

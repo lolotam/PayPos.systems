@@ -7,7 +7,7 @@ DH-Q7, Waleed 2026-10-10, provisional until the partner answers — his pick win
 
 **Refreshed 2026-10-11**: row 16c-2 (spec 047, PR #151) has landed on `main` (605d627); this branch is merged on it.
 16c-2 took migrations 0113/0114 (`staff_branch_schedule_settings`) and moved the schedule wiring into
-`apps/api/src/modules/staff/staff-schedule.providers.ts`. 16d therefore starts its migrations at **0115** and wires its
+`apps/api/src/modules/staff/staff-schedule.providers.ts`. 16d first started its migrations at 0115; after row 26a (PR #148) took 0115–0117 on `main` they were renumbered to **0118–0120**. It wires its
 providers in a new `staff-default-shifts.providers.ts` (`staff.module.ts` is already 337 lines, warn at 300). Derived
 rules (a) and (b) were confirmed by Waleed on 2026-10-11 and need no design change.
 

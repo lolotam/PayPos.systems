@@ -7,7 +7,7 @@ partner answers).
 **Tests are mandatory** (`CLAUDE.md` §9) and come first in each phase; they must fail before the code exists.
 
 **Start condition**: met 2026-10-11 — row 16c-2 (spec 047, PR #151) is merged and this branch is merged on it;
-migrations start at 0115. Touch only the lines this
+migrations start at 0118 (renumbered from 0115 after row 26a, PR #148, took 0115–0117). Touch only the lines this
 slice needs in the shared schedule files (`queries/schedule-week.query.ts`, `contracts/staff/schedules.ts`, the admin
 schedule editor). No reformatting of unrelated code.
 

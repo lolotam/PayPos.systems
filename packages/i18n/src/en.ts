@@ -1,3 +1,5 @@
+import { attendanceChangeEn } from './attendance-change.js';
+import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
 import { attendanceEn } from './attendance-en.js';
@@ -25,7 +27,7 @@ export const en = {
   employeeDocuments: employeeDocumentsEn,
   passkeyAdmin: enPasskeyAdmin,
   leave: leaveEn,
-  permissionCodes: permissionCodesEn,
+  permissionCodes: { ...permissionCodesEn, ...attendanceChangeEn.permissionCodes },
   brand: {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',
@@ -139,24 +141,9 @@ export const en = {
     expired: 'Expired',
   },
   staffLogin: staffLoginEn,
-  inApp: {
-    title: 'Notifications',
-    unread: 'Unread',
-    read: 'Read',
-    markRead: 'Mark read',
-    markAllRead: 'Mark all read',
-    empty: 'No notifications yet.',
-    loading: 'Loading notifications…',
-    error: 'Notifications could not be updated. Try again.',
-    generic_notice: 'Update for {{subject}}',
-    generic_employee: 'Employee',
-    generic_branch: 'Branch',
-    shift_not_clocked_in:
-      '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
-    break_not_returned:
-      '{{employee_name_en}} has not clocked back in from the break that ended at {{break_end}} at {{branch_name_en}}',
-  },
+  inApp: inAppEn,
   errors: {
+    ...attendanceChangeEn.errors,
     ATTENDANCE_DEVICE_LOCKED:
       'This phone is registered to another employee. Clock in from your own phone or with the card at reception.',
     ATTENDANCE_DEVICE_NOT_ENROLLED:

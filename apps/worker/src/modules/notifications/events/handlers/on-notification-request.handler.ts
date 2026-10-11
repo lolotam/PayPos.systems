@@ -17,6 +17,8 @@ type EmailScope = {
 };
 
 export const NOTIFICATION_SOURCE_EVENTS = [
+  'AttendanceChangeRequested',
+  'AttendanceChangeDecided',
   'PaymentFailed',
   'CashShiftClosed',
   'AppointmentBooked',

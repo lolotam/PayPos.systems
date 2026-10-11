@@ -1,15 +1,22 @@
 import { evaluateAccess, type AccessGrant, type AccessTarget, type ScopeType } from './access.ts';
 import { personalAllowFailure } from './permission-eligibility.ts';
 
-/** قرار spec 039 يحصر منح الوثائق في المالك؛ القائمة الصافية تمنع اعتماد الدومين على قاعدة البيانات. */
+/** قرارات المالك تحصر منح هذه الصلاحيات فيه؛ القائمة الصافية تمنع اعتماد الدومين على قاعدة البيانات. */
 export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
   'read:files:business',
   'manage:files:business',
   'manage:document-types:company',
   'manage:schedule-settings:business',
+  'request:attendance-change:branch',
+  'decide:attendance-change:company',
   'manage:employee-hours:business',
 ];
 
+/** صلاحيات طلبات تعديل الحضور: المالك وحده يمنحها أو يمنعها أو يسحبها (ACR-Q1، ACR-Q4)، لأن سحبها يغيّر مين يقدر يطلب أو يوافق. */
+export const OWNER_ONLY_EDIT_PERMISSIONS: readonly string[] = [
+  'request:attendance-change:branch',
+  'decide:attendance-change:company',
+];
 /** العضوية المستهدفة، بدون أي بيانات دخول حساسة. */
 export interface EditableMembership {
   readonly id: string;
@@ -123,7 +130,7 @@ export function permissionPossessionFailure(
 
 /**
  * بيتحقق من السلطة والنطاق والمدة؛ تفويض كودي إدارة النشاط لمديره لا يتجاوز نشاط عضويته.
- * منع تعديل الذات وحماية المالك يتبعان الشخص لا رقم العضوية؛ منح ALLOW للوثائق محصور في المالك النشط.
+ * منح ALLOW للصلاحيات المحمية محصور في المالك؛ صلاحية قرار الحضور تحتاجه أيضاً عند المنع والسحب.
  *
  * @param terms بيانات الاستثناء المطلوبة
  * @param context العضوية والصلاحيات والهدف الموثوق والوقت المحقون
@@ -162,9 +169,10 @@ export function permissionEditFailure(
   if (operation === 'SAVE' && permissionHolderIsOwner(context) && terms.effect === 'DENY')
     return 'PERMISSION_OWNER_PROTECTED';
   if (
-    operation === 'SAVE' &&
-    terms.effect === 'ALLOW' &&
-    OWNER_GRANTED_PERMISSIONS.includes(terms.permission_code) &&
+    ((operation === 'SAVE' &&
+      terms.effect === 'ALLOW' &&
+      OWNER_GRANTED_PERMISSIONS.includes(terms.permission_code)) ||
+      (operation !== 'CHECK' && OWNER_ONLY_EDIT_PERMISSIONS.includes(terms.permission_code))) &&
     !context.editorIsCompanyOwner
   )
     return 'PERMISSION_OWNER_ONLY';
