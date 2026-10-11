@@ -58,5 +58,8 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 28 | [Document expiry alerts](28-document-expiry.md) — تنبيه انتهاء الوثائق | #110 | not yet (admin not deployed, issue #54); background job only, no recipients until PR 62; existing companies need the one-time replay before the pilot |
 | 29 | [Services](29-services.md) — الخدمات | #114 | not yet (admin not deployed, issue #54); needs the `catalog` feature; no delete yet; used by sessions from PR 35 |
 | 30 | [Employee cards and clock-by-card](30-employee-cards-and-clock-by-card.md) — كروت الموظفين والحضور بالكارت | #120, #121 | not yet (admin not deployed, issue #54; POS not deployed); API on staging at `b01e879` (2026-10-07); needs Redis; exception handling, correction and attendance board (PRs 25–27) not shipped |
+| 31 | [Attendance change requests](31-attendance-change-requests.md) — طلبات تعديل الحضور (طلب وموافقة) | #148 | API on staging after the next release; no admin screen until PR 27; admin not deployed (issue #54) |
+| 32 | [Add a manual attendance day](32-add-manual-attendance-day.md) — إضافة يوم حضور يدوي | #153 (open) | PR open; API on staging after the next release; no admin screen until PR 27; admin not deployed (issue #54) |
+| 33 | [Void and restore an attendance day](33-void-and-restore-attendance-day.md) — إلغاء يوم حضور واسترجاعه | #152 | API on staging after the next release; no admin screen until PR 27; admin not deployed (issue #54) |
 
 New journeys are added after every merge.
