@@ -1,12 +1,12 @@
-import type { Tx } from '@pospay/db';
 import { describeWorkspaces } from '../../tenancy/index.ts';
+import type { AttendanceBoardContext } from '../ports/attendance-board-context.port.ts';
 
-export async function attendanceBoardContext(
-  tx: Tx,
-  companyId: string,
-  rawBusinessId: string,
-  rawBranchId: string,
-) {
+export const attendanceBoardContext: AttendanceBoardContext = async (
+  tx,
+  companyId,
+  rawBusinessId,
+  rawBranchId,
+) => {
   const businessId = rawBusinessId.toLowerCase();
   const branchId = rawBranchId.toLowerCase();
   const tree = await describeWorkspaces(tx, [{ scope: 'BRANCH', scopeId: branchId }]);
@@ -16,4 +16,4 @@ export async function attendanceBoardContext(
   return business && branch
     ? { companyId, businessId: business.id, branchId, timezone: branch.effective_timezone }
     : null;
-}
+};

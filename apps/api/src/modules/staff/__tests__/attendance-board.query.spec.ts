@@ -126,7 +126,7 @@ it('returns manual provenance using pospay_app without any auth user-name grant'
     expect(JSON.stringify(result)).not.toContain('_by_name');
   });
 });
-it('EXPLAIN ANALYZE uses existing session, correction and exception indexes', async () => {
+it('EXPLAIN ANALYZE uses session/correction indexes and scans exceptions by the primary-key company prefix', async () => {
   await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     const plan = await tx.execute(
@@ -135,6 +135,6 @@ it('EXPLAIN ANALYZE uses existing session, correction and exception indexes', as
     const text = JSON.stringify(plan);
     expect(text).toMatch(/attendance_sessions_(board|employee_date)_idx/);
     expect(text).toContain('attendance_corrections_session_idx');
-    expect(text).toMatch(/attendance_exceptions_(session_idx|company_id_id_pk)/);
+    expect(text).toContain('attendance_exceptions_company_id_id_pk');
   });
 });
