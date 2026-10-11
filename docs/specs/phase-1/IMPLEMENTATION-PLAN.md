@@ -136,6 +136,8 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 
 ## 3. Duration
 
+**Update 2026-10-11:** rows 16b-3 and 16d-3 add two S PRs (+4 focused days); the rows added since v7 (8b, 9b, 13b, 16b–16d, 21b, 26a–26c, 27 split, 28b/28c, …) are not yet re-totalled below — the figures stay the v7 nominal baseline until the next plan revision.
+
 **Nominal, from the table:** 5 gates and 49 PRs at S (108 days), 25 at M (100), 1 at L (7) = **215 focused days ≈ 43
 weeks for one developer** — the figure given to the client until Phase 1's own pace is measured. If the engine
 track (PRs 29–31, 10 days) is handed to a second implementer, the critical path is ≈ 41 weeks.
