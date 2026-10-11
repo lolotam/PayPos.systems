@@ -6,7 +6,7 @@ import {
   type AttendanceBoardQuery,
   type AttendanceBoardRefusalsQuery,
 } from '@pospay/contracts';
-import type { TenantWrappers } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
@@ -14,14 +14,19 @@ import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import type { Clock } from '../../../shared/ports/clock.port.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-// eslint-disable-next-line boundaries/dependencies -- عقد القراءة مملوك لـ ports؛ المتحكم يحتاج نوعه فقط لحقن المحوّل.
-import type { AttendanceBoardContext } from '../ports/attendance-board-context.port.ts';
-import { attendanceBoard } from '../queries/attendance-board.query.ts';
+import { attendanceBoard, type AttendanceBoardScope } from '../queries/attendance-board.query.ts';
 import { attendanceDeviceRefusals } from '../queries/attendance-device-refusals.query.ts';
 import { AttendanceBoardExceptionFilter } from './attendance-board-exception.filter.ts';
 
 export const ATTENDANCE_BOARD_CONTEXT = Symbol('ATTENDANCE_BOARD_CONTEXT');
 export const ATTENDANCE_BOARD_CLOCK = Symbol('ATTENDANCE_BOARD_CLOCK');
+export type AttendanceBoardContext = (
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  branchId: string,
+) => Promise<AttendanceBoardScope | null>;
+
 @Controller('businesses/:businessId/branches/:branchId/attendance-board')
 @UseFilters(AttendanceBoardExceptionFilter)
 export class AttendanceBoardController {
