@@ -13,8 +13,8 @@ afterAll(async () => {
   await f?.db.close();
   await f?.h.close();
 });
-it('ACR-12 production wiring refuses every kind before storing requests, keys, audit or events', async () => {
-  for (const kind of ['ADD_SESSION', 'VOID_SESSION']) {
+it('ACR-12 production wiring refuses the unavailable ADD_SESSION kind before storing anything', async () => {
+  for (const kind of ['ADD_SESSION']) {
     const key = leaveIds.newId();
     const response = await f.h.app.inject({
       method: 'POST',

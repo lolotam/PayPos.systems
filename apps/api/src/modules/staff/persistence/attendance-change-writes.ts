@@ -85,6 +85,7 @@ function record(
     ...plan,
     session_id: values.session_id,
     session_revision: context.before ? context.before.session_revision : values.session_revision,
+    requested: values.requested ?? context.before?.requested ?? null,
     id,
     business_id: actor.businessId,
     branch_id: context.target.branch_id,

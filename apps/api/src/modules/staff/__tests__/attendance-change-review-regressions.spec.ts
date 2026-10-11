@@ -39,6 +39,7 @@ it('an active requester can list and withdraw her filings after both permissions
     ...changeInput(f),
     kind: 'VOID_SESSION',
     session_id,
+    session_revision: 0,
   });
   const other = await f.fileChange.execute(changeActor(f, undefined, f.owner), changeInput(f));
   await asRole(f, 'accountant');

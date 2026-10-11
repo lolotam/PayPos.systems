@@ -2028,10 +2028,19 @@ export interface components {
             employee_id: string;
             reason: string;
             /** Format: uuid */
-            session_id?: string;
-            session_revision?: number;
+            session_id: string;
+            session_revision: number;
             /** @enum {string} */
             kind: "VOID_SESSION";
+        } | {
+            /** Format: uuid */
+            employee_id: string;
+            reason: string;
+            /** Format: uuid */
+            session_id: string;
+            session_revision: number;
+            /** @enum {string} */
+            kind: "RESTORE_SESSION";
         };
         CancelAttendanceChangeInput: {
             revision: number;
@@ -2055,7 +2064,7 @@ export interface components {
             /** Format: uuid */
             employee_id?: string;
             /** @enum {string} */
-            kind?: "ADD_SESSION" | "VOID_SESSION";
+            kind?: "ADD_SESSION" | "VOID_SESSION" | "RESTORE_SESSION";
             cursor?: string;
             /** @default 50 */
             limit: number;
@@ -2064,7 +2073,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "ADD_SESSION" | "VOID_SESSION";
+            kind: "ADD_SESSION" | "VOID_SESSION" | "RESTORE_SESSION";
             /** @enum {string} */
             status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
             /** Format: uuid */
@@ -2080,6 +2089,15 @@ export interface components {
             /** Format: uuid */
             session_id: string | null;
             session_revision: number | null;
+            requested: {
+                /** Format: date */
+                working_date: string;
+                /** Format: date-time */
+                clock_in: string;
+                /** Format: date-time */
+                clock_out: string | null;
+                timezone: string;
+            } | null;
             reason: string;
             /** Format: uuid */
             requested_by: string;
@@ -2102,7 +2120,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "ADD_SESSION" | "VOID_SESSION";
+            kind: "ADD_SESSION" | "VOID_SESSION" | "RESTORE_SESSION";
             /** @enum {string} */
             status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
             /** Format: uuid */
@@ -2118,6 +2136,15 @@ export interface components {
             /** Format: uuid */
             session_id: string | null;
             session_revision: number | null;
+            requested: {
+                /** Format: date */
+                working_date: string;
+                /** Format: date-time */
+                clock_in: string;
+                /** Format: date-time */
+                clock_out: string | null;
+                timezone: string;
+            } | null;
             reason: string;
             /** Format: uuid */
             requested_by: string;
@@ -2135,8 +2162,27 @@ export interface components {
             revision: number;
             can_decide: boolean;
             can_cancel: boolean;
-            /** @enum {string|null} */
-            effect: null;
+            effect: {
+                session: {
+                    /** Format: uuid */
+                    id: string;
+                    /** Format: date */
+                    working_date: string;
+                    /** Format: date-time */
+                    clock_in: string;
+                    /** Format: date-time */
+                    clock_out: string | null;
+                    /** @enum {string} */
+                    status: "OPEN" | "CLOSED" | "MISSED_OUT";
+                    revision: number;
+                    /** Format: date-time */
+                    voided_at: string | null;
+                    /** Format: uuid */
+                    voided_by: string | null;
+                    /** Format: uuid */
+                    void_request_id: string | null;
+                };
+            } | null;
         };
         AttendanceChangeRequestPage: {
             items: components["schemas"]["AttendanceChangeRequest"][];
@@ -3070,7 +3116,7 @@ export interface components {
                 /** @enum {string} */
                 type: "text";
                 /** @enum {string} */
-                value: "ADD_SESSION" | "VOID_SESSION";
+                value: "ADD_SESSION" | "VOID_SESSION" | "RESTORE_SESSION";
             })[];
         } | {
             /** Format: uuid */
@@ -3111,7 +3157,7 @@ export interface components {
                 /** @enum {string} */
                 type: "text";
                 /** @enum {string} */
-                value: "ADD_SESSION" | "VOID_SESSION";
+                value: "ADD_SESSION" | "VOID_SESSION" | "RESTORE_SESSION";
             } | {
                 /** @enum {string} */
                 name: "decision";
@@ -6540,6 +6586,15 @@ export interface operations {
                     "application/json": components["schemas"]["CorrectAttendanceResult"];
                 };
             };
+            /** @description ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED or ATTENDANCE_SESSION_REVISION_CONFLICT */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Bilingual refusal */
             default: {
                 headers: {
@@ -6557,7 +6612,7 @@ export interface operations {
                 branch_id?: string;
                 employee_id?: string;
                 status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
-                kind?: "ADD_SESSION" | "VOID_SESSION";
+                kind?: "ADD_SESSION" | "VOID_SESSION" | "RESTORE_SESSION";
                 cursor?: string;
                 limit?: number;
             };
@@ -6578,6 +6633,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttendanceChangeRequestPage"];
+                };
+            };
+            /** @description ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED, ATTENDANCE_SESSION_NOT_VOIDED, ATTENDANCE_SESSION_REVISION_CONFLICT or ATTENDANCE_CHANGE_DUPLICATE_PENDING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description ATTENDANCE_RESTORE_OVERLAP or ATTENDANCE_CHANGE_KIND_UNAVAILABLE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */
@@ -6616,6 +6689,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttendanceChangeRequest"];
+                };
+            };
+            /** @description ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED, ATTENDANCE_SESSION_NOT_VOIDED, ATTENDANCE_SESSION_REVISION_CONFLICT or ATTENDANCE_CHANGE_DUPLICATE_PENDING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description ATTENDANCE_RESTORE_OVERLAP or ATTENDANCE_CHANGE_KIND_UNAVAILABLE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */
@@ -6657,6 +6748,24 @@ export interface operations {
                     "application/json": components["schemas"]["AttendanceChangeRequest"];
                 };
             };
+            /** @description ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED, ATTENDANCE_SESSION_NOT_VOIDED, ATTENDANCE_SESSION_REVISION_CONFLICT or ATTENDANCE_CHANGE_DUPLICATE_PENDING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description ATTENDANCE_RESTORE_OVERLAP or ATTENDANCE_CHANGE_KIND_UNAVAILABLE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Bilingual refusal */
             default: {
                 headers: {
@@ -6694,6 +6803,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttendanceChangeDecisionResult"];
+                };
+            };
+            /** @description ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED, ATTENDANCE_SESSION_NOT_VOIDED, ATTENDANCE_SESSION_REVISION_CONFLICT or ATTENDANCE_CHANGE_DUPLICATE_PENDING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description ATTENDANCE_RESTORE_OVERLAP or ATTENDANCE_CHANGE_KIND_UNAVAILABLE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */

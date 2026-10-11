@@ -30,6 +30,11 @@ export const attendanceCorrectionPaths = {
           description: 'CorrectAttendanceResult',
           content: json('CorrectAttendanceResult'),
         },
+        '409': {
+          description:
+            'ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED or ATTENDANCE_SESSION_REVISION_CONFLICT',
+          content: json('ErrorEnvelope'),
+        },
         default: { description: 'Bilingual refusal', content: json('ErrorEnvelope') },
       },
     },

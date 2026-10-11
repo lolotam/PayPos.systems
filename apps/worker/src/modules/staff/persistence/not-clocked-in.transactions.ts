@@ -85,6 +85,7 @@ export function countingClockInsStatement(
     WHERE company_id = ${companyId} AND employee_id = ${employeeId}
       AND working_date BETWEEN ((${from.toISOString()}::timestamptz AT TIME ZONE 'UTC')::date - 1)
         AND ((${to.toISOString()}::timestamptz AT TIME ZONE 'UTC')::date + 1)
+      AND voided_at IS NULL
       AND clock_in >= ${from.toISOString()}::timestamptz
       AND clock_in <= ${to.toISOString()}::timestamptz`;
 }
@@ -202,11 +203,11 @@ export async function readLeaves(
 export function presenceSessionStatement(companyId: string, employeeId: string, alertAt: Date) {
   return sql`SELECT clock_in, clock_out, status
     FROM attendance_sessions WHERE company_id = ${companyId} AND employee_id = ${employeeId}
-      AND status = 'OPEN' AND clock_in <= ${alertAt.toISOString()}::timestamptz
+      AND status = 'OPEN' AND voided_at IS NULL AND clock_in <= ${alertAt.toISOString()}::timestamptz
     UNION ALL
     SELECT clock_in, clock_out, status
     FROM attendance_sessions WHERE company_id = ${companyId} AND employee_id = ${employeeId}
-      AND status <> 'OPEN' AND clock_in <= ${alertAt.toISOString()}::timestamptz
+      AND status <> 'OPEN' AND voided_at IS NULL AND clock_in <= ${alertAt.toISOString()}::timestamptz
       AND clock_out > ${alertAt.toISOString()}::timestamptz
     LIMIT 1`;
 }

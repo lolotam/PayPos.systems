@@ -168,6 +168,7 @@ it('delegated inbox covers the business and can_decide respects requester, emplo
     ...changeInput(f),
     employee_id: subjectId,
     kind: 'VOID_SESSION',
+    session_revision: 0,
     session_id,
   });
   const denial = leaveIds.newId();

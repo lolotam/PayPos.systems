@@ -13,7 +13,9 @@ export function renderNotification(item: InAppNotification, viewerLocale?: Local
       locale,
       values['change'] === 'ADD_SESSION'
         ? 'inApp.attendance_change_add'
-        : 'inApp.attendance_change_void',
+        : values['change'] === 'RESTORE_SESSION'
+          ? 'inApp.attendance_change_restore'
+          : 'inApp.attendance_change_void',
     );
     values['decision'] = t(
       locale,

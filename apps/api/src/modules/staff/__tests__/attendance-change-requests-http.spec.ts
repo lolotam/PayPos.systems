@@ -131,7 +131,7 @@ it('ACR-13 preserves a kind refusal over HTTP and leaves PENDING without audit o
 it('ACR-09 out-of-scope and foreign ids share identical NOT_FOUND envelopes', async () => {
   await asRole(f, 'branch_manager');
   const session_id = await seedSession(f, { employeeId: f.employee.id, branchId: f.secondBranch });
-  const input = { ...changeInput(f), kind: 'VOID_SESSION', session_id };
+  const input = { ...changeInput(f), kind: 'VOID_SESSION', session_revision: 0, session_id };
   const responses: unknown[] = [];
   for (const request of [
     { url: route(), payload: input },
@@ -224,7 +224,7 @@ it('ACR-Q1 owner grants an accountant permission to request only on the granted 
     method: 'POST',
     url: route(),
     headers: headers(),
-    payload: { ...changeInput(f), kind: 'VOID_SESSION', session_id },
+    payload: { ...changeInput(f), kind: 'VOID_SESSION', session_revision: 0, session_id },
   });
   expect(outside.statusCode).toBe(404);
   expect(outside.json().code).toBe('NOT_FOUND');
@@ -273,7 +273,7 @@ it('ACR-Q1 ignores a historical Device ALLOW for the request permission', async 
     method: 'POST',
     url: route(),
     headers: headers(),
-    payload: { ...changeInput(f), kind: 'VOID_SESSION', session_id },
+    payload: { ...changeInput(f), kind: 'VOID_SESSION', session_revision: 0, session_id },
   });
   expect(response.statusCode).toBe(404);
   expect(response.json().code).toBe('NOT_FOUND');

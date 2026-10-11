@@ -20,8 +20,8 @@ export class AttendanceChangeKindRefusal extends Error {
 }
 
 /** الأنواع تتوسع في شرائح التطبيق التالية دون تغيير دورة الطلب. */
-export type AttendanceChangeKindCode = 'ADD_SESSION' | 'VOID_SESSION';
-/** مغلف النوع قبل إضافة حقول الإضافة والإلغاء في شريحتيهما. */
+export type AttendanceChangeKindCode = 'ADD_SESSION' | 'VOID_SESSION' | 'RESTORE_SESSION';
+/** مغلف مشترك؛ نوع الإلغاء أو الاسترجاع يثبت معرّف الجلسة ونسختها قبل التطبيق. */
 export interface AttendanceChangeKindInput {
   kind: AttendanceChangeKindCode;
   employee_id: string;
@@ -55,6 +55,27 @@ export interface AttendanceChangeApplyScope extends AttendanceChangeKindScope {
 export interface AttendanceChangeKindValues {
   session_id: string | null;
   session_revision: number | null;
+  /** أوقات الجلسة وتوقيتها لعرض مضمون الطلب في القائمة والرد. */
+  requested?: {
+    working_date: string;
+    clock_in: string;
+    clock_out: string | null;
+    timezone: string;
+  } | null;
+  /** الجلسة بعد تطبيق الموافقة؛ غياب الأثر يعني أن الحضور لم يتغير. */
+  effect?: {
+    session: {
+      id: string;
+      working_date: string;
+      clock_in: string;
+      clock_out: string | null;
+      status: 'OPEN' | 'CLOSED' | 'MISSED_OUT';
+      revision: number;
+      voided_at: string | null;
+      voided_by: string | null;
+      void_request_id: string | null;
+    };
+  } | null;
 }
 /** مخطط نوع التغيير؛ الفحص والتطبيق يشتركان في المعاملة ويرميان AttendanceChangeKindRefusal لرفضها وإبقاء الطلب PENDING. */
 export interface AttendanceChangeKind {
@@ -68,13 +89,19 @@ export interface AttendanceChangeKind {
     scope: Omit<AttendanceChangeKindScope, 'target' | 'request' | 'requestId'>,
   ): Promise<AttendanceChangeTarget | null>;
   /**
+   * يقفل صفوف النوع بترتيب ADR-0028 قبل أخذ عينة الساعة المعتمدة للقرار.
+   *
+   * @param scope سياق الأقفال؛ عينة الوقت الأولية لا تُستخدم للقرار
+   */
+  lock?(scope: Omit<AttendanceChangeKindScope, 'request'>): Promise<void>;
+  /**
    * يعيد القيم المثبتة بعد مراجعة قواعد النوع تحت الأقفال عند الطلب والموافقة.
    *
    * @param scope الحقائق المقفولة
    */
   check(scope: AttendanceChangeKindScope): Promise<AttendanceChangeKindValues>;
   /**
-   * يطبق الأثر داخل المعاملة الحالية ويعيد معرّف الجلسة الناتجة، أو null للاحتفاظ بهدف الطلب.
+   * يطبق الأثر داخل المعاملة الحالية ويعيد قيم الجلسة الناتجة؛ session_id بقيمة null يحتفظ بهدف الطلب.
    * صف الطلب محفوظ قبله دائماً، حتى في خطوة المالك الواحدة، فيقدر النوع يكتب change_request_id أو void_request_id = scope.requestId.
    *
    * @param scope الحقائق والمعاملة المشتركة ومعرّف الطلب المحفوظ
@@ -85,7 +112,7 @@ export interface AttendanceChangeKind {
     values: AttendanceChangeKindValues,
   ): Promise<AttendanceChangeKindValues>;
 }
-/** السجل الفارغ يمنع انتظار طلب لنوع لم تصل شريحته بعد. */
+/** يسجل الأنواع المنفذة فقط حتى لا ينتظر طلب لنوع لم تصل شريحته بعد. */
 export interface AttendanceChangeKinds {
   /**
    * يعيد مخطط النوع أو غيابه لرفض الطلب قبل أي كتابة.

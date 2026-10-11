@@ -4,7 +4,7 @@ import { timestamp } from '../scalars/timestamp.js';
 
 const reason = z.string().trim().min(1).max(500);
 const revision = z.number().int().min(0).max(2147483647);
-export const attendanceChangeKind = z.enum(['ADD_SESSION', 'VOID_SESSION']);
+export const attendanceChangeKind = z.enum(['ADD_SESSION', 'VOID_SESSION', 'RESTORE_SESSION']);
 export const attendanceChangeStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED']);
 const envelope = {
   employee_id: id,
@@ -15,7 +15,18 @@ const envelope = {
 export const attendanceChangeRequestInput = z
   .discriminatedUnion('kind', [
     z.strictObject({ ...envelope, kind: z.literal('ADD_SESSION') }),
-    z.strictObject({ ...envelope, kind: z.literal('VOID_SESSION') }),
+    z.strictObject({
+      ...envelope,
+      kind: z.literal('VOID_SESSION'),
+      session_id: id,
+      session_revision: revision,
+    }),
+    z.strictObject({
+      ...envelope,
+      kind: z.literal('RESTORE_SESSION'),
+      session_id: id,
+      session_revision: revision,
+    }),
   ])
   .meta({ id: 'AttendanceChangeRequestInput' });
 export const cancelAttendanceChangeInput = z
@@ -48,6 +59,14 @@ export const attendanceChangeRequest = z
     employee: z.strictObject({ id, name_ar: z.string().nullable(), name_en: z.string() }),
     session_id: id.nullable(),
     session_revision: revision.nullable(),
+    requested: z
+      .strictObject({
+        working_date: z.iso.date(),
+        clock_in: timestamp,
+        clock_out: timestamp.nullable(),
+        timezone: z.string(),
+      })
+      .nullable(),
     reason: z.string(),
     requested_by: id,
     requested_at: timestamp,
@@ -62,7 +81,23 @@ export const attendanceChangeRequest = z
   })
   .meta({ id: 'AttendanceChangeRequest' });
 export const attendanceChangeDecisionResult = attendanceChangeRequest
-  .extend({ effect: z.null() })
+  .extend({
+    effect: z
+      .strictObject({
+        session: z.strictObject({
+          id,
+          working_date: z.iso.date(),
+          clock_in: timestamp,
+          clock_out: timestamp.nullable(),
+          status: z.enum(['OPEN', 'CLOSED', 'MISSED_OUT']),
+          revision,
+          voided_at: timestamp.nullable(),
+          voided_by: id.nullable(),
+          void_request_id: id.nullable(),
+        }),
+      })
+      .nullable(),
+  })
   .meta({ id: 'AttendanceChangeDecisionResult' });
 export const attendanceChangeRequestPage = z
   .strictObject({

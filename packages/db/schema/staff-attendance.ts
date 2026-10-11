@@ -5,6 +5,7 @@ import {
   date,
   doublePrecision,
   foreignKey,
+  type PgTableExtraConfigValue,
   index,
   integer,
   jsonb,
@@ -20,6 +21,7 @@ import { employees } from './staff.ts';
 import { employeePasskeys } from './staff-passkeys.ts';
 import { devices } from './identity-devices.ts';
 import { user } from './identity-auth.ts';
+import { attendanceChangeRequests } from './staff-attendance-change-requests.ts';
 
 export const attendanceStates = pgTable(
   'attendance_states',
@@ -91,9 +93,25 @@ export const attendanceSessions = pgTable(
     outOperatorId: uuid('out_operator_id').references(() => user.id),
     // عدّاد عادي يزيد مع كل كتابة تغيّر الجلسة حتى يتعارض الطلب القديم. إلغاء 26c يزيده أيضاً.
     revision: integer('revision').notNull().default(0),
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidedBy: uuid('voided_by').references(() => user.id),
+    // طلب الإلغاء الموافق عليه؛ سبب الإلغاء وصاحبه محفوظان فيه.
+    voidRequestId: uuid('void_request_id'),
   },
-  (t) => [
+  (t): PgTableExtraConfigValue[] => [
     primaryKey({ columns: [t.companyId, t.id] }),
+    foreignKey({
+      name: 'attendance_sessions_void_request_fk',
+      columns: [t.companyId, t.voidRequestId],
+      foreignColumns: [attendanceChangeRequests.companyId, attendanceChangeRequests.id],
+    }),
+    index('attendance_sessions_voided_by_idx').on(t.companyId, t.voidedBy),
+    index('attendance_sessions_void_request_idx').on(t.companyId, t.voidRequestId),
+    check(
+      'attendance_sessions_void_marks',
+      sql`(${t.voidedAt} IS NULL AND ${t.voidedBy} IS NULL AND ${t.voidRequestId} IS NULL) OR (${t.voidedAt} IS NOT NULL AND ${t.voidedBy} IS NOT NULL AND ${t.voidRequestId} IS NOT NULL)`,
+    ),
+    check('attendance_sessions_void_closed', sql`${t.voidedAt} IS NULL OR ${t.status} <> 'OPEN'`),
     foreignKey({
       columns: [t.companyId, t.businessId, t.employeeId],
       foreignColumns: [employees.companyId, employees.businessId, employees.id],
