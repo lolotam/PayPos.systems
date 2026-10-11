@@ -1,9 +1,9 @@
+import { currentAttachment, type Tx } from '@pospay/db';
 import {
   employeeNameMatches as responseSchema,
   type EmployeeNameMatches,
   type EmployeeNameMatchesInput,
 } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
 import { employeeNameMatchKey } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import type { EmployeeDetailAccess } from './employee-detail.query.ts';
@@ -38,7 +38,7 @@ export function employeeNameMatchesStatement(
     SELECT e.id, e.name_en, e.name_ar, e.primary_branch_id, e.role_code,
       (e.primary_branch_id IN (SELECT id FROM allowed_branches)
         AND NOT EXISTS (SELECT 1 FROM employee_branches eb
-          WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb."to" IS NULL
+          WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment()}
           AND eb.branch_id NOT IN (SELECT id FROM allowed_branches))) AS visible
     FROM employees e
     WHERE e.company_id=${companyId} AND e.business_id=${businessId} AND e.deleted_at IS NULL

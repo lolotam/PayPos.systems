@@ -1,5 +1,5 @@
+import { currentAttachment, type Tx } from '@pospay/db';
 import { employeePage, type EmployeeListQuery, type EmployeePage } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { EmployeeDetailAccess } from './employee-detail.query.ts';
 
@@ -14,7 +14,7 @@ export function listEmployeesStatement(
     SELECT e.id,e.name_ar,e.name_en,e.role_code,e.primary_branch_id,to_char(e.hire_date,'YYYY-MM-DD') AS hire_date
     FROM employees e WHERE e.company_id=${companyId} AND e.business_id=${businessId} AND e.deleted_at IS NULL
     AND e.primary_branch_id IN (SELECT id FROM allowed_branches)
-    AND NOT EXISTS (SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb."to" IS NULL AND eb.branch_id NOT IN (SELECT id FROM allowed_branches))
+    AND NOT EXISTS (SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment()} AND eb.branch_id NOT IN (SELECT id FROM allowed_branches))
     ${query.cursor === undefined ? sql`` : sql`AND e.id > ${query.cursor}`} ORDER BY e.id LIMIT ${query.limit + 1}`;
 }
 

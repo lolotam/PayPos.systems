@@ -60,7 +60,8 @@ it('details include sorted active branches and revision; list query uses both sc
     );
   });
   expect(JSON.stringify(plan)).toMatch(/employees_company_business_id_(idx|key)/);
-  expect(JSON.stringify(plan)).toContain('employee_branches_active_key');
+  // فهرس الارتباط المفتوح وحده لا يغطي نهاية مستقبلية؛ يظل فحص النطاق مفهرساً على الشركة والموظفة.
+  expect(JSON.stringify(plan)).toMatch(/employee_branches_(company_employee_from_idx|no_overlap)/);
 });
 it('DENY on any active branch filters before paging; cursors reference visible rows only', async () => {
   await employeeGrants(f, [

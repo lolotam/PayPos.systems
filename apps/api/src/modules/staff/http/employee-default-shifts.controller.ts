@@ -42,8 +42,7 @@ export class EmployeeDefaultShiftsController {
     if (!this.setHours) throw new ApiError('NOT_READY');
     const context = { ...actorOf(request), businessId, employeeId };
     try {
-      await this.setHours.execute({ ...context, branchId, input });
-      return await this.read(context, branchId);
+      return await this.setHours.execute({ ...context, branchId, input });
     } catch (error) {
       if (error instanceof ScheduleError) throw new ApiError(error.code, error.details);
       if (error instanceof EmployeeDefaultShiftsError)
@@ -52,11 +51,11 @@ export class EmployeeDefaultShiftsController {
     }
   }
 
-  private async read(context: EmployeeHoursReadContext, managedBranchId: string | null = null) {
+  private async read(context: EmployeeHoursReadContext) {
     if (!this.database || !this.access) throw new ApiError('NOT_READY');
     const access = this.access;
     const result = await this.database.withTenant(context.companyId,
-      (tx) => employeeDefaultShifts(tx, context, access, managedBranchId), { userId: context.userId });
+      (tx) => employeeDefaultShifts(tx, context, access), { userId: context.userId });
     if (result === null) throw new ApiError('NOT_FOUND');
     if (result === 'FEATURE_DISABLED') throw new ApiError('FEATURE_DISABLED');
     return result;

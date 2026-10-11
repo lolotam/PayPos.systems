@@ -1,4 +1,5 @@
-import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
+import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx, employeeDefaultShiftsStatement } from '@pospay/db';
+import { employeeDefaultShifts as view } from '@pospay/contracts';
 import type { WeekdayDefaultShift } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import { lockEmployeeHoursAccess, readEmployeeHoursAccess } from '../../identity/index.ts';
@@ -6,6 +7,21 @@ import { EmployeeDefaultShiftsError, type DefaultShiftLink } from '../domain/emp
 import type { EmployeeDefaultShiftsTransactions, EmployeeHoursActor } from '../ports/employee-default-shifts.port.ts';
 import { createEmployeeDetailAccess } from './employee-detail-access.adapter.ts';
 import { employeeHoursBranches, schedulingContext } from './schedule-context.adapter.ts';
+
+async function savedResult(tx: Tx, actor: EmployeeHoursActor,
+  target: { businessId: string; employeeId: string; branchId: string }) {
+  const branches = await employeeHoursBranches(tx, actor.companyId, target.businessId);
+  const decision = await readEmployeeHoursAccess(tx, actor.companyId, actor.userId,
+    target.businessId, [target.branchId], branches.map((branch) => branch.id));
+  if (!decision.manage) throw new EmployeeDefaultShiftsError('FORBIDDEN');
+  if (!decision.featureEnabled) throw new EmployeeDefaultShiftsError('FEATURE_DISABLED');
+  const rows = await tx.execute<{ branch_id: string } & Record<string, unknown>>(
+    employeeDefaultShiftsStatement({ ...actor, ...target },
+      branches.filter((branch) => decision.allowedBranchIds.includes(branch.id))));
+  return view.parse({ employee_id: target.employeeId,
+    can_manage: rows.length > 0,
+    branches: rows.map((row) => ({ ...row, can_manage: true })) });
+}
 
 export function createEmployeeHoursReadAccess() {
   return {
@@ -96,6 +112,10 @@ export function createEmployeeDefaultShiftsTransactions(database: TenantWrappers
           replace: (before, after, at) => {
             if (!target) throw new Error('EMPLOYEE_HOURS_TARGET_MISSING');
             return replace(tx, actor, ids, target, before, after, at);
+          },
+          result: () => {
+            if (!target) throw new Error('EMPLOYEE_HOURS_TARGET_MISSING');
+            return savedResult(tx, actor, target);
           },
         });
       }, { userId: actor.userId });

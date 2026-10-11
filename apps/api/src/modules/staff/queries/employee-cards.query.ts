@@ -1,5 +1,5 @@
+import { currentAttachment, type Tx } from '@pospay/db';
 import { employeeCardsView, type EmployeeCardsView } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 /** قراءة السلطة على فروع الموظف المحفوظة دون ربط الاستعلام بطبقات الكتابة. */
@@ -42,7 +42,7 @@ async function persistedBranches(
 ): Promise<readonly string[] | null> {
   const [employee] = await tx.execute<{ branch_ids: string[] }>(sql`
     SELECT ARRAY(SELECT eb.branch_id FROM employee_branches eb
-      WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb."to" IS NULL)
+      WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment()})
       || ARRAY[e.primary_branch_id] AS branch_ids
     FROM employees e WHERE e.company_id=${companyId} AND e.business_id=${businessId}
       AND e.id=${employeeId} AND e.deleted_at IS NULL`);

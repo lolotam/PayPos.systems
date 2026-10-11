@@ -1,5 +1,5 @@
+import { currentAttachment, type Tx } from '@pospay/db';
 import { salaryHistoryPage, type SalaryHistoryQuery } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 export const SALARY_ACCESS = Symbol('SALARY_ACCESS');
 /** قراءة الصلاحية داخل المعاملة دون ربط الاستعلام بطبقات الكتابة. */
@@ -22,7 +22,7 @@ export async function salaryHistory(
 ) {
   const { companyId, businessId, employeeId, userId } = context;
   const [employee] = await tx.execute<{ branch_ids: string[] }>(sql`SELECT
-    ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb."to" IS NULL) || ARRAY[e.primary_branch_id] AS branch_ids
+    ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment()}) || ARRAY[e.primary_branch_id] AS branch_ids
     FROM employees e WHERE e.company_id=${companyId} AND e.business_id=${businessId} AND e.id=${employeeId} AND e.deleted_at IS NULL`);
   if (employee === undefined) return null;
   const decision = await access.check(tx, companyId, userId, businessId, employee.branch_ids);

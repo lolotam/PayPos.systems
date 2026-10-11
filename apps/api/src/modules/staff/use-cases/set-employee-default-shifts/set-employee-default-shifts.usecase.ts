@@ -5,7 +5,7 @@ import type { EmployeeDefaultShiftsTransactions, EmployeeHoursActor, EmployeeHou
 export { EmployeeDefaultShiftsError } from '../../domain/employee-default-shifts.ts';
 export { ScheduleError } from '../../domain/schedule-types.ts';
 
-/** يستبدل دوام فرع مرتبط اليوم بعد التحقق، ويسجل التغيير الفعلي فقط. */
+/** يستبدل دوام فرع مرتبط اليوم بعد التحقق، ويسجل التغيير الفعلي فقط ويعيد لقطة الحفظ من المعاملة نفسها. */
 export class SetEmployeeDefaultShiftsUseCase {
   constructor(private readonly transactions: EmployeeDefaultShiftsTransactions,
     private readonly clock: EmployeeHoursClock) {}
@@ -21,6 +21,7 @@ export class SetEmployeeDefaultShiftsUseCase {
       const after = validateDefaultShifts(input.shifts);
       const before = await scope.current(employeeId, branchId);
       if (!sameDefaultShifts(before, after)) await scope.replace(before, after, at);
+      return scope.result();
     });
   }
 }

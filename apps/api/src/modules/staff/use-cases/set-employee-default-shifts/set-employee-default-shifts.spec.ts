@@ -10,6 +10,7 @@ function fixture(from = '2026-01-01', to: string | null = null, timezone = 'Asia
     authorize: vi.fn().mockResolvedValue(undefined),
     employee: vi.fn().mockResolvedValue({ links: [{ branch_id: 'branch', from, to }], timezone }),
     current: vi.fn().mockResolvedValue([]), replace: vi.fn().mockResolvedValue(undefined),
+    result: vi.fn().mockResolvedValue({ employee_id: 'employee', can_manage: true, branches: [] }),
   };
   const clock = { now: vi.fn(() => at) };
   const usecase = new SetEmployeeDefaultShiftsUseCase({ run: (_actor, work) => work(scope) }, clock);
@@ -17,7 +18,7 @@ function fixture(from = '2026-01-01', to: string | null = null, timezone = 'Asia
 }
 it('uses the injected branch-local date and timestamp, then validates and replaces', async () => {
   const f = fixture('2026-10-11');
-  await f.usecase.execute(command);
+  expect(await f.usecase.execute(command)).toEqual({ employee_id: 'employee', can_manage: true, branches: [] });
   expect(f.scope.authorize).toHaveBeenCalledWith('business', 'branch');
   expect(f.scope.replace).toHaveBeenCalledWith([], [expect.objectContaining(input.shifts[0])], at);
   expect(f.clock.now).toHaveBeenCalledOnce();
@@ -39,6 +40,7 @@ it('does not audit an identical normalized week or an already-empty clear', asyn
   vi.mocked(f.scope.current).mockResolvedValue([]);
   await f.usecase.execute({ ...command, input: { shifts: [] } });
   expect(f.scope.replace).not.toHaveBeenCalled();
+  expect(f.scope.result).toHaveBeenCalledTimes(2);
 });
 it('refuses authorization and invalid patterns before writing', async () => {
   const f = fixture();
