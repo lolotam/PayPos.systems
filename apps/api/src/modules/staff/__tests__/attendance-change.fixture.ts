@@ -3,6 +3,7 @@ import type * as StaffModule from '../staff.module.ts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type {
+  AttendanceChangeApplyScope,
   AttendanceChangeKinds,
   AttendanceChangeKind,
 } from '../ports/attendance-change-kinds.port.ts';
@@ -12,6 +13,7 @@ import {
 } from '../ports/attendance-change-kinds.port.ts';
 import { AttendanceChangeError } from '../domain/attendance-change-request.ts';
 import { createAttendanceChangeKinds } from '../persistence/attendance-change-kinds.ts';
+import { createAddSessionKind } from '../persistence/add-session-kind.ts';
 import { createAttendanceChangeTransactions } from '../persistence/drizzle-attendance-change-transactions.ts';
 import { RequestAttendanceChangeUseCase } from '../use-cases/request-attendance-change/request-attendance-change.usecase.ts';
 import { CancelAttendanceChangeUseCase } from '../use-cases/cancel-attendance-change/cancel-attendance-change.usecase.ts';
@@ -52,9 +54,11 @@ export async function attendanceChangeFixture(production = false) {
     nullSession: false,
   };
   const kinds = createAttendanceChangeKinds(
-    ['ADD_SESSION', 'VOID_SESSION'].map((code) =>
-      testKind(code as AttendanceChangeKind['code'], control),
-    ),
+    production
+      ? [createAddSessionKind(leaveIds)]
+      : ['ADD_SESSION', 'VOID_SESSION'].map((code) =>
+          testKind(code as AttendanceChangeKind['code'], control),
+        ),
   );
   override.current = production ? null : kinds;
   const f = await attendanceCorrectionFixture();
@@ -117,6 +121,9 @@ export const changeActor = (f: ChangeFixture, requestId?: string, userId = f.app
 export const changeInput = (f: ChangeFixture) => ({
   kind: 'ADD_SESSION' as const,
   employee_id: f.employee.id,
+  branch_id: f.branch,
+  clock_in: '2026-10-03T07:00:00.000Z',
+  clock_out: '2026-10-03T16:00:00.000Z',
   reason: '  missing attendance  ',
 });
 export const changeAudits = (f: ChangeFixture, id: string) =>
@@ -153,6 +160,16 @@ function testKind(
         throw new AttendanceChangeKindRefusal('TEST_KIND_REFUSED', 422);
       if (control.refuse) throw new AttendanceChangeError('VALIDATION_FAILED');
       return {
+        ...(code === 'ADD_SESSION'
+          ? {
+              manual: {
+                clock_in: scope.input.clock_in ?? '',
+                clock_out: scope.input.clock_out ?? '',
+                working_date: '2026-10-03',
+                timezone: 'Asia/Kuwait',
+              },
+            }
+          : {}),
         session_id: scope.input.session_id ?? null,
         session_revision: scope.input.session_revision ?? null,
       };
@@ -164,7 +181,21 @@ function testKind(
       if (control.failAfterEffect) throw new AttendanceChangeError('VALIDATION_FAILED');
       if (control.kindRefusalAfterEffect)
         throw new AttendanceChangeKindRefusal('TEST_KIND_REFUSED', 422);
-      return control.nullSession ? { ...values, session_id: null } : values;
+      if (control.nullSession) return { ...values, session_id: null };
+      return code === 'ADD_SESSION' && !values.session_id
+        ? { ...values, session_id: await testManualSession(scope) }
+        : values;
     },
   };
+}
+// الـ CHECK attendance_change_requests_add_linked يطلب جلسة لكل ADD معتمد، فنوع الاختبار يكتب جلسة يدوية مربوطة.
+async function testManualSession(scope: AttendanceChangeApplyScope) {
+  const id = leaveIds.newId();
+  const day = (scope.input.clock_in ?? '2026-10-03T07:00:00.000Z').slice(0, 10);
+  await (scope.transaction as Tx).execute(
+    sql`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,clock_in,clock_out,status,source,closed_by,geo,late_minutes,change_request_id)
+      VALUES(${scope.companyId},${id},${scope.businessId},${scope.target.branch_id},${scope.target.employee_id},${day},'Asia/Kuwait',
+        ${scope.input.clock_in ?? `${day}T07:00:00.000Z`},${scope.input.clock_out ?? `${day}T16:00:00.000Z`},'CLOSED','MANUAL','MANUAL','NONE',0,${scope.requestId})`,
+  );
+  return id;
 }
