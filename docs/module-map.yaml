@@ -35,6 +35,7 @@ composition_roots:
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
 reads:
+  - { from: staff, to: tenancy, symbol: attendanceBranch, file: apps/api/src/modules/staff/persistence/manual-session-context.adapter.ts }
   - { from: staff, to: identity, symbol: lockAttendanceExceptionAccess, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
   - { from: staff, to: identity, symbol: readAttendanceChangeAccess, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }
   - { from: staff, to: identity, symbol: readAttendanceChangeApprovers, file: apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts }

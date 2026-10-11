@@ -2,10 +2,10 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   type AnyPgColumn,
+  type PgTableExtraConfigValue,
   date,
   doublePrecision,
   foreignKey,
-  type PgTableExtraConfigValue,
   index,
   integer,
   jsonb,
@@ -21,6 +21,7 @@ import { employees } from './staff.ts';
 import { employeePasskeys } from './staff-passkeys.ts';
 import { devices } from './identity-devices.ts';
 import { user } from './identity-auth.ts';
+import { manualSessionLinks } from './staff-attendance-manual-links.ts';
 import { attendanceChangeRequests } from './staff-attendance-change-requests.ts';
 
 export const attendanceStates = pgTable(
@@ -69,6 +70,8 @@ export const attendanceSessions = pgTable(
     status: text('status').notNull(),
     source: text('source').notNull(),
     closedBy: text('closed_by'),
+    // الطلب الموافق عليه الذي أنشأ اليوم اليدوي.
+    changeRequestId: uuid('change_request_id'),
     bindingId: uuid('binding_id'),
     bindingRevision: integer('binding_revision'),
     outBindingId: uuid('out_binding_id'),
@@ -136,6 +139,7 @@ export const attendanceSessions = pgTable(
       columns: [t.companyId, t.outDeviceId],
       foreignColumns: [devices.companyId, devices.id],
     }),
+    ...manualSessionLinks(t),
     uniqueIndex('attendance_sessions_one_open')
       .on(t.companyId, t.employeeId)
       .where(sql`${t.status} = 'OPEN'`),
@@ -377,10 +381,10 @@ function attendanceSessionChecks(
 ) {
   return [
     check('attendance_sessions_status', sql`${t.status} IN ('OPEN','CLOSED','MISSED_OUT')`),
-    check('attendance_sessions_source', sql`${t.source} IN ('QR','BARCODE')`),
+    check('attendance_sessions_source', sql`${t.source} IN ('QR','BARCODE','MANUAL')`),
     check(
       'attendance_sessions_close_pair',
-      sql`(${t.status} = 'OPEN' AND ${t.clockOut} IS NULL AND ${t.closedBy} IS NULL) OR (${t.status} <> 'OPEN' AND ${t.clockOut} >= ${t.clockIn} AND ${t.closedBy} IN ('EMPLOYEE','MISSED_OUT'))`,
+      sql`(${t.status} = 'OPEN' AND ${t.clockOut} IS NULL AND ${t.closedBy} IS NULL) OR (${t.status} <> 'OPEN' AND ${t.clockOut} >= ${t.clockIn} AND ${t.closedBy} IN ('EMPLOYEE','MISSED_OUT','MANUAL'))`,
     ),
     check('attendance_sessions_lateness', sql`${t.lateMinutes} >= 0`),
     check('attendance_sessions_revision', sql`${t.revision} >= 0`),

@@ -1,7 +1,9 @@
+import { attendanceIntervalRefused } from './attendance-interval.ts';
 import { attendanceLateMinutes, attendanceWorkingDate } from './clock-attendance.ts';
 
 /** جلسة مقفولة قبل التصحيح. حقائق المسح لا تدخل القرار. */
 export interface AttendanceCorrectionSession {
+  source: 'QR' | 'BARCODE' | 'MANUAL';
   id: string;
   employee_id: string;
   branch_id: string;
@@ -10,7 +12,7 @@ export interface AttendanceCorrectionSession {
   clock_in: string;
   clock_out: string | null;
   status: 'OPEN' | 'CLOSED' | 'MISSED_OUT';
-  closed_by: 'EMPLOYEE' | 'MISSED_OUT' | null;
+  closed_by: 'EMPLOYEE' | 'MISSED_OUT' | 'MANUAL' | null;
   late_minutes: number;
   revision: number;
   voided_at: string | null;
@@ -67,6 +69,7 @@ export class AttendanceCorrectionError extends Error {
       | 'NOT_FOUND'
       | 'VALIDATION_FAILED'
       | 'ATTENDANCE_CORRECTION_SELF_FORBIDDEN'
+      | 'ATTENDANCE_CORRECTION_MANUAL_SESSION'
       | 'ATTENDANCE_SESSION_OPEN'
       | 'ATTENDANCE_SESSION_VOIDED'
       | 'ATTENDANCE_SESSION_REVISION_CONFLICT'
@@ -78,8 +81,6 @@ export class AttendanceCorrectionError extends Error {
   }
 }
 
-// قرار المالك 2026-10-08 (CA-Q8): الحد ١٦ ساعة شامل، والخروج بعد الدخول حصراً.
-const SIXTEEN_HOURS_MS = 16 * 60 * 60 * 1000;
 const instant = (value: string): Date => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) throw new AttendanceCorrectionError('VALIDATION_FAILED');
@@ -101,7 +102,7 @@ export function attendanceCorrectionReason(reason: string): string {
 }
 
 /**
- * يقرر تصحيح الدخول و/أو الخروج لجلسة مغلقة أو فائتة؛ رفض تصحيح النفس ثم الإلغاء والحالة والنسخة يسبق رفض الطلب بلا تغيير.
+ * يقرر التصحيح لجلسة مغلقة أو فائتة؛ رفض النفس ثم المصدر اليدوي ثم الإلغاء ثم الحالة والنسخة يسبق فحص الأوقات.
  *
  * @param session الجلسة المقفولة
  * @param request النسخة والأوقات والسبب
@@ -127,6 +128,9 @@ export function planAttendanceCorrection(
   // قرار المالك 2026-10-08 (CA-Q2): المالك وحده يصحح حضوره. غير الموظف لا تمسّه القاعدة.
   if (context.actorIsEmployee && !context.actorIsOwner)
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_SELF_FORBIDDEN');
+  // قرار المالك 2026-10-10 (ACR-Q10): اليوم اليدوي يُلغى ثم يُطلب من جديد ولا يُصحح.
+  if (session.source === 'MANUAL' || session.closed_by === 'MANUAL')
+    throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_MANUAL_SESSION');
   if (session.voided_at !== null) throw new AttendanceCorrectionError('ATTENDANCE_SESSION_VOIDED');
   // قرار المالك 2026-10-08 (CA-Q5): المفتوحة تُغلق بالمسح أو بمهمة الخروج الفائت، لا بالتصحيح.
   if (session.status === 'OPEN') throw new AttendanceCorrectionError('ATTENDANCE_SESSION_OPEN');
@@ -164,17 +168,7 @@ function assertTimes(
   sessionId: string,
   neighbours: readonly AttendanceCorrectionNeighbour[],
 ): void {
-  const start = clockIn.getTime();
-  const end = clockOut.getTime();
-  // الترتيب ثم المستقبل ثم المدة ثم التداخل: أول مانع للأوقات يكفي.
-  if (
-    end <= start ||
-    start > now.getTime() ||
-    end > now.getTime() ||
-    end - start > SIXTEEN_HOURS_MS
-  )
-    throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_INVALID_TIMES');
-  if (neighbours.some((other) => attendanceSessionsOverlap(start, end, sessionId, other)))
+  if (attendanceIntervalRefused(clockIn, clockOut, now, neighbours, sessionId))
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_INVALID_TIMES');
 }
 

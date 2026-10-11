@@ -14,7 +14,14 @@ const envelope = {
 };
 export const attendanceChangeRequestInput = z
   .discriminatedUnion('kind', [
-    z.strictObject({ ...envelope, kind: z.literal('ADD_SESSION') }),
+    z.strictObject({
+      kind: z.literal('ADD_SESSION'),
+      employee_id: id,
+      branch_id: id,
+      clock_in: timestamp,
+      clock_out: timestamp,
+      reason,
+    }),
     z.strictObject({
       ...envelope,
       kind: z.literal('VOID_SESSION'),

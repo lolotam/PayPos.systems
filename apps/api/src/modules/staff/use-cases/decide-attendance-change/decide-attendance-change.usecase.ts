@@ -24,17 +24,23 @@ export class DecideAttendanceChangeUseCase {
     actor: AttendanceChangeActor,
     input: DecideAttendanceChangeInput,
   ): Promise<AttendanceChangeDecisionResult> {
-    const record = await this.transactions.decide(actor, this.clock, async (scope) => {
-      const request = scope.before;
-      if (!request) throw new AttendanceChangeError('NOT_FOUND');
-      const plan = planChangeDecision(request, input, { ...scope, userId: actor.userId });
-      if (plan.status === 'REJECTED') return { ...(await scope.save(plan, request)), effect: null };
-      const kind = this.kinds.find(request.kind);
-      if (!kind) throw new AttendanceChangeError('ATTENDANCE_CHANGE_KIND_UNAVAILABLE');
-      const checked = await kind.check(scope);
-      const values = await kind.apply({ ...scope, request }, checked);
-      return { ...(await scope.save(plan, values)), effect: values.effect ?? null };
-    });
+    const record = await this.transactions.decide(
+      actor,
+      this.clock,
+      async (scope) => {
+        const request = scope.before;
+        if (!request) throw new AttendanceChangeError('NOT_FOUND');
+        const plan = planChangeDecision(request, input, { ...scope, userId: actor.userId });
+        if (plan.status === 'REJECTED')
+          return { ...(await scope.save(plan, request)), effect: null };
+        const kind = this.kinds.find(request.kind);
+        if (!kind) throw new AttendanceChangeError('ATTENDANCE_CHANGE_KIND_UNAVAILABLE');
+        const checked = await kind.check(scope);
+        const values = await kind.apply({ ...scope, request }, checked);
+        return { ...(await scope.save(plan, values)), effect: values.effect ?? null };
+      },
+      input.decision,
+    );
     return record as AttendanceChangeDecisionResult;
   }
 }

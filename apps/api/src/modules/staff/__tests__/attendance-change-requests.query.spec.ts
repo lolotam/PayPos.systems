@@ -85,9 +85,12 @@ it('scopes branch managers and projects requester cancellation independently fro
     clock_in: '2026-10-04T05:00:00.000Z',
     clock_out: '2026-10-04T08:00:00.000Z',
   });
-  expect(
-    result.items.every((row) => (row.kind === 'VOID_SESSION') === (row.requested !== null)),
-  ).toBe(true);
+  // الإلغاء يعرض أوقات الجلسة، والإضافة اليدوية تعرض الأوقات المطلوبة المحفوظة في الطلب.
+  expect(result.items.every((row) => row.requested !== null)).toBe(true);
+  expect(result.items.filter((row) => row.kind === 'ADD_SESSION')[0]?.requested).toMatchObject({
+    clock_in: changeInput(f).clock_in,
+    clock_out: changeInput(f).clock_out,
+  });
   await asRole(f, 'business_manager');
 });
 it('the HTTP list uses the same access policy and contract', async () => {

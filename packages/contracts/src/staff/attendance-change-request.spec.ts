@@ -7,7 +7,37 @@ import {
 } from './attendance-change-request.js';
 
 const employee_id = '01900000-0000-7000-8000-000000000001';
-it.each(['ADD_SESSION', 'VOID_SESSION', 'RESTORE_SESSION'])(
+const manual = {
+  branch_id: employee_id,
+  clock_in: '2026-10-08T07:00:00.000Z',
+  clock_out: '2026-10-08T16:00:00.000Z',
+};
+it('accepts the ADD_SESSION envelope and trims its reason', () => {
+  expect(
+    attendanceChangeRequestInput.parse({
+      kind: 'ADD_SESSION',
+      employee_id,
+      reason: ' why ',
+      ...manual,
+    }).reason,
+  ).toBe('why');
+});
+it('requires manual times and branch and refuses scan/session fields', () => {
+  const input = { kind: 'ADD_SESSION', employee_id, reason: 'why', ...manual };
+  for (const field of ['branch_id', 'clock_in', 'clock_out'] as const) {
+    const { [field]: omitted, ...rest } = input;
+    expect(omitted).toBeDefined();
+    expect(attendanceChangeRequestInput.safeParse(rest).success).toBe(false);
+  }
+  for (const extra of [
+    { session_id: employee_id },
+    { session_revision: 0 },
+    { breaks: [] },
+    { clock_in: '2026-10-08' },
+  ])
+    expect(attendanceChangeRequestInput.safeParse({ ...input, ...extra }).success).toBe(false);
+});
+it.each(['VOID_SESSION', 'RESTORE_SESSION'])(
   'accepts the %s envelope and trims its reason',
   (kind) => {
     expect(
@@ -89,7 +119,8 @@ it('accepts both in-app templates and rejects unsafe reason text or unknown deci
 });
 it.each(['', '   ', 'x'.repeat(501)])('refuses invalid request and decision reasons', (reason) => {
   expect(
-    attendanceChangeRequestInput.safeParse({ kind: 'ADD_SESSION', employee_id, reason }).success,
+    attendanceChangeRequestInput.safeParse({ kind: 'ADD_SESSION', employee_id, ...manual, reason })
+      .success,
   ).toBe(false);
   expect(
     decideAttendanceChangeInput.safeParse({ decision: 'REJECTED', revision: 0, reason }).success,
