@@ -2,6 +2,7 @@ import { employeeDefaultShifts as view } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { EmployeeDetailAccess } from './employee-detail.query.ts';
+import { currentAttachment, type BranchDay } from './passkey-access.ts';
 
 export const EMPLOYEE_HOURS_READ_ACCESS = Symbol('EMPLOYEE_HOURS_READ_ACCESS');
 export interface EmployeeHoursReadAccess {
@@ -43,14 +44,16 @@ export function employeeDefaultShiftsStatement(context: EmployeeHoursReadContext
 
 export async function employeeDefaultShifts(tx: Tx, context: EmployeeHoursReadContext,
   access: EmployeeHoursReadAccess, managedBranchId: string | null = null) {
-  // يعاد فحص فروع السجل داخل معاملة القراءة قبل عرض الدوام وحالة الميزة.
+  const branchContexts = await access.branches(tx, context.companyId, context.businessId);
+  const days = await branchDays(tx, branchContexts);
+  // يعاد فحص فروع السجل داخل معاملة القراءة؛ أي ارتباط لم ينته بعد بتوقيت فرعه يدخل الفحص،
+  // ومنه الارتباط الحالي بتاريخ نهاية لاحق، فمدير فرع تاني ميعدّيش فحص كل الفروع.
   const [employee] = await tx.execute<{ branch_ids: string[] }>(sql`SELECT
     ARRAY[e.primary_branch_id] || ARRAY(SELECT eb.branch_id FROM employee_branches eb
-      WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb."to" IS NULL) AS branch_ids
+      WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment(days)}) AS branch_ids
     FROM employees e WHERE e.company_id=${context.companyId} AND e.business_id=${context.businessId}
       AND e.id=${context.employeeId} AND e.deleted_at IS NULL`);
   if (!employee) return null;
-  const branchContexts = await access.branches(tx, context.companyId, context.businessId);
   const candidateBranchIds = [...new Set([...employee.branch_ids, ...branchContexts.map((branch) => branch.id)])];
   // بعد الحفظ تتقاس صلاحية الكتابة على الفرع المعدّل وحده، زي فحص الحفظ نفسه.
   const decision = await access.manage(tx, context.companyId, context.userId,
@@ -73,4 +76,11 @@ export async function employeeDefaultShifts(tx: Tx, context: EmployeeHoursReadCo
   const branches = rows.map((row) => ({ ...row, can_manage: managedBranchIds.includes(row.branch_id) }));
   return view.parse({ employee_id: context.employeeId,
     can_manage: branches.some((branch) => branch.can_manage), branches });
+}
+
+async function branchDays(tx: Tx, branches: readonly { id: string; timezone: string }[]): Promise<BranchDay[]> {
+  if (!branches.length) return [];
+  return [...await tx.execute<{ branchId: string; today: string }>(sql`SELECT br.id AS "branchId",
+    to_char((CURRENT_TIMESTAMP AT TIME ZONE br.timezone)::date,'YYYY-MM-DD') AS today
+    FROM jsonb_to_recordset(${JSON.stringify(branches)}::jsonb) AS br(id uuid, timezone text)`)];
 }

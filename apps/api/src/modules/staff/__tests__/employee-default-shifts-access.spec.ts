@@ -112,6 +112,34 @@ it('DH-04 GET returns can_manage per branch: hours ALLOW on the business, DENY o
     .toEqual({ [f.branch]: true, [f.secondBranch]: false });
 });
 
+it('DH-04 GET returns 404 when a current link to another branch has a future end date', async () => {
+  await reader('BRANCH');
+  await grant('manage:employees:business', 'ALLOW', 'BRANCH', f.branch);
+  const branch = salaryIds.newId();
+  const linkId = salaryIds.newId();
+  await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en)
+    VALUES(${f.company},${branch},${f.business},'Synthetic Farwaniya')`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from","to")
+    VALUES(${f.company},${linkId},${f.business},${f.employee.id},${branch},
+      (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kuwait')::date-1,(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kuwait')::date+30)`;
+  try {
+    const response = await hoursHttp(f, 'GET', f.hoursPath);
+    const missing = await hoursHttp(f, 'GET', f.hoursPath.replace(f.employee.id, salaryIds.newId()));
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual(missing.body);
+  } finally {
+    await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.company} AND id=${linkId}`;
+  }
+});
+
+it('DH-04 GET is unchanged for a link to another branch that ended yesterday', async () => {
+  await reader('BRANCH');
+  await grant('manage:employees:business', 'ALLOW', 'BRANCH', f.branch);
+  const response = await hoursHttp(f, 'GET', f.hoursPath);
+  expect(response.status).toBe(200);
+  expect(employeeDefaultShifts.parse(response.body).branches.map((branch) => branch.branch_id)).toEqual([f.branch]);
+});
+
 it('DH-04 GET still returns 404 when a current branch is outside the reader scope', async () => {
   await reader('BRANCH');
   await grant('manage:employees:business', 'ALLOW', 'BRANCH', f.branch);
