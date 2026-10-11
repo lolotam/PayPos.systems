@@ -2,7 +2,12 @@ import type { WeekdayDefaultShift } from '@pospay/domain';
 import { validateSchedulePattern } from './schedules.ts';
 import type { WeeklyShiftInput } from './schedule-types.ts';
 
+/**
+ * فترة ارتباط الموظفة بفرع بتواريخ الفرع المحلية؛ البداية داخلة والنهاية خارجة، و`to` الفارغ يعني ارتباطاً مفتوحاً.
+ * الحفظ يُقبل فقط لفرع مرتبطة به اليوم (EMPLOYEE_BRANCH_NOT_LINKED).
+ */
 export type DefaultShiftLink = { branch_id: string; from: string; to: string | null };
+/** رفض عام لحفظ الدوام الافتراضي، يترجمه محول HTTP لكود الخطأ دون كشف بيانات موظفة أو فرع آخر. */
 export class EmployeeDefaultShiftsError extends Error {
   /** يحمل كود رفض الدوام إلى محول HTTP دون تفاصيل موظفة أو فرع.
    *

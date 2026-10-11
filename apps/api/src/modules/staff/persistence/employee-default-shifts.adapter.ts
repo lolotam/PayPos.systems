@@ -11,8 +11,9 @@ export function createEmployeeHoursReadAccess() {
   return {
     detail: createEmployeeDetailAccess(),
     branches: employeeHoursBranches,
-    manage: (tx: Tx, companyId: string, userId: string, businessId: string, branchIds: readonly string[]) =>
-      readEmployeeHoursAccess(tx, companyId, userId, businessId, branchIds),
+    manage: (tx: Tx, companyId: string, userId: string, businessId: string,
+      branchIds: readonly string[], candidateBranchIds: readonly string[]) =>
+      readEmployeeHoursAccess(tx, companyId, userId, businessId, branchIds, candidateBranchIds),
   };
 }
 

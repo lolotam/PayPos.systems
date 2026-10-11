@@ -8,9 +8,10 @@ export interface EmployeeHoursReadAccess {
   detail: EmployeeDetailAccess;
   /** يعيد فروع النشاط وتوقيتها لعرض الدوام المحفوظ حتى بعد انتهاء الارتباط. */
   branches(tx: Tx, companyId: string, businessId: string): Promise<{ id: string; timezone: string }[]>;
-  /** يفحص إذن الإدارة الحي عند فروع الموظفة دون كشف بيانات الكتابة. */
+  /** يفحص إدارة فروع الموظفة ويعيد الفروع المرشحة المسموحة لحجب الدوام خارج نطاق القارئ. */
   manage(tx: Tx, companyId: string, userId: string, businessId: string,
-    branchIds: readonly string[]): Promise<{ manage: boolean; featureEnabled: boolean }>;
+    branchIds: readonly string[], candidateBranchIds: readonly string[]):
+    Promise<{ manage: boolean; featureEnabled: boolean; allowedBranchIds: string[] }>;
 }
 export interface EmployeeHoursReadContext {
   companyId: string; userId: string; businessId: string; employeeId: string;
@@ -49,18 +50,22 @@ export async function employeeDefaultShifts(tx: Tx, context: EmployeeHoursReadCo
     FROM employees e WHERE e.company_id=${context.companyId} AND e.business_id=${context.businessId}
       AND e.id=${context.employeeId} AND e.deleted_at IS NULL`);
   if (!employee) return null;
+  const branchContexts = await access.branches(tx, context.companyId, context.businessId);
+  const candidateBranchIds = [...new Set([...employee.branch_ids, ...branchContexts.map((branch) => branch.id)])];
   const decision = await access.manage(tx, context.companyId, context.userId,
-    context.businessId, employee.branch_ids);
+    context.businessId, employee.branch_ids, candidateBranchIds);
+  let allowedBranchIds = decision.allowedBranchIds;
   if (forManager) {
     if (!decision.manage) return null;
     if (!decision.featureEnabled) return 'FEATURE_DISABLED' as const;
   } else {
     const detail = await access.detail.checkMany(tx, context.companyId, context.userId,
-      context.businessId, employee.branch_ids);
+      context.businessId, candidateBranchIds);
     if (!employee.branch_ids.every((branch) => detail.allowedBranchIds.includes(branch))) return null;
     if (!detail.featureEnabled) return 'FEATURE_DISABLED' as const;
+    allowedBranchIds = detail.allowedBranchIds;
   }
-  const branchContexts = await access.branches(tx, context.companyId, context.businessId);
-  const branches = await tx.execute(employeeDefaultShiftsStatement(context, branchContexts));
+  const branches = await tx.execute(employeeDefaultShiftsStatement(context,
+    branchContexts.filter((branch) => allowedBranchIds.includes(branch.id))));
   return view.parse({ employee_id: context.employeeId, can_manage: decision.manage, branches });
 }
