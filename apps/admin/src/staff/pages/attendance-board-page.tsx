@@ -55,7 +55,7 @@ export function AttendanceBoardPage({ scope, branches, date, onDate, onBranch }:
             {boardTime(data.generated_at, locale, data.timezone)}
           </p>
           <AttendanceInNow board={data} />
-          <AttendanceSessionsTable board={data} />
+          <AttendanceSessionsTable board={data} scope={scope} />
           <AttendanceRefusals
             board={data}
             pages={refusals.data?.pages}

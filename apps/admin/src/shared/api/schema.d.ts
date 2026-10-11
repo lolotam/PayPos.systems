@@ -669,6 +669,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Exceptions of sessions at this branch, newest raised_at/id first, excluding voided sessions. branch_id identifies the exception movement branch for resolve/reopen. Resolution fields are null while OPEN. Cursor preserves microseconds. */
+        get: operations["attendanceExceptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-sessions/{sessionId}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Oldest corrected_at/id first, including voided sessions. Existing sessions without corrections return an empty items array. Actors use the first non-deleted employee by business_id/id within the company, or null. */
+        get: operations["attendanceCorrectionHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/default-shifts": {
         parameters: {
             query?: never;
@@ -2324,7 +2358,61 @@ export interface components {
             } | null;
         };
         AttendanceChangeRequestPage: {
-            items: components["schemas"]["AttendanceChangeRequest"][];
+            items: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                kind: "ADD_SESSION" | "VOID_SESSION" | "RESTORE_SESSION";
+                /** @enum {string} */
+                status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+                /** Format: uuid */
+                business_id: string;
+                /** Format: uuid */
+                branch_id: string;
+                employee: {
+                    /** Format: uuid */
+                    id: string;
+                    name_ar: string | null;
+                    name_en: string;
+                };
+                /** Format: uuid */
+                session_id: string | null;
+                session_revision: number | null;
+                requested: {
+                    /** Format: date */
+                    working_date: string;
+                    /** Format: date-time */
+                    clock_in: string;
+                    /** Format: date-time */
+                    clock_out: string | null;
+                    timezone: string;
+                } | null;
+                reason: string;
+                /** Format: uuid */
+                requested_by: string;
+                /** Format: date-time */
+                requested_at: string;
+                /** Format: uuid */
+                decided_by: string | null;
+                /** Format: date-time */
+                decided_at: string | null;
+                decision_reason: string | null;
+                /** Format: uuid */
+                cancelled_by: string | null;
+                /** Format: date-time */
+                cancelled_at: string | null;
+                revision: number;
+                can_decide: boolean;
+                can_cancel: boolean;
+                requested_by_name: {
+                    ar: string | null;
+                    en: string;
+                } | null;
+                decided_by_name: {
+                    ar: string | null;
+                    en: string;
+                } | null;
+            }[];
             next_cursor: string | null;
         };
         /** @default {} */
@@ -5552,8 +5640,16 @@ export interface operations {
                                 change_request_id: string;
                                 /** Format: uuid */
                                 requested_by: string;
+                                requested_by_name: {
+                                    ar: string | null;
+                                    en: string;
+                                } | null;
                                 /** Format: uuid */
                                 approved_by: string;
+                                approved_by_name: {
+                                    ar: string | null;
+                                    en: string;
+                                } | null;
                             } | null;
                         }[];
                     };
@@ -5650,6 +5746,196 @@ export interface operations {
                             attempted_at: string;
                         }[];
                         next_cursor: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceExceptions: {
+        parameters: {
+            query?: {
+                status?: "OPEN" | "RESOLVED";
+                /** @description UTC raised_at|id keyset cursor */
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance action records */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            branch_id: string;
+                            /** @enum {string} */
+                            kind: "NONE" | "OUT_OF_RANGE" | "SUSPECTED_MISSED_OUT";
+                            /** @enum {string} */
+                            status: "OPEN" | "RESOLVED";
+                            /** @enum {string|null} */
+                            resolution: "CLOSED_LATE" | "MISSED_OUT" | "ACKNOWLEDGED" | "CARD_SCAN" | null;
+                            /** Format: uuid */
+                            resolved_by: string | null;
+                            /** Format: date-time */
+                            resolved_at: string | null;
+                            reason: string | null;
+                            /** Format: date-time */
+                            raised_at: string;
+                            revision: number;
+                            session: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: date */
+                                working_date: string;
+                                /** Format: date-time */
+                                clock_in: string;
+                                /** Format: date-time */
+                                clock_out: string | null;
+                                /** @enum {string} */
+                                status: "OPEN" | "CLOSED" | "MISSED_OUT";
+                            };
+                            employee: {
+                                /** Format: uuid */
+                                id: string;
+                                name_ar: string | null;
+                                name_en: string;
+                            };
+                        }[];
+                        next_cursor: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceCorrectionHistory: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance action records */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            field: "CLOCK_IN" | "CLOCK_OUT";
+                            /** Format: date-time */
+                            before_at: string;
+                            /** Format: date-time */
+                            after_at: string;
+                            reason: string;
+                            corrected_by: {
+                                /** Format: uuid */
+                                id: string;
+                                name: {
+                                    ar: string | null;
+                                    en: string;
+                                } | null;
+                            };
+                            /** Format: date-time */
+                            corrected_at: string;
+                        }[];
                     };
                 };
             };
