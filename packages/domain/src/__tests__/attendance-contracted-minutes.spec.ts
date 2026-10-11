@@ -59,7 +59,7 @@ it('enumerates leap February and December calendar months', () => {
 });
 it('shows full leave days clipped to month and partial hours independently of default overlap', () => {
   const summary = attendanceLeaveSummary([leave({from:'2026-09-29',to:'2026-10-02'}),
-    leave({type:'OTHER',kind:'PARTIAL',starts_at:'2026-10-03T02:00:00Z',ends_at:'2026-10-03T05:00:00Z'})],'2026-10');
+    leave({type:'OTHER',kind:'PARTIAL',starts_at:'2026-10-03T02:00:00Z',ends_at:'2026-10-03T05:00:00Z'})],attendanceMonthDates('2026-10'));
   expect(summary).toEqual([{type:'ANNUAL',days:2,partial_minutes:0},{type:'SICK',days:0,partial_minutes:0},
     {type:'UNPAID',days:0,partial_minutes:0},{type:'OTHER',days:0,partial_minutes:180}]);
 });
@@ -74,7 +74,7 @@ it('sums branches into one employee row and counts distinct days plus manual ses
   });
 });
 it('AB-Q11 counts each leave request once across branches while presence dates remain distinct', () => {
-  const branch: ReportBranchInputs = {timezone:'Asia/Kuwait',contract:null,shifts:[],sessions:[],
+  const branch: ReportBranchInputs = {timezone:'Asia/Kuwait',contract,shifts:[],sessions:[],
     leave_for_branch:[leave(),leave({id:'sick-partial',type:'SICK',kind:'PARTIAL',starts_at:'2026-10-03T06:00:00Z',ends_at:'2026-10-03T07:00:00Z'})]};
   const copy = {...branch,leave_for_branch:branch.leave_for_branch.map((entry) => ({...entry}))};
   expect(computeAttendanceMonthlyReport([branch,copy],'2026-10').leave).toMatchObject([
