@@ -59,6 +59,8 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 16b | fixed break window per employee per shift (from–to) in schedules and templates (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)); 16b-2 adds return-from-break lateness and, by the owner's BW-Q5 change on 2026-10-10, the manager alert when she does not clock back in from the break (spec 041) | S | 16 |
 | 16c | **Implemented locally (spec 042); FR-013 owner decision pending: isolated batches measured 200.9 / 289 ms against 200 ms; cap remains 20.** Max shifts starting on one day becomes an owner setting, allowed 1–4, default 3 (was a fixed 2); one shift stays at most 16 h; long holiday stretches are consecutive shifts with no minimum gap (owner review 2026-10-09, [owner-review-2026-10-09.ar.md](owner-review-2026-10-09.ar.md)) | S | 16 |
 | 16d | default working hours and break length on the employee profile, set by the owner in the staff list (a working day may be 12 h, not 8) — the partner's BW-Q4 comment, 2026-10-10 ([spec 041 owner-questions](../041-staff-schedule-break-window/owner-questions.ar.md)); needs its own spec and owner questions | S | 8, 16b |
+| 16b-3 | break return at another branch counts as the return: no "did not come back" alert; the branch manager instead gets a notice that she returned from the break at the other branch (Abu Salem's BW-Q10 pick, approved by Waleed 2026-10-11; follow-up to 16b-2) | S | 16b |
+| 16d-3 | "same hours for all days" button on the employee default-hours screen: fills every working day with one time range and leaves days off empty; each day still editable (Abu Salem's DH-Q2 pick, approved by Waleed 2026-10-11) | S | 16d |
 | 17  | `request-leave`                                                                                                     | S            | 8                  |
 | 18  | `decide-leave`                                                                                                      | S            | 17                 |
 |     | **M3 · attendance**                                                                                                 |              |                    |
@@ -133,6 +135,8 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 ---
 
 ## 3. Duration
+
+**Update 2026-10-11:** rows 16b-3 and 16d-3 add two S PRs (+4 focused days); the rows added since v7 (8b, 9b, 13b, 16b–16d, 21b, 26a–26c, 27 split, 28b/28c, …) are not yet re-totalled below — the figures stay the v7 nominal baseline until the next plan revision.
 
 **Nominal, from the table:** 5 gates and 49 PRs at S (108 days), 25 at M (100), 1 at L (7) = **215 focused days ≈ 43
 weeks for one developer** — the figure given to the client until Phase 1's own pace is measured. If the engine
