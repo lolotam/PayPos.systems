@@ -9,7 +9,9 @@ let f: MonthlyReportFixture;
 beforeAll(async () => { f = await monthlyReportFixture(); });
 afterAll(async () => { await f?.db.close(); await f?.h.close(); });
 const statement = () => attendanceReportContractsStatement(f.company,f.business,
-  sql`ARRAY[${f.branch}::uuid,${f.secondBranch}::uuid]`, '2026-10-01','2026-10-31');
+  sql`ARRAY[${f.branch}::uuid,${f.secondBranch}::uuid]`,
+  sql`(${f.branch}::uuid,'Asia/Kuwait'::text),(${f.secondBranch}::uuid,'Asia/Kuwait'::text)`,
+  '2026-10-01','2026-10-31');
 
 it('set-based result shape equals the existing 16d inputs for both branches, including employment and link boundaries', async () => {
   for (const boundary of ['unchanged','limited contract','ended link','deleted employee']) {

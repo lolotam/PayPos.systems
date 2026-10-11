@@ -18,7 +18,7 @@ export interface AttendanceReportInputRow extends Record<string, unknown> {
 export function attendanceMonthlyInputsStatement(companyId: string, scope: AttendanceReportScope, from: string, to: string) {
   const branchIds = sql`ARRAY[${sql.join(scope.branches.map((branch) => sql`${branch.id}::uuid`), sql`, `)}]::uuid[]`;
   const zones = sql.join(scope.branches.map((branch) => sql`(${branch.id}::uuid,${branch.timezone}::text)`), sql`, `);
-  const contracts = attendanceReportContractsStatement(companyId, scope.businessId, branchIds, from, to);
+  const contracts = attendanceReportContractsStatement(companyId, scope.businessId, branchIds, zones, from, to);
   return sql`WITH contracts AS MATERIALIZED (${contracts}),
     zones(branch_id,timezone) AS (VALUES ${zones}),
     sessions AS MATERIALIZED (
