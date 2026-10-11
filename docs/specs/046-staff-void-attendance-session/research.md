@@ -44,11 +44,11 @@ option 2 the same day). This file records the technical choices.
 
 ## R5 — Constraint rollout
 
-- **Decision**: up to four migrations: `0116` expand (columns; CHECKs and FK `NOT VALID`; FK deferrable; `kind` CHECK
-  dropped and re-added `NOT VALID`; session-shape CHECK `NOT VALID`), `0117` `VALIDATE CONSTRAINT` (separate file so the
-  `ADD COLUMN` lock is released first, 0110 precedent), `0118` concurrent indexes (`attendance_sessions (company_id,
-  voided_by)`, `(company_id, void_request_id)`, the new partial UNIQUE), `0119` `DROP INDEX CONCURRENTLY` of the old
-  partial UNIQUE. Numbers are provisional; the later of 26b/26c renumbers at merge.
+- **Decision**: up to four migrations: `0120` expand (columns; CHECKs and an immediate FK `NOT VALID`; `kind` CHECK
+  dropped and re-added `NOT VALID`; session-shape CHECK `NOT VALID`), `0121` `VALIDATE CONSTRAINT` (separate file so the
+  `ADD COLUMN` lock is released first, 0110 precedent), `0122` concurrent indexes (`attendance_sessions (company_id,
+  voided_by)`, `(company_id, void_request_id)`, the new partial UNIQUE), `0123` `DROP INDEX CONCURRENTLY` of the old
+  partial UNIQUE. Renumbered on 2026-10-11 to 0120–0123 (26b holds 0118–0119).
 - **Rationale**: expand/contract and ADR-0033 (each concurrent statement in the leading prefix of its file).
 
 ## R6 — Overlap for restore
