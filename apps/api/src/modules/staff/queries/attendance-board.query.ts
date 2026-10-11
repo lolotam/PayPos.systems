@@ -8,7 +8,7 @@ export interface AttendanceBoardScope {
   branchId: string;
   timezone: string;
 }
-type BoardRows = Pick<AttendanceBoard, 'in_now' | 'sessions'>;
+type BoardRows = Pick<AttendanceBoard, 'date' | 'in_now' | 'sessions'>;
 const instant = (column: string) =>
   sql`to_char(${sql.raw(column)} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
@@ -30,17 +30,27 @@ const sessionProjection = sql`jsonb_build_object('id',s.id,${employeeProjection}
       AND r.kind='ADD_SESSION' AND r.status='APPROVED') ELSE NULL END)`;
 
 // لوحة الحضور تعرض الجلسات المفتوحة من كل الأيام، وقائمة اليوم بحسب تاريخ الدخول المحلي المثبت.
-export function attendanceBoardStatement(scope: AttendanceBoardScope, date: string) {
+export function attendanceBoardStatement(
+  scope: AttendanceBoardScope,
+  now: Date,
+  requestedDate?: string,
+) {
   const filter = sql`s.company_id=${scope.companyId} AND s.business_id=${scope.businessId}
     AND s.branch_id=${scope.branchId} AND s.voided_at IS NULL`;
-  return sql`SELECT
+  // تاريخ اللوحة يتبع الساعة المحقونة وتوقيت الفرع داخل نفس الاستعلام، حتى لو كانت القوائم فارغة.
+  return sql`WITH local_date AS (
+    SELECT (${now.toISOString()}::timestamptz AT TIME ZONE ${scope.timezone})::date AS today
+  ), board_date AS (
+    SELECT COALESCE(${requestedDate ?? null}::date,today) AS date,today FROM local_date
+  ) SELECT to_char(b.date,'YYYY-MM-DD') AS date,
     COALESCE((SELECT jsonb_agg(jsonb_build_object(${employeeProjection},'clock_in',${instant('s.clock_in')},
       'source',s.source,'scheduled_end',${instant('s.scheduled_end')}) ORDER BY s.clock_in,s.id)
       FROM attendance_sessions s JOIN employees e ON e.company_id=s.company_id AND e.business_id=s.business_id AND e.id=s.employee_id
-      WHERE ${filter} AND s.status='OPEN'),'[]'::jsonb) AS in_now,
+      WHERE ${filter} AND b.date<=b.today AND s.status='OPEN'),'[]'::jsonb) AS in_now,
     COALESCE((SELECT jsonb_agg(${sessionProjection} ORDER BY s.clock_in,s.id)
       FROM attendance_sessions s JOIN employees e ON e.company_id=s.company_id AND e.business_id=s.business_id AND e.id=s.employee_id
-      WHERE ${filter} AND s.working_date=${date}::date),'[]'::jsonb) AS sessions`;
+      WHERE ${filter} AND b.date<=b.today AND s.working_date=b.date),'[]'::jsonb) AS sessions
+    FROM board_date b`;
 }
 
 export async function attendanceBoard(
@@ -49,19 +59,10 @@ export async function attendanceBoard(
   now: Date,
   requestedDate?: string,
 ): Promise<AttendanceBoard> {
-  // تاريخ اللوحة الافتراضي يتبع ساعة القراءة المحقونة وتوقيت الفرع، لا ساعة قاعدة البيانات أو تاريخ UTC.
-  const [local] = await tx.execute<{ today: string }>(sql`SELECT
-    to_char(${now.toISOString()}::timestamptz AT TIME ZONE ${scope.timezone},'YYYY-MM-DD') AS today`);
-  if (!local) throw new Error('ATTENDANCE_BOARD_DATE_FAILED');
-  const date = requestedDate ?? local.today;
-  const [rows] =
-    date > local.today
-      ? [{ in_now: [], sessions: [] }]
-      : await tx.execute<BoardRows>(attendanceBoardStatement(scope, date));
+  const [rows] = await tx.execute<BoardRows>(attendanceBoardStatement(scope, now, requestedDate));
   if (!rows) throw new Error('ATTENDANCE_BOARD_QUERY_FAILED');
   return view.parse({
     branch_id: scope.branchId,
-    date,
     timezone: scope.timezone,
     generated_at: now.toISOString(),
     ...rows,

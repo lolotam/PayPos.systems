@@ -135,6 +135,22 @@ it('defaults to branch-local today via the injected clock and returns empty list
     sessions: [],
   });
 });
+it.each([undefined, '2026-10-04', '2026-10-05', '2026-10-06'])(
+  'executes exactly one board statement per HTTP request with date %s',
+  async (date) => {
+    await asRole(f, 'general_manager');
+    const start = f.h.calls.statements.length;
+    const result = await send('', f.branch, date === undefined ? '' : `&date=${date}`);
+    expect(result.status).toBe(200);
+    expect(result.body.date).toBe(date ?? '2026-10-05');
+    const statements = f.h.calls.statements.slice(start);
+    expect(statements.filter(({ sql }) => /\bFROM attendance_sessions\b/.test(sql))).toHaveLength(
+      1,
+    );
+    expect(statements.some(({ sql }) => /^SELECT\s+to_char\(/.test(sql))).toBe(false);
+    if (date === '2026-10-06') expect(result.body).toMatchObject({ in_now: [], sessions: [] });
+  },
+);
 it('refusals resolves a holder in another business of the same company and paginates without hashes or phones', async () => {
   const first = await send('/refusals', f.branch, '&limit=1');
   expect(first.status).toBe(200);

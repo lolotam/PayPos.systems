@@ -46,7 +46,7 @@ it('60 employees and 200 daily sessions remain index backed within the polling S
     expect(result.sessions).toHaveLength(200);
     expect(new Set(result.sessions.map((row) => row.employee_id)).size).toBe(60);
     const [plan] = await tx.execute(
-      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceBoardStatement(f.scope, '2026-10-04')}`,
+      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceBoardStatement(f.scope, f.boardClock.now(), '2026-10-04')}`,
     );
     expect(JSON.stringify(plan)).toMatch(/attendance_sessions_(board|employee_date)_idx/);
     expect(
