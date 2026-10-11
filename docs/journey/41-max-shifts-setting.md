@@ -30,9 +30,10 @@ described the old fixed limit of two.
    **عدد الورديات تجاوز الحد اليومي للنشاط** (`SCHEDULE_DAY_LIMIT_EXCEEDED`)، و`details` فيها
    `max_shifts_per_day: 3` و`working_dates` بتاريخ الخميس. ومفيش حاجة اتكتبت. لو الرفض جه في الشاشة (مثلاً الحد اتنزّل من
    تاب تاني والحوار مفتوح)، رسالة الحفظ بتكمل بـ **— الحد 3 ورديات في اليوم: 2026-…** بتاريخ اليوم المرفوض.
-3. **العد على مستوى الموظفة كلها:** سارة عندها وردية خميس في سالمية. ادخل بفرع حولي ← جدول نفس الأسبوع ← أضف لسارة
-   تلات ورديات خميس في حولي (مجموعها 4 مع سالمية) ← الرفض نفسه. الحد بيتعد لكل موظفة ولكل يوم بداية عبر كل الفروع.
-   وردية بتبدأ ليلاً وتخلص اليوم التاني بتتعد في يوم بدايتها.
+3. **من #151 العد بقى لكل فرع لوحده:** وقت #143 الحد كان بيتعد لكل موظفة عبر كل الفروع. من بعد #151 بيتعد على ورديات
+   الفرع اللي بتحفظ فيه بس: سارة عندها وردية خميس في سالمية، وفي حولي تقدر تحفظ لها تلات ورديات خميس ← يتحفظوا. التداخل
+   بين الورديات لسه بيتفحص عبر كل الفروع. التفاصيل في [45](45-max-shifts-per-branch.md). وردية بتبدأ ليلاً وتخلص اليوم
+   التاني بتتعد في يوم بدايتها.
 4. **المالك يغيّر الحد:** كمالك افتح `/schedules` ← فوق الجدول لوحة **إعدادات الورديات** فيها **الافتراضي: 3 ورديات في
    اليوم** وحقل **أقصى عدد ورديات تبدأ في اليوم** (من 1 لـ 4) وزرار **حفظ إعدادات الورديات**. اكتب `4` ← **حفظ إعدادات
    الورديات**. الرسالة الافتراضية تختفي. الوردية الرابعة دلوقتي بتتحفظ، وزرار **إضافة وردية** بيتقفل عند 4. سطر تدقيق واحد
@@ -76,9 +77,10 @@ described the old fixed limit of two.
    **422** "The number of shifts exceeds the business daily limit" (`SCHEDULE_DAY_LIMIT_EXCEEDED`), with `details`
    `max_shifts_per_day: 3` and `working_dates` holding Thursday. Nothing is written. If the refusal reaches the dialog (for example the limit was lowered in another tab while it was open) the save message
    continues with "— Limit 3 shifts per day: 2026-…" naming the refused day.
-3. **The count is per employee, across branches:** Sara has a Thursday shift in Salmiya. Switch to Hawalli → the same week
-   → add three Thursday shifts for Sara there (four in all with Salmiya) → the same refusal. The limit counts per
-   employee per start day across every branch. A shift that starts at night and ends the next day counts on its start day.
+3. **Since #151 the count is per branch:** as #143 shipped, the limit counted per employee across every branch. Since #151 it
+   counts only the shifts in the branch being saved: Sara has a Thursday shift in Salmiya; in Hawalli add three Thursday shifts
+   for her → they save. Overlap is still checked across all branches. See [45](45-max-shifts-per-branch.md). A shift that
+   starts at night and ends the next day counts on its start day.
 4. **The Owner changes it:** as the Owner open `/schedules` → above the grid is the **Schedule settings** panel with
    "Default: 3 shifts per day", the field **Maximum shifts starting per day** (1 to 4) and **Save schedule settings**.
    Type `4` → **Save schedule settings**. The default note disappears. The fourth shift now saves, and **Add shift**

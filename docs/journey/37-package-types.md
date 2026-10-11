@@ -40,9 +40,9 @@ already bought (PT-Q4). Package-sale commission is set per commission plan, not 
    إلا إذا كانت كل خدمات الباقة مجانية.** سعر الباقة نفسه مسموح يكون 0.000، ومسموح يكون أعلى أو أقل من مجموع أسعار
    الخدمات.
 6. **حدود:** الصلاحية من 1 لـ 730 يوم، الجلسات من 1 لـ 365 لكل خدمة (عدد صحيح)، من 1 لـ 20 خدمة مختلفة. أي حاجة برّه كده
-   (صلاحية 0 أو 731، جلسات 0 أو 366، من غير خدمات أو 21 خدمة، سعر سالب أو بأقل من 3 خانات عشرية زي `25.5`) ← الشاشة
+   (صلاحية 0 أو 731، جلسات 0 أو 366، من غير خدمات أو 21 خدمة، أو سعر سالب) ← الشاشة
    بترفض قبل الإرسال وتعرض **راجع الأسماء والسعر بثلاث خانات والصلاحية من ١ إلى ٧٣٠ يوماً، ومن ١ إلى ٢٠ خدمة مختلفة
-   لكل منها من ١ إلى ٣٦٥ جلسة.** ولو الطلب اتبعت للـ API مباشرة بيرد برسالة السبب بالاسم (شوف قسم الـ agent).
+   لكل منها من ١ إلى ٣٦٥ جلسة.** ولو الطلب اتبعت للـ API مباشرة بيرد برسالة السبب بالاسم (شوف قسم الـ agent). السعر المختصر زي `25.5` الشاشة بتكمّله لوحدها لـ `25.500` وبتحفظه؛ الـ API مباشرة بس هو اللي بيرفض أقل من 3 خانات.
 7. **اسم متكرر:** إضافة باقة اسمها ` blow-dry x10 ` (حروف مختلفة أو مسافات) وفيه باقة بنفس الاسم في النشاط ←
    **يوجد نوع باقة بنفس الاسم في هذا النشاط.** (409). نفس الاسم في نشاط تاني مقبول. نفس الكلام على الاسم العربي لو
    اتكتب، وعلى إعادة التسمية.
@@ -90,10 +90,10 @@ already bought (PT-Q4). Package-sale commission is set per commission plan, not 
    sessions worth 0.000, unless every service in the package is free." The package price itself may be 0.000, and may
    be above or below the sum of its services' prices.
 6. **Limits:** validity 1 to 730 days, sessions 1 to 365 per service (whole numbers), 1 to 20 distinct services.
-   Anything outside (validity 0 or 731, sessions 0 or 366, no services or 21, a negative price, fewer than 3 decimals
-   such as `25.5`) → the form refuses before sending and shows "Check names, price (3 decimals), validity (1–730 days),
+   Anything outside (validity 0 or 731, sessions 0 or 366, no services or 21, a negative price) → the form refuses before sending and shows "Check names, price (3 decimals), validity (1–730 days),
    and 1–20 distinct services with 1–365 sessions each." Sent straight to the API, the reason is named (see the agent
-   section).
+   section). A shorthand price such as `25.5` is not refused by the form: it is normalised to `25.500` and saved; only a direct
+   API call with fewer than 3 decimals is refused.
 7. **A repeated name:** adding ` blow-dry x10 ` (other case or spaces) when that package exists in the business → "A
    package type with this name already exists in this business." (409). The same name in another business is accepted.
    The same applies to the Arabic name when given, and to renaming.
