@@ -12,14 +12,15 @@ beforeAll(async () => {
 });
 afterAll(async () => { await f?.db.close(); await f?.h.close(); });
 
-async function contracted(branch: string) {
+async function reportRow(branch: string) {
   const response = await f.h.app.inject({method:'GET',url:reportUrl(f,branch),headers:reportHeaders(f)});
   expect(response.statusCode).toBe(200);
   const rows = attendanceMonthlyReport.parse(response.json()).rows;
   expect(rows).toHaveLength(1);
   expect(rows[0]?.employee_id).toBe(f.employee.id);
-  return rows[0]?.contracted_minutes;
+  return rows[0];
 }
+const contracted = async (branch: string) => (await reportRow(branch))?.contracted_minutes;
 
 it.each([
   ['FULL_DAY',[480,240,720]],
@@ -35,7 +36,13 @@ it.each([
     starts_at='2026-10-03T07:00:00Z',ends_at='2026-10-03T09:00:00Z' WHERE company_id=${f.company} AND id=${id}`;
   for (const [index,branch] of branches.entries()) {
     expect(await contracted(branch)).toBe((baseline[index] ?? 0) - (removed[index] ?? 0));
+    expect((await reportRow(branch))?.leave).toContainEqual({type:'ANNUAL',
+      days:kind === 'FULL_DAY' ? 1 : 0,partial_minutes:kind === 'PARTIAL' ? 120 : 0});
   }
+  const csv = await f.h.app.inject({method:'GET',url:reportUrl(f,'all',true),headers:reportHeaders(f)});
+  expect(csv.statusCode).toBe(200);
+  const cells = csv.payload.split('\r\n')[1]?.split(',');
+  expect(cells?.slice(14,16)).toEqual(kind === 'FULL_DAY' ? ['"1"','"0.00"'] : ['"0"','"2.00"']);
 });
 
 it('AB-Q11 a Hawalli-scoped reader gets employee leave filed at Salmiya without needing Salmiya access', async () => {

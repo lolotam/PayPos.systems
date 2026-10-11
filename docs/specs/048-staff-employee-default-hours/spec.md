@@ -25,7 +25,7 @@ working hours (a day can be 12 hours, not 8) and her break on the employee profi
 | BW-Q2 / BW-Q3 / BW-Q6 (spec 041) | A break is optional, at most one per shift, strictly inside the shift |
 | S020-SHIFTS (2026-10-09) | One shift is at most 16 hours |
 
-## Owner answers (Waleed, 2026-10-10 — provisional until the partner answers; his pick wins on a difference)
+## Owner answers (Waleed, 2026-10-10; partner answered 2026-10-11 — same picks except DH-Q2, where his pick is binding: follow-up row 16d-3)
 
 | ID | Question | Decision |
 |---|---|---|
