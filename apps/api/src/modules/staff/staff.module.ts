@@ -5,6 +5,8 @@ import {
 } from './staff-attendance.providers.ts';
 import { scheduleProviders } from './staff-schedule.providers.ts';
 import { defaultShiftsProviders } from './staff-default-shifts.providers.ts';
+import { attendanceReportProviders } from './staff-report.providers.ts';
+import { AttendanceMonthlyReportController } from './http/attendance-monthly-report.controller.ts';
 import {
   documentProviders,
   employeeIbanProviders,
@@ -91,6 +93,7 @@ import {
 import { attendanceBoardContext } from './persistence/attendance-board-context.adapter.ts';
 
 export const staffControllers = [
+  AttendanceMonthlyReportController,
   AttendanceBoardController,
   AttendanceChangeRequestsController,
   EmployeeDefaultShiftsController,
@@ -207,6 +210,7 @@ export function staffProviders(
     ...enrolProviders(database, ids, passkeys, logger),
     ...scheduleProviders(database, ids),
     ...defaultShiftsProviders(database, ids),
+    ...attendanceReportProviders(database, ids),
     ...leaveProviders(database, ids),
     ...attendanceExceptionProviders(database, ids),
     ...attendanceCorrectionProviders(database, ids),

@@ -43,10 +43,10 @@ start, against the rules below.
 | AB-Q1 | Split into 27a–27d as in §1. |
 | AB-Q2 | New permission `read:attendance:branch`. Role defaults: `owner`, `general_manager`, `business_manager`, `branch_manager`, `accountant` (Abu Salem's comment: also the administrative/finance manager and the accountant). Scope follows the holder's branch access: a branch manager sees only his branches; company-wide roles see all. The owner can grant it to any person (existing ALLOW/DENY). There is no "finance manager" role; the owner grants it by name. An employee sees only her own attendance in her app (row 57b, not here). |
 | AB-Q3 | Report month = calendar month (1st → last day), by `working_date`. |
-| AB-Q4 | Contracted hours for the month **minus** every APPROVED leave (ANNUAL, SICK, UNPAID, OTHER): a full-day leave removes that date's contracted minutes; a PARTIAL leave removes the overlap of its hours with that day's default. A separate column shows leave days by type. |
+| AB-Q4 | Contracted hours for the month **minus** every APPROVED leave (ANNUAL, SICK, UNPAID, OTHER): a full-day leave removes that date's contracted minutes; a PARTIAL leave removes the overlap of its hours with that day's default. A separate column shows leave days by type. **AB-Q11 (Waleed 2026-10-11):** approved leave removes contracted minutes at **every** branch the employee is linked to that day, not only the branch it was filed under. |
 | AB-Q5 | No public-holiday list now (comes with payroll). Contracted hours are not reduced for holidays. |
 | AB-Q6 | A `MISSED_OUT` session counts **0** worked minutes and is flagged "missing clock-out" until corrected; once it has a correction of `CLOCK_OUT` (spec 035, status stays `MISSED_OUT`) it counts with the corrected clock-out. |
-| AB-Q7 | The report is per branch: an employee linked to two branches appears in each with that branch's sessions and contracted hours. Readers whose access covers every branch of the business also get an "all branches" view: one row per employee, sums across branches. |
+| AB-Q7 | The report is per branch: an employee linked to two branches appears in each with that branch's sessions and contracted hours. Readers whose access covers every branch of the business also get an "all branches" view: one row per employee, sums across branches. "All branches" means every branch of **one business**: the request is `GET /v1/businesses/:businessId/attendance-report` (single branch: `…/branches/:branchId/attendance-report`; API shape decided by the orchestrator 2026-10-11, not an owner question), and the reader must hold the permission on every branch of that business. |
 | AB-Q8 | One difference column: actual − contracted (after AB-Q4 leave). Positive = worked more. |
 | AB-Q9a | Board per branch: who is in now; every session of the day (in, out, lateness, open exceptions, "manual" with requester/approver); refused clock attempts. The screen polls every 30 s. |
 | AB-Q9b | Overnight sessions belong to the clock-in working date. |
@@ -128,6 +128,7 @@ Per branch and calendar month, one row per employee with any session or contract
 The hours arithmetic lives in `packages/domain` as pure functions with exhaustive unit tests (no arithmetic in a use
 case or query mapper beyond projection). CSV export follows AB-Q9d/e/f; anything above 200 ms becomes a worker job
 (`CLAUDE.md` §6) — decide in 27b's plan with a measurement.
+**Decided (Waleed 2026-10-11):** measured 113 ms at 3 branches × 30 employees (pilot scale, enforced by a test), 387 ms at 5 × 60, 578 ms at 10 × 60. The all-branches route stays synchronous for now; moving it to a worker job before large customers is deferred to issue #161 (row 27e).
 
 ## 6. Parts 27c and 27d — screens (rules only)
 
