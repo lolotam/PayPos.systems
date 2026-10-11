@@ -1,13 +1,13 @@
 import type { WeekdayDefaultShift } from '@pospay/domain';
 import type { DefaultShiftLink } from '../domain/employee-default-shifts.ts';
 
-/** الشركة والمستخدم المتحقق منهما من الجلسة؛ المعاملة تضبط الـ tenant منهما ولا تأخذهما من الطلب. */
 /** لقطة الدوام المحفوظ كما تقرأها معاملة الحفظ؛ الـ http يتحقق منها بعقد الرد قبل ما ترجع للعميل. */
 export interface EmployeeHoursSnapshot {
   employee_id: string;
   can_manage: boolean;
   branches: readonly ({ branch_id: string; can_manage: boolean } & Record<string, unknown>)[];
 }
+/** الشركة والمستخدم المتحقق منهما من الجلسة؛ المعاملة تضبط الـ tenant منهما ولا تأخذهما من الطلب. */
 export interface EmployeeHoursActor { companyId: string; userId: string }
 /**
  * عمليات حفظ الدوام داخل معاملة واحدة مقفولة: فحص الصلاحية، قفل الموظفة، القراءة، ثم الاستبدال مع التدقيق ولقطة الرد.
