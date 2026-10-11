@@ -61,5 +61,18 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 31 | [Attendance change requests](31-attendance-change-requests.md) — طلبات تعديل الحضور (طلب وموافقة) | #148 | API on staging after the next release; no admin screen until PR 27; admin not deployed (issue #54) |
 | 32 | [Add a manual attendance day](32-add-manual-attendance-day.md) — إضافة يوم حضور يدوي | #153 | API on staging after the next release; no admin screen until PR 27; admin not deployed (issue #54) |
 | 33 | [Void and restore an attendance day](33-void-and-restore-attendance-day.md) — إلغاء يوم حضور واسترجاعه | #152 | API on staging after the next release; no admin screen until PR 27; admin not deployed (issue #54) |
+| 34 | [Resolve an attendance exception](34-resolve-attendance-exception.md) — إغلاق تنبيه الحضور وإعادة فتحه | #126 | API live on staging (api + worker at 6c220e4); API only, no screen until PR 27; admin/POS not deployed (issue #54) |
+| 35 | [Correct an attendance session](35-correct-attendance.md) — تصحيح وقت الحضور أو الانصراف | #132 | API live on staging; API only, no screen until PR 27; admin/POS not deployed (issue #54) |
+| 36 | [Not-clocked-in alert](36-not-clocked-in-alert.md) — تنبيه "الموظف لسه ما سجّل حضور" | #130 | worker job live on staging; existing companies need the one-time CompanyCreated replay; message appears in the admin bell (admin not deployed, issue #54) |
+| 37 | [Package types](37-package-types.md) — أنواع الباقات | #133 | API live on staging; admin screens not deployed (issue #54) |
+| 38 | [Employee documents owner-only by default](38-documents-owner-only.md) — وثائق الموظفين للمالك فقط افتراضيًا | #137 | live on staging (permission defaults + API); admin screens not deployed (issue #54) |
+| 39 | [Duplicate-name warning](39-duplicate-name-warning.md) — تنبيه الاسم المتكرر عند إضافة أو تعديل موظف | #136, #142 | API on staging at `6c220e4` (2026-10-11); admin screen not deployed (issue #54) |
+| 40 | [Employee IBAN](40-employee-iban.md) — الحساب البنكي للموظف (الآيبان) | #140 | API on staging at `6c220e4` (2026-10-11); admin screen not deployed (issue #54) |
+| 41 | [Maximum shifts per day (owner setting)](41-max-shifts-setting.md) — أقصى عدد ورديات في اليوم (إعداد المالك) | #143 | API on staging at `6c220e4` (2026-10-11); admin not deployed (issue #54); later made per branch by #151 ([45](45-max-shifts-per-branch.md)) |
+| 42 | [Passkey phone lock](42-passkey-phone-lock.md) — قفل الهاتف على موظف واحد | #144 | API on staging at `6c220e4` (2026-10-11); admin and POS not deployed (issue #54); OTP sending is OFF, so tests/local seams only |
+| 43 | [Break window on a shift](43-schedule-break-window.md) — البريك الثابت داخل الوردية | #146 | API live on staging (6c220e4); admin screens not yet (issue #54) |
+| 44 | [Return from break: lateness and the "not returned" alert](44-return-from-break-lateness.md) — الرجوع من البريك والتنبيه لو ما رجعتش | #147 | API + worker alert job live on staging (6c220e4); bell/clock screens not yet (issue #54) |
+| 45 | [Maximum shifts per day, per branch](45-max-shifts-per-branch.md) — أقصى عدد ورديات في اليوم لكل فرع | #151 | API live on staging (6c220e4); settings panel not yet (issue #54) |
+| 46 | [Default working hours per employee](46-employee-default-hours.md) — الدوام الافتراضي للموظفة | #154 | API live on staging (6c220e4); admin profile section and schedule pre-fill not yet (issue #54) |
 
 New journeys are added after every merge.
