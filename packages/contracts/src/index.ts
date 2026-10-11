@@ -251,6 +251,7 @@ export * from './staff/attendance-change-request.js';
 
 export * from './staff/passkeys.js';
 export * from './staff/attendance-device-refusals.js';
+export * from './staff/attendance-board.js';
 export * from './staff/clock-attendance.js';
 export * from './staff/clock-by-card.js';
 export * from './staff/employee-cards.js';

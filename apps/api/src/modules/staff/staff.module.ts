@@ -7,7 +7,11 @@ import { scheduleProviders } from './staff-schedule.providers.ts';
 import { defaultShiftsProviders } from './staff-default-shifts.providers.ts';
 import { attendanceReportProviders } from './staff-report.providers.ts';
 import { AttendanceMonthlyReportController } from './http/attendance-monthly-report.controller.ts';
-import { documentProviders, employeeIbanProviders, salaryProviders } from './staff-records.providers.ts';
+import {
+  documentProviders,
+  employeeIbanProviders,
+  salaryProviders,
+} from './staff-records.providers.ts';
 import { EmployeeDefaultShiftsController } from './http/employee-default-shifts.controller.ts';
 import { EmployeeIbanController } from './http/employee-iban.controller.ts';
 import { MyScheduleController } from './http/my-schedule.controller.ts';
@@ -81,9 +85,16 @@ import { ClockByCardController } from './http/clock-by-card.controller.ts';
 import { EmployeeCardsController } from './http/employee-cards.controller.ts';
 import { AttendanceChangeRequestsController } from './http/attendance-change-requests.controller.ts';
 import { attendanceChangeProviders } from './attendance-change.providers.ts';
+import {
+  AttendanceBoardController,
+  ATTENDANCE_BOARD_CONTEXT,
+  ATTENDANCE_BOARD_CLOCK,
+} from './http/attendance-board.controller.ts';
+import { attendanceBoardContext } from './persistence/attendance-board-context.adapter.ts';
 
 export const staffControllers = [
   AttendanceMonthlyReportController,
+  AttendanceBoardController,
   AttendanceChangeRequestsController,
   EmployeeDefaultShiftsController,
   EmployeeIbanController,
@@ -163,7 +174,6 @@ function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator):
   ];
 }
 
-
 function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   return [
     EmployeePasskeyUnbindGuard,
@@ -192,6 +202,8 @@ export function staffProviders(
   const ids = systemUuidV7();
   return [
     ...attendanceProviders(database, redis, passkeys, ids, logger),
+    { provide: ATTENDANCE_BOARD_CONTEXT, useValue: attendanceBoardContext },
+    { provide: ATTENDANCE_BOARD_CLOCK, useValue: systemClock },
     ...cardProviders(database, ids, employeeCardKey, redis, logger),
     { provide: PASSKEY_OPTIONS, useValue: passkeys },
     ...unbindProviders(database, ids),
