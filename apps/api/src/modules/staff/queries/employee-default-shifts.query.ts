@@ -42,7 +42,7 @@ export function employeeDefaultShiftsStatement(context: EmployeeHoursReadContext
 }
 
 export async function employeeDefaultShifts(tx: Tx, context: EmployeeHoursReadContext,
-  access: EmployeeHoursReadAccess, forManager = false) {
+  access: EmployeeHoursReadAccess, managedBranchId: string | null = null) {
   // يعاد فحص فروع السجل داخل معاملة القراءة قبل عرض الدوام وحالة الميزة.
   const [employee] = await tx.execute<{ branch_ids: string[] }>(sql`SELECT
     ARRAY[e.primary_branch_id] || ARRAY(SELECT eb.branch_id FROM employee_branches eb
@@ -52,10 +52,11 @@ export async function employeeDefaultShifts(tx: Tx, context: EmployeeHoursReadCo
   if (!employee) return null;
   const branchContexts = await access.branches(tx, context.companyId, context.businessId);
   const candidateBranchIds = [...new Set([...employee.branch_ids, ...branchContexts.map((branch) => branch.id)])];
+  // بعد الحفظ تتقاس صلاحية الكتابة على الفرع المعدّل وحده، زي فحص الحفظ نفسه.
   const decision = await access.manage(tx, context.companyId, context.userId,
-    context.businessId, employee.branch_ids, candidateBranchIds);
+    context.businessId, managedBranchId ? [managedBranchId] : employee.branch_ids, candidateBranchIds);
   let allowedBranchIds = decision.allowedBranchIds;
-  if (forManager) {
+  if (managedBranchId) {
     if (!decision.manage) return null;
     if (!decision.featureEnabled) return 'FEATURE_DISABLED' as const;
   } else {

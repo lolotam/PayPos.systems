@@ -36,8 +36,7 @@ async function lockEmployee(tx: Tx, actor: EmployeeHoursActor, businessId: strin
   const links = await tx.execute<DefaultShiftLink & Record<string, unknown>>(sql`SELECT branch_id,
     to_char("from",'YYYY-MM-DD') AS "from", to_char("to",'YYYY-MM-DD') AS "to"
     FROM employee_branches WHERE company_id=${actor.companyId} AND employee_id=${employeeId}`);
-  const access = await readEmployeeHoursAccess(tx, actor.companyId, actor.userId, businessId,
-    [employee.primary_branch_id, branchId, ...links.filter((link) => link.to === null).map((link) => link.branch_id)]);
+  const access = await readEmployeeHoursAccess(tx, actor.companyId, actor.userId, businessId, [branchId]);
   if (!access.manage) throw new EmployeeDefaultShiftsError('FORBIDDEN');
   if (!access.featureEnabled) throw new EmployeeDefaultShiftsError('FEATURE_DISABLED');
   return { links, timezone: branch.timezone };

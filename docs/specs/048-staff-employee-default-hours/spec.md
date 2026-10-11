@@ -159,7 +159,8 @@ in the audit log.
 - **FR-002**: Each weekday entry MUST obey the shift rules: at most 16 h, overnight allowed, at most one break strictly
   inside (S020-SHIFTS, BW-Q3, BW-Q6); at most one entry per weekday. The break counts as working hours (BW-Q4).
 - **FR-003**: Setting a default MUST require `manage:employee-hours:business`: owner by default; grantable only by the
-  company owner, to any human role, never a device (DH-Q5). Anyone who can read the employee detail can read the
+  company owner, to any human role, never a device (DH-Q5). A branch-scoped grant lets its holder set that
+  branch's default only (a branch DENY still wins over a business ALLOW). Anyone who can read the employee detail can read the
   defaults; schedule readers (`read:schedules:*`) receive the defaults of the grid's branch.
 - **FR-004**: A default MUST only be set for a branch the employee is linked to on the day of the change.
 - **FR-005**: Every actual change MUST write one audit row in the same transaction (before/after, branch, actor);

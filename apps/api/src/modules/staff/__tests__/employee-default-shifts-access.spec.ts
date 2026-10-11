@@ -135,3 +135,22 @@ it('DH-05 PUT branch DENY still wins over a business ALLOW', async () => {
   const response = await hoursHttp(f, 'PUT', f.putPath(), { shifts: salmiyaDefaults });
   expect(response.status).toBe(403);
 });
+
+it('DH-05 a branch grant on A saves A for an employee linked to A and B, refuses B, and GET stays 404', async () => {
+  await reader('BRANCH');
+  await grant('manage:employee-hours:business', 'ALLOW', 'BRANCH', f.branch);
+  const linkId = salaryIds.newId();
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.company},${linkId},${f.business},${f.employee.id},${f.secondBranch},
+      (CURRENT_TIMESTAMP AT TIME ZONE 'Pacific/Honolulu')::date)`;
+  try {
+    const saved = await hoursHttp(f, 'PUT', f.putPath(), { shifts: salmiyaDefaults });
+    expect(saved.status).toBe(200);
+    expect(employeeDefaultShifts.parse(saved.body).branches.map((branch) => branch.branch_id)).toEqual([f.branch]);
+    const refused = await hoursHttp(f, 'PUT', f.putPath(f.secondBranch), { shifts: hawalliDefaults });
+    expect([403, 404]).toContain(refused.status);
+    expect((await hoursHttp(f, 'GET', f.hoursPath)).status).toBe(404);
+  } finally {
+    await f.h.owner`UPDATE employee_branches SET "to"="from"+1 WHERE company_id=${f.company} AND id=${linkId}`;
+  }
+});
