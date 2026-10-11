@@ -89,6 +89,8 @@ import {
   ATTENDANCE_BOARD_CLOCK,
 } from './http/attendance-board.controller.ts';
 import { attendanceBoardContext } from './persistence/attendance-board-context.adapter.ts';
+import { AttendanceExceptionsReadController } from './http/attendance-exceptions-read.controller.ts';
+import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';
 
 export const staffControllers = [
   AttendanceBoardController,
@@ -117,6 +119,8 @@ export const staffControllers = [
   DocumentTypesController,
   EmployeeDocumentsController,
   EmployeeImportController,
+  AttendanceExceptionsReadController,
+  AttendanceCorrectionHistoryController,
 ];
 
 function attendanceCorrectionProviders(
