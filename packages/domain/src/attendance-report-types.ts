@@ -20,8 +20,9 @@ export interface ReportShift {
   break_starts_at: string | null;
   break_ends_at: string | null;
 }
-/** الإجازة المقبولة فقط؛ أيامها المدنية محفوظة، والجزئية لها لحظتان مثبتتان. */
+/** الإجازة المقبولة فقط؛ معرّف الطلب يمنع تكرارها عند جمع الفروع، والجزئية لها لحظتان مثبتتان. */
 export interface ReportLeave {
+  id: string;
   type: 'ANNUAL' | 'SICK' | 'UNPAID' | 'OTHER';
   kind: 'FULL_DAY' | 'PARTIAL';
   from: string;

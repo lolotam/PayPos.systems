@@ -7,6 +7,7 @@ const contract: ReportContract = { hire_date:'2026-01-01',contract_end:null,link
   entries: [...[0,1,2,3,4].map((day) => ({ day,start:'09:00',end:'17:00',break_start:'13:00',break_end:'14:00' })),
     {day:5,start:'09:00',end:'21:00'}] };
 const leave = (patch: Partial<ReportLeave> = {}): ReportLeave => ({
+  id:'annual-full-day',
   type:'ANNUAL',kind:'FULL_DAY',from:'2026-10-03',to:'2026-10-03',
   starts_at:'2026-10-02T21:00:00Z',ends_at:'2026-10-03T21:00:00Z',...patch,
 });
@@ -72,13 +73,22 @@ it('sums branches into one employee row and counts distinct days plus manual ses
     difference_minutes:-27120,late_count:2,late_minutes:24,manual_days:2,missing_clock_out:0,
   });
 });
-it('AB-Q7 sums full and partial leave columns across branches while presence dates remain distinct', () => {
+it('AB-Q11 counts each leave request once across branches while presence dates remain distinct', () => {
   const branch: ReportBranchInputs = {timezone:'Asia/Kuwait',contract:null,shifts:[],sessions:[],
-    leave_for_branch:[leave(),leave({type:'SICK',kind:'PARTIAL',starts_at:'2026-10-03T06:00:00Z',ends_at:'2026-10-03T07:00:00Z'})]};
-  expect(computeAttendanceMonthlyReport([branch,branch],'2026-10').leave).toMatchObject([
-    {type:'ANNUAL',days:2,partial_minutes:0},{type:'SICK',days:0,partial_minutes:120},
+    leave_for_branch:[leave(),leave({id:'sick-partial',type:'SICK',kind:'PARTIAL',starts_at:'2026-10-03T06:00:00Z',ends_at:'2026-10-03T07:00:00Z'})]};
+  const copy = {...branch,leave_for_branch:branch.leave_for_branch.map((entry) => ({...entry}))};
+  expect(computeAttendanceMonthlyReport([branch,copy],'2026-10').leave).toMatchObject([
+    {type:'ANNUAL',days:1,partial_minutes:0},{type:'SICK',days:0,partial_minutes:60},
     {type:'UNPAID',days:0,partial_minutes:0},{type:'OTHER',days:0,partial_minutes:0},
   ]);
+});
+
+it('keeps distinct partial leave requests of the same type when deduplicating branch copies by id', () => {
+  const first = leave({id:'first',kind:'PARTIAL',starts_at:'2026-10-03T07:00:00Z',ends_at:'2026-10-03T09:00:00Z'});
+  const second = leave({id:'second',kind:'PARTIAL',from:'2026-10-10',to:'2026-10-10',
+    starts_at:'2026-10-10T07:00:00Z',ends_at:'2026-10-10T08:00:00Z'});
+  expect(computeAttendanceMonthlyReport(reemBranches([first,second]),'2026-10').leave)
+    .toContainEqual({type:'ANNUAL',days:0,partial_minutes:180});
 });
 
 function reemBranches(leaves: ReportLeave[]): ReportBranchInputs[] {

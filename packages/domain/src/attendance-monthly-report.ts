@@ -5,6 +5,7 @@ import { attendanceLateness, isCountedAttendanceSession, workedAttendanceMinutes
 /**
  * يجمع تقرير الموظفة في فرع أو كل فروع النشاط؛ الحضور أيام مميزة واليدوي عدد جلسات وفق مواصفة 049 §5.
  * الفرق عمل ناقص التعاقد بعد الإجازة؛ كل الحسابات هنا لتظل القراءة إسقاطاً بلا قواعد مكررة.
+ * الإجازة تخص الموظفة وفق AB-Q11، فتُحسب مرة لكل معرّف طلب مهما تكررت في مدخلات الفروع.
  *
  * @param branches مدخلات الموظفة لكل فرع مصرح به
  * @param month الشهر الميلادي المطلوب
@@ -18,10 +19,8 @@ export function computeAttendanceMonthlyReport(branches: readonly ReportBranchIn
     .filter((shift) => shift.working_date.startsWith(`${month}-`))
     .reduce((minutes, shift) => minutes + Math.floor((Date.parse(shift.ends_at) - Date.parse(shift.starts_at)) / 60_000), 0), 0);
   const contracted_minutes = branches.reduce((sum, branch) => sum + attendanceContractedMinutes(branch.contract, month, branch.leave_for_branch, branch.timezone), 0);
-  const leaveByBranch = branches.map((branch) => attendanceLeaveSummary(branch.leave_for_branch, month));
-  const leave = attendanceLeaveSummary([], month).map((item, index) => ({ ...item,
-    days: leaveByBranch.reduce((sum, summary) => sum + (summary[index]?.days ?? 0), 0),
-    partial_minutes: leaveByBranch.reduce((sum, summary) => sum + (summary[index]?.partial_minutes ?? 0), 0) }));
+  const employeeLeave = new Map(branches.flatMap((branch) => branch.leave_for_branch).map((entry) => [entry.id, entry]));
+  const leave = attendanceLeaveSummary([...employeeLeave.values()], month);
   return { days_present: new Set(counted.map((session) => session.working_date)).size,
     worked_minutes, scheduled_minutes, contracted_minutes,
     leave,

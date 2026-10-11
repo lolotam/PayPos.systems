@@ -41,7 +41,7 @@ export function attendanceMonthlyInputsStatement(companyId: string, scope: Atten
     approved_employee_leave AS MATERIALIZED (
       SELECT l.employee_id,json_agg(row_to_json(v)) AS leave
       FROM leave_requests l
-      CROSS JOIN LATERAL (SELECT l.type,l.kind,l."from",l."to",l.starts_at,l.ends_at) v
+      CROSS JOIN LATERAL (SELECT l.id,l.type,l.kind,l."from",l."to",l.starts_at,l.ends_at) v
       WHERE l.company_id=${companyId} AND l.business_id=${scope.businessId}
         AND l.status='APPROVED'
         AND l."from"<=${to}::date+1 AND l."to">=${from}::date GROUP BY l.employee_id),
