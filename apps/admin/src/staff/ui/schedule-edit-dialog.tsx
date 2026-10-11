@@ -22,6 +22,7 @@ export function ScheduleEditDialog({
   onClose: () => void;
 }) {
   const locale = useLocale();
+  const currentRow = grid.items.find((item) => item.employee_id === row.employee_id);
   const dialog = useRef<HTMLDialogElement>(null);
   const { save, form, past, submit } = useScheduleEditor(scope, row, grid, day, locale, onClose);
   useEffect(() => {
@@ -50,7 +51,7 @@ export function ScheduleEditDialog({
           </p>
           <ScheduleDayForm
             day={day}
-            defaultShifts={row.default_shifts ?? []}
+            defaultShifts={(currentRow ?? row).default_shifts ?? []}
             employeeName={locale === 'ar' && row.name_ar ? row.name_ar : row.name_en}
             past={past}
             pending={save.isPending}

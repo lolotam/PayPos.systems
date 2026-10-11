@@ -11,7 +11,7 @@ it('shows seven weekdays and break-inclusive day minutes, and saves and clears',
   fireEvent.click(screen.getByRole('button', { name: 'Save default hours' }));
   await waitFor(() => expect(onSave).toHaveBeenCalledWith({ shifts: [shift] }));
   fireEvent.click(screen.getByRole('button', { name: 'Clear default hours' }));
-  expect(onSave).toHaveBeenLastCalledWith({ shifts: [] });
+  expect(onSave).toHaveBeenLastCalledWith({ shifts: [] }, expect.any(Function));
 });
 it('adds exactly one weekday and removes an unchecked day', async () => {
   const onSave = vi.fn();

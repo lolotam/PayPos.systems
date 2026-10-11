@@ -188,3 +188,34 @@ it.each(['ar', 'en'] as const)('shows the break and API rejection in %s', (local
   expect(screen.getByText('10:00–11:00')).toBeTruthy();
   state.error = null;
 });
+
+it('uses polled defaults for warnings and new days while preserving unsaved edits', async () => {
+  state.locale = 'en';
+  state.error = null;
+  state.save.mockReset().mockResolvedValue(saved);
+  const defaults = [0, 2].map((day) => ({ day, start: '09:00', end: '17:00' }));
+  const captured = { ...row, default_shifts: defaults };
+  const future = { ...grid, week_start: '2099-01-03',
+    days: ['2099-01-03', '2099-01-04', '2099-01-05'], items: [captured] };
+  const close = vi.fn();
+  const view = render(<ScheduleEditDialog scope={scope} row={captured} grid={future} day={0} onClose={close} />);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'shell.schedule_add') }));
+  fireEvent.change(screen.getByLabelText(t('en', 'shell.schedule_start')), { target: { value: '10:00' } });
+  expect(screen.getByRole('status').textContent).toContain(captured.name_en);
+  const polled = { ...future, items: [{ ...captured,
+    default_shifts: [{ day: 0, start: '10:00', end: '17:00' }, { day: 2, start: '12:00', end: '20:00' }] }] };
+  view.rerender(<ScheduleEditDialog scope={scope} row={captured} grid={polled} day={0} onClose={close} />);
+  expect(screen.queryByRole('status')).toBeNull();
+  expect((screen.getByLabelText(t('en', 'shell.schedule_start')) as HTMLInputElement).value).toBe('10:00');
+  view.rerender(<ScheduleEditDialog scope={scope} row={captured} grid={polled} day={2} onClose={close} />);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'shell.schedule_add') }));
+  expect((screen.getByLabelText(t('en', 'shell.schedule_start')) as HTMLInputElement).value).toBe('12:00');
+  expect((screen.getByLabelText(t('en', 'shell.schedule_end')) as HTMLInputElement).value).toBe('20:00');
+  expect(screen.queryByRole('status')).toBeNull();
+  submitForm(view.container);
+  await waitFor(() => expect(close).toHaveBeenCalledOnce());
+  expect(state.save.mock.calls[0]?.[0]).toMatchObject({ expected_revision: 3,
+    shifts: [expect.objectContaining({ day: 1, start: '09:00', end: '13:00' }),
+      expect.objectContaining({ day: 0, start: '10:00', end: '17:00' }),
+      expect.objectContaining({ day: 2, start: '12:00', end: '20:00' })] });
+});

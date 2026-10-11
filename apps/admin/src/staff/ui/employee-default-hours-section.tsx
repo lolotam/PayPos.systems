@@ -25,7 +25,7 @@ export function EmployeeDefaultHoursSection(props: {
         {branch.linked && !branch.shifts.length ? <p>{t(locale, 'employeeDefaultHours.notSet')}</p> : null}
         {current.data?.can_manage && branch.linked ? <EmployeeDefaultHoursForm
           key={`${branch.branch_id}-${branch.updated_at ?? ''}`} shifts={branch.shifts} pending={save.isPending}
-          onSave={(input) => save.mutate({ branchId: branch.branch_id, input })} /> :
+          onSave={(input, onSuccess) => save.mutate({ branchId: branch.branch_id, input }, { onSuccess: () => onSuccess?.() })} /> :
           branch.shifts.map((shift) => <p key={shift.day}>
             {t(locale, `shell.schedule_${scheduleDayKeys[shift.day] ?? 'sat'}`)} · <bdi>{shift.start}–{shift.end}</bdi>
             {shift.break_start ? <> · {t(locale, 'shell.schedule_break')} <bdi>{shift.break_start}–{shift.break_end}</bdi></> : null}

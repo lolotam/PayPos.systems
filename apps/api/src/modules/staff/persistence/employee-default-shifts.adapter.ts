@@ -5,11 +5,12 @@ import { lockEmployeeHoursAccess, readEmployeeHoursAccess } from '../../identity
 import { EmployeeDefaultShiftsError, type DefaultShiftLink } from '../domain/employee-default-shifts.ts';
 import type { EmployeeDefaultShiftsTransactions, EmployeeHoursActor } from '../ports/employee-default-shifts.port.ts';
 import { createEmployeeDetailAccess } from './employee-detail-access.adapter.ts';
-import { schedulingContext } from './schedule-context.adapter.ts';
+import { employeeHoursBranches, schedulingContext } from './schedule-context.adapter.ts';
 
 export function createEmployeeHoursReadAccess() {
   return {
     detail: createEmployeeDetailAccess(),
+    branches: employeeHoursBranches,
     manage: (tx: Tx, companyId: string, userId: string, businessId: string, branchIds: readonly string[]) =>
       readEmployeeHoursAccess(tx, companyId, userId, businessId, branchIds),
   };
@@ -57,7 +58,7 @@ async function replace(tx: Tx, actor: EmployeeHoursActor, ids: IdGenerator,
   if (after.length) {
     const rows = after.map((shift) => sql`(${actor.companyId},${target.businessId},${target.employeeId},
       ${target.branchId},${shift.day},${shift.start},${shift.end},${shift.break_start ?? null},
-      ${shift.break_end ?? null},${actor.userId},${at})`);
+      ${shift.break_end ?? null},${actor.userId},${at.toISOString()})`);
     await tx.execute(sql`INSERT INTO employee_default_shifts
       (company_id,business_id,employee_id,branch_id,day,start,"end",break_start,break_end,updated_by,updated_at)
       VALUES ${sql.join(rows, sql`,`)}`);

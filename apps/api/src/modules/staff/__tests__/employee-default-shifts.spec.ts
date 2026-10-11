@@ -4,6 +4,7 @@ import { salaryIds } from './salary.fixture.ts';
 import { defaultHoursFixture, hoursCommand, hoursHttp, hoursDevice, salmiyaDefaults, type DefaultHoursFixture } from './employee-default-shifts.fixture.ts';
 import { branchScheduleStatement } from '../queries/schedule-week.query.ts';
 import { employeeDefaultShiftsStatement } from '../queries/employee-default-shifts.query.ts';
+import { createEmployeeHoursReadAccess } from '../persistence/employee-default-shifts.adapter.ts';
 import { sql } from 'drizzle-orm';
 import { schedulesFixture, scheduleActor, setWeek, testPattern, type SchedulesFixture } from './schedules.fixture.ts';
 
@@ -11,7 +12,7 @@ let f: DefaultHoursFixture;
 beforeAll(async () => { f = await defaultHoursFixture(); });
 afterAll(async () => { await f?.db.close(); await f?.h.close(); });
 const auditRows = () => f.h.owner`SELECT actor_user_id,entity_id,before,after FROM audit_log
-  WHERE company_id=${f.company} AND entity='employee_default_shifts' ORDER BY created_at,id`;
+  WHERE company_id=${f.company} AND entity='employee_default_shifts' ORDER BY at,id`;
 
 it('DH-01/02 sets independent branch defaults, reads the shape and audits only actual changes', async () => {
   const first = await hoursHttp(f, 'PUT', f.putPath(), { shifts: salmiyaDefaults });
@@ -71,8 +72,8 @@ it('DH-05 refuses unlinked, ended and future links; DH-06 clears and keeps unlin
   await expect(f.setHours.execute(hoursCommand(f, [], f.secondBranch))).rejects.toMatchObject({ code: 'EMPLOYEE_BRANCH_NOT_LINKED' });
   const view = employeeDefaultShifts.parse((await hoursHttp(f, 'GET', f.hoursPath)).body);
   expect(view.branches.find((b) => b.branch_id === f.secondBranch)).toMatchObject({ linked: false });
-  await f.h.owner`UPDATE employee_branches SET "from"='2026-10-12',"to"=NULL
-    WHERE company_id=${f.company} AND employee_id=${f.employee.id} AND branch_id=${f.secondBranch}`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.company},${salaryIds.newId()},${f.business},${f.employee.id},${f.secondBranch},'2026-10-12')`;
   await expect(f.setHours.execute(hoursCommand(f, [], f.secondBranch))).rejects.toMatchObject({ code: 'EMPLOYEE_BRANCH_NOT_LINKED' });
   const before = (await auditRows()).length;
   await f.setHours.execute(hoursCommand(f, []));
@@ -94,8 +95,9 @@ it('DH-09 serializes concurrent changes and audits the committed predecessor', a
 it('EXPLAIN checks profile and grid defaults use tenant PK/index scans', async () => {
   const plans = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    const branches = await createEmployeeHoursReadAccess().branches(tx, f.company, f.business);
     return Promise.all([
-      tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${employeeDefaultShiftsStatement(f.context)}`),
+      tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${employeeDefaultShiftsStatement(f.context, branches)}`),
       tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${branchScheduleStatement(f.company, f.business, f.branch, { week_start: '2026-10-10', limit: 20 })}`),
     ]);
   });
@@ -122,4 +124,37 @@ it('DH-08 changing a default leaves saved weeks and templates byte-for-byte unch
     expect(await templates()).toEqual(beforeTemplates);
     expect(await s.h.owner`SELECT to_jsonb(ss) AS row FROM staff_schedule_shifts ss WHERE company_id=${s.company} ORDER BY id`).toEqual(beforeShifts);
   } finally { await s.db.close(); await s.h.close(); }
+});
+
+it('reads all business branches through tenancy and preserves inactive unlinked defaults and local dates', async () => {
+  const linked = salaryIds.newId(), ended = salaryIds.newId(), future = salaryIds.newId();
+  await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en,timezone,is_active) VALUES
+    (${f.company},${linked},${f.business},'Synthetic local day','Pacific/Kiritimati',true),
+    (${f.company},${ended},${f.business},'Synthetic inactive default','Pacific/Honolulu',false),
+    (${f.company},${future},${f.business},'Synthetic future link',NULL,true)`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from","to") VALUES
+    (${f.company},${salaryIds.newId()},${f.business},${f.employee.id},${linked},
+      (CURRENT_TIMESTAMP AT TIME ZONE 'Pacific/Kiritimati')::date,NULL),
+    (${f.company},${salaryIds.newId()},${f.business},${f.employee.id},${ended},
+      (CURRENT_TIMESTAMP AT TIME ZONE 'Pacific/Honolulu')::date-1,
+      (CURRENT_TIMESTAMP AT TIME ZONE 'Pacific/Honolulu')::date),
+    (${f.company},${salaryIds.newId()},${f.business},${f.employee.id},${future},CURRENT_DATE+2,NULL)`;
+  await f.h.owner`INSERT INTO employee_default_shifts(company_id,business_id,employee_id,branch_id,day,start,"end",updated_by,updated_at)
+    VALUES(${f.company},${f.business},${f.employee.id},${ended},0,'09:00','17:00',${f.userId},'2026-10-11T10:00:00Z')`;
+  const contexts = await f.db.withTenant(f.company, (tx) => createEmployeeHoursReadAccess().branches(tx, f.company, f.business));
+  expect(contexts).toEqual(expect.arrayContaining([
+    { id: linked, timezone: 'Pacific/Kiritimati' }, { id: ended, timezone: 'Pacific/Honolulu' },
+    { id: future, timezone: 'Asia/Kuwait' },
+  ]));
+  expect(contexts.some((branch) => branch.id === f.otherBranch)).toBe(false);
+  const result = employeeDefaultShifts.parse((await hoursHttp(f, 'GET', f.hoursPath)).body);
+  expect(result.branches.find((branch) => branch.branch_id === linked)).toEqual({
+    branch_id: linked, linked: true, shifts: [], updated_at: null,
+  });
+  expect(result.branches.find((branch) => branch.branch_id === ended)).toEqual({
+    branch_id: ended, linked: false, shifts: [{ day: 0, start: '09:00', end: '17:00', break_start: null, break_end: null }],
+    updated_at: '2026-10-11T10:00:00.000Z',
+  });
+  expect(result.branches.some((branch) => branch.branch_id === future)).toBe(false);
+  expect(result.branches.map((branch) => branch.branch_id)).toEqual(result.branches.map((branch) => branch.branch_id).sort());
 });

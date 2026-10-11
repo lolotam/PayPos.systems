@@ -11,7 +11,7 @@ import { scheduleDayKeys } from '../model/schedule-form';
 import { ScheduleShiftBreakFields } from './schedule-shift-break-fields';
 
 export function EmployeeDefaultHoursForm({ shifts, pending, onSave }: {
-  shifts: ScheduleShift[]; pending: boolean; onSave: (input: SetEmployeeDefaultShiftsInput) => void;
+  shifts: ScheduleShift[]; pending: boolean; onSave: (input: SetEmployeeDefaultShiftsInput, onSuccess?: () => void) => void;
 }) {
   const locale = useLocale();
   const form = useForm<SetEmployeeDefaultShiftsInput>({ resolver: zodResolver(setEmployeeDefaultShiftsInput),
@@ -35,7 +35,7 @@ export function EmployeeDefaultHoursForm({ shifts, pending, onSave }: {
           </div>;
         })}
         <Button type="submit">{t(locale, 'employeeDefaultHours.save')}</Button>
-        <Button type="button" variant="outline" onClick={() => onSave({ shifts: [] })}>
+        <Button type="button" variant="outline" onClick={() => onSave({ shifts: [] }, () => form.reset({ shifts: [] }))}>
           {t(locale, 'employeeDefaultHours.clear')}
         </Button>
       </fieldset>

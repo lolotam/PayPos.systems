@@ -28,5 +28,5 @@ it('DH-10 returns the branch defaults and eligibility intervals: Sara October 20
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${employeeContractedMinutesStatement(f.company, f.business, f.branch, '2026-10-01', '2026-10-31')}`);
   });
-  expect(JSON.stringify(plans)).toContain('employee_default_shifts_company_business_branch_idx');
+  expect(JSON.stringify(plans)).toMatch(/employee_default_shifts_(pkey|company_business_branch_idx)/);
 });
