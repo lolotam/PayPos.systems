@@ -6,16 +6,7 @@ export async function monthlyReportFixture() {
   const f = await defaultHoursFixture();
   await f.setHours.execute(hoursCommand(f));
   await f.setHours.execute(hoursCommand(f,[{day:6,start:'14:00',end:'22:00'}],f.secondBranch));
-  // 27a يملك ترحيل الإذن؛ هذه منح بيانات اختبار فقط حتى يثبت 27b مستقلاً قبل الدمج.
-  await f.h.owner`INSERT INTO permissions(code) VALUES ('read:attendance:branch') ON CONFLICT DO NOTHING`;
-  await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,permission_code)
-    VALUES(${OWNER_ROLE_ID},'global','read:attendance:branch') ON CONFLICT DO NOTHING`;
-  const readerRole = salaryIds.newId();
-  await f.h.owner`INSERT INTO roles(company_id,id,code,name_en)
-    VALUES(${f.company},${readerRole},'synthetic_attendance_reader','Synthetic attendance reader')`;
-  await f.h.owner`INSERT INTO role_permissions(company_id,role_id,role_owner_key,permission_code)
-    VALUES(${f.company},${readerRole},${f.company},'read:attendance:branch')`;
-  return { ...f, readerRole };
+  return f;
 }
 export type MonthlyReportFixture = Awaited<ReturnType<typeof monthlyReportFixture>>;
 export const reportHeaders = (f: MonthlyReportFixture) => ({cookie:f.cookie,'x-company-id':f.company});
@@ -29,7 +20,8 @@ export async function resetReportReader(f: MonthlyReportFixture) {
     scope_type='COMPANY',scope_id=${f.company},ends_at=NULL WHERE company_id=${f.company} AND id=${f.memberId}`;
 }
 export async function scopeReportReader(f: MonthlyReportFixture, scopeType = 'BRANCH', scopeId = f.branch) {
-  await f.h.owner`UPDATE memberships SET role_id=${f.readerRole},role_owner_key=${f.company},
+  await reportRoleDefault(f,'branch_manager');
+  await f.h.owner`UPDATE memberships SET
     scope_type=${scopeType},scope_id=${scopeId} WHERE company_id=${f.company} AND id=${f.memberId}`;
 }
 export async function denyReportBranch(f: MonthlyReportFixture, branch = f.secondBranch) {
@@ -83,8 +75,6 @@ export async function reportLeave(f: MonthlyReportFixture, type = 'ANNUAL', kind
 export async function reportRoleDefault(f: MonthlyReportFixture, code: string) {
   const role = SYSTEM_ROLES.find((entry) => entry.code === code);
   if (!role) throw new Error('MISSING_SYNTHETIC_ROLE');
-  await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,permission_code)
-    VALUES(${role.id},'global','read:attendance:branch') ON CONFLICT DO NOTHING`;
   await f.h.owner`UPDATE memberships SET role_id=${role.id},role_owner_key='global'
     WHERE company_id=${f.company} AND id=${f.memberId}`;
 }

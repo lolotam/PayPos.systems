@@ -26,7 +26,8 @@ it('shared @Require and protectOwnerAccess path matches the report adapter over 
     } else {
       await scopeReportReader(f,'COMPANY',f.company);
       if (cell === 'personal ALLOW') {
-        await f.h.owner`UPDATE memberships SET role_id=${noGrantRole} WHERE company_id=${f.company} AND id=${f.memberId}`;
+        await f.h.owner`UPDATE memberships SET role_id=${noGrantRole},role_owner_key=${f.company}
+          WHERE company_id=${f.company} AND id=${f.memberId}`;
         await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
           VALUES(${f.company},${salaryIds.newId()},${f.memberId},'read:attendance:branch','ALLOW','COMPANY',${f.company},'Synthetic parity grant',${f.userId})`;
       } else if (cell === 'personal DENY') {

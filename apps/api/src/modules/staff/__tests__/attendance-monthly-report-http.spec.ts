@@ -23,7 +23,7 @@ it('AB-Q7 manager A reads A, but B and all return the same NOT_FOUND as an unkno
     }
   }
 });
-it.each(['owner','general_manager','accountant'])('AB-Q2 %s reads every branch and the one-business all view', async (role) => {
+it.each(['owner','general_manager','business_manager','branch_manager','accountant'])('AB-Q2 %s reads every branch and the one-business all view', async (role) => {
   await reportRoleDefault(f,role);
   expect((await get(f.secondBranch)).statusCode).toBe(200);
   const response = await get('all');
@@ -180,9 +180,15 @@ it('single and all resolve the session company hint and explicit header with ide
   }
 });
 it('revoking the persisted grant refuses the next request and failed CSV reads never audit', async () => {
-  await scopeReportReader(f);
+  const role = salaryIds.newId();
+  await f.h.owner`INSERT INTO roles(company_id,id,code,name_en)
+    VALUES(${f.company},${role},'synthetic_revoked_report_reader','Synthetic revoked reader')`;
+  await f.h.owner`UPDATE memberships SET role_id=${role},role_owner_key=${f.company}
+    WHERE company_id=${f.company} AND id=${f.memberId}`;
+  await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES(${f.company},${salaryIds.newId()},${f.memberId},'read:attendance:branch','ALLOW','BRANCH',${f.branch},'Synthetic revocable grant',${f.userId})`;
   expect((await get()).statusCode).toBe(200);
-  await f.h.owner`DELETE FROM role_permissions WHERE role_id=${f.readerRole} AND role_owner_key=${f.company}
+  await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND membership_id=${f.memberId}
     AND permission_code='read:attendance:branch'`;
   const before = await f.h.owner`SELECT id FROM audit_log WHERE action='attendance.report.downloaded'`;
   expect((await get(f.branch,true)).statusCode).toBe(404);
