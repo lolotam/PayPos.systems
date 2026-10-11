@@ -42,5 +42,6 @@ export interface ReportBranchInputs {
   sessions: readonly ReportSession[];
   shifts: readonly ReportShift[];
   contract: ReportContract | null;
-  leave: readonly ReportLeave[];
+  /** إجازات الموظفة المقبولة من أي فرع وفق AB-Q11؛ الخصم يلتزم بتواريخ ارتباط هذا الفرع ونافذة دوامه. */
+  leave_for_branch: readonly ReportLeave[];
 }

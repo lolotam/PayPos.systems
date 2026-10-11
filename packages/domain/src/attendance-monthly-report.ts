@@ -17,8 +17,8 @@ export function computeAttendanceMonthlyReport(branches: readonly ReportBranchIn
   const scheduled_minutes = branches.reduce((sum, branch) => sum + branch.shifts
     .filter((shift) => shift.working_date.startsWith(`${month}-`))
     .reduce((minutes, shift) => minutes + Math.floor((Date.parse(shift.ends_at) - Date.parse(shift.starts_at)) / 60_000), 0), 0);
-  const contracted_minutes = branches.reduce((sum, branch) => sum + attendanceContractedMinutes(branch.contract, month, branch.leave, branch.timezone), 0);
-  const leaveByBranch = branches.map((branch) => attendanceLeaveSummary(branch.leave, month));
+  const contracted_minutes = branches.reduce((sum, branch) => sum + attendanceContractedMinutes(branch.contract, month, branch.leave_for_branch, branch.timezone), 0);
+  const leaveByBranch = branches.map((branch) => attendanceLeaveSummary(branch.leave_for_branch, month));
   const leave = attendanceLeaveSummary([], month).map((item, index) => ({ ...item,
     days: leaveByBranch.reduce((sum, summary) => sum + (summary[index]?.days ?? 0), 0),
     partial_minutes: leaveByBranch.reduce((sum, summary) => sum + (summary[index]?.partial_minutes ?? 0), 0) }));

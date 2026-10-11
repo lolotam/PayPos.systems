@@ -1,4 +1,4 @@
-import { canonicalOwnerSql, systemRoleGrantAllowedSql, systemRoleOverrideAllowedSql, type Tx } from '@pospay/db';
+import { canonicalOwnerSql, systemRoleGrantAllowedSql, systemRoleOverrideAllowedSql, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { attendanceReportWorkplaces } from './schedule-context.adapter.ts';
 
@@ -20,8 +20,8 @@ function grantsStatement(companyId: string, userId: string) {
           WHERE ${canonicalOwnerSql('owner_membership', companyId)}))`;
 }
 
-export async function attendanceReportScope(tx: Tx, companyId: string, userId: string, businessId: string, branchId: string) {
-  const scope = await attendanceReportWorkplaces(tx, companyId, businessId, branchId);
+export async function attendanceReportScope(tx: Tx, companyId: string, userId: string, businessId: string, branchId: string, month?: string) {
+  const scope = await attendanceReportWorkplaces(tx, companyId, businessId, branchId, month);
   if (!scope || scope.branches.length === 0) return 'NOT_FOUND' as const;
   const grants = await tx.execute<{ scope_type: string; scope_id: string; effect: string }>(grantsStatement(companyId, userId));
   const allowed = scope.branches.every((branch) => {
@@ -38,4 +38,16 @@ export async function attendanceReportScope(tx: Tx, companyId: string, userId: s
     (SELECT (p.feature_flags->>'staff')::boolean FROM companies c JOIN plans p ON p.id=c.plan_id
       WHERE c.id=${companyId} AND c.deleted_at IS NULL),false) AS enabled`);
   return feature?.enabled ? scope : 'FEATURE_DISABLED' as const;
+}
+
+export function createAttendanceReportCompanyAccess(database: TenantWrappers) {
+  return async (userId: string, companyId: string): Promise<boolean> => {
+    const memberships = await database.withUser(userId, (tx) => tx.execute(sql`SELECT id FROM memberships
+      WHERE user_id=${userId} AND company_id=${companyId} AND starts_at<=now()
+        AND (ends_at IS NULL OR ends_at>now()) LIMIT 1`));
+    if (memberships.length === 0) return false;
+    const companies = await database.withTenant(companyId, (tx) => tx.execute(sql`SELECT id FROM companies
+      WHERE id=${companyId} AND deleted_at IS NULL`), { userId });
+    return companies.length === 1;
+  };
 }

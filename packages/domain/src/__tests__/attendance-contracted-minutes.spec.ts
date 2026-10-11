@@ -63,7 +63,7 @@ it('shows full leave days clipped to month and partial hours independently of de
     {type:'UNPAID',days:0,partial_minutes:0},{type:'OTHER',days:0,partial_minutes:180}]);
 });
 it('sums branches into one employee row and counts distinct days plus manual sessions, with signed difference', () => {
-  const branch: ReportBranchInputs = { timezone:'Asia/Kuwait',contract,leave:[],shifts:[],sessions:[{
+  const branch: ReportBranchInputs = { timezone:'Asia/Kuwait',contract,leave_for_branch:[],shifts:[],sessions:[{
     working_date:'2026-10-03',clock_in:'2026-10-03T06:00:00Z',clock_out:'2026-10-03T08:00:00Z',
     status:'CLOSED',source:'MANUAL',late_minutes:12,scheduled_end:null,clock_out_corrected:false,voided:false,
   }] };
@@ -74,9 +74,34 @@ it('sums branches into one employee row and counts distinct days plus manual ses
 });
 it('AB-Q7 sums full and partial leave columns across branches while presence dates remain distinct', () => {
   const branch: ReportBranchInputs = {timezone:'Asia/Kuwait',contract:null,shifts:[],sessions:[],
-    leave:[leave(),leave({type:'SICK',kind:'PARTIAL',starts_at:'2026-10-03T06:00:00Z',ends_at:'2026-10-03T07:00:00Z'})]};
+    leave_for_branch:[leave(),leave({type:'SICK',kind:'PARTIAL',starts_at:'2026-10-03T06:00:00Z',ends_at:'2026-10-03T07:00:00Z'})]};
   expect(computeAttendanceMonthlyReport([branch,branch],'2026-10').leave).toMatchObject([
     {type:'ANNUAL',days:2,partial_minutes:0},{type:'SICK',days:0,partial_minutes:120},
     {type:'UNPAID',days:0,partial_minutes:0},{type:'OTHER',days:0,partial_minutes:0},
   ]);
+});
+
+function reemBranches(leaves: ReportLeave[]): ReportBranchInputs[] {
+  return [{day:0,start:'09:00',end:'17:00'},{day:0,start:'18:00',end:'22:00'}].map((entry) => ({
+    timezone:'Asia/Kuwait',sessions:[],shifts:[],leave_for_branch:leaves,
+    contract:{...contract,entries:[entry]},
+  }));
+}
+it.each([
+  ['FULL_DAY',leave(),[480,240,720]],
+  ['PARTIAL',leave({kind:'PARTIAL',starts_at:'2026-10-03T07:00:00Z',ends_at:'2026-10-03T09:00:00Z'}),[120,0,120]],
+] as const)('AB-Q11 Reem %s leave removes each linked branch default overlap and sums all branches', (_kind, approved, removed) => {
+  const baseline = reemBranches([]), branches = reemBranches([approved]);
+  for (let index = 0; index < 2; index++) {
+    expect(computeAttendanceMonthlyReport(baseline.slice(index,index+1),'2026-10').contracted_minutes -
+      computeAttendanceMonthlyReport(branches.slice(index,index+1),'2026-10').contracted_minutes).toBe(removed[index]);
+  }
+  expect(computeAttendanceMonthlyReport(baseline,'2026-10').contracted_minutes -
+    computeAttendanceMonthlyReport(branches,'2026-10').contracted_minutes).toBe(removed[2]);
+});
+it('AB-Q11 leave at another branch removes nothing outside this branch link dates', () => {
+  const [branch] = reemBranches([leave()]);
+  if (!branch?.contract) throw new Error('MISSING_SYNTHETIC_CONTRACT');
+  branch.contract = {...branch.contract,links:[{from:'2026-10-04',to:null}]};
+  expect(computeAttendanceMonthlyReport([branch],'2026-10').contracted_minutes).toBe(1920);
 });

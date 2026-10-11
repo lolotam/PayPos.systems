@@ -8,7 +8,7 @@ function overnight(date = '2026-10-03', nextDate = '2026-10-04', out = '00:30', 
   const ends_at = at(nextDate, '04:00');
   const common = { status: 'CLOSED', source: 'QR', late_minutes: 0, scheduled_end: ends_at,
     clock_out_corrected: false, voided: false } as const;
-  return { timezone: 'Asia/Kuwait', contract: null, leave: [],
+  return { timezone: 'Asia/Kuwait', contract: null, leave_for_branch: [],
     shifts: [{ working_date: date, starts_at: at(date, '20:00'), ends_at,
       break_starts_at: at(nextDate, '00:00'), break_ends_at: at(nextDate, '01:00') }],
     sessions: [
@@ -56,7 +56,22 @@ it('computes adjacency per shift even if a different shift session intervenes in
   const extra: ReportSession = { ...first, working_date: '2026-10-04',
     clock_in: '2026-10-04T00:40:00+03:00', clock_out: '2026-10-04T00:50:00+03:00',
     scheduled_end: '2026-10-04T05:00:00+03:00' };
-  expect(workedAttendanceMinutes([...branch.sessions, extra], branch.shifts)).toBe(490);
+  expect(workedAttendanceMinutes([...branch.sessions, extra], branch.shifts)).toBe(480);
+});
+
+it('credits two shifts on the same day only within each shift own break', () => {
+  const branch = overnight('2026-10-03', '2026-10-04');
+  const second = overnight('2026-10-03', '2026-10-03');
+  second.shifts = [{ working_date: '2026-10-03', starts_at: '2026-10-03T08:00:00+03:00',
+    ends_at: '2026-10-03T16:00:00+03:00', break_starts_at: '2026-10-03T12:00:00+03:00',
+    break_ends_at: '2026-10-03T13:00:00+03:00' }];
+  const common = second.sessions[0];
+  if (!common) throw new Error('MISSING_SYNTHETIC_SESSION');
+  second.sessions = [
+    { ...common, clock_in: '2026-10-03T08:00:00+03:00', clock_out: '2026-10-03T12:00:00+03:00', scheduled_end: second.shifts[0]?.ends_at ?? null },
+    { ...common, clock_in: '2026-10-03T13:00:00+03:00', clock_out: '2026-10-03T16:00:00+03:00', scheduled_end: second.shifts[0]?.ends_at ?? null },
+  ];
+  expect(workedAttendanceMinutes([...branch.sessions, ...second.sessions], [...branch.shifts, ...second.shifts])).toBe(960);
 });
 
 it.each([

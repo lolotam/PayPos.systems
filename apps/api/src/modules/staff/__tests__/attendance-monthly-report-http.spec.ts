@@ -76,9 +76,13 @@ it('feature disabled is FEATURE_DISABLED after permission, and expired membershi
   expect((await get()).json()).toMatchObject({code:'FEATURE_DISABLED'});
   for (const csv of [false,true]) expect((await get('all',csv)).json()).toMatchObject({code:'FEATURE_DISABLED'});
   await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='staff'`;
-  await f.h.owner`UPDATE memberships SET ends_at=now()-interval '1 second' WHERE company_id=${f.company} AND id=${f.memberId}`;
-  expect((await get()).statusCode).toBe(404);
-  expect((await get('all')).statusCode).toBe(403);
+  await f.h.owner`UPDATE memberships SET starts_at=now()-interval '1 day',ends_at=now()-interval '1 second' WHERE company_id=${f.company} AND id=${f.memberId}`;
+  for (const csv of [false,true]) {
+    const single = await get(f.branch,csv), all = await get('all',csv);
+    expect(single.statusCode).toBe(404);
+    expect(all.statusCode).toBe(single.statusCode);
+    expect(all.json()).toEqual(single.json());
+  }
 });
 it('AB-Q2 a named reader with only a personal ALLOW can read its branch until the grant expires', async () => {
   const role = salaryIds.newId();
@@ -100,14 +104,79 @@ it('AB-Q2 a named reader with only a personal ALLOW can read its branch until th
     WHERE company_id=${f.company} AND membership_id=${f.memberId} AND permission_code='read:attendance:branch'`;
   expect((await get()).statusCode).toBe(404);
 });
-it('all covers active branches only and rejects an inactive single branch', async () => {
+it('branch closed 15 November remains in October single and all reports, with authorization on the closed branch', async () => {
   await scopeReportReader(f);
+  await reportSession(f,{branch:f.secondBranch});
+  await f.h.owner`UPDATE employee_branches SET "to"='2026-11-15' WHERE company_id=${f.company} AND branch_id=${f.secondBranch}`;
   await f.h.owner`UPDATE branches SET is_active=false WHERE company_id=${f.company} AND id=${f.secondBranch}`;
   try {
-    expect((await get('all')).statusCode).toBe(200);
+    expect((await get('all')).statusCode).toBe(404);
     expect((await get(f.secondBranch)).statusCode).toBe(404);
+    await resetReportReader(f);
+    for (const csv of [false,true]) {
+      expect((await get(f.secondBranch,csv)).statusCode).toBe(200);
+      expect((await get('all',csv)).statusCode).toBe(200);
+    }
+    const single = attendanceMonthlyReport.parse((await get(f.secondBranch)).json());
+    const all = attendanceMonthlyReport.parse((await get('all')).json());
+    expect(single.rows[0]?.worked_minutes).toBe(480);
+    expect(all.rows[0]?.worked_minutes).toBe(960);
   } finally {
     await f.h.owner`UPDATE branches SET is_active=true WHERE company_id=${f.company} AND id=${f.secondBranch}`;
+  }
+});
+
+it('a closed branch with October links and no sessions is included and authorized in all', async () => {
+  await f.h.owner`DELETE FROM attendance_sessions WHERE company_id=${f.company} AND branch_id=${f.secondBranch}`;
+  await f.h.owner`UPDATE branches SET is_active=false WHERE company_id=${f.company} AND id=${f.secondBranch}`;
+  try {
+    await scopeReportReader(f);
+    expect((await get('all')).statusCode).toBe(404);
+    await resetReportReader(f);
+    const all = attendanceMonthlyReport.parse((await get('all')).json());
+    expect(all.rows[0]?.contracted_minutes).toBe(16080);
+  } finally {
+    await f.h.owner`UPDATE branches SET is_active=true WHERE company_id=${f.company} AND id=${f.secondBranch}`;
+  }
+});
+
+it('single and all JSON/CSV refusals match for no grant, DENY, foreign business, feature off and expired membership', async () => {
+  for (const refusal of ['no grant','DENY','foreign business','feature off','expired membership']) {
+    await resetReportReader(f);
+    if (refusal === 'no grant') {
+      await scopeReportReader(f,'BUSINESS',f.secondBusiness);
+    } else if (refusal === 'DENY') {
+      await scopeReportReader(f,'COMPANY',f.company);
+      await denyReportBranch(f,f.branch);
+    } else if (refusal === 'feature off') {
+      await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
+        VALUES(${f.company},'staff',false,'Synthetic feature off',${f.userId})`;
+    } else if (refusal === 'expired membership') {
+      await f.h.owner`UPDATE memberships SET starts_at=now()-interval '1 day',ends_at=now()-interval '1 second' WHERE company_id=${f.company} AND id=${f.memberId}`;
+    }
+    for (const csv of [false,true]) {
+      const singleUrl = reportUrl(f,refusal === 'foreign business' ? f.foreignBranch : f.branch,csv);
+      const [foreign] = await f.h.owner`SELECT id FROM businesses WHERE company_id=${f.otherCompany} LIMIT 1`;
+      const allUrl = refusal === 'foreign business' ? reportUrl(f,'all',csv).replace(f.business,String(foreign?.id)) : reportUrl(f,'all',csv);
+      const single = await f.h.app.inject({method:'GET',url:singleUrl,headers:reportHeaders(f)});
+      const all = await f.h.app.inject({method:'GET',url:allUrl,headers:reportHeaders(f)});
+      expect(single.statusCode,refusal).toBe(refusal === 'feature off' ? 403 : 404);
+      expect(all.statusCode,refusal).toBe(single.statusCode);
+      expect(all.json(),refusal).toEqual(single.json());
+    }
+    await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='staff'`;
+  }
+});
+
+it('single and all resolve the session company hint and explicit header with identical precedence', async () => {
+  await f.h.owner`UPDATE session SET active_company_id=${f.company} WHERE user_id=${f.userId}`;
+  for (const csv of [false,true]) {
+    for (const branch of [f.branch,'all']) {
+      const response = await f.h.app.inject({method:'GET',url:reportUrl(f,branch,csv),headers:{cookie:f.cookie}});
+      expect(response.statusCode).toBe(200);
+      const invalid = await f.h.app.inject({method:'GET',url:reportUrl(f,branch,csv),headers:{cookie:f.cookie,'x-company-id':'invalid'}});
+      expect(invalid.statusCode).toBe(404);
+    }
   }
 });
 it('revoking the persisted grant refuses the next request and failed CSV reads never audit', async () => {
