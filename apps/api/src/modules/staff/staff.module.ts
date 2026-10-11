@@ -92,8 +92,11 @@ import { CommitEmployeeImportUseCase } from './use-cases/commit-employee-import/
 import { GetEmployeeImportTemplateUseCase } from './use-cases/get-employee-import-template/get-employee-import-template.usecase.ts';
 import { ClockByCardController } from './http/clock-by-card.controller.ts';
 import { EmployeeCardsController } from './http/employee-cards.controller.ts';
+import { AttendanceChangeRequestsController } from './http/attendance-change-requests.controller.ts';
+import { attendanceChangeProviders } from './attendance-change.providers.ts';
 
 export const staffControllers = [
+  AttendanceChangeRequestsController,
   EmployeeIbanController,
   ClockAttendanceController,
   ClockByCardController,
@@ -272,6 +275,7 @@ export function staffProviders(
     ...leaveProviders(database, ids),
     ...attendanceExceptionProviders(database, ids),
     ...attendanceCorrectionProviders(database, ids),
+    ...attendanceChangeProviders(database, ids),
     ...salaryProviders(database, ids),
     ...employeeIbanProviders(database, ids),
     ...documentProviders(database, ids),

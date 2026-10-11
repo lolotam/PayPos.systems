@@ -1,5 +1,10 @@
 import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
-import { ATTENDANCE_TABLE_GRANTS } from '../../test/attendance-grants.ts';
+import {
+  ATTENDANCE_TABLE_GRANTS,
+  ATTENDANCE_TENANT_TABLES,
+  ATTENDANCE_CHANGE_COLUMN_GRANTS,
+  testAttendanceDecisionPrivileges,
+} from '../../test/attendance-grants.ts';
 import { EMPLOYEE_COLUMN_GRANTS } from '../../test/employee-grants.ts';
 import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
 import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
@@ -19,13 +24,7 @@ import { createTestDatabase, type TestDatabase } from '../../test/test-database.
 // is not written here fails the suite, so a broad grant cannot authorise itself.
 const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_app: [
-    ...[
-      ...ATTENDANCE_TABLE_GRANTS,
-      'attendance_device_signals:INSERT',
-      'attendance_device_signals:SELECT',
-      'attendance_not_clocked_in_notices:INSERT',
-      'attendance_not_clocked_in_notices:SELECT',
-    ].sort(),
+    ...ATTENDANCE_TABLE_GRANTS,
     'audit_log:INSERT',
     'audit_log:SELECT',
     'branches:DELETE',
@@ -174,15 +173,7 @@ const TENANT_TABLES = [
   'document_types',
   'employee_documents',
   'employee_document_expiry_notices',
-  'attendance_states',
-  'attendance_not_clocked_in_notices',
-  'attendance_break_not_returned_notices',
-  'attendance_sessions',
-  'attendance_exceptions',
-  'attendance_clock_challenges',
-  'attendance_corrections',
-  'attendance_device_signals',
-  'attendance_device_refusals',
+  ...ATTENDANCE_TENANT_TABLES,
   'file_objects',
   'file_access_audit',
   'file_cleanup_objects',
@@ -282,6 +273,7 @@ describe('direct privileges match the reviewed allowlist', () => {
     ).toEqual(
       [
         ...OTP_COLUMN_GRANTS,
+        ...ATTENDANCE_CHANGE_COLUMN_GRANTS,
         ...LEAVE_COLUMN_GRANTS,
         ...FILE_COLUMN_GRANTS,
         ...OUTBOX_COLUMN_GRANTS,
@@ -387,6 +379,7 @@ describe('no application role can switch to another role', () => {
 });
 
 describe('effective access', () => {
+  testAttendanceDecisionPrivileges(() => owner);
   it('neither pospay_app nor pospay_dispatcher can reach a global-identity table', async () => {
     const rows = await withClusterRoleLock(
       'shared',

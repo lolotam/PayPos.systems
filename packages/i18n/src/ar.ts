@@ -1,3 +1,5 @@
+import { attendanceChangeAr } from './attendance-change.js';
+import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
 import { attendanceAr } from './attendance-ar.js';
 import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
@@ -27,7 +29,7 @@ export const ar: Catalog = {
   employeeDocuments: employeeDocumentsAr,
   passkeyAdmin: arPasskeyAdmin,
   leave: leaveAr,
-  permissionCodes: permissionCodesAr,
+  permissionCodes: { ...permissionCodesAr, ...attendanceChangeAr.permissionCodes },
   brand: {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',
@@ -141,24 +143,9 @@ export const ar: Catalog = {
     expired: 'منتهي',
   },
   staffLogin: staffLoginAr,
-  inApp: {
-    title: 'الإشعارات',
-    unread: 'غير مقروء',
-    read: 'مقروء',
-    markRead: 'تحديد كمقروء',
-    markAllRead: 'تحديد الكل كمقروء',
-    empty: 'لا توجد إشعارات بعد.',
-    loading: 'جارٍ تحميل الإشعارات…',
-    error: 'تعذّر تحديث الإشعارات. حاول مرة أخرى.',
-    generic_notice: 'تحديث بخصوص {{subject}}',
-    generic_employee: 'موظف',
-    generic_branch: 'فرع',
-    shift_not_clocked_in:
-      'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
-    break_not_returned:
-      'لم يُسجَّل رجوع {{employee_name_ar}} من البريك المنتهي الساعة {{break_end}} في {{branch_name_ar}}',
-  },
+  inApp: inAppAr,
   errors: {
+    ...attendanceChangeAr.errors,
     ATTENDANCE_DEVICE_LOCKED:
       'هذا الهاتف مسجّل لموظف آخر. سجّل الحضور من هاتفك أو بالبطاقة عند الاستقبال.',
     ATTENDANCE_DEVICE_NOT_ENROLLED:

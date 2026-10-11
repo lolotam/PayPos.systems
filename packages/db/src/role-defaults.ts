@@ -35,12 +35,14 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** صلاحيات الوثائق وإعداد الورديات متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+/** صلاحيات الوثائق وإعداد الورديات وطلب تعديل الحضور وقراره متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
 export const OWNER_GRANTED_PERMISSIONS = [
   'read:files:business',
   'manage:files:business',
   'manage:document-types:company',
   'manage:schedule-settings:business',
+  'request:attendance-change:branch',
+  'decide:attendance-change:company',
 ] as const satisfies readonly Permission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
@@ -117,5 +119,7 @@ export const ROLE_DEFAULTS = {
   'resolve:attendance:branch': [...managers, 'branch_manager'],
   // قرار المالك 2026-10-08 (CA-Q1): نفس الحائزين، صلاحية مستقلة، والجهاز ممنوع.
   'correct:attendance:branch': [...managers, 'branch_manager'],
+  'request:attendance-change:branch': [...managers, 'branch_manager'],
+  'decide:attendance-change:company': ['owner'],
   'create:companies:platform': [],
 } as const satisfies Record<Permission, readonly string[]>;

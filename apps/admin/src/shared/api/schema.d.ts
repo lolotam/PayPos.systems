@@ -930,6 +930,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/attendance-change-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAttendanceChangeRequests"];
+        put?: never;
+        post: operations["requestAttendanceChange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/attendance-change-requests/{requestId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelAttendanceChange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/attendance-change-requests/{requestId}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["decideAttendanceChange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/permissions/memberships/{membershipId}/discount-limit": {
         parameters: {
             query?: never;
@@ -1966,6 +2014,134 @@ export interface components {
                 corrected_at: string;
             }[];
         };
+        AttendanceChangeRequestInput: {
+            /** Format: uuid */
+            employee_id: string;
+            reason: string;
+            /** Format: uuid */
+            session_id?: string;
+            session_revision?: number;
+            /** @enum {string} */
+            kind: "ADD_SESSION";
+        } | {
+            /** Format: uuid */
+            employee_id: string;
+            reason: string;
+            /** Format: uuid */
+            session_id?: string;
+            session_revision?: number;
+            /** @enum {string} */
+            kind: "VOID_SESSION";
+        };
+        CancelAttendanceChangeInput: {
+            revision: number;
+        };
+        DecideAttendanceChangeInput: {
+            /** @enum {string} */
+            decision: "APPROVED";
+            revision: number;
+            reason?: string;
+        } | {
+            /** @enum {string} */
+            decision: "REJECTED";
+            revision: number;
+            reason: string;
+        };
+        AttendanceChangeListQuery: {
+            /** @enum {string} */
+            status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** Format: uuid */
+            branch_id?: string;
+            /** Format: uuid */
+            employee_id?: string;
+            /** @enum {string} */
+            kind?: "ADD_SESSION" | "VOID_SESSION";
+            cursor?: string;
+            /** @default 50 */
+            limit: number;
+        };
+        AttendanceChangeRequest: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "ADD_SESSION" | "VOID_SESSION";
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            employee: {
+                /** Format: uuid */
+                id: string;
+                name_ar: string | null;
+                name_en: string;
+            };
+            /** Format: uuid */
+            session_id: string | null;
+            session_revision: number | null;
+            reason: string;
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: uuid */
+            decided_by: string | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            decision_reason: string | null;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            revision: number;
+            can_decide: boolean;
+            can_cancel: boolean;
+        };
+        AttendanceChangeDecisionResult: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            kind: "ADD_SESSION" | "VOID_SESSION";
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            employee: {
+                /** Format: uuid */
+                id: string;
+                name_ar: string | null;
+                name_en: string;
+            };
+            /** Format: uuid */
+            session_id: string | null;
+            session_revision: number | null;
+            reason: string;
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: uuid */
+            decided_by: string | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            decision_reason: string | null;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            revision: number;
+            can_decide: boolean;
+            can_cancel: boolean;
+            /** @enum {string|null} */
+            effect: null;
+        };
+        AttendanceChangeRequestPage: {
+            items: components["schemas"]["AttendanceChangeRequest"][];
+            next_cursor: string | null;
+        };
         /** @default {} */
         PasskeyOptionsInput: {
             /** Format: uuid */
@@ -2856,6 +3032,101 @@ export interface components {
             "hub.challenge": string;
         };
         InAppNotification: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "attendance_change_requested";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "employee_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "change";
+                /** @enum {string} */
+                type: "text";
+                /** @enum {string} */
+                value: "ADD_SESSION" | "VOID_SESSION";
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "attendance_change_decided";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "employee_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "change";
+                /** @enum {string} */
+                type: "text";
+                /** @enum {string} */
+                value: "ADD_SESSION" | "VOID_SESSION";
+            } | {
+                /** @enum {string} */
+                name: "decision";
+                /** @enum {string} */
+                type: "text";
+                /** @enum {string} */
+                value: "APPROVED" | "REJECTED";
+            } | {
+                /** @enum {string} */
+                name: "reason";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            })[];
+        } | {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -6267,6 +6538,162 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CorrectAttendanceResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listAttendanceChangeRequests: {
+        parameters: {
+            query?: {
+                branch_id?: string;
+                employee_id?: string;
+                status?: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+                kind?: "ADD_SESSION" | "VOID_SESSION";
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description AttendanceChangeRequestPage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceChangeRequestPage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestAttendanceChange: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttendanceChangeRequestInput"];
+            };
+        };
+        responses: {
+            /** @description AttendanceChangeRequest */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceChangeRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    cancelAttendanceChange: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelAttendanceChangeInput"];
+            };
+        };
+        responses: {
+            /** @description AttendanceChangeRequest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceChangeRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    decideAttendanceChange: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideAttendanceChangeInput"];
+            };
+        };
+        responses: {
+            /** @description AttendanceChangeDecisionResult */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttendanceChangeDecisionResult"];
                 };
             };
             /** @description Bilingual refusal */

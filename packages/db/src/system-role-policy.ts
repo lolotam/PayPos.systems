@@ -44,6 +44,8 @@ const deviceForbidden = [
   'manage:discount-limits:business',
   'resolve:attendance:branch',
   'correct:attendance:branch',
+  'request:attendance-change:branch',
+  'decide:attendance-change:company',
 ] as const satisfies readonly Permission[];
 
 const optional: Readonly<Record<string, readonly string[]>> = {

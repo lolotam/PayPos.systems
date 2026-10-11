@@ -90,6 +90,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `channels`                          | `ChannelFeePort`                                                                        | `expenses`  | how an aggregator commission is booked                                                                                                                               |
 | `realtime`                          | `ChannelScopePort`                                                                      | `identity`  | which channels this session may subscribe to                                                                                                                         |
 | `staff` | `PersonalMemberships` | `identity` | active membership read and locked recheck; no grants in a personal session (ADR-0027) |
+| `staff` | attendance-change authority and `AttendanceChangeReadAccess` | `identity`, `tenancy` | branch request permission, active canonical owners and recipients; company/membership locks after AttendanceState (ADR-0040) |
 | `staff` | `EmployeeCreationScope` | `identity` | locked employee-management access and active company membership eligibility for user links (ADR-0021, PR #79) |
 | `settings` | `BusinessDiscountAccess`, `DiscountSubjectReader` | `identity` | locked discount-management authority and scoped personal limit/active owner metadata (ADR-0023) |
 | `settings` | `DiscountSubjectReader` | `tenancy` | business and branch scope confirmed before identity membership read (ADR-0023) |
@@ -182,6 +183,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (no recipients until alert rules ship)                                            |
 | `ShiftNotClockedIn` | `staff` (worker not-clocked-in job, ADR-0037) | `notifications` (in-app managers by the interim rule; PR 62 replaces the rule) |
 | `ShiftBreakNotReturned` | `staff` (worker not-clocked-in job, break detector, spec 041 BW-Q5) | `notifications` (in-app managers by the same interim rule; PR 62 replaces the rule) |
+| `AttendanceChangeRequested` / `AttendanceChangeDecided` | `staff` | `notifications` (in-app holders of decide:attendance-change:company / the requester, ADR-0040) |
 | `DocumentExpiring`                                                          | `staff`         | `notifications`                                                                                   |
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |
 | `StatementAwaitingApproval`                                                 | `commissions`   | `notifications`                                                                                   |
@@ -257,6 +259,10 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> identity.lockAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
+  - staff -> identity.readAttendanceChangeAccess @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
+  - staff -> identity.readAttendanceChangeApprovers @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
   - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/attendance-context.adapter.ts
   - staff -> identity.lockPasskeyAccess @ apps/api/src/modules/staff/persistence/manager-passkey-access.adapter.ts

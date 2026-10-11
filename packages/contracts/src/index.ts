@@ -245,6 +245,7 @@ export * from './staff/leave.js';
 export * from './staff/leave-decision.js';
 export * from './staff/attendance-exception.js';
 export * from './staff/attendance-correction.js';
+export * from './staff/attendance-change-request.js';
 
 export * from './staff/passkeys.js';
 export * from './staff/attendance-device-refusals.js';

@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { PERMISSIONS, SYSTEM_ROLES } from '../access-catalog.ts';
-import { ROLE_DEFAULTS } from '../role-defaults.ts';
+import { OWNER_GRANTED_PERMISSIONS, ROLE_DEFAULTS } from '../role-defaults.ts';
+import { systemRolePolicy } from '../system-role-policy.ts';
 
 // توقع مستقل لكل دور؛ اختبار catalog كامل يمنع ضياع أكواد slices اللاحقة أو تسرب إذن المنصة.
 const expectations: Record<string, readonly string[]> = {
@@ -28,6 +29,7 @@ const expectations: Record<string, readonly string[]> = {
     'clock:attendance:branch',
     'resolve:attendance:branch',
     'correct:attendance:branch',
+    'request:attendance-change:branch',
     'read:schedules:branch',
     'manage:schedules:branch',
     'read:schedules:business',
@@ -52,6 +54,7 @@ const expectations: Record<string, readonly string[]> = {
     'clock:attendance:branch',
     'resolve:attendance:branch',
     'correct:attendance:branch',
+    'request:attendance-change:branch',
     'read:schedules:branch',
     'manage:schedules:branch',
     'read:schedules:business',
@@ -67,6 +70,7 @@ const expectations: Record<string, readonly string[]> = {
     'clock:attendance:branch',
     'resolve:attendance:branch',
     'correct:attendance:branch',
+    'request:attendance-change:branch',
     'read:schedules:branch',
     'manage:schedules:branch',
   ],
@@ -105,3 +109,23 @@ for (const role of SYSTEM_ROLES) {
 it('schedule settings default to owner and are eligible for humans only', () => {
   expect(ROLE_DEFAULTS['manage:schedule-settings:business']).toEqual(['owner']);
 });
+
+it('attendance decisions default to owner and require an owner grant', () => {
+  expect(ROLE_DEFAULTS['decide:attendance-change:company']).toEqual(['owner']);
+  expect(OWNER_GRANTED_PERMISSIONS).toContain('decide:attendance-change:company');
+});
+
+it.each(SYSTEM_ROLES)('attendance decision eligibility for $code excludes devices', (role) => {
+  expect(
+    systemRolePolicy(role.id, 'global')?.permissions.includes('decide:attendance-change:company'),
+  ).toBe(role.code !== 'device');
+});
+
+it.each(SYSTEM_ROLES)(
+  'attendance change permission can be granted to $code only if human',
+  (role) => {
+    expect(
+      systemRolePolicy(role.id, 'global')?.permissions.includes('request:attendance-change:branch'),
+    ).toBe(role.code !== 'device');
+  },
+);
