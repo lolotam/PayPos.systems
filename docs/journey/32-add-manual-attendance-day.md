@@ -1,8 +1,8 @@
 # 32 · Add a manual attendance day — إضافة يوم حضور يدوي
 
-**Status / الحالة:** PR #153 (open), branch `feat/p1-26b-add-manual-session`, spec
-[045](../specs/045-staff-add-manual-session/spec.md) on that branch. **Not on main yet**: until #153 merges, an
-`ADD_SESSION` request is refused with `ATTENDANCE_CHANGE_KIND_UNAVAILABLE` ([31](31-attendance-change-requests.md)).
+**Status / الحالة:** Shipped in #153 (squash `0d0cf009`), spec
+[045](../specs/045-staff-add-manual-session/spec.md), **on main**. An `ADD_SESSION` request is live
+([31](31-attendance-change-requests.md)).
 API only: no admin screen until PR 27, and the admin is not deployed (issue #54); you see only the bell when the admin
 runs locally. A manual day is the `ADD_SESSION` kind of the change requests in [31](31-attendance-change-requests.md):
 a manager asks, an approver (the Owner by default) approves, and only then does the day exist. Attendance never touches
@@ -10,8 +10,8 @@ commission. Your decisions of 2026-10-10 (ACR-Q10, ACR-Q11, ACR-Q13 to ACR-Q18, 
 [owner-questions.ar.md](../specs/044-staff-attendance-change-requests/owner-questions.ar.md).
 
 **Before you start / قبل ما تبدأ:**
-- Everything in [31](31-attendance-change-requests.md), on a checkout of #153 (or main after it merges), then
-  `pnpm db:migrate` (the `MANUAL` source, `change_request_id`, and the `ADD_SESSION` columns on the requests table) and
+- Everything in [31](31-attendance-change-requests.md), on main (#153 is merged), then
+  `pnpm db:migrate` (migrations 0124–0125: the `MANUAL` source, `change_request_id`, and the `ADD_SESSION` columns on the requests table) and
   `pnpm db:seed`.
 - The example from the owner Q&A: ريم (Reem), a synthetic stylist attached to **Salmiya** only, inside her contract,
   forgot to clock all of **Thursday 2026-10-08**. She worked **10:00–19:00** Kuwait time (`Asia/Kuwait`, UTC+3), so
@@ -121,7 +121,7 @@ commission. Your decisions of 2026-10-10 (ACR-Q10, ACR-Q11, ACR-Q13 to ACR-Q18, 
 
 ## For an agent
 
-- Run on #153's branch until it merges. Session cookie + `x-company-id`; writes need `Idempotency-Key`.
+- Run on main (#153 is merged). Session cookie + `x-company-id`; writes need `Idempotency-Key`.
 - File (the Salmiya Branch Manager's session):
 
   ```http
@@ -139,7 +139,7 @@ commission. Your decisions of 2026-10-10 (ACR-Q10, ACR-Q11, ACR-Q13 to ACR-Q18, 
   `session_id: null`, `requested.working_date: "2026-10-08"`, `requested.timezone: "Asia/Kuwait"`.
 - Decide (the Owner's session): `POST /v1/businesses/<BUSINESS_ID>/attendance-change-requests/<REQUEST_ID>/decide` with
   `{ "decision": "APPROVED", "revision": 0 }` → 200, `APPROVED`, `session_id` set (the decision `effect` shape is
-  aligned with #152's when #153 merges).
+  aligned with #152's).
 - Read the new row in `attendance_sessions`: `source='MANUAL'`, `status='CLOSED'`, `closed_by='MANUAL'`,
   `change_request_id=<REQUEST_ID>`, `geo='NONE'`, no `device_id`, `operator_id`, binding or location, `revision=0`,
   `late_minutes=30`, `scheduled_start` = the 09:30 shift instant. No `AttendanceClocked*` event is published and no
@@ -153,8 +153,8 @@ commission. Your decisions of 2026-10-10 (ACR-Q10, ACR-Q11, ACR-Q13 to ACR-Q18, 
 - Boundaries to assert: future by 1 ms refused; exactly 16 h accepted, 16 h + 1 ms refused; touching ends accepted;
   overlap with an OPEN session refused; overnight 22:00 Thursday → 02:00 Friday gets `working_date` Thursday; lateness at
   10 minutes → 0 and at 11 → 11; no shift → 0. The voided-day filter in this overlap check (a voided day does not
-  block a manual day, [33](33-void-and-restore-attendance-day.md)) lands when #153 is merged with #152 (spec 046 BR-003).
-- Sources (branch `feat/p1-26b-add-manual-session`): `docs/specs/045-staff-add-manual-session/spec.md`,
+  block a manual day, [33](33-void-and-restore-attendance-day.md)) is in place on main, because #153 was merged after #152 (spec 046 BR-003).
+- Sources (on main): `docs/specs/045-staff-add-manual-session/spec.md`,
   `apps/api/src/modules/staff/domain/manual-attendance-session.ts`,
   `apps/api/src/modules/staff/persistence/{add-session-kind,manual-session-writes,manual-session-context.adapter}.ts`,
   `packages/contracts/src/staff/attendance-change-request.ts`, `packages/i18n/src/{ar,en}.ts`,

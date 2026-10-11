@@ -4,9 +4,8 @@
 requests or decisions until PR 27 (ACR-Q6), and the admin itself is not deployed (issue #54), so the only thing you
 see in the admin is the **bell** ([04](04-admin-notifications-bell.md)) when you run it locally. The API reaches
 staging with the next release. This journey is the envelope shared by three kinds: `VOID_SESSION` and
-`RESTORE_SESSION` shipped in #152 ([33](33-void-and-restore-attendance-day.md)); `ADD_SESSION` is PR #153, still open
-([32](32-add-manual-attendance-day.md)). Until #153 merges, an `ADD_SESSION` request is refused with
-`ATTENDANCE_CHANGE_KIND_UNAVAILABLE`. The ordinary time correction (PR 26, #132) is unchanged and still applies at
+`RESTORE_SESSION` shipped in #152 ([33](33-void-and-restore-attendance-day.md)); `ADD_SESSION` shipped in #153,
+squash `0d0cf009` ([32](32-add-manual-attendance-day.md)). The ordinary time correction (PR 26, #132) is unchanged and still applies at
 once. Attendance never touches commission. Your decisions of 2026-10-10 (ACR-Q1 to ACR-Q23, with ACR-Q4 and ACR-Q21
 changed to Abu Salem's pick) apply: [owner-questions.ar.md](../specs/044-staff-attendance-change-requests/owner-questions.ar.md).
 
@@ -177,7 +176,7 @@ changed to Abu Salem's pick) apply: [owner-questions.ar.md](../specs/044-staff-a
 
   The body is a strict discriminated union on `kind`: `VOID_SESSION` and `RESTORE_SESSION` (both require
   `session_id` and `session_revision`) are live; `ADD_SESSION` carries `branch_id`, `clock_in`, `clock_out` from #153
-  ([32](32-add-manual-attendance-day.md)) and is refused with `ATTENDANCE_CHANGE_KIND_UNAVAILABLE` (422) until then.
+  ([32](32-add-manual-attendance-day.md)) and is live on main.
 - Withdraw: `POST /v1/businesses/<BUSINESS_ID>/attendance-change-requests/<REQUEST_ID>/cancel` with
   `{ "revision": <REVISION> }` → 200.
 - Decide: `POST /v1/businesses/<BUSINESS_ID>/attendance-change-requests/<REQUEST_ID>/decide` with
