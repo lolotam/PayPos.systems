@@ -21,3 +21,17 @@ it('reads with scoped params, saves one branch, refreshes grids and evicts on cl
   hook.unmount();
   expect(client.getQueryCache().findAll({ queryKey: ['employee-default-hours', id, id, id, id] })).toEqual([]);
 });
+it('a denied save keeps the readable hours and re-reads them instead of hiding the section', async () => {
+  api.GET.mockReset(); api.PUT.mockReset();
+  api.GET.mockResolvedValueOnce({ data }).mockResolvedValue({ data: { ...data, can_manage: false } });
+  api.PUT.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  const client = new QueryClient();
+  const hook = renderHook(() => useEmployeeDefaultHours(id, id, id, id), {
+    wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+  });
+  await waitFor(() => expect(hook.result.current.current.data).toEqual(data));
+  await act(async () => { await hook.result.current.save.mutateAsync({ branchId: id, input: { shifts: [] } }).catch(() => undefined); });
+  expect(hook.result.current.accessDenied).toBe(false);
+  await waitFor(() => expect(hook.result.current.current.data?.can_manage).toBe(false));
+  expect(hook.result.current.save.error).toMatchObject({ status: 403 });
+});

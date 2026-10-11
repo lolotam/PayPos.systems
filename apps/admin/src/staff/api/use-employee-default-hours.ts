@@ -27,9 +27,10 @@ export function useEmployeeDefaultHours(companyId: string, businessId: string, u
     }, onSuccess: async () => {
       await Promise.all([client.invalidateQueries({ queryKey: key }),
         client.invalidateQueries({ queryKey: ['schedules', companyId, businessId] })]);
+    }, onError: async () => {
+      await client.invalidateQueries({ queryKey: key });
     } });
-  const accessDenied = [current.error, save.error].some((error) =>
-    [403, 404].includes((error as { status?: number } | null)?.status ?? 0));
+  const accessDenied = [403, 404].includes((current.error as { status?: number } | null)?.status ?? 0);
   const clear = useCallback(() => {
     client.removeQueries({ queryKey: ['employee-default-hours', companyId, businessId, userId, employeeId] });
     const mutations = client.getMutationCache();
