@@ -105,3 +105,7 @@ for (const role of SYSTEM_ROLES) {
 it('schedule settings default to owner and are eligible for humans only', () => {
   expect(ROLE_DEFAULTS['manage:schedule-settings:business']).toEqual(['owner']);
 });
+
+it('DH-Q5 employee hours default to owner only', () => {
+  expect(ROLE_DEFAULTS['manage:employee-hours:business']).toEqual(['owner']);
+});

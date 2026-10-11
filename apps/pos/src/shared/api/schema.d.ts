@@ -567,6 +567,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/{employeeId}/default-shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Employee detail access and staff feature. Current linked branches and stored unlinked branches; can_manage reflects live human hours permission. */
+        get: operations["employeeDefaultShifts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/branches/{branchId}/default-shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Human manage:employee-hours:business and staff feature. Replace one linked branch week; empty clears, identical values do not audit. One entry per weekday, duration includes break. No Idempotency-Key. */
+        put: operations["setEmployeeDefaultShifts"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/schedules": {
         parameters: {
             query?: never;
@@ -2254,6 +2288,7 @@ export interface components {
             name_en: string;
             name_ar: string | null;
             schedule: components["schemas"]["StaffSchedule"] | null;
+            default_shifts: components["schemas"]["ScheduleShift"][];
         };
         ScheduleGrid: {
             week_start: components["schemas"]["EmployeeDate"];
@@ -4800,6 +4835,177 @@ export interface operations {
                 };
             };
             /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeDefaultShifts: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Employee default week per branch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        employee_id: string;
+                        can_manage: boolean;
+                        branches: {
+                            /** Format: uuid */
+                            branch_id: string;
+                            linked: boolean;
+                            shifts: {
+                                day: number;
+                                start: string;
+                                end: string;
+                                break_start?: string | null;
+                                break_end?: string | null;
+                            }[];
+                            /** Format: date-time */
+                            updated_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setEmployeeDefaultShifts: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    shifts: {
+                        day: number;
+                        start: string;
+                        end: string;
+                        break_start?: string | null;
+                        break_end?: string | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description Employee default week per branch */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        employee_id: string;
+                        can_manage: boolean;
+                        branches: {
+                            /** Format: uuid */
+                            branch_id: string;
+                            linked: boolean;
+                            shifts: {
+                                day: number;
+                                start: string;
+                                end: string;
+                                break_start?: string | null;
+                                break_end?: string | null;
+                            }[];
+                            /** Format: date-time */
+                            updated_at: string | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
             default: {
                 headers: {
                     [name: string]: unknown;

@@ -1,4 +1,5 @@
 export const permissionCodesEn = {
+  manageEmployeeHoursBusiness: 'Manage employee default working hours',
   readPackageTypesBusiness: 'Read business package types',
   managePackageTypesBusiness: 'Manage business package types',
   readSchedulesBranch: 'Read branch schedules',
@@ -35,6 +36,7 @@ export const permissionCodesEn = {
   manageServicesBusiness: 'Manage business services',
 };
 export const permissionCodesAr: Record<keyof typeof permissionCodesEn, string> = {
+  manageEmployeeHoursBusiness: 'إدارة الدوام الافتراضي للموظفات',
   readPackageTypesBusiness: 'قراءة أنواع باقات النشاط',
   managePackageTypesBusiness: 'إدارة أنواع باقات النشاط',
   readSchedulesBranch: 'قراءة جداول الفرع',

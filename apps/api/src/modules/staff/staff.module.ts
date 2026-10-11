@@ -4,6 +4,8 @@ import {
   enrolProviders,
 } from './staff-attendance.providers.ts';
 import { scheduleProviders } from './staff-schedule.providers.ts';
+import { defaultShiftsProviders } from './staff-default-shifts.providers.ts';
+import { EmployeeDefaultShiftsController } from './http/employee-default-shifts.controller.ts';
 import { GCC_BANKS } from '@pospay/domain';
 import { EmployeeIbanController } from './http/employee-iban.controller.ts';
 import { SetEmployeeIbanUseCase } from './use-cases/set-employee-iban/set-employee-iban.usecase.ts';
@@ -94,6 +96,7 @@ import { ClockByCardController } from './http/clock-by-card.controller.ts';
 import { EmployeeCardsController } from './http/employee-cards.controller.ts';
 
 export const staffControllers = [
+  EmployeeDefaultShiftsController,
   EmployeeIbanController,
   ClockAttendanceController,
   ClockByCardController,
@@ -269,6 +272,7 @@ export function staffProviders(
     ...unbindProviders(database, ids),
     ...enrolProviders(database, ids, passkeys, logger),
     ...scheduleProviders(database, ids),
+    ...defaultShiftsProviders(database, ids),
     ...leaveProviders(database, ids),
     ...attendanceExceptionProviders(database, ids),
     ...attendanceCorrectionProviders(database, ids),

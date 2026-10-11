@@ -200,7 +200,7 @@ const TENANT_TABLES = [
   'staff_schedule_shifts',
   'staff_shift_templates',
   'employee_salaries',
-  'employee_ibans',
+  'employee_ibans', 'employee_default_shifts',
   'in_app_notifications',
   'notification_attempts',
   'companies',

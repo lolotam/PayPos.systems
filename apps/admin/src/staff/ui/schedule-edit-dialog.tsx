@@ -50,6 +50,8 @@ export function ScheduleEditDialog({
           </p>
           <ScheduleDayForm
             day={day}
+            defaultShifts={row.default_shifts ?? []}
+            employeeName={locale === 'ar' && row.name_ar ? row.name_ar : row.name_en}
             past={past}
             pending={save.isPending}
             error={save.isError ? scheduleSaveMessage(save.error, locale) : null}

@@ -86,9 +86,27 @@ it('projects Sat..Fri employee grid including unscheduled rows and cursor pages'
     ),
   );
   expect(second.items).toEqual([
-    { employee_id: unscheduled.id, name_en: unscheduled.name_en, name_ar: null, schedule: null },
+    { employee_id: unscheduled.id, name_en: unscheduled.name_en, name_ar: null, schedule: null, default_shifts: [] },
   ]);
   expect(second.next_cursor).toBeNull();
+});
+
+it('DH-07 projects only the selected branch defaults and uses their tenant index', async () => {
+  await f.h.owner`INSERT INTO employee_default_shifts(company_id,business_id,employee_id,branch_id,day,start,"end",updated_by,updated_at)
+    VALUES(${f.company},${f.business},${f.employee.id},${f.branch},0,'09:00','17:00',${f.userId},now()),
+      (${f.company},${f.business},${f.employee.id},${f.secondBranch},0,'14:00','22:00',${f.userId},now())`;
+  const read = (branchId: string) => f.db.withTenant(f.company, (tx) =>
+    tx.execute(branchScheduleStatement(f.company, f.business, branchId, { week_start: testWeek, limit: 20 })));
+  const first = (await read(f.branch))[0]?.['items'] as { employee_id: string; default_shifts: unknown[] }[];
+  const second = (await read(f.secondBranch))[0]?.['items'] as { employee_id: string; default_shifts: unknown[] }[];
+  expect(first.find((row) => row.employee_id === f.employee.id)?.default_shifts).toMatchObject([{ day: 0, start: '09:00', end: '17:00' }]);
+  expect(first.find((row) => row.employee_id !== f.employee.id)?.default_shifts).toEqual([]);
+  expect(second.find((row) => row.employee_id === f.employee.id)?.default_shifts).toMatchObject([{ day: 0, start: '14:00', end: '22:00' }]);
+  const plan = await f.db.withTenant(f.company, async (tx) => {
+    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    return tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${branchScheduleStatement(f.company, f.business, f.branch, { week_start: testWeek, limit: 20 })}`);
+  });
+  expect(JSON.stringify(plan)).toMatch(/employee_default_shifts_(pkey|company_business_branch_idx)/);
 });
 it('returns only the selected branch week, missing schedule is null and unknown/foreign employees are hidden', async () => {
   const read = (employeeId: string, branch = f.branch) =>

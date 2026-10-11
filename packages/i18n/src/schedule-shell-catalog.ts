@@ -1,5 +1,6 @@
 /** مفاتيح شاشة الورديات الخاصة بالبريك وإعدادات الحد اليومي، منفصلة عشان ملف الكتالوج يفضل تحت الحد. */
 export const scheduleShellEn = {
+  schedule_defaultWarning: 'This differs from {name}’s default hours',
   schedule_break: 'Break',
   schedule_break_start: 'Break start',
   schedule_break_end: 'Break end',
@@ -22,6 +23,7 @@ export const scheduleShellEn = {
 };
 
 export const scheduleShellAr: Record<keyof typeof scheduleShellEn, string> = {
+  schedule_defaultWarning: 'ده مختلف عن دوام {name}',
   schedule_break: 'البريك',
   schedule_break_start: 'بداية البريك',
   schedule_break_end: 'نهاية البريك',

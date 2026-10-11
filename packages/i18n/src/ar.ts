@@ -15,6 +15,7 @@ import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, serviceErrorsAr } from './catalog-services.js';
 import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js';
 import { scheduleShellAr } from './schedule-shell-catalog.js';
+import { employeeDefaultHoursAr } from './employee-default-hours-catalog.js';
 
 // الكتالوج العربي — نفس مفاتيح en.ts بالظبط، والـ type بيوقع الـ build لو مفتاح ناقص أو زيادة.
 export const ar: Catalog = {
@@ -24,6 +25,7 @@ export const ar: Catalog = {
     release: 'فك ربط البصمة بيحرر التليفون كمان.',
   },
   employeeIban: employeeIbanAr,
+  employeeDefaultHours: employeeDefaultHoursAr,
   employeeDocuments: employeeDocumentsAr,
   passkeyAdmin: arPasskeyAdmin,
   leave: leaveAr,
@@ -191,6 +193,7 @@ export const ar: Catalog = {
     SCHEDULE_WEEK_INVALID: 'أسبوع الجدول لازم يبدأ السبت.',
     SCHEDULE_SHIFT_INVALID: 'استخدم أوقات ورديات صحيحة، بحد أقصى 16 ساعة للوردية',
     SCHEDULE_DAY_LIMIT_EXCEEDED: 'عدد الورديات تجاوز الحد اليومي للنشاط',
+    EMPLOYEE_BRANCH_NOT_LINKED: 'الموظفة مش مرتبطة بالفرع المختار',
     SCHEDULE_BREAK_INVALID: 'وقت البريك لازم يكون جوّه الشيفت',
     SCHEDULE_SHIFT_OVERLAP: 'ورديات الموظف متداخلة.',
     SCHEDULE_LOCAL_TIME_INVALID: 'الساعة دي مش لها وقت واحد محدد في منطقة الفرع الزمنية.',

@@ -51,3 +51,4 @@ export {
 } from './persistence/fence-operator-session.ts';
 export { staffSessionBinding } from './http/staff-session-binding.ts';
 export { lockDocumentAccess, readDocumentAccess } from './persistence/document-access.ts';
+export { lockEmployeeHoursAccess, readEmployeeHoursAccess } from './persistence/employee-hours-access.ts';
