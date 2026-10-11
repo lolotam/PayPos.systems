@@ -12,17 +12,22 @@ export async function readChangeRequest(
   const [row] = await tx.execute<{ record: AttendanceChangeRequest }>(sql`
     SELECT jsonb_build_object('id',r.id,'business_id',r.business_id,'branch_id',r.branch_id,
       'kind',r.kind,'status',r.status,'employee',jsonb_build_object('id',e.id,'name_ar',e.name_ar,'name_en',e.name_en),
-      'requested',CASE WHEN r.kind='ADD_SESSION' THEN jsonb_build_object(
-        'clock_in',to_char(r.clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-        'clock_out',to_char(r.clock_out AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-        'working_date',r.working_date::text,'timezone',r.timezone) ELSE NULL END,
       'session_id',r.session_id,'session_revision',r.session_revision,'reason',r.reason,
+      'requested',CASE WHEN r.kind='ADD_SESSION' THEN jsonb_build_object(
+        'working_date',r.working_date::text,'timezone',r.timezone,
+        'clock_in',to_char(r.clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'clock_out',to_char(r.clock_out AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+        WHEN s.id IS NULL THEN NULL ELSE jsonb_build_object(
+        'working_date',s.working_date::text,'timezone',s.timezone,
+        'clock_in',to_char(s.clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'clock_out',to_char(s.clock_out AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) END,
       'requested_by',r.requested_by,'requested_at',to_char(r.requested_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
       'decided_by',r.decided_by,'decided_at',to_char(r.decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
       'decision_reason',r.decision_reason,'cancelled_by',r.cancelled_by,
       'cancelled_at',to_char(r.cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
       'revision',r.revision,'can_decide',false,'can_cancel',r.status='PENDING' AND r.requested_by=${actor.userId}) AS record
     FROM attendance_change_requests r JOIN employees e ON e.company_id=r.company_id AND e.business_id=r.business_id AND e.id=r.employee_id
+    LEFT JOIN attendance_sessions s ON s.company_id=r.company_id AND s.id=r.session_id
     WHERE r.company_id=${actor.companyId} AND r.business_id=${actor.businessId} AND r.id=${actor.requestId ?? null}::uuid
     ${lock ? sql`FOR UPDATE OF r` : sql``}`);
   if (!row) throw new AttendanceChangeError('NOT_FOUND');

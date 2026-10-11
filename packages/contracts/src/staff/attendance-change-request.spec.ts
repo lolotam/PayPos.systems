@@ -12,13 +12,13 @@ const manual = {
   clock_in: '2026-10-08T07:00:00.000Z',
   clock_out: '2026-10-08T16:00:00.000Z',
 };
-it.each(['ADD_SESSION', 'VOID_SESSION'])('accepts the %s envelope and trims its reason', (kind) => {
+it('accepts the ADD_SESSION envelope and trims its reason', () => {
   expect(
     attendanceChangeRequestInput.parse({
-      kind,
+      kind: 'ADD_SESSION',
       employee_id,
       reason: ' why ',
-      ...(kind === 'ADD_SESSION' ? manual : {}),
+      ...manual,
     }).reason,
   ).toBe('why');
 });
@@ -37,6 +37,42 @@ it('requires manual times and branch and refuses scan/session fields', () => {
   ])
     expect(attendanceChangeRequestInput.safeParse({ ...input, ...extra }).success).toBe(false);
 });
+it.each(['VOID_SESSION', 'RESTORE_SESSION'])(
+  'accepts the %s envelope and trims its reason',
+  (kind) => {
+    expect(
+      attendanceChangeRequestInput.parse({
+        kind,
+        employee_id,
+        session_id: employee_id,
+        session_revision: 0,
+        reason: ' why ',
+      }).reason,
+    ).toBe('why');
+  },
+);
+
+it.each(['VOID_SESSION', 'RESTORE_SESSION'])(
+  'requires a session and valid revision for %s',
+  (kind) => {
+    const input = {
+      kind,
+      employee_id,
+      session_id: employee_id,
+      session_revision: 0,
+      reason: 'why',
+    };
+    for (const patch of [
+      { session_id: undefined },
+      { session_revision: undefined },
+      { session_revision: -1 },
+      { session_revision: 0.5 },
+      { session_revision: 2147483648 },
+      { unexpected: true },
+    ])
+      expect(attendanceChangeRequestInput.safeParse({ ...input, ...patch }).success).toBe(false);
+  },
+);
 
 it('accepts both in-app templates and rejects unsafe reason text or unknown decision/kind values', () => {
   const param = (name: string, value: string) => ({ name, type: 'text', value });
@@ -63,6 +99,12 @@ it('accepts both in-app templates and rejects unsafe reason text or unknown deci
     ],
   };
   expect(inAppRecipient.safeParse(decided).success).toBe(true);
+  for (const template of [requested, decided]) {
+    const safe_parameters = template.safe_parameters.map((p) =>
+      p.name === 'change' ? { ...p, value: 'RESTORE_SESSION' } : p,
+    );
+    expect(inAppRecipient.safeParse({ ...template, safe_parameters }).success).toBe(true);
+  }
   for (const [index, value] of [
     [2, 'EDIT_SESSION'],
     [3, 'CANCELLED'],

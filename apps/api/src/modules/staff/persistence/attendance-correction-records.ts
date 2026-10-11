@@ -40,6 +40,7 @@ export async function lockedCorrectionSession(
       ${sql.raw(stamp('clock_in'))} AS clock_in,
       ${sql.raw(stamp('clock_out'))} AS clock_out,
       source, status, closed_by, late_minutes, revision,
+      ${sql.raw(stamp('voided_at'))} AS voided_at,
       ${sql.raw(stamp('scheduled_start'))} AS scheduled_start
     FROM attendance_sessions
     WHERE company_id=${actor.companyId} AND id=${actor.sessionId} AND business_id=${actor.businessId}
@@ -73,6 +74,7 @@ export function correctionNeighboursStatement(
     FROM attendance_sessions
     WHERE company_id=${companyId} AND employee_id=${employeeId} AND id<>${session.id}
       AND status<>'OPEN'
+      AND voided_at IS NULL
       AND working_date BETWEEN ${session.working_date}::date - 2 AND ${session.working_date}::date + 2
     UNION ALL
     SELECT id, status,
@@ -80,7 +82,7 @@ export function correctionNeighboursStatement(
       ${sql.raw(stamp('clock_out'))} AS clock_out
     FROM attendance_sessions
     WHERE company_id=${companyId} AND employee_id=${employeeId} AND id<>${session.id}
-      AND status='OPEN'`;
+      AND status='OPEN' AND voided_at IS NULL`;
 }
 
 export async function correctionNeighbours(

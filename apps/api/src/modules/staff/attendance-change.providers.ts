@@ -10,6 +10,8 @@ import {
   type AttendanceChangeKinds,
 } from './ports/attendance-change-kinds.port.ts';
 import { createAttendanceChangeKinds } from './persistence/attendance-change-kinds.ts';
+import { createVoidSessionKind } from './persistence/void-session-kind.ts';
+import { createRestoreSessionKind } from './persistence/restore-session-kind.ts';
 import { createAttendanceChangeTransactions } from './persistence/drizzle-attendance-change-transactions.ts';
 import { createAttendanceChangeReadAccess } from './persistence/attendance-change-context.adapter.ts';
 import { ATTENDANCE_CHANGE_READ_ACCESS } from './queries/attendance-change-requests.query.ts';
@@ -23,7 +25,11 @@ export function attendanceChangeProviders(
   return [
     {
       provide: ATTENDANCE_CHANGE_KINDS,
-      useValue: createAttendanceChangeKinds([createAddSessionKind(ids)]),
+      useValue: createAttendanceChangeKinds([
+        createAddSessionKind(ids),
+        createVoidSessionKind(ids),
+        createRestoreSessionKind(ids),
+      ]),
     },
     {
       provide: ATTENDANCE_CHANGE_READ_ACCESS,

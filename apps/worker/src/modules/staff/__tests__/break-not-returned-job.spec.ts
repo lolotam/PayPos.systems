@@ -111,6 +111,58 @@ it('back at the branch at 14:30 before the 14:35 run: no alert', async () => {
   await expectQuiet(tenant, employee);
 });
 
+it('a voided return session does not suppress the break-not-returned alert', async () => {
+  const returnedAt = minute(BREAK_END, 5);
+  const { tenant, employee } = await onBreak([
+    { clockIn: MORNING_IN, clockOut: BREAK_OUT },
+    { clockIn: returnedAt, clockOut: minute(BREAK_END, 6) },
+  ]);
+  f.setNow(BREAK_ALERT_AT);
+  await expectQuiet(tenant, employee);
+  const [session] = await f.owner`SELECT id FROM attendance_sessions
+    WHERE company_id=${tenant.company} AND employee_id=${employee} AND clock_in=${returnedAt}`;
+  await f.voidSession(tenant, String(session?.['id']), BREAK_ALERT_AT);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
+  expect(await f.breakNotices(tenant.company, employee)).toHaveLength(1);
+  expect(await f.breakEvents(tenant.company)).toHaveLength(1);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+  expect(f.breakFailures).toEqual([]);
+});
+
+it('a voided break-out session is not a candidate and produces no alert', async () => {
+  const { tenant, employee } = await onBreak();
+  f.setNow(BREAK_ALERT_AT);
+  expect(await f.breakTransactions.candidates(
+    tenant.company, BREAK_END, BREAK_ALERT_AT, 10 * 60_000, null, 100,
+  )).toHaveLength(1);
+  const [session] = await f.owner`SELECT id FROM attendance_sessions
+    WHERE company_id=${tenant.company} AND employee_id=${employee}`;
+  await f.voidSession(tenant, String(session?.['id']), BREAK_ALERT_AT);
+  expect(await f.breakTransactions.candidates(
+    tenant.company, BREAK_END, BREAK_ALERT_AT, 10 * 60_000, null, 100,
+  )).toHaveLength(0);
+  await expectQuiet(tenant, employee);
+  expect(f.breakFailures).toEqual([]);
+});
+
+it('a voided later break-out is ignored when recording the break-out time', async () => {
+  const laterIn = minute(BREAK_START, 10);
+  const { tenant, employee } = await onBreak([
+    { clockIn: MORNING_IN, clockOut: BREAK_OUT },
+    { clockIn: laterIn, clockOut: minute(BREAK_START, 20) },
+  ]);
+  const [session] = await f.owner`SELECT id FROM attendance_sessions
+    WHERE company_id=${tenant.company} AND employee_id=${employee} AND clock_in=${laterIn}`;
+  await f.voidSession(tenant, String(session?.['id']), BREAK_ALERT_AT);
+  f.setNow(BREAK_ALERT_AT);
+  expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
+  const notices = await f.breakNotices(tenant.company, employee);
+  expect(notices).toHaveLength(1);
+  expect(new Date(notices[0]?.['break_out_at'] as string | Date).toISOString()).toBe(BREAK_OUT.toISOString());
+  expect(await f.breakEvents(tenant.company)).toHaveLength(1);
+  expect(f.breakFailures).toEqual([]);
+});
+
 it('never clocking out for the break raises nothing (BW-Q5: the alert is for a missing return)', async () => {
   const { tenant, employee } = await onBreak([{ clockIn: MORNING_IN }]);
   f.setNow(BREAK_ALERT_AT);

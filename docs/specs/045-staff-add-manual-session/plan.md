@@ -23,8 +23,8 @@ employee's scheduled shift at that branch. The ordinary correction (PR 26) refus
 **Primary Dependencies**: NestJS (Fastify), Drizzle ORM + drizzle-kit, Zod, Vitest; no new dependency
 
 **Storage**: PostgreSQL — `attendance_sessions` gains `MANUAL` source/closed_by and `change_request_id`;
-`attendance_change_requests` gains `clock_in`, `clock_out`, `working_date`, `timezone`. Migrations **0118** (expand,
-CHECKs `NOT VALID`) and **0119** (concurrent index + `VALIDATE`). No new table, no new grant, no new permission.
+`attendance_change_requests` gains `clock_in`, `clock_out`, `working_date`, `timezone`. Migrations **0124** (expand,
+CHECKs `NOT VALID`) and **0125** (concurrent index + `VALIDATE`). No new table, no new grant, no new permission.
 
 **Testing**: Vitest unit (domain); integration on the T2 compose Postgres, one cloned database per spec file
 (ADR-0006); RLS negative for the new FK
@@ -38,7 +38,7 @@ CHECKs `NOT VALID`) and **0119** (concurrent index + `VALIDATE`). No new table, 
 **Constraints**: no edit to `staff/domain/clock-attendance.ts` or `staff/persistence/attendance-context.adapter.ts`
 (lane 16b-2) — import only; edits to the 26c-shared files (`domain/attendance-correction.ts`,
 `persistence/attendance-correction-records.ts`, `packages/db/schema/staff-attendance.ts`) small and additive; shared
-registries additive; migrations numbered 0118–0119 after 26a's 0115–0117 (lane 26c uses 0120+)
+registries additive; migrations numbered 0124–0125 after 26c's 0120–0123 (renumbered at the merge with main; 26a is 0115–0117)
 
 **Scale/Scope**: 2 domain files, 1 kind adapter, 1 context adapter, 1 writes file, 2 migrations, 3 error codes,
 ~5 test files
@@ -132,8 +132,8 @@ docs/specs/045-staff-add-manual-session/
 packages/db/
 ├── schema/staff-attendance.ts                         (source/closed_by CHECKs, change_request_id, FK, index)
 ├── schema/staff-attendance-change-requests.ts         (clock_in, clock_out, working_date, timezone, CHECKs, index)
-├── migrations/0118_2026-10-10_manual-attendance-session.sql (+ snapshot, journal)
-└── migrations/0119_2026-10-10_manual-attendance-session-validate.sql (+ snapshot, journal)
+├── migrations/0124_2026-10-10_manual-attendance-session.sql (+ snapshot, journal)
+└── migrations/0125_2026-10-10_manual-attendance-session-validate.sql (+ snapshot, journal)
 packages/contracts/src/staff/attendance-change-request{,-openapi}.ts (+ spec), openapi/openapi.json
 packages/i18n/src/{ar,en}.ts
 apps/api/src/modules/staff/

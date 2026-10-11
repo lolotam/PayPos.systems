@@ -30,9 +30,9 @@ export const attendanceChangeRequests = pgTable(
     employeeId: uuid('employee_id').notNull(),
     kind: text('kind').notNull(),
     status: text('status').notNull().default('PENDING'),
-    // جلسة الإلغاء المستهدفة أو جلسة الإضافة الناتجة بعد الموافقة.
+    // جلسة الإلغاء أو الاسترجاع المستهدفة أو جلسة الإضافة الناتجة بعد الموافقة.
     sessionId: uuid('session_id'),
-    // نسخة جلسة الإلغاء التي شاهدها مقدم الطلب.
+    // نسخة جلسة الإلغاء أو الاسترجاع التي شاهدها مقدم الطلب.
     sessionRevision: integer('session_revision'),
     clockIn: timestamp('clock_in', { withTimezone: true }),
     clockOut: timestamp('clock_out', { withTimezone: true }),
@@ -87,9 +87,9 @@ export const attendanceChangeRequests = pgTable(
     index('attendance_change_requests_requester_idx').on(t.companyId, t.requestedBy),
     index('attendance_change_requests_decider_idx').on(t.companyId, t.decidedBy),
     index('attendance_change_requests_canceller_idx').on(t.companyId, t.cancelledBy),
-    uniqueIndex('attendance_change_requests_one_pending_void')
+    uniqueIndex('attendance_change_requests_one_pending_session')
       .on(t.companyId, t.sessionId)
-      .where(sql`${t.status} = 'PENDING' AND ${t.kind} = 'VOID_SESSION'`),
+      .where(sql`${t.status} = 'PENDING' AND ${t.kind} IN ('VOID_SESSION','RESTORE_SESSION')`),
     index('attendance_change_requests_pending_add_idx')
       .on(t.companyId, t.employeeId)
       .where(sql`${t.kind} = 'ADD_SESSION' AND ${t.status} = 'PENDING'`),
@@ -114,6 +114,7 @@ type CheckColumns = Record<
   | 'status'
   | 'revision'
   | 'sessionRevision'
+  | 'sessionId'
   | 'reason'
   | 'decisionReason'
   | 'decidedBy'
@@ -124,7 +125,14 @@ type CheckColumns = Record<
 >;
 function changeChecks(t: CheckColumns) {
   return [
-    check('attendance_change_requests_kind', sql`${t.kind} IN ('ADD_SESSION','VOID_SESSION')`),
+    check(
+      'attendance_change_requests_kind',
+      sql`${t.kind} IN ('ADD_SESSION','VOID_SESSION','RESTORE_SESSION')`,
+    ),
+    check(
+      'attendance_change_requests_session_kind',
+      sql`${t.kind} NOT IN ('VOID_SESSION','RESTORE_SESSION') OR (${t.sessionId} IS NOT NULL AND ${t.sessionRevision} IS NOT NULL)`,
+    ),
     check(
       'attendance_change_requests_status',
       sql`${t.status} IN ('PENDING','APPROVED','REJECTED','CANCELLED')`,

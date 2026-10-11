@@ -135,6 +135,7 @@ it('ACR-09 out-of-scope and foreign ids share identical NOT_FOUND envelopes', as
     employee_id: f.employee.id,
     reason: 'void attendance',
     kind: 'VOID_SESSION',
+    session_revision: 0,
     session_id,
   };
   const responses: unknown[] = [];
@@ -233,6 +234,7 @@ it('ACR-Q1 owner grants an accountant permission to request only on the granted 
       employee_id: f.employee.id,
       reason: 'void attendance',
       kind: 'VOID_SESSION',
+      session_revision: 0,
       session_id,
     },
   });
@@ -287,6 +289,7 @@ it('ACR-Q1 ignores a historical Device ALLOW for the request permission', async 
       employee_id: f.employee.id,
       reason: 'void attendance',
       kind: 'VOID_SESSION',
+      session_revision: 0,
       session_id,
     },
   });

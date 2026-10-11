@@ -20,7 +20,9 @@ export async function manualSessionTarget(
     : null;
 }
 
-export async function lockManualSessionContext(scope: AttendanceChangeKindScope): Promise<void> {
+export async function lockManualSessionContext(
+  scope: Omit<AttendanceChangeKindScope, 'request'>,
+): Promise<void> {
   const tx = scope.transaction as Tx;
   // الأقفال فقط هنا؛ الرفض في check وحده حتى يظل رفض الطلب ممكناً بعد إيقاف الفرع أو حذف الموظف.
   await attendanceBranch(tx, scope.companyId, scope.businessId, scope.target.branch_id);

@@ -11,7 +11,7 @@ Stacked on 26a (spec 044, PR #148).
 lane 26c (`staff/domain/attendance-correction.ts`, `staff/persistence/attendance-correction-records.ts`,
 `packages/db/schema/staff-attendance.ts`): small additive edits only. Shared registries (contracts `index.ts`,
 `openapi.json`, `schema.d.ts`, i18n `ar.ts`/`en.ts`, `errors.ts`, migrations journal, `privileges.spec.ts`) additive
-only. Migrations are **0114** and **0115** only. `VOID_SESSION` stays unavailable (26c).
+only. Migrations are **0124** and **0125** only. `VOID_SESSION` stays unavailable (26c).
 
 ## Phase 1: Setup — schema and migrations
 
@@ -33,14 +33,14 @@ only. Migrations are **0114** and **0115** only. `VOID_SESSION` stays unavailabl
   `kind = 'ADD_SESSION' OR (clock_in IS NULL AND clock_out IS NULL AND working_date IS NULL AND timezone IS NULL)`;
   partial index `attendance_change_requests_pending_add_idx (company_id, employee_id) WHERE kind = 'ADD_SESSION' AND
   status = 'PENDING'`
-- [x] T003 Generate `packages/db/migrations/0114_2026-10-10_manual-attendance-session.sql` with `pnpm db:generate
-  manual-attendance-session` (snapshot + journal, `when` strictly increasing after 0113), then hand-edit: every new/
+- [x] T003 Generate `packages/db/migrations/0124_2026-10-10_manual-attendance-session.sql` with `pnpm db:generate
+  manual-attendance-session` (snapshot + journal, `when` strictly increasing after 0123), then hand-edit: every new/
   re-added CHECK on `attendance_sessions` gets `NOT VALID`; the FK gets `NOT VALID` (immediate, see research R1); the
-  `attendance_sessions_change_request_idx` index statement is moved out (to 0115); a short Arabic header comment
-- [x] T004 Add `packages/db/migrations/0115_2026-10-10_manual-attendance-session-validate.sql` (custom, `--custom`,
-  snapshot equal to 0114's schema + the index): first `CREATE INDEX CONCURRENTLY "attendance_sessions_change_request_idx"
+  `attendance_sessions_change_request_idx` index statement is moved out (to 0125); a short Arabic header comment
+- [x] T004 Add `packages/db/migrations/0125_2026-10-10_manual-attendance-session-validate.sql` (custom, `--custom`,
+  snapshot equal to 0124's schema + the index): first `CREATE INDEX CONCURRENTLY "attendance_sessions_change_request_idx"
   …` (concurrent-index prefix, `packages/db/src/concurrent-migrations.ts`), then `VALIDATE CONSTRAINT` for every
-  `NOT VALID` constraint of 0114 (the 0109/0110 pattern)
+  `NOT VALID` constraint of 0124 (the 0109/0110 pattern)
 - [x] T005 Run the drift check (`cd packages/db && node --experimental-strip-types scripts/generate-migration.ts
   drift-check` → "No schema changes"); update `packages/db/src/__tests__/privileges.spec.ts` only if a column-scoped
   INSERT grant lists columns (add the four request columns / `change_request_id`)

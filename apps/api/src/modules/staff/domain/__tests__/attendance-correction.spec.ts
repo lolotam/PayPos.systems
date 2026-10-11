@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   AttendanceCorrectionError,
+  attendanceSessionsOverlap,
   planAttendanceCorrection,
   type AttendanceCorrectionContext,
   type AttendanceCorrectionNeighbour,
@@ -21,6 +22,7 @@ const session = (over: Partial<AttendanceCorrectionSession> = {}): AttendanceCor
   closed_by: 'EMPLOYEE',
   late_minutes: 40,
   revision: 3,
+  voided_at: null,
   scheduled_start: '2026-10-08T05:00:00.000Z',
   ...over,
 });
@@ -63,6 +65,39 @@ it('refuses MANUAL after self and before state, revision and time rules', () => 
   expect(plan(session({ source: 'BARCODE' }), { clock_out: '2026-10-08T12:00:00Z' }).revision).toBe(
     4,
   );
+});
+
+it('refuses a voided target before OPEN and revision checks', () => {
+  expect(
+    codeOf(() =>
+      plan(session({ status: 'OPEN', revision: 4, voided_at: '2026-10-08T17:00:00Z' }), {
+        revision: 3,
+        clock_out: '2026-10-08T12:00:00Z',
+      }),
+    ),
+  ).toBe('ATTENDANCE_SESSION_VOIDED');
+});
+
+it('shares strict interval overlap including open-ended sessions and self exclusion', () => {
+  const at = (hour: number) => Date.parse(`2026-10-08T${String(hour).padStart(2, '0')}:00:00Z`);
+  const other = {
+    id: 'other',
+    status: 'CLOSED' as const,
+    clock_in: '2026-10-08T05:00:00Z',
+    clock_out: '2026-10-08T13:00:00Z',
+  };
+  expect(attendanceSessionsOverlap(at(4), at(5), 'self', other)).toBe(false);
+  expect(attendanceSessionsOverlap(at(13), at(14), 'self', other)).toBe(false);
+  expect(attendanceSessionsOverlap(at(6), at(7), 'self', other)).toBe(true);
+  expect(attendanceSessionsOverlap(at(4), at(14), 'self', other)).toBe(true);
+  expect(attendanceSessionsOverlap(at(6), at(7), other.id, other)).toBe(false);
+  expect(
+    attendanceSessionsOverlap(at(20), at(21), 'self', {
+      ...other,
+      status: 'OPEN',
+      clock_out: null,
+    }),
+  ).toBe(true);
 });
 
 it('corrects each field on a closed or missed-out session and keeps that status', () => {

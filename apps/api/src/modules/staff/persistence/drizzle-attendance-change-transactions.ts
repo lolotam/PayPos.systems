@@ -110,7 +110,6 @@ async function load(
     target,
     input,
     now: sample,
-    request: before,
   });
   const now = clock.now();
   const access = await readAuthority(tx, actor, target.branch_id, now);
@@ -134,7 +133,7 @@ function inputFrom(row: AttendanceChangeRequest): AttendanceChangeKindInput {
     kind: row.kind,
     employee_id: row.employee.id,
     reason: row.reason,
-    ...(row.requested
+    ...(row.kind === 'ADD_SESSION' && row.requested && row.requested.clock_out !== null
       ? {
           branch_id: row.branch_id,
           clock_in: row.requested.clock_in,
@@ -148,7 +147,7 @@ function inputFrom(row: AttendanceChangeRequest): AttendanceChangeKindInput {
 export function createAttendanceChangeTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
-  kinds: AttendanceChangeKinds,
+  kinds: AttendanceChangeKinds = { find: () => null },
 ): AttendanceChangeTransactions {
   const run = (
     actor: AttendanceChangeActor,
@@ -234,7 +233,7 @@ function persistenceError(error: unknown): never {
     if (
       cause.code === '23505' &&
       'constraint_name' in cause &&
-      cause.constraint_name === 'attendance_change_requests_one_pending_void'
+      cause.constraint_name === 'attendance_change_requests_one_pending_session'
     )
       throw new AttendanceChangeError('ATTENDANCE_CHANGE_DUPLICATE_PENDING');
   }

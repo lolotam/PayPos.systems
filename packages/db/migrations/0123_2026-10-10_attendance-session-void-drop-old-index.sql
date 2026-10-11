@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY "attendance_change_requests_one_pending_void";

@@ -15,6 +15,7 @@ export interface AttendanceCorrectionSession {
   closed_by: 'EMPLOYEE' | 'MISSED_OUT' | 'MANUAL' | null;
   late_minutes: number;
   revision: number;
+  voided_at: string | null;
   scheduled_start: string | null;
 }
 /** جلسة أخرى للموظف نفسه؛ المفتوحة بلا خروج تتداخل مع أي فترة تلامسها من الداخل. */
@@ -70,6 +71,7 @@ export class AttendanceCorrectionError extends Error {
       | 'ATTENDANCE_CORRECTION_SELF_FORBIDDEN'
       | 'ATTENDANCE_CORRECTION_MANUAL_SESSION'
       | 'ATTENDANCE_SESSION_OPEN'
+      | 'ATTENDANCE_SESSION_VOIDED'
       | 'ATTENDANCE_SESSION_REVISION_CONFLICT'
       | 'ATTENDANCE_CORRECTION_INVALID_TIMES'
       | 'ATTENDANCE_CORRECTION_WORKING_DATE'
@@ -100,7 +102,7 @@ export function attendanceCorrectionReason(reason: string): string {
 }
 
 /**
- * يقرر التصحيح لجلسة مغلقة أو فائتة؛ رفض النفس ثم المصدر اليدوي ثم الحالة والنسخة يسبق فحص الأوقات.
+ * يقرر التصحيح لجلسة مغلقة أو فائتة؛ رفض النفس ثم المصدر اليدوي ثم الإلغاء ثم الحالة والنسخة يسبق فحص الأوقات.
  *
  * @param session الجلسة المقفولة
  * @param request النسخة والأوقات والسبب
@@ -129,6 +131,7 @@ export function planAttendanceCorrection(
   // قرار المالك 2026-10-10 (ACR-Q10): اليوم اليدوي يُلغى ثم يُطلب من جديد ولا يُصحح.
   if (session.source === 'MANUAL' || session.closed_by === 'MANUAL')
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_MANUAL_SESSION');
+  if (session.voided_at !== null) throw new AttendanceCorrectionError('ATTENDANCE_SESSION_VOIDED');
   // قرار المالك 2026-10-08 (CA-Q5): المفتوحة تُغلق بالمسح أو بمهمة الخروج الفائت، لا بالتصحيح.
   if (session.status === 'OPEN') throw new AttendanceCorrectionError('ATTENDANCE_SESSION_OPEN');
   if (session.revision !== request.revision || session.revision >= 2147483647)
@@ -167,6 +170,29 @@ function assertTimes(
 ): void {
   if (attendanceIntervalRefused(clockIn, clockOut, now, neighbours, sessionId))
     throw new AttendanceCorrectionError('ATTENDANCE_CORRECTION_INVALID_TIMES');
+}
+
+/**
+ * يقارن فترتين دون احتساب الأطراف المتلامسة أو الجلسة نفسها؛ المفتوحة تستمر بلا نهاية معلومة.
+ *
+ * @param start بداية الفترة بالمللي ثانية
+ * @param end نهاية الفترة بالمللي ثانية
+ * @param sessionId معرّف الجلسة المستبعدة من المقارنة
+ * @param other جلسة أخرى غير ملغاة لنفس الموظف
+ * @returns هل تتقاطع الفترتان من الداخل
+ */
+export function attendanceSessionsOverlap(
+  start: number,
+  end: number,
+  sessionId: string,
+  other: AttendanceCorrectionNeighbour,
+): boolean {
+  if (other.id === sessionId) return false;
+  const otherStart = instant(other.clock_in).getTime();
+  const otherEnd =
+    other.clock_out === null ? Number.POSITIVE_INFINITY : instant(other.clock_out).getTime();
+  // الأطراف المتلامسة ليست تداخلاً: الخروج يساوي دخول التالية.
+  return start < otherEnd && otherStart < end;
 }
 
 function buildPlan(

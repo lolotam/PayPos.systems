@@ -91,6 +91,8 @@ export async function notClockedInFixture() {
       addLeave(owner, ids, userId, tenant, employeeId, input),
     clockIn: (tenant: Tenant, employeeId: string, at: Date, branch = tenant.branch) =>
       addClockIn(owner, ids, tenant, employeeId, at, branch),
+    voidSession: (tenant: Tenant, sessionId: string, at: Date) =>
+      voidSession(owner, ids, tenant, sessionId, userId, at),
     member: (input: MemberInput) => addMember(owner, ids, input),
     closeCompany: (company: string, at: Date) =>
       owner`UPDATE companies SET deleted_at=${at} WHERE id=${company}`,
@@ -261,6 +263,24 @@ async function addMember(owner: postgres.Sql, ids: IdGenerator, input: MemberInp
   await owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at,ends_at)
     VALUES(${input.tenant.company},${ids.newId()},${input.userId},${input.roleId},'global',${input.scopeType},${input.scopeId},
       ${input.startsAt ?? '2026-01-01T00:00:00Z'},${input.endsAt ?? null})`;
+}
+
+async function voidSession(
+  owner: postgres.Sql,
+  ids: IdGenerator,
+  tenant: Tenant,
+  sessionId: string,
+  userId: string,
+  at: Date,
+) {
+  const request = ids.newId();
+  await owner`INSERT INTO attendance_change_requests(company_id,id,business_id,branch_id,employee_id,
+      kind,status,session_id,session_revision,reason,requested_by,requested_at,decided_by,decided_at)
+    SELECT company_id,${request},business_id,branch_id,employee_id,'VOID_SESSION','APPROVED',id,revision,
+      'Synthetic voided session',${userId},${at},${userId},${at}
+    FROM attendance_sessions WHERE company_id=${tenant.company} AND id=${sessionId}`;
+  await owner`UPDATE attendance_sessions SET voided_at=${at},voided_by=${userId},void_request_id=${request},
+    revision=revision+1 WHERE company_id=${tenant.company} AND id=${sessionId}`;
 }
 
 /** ينتظر حتى يقف اتصال على قفل صف، أي أن الطرف الآخر وصل إلى State ولم يتجاوزه. */

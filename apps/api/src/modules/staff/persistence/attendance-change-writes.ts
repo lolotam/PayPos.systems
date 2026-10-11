@@ -83,9 +83,10 @@ function record(
 ): AttendanceChangeRequest {
   return {
     ...plan,
-    requested: context.before ? context.before.requested : (values.manual ?? null),
     session_id: values.session_id,
     session_revision: context.before ? context.before.session_revision : values.session_revision,
+    requested:
+      values.requested ?? (context.before ? context.before.requested : (values.manual ?? null)),
     id,
     business_id: actor.businessId,
     branch_id: context.target.branch_id,

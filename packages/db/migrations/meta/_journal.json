@@ -829,17 +829,45 @@
       "breakpoints": true
     },
     {
-      "idx": 118,
+      "idx": 120,
       "version": "7",
       "when": 1791655672038,
-      "tag": "0118_2026-10-10_manual-attendance-session",
+      "tag": "0120_2026-10-10_attendance-session-void",
       "breakpoints": true
     },
     {
-      "idx": 119,
+      "idx": 121,
       "version": "7",
       "when": 1791655673038,
-      "tag": "0119_2026-10-10_manual-attendance-session-validate",
+      "tag": "0121_2026-10-10_attendance-session-void-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1791655674038,
+      "tag": "0122_2026-10-10_attendance-session-void-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1791655675038,
+      "tag": "0123_2026-10-10_attendance-session-void-drop-old-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1791655676038,
+      "tag": "0124_2026-10-10_manual-attendance-session",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1791655677038,
+      "tag": "0125_2026-10-10_manual-attendance-session-validate",
       "breakpoints": true
     }
   ]
