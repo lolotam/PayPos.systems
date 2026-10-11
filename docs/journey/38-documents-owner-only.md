@@ -22,7 +22,8 @@ can still import. Owner-defined custom roles and expiry-alert recipients (PR 62)
 - Synthetic users, each with their own session cookie:
   - **Owner**.
   - **General Manager** and **Business Manager** (of that business), with no personal grants.
-  - **Accountant** (محاسب), with no personal grants.
+  - **Accountant** (محاسب), with no personal grants. The role can receive the file grants, but it has no employee access
+    (`manage:employees:business`), so it never reaches Sara on screen; the screen grant steps (5–6) use the Business Manager.
   - A **Cashier** of the business, for the "only the owner may grant" check, and a Business Manager who also holds
     `manage:memberships:business`.
 - The three permissions, as the permissions screen names them ([12](12-permissions-screen.md)): `read:files:business`
@@ -42,11 +43,11 @@ can still import. Owner-defined custom roles and expiry-alert recipients (PR 62)
 3. **مدير النشاط من غير منحة:** نفس نتيجة المدير العام بالظبط.
 4. **أنواع الوثائق:** المدير العام من غير منحة يفتح الرابط **أنواع الوثائق** (لسه ظاهر) ← الصفحة ترد **أنواع الوثائق غير
    متاحة لك.** أو الـ API ← 403 (`FORBIDDEN`)، وما يقدرش يعرض أو يضيف أو يعدّل.
-5. **المالك يدي المحاسبة "عرض" بس:** من **الصلاحيات** ([12](12-permissions-screen.md)) صاحب الشركة يضيف **استثناء جديد** على
-   عضوية المحاسبة: **الصلاحية** = **عرض ملفات النشاط**، **القرار** = **سماح**، **النطاق** = **النشاط** (نشاط السالمية)،
-   **السبب** (إلزامي) ← **حفظ الاستثناء** ← **حُفظ الاستثناء.** (قبل الإصدار ده كان بيترفض لأن الدور ما كانش مؤهّل). المحاسبة
-   دلوقتي تفتح سارة وتشوف الوثيقة وتفتحها، لكن **ما تقدرش ترفع** (الزرار مش بيشتغل والـ API ← 403).
-6. **منحة الرفع:** المالك يضيف كمان **رفع ملفات النشاط** لنفس النشاط ← المحاسبة ترفع وثيقة وتتسجل. على نشاط تاني لسه
+5. **المالك يدي مدير النشاط "عرض" بس:** من **الصلاحيات** ([12](12-permissions-screen.md)) صاحب الشركة يضيف **استثناء جديد** على
+   عضوية مدير النشاط: **الصلاحية** = **عرض ملفات النشاط**، **القرار** = **سماح**، **النطاق** = **النشاط** (نشاط السالمية)،
+   **السبب** (إلزامي) ← **حفظ الاستثناء** ← **حُفظ الاستثناء.** مدير النشاط
+   (معاه `manage:employees:business` من دوره، فيقدر يوصل لسارة) دلوقتي يفتح سارة ويشوف الوثيقة ويفتحها، لكن **ما يقدرش يرفع** (الزرار مش بيشتغل والـ API ← 403).
+6. **منحة الرفع:** المالك يضيف كمان **رفع ملفات النشاط** لنفس النشاط ← مدير النشاط يرفع وثيقة وتتسجل. على نشاط تاني لسه
    ← **المسار غير موجود** (404). المنحة بتسري على كل الأدوار البشرية الـ 13، والـ Device لأ: سماح لعضوية Device ←
    **لا يمكن منح هذه الصلاحية لهذا الدور النظامي** (`PERMISSION_ROLE_FORBIDDEN`، 403).
 7. **مدير يستلم منحة أنواع الوثائق:** المالك يدي المدير العام **سماح** على **إدارة أنواع وثائق الشركة** (نطاق الشركة) ←
@@ -81,13 +82,13 @@ can still import. Owner-defined custom roles and expiry-alert recipients (PR 62)
 3. **The Business Manager with no grant:** exactly the same as the General Manager.
 4. **Document types:** the General Manager with no grant opens the **Document types** link (still visible) → the page
    answers "Document types are not available to you.", or the API → 403 (`FORBIDDEN`); he cannot list, add or edit.
-5. **The Owner gives the Accountant "view" only:** on **Permissions** ([12](12-permissions-screen.md)) the Owner adds a
-   **New override** on the accountant's membership: **Permission** = **Read business files**, **Decision** = **Allow**,
+5. **The Owner gives the Business Manager "view" only:** on **Permissions** ([12](12-permissions-screen.md)) the Owner adds a
+   **New override** on the Business Manager's membership: **Permission** = **Read business files**, **Decision** = **Allow**,
    **Scope** = **Business** (the Salmiya business), **Reason** (required) → **Save override** → "Override saved."
-   (Before this release that was refused because the role was not eligible.) The accountant can now open Sara, see the
+   The Business Manager (who has `manage:employees:business` from the role, so Sara is reachable) can now open Sara, see the
    document and open it, but **cannot upload** (the button does nothing and the API → 403).
-6. **The upload grant:** the Owner also adds **Upload business files** for the same business → the accountant uploads a
-   document and it is recorded. On another business she is still refused ("Not found", 404). The grant works for all 13
+6. **The upload grant:** the Owner also adds **Upload business files** for the same business → the Business Manager uploads a
+   document and it is recorded. On another business he is still refused ("Not found", 404). The grant works for all 13
    human roles, and not for a Device: an Allow on a Device membership → "This system role cannot receive this
    permission" (`PERMISSION_ROLE_FORBIDDEN`, 403).
 7. **A manager receives the document types right:** the Owner gives the General Manager an **Allow** on **Manage
