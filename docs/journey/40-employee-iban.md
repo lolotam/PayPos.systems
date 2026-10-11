@@ -39,7 +39,7 @@ Never type a real IBAN while testing.
 5. **المسح:** دوس **مسح الحساب البنكي** ← الفورم يتحول لتأكيد (**تأكيد مسح الحساب البنكي**) ← اكتب سبب `account
    closed` ← **تأكيد مسح الحساب البنكي** ← القسم يرجع **لا يوجد آيبان مسجل**، والتاريخ فيه صف جديد **تم المسح**.
    **إلغاء** يرجّعك للفورم من غير مسح. مسح حساب فاضي أصلاً ما بيعملش حاجة.
-6. **اللي بيشوف آخر 4 بس:** ادخل كمدير سالمية (تعديل موظفين من غير صلاحية المرتب) وافتح **تعديل** على سارة ← القسم
+6. **اللي بيشوف آخر 4 بس:** الأول رجّع IBAN A لسارة (زي الخطوة 3)، لأن الخطوة 5 مسحته. بعدين ادخل كمدير سالمية (تعديل موظفين من غير صلاحية المرتب) وافتح **تعديل** على سارة ← القسم
    بيعرض **•••• 0101** بس. من غير اسم البنك، ومن غير اسم صاحب الحساب، ومن غير جدول التاريخ، ومن غير فورم. الإخفاء بيحصل في
    السيرفر: حتى رد الـ API مفيهوش الآيبان الكامل.
 7. **آيبان واحد لموظف واحد (IB-Q11):** سجّل IBAN A لسارة، وبعدين حاول تسجّله لهبة (حتى لو في نشاط تاني من نفس الشركة)
@@ -82,7 +82,7 @@ Never type a real IBAN while testing.
    type reason `account closed` → **Confirm clearing the bank account** → the section returns to "No IBAN on file" and
    the history gains a row marked "Cleared". **Cancel** returns to the form without clearing. Clearing an already empty
    account does nothing.
-6. **Last 4 only:** sign in as the Salmiya manager (employee management, no salary permission) and open **Edit** on Sara
+6. **Last 4 only:** first record IBAN A for Sara again (as in step 3), since step 5 cleared it. Then sign in as the Salmiya manager (employee management, no salary permission) and open **Edit** on Sara
    → the section shows only "•••• 0101". No bank, no holder name, no history table, no form. The masking is done on the
    server: even the API response holds no full IBAN.
 7. **One IBAN, one employee (IB-Q11):** record IBAN A for Sara, then try it for Heba (even in the other business of the

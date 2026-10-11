@@ -47,7 +47,7 @@ phone, or the home-screen app next to Safari, look like two phones (a stated res
 6. **التصريف لما الهاتف يضيع (PL-Q2، DL-08/09):** سارة غيّرت هاتفها. تسجيلها من Phone Y مرفوض (الخطوة 4)، وبتسجّل
    بالبطاقة عند الاستقبال ([30](30-employee-cards-and-clock-by-card.md)). مدير سالمية يفتح **عرض مفتاح المرور** لسارة ←
    تحت التحذير سطر **فك ربط البصمة بيحرر التليفون كمان.** ← سبب `new phone` ← **فك ربط مفتاح المرور** ← **تم فك الربط.
-   يمكن للموظف التسجيل من جديد.** الهاتف X اتحرر: هبة تقدر تسجّل عليه، وسارة تسجّل من Phone Y وهو بقى قفلها. مفيش نقل
+   يمكن للموظف التسجيل من جديد.** الخطوة 5 ربطت سجلها التاني بـ Phone X كمان، فمدير النشاط التاني لازم يفك ربطه بنفس الطريقة. بعد فك الربطين الهاتف X اتحرر: هبة تقدر تسجّل عليه، وسارة تسجّل من Phone Y وهو بقى قفلها. مفيش نقل
    بنفسها.
 7. **ربط قديم من قبل القفل (DL-10):** ربط اتعمل قبل #144 (من غير هاتف مسجّل) بيتربط بالهاتف اللي يتقبل منه **أول تسجيل
    حضور ناجح**، إلا لو الهاتف ده تبع شخص تاني (يترفض زي الخطوة 2).
@@ -94,7 +94,7 @@ phone, or the home-screen app next to Safari, look like two phones (a stated res
 6. **When a phone is lost (PL-Q2, DL-08/09):** Sara changed phones. Clocking from Phone Y is refused (step 4); she clocks
    with the reception card meanwhile ([30](30-employee-cards-and-clock-by-card.md)). The Salmiya manager opens **View
    passkey** for Sara → under the warning the line "Unbinding the passkey also frees the phone." → reason `new phone` →
-   **Unbind passkey** → "Passkey unbound. The employee can enroll again." Phone X is free: Heba may enrol on it, and Sara
+   **Unbind passkey** → "Passkey unbound. The employee can enroll again." Step 5 also bound her second record to Phone X, so the other business's manager unbinds that one the same way. Only after both unbinds is Phone X free: Heba may enrol on it, and Sara
    enrols from Phone Y, which becomes her lock. There is no self-service move.
 7. **A binding from before the lock (DL-10):** a binding made before #144 (no phone recorded) attaches to the phone from
    which its next **accepted clock** comes, unless that phone already belongs to another person (then refused as in

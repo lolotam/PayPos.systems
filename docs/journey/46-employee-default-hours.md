@@ -38,7 +38,7 @@ computable but has **no screen or endpoint yet**: it appears in the monthly repo
 6. **فرع مش مرتبطة بيه:** اطلب بالـ API دوام لسارة في فرع هي مش مرتبطة بيه النهارده ← **الموظفة مش مرتبطة بالفرع المختار**
    (`EMPLOYEE_BRANCH_NOT_LINKED`، 422). لو الارتباط انتهى بعد ما الدوام اتحفظ، الكارت يفضل ومكتوب عليه **مش مرتبطة بالفرع دلوقتي**
    من غير تعديل، ومبيدخلش في الجدول.
-7. **الجدول بيتملي لوحده (DH-Q3):** افتح `/schedules` على السالمية ← **تعديل اليوم** لسارة يوم الخميس ← **إضافة وردية** ← أول وردية بتظهر
+7. **الجدول بيتملي لوحده (DH-Q3):** الأول احفظ تاني الكارت اللي اتمسح في الخطوة 4 (زي الخطوتين 2 و3). بعدين افتح `/schedules` على السالمية ← **تعديل اليوم** لسارة يوم الخميس ← **إضافة وردية** ← أول وردية بتظهر
    `09:00`–`21:00` وبريك `14:00`–`15:00` (دوامها)، وتقدر تعدّلها قبل الحفظ. وردية تانية في نفس اليوم، أو يوم من غير دوام افتراضي في الفرع،
    بيستخدموا الاقتراح العادي. على حولي: **إضافة وردية** للجمعة تدي `14:00`–`22:00` بدون بريك — عمره ما بيستخدم دوام السالمية في حولي.
    التعبئة لوحدها ما بتكتبش حاجة؛ الحفظ هو حفظ الأسبوع العادي بكل فحوصاته (الحد اليومي للفرع [45](45-max-shifts-per-branch.md)، التداخل، السبب لليوم الفات).
@@ -81,7 +81,7 @@ computable but has **no screen or endpoint yet**: it appears in the monthly repo
 6. **A branch she is not linked to:** through the API, set hours for Sara in a branch she is not linked to today → **The employee is not linked to this
    branch today.** (`EMPLOYEE_BRANCH_NOT_LINKED`, 422). If a link ends after hours were saved, the card stays showing **No longer linked** without
    edit controls, and it is not used in the schedule.
-7. **The schedule pre-fills (DH-Q3):** open `/schedules` on Salmiya → **Edit day** for Sara's Thursday → **Add shift** → the first shift appears as
+7. **The schedule pre-fills (DH-Q3):** first save again the card cleared in step 4 (as in steps 2–3). Then open `/schedules` on Salmiya → **Edit day** for Sara's Thursday → **Add shift** → the first shift appears as
    `09:00`–`21:00` with break `14:00`–`15:00` (her default) and can be edited before saving. A second shift on the same day, or a weekday with no default
    in this branch, uses today's normal suggestion. On Hawalli, **Add shift** on Friday gives `14:00`–`22:00` with no break; Salmiya's defaults are never used
    in Hawalli. Pre-filling writes nothing; saving is the normal week save with all its checks (the branch day limit in [45](45-max-shifts-per-branch.md),

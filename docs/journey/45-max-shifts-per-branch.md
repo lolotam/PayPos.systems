@@ -42,7 +42,7 @@ cap on applying a template stays. If the partner's pick differs from yours, the 
 8. **قيم غلط:** `0` أو `5` أو `2.5` ← **البيانات المرسلة غير صحيحة** (`VALIDATION_FAILED`، 400). المتصفح نفسه بيمنع بره المدى 1 لـ 4.
 9. **ما فيش مسح للقديم (MS-Q4):** نزّل حولي من 4 لـ 3 ← الأسابيع المحفوظة اللي فيها 4 ورديات في يوم تفضل زي ما هي، وتعديل يوم تاني يتحفظ،
    لكن تغيير اليوم اللي فيه 4 وهو لسه 4 يترفض بنفس رسالة الحد.
-10. **القالب (API فقط):** قالب فيه 4 ورديات يوم الخميس ← يتحفظ لأن أكبر رقم فعلي في فروع النشاط 4. لو كل الفروع النشطة رقمها 2 ← يترفض
+10. **القالب (API فقط):** الأول رجّع حولي لـ `4` (زي الخطوة 2)، لأن الخطوتين 6 و7 خلّوا كل الفروع على 2. بعدين قالب فيه 4 ورديات يوم الخميس ← يتحفظ لأن أكبر رقم فعلي في فروع النشاط 4. لو كل الفروع النشطة رقمها 2 ← يترفض
     بـ **عدد الورديات تجاوز الحد اليومي للنشاط** ومعاه الحد 2. تطبيق القالب على السالمية (2) ← يترفض قبل أي كتابة؛ على حولي (4) ← ينجح.
 11. **من غير صلاحية:** مدير السالمية يحاول يغير أي رقم بالـ API ← **المسار غير موجود** (`NOT_FOUND`، 404) ومفيش حاجة اتكتبت.
     الأونر يديله صلاحية "تغيير أقصى عدد ورديات في اليوم" من شاشة الصلاحيات ([12](12-permissions-screen.md))، فيقدر يغير أي رقم في أي فرع
@@ -80,7 +80,7 @@ cap on applying a template stays. If the partner's pick differs from yours, the 
 8. **Bad values:** `0`, `5` or `2.5` → **The request is not valid** (`VALIDATION_FAILED`, 400). The browser input itself also limits 1 to 4.
 9. **Stored rows are never rewritten (MS-Q4):** lower Hawalli from 4 to 3 → saved weeks that have 4 shifts on a day stay as they
    are, editing another day saves, but changing the day that still holds 4 is refused with the same limit message.
-10. **Templates (API only):** a template with 4 shifts on Thursday → saved, because the largest effective number among the business's
+10. **Templates (API only):** first set Hawalli back to `4` (as in step 2), since steps 6–7 left every branch at 2. Then a template with 4 shifts on Thursday → saved, because the largest effective number among the business's
     branches is 4. If every active branch is at 2 → refused with **The number of shifts exceeds the business daily limit** and the
     limit 2. Applying it to Salmiya (2) → refused before any write; to Hawalli (4) → succeeds.
 11. **Without the permission:** the Salmiya manager tries to change a number through the API → **Not found** (`NOT_FOUND`, 404) and
