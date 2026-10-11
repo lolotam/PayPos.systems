@@ -28,7 +28,8 @@ beforeAll(async () => {
   for (const employee of [refusedEmployee, holder])
     await f.h
       .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date)
-      VALUES(${f.company},${employee.id},${f.business},${f.branch},${employee.name_ar},${employee.name_en},
+      VALUES(${f.company},${employee.id},${employee === holder ? f.secondBusiness : f.business},
+        ${employee === holder ? f.otherBranch : f.branch},${employee.name_ar},${employee.name_en},
         ${employee.name_en.toLowerCase()},'staff','2026-01-01')`;
   await f.h
     .owner`INSERT INTO attendance_device_refusals(company_id,id,business_id,branch_id,employee_id,
@@ -134,7 +135,7 @@ it('defaults to branch-local today via the injected clock and returns empty list
     sessions: [],
   });
 });
-it('refusals names employees absent from the board, paginates ties and exposes no hash or phone', async () => {
+it('refusals resolves a holder in another business of the same company and paginates without hashes or phones', async () => {
   const first = await send('/refusals', f.branch, '&limit=1');
   expect(first.status).toBe(200);
   const page = attendanceDeviceRefusalPage.parse(first.body);
@@ -156,7 +157,10 @@ it('refusals names employees absent from the board, paginates ties and exposes n
   const items = [...page.items, ...second.items];
   expect(items.every((row) => row.employee_id === refusedEmployee.id)).toBe(true);
   for (const row of items) expect(row.employee).toEqual(refusedEmployee);
-  expect(items.find((row) => row.holder_employee_id === holder.id)?.holder).toEqual(holder);
+  expect(items.find((row) => row.holder_employee_id === holder.id)).toMatchObject({
+    holder_employee_id: holder.id,
+    holder,
+  });
   expect(items.find((row) => row.holder_employee_id === null)?.holder).toBeNull();
   const board = attendanceBoard.parse((await send('', f.branch, '&date=2026-10-04')).body);
   expect(

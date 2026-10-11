@@ -17,9 +17,15 @@ beforeAll(async () => {
   f = await attendanceFixture();
   await (await f.prepare()).execute();
   holderId = f.ids.newId();
+  const holderBusiness = f.ids.newId();
+  const holderBranch = f.ids.newId();
+  await f.owner`INSERT INTO businesses(company_id,id,name_en,vertical_type)
+    VALUES(${f.companyId},${holderBusiness},'Synthetic holder business','salon')`;
+  await f.owner`INSERT INTO branches(company_id,id,business_id,name_en)
+    VALUES(${f.companyId},${holderBranch},${holderBusiness},'Synthetic holder branch')`;
   await f.owner`UPDATE employees SET name_ar='موظفة اختبار' WHERE company_id=${f.companyId} AND id=${f.employeeId}`;
   await f.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date)
-    VALUES(${f.companyId},${holderId},${f.businessId},${f.branchId},NULL,'Synthetic holder','synthetic holder','staff','2026-01-01')`;
+    VALUES(${f.companyId},${holderId},${holderBusiness},${holderBranch},'حاملة جهاز للاختبار','Synthetic holder','synthetic holder','staff','2026-01-01')`;
   await f.refusals.record({
     ...f.scope,
     branchId: f.branchId,
@@ -94,7 +100,7 @@ it('projects only the board contract and paginates tied timestamps without missi
   ).toEqual([]);
 });
 
-it('joins employee and holder names independently of attendance sessions and keeps the legacy ids', async () => {
+it('resolves a holder in another business of the same company with both names and legacy ids', async () => {
   const page = await f.database.withTenant(f.companyId, (tx) =>
     attendanceDeviceRefusals(tx, {
       ...query(),
@@ -107,20 +113,25 @@ it('joins employee and holder names independently of attendance sessions and kee
     employee_id: f.employeeId,
     employee: { id: f.employeeId, name_ar: 'موظفة اختبار', name_en: 'Synthetic staff' },
     holder_employee_id: holderId,
-    holder: { id: holderId, name_ar: null, name_en: 'Synthetic holder' },
+    holder: { id: holderId, name_ar: 'حاملة جهاز للاختبار', name_en: 'Synthetic holder' },
   });
   for (const person of [page.items[0]?.employee, page.items[0]?.holder])
     expect(Object.keys(person ?? {}).sort()).toEqual(['id', 'name_ar', 'name_en']);
 });
 
-it('EXPLAIN uses the branch/time index and the active-installation partial index', async () => {
+it('EXPLAIN uses the branch/time index, holder employee primary key and active-installation index', async () => {
   await f.database.withTenant(f.companyId, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     const board = await tx.execute(
-      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceDeviceRefusalsStatement(query())}`,
+      sql`EXPLAIN (ANALYZE) ${attendanceDeviceRefusalsStatement({
+        ...query(),
+        from: new Date('2026-10-09'),
+        to: new Date('2026-10-10'),
+      })}`,
     );
-    expect(JSON.stringify(board)).toContain('attendance_device_refusals_branch_time_idx');
-    expect(JSON.stringify(board)).toMatch(/employees_(pkey|company_business_id)/);
+    const plan = board.map((row) => String(row['QUERY PLAN'])).join('\n');
+    expect(plan).toContain('attendance_device_refusals_branch_time_idx');
+    expect(plan).toMatch(/Index Scan using employees_pkey on employees h/);
     const lock = await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON)
       ${installationLockStatement(f.companyId, f.userId, installationHash(f.companyId, PHONE_X))}`);
     expect(JSON.stringify(lock)).toContain('employee_passkeys_active_installation_idx');

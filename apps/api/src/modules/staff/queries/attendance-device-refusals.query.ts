@@ -20,7 +20,7 @@ export function attendanceDeviceRefusalsStatement(query: AttendanceDeviceRefusal
     to_char(r.attempted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS attempted_at
     FROM attendance_device_refusals r
     JOIN employees e ON e.company_id=r.company_id AND e.business_id=r.business_id AND e.id=r.employee_id
-    LEFT JOIN employees h ON h.company_id=r.company_id AND h.business_id=r.business_id AND h.id=r.holder_employee_id
+    LEFT JOIN employees h ON h.company_id=r.company_id AND h.id=r.holder_employee_id
     WHERE r.company_id=${query.companyId} AND r.business_id=${query.businessId} AND r.branch_id=${query.branchId}
       ${query.from === undefined ? sql`` : sql`AND r.attempted_at>=${query.from.toISOString()}`}
       ${query.to === undefined ? sql`` : sql`AND r.attempted_at<${query.to.toISOString()}`}
