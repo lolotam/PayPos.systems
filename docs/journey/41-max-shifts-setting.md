@@ -60,7 +60,7 @@ described the old fixed limit of two.
 10. **المسار من غير الشاشة:** ملف الـ POS ما اتغيّرش، ومفيش حاجة أوفلاين. الحضور والعمولة ما اتأثروش بعدد الورديات.
 
 **ممنوع يحصل:**
-- وردية رابعة تتحفظ والحد 3، أو يوم يعدّي الحد في موظفة اتعدّت ورديتها عبر فرعين.
+- وردية رابعة تتحفظ والحد 3 في نفس الفرع، أو ورديتين متداخلتين لنفس الموظفة في فرعين مختلفين.
 - تنزيل الحد يعدّل أو يمسح جداول أو قوالب محفوظة.
 - مدير من غير الصلاحية يشوف اللوحة أو يغيّر الرقم، أو الرد يكشف إن الإعداد أو النشاط موجود.
 - حد غير صاحب الشركة يدي صلاحية الإعداد.
@@ -111,7 +111,7 @@ described the old fixed limit of two.
     number of shifts.
 
 **Must NOT happen:**
-- A fourth shift saving at limit 3, or an employee exceeding the limit by working in two branches.
+- A fourth shift saving at limit 3 within one branch, or two overlapping shifts for the same employee in two branches.
 - Lowering the limit editing or deleting stored schedules or templates.
 - A manager without the permission seeing the panel or changing the number, or a reply that reveals the setting or business
   exists.
