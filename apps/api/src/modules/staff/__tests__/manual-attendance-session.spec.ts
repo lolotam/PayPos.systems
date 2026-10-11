@@ -144,8 +144,29 @@ it('AMS-03 owner one-step commits the deferred FK and idempotently returns the c
   expect(row.session_id).not.toBeNull();
   expect((await f.h.app.inject(command)).json()).toEqual(row);
   expect(
-    await f.h.owner`SELECT id FROM attendance_sessions WHERE change_request_id=${row.id}`,
-  ).toHaveLength(1);
+    await f.h.owner`SELECT s.id,s.source,s.status,s.branch_id,s.employee_id,r.status AS request_status,r.revision
+      FROM attendance_sessions s JOIN attendance_change_requests r
+        ON r.company_id=s.company_id AND r.id=s.change_request_id
+      WHERE s.change_request_id=${row.id}`,
+  ).toEqual([
+    {
+      id: row.session_id,
+      source: 'MANUAL',
+      status: 'CLOSED',
+      branch_id: f.branch,
+      employee_id: f.employee.id,
+      request_status: 'APPROVED',
+      revision: 1,
+    },
+  ]);
+  const actions = await f.h.owner`SELECT action FROM audit_log
+    WHERE (entity='attendance_change_request' AND entity_id=${row.id})
+      OR (entity='attendance_session' AND entity_id=${row.session_id}) ORDER BY id`;
+  expect(actions.map((a) => a.action)).toEqual([
+    'attendance_change.requested',
+    'attendance_session.added_manual',
+    'attendance_change.approved',
+  ]);
 });
 
 it('AMS-07 refuses ordinary correction without changing the manual day or adding history', async () => {
