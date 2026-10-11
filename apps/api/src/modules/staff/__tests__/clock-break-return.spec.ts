@@ -157,3 +157,35 @@ it('BW-Q11 QR out at 12:55 (10 minutes before the break or less) and back at 14:
   ).toMatchObject([{ scheduled_start: new Date(`${date}T14:00:00+03:00`) }]);
   await clock(date, '17:00');
 });
+
+it.each([
+  ['2026-12-05', '14:05', 305],
+  ['2026-12-12', '14:12', 312],
+] as const)('QR arrival after a voided break-out on %s at %s stores %i late minutes', async (date, time, late) => {
+  await seedAttendanceBreak(f, date);
+  const first = await clock(date, '08:58');
+  expect(first).toMatchObject({ operation: 'CLOCK_IN', late_minutes: 0 });
+  expect(await clock(date, '13:00')).toMatchObject({
+    session_id: first.session_id, operation: 'CLOCK_OUT', late_minutes: 0,
+  });
+  const request = f.ids.newId();
+  const at = new Date(`${date}T13:05:00+03:00`);
+  await f.owner`INSERT INTO attendance_change_requests(company_id,id,business_id,branch_id,employee_id,
+      kind,status,session_id,session_revision,reason,requested_by,requested_at,decided_by,decided_at)
+    SELECT company_id,${request},business_id,branch_id,employee_id,'VOID_SESSION','APPROVED',id,revision,
+      'Synthetic voided break-out',${f.userId},${at},${f.userId},${at}
+    FROM attendance_sessions WHERE company_id=${f.companyId} AND id=${first.session_id}`;
+  await f.owner`UPDATE attendance_sessions SET voided_at=${at},voided_by=${f.userId},
+    void_request_id=${request},revision=revision+1 WHERE company_id=${f.companyId} AND id=${first.session_id}`;
+  const arrival = await clock(date, time);
+  expect(arrival).toMatchObject({ operation: 'CLOCK_IN', late_minutes: late, exceptions: [] });
+  expect(arrival.session_id).not.toBe(first.session_id);
+  expect(
+    await f.owner`SELECT scheduled_start,scheduled_end,late_minutes FROM attendance_sessions WHERE id=${arrival.session_id}`,
+  ).toMatchObject([{
+    scheduled_start: new Date(`${date}T09:00:00+03:00`),
+    scheduled_end: new Date(`${date}T17:00:00+03:00`),
+    late_minutes: late,
+  }]);
+  expect(await clock(date, '17:00')).toMatchObject({ operation: 'CLOCK_OUT', late_minutes: late });
+});

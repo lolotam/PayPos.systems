@@ -5331,6 +5331,16 @@
               }
             }
           },
+          "409": {
+            "description": "ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED or ATTENDANCE_SESSION_REVISION_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Bilingual refusal",
             "content": {
@@ -5394,6 +5404,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AttendanceChangeRequest"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED, ATTENDANCE_SESSION_NOT_VOIDED, ATTENDANCE_SESSION_REVISION_CONFLICT or ATTENDANCE_CHANGE_DUPLICATE_PENDING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ATTENDANCE_RESTORE_OVERLAP or ATTENDANCE_CHANGE_KIND_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }
@@ -5467,7 +5497,8 @@
               "type": "string",
               "enum": [
                 "ADD_SESSION",
-                "VOID_SESSION"
+                "VOID_SESSION",
+                "RESTORE_SESSION"
               ]
             }
           },
@@ -5497,6 +5528,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AttendanceChangeRequestPage"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED, ATTENDANCE_SESSION_NOT_VOIDED, ATTENDANCE_SESSION_REVISION_CONFLICT or ATTENDANCE_CHANGE_DUPLICATE_PENDING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ATTENDANCE_RESTORE_OVERLAP or ATTENDANCE_CHANGE_KIND_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }
@@ -5577,6 +5628,26 @@
               }
             }
           },
+          "409": {
+            "description": "ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED, ATTENDANCE_SESSION_NOT_VOIDED, ATTENDANCE_SESSION_REVISION_CONFLICT or ATTENDANCE_CHANGE_DUPLICATE_PENDING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ATTENDANCE_RESTORE_OVERLAP or ATTENDANCE_CHANGE_KIND_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "default": {
             "description": "Bilingual refusal",
             "content": {
@@ -5649,6 +5720,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AttendanceChangeDecisionResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ATTENDANCE_SESSION_OPEN, ATTENDANCE_SESSION_VOIDED, ATTENDANCE_SESSION_NOT_VOIDED, ATTENDANCE_SESSION_REVISION_CONFLICT or ATTENDANCE_CHANGE_DUPLICATE_PENDING",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ATTENDANCE_RESTORE_OVERLAP or ATTENDANCE_CHANGE_KIND_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }
@@ -9979,6 +10070,47 @@
             "required": [
               "employee_id",
               "reason",
+              "session_id",
+              "session_revision",
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "employee_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "session_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "session_revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "RESTORE_SESSION"
+                ]
+              }
+            },
+            "required": [
+              "employee_id",
+              "reason",
+              "session_id",
+              "session_revision",
               "kind"
             ],
             "additionalProperties": false
@@ -10082,7 +10214,8 @@
             "type": "string",
             "enum": [
               "ADD_SESSION",
-              "VOID_SESSION"
+              "VOID_SESSION",
+              "RESTORE_SESSION"
             ]
           },
           "cursor": {
@@ -10110,7 +10243,8 @@
             "type": "string",
             "enum": [
               "ADD_SESSION",
-              "VOID_SESSION"
+              "VOID_SESSION",
+              "RESTORE_SESSION"
             ]
           },
           "status": {
@@ -10166,6 +10300,38 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 2147483647
+          },
+          "requested": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "working_date": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "clock_in": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "clock_out": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "timezone": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "working_date",
+              "clock_in",
+              "clock_out",
+              "timezone"
+            ],
+            "additionalProperties": false
           },
           "reason": {
             "type": "string"
@@ -10229,6 +10395,7 @@
           "employee",
           "session_id",
           "session_revision",
+          "requested",
           "reason",
           "requested_by",
           "requested_at",
@@ -10255,7 +10422,8 @@
             "type": "string",
             "enum": [
               "ADD_SESSION",
-              "VOID_SESSION"
+              "VOID_SESSION",
+              "RESTORE_SESSION"
             ]
           },
           "status": {
@@ -10311,6 +10479,38 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 2147483647
+          },
+          "requested": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "working_date": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "clock_in": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "clock_out": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "timezone": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "working_date",
+              "clock_in",
+              "clock_out",
+              "timezone"
+            ],
+            "additionalProperties": false
           },
           "reason": {
             "type": "string"
@@ -10365,11 +10565,83 @@
             "type": "boolean"
           },
           "effect": {
-            "type": "string",
             "nullable": true,
-            "enum": [
-              null
-            ]
+            "type": "object",
+            "properties": {
+              "session": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "working_date": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "clock_in": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "clock_out": {
+                    "nullable": true,
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "OPEN",
+                      "CLOSED",
+                      "MISSED_OUT"
+                    ]
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  "voided_at": {
+                    "nullable": true,
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "voided_by": {
+                    "nullable": true,
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "void_request_id": {
+                    "nullable": true,
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "working_date",
+                  "clock_in",
+                  "clock_out",
+                  "status",
+                  "revision",
+                  "voided_at",
+                  "voided_by",
+                  "void_request_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "session"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -10381,6 +10653,7 @@
           "employee",
           "session_id",
           "session_revision",
+          "requested",
           "reason",
           "requested_by",
           "requested_at",
@@ -14337,7 +14610,8 @@
                           "type": "string",
                           "enum": [
                             "ADD_SESSION",
-                            "VOID_SESSION"
+                            "VOID_SESSION",
+                            "RESTORE_SESSION"
                           ]
                         }
                       },
@@ -14508,7 +14782,8 @@
                           "type": "string",
                           "enum": [
                             "ADD_SESSION",
-                            "VOID_SESSION"
+                            "VOID_SESSION",
+                            "RESTORE_SESSION"
                           ]
                         }
                       },

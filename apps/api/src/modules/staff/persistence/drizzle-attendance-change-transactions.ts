@@ -13,6 +13,7 @@ import {
   AttendanceChangeKindRefusal,
   type AttendanceChangeKind,
   type AttendanceChangeKindInput,
+  type AttendanceChangeKinds,
 } from '../ports/attendance-change-kinds.port.ts';
 import type {
   AttendanceChangeActor,
@@ -44,14 +45,13 @@ function assertAuthority(
   )
     throw new AttendanceChangeError('NOT_FOUND');
 }
-async function load(
+async function lockContext(
   tx: Tx,
   actor: AttendanceChangeActor,
   action: Action,
-  clock: AttendanceChangeClock,
+  sample: Date,
   filing?: Filing,
 ) {
-  const sample = clock.now();
   const candidate = filing ? null : await readChangeRequest(tx, actor);
   const target = filing
     ? await filing.kind.target({ transaction: tx, ...actor, input: filing.input, now: sample })
@@ -77,7 +77,24 @@ async function load(
     (before.employee.id !== target.employee_id || before.branch_id !== target.branch_id)
   )
     throw new AttendanceChangeError('NOT_FOUND');
+  return { target, before };
+}
+async function load(
+  tx: Tx,
+  actor: AttendanceChangeActor & { requestId: string },
+  action: Action,
+  clock: AttendanceChangeClock,
+  kinds: AttendanceChangeKinds,
+  filing?: Filing,
+) {
+  const sample = clock.now();
+  const { target, before } = await lockContext(tx, actor, action, sample, filing);
   const employee = await changeEmployee(tx, actor, target.employee_id);
+  if (!filing && !before) throw new AttendanceChangeError('NOT_FOUND');
+  const input = filing ? filing.input : inputFrom(before as AttendanceChangeRequest);
+  const kind = filing ? filing.kind : kinds.find((before as AttendanceChangeRequest).kind);
+  if (action !== 'cancel')
+    await kind?.lock?.({ transaction: tx, ...actor, target, input, now: sample });
   const now = clock.now();
   const access = await attendanceChangeAuthority(
     tx,
@@ -88,8 +105,6 @@ async function load(
     now,
   );
   assertAuthority(action, actor, access, before);
-  if (!filing && !before) throw new AttendanceChangeError('NOT_FOUND');
-  const input = filing ? filing.input : inputFrom(before as AttendanceChangeRequest);
   return {
     requestId: filing ? filing.requestId : (before as AttendanceChangeRequest).id,
     target,
@@ -116,6 +131,7 @@ function inputFrom(row: AttendanceChangeRequest): AttendanceChangeKindInput {
 export function createAttendanceChangeTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
+  kinds: AttendanceChangeKinds = { find: () => null },
 ): AttendanceChangeTransactions {
   const run = (
     actor: AttendanceChangeActor,
@@ -123,7 +139,7 @@ export function createAttendanceChangeTransactions(
     clock: AttendanceChangeClock,
     work: Work,
     filing?: Filing,
-  ) => changeOnce(database, ids, actor, action, clock, work, filing);
+  ) => changeOnce(database, ids, kinds, actor, action, clock, work, filing);
   return {
     file: (actor, input, kind, clock, requestId, work) =>
       run(actor, 'file', clock, work, { input, kind, requestId }),
@@ -134,6 +150,7 @@ export function createAttendanceChangeTransactions(
 async function changeOnce(
   database: TenantWrappers,
   ids: IdGenerator,
+  kinds: AttendanceChangeKinds,
   actor: AttendanceChangeActor,
   action: Action,
   clock: AttendanceChangeClock,
@@ -144,7 +161,8 @@ async function changeOnce(
     return await database.withTenant(
       actor.companyId,
       async (tx) => {
-        const context = await load(tx, actor, action, clock, filing);
+        const requestId = filing?.requestId ?? actor.requestId ?? ids.newId();
+        const context = await load(tx, { ...actor, requestId }, action, clock, kinds, filing);
         const result = await runIdempotent(
           tx,
           {
@@ -197,7 +215,7 @@ function persistenceError(error: unknown): never {
     if (
       cause.code === '23505' &&
       'constraint_name' in cause &&
-      cause.constraint_name === 'attendance_change_requests_one_pending_void'
+      cause.constraint_name === 'attendance_change_requests_one_pending_session'
     )
       throw new AttendanceChangeError('ATTENDANCE_CHANGE_DUPLICATE_PENDING');
   }

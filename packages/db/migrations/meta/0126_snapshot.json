@@ -1,6 +1,6 @@
 {
-  "id": "ceedaf63-55c7-4c2d-bf19-e8de809594cc",
-  "prevId": "d40fe0db-6028-47bc-a87c-387d494c9b51",
+  "id": "b986008b-5b58-437e-a5f0-44564a838ca6",
+  "prevId": "ceedaf63-55c7-4c2d-bf19-e8de809594cc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -10047,9 +10047,69 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "voided_at": {
+          "name": "voided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "voided_by": {
+          "name": "voided_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "void_request_id": {
+          "name": "void_request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
+        "attendance_sessions_voided_by_idx": {
+          "name": "attendance_sessions_voided_by_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "voided_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attendance_sessions_void_request_idx": {
+          "name": "attendance_sessions_void_request_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "void_request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "attendance_sessions_one_open": {
           "name": "attendance_sessions_one_open",
           "columns": [
@@ -10067,10 +10127,10 @@
             }
           ],
           "isUnique": true,
-          "with": {},
-          "method": "btree",
           "where": "\"attendance_sessions\".\"status\" = 'OPEN'",
-          "concurrently": false
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         },
         "attendance_sessions_board_idx": {
           "name": "attendance_sessions_board_idx",
@@ -10107,9 +10167,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_sessions_employee_date_idx": {
           "name": "attendance_sessions_employee_date_idx",
@@ -10140,9 +10200,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_sessions_business_date_idx": {
           "name": "attendance_sessions_business_date_idx",
@@ -10167,9 +10227,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_sessions_binding_idx": {
           "name": "attendance_sessions_binding_idx",
@@ -10188,9 +10248,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_sessions_out_binding_idx": {
           "name": "attendance_sessions_out_binding_idx",
@@ -10209,9 +10269,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_sessions_device_idx": {
           "name": "attendance_sessions_device_idx",
@@ -10230,9 +10290,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_sessions_out_device_idx": {
           "name": "attendance_sessions_out_device_idx",
@@ -10251,9 +10311,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_sessions_operator_idx": {
           "name": "attendance_sessions_operator_idx",
@@ -10272,9 +10332,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_sessions_out_operator_idx": {
           "name": "attendance_sessions_out_operator_idx",
@@ -10293,144 +10353,172 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "attendance_sessions_company_id_companies_id_fk": {
           "name": "attendance_sessions_company_id_companies_id_fk",
           "tableFrom": "attendance_sessions",
+          "tableTo": "companies",
           "columnsFrom": [
             "company_id"
           ],
-          "tableTo": "companies",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_sessions_operator_id_user_id_fk": {
           "name": "attendance_sessions_operator_id_user_id_fk",
           "tableFrom": "attendance_sessions",
+          "tableTo": "user",
           "columnsFrom": [
             "operator_id"
           ],
-          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_sessions_out_operator_id_user_id_fk": {
           "name": "attendance_sessions_out_operator_id_user_id_fk",
           "tableFrom": "attendance_sessions",
+          "tableTo": "user",
           "columnsFrom": [
             "out_operator_id"
           ],
-          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "attendance_sessions_voided_by_user_id_fk": {
+          "name": "attendance_sessions_voided_by_user_id_fk",
+          "tableFrom": "attendance_sessions",
+          "tableTo": "user",
+          "columnsFrom": [
+            "voided_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "attendance_sessions_void_request_fk": {
+          "name": "attendance_sessions_void_request_fk",
+          "tableFrom": "attendance_sessions",
+          "tableTo": "attendance_change_requests",
+          "columnsFrom": [
+            "company_id",
+            "void_request_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_sessions_company_id_business_id_employee_id_employees_company_id_business_id_id_fk": {
           "name": "attendance_sessions_company_id_business_id_employee_id_employees_company_id_business_id_id_fk",
           "tableFrom": "attendance_sessions",
+          "tableTo": "employees",
           "columnsFrom": [
             "company_id",
             "business_id",
             "employee_id"
           ],
-          "tableTo": "employees",
           "columnsTo": [
             "company_id",
             "business_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_sessions_company_id_business_id_branch_id_branches_company_id_business_id_id_fk": {
           "name": "attendance_sessions_company_id_business_id_branch_id_branches_company_id_business_id_id_fk",
           "tableFrom": "attendance_sessions",
+          "tableTo": "branches",
           "columnsFrom": [
             "company_id",
             "business_id",
             "branch_id"
           ],
-          "tableTo": "branches",
           "columnsTo": [
             "company_id",
             "business_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_sessions_company_id_binding_id_employee_passkeys_company_id_id_fk": {
           "name": "attendance_sessions_company_id_binding_id_employee_passkeys_company_id_id_fk",
           "tableFrom": "attendance_sessions",
+          "tableTo": "employee_passkeys",
           "columnsFrom": [
             "company_id",
             "binding_id"
           ],
-          "tableTo": "employee_passkeys",
           "columnsTo": [
             "company_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_sessions_company_id_out_binding_id_employee_passkeys_company_id_id_fk": {
           "name": "attendance_sessions_company_id_out_binding_id_employee_passkeys_company_id_id_fk",
           "tableFrom": "attendance_sessions",
+          "tableTo": "employee_passkeys",
           "columnsFrom": [
             "company_id",
             "out_binding_id"
           ],
-          "tableTo": "employee_passkeys",
           "columnsTo": [
             "company_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_sessions_company_id_device_id_devices_company_id_id_fk": {
           "name": "attendance_sessions_company_id_device_id_devices_company_id_id_fk",
           "tableFrom": "attendance_sessions",
+          "tableTo": "devices",
           "columnsFrom": [
             "company_id",
             "device_id"
           ],
-          "tableTo": "devices",
           "columnsTo": [
             "company_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_sessions_company_id_out_device_id_devices_company_id_id_fk": {
           "name": "attendance_sessions_company_id_out_device_id_devices_company_id_id_fk",
           "tableFrom": "attendance_sessions",
+          "tableTo": "devices",
           "columnsFrom": [
             "company_id",
             "out_device_id"
           ],
-          "tableTo": "devices",
           "columnsTo": [
             "company_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -10445,6 +10533,14 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "attendance_sessions_void_marks": {
+          "name": "attendance_sessions_void_marks",
+          "value": "(\"attendance_sessions\".\"voided_at\" IS NULL AND \"attendance_sessions\".\"voided_by\" IS NULL AND \"attendance_sessions\".\"void_request_id\" IS NULL) OR (\"attendance_sessions\".\"voided_at\" IS NOT NULL AND \"attendance_sessions\".\"voided_by\" IS NOT NULL AND \"attendance_sessions\".\"void_request_id\" IS NOT NULL)"
+        },
+        "attendance_sessions_void_closed": {
+          "name": "attendance_sessions_void_closed",
+          "value": "\"attendance_sessions\".\"voided_at\" IS NULL OR \"attendance_sessions\".\"status\" <> 'OPEN'"
+        },
         "attendance_sessions_status": {
           "name": "attendance_sessions_status",
           "value": "\"attendance_sessions\".\"status\" IN ('OPEN','CLOSED','MISSED_OUT')"
@@ -13315,9 +13411,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_change_requests_branch_idx": {
           "name": "attendance_change_requests_branch_idx",
@@ -13354,9 +13450,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_change_requests_employee_idx": {
           "name": "attendance_change_requests_employee_idx",
@@ -13381,9 +13477,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_change_requests_session_idx": {
           "name": "attendance_change_requests_session_idx",
@@ -13402,9 +13498,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_change_requests_requester_idx": {
           "name": "attendance_change_requests_requester_idx",
@@ -13423,9 +13519,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_change_requests_decider_idx": {
           "name": "attendance_change_requests_decider_idx",
@@ -13444,9 +13540,9 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
         "attendance_change_requests_canceller_idx": {
           "name": "attendance_change_requests_canceller_idx",
@@ -13465,12 +13561,12 @@
             }
           ],
           "isUnique": false,
-          "with": {},
+          "concurrently": false,
           "method": "btree",
-          "concurrently": false
+          "with": {}
         },
-        "attendance_change_requests_one_pending_void": {
-          "name": "attendance_change_requests_one_pending_void",
+        "attendance_change_requests_one_pending_session": {
+          "name": "attendance_change_requests_one_pending_session",
           "columns": [
             {
               "expression": "company_id",
@@ -13486,113 +13582,113 @@
             }
           ],
           "isUnique": true,
-          "with": {},
+          "where": "\"attendance_change_requests\".\"status\" = 'PENDING' AND \"attendance_change_requests\".\"kind\" IN ('VOID_SESSION','RESTORE_SESSION')",
+          "concurrently": false,
           "method": "btree",
-          "where": "\"attendance_change_requests\".\"status\" = 'PENDING' AND \"attendance_change_requests\".\"kind\" = 'VOID_SESSION'",
-          "concurrently": false
+          "with": {}
         }
       },
       "foreignKeys": {
         "attendance_change_requests_company_id_companies_id_fk": {
           "name": "attendance_change_requests_company_id_companies_id_fk",
           "tableFrom": "attendance_change_requests",
+          "tableTo": "companies",
           "columnsFrom": [
             "company_id"
           ],
-          "tableTo": "companies",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_change_requests_requested_by_user_id_fk": {
           "name": "attendance_change_requests_requested_by_user_id_fk",
           "tableFrom": "attendance_change_requests",
+          "tableTo": "user",
           "columnsFrom": [
             "requested_by"
           ],
-          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_change_requests_decided_by_user_id_fk": {
           "name": "attendance_change_requests_decided_by_user_id_fk",
           "tableFrom": "attendance_change_requests",
+          "tableTo": "user",
           "columnsFrom": [
             "decided_by"
           ],
-          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_change_requests_cancelled_by_user_id_fk": {
           "name": "attendance_change_requests_cancelled_by_user_id_fk",
           "tableFrom": "attendance_change_requests",
+          "tableTo": "user",
           "columnsFrom": [
             "cancelled_by"
           ],
-          "tableTo": "user",
           "columnsTo": [
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_change_requests_employee_fk": {
           "name": "attendance_change_requests_employee_fk",
           "tableFrom": "attendance_change_requests",
+          "tableTo": "employees",
           "columnsFrom": [
             "company_id",
             "business_id",
             "employee_id"
           ],
-          "tableTo": "employees",
           "columnsTo": [
             "company_id",
             "business_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_change_requests_branch_fk": {
           "name": "attendance_change_requests_branch_fk",
           "tableFrom": "attendance_change_requests",
+          "tableTo": "branches",
           "columnsFrom": [
             "company_id",
             "business_id",
             "branch_id"
           ],
-          "tableTo": "branches",
           "columnsTo": [
             "company_id",
             "business_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         },
         "attendance_change_requests_session_fk": {
           "name": "attendance_change_requests_session_fk",
           "tableFrom": "attendance_change_requests",
+          "tableTo": "attendance_sessions",
           "columnsFrom": [
             "company_id",
             "session_id"
           ],
-          "tableTo": "attendance_sessions",
           "columnsTo": [
             "company_id",
             "id"
           ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -13609,7 +13705,11 @@
       "checkConstraints": {
         "attendance_change_requests_kind": {
           "name": "attendance_change_requests_kind",
-          "value": "\"attendance_change_requests\".\"kind\" IN ('ADD_SESSION','VOID_SESSION')"
+          "value": "\"attendance_change_requests\".\"kind\" IN ('ADD_SESSION','VOID_SESSION','RESTORE_SESSION')"
+        },
+        "attendance_change_requests_session_kind": {
+          "name": "attendance_change_requests_session_kind",
+          "value": "\"attendance_change_requests\".\"kind\" NOT IN ('VOID_SESSION','RESTORE_SESSION') OR (\"attendance_change_requests\".\"session_id\" IS NOT NULL AND \"attendance_change_requests\".\"session_revision\" IS NOT NULL)"
         },
         "attendance_change_requests_status": {
           "name": "attendance_change_requests_status",

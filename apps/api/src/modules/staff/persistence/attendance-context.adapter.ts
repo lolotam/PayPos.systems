@@ -198,7 +198,8 @@ export function scheduleCandidatesStatement(
         WHERE a.company_id=ss.company_id AND a.employee_id=ss.employee_id
           AND a.working_date BETWEEN ss.working_date - 1 AND ${date}::date AND a.clock_in<${instant}::timestamptz
           AND a.branch_id=s.branch_id AND a.scheduled_end=ss.ends_at
-          AND a.status='CLOSED' AND a.clock_out>ss.starts_at AND a.clock_out<=${instant}::timestamptz) AS returning
+          AND a.status='CLOSED' AND a.voided_at IS NULL
+          AND a.clock_out>ss.starts_at AND a.clock_out<=${instant}::timestamptz) AS returning
     FROM staff_schedule_shifts ss
     JOIN staff_schedules s ON s.company_id=ss.company_id AND s.id=ss.schedule_id
     WHERE ss.company_id=${scope.companyId} AND ss.employee_id=${scope.employeeId} AND s.branch_id=${branchId}

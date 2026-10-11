@@ -113,7 +113,7 @@ export interface AttendanceChangeRequested {
   readonly business_id: string;
   readonly branch_id: string;
   readonly employee_id: string;
-  readonly kind: 'ADD_SESSION' | 'VOID_SESSION';
+  readonly kind: 'ADD_SESSION' | 'VOID_SESSION' | 'RESTORE_SESSION';
   readonly status: 'PENDING';
   readonly requested_by: string;
   readonly requested_at: string;
@@ -125,7 +125,7 @@ export interface AttendanceChangeDecided {
   readonly business_id: string;
   readonly branch_id: string;
   readonly employee_id: string;
-  readonly kind: 'ADD_SESSION' | 'VOID_SESSION';
+  readonly kind: 'ADD_SESSION' | 'VOID_SESSION' | 'RESTORE_SESSION';
   readonly status: 'APPROVED' | 'REJECTED';
   readonly requested_by: string;
   readonly requested_at: string;

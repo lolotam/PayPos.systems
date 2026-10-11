@@ -73,6 +73,7 @@ export function dueBreaksStatement(
         WHERE a.company_id = sh.company_id AND a.employee_id = sh.employee_id
           AND a.working_date BETWEEN ${dayAround(endsAfter, -2)}::date AND ${dayAround(endsAfter, 1)}::date
           AND a.branch_id = sc.branch_id AND a.scheduled_end = sh.ends_at AND a.status = 'CLOSED'
+          AND a.voided_at IS NULL
           AND a.clock_out >= sh.break_starts_at - make_interval(secs => ${breakOutLeadMs / 1000}::float8)
           AND a.clock_out < sh.break_ends_at)
       ${page}
@@ -88,7 +89,7 @@ export function breakOutStatement(companyId: string, shift: LockedBreakShift, fr
     WHERE company_id = ${companyId} AND employee_id = ${shift.employeeId}
       AND working_date BETWEEN ${dayAround(shift.startsAt, -2)}::date AND ${dayAround(shift.endsAt, 1)}::date
       AND branch_id = ${shift.branchId} AND scheduled_end = ${shift.endsAt.toISOString()}::timestamptz
-      AND status = 'CLOSED'
+      AND status = 'CLOSED' AND voided_at IS NULL
       AND clock_out >= ${from.toISOString()}::timestamptz
       AND clock_out < ${shift.breakEndsAt.toISOString()}::timestamptz`;
 }
@@ -104,6 +105,7 @@ export function returnedStatement(
     WHERE company_id = ${companyId} AND employee_id = ${shift.employeeId}
       AND working_date BETWEEN ${dayAround(shift.startsAt, -1)}::date AND ${dayAround(shift.endsAt, 1)}::date
       AND branch_id = ${shift.branchId} AND status IN ('OPEN', 'CLOSED', 'MISSED_OUT')
+      AND voided_at IS NULL
       AND clock_in >= ${from.toISOString()}::timestamptz
       AND clock_in <= ${to.toISOString()}::timestamptz) AS returned`;
 }

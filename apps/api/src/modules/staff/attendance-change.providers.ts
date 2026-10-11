@@ -9,6 +9,8 @@ import {
   type AttendanceChangeKinds,
 } from './ports/attendance-change-kinds.port.ts';
 import { createAttendanceChangeKinds } from './persistence/attendance-change-kinds.ts';
+import { createVoidSessionKind } from './persistence/void-session-kind.ts';
+import { createRestoreSessionKind } from './persistence/restore-session-kind.ts';
 import { createAttendanceChangeTransactions } from './persistence/drizzle-attendance-change-transactions.ts';
 import { createAttendanceChangeReadAccess } from './persistence/attendance-change-context.adapter.ts';
 import { ATTENDANCE_CHANGE_READ_ACCESS } from './queries/attendance-change-requests.query.ts';
@@ -17,28 +19,43 @@ export function attendanceChangeProviders(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
 ): Provider[] {
-  const tx = database === undefined ? null : createAttendanceChangeTransactions(database, ids);
+  const transactions = (kinds: AttendanceChangeKinds) =>
+    database === undefined ? null : createAttendanceChangeTransactions(database, ids, kinds);
   return [
-    { provide: ATTENDANCE_CHANGE_KINDS, useValue: createAttendanceChangeKinds([]) },
+    {
+      provide: ATTENDANCE_CHANGE_KINDS,
+      useValue: createAttendanceChangeKinds([
+        createVoidSessionKind(ids),
+        createRestoreSessionKind(ids),
+      ]),
+    },
     {
       provide: ATTENDANCE_CHANGE_READ_ACCESS,
       useValue: createAttendanceChangeReadAccess(systemClock),
     },
     {
       provide: CancelAttendanceChangeUseCase,
-      useValue: tx === null ? null : new CancelAttendanceChangeUseCase(tx, systemClock),
+      inject: [ATTENDANCE_CHANGE_KINDS],
+      useFactory: (kinds: AttendanceChangeKinds) => {
+        const tx = transactions(kinds);
+        return tx === null ? null : new CancelAttendanceChangeUseCase(tx, systemClock);
+      },
     },
     {
       provide: RequestAttendanceChangeUseCase,
       inject: [ATTENDANCE_CHANGE_KINDS],
-      useFactory: (kinds: AttendanceChangeKinds) =>
-        tx === null ? null : new RequestAttendanceChangeUseCase(tx, systemClock, kinds, ids),
+      useFactory: (kinds: AttendanceChangeKinds) => {
+        const tx = transactions(kinds);
+        return tx === null ? null : new RequestAttendanceChangeUseCase(tx, systemClock, kinds, ids);
+      },
     },
     {
       provide: DecideAttendanceChangeUseCase,
       inject: [ATTENDANCE_CHANGE_KINDS],
-      useFactory: (kinds: AttendanceChangeKinds) =>
-        tx === null ? null : new DecideAttendanceChangeUseCase(tx, systemClock, kinds),
+      useFactory: (kinds: AttendanceChangeKinds) => {
+        const tx = transactions(kinds);
+        return tx === null ? null : new DecideAttendanceChangeUseCase(tx, systemClock, kinds);
+      },
     },
   ];
 }

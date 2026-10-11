@@ -829,24 +829,52 @@
       "breakpoints": true
     },
     {
-      "idx": 118,
-      "version": "7",
-      "when": 1791655672038,
-      "tag": "0118_2026-10-11_employee-default-shifts",
-      "breakpoints": true
-    },
-    {
-      "idx": 119,
-      "version": "7",
-      "when": 1791655673038,
-      "tag": "0119_2026-10-11_employee-default-shifts-rls",
-      "breakpoints": true
-    },
-    {
       "idx": 120,
       "version": "7",
+      "when": 1791655672038,
+      "tag": "0120_2026-10-10_attendance-session-void",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1791655673038,
+      "tag": "0121_2026-10-10_attendance-session-void-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
       "when": 1791655674038,
-      "tag": "0120_2026-10-11_employee-hours-permission",
+      "tag": "0122_2026-10-10_attendance-session-void-indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1791655675038,
+      "tag": "0123_2026-10-10_attendance-session-void-drop-old-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1791655676038,
+      "tag": "0124_2026-10-11_employee-default-shifts",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1791655677038,
+      "tag": "0125_2026-10-11_employee-default-shifts-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1791655678038,
+      "tag": "0126_2026-10-11_employee-hours-permission",
       "breakpoints": true
     }
   ]
