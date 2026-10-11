@@ -6,7 +6,9 @@ import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { newScheduleBreak, scheduleBreakValue } from '../model/schedule-form';
 
-export function ScheduleShiftBreakFields({ index, pending }: { index: number; pending: boolean }) {
+export function ScheduleShiftBreakFields({ index, pending, idPrefix = '' }: {
+  index: number; pending: boolean; idPrefix?: string;
+}) {
   const locale = useLocale();
   const form = useFormContext<SetScheduleInput>();
   const shift = useWatch({ control: form.control, name: `shifts.${index}` });
@@ -30,14 +32,14 @@ export function ScheduleShiftBreakFields({ index, pending }: { index: number; pe
     <>
       {(['break_start', 'break_end'] as const).map((key) => (
         <div key={key}>
-          <Label htmlFor={`${key}-${index}`}>{t(locale, `shell.schedule_${key}`)}</Label>
+          <Label htmlFor={`${idPrefix}${key}-${index}`}>{t(locale, `shell.schedule_${key}`)}</Label>
           <Controller
             control={form.control}
             name={`shifts.${index}.${key}`}
             render={({ field }) => (
               <Input
                 {...field}
-                id={`${key}-${index}`}
+                id={`${idPrefix}${key}-${index}`}
                 type="time"
                 disabled={pending}
                 value={field.value ?? ''}

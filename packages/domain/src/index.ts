@@ -22,3 +22,5 @@ export * from './iban.js';
 export * from './gcc-banks.js';
 export { employeeNameMatchKey } from './employee-name-key.js';
 export { containsPhoneLikeNumber } from './phone-like.js';
+
+export { defaultShiftMinutes, contractedMinutes, dayDiffersFromDefault, type DefaultShift, type WeekdayDefaultShift } from './default-shifts.js';

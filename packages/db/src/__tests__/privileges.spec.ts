@@ -1,7 +1,7 @@
+import { TENANT_TABLES } from '../../test/tenant-table-inventory.ts';
 import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
 import {
   ATTENDANCE_TABLE_GRANTS,
-  ATTENDANCE_TENANT_TABLES,
   ATTENDANCE_CHANGE_COLUMN_GRANTS,
   testAttendanceDecisionPrivileges,
 } from '../../test/attendance-grants.ts';
@@ -58,6 +58,9 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'employee_branches:SELECT',
     'employee_cards:INSERT',
     'employee_cards:SELECT',
+    'employee_default_shifts:DELETE',
+    'employee_default_shifts:INSERT',
+    'employee_default_shifts:SELECT',
     'employee_document_expiry_notices:INSERT',
     'employee_document_expiry_notices:SELECT',
     'employee_documents:INSERT',
@@ -169,47 +172,7 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.parked_at:pospay_dispatcher:UPDATE',
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
-const TENANT_TABLES = [
-  'document_types',
-  'employee_documents',
-  'employee_document_expiry_notices',
-  ...ATTENDANCE_TENANT_TABLES,
-  'file_objects',
-  'file_access_audit',
-  'file_cleanup_objects',
-  'import_previews',
-  'services',
-  'package_types',
-  'package_type_components',
-  'employees',
-  'employee_branches',
-  'employee_cards',
-  'employee_passkeys',
-  'staff_branch_schedule_settings',
-  'staff_schedule_settings',
-  'staff_schedules',
-  'staff_schedule_shifts',
-  'staff_shift_templates',
-  'employee_salaries',
-  'employee_ibans',
-  'in_app_notifications',
-  'notification_attempts',
-  'companies',
-  'businesses',
-  'branches',
-  'company_feature_overrides',
-  'outbox',
-  'audit_log',
-  'idempotency_keys',
-  'consumed_events',
-  'devices',
-  'cashier_pins',
-  'business_settings',
-  'memberships',
-  'permission_overrides',
-  'roles',
-  'role_permissions',
-];
+
 const APP_ROLES = ['pospay_app', 'pospay_auth', 'pospay_dispatcher'];
 const IDENTITY_TABLES = [
   'passkey',

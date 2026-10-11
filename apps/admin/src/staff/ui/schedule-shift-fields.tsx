@@ -1,13 +1,15 @@
 'use client';
 import { useContext } from 'react';
 import { ScheduleLimitContext, newScheduleShift } from '../model/schedule-form';
-import type { SetScheduleInput } from '@pospay/contracts';
+import type { ScheduleShift, SetScheduleInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { ScheduleShiftBreakFields } from './schedule-shift-break-fields';
-export function ScheduleShiftFields({ day, pending }: { day: number; pending: boolean }) {
+export function ScheduleShiftFields({ day, pending, defaultShifts = [] }: {
+  day: number; pending: boolean; defaultShifts?: ScheduleShift[];
+}) {
   const locale = useLocale();
   const maxShiftsPerDay = useContext(ScheduleLimitContext);
   const form = useFormContext<SetScheduleInput>();
@@ -47,7 +49,7 @@ export function ScheduleShiftFields({ day, pending }: { day: number; pending: bo
         type="button"
         variant="outline"
         disabled={fields.length >= maxShiftsPerDay || pending}
-        onClick={() => array.append(newScheduleShift(day, fields.length))}
+        onClick={() => array.append(newScheduleShift(day, fields.length, defaultShifts))}
       >
         {t(locale, 'shell.schedule_add')}
       </Button>

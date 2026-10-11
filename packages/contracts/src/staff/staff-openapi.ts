@@ -1,5 +1,6 @@
 import { scheduleSettingsPaths } from './schedule-settings-openapi.js';
 import { schedulesPaths } from './schedules-openapi.js';
+import { employeeDefaultShiftsPaths } from './employee-default-shifts-openapi.js';
 import { z } from 'zod';
 import { employeeNameMatches, employeeNameMatchesInput } from './employee-name-matches.js';
 const nameMatchesJson = (schema: typeof employeeNameMatches | typeof employeeNameMatchesInput) => ({
@@ -21,6 +22,7 @@ const parameters = [
 ];
 const errors = { description: 'Bilingual refusal', content: json('ErrorEnvelope') };
 export const staffPaths = {
+  ...employeeDefaultShiftsPaths,
   ...schedulesPaths,
   ...scheduleSettingsPaths,
   '/v1/businesses/{businessId}/employees/name-matches': {

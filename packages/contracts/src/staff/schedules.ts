@@ -77,6 +77,7 @@ export const scheduleGridRow = z
     name_en: nameEn,
     name_ar: nameAr.nullable(),
     schedule: staffSchedule.nullable(),
+    default_shifts: z.array(scheduleShift).max(7),
   })
   .meta({ id: 'ScheduleGridRow' });
 export const scheduleGrid = z

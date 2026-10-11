@@ -1,0 +1,86 @@
+import { employeeDefaultShifts as view } from '@pospay/contracts';
+import type { Tx } from '@pospay/db';
+import { sql } from 'drizzle-orm';
+import type { EmployeeDetailAccess } from './employee-detail.query.ts';
+import { currentAttachment, type BranchDay } from './passkey-access.ts';
+
+export const EMPLOYEE_HOURS_READ_ACCESS = Symbol('EMPLOYEE_HOURS_READ_ACCESS');
+export interface EmployeeHoursReadAccess {
+  detail: EmployeeDetailAccess;
+  /** يعيد فروع النشاط وتوقيتها لعرض الدوام المحفوظ حتى بعد انتهاء الارتباط. */
+  branches(tx: Tx, companyId: string, businessId: string): Promise<{ id: string; timezone: string }[]>;
+  /** يفحص إدارة فروع الموظفة ويعيد الفروع المرشحة المسموحة لحجب الدوام خارج نطاق القارئ. */
+  manage(tx: Tx, companyId: string, userId: string, businessId: string,
+    branchIds: readonly string[], candidateBranchIds: readonly string[]):
+    Promise<{ manage: boolean; featureEnabled: boolean; allowedBranchIds: string[] }>;
+}
+export interface EmployeeHoursReadContext {
+  companyId: string; userId: string; businessId: string; employeeId: string;
+}
+
+// فروع الارتباط الحالية بتوقيت كل فرع، ومعها الفروع ذات الدوام المحفوظ حتى بعد فك الارتباط.
+export function employeeDefaultShiftsStatement(context: EmployeeHoursReadContext,
+  branches: readonly { id: string; timezone: string }[]) {
+  const { companyId, employeeId } = context;
+  const payload = JSON.stringify(branches);
+  return sql`SELECT br.id AS branch_id,
+    EXISTS(SELECT 1 FROM employee_branches eb WHERE eb.company_id=${companyId}
+      AND eb.employee_id=${employeeId} AND eb.branch_id=br.id
+      AND eb."from" <= (CURRENT_TIMESTAMP AT TIME ZONE br.timezone)::date
+      AND (eb."to" IS NULL OR eb."to" > (CURRENT_TIMESTAMP AT TIME ZONE br.timezone)::date)) AS linked,
+    COALESCE((SELECT jsonb_agg(jsonb_build_object('day',d.day,'start',left(d.start::text,5),
+      'end',left(d."end"::text,5),'break_start',left(d.break_start::text,5),
+      'break_end',left(d.break_end::text,5)) ORDER BY d.day)
+      FROM employee_default_shifts d WHERE d.company_id=${companyId} AND d.employee_id=${employeeId} AND d.branch_id=br.id),'[]'::jsonb) AS shifts,
+    (SELECT to_char(max(d.updated_at) AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+      FROM employee_default_shifts d WHERE d.company_id=${companyId} AND d.employee_id=${employeeId} AND d.branch_id=br.id) AS updated_at
+    FROM jsonb_to_recordset(${payload}::jsonb) AS br(id uuid, timezone text)
+    WHERE (EXISTS(SELECT 1 FROM employee_default_shifts d WHERE d.company_id=${companyId} AND d.employee_id=${employeeId} AND d.branch_id=br.id)
+        OR EXISTS(SELECT 1 FROM employee_branches eb WHERE eb.company_id=${companyId} AND eb.employee_id=${employeeId} AND eb.branch_id=br.id
+          AND eb."from" <= (CURRENT_TIMESTAMP AT TIME ZONE br.timezone)::date
+          AND (eb."to" IS NULL OR eb."to" > (CURRENT_TIMESTAMP AT TIME ZONE br.timezone)::date)))
+    ORDER BY br.id`;
+}
+
+export async function employeeDefaultShifts(tx: Tx, context: EmployeeHoursReadContext,
+  access: EmployeeHoursReadAccess, managedBranchId: string | null = null) {
+  const branchContexts = await access.branches(tx, context.companyId, context.businessId);
+  const days = await branchDays(tx, branchContexts);
+  // يعاد فحص فروع السجل داخل معاملة القراءة؛ أي ارتباط لم ينته بعد بتوقيت فرعه يدخل الفحص،
+  // ومنه الارتباط الحالي بتاريخ نهاية لاحق، فمدير فرع تاني ميعدّيش فحص كل الفروع.
+  const [employee] = await tx.execute<{ branch_ids: string[] }>(sql`SELECT
+    ARRAY[e.primary_branch_id] || ARRAY(SELECT eb.branch_id FROM employee_branches eb
+      WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment(days)}) AS branch_ids
+    FROM employees e WHERE e.company_id=${context.companyId} AND e.business_id=${context.businessId}
+      AND e.id=${context.employeeId} AND e.deleted_at IS NULL`);
+  if (!employee) return null;
+  const candidateBranchIds = [...new Set([...employee.branch_ids, ...branchContexts.map((branch) => branch.id)])];
+  // بعد الحفظ تتقاس صلاحية الكتابة على الفرع المعدّل وحده، زي فحص الحفظ نفسه.
+  const decision = await access.manage(tx, context.companyId, context.userId,
+    context.businessId, managedBranchId ? [managedBranchId] : employee.branch_ids, candidateBranchIds);
+  const managedBranchIds = decision.allowedBranchIds;
+  let allowedBranchIds = managedBranchIds;
+  if (managedBranchId) {
+    if (!decision.manage) return null;
+    if (!decision.featureEnabled) return 'FEATURE_DISABLED' as const;
+  } else {
+    const detail = await access.detail.checkMany(tx, context.companyId, context.userId,
+      context.businessId, candidateBranchIds);
+    if (!employee.branch_ids.every((branch) => detail.allowedBranchIds.includes(branch))) return null;
+    if (!detail.featureEnabled) return 'FEATURE_DISABLED' as const;
+    allowedBranchIds = detail.allowedBranchIds;
+  }
+  const rows = await tx.execute<{ branch_id: string } & Record<string, unknown>>(employeeDefaultShiftsStatement(context,
+    branchContexts.filter((branch) => allowedBranchIds.includes(branch.id))));
+  // صلاحية التعديل تتقاس على كل فرع لوحده، فالقارئ يقدر يعدّل فرع ويشوف التاني للقراءة بس.
+  const branches = rows.map((row) => ({ ...row, can_manage: managedBranchIds.includes(row.branch_id) }));
+  return view.parse({ employee_id: context.employeeId,
+    can_manage: branches.some((branch) => branch.can_manage), branches });
+}
+
+async function branchDays(tx: Tx, branches: readonly { id: string; timezone: string }[]): Promise<BranchDay[]> {
+  if (!branches.length) return [];
+  return [...await tx.execute<{ branchId: string; today: string }>(sql`SELECT br.id AS "branchId",
+    to_char((CURRENT_TIMESTAMP AT TIME ZONE br.timezone)::date,'YYYY-MM-DD') AS today
+    FROM jsonb_to_recordset(${JSON.stringify(branches)}::jsonb) AS br(id uuid, timezone text)`)];
+}

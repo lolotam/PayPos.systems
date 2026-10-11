@@ -34,6 +34,9 @@ export function branchScheduleStatement(
   query: ScheduleListQuery,
 ) {
   return sql`WITH rows AS (SELECT e.id, jsonb_build_object('employee_id',e.id,'name_en',e.name_en,'name_ar',e.name_ar,
+    'default_shifts',COALESCE((SELECT jsonb_agg(jsonb_build_object('day',d.day,'start',left(d.start::text,5),
+      'end',left(d."end"::text,5),'break_start',left(d.break_start::text,5),'break_end',left(d.break_end::text,5)) ORDER BY d.day)
+      FROM employee_default_shifts d WHERE d.company_id=e.company_id AND d.employee_id=e.id AND d.branch_id=${branchId}),'[]'::jsonb),
     'schedule',(SELECT ${scheduleProjection} FROM staff_schedules s
       WHERE s.company_id=e.company_id AND s.business_id=${businessId} AND s.branch_id=${branchId} AND s.employee_id=e.id AND s.week_start=${query.week_start})) AS row
     FROM employees e WHERE e.company_id=${companyId} AND e.business_id=${businessId} AND e.deleted_at IS NULL

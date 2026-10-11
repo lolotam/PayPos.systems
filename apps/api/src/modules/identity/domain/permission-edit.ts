@@ -9,6 +9,7 @@ export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
   'manage:schedule-settings:business',
   'request:attendance-change:branch',
   'decide:attendance-change:company',
+  'manage:employee-hours:business',
 ];
 
 /** صلاحيات طلبات تعديل الحضور: المالك وحده يمنحها أو يمنعها أو يسحبها (ACR-Q1، ACR-Q4)، لأن سحبها يغيّر مين يقدر يطلب أو يوافق. */

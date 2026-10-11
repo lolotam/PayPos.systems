@@ -869,6 +869,27 @@
       "when": 1791655677038,
       "tag": "0125_2026-10-10_manual-attendance-session-validate",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1791655678038,
+      "tag": "0126_2026-10-11_employee-default-shifts",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1791655679038,
+      "tag": "0127_2026-10-11_employee-default-shifts-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1791655680038,
+      "tag": "0128_2026-10-11_employee-hours-permission",
+      "breakpoints": true
     }
   ]
 }
