@@ -2724,6 +2724,53 @@
                             "format": "uuid",
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                           },
+                          "employee": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "name_ar": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "name_en": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name_ar",
+                              "name_en"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "holder": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "name_ar": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "name_en": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name_ar",
+                              "name_en"
+                            ],
+                            "additionalProperties": false
+                          },
                           "branch_id": {
                             "type": "string",
                             "format": "uuid",
@@ -2756,6 +2803,8 @@
                           "id",
                           "employee_id",
                           "holder_employee_id",
+                          "employee",
+                          "holder",
                           "branch_id",
                           "step",
                           "reason",
@@ -11739,6 +11788,53 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
+          "employee": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "name_en": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name_ar",
+              "name_en"
+            ],
+            "additionalProperties": false
+          },
+          "holder": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "name_en": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name_ar",
+              "name_en"
+            ],
+            "additionalProperties": false
+          },
           "branch_id": {
             "type": "string",
             "format": "uuid",
@@ -11771,6 +11867,8 @@
           "id",
           "employee_id",
           "holder_employee_id",
+          "employee",
+          "holder",
           "branch_id",
           "step",
           "reason",

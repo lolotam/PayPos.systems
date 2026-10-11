@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { attendanceBoard as contract } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 import { attendanceBoard, attendanceBoardStatement } from '../queries/attendance-board.query.ts';
@@ -103,7 +103,27 @@ it('in_now includes every non-voided OPEN session regardless of working date', a
 it('overnight sessions belong to their clock-in working date and future dates return empty lists', async () => {
   expect((await board('2026-10-04')).sessions.some((row) => row.id === overnight)).toBe(true);
   expect((await board('2026-10-05')).sessions).toEqual([]);
-  expect(await board('2026-10-06')).toMatchObject({ in_now: [], sessions: [] });
+  expect(await board('2026-10-06')).toMatchObject({ date: '2026-10-06', in_now: [], sessions: [] });
+});
+it.each([
+  [undefined, '2026-10-05'],
+  ['2026-10-04', '2026-10-04'],
+  ['2026-10-05', '2026-10-05'],
+  ['2026-10-06', '2026-10-06'],
+])('executes exactly one board statement for requested date %s', async (requestedDate, date) => {
+  await f.db.withTenant(f.company, async (tx) => {
+    const execute = vi.spyOn(tx, 'execute');
+    try {
+      const result = await attendanceBoard(tx, f.scope, f.boardClock.now(), requestedDate);
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(result.date).toBe(date);
+      expect(result.generated_at).toBe(f.boardClock.now().toISOString());
+      if (date === '2026-10-06') expect(result).toMatchObject({ in_now: [], sessions: [] });
+      else expect(result.in_now).toHaveLength(1);
+    } finally {
+      execute.mockRestore();
+    }
+  });
 });
 it('the same SQL cannot read another company or branch sessions', async () => {
   const rows = await f.db.withTenant(f.otherCompany, (tx) =>
@@ -126,15 +146,15 @@ it('returns manual provenance using pospay_app without any auth user-name grant'
     expect(JSON.stringify(result)).not.toContain('_by_name');
   });
 });
-it('EXPLAIN ANALYZE uses existing session, correction and exception indexes', async () => {
+it('EXPLAIN ANALYZE uses session/correction indexes and scans exceptions by the primary-key company prefix', async () => {
   await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     const plan = await tx.execute(
-      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceBoardStatement(f.scope, '2026-10-04')}`,
+      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceBoardStatement(f.scope, f.boardClock.now(), '2026-10-04')}`,
     );
     const text = JSON.stringify(plan);
     expect(text).toMatch(/attendance_sessions_(board|employee_date)_idx/);
     expect(text).toContain('attendance_corrections_session_idx');
-    expect(text).toMatch(/attendance_exceptions_(session_idx|company_id_id_pk)/);
+    expect(text).toContain('attendance_exceptions_company_id_id_pk');
   });
 });
