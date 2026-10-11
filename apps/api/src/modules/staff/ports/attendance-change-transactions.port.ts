@@ -29,6 +29,17 @@ export interface AttendanceChangeScope extends AttendanceChangeKindScope {
   employeeUserId: string | null;
   before: AttendanceChangeRequest | null;
   /**
+   * يحفظ صف الطلب PENDING وتدقيق التقديم دون حدث، حتى يجد أثر النوع في خطوة المالك الواحدة الطلب الذي يشير إليه.
+   *
+   * @param plan خطة المالك المعتمدة؛ تُحفظ نسختها المعلقة
+   * @param values حقائق الجلسة المثبتة من الفحص
+   * @returns نسخة الطلب المعلقة المحفوظة لتمريرها للنوع
+   */
+  hold(
+    plan: AttendanceChangePlan,
+    values: AttendanceChangeKindValues,
+  ): Promise<AttendanceChangePlan>;
+  /**
    * يحفظ الخطة والجلسة والتدقيق والأحداث معاً ويرجع عقد الرد.
    *
    * @param plan انتقال دورة الطلب
@@ -48,6 +59,7 @@ export interface AttendanceChangeTransactions {
    * @param input مغلف الطلب
    * @param kind مخطط النوع المتاح
    * @param clock الساعة المحقونة
+   * @param requestId معرّف الطلب المخصص من IdGenerator قبل المعاملة
    * @param work العمل داخل المعاملة
    */
   file(
@@ -55,6 +67,7 @@ export interface AttendanceChangeTransactions {
     input: AttendanceChangeKindInput,
     kind: AttendanceChangeKind,
     clock: AttendanceChangeClock,
+    requestId: string,
     work: (scope: AttendanceChangeScope) => Promise<AttendanceChangeRequest>,
   ): Promise<AttendanceChangeRequest>;
   /**

@@ -46,7 +46,7 @@ export function attendanceChangeProviders(
       inject: [ATTENDANCE_CHANGE_KINDS],
       useFactory: (kinds: AttendanceChangeKinds) => {
         const tx = transactions(kinds);
-        return tx === null ? null : new RequestAttendanceChangeUseCase(tx, systemClock, kinds);
+        return tx === null ? null : new RequestAttendanceChangeUseCase(tx, systemClock, kinds, ids);
       },
     },
     {

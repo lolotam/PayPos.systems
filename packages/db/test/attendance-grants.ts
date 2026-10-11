@@ -30,6 +30,19 @@ export const ATTENDANCE_TABLE_GRANTS = [
   'attendance_break_not_returned_notices:INSERT',
 ].sort();
 
+// جداول الحضور المستأجرة؛ فحوص FORCE RLS ومنع dispatcher/auth المشتركة تغطيها كلها.
+export const ATTENDANCE_TENANT_TABLES = [
+  'attendance_states',
+  'attendance_not_clocked_in_notices',
+  'attendance_break_not_returned_notices',
+  'attendance_sessions',
+  'attendance_exceptions',
+  'attendance_clock_challenges',
+  'attendance_corrections',
+  'attendance_change_requests',
+  'attendance_device_signals',
+  'attendance_device_refusals',
+];
 export const ATTENDANCE_CHANGE_COLUMN_GRANTS = [
   'status',
   'decided_by',

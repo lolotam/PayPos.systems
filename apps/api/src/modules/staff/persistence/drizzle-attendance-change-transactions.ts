@@ -26,10 +26,10 @@ import {
   attendanceChangeAuthorityLock,
 } from './attendance-change-context.adapter.ts';
 import { changeEmployee, lockChangeState, readChangeRequest } from './attendance-change-records.ts';
-import { saveAttendanceChange } from './attendance-change-writes.ts';
+import { holdAttendanceChange, saveAttendanceChange } from './attendance-change-writes.ts';
 
 type Action = 'file' | 'cancel' | 'decide';
-type Filing = { input: AttendanceChangeKindInput; kind: AttendanceChangeKind };
+type Filing = { input: AttendanceChangeKindInput; kind: AttendanceChangeKind; requestId: string };
 type Work = (scope: AttendanceChangeScope) => Promise<AttendanceChangeRequest>;
 
 function assertAuthority(
@@ -105,6 +105,7 @@ async function load(
   );
   assertAuthority(action, actor, access, before);
   return {
+    requestId: filing ? filing.requestId : (before as AttendanceChangeRequest).id,
     target,
     before,
     request: before,
@@ -139,7 +140,8 @@ export function createAttendanceChangeTransactions(
     filing?: Filing,
   ) => changeOnce(database, ids, kinds, actor, action, clock, work, filing);
   return {
-    file: (actor, input, kind, clock, work) => run(actor, 'file', clock, work, { input, kind }),
+    file: (actor, input, kind, clock, requestId, work) =>
+      run(actor, 'file', clock, work, { input, kind, requestId }),
     cancel: (actor, clock, work) => run(actor, 'cancel', clock, work),
     decide: (actor, clock, work) => run(actor, 'decide', clock, work),
   };
@@ -158,11 +160,8 @@ async function changeOnce(
     return await database.withTenant(
       actor.companyId,
       async (tx) => {
-        const requestId = actor.requestId ?? ids.newId();
-        const context = {
-          ...(await load(tx, { ...actor, requestId }, action, clock, kinds, filing)),
-          requestId,
-        };
+        const requestId = filing?.requestId ?? actor.requestId ?? ids.newId();
+        const context = await load(tx, { ...actor, requestId }, action, clock, kinds, filing);
         const result = await runIdempotent(
           tx,
           {
@@ -187,6 +186,7 @@ async function changeOnce(
               ...actor,
               ...context,
               transaction: tx,
+              hold: (plan, values) => holdAttendanceChange(tx, ids, actor, context, plan, values),
               save: (plan, values) => saveAttendanceChange(tx, ids, actor, context, plan, values),
             }),
           }),

@@ -38,14 +38,49 @@ export async function saveAttendanceChange(
   plan: AttendanceChangePlan,
   values: AttendanceChangeKindValues,
 ): Promise<AttendanceChangeRequest> {
-  values = {
+  values = targetValues(context, values);
+  const id = context.before?.id ?? context.requestId;
+  if (context.before) await update(tx, actor, context.before, plan, values);
+  else if (plan.status === 'PENDING') await insert(tx, actor, id, context, plan, values);
+  else throw new Error('ATTENDANCE_CHANGE_NOT_HELD');
+  const row = record(actor, context, id, plan, values);
+  if (!context.before) await audit(tx, ids, id, 'requested', null, plan);
+  if (plan.status !== 'PENDING')
+    await audit(tx, ids, id, plan.status.toLowerCase(), context.before, plan);
+  if (plan.status !== 'CANCELLED') await events(tx, ids, actor, context, row);
+  return row;
+}
+// خطوة المالك الواحدة تحفظ الطلب PENDING قبل أثر النوع، حتى يشير الأثر لصف موجود ويبقى السجل نفس شكل الطلب العادي.
+export async function holdAttendanceChange(
+  tx: Tx,
+  ids: IdGenerator,
+  actor: AttendanceChangeActor,
+  context: SaveContext,
+  plan: AttendanceChangePlan,
+  values: AttendanceChangeKindValues,
+): Promise<AttendanceChangePlan> {
+  if (context.before) throw new Error('ATTENDANCE_CHANGE_ALREADY_HELD');
+  const pending = pendingSnapshot(plan);
+  values = targetValues(context, values);
+  await insert(tx, actor, context.requestId, context, pending, values);
+  await audit(tx, ids, context.requestId, 'requested', null, pending);
+  context.before = record(actor, context, context.requestId, pending, values);
+  return pending;
+}
+function targetValues(context: SaveContext, values: AttendanceChangeKindValues) {
+  return {
     ...values,
     session_id: values.session_id ?? context.before?.session_id ?? context.input.session_id ?? null,
   };
-  const id = context.requestId;
-  if (context.before) await update(tx, actor, context.before, plan, values);
-  else await insert(tx, actor, id, context, plan, values);
-  const row: AttendanceChangeRequest = {
+}
+function record(
+  actor: AttendanceChangeActor,
+  context: SaveContext,
+  id: string,
+  plan: AttendanceChangePlan,
+  values: AttendanceChangeKindValues,
+): AttendanceChangeRequest {
+  return {
     ...plan,
     session_id: values.session_id,
     session_revision: context.before ? context.before.session_revision : values.session_revision,
@@ -62,12 +97,6 @@ export async function saveAttendanceChange(
     can_decide: context.owner && plan.status === 'PENDING',
     can_cancel: plan.status === 'PENDING' && plan.requested_by === actor.userId,
   };
-  const filed = context.before ? null : pendingSnapshot(plan);
-  if (filed) await audit(tx, ids, id, 'requested', null, filed);
-  if (plan.status !== 'PENDING')
-    await audit(tx, ids, id, plan.status.toLowerCase(), context.before ?? filed, plan);
-  if (plan.status !== 'CANCELLED') await events(tx, ids, actor, context, row);
-  return row;
 }
 async function insert(
   tx: Tx,
@@ -96,7 +125,6 @@ async function update(
     WHERE company_id=${actor.companyId} AND id=${before.id} AND revision=${before.revision} AND status='PENDING' RETURNING id`);
   if (rows.length !== 1) throw new AttendanceChangeError('ATTENDANCE_CHANGE_REVISION_CONFLICT');
 }
-// خطوة المالك الواحدة تُسجَّل كطلب PENDING ثم انتقال APPROVED، حتى يبقى السجل نفس شكل الطلب العادي.
 function pendingSnapshot(p: AttendanceChangePlan): AttendanceChangePlan {
   if (p.status === 'PENDING') return p;
   return {
