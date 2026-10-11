@@ -10,6 +10,7 @@ beforeAll(async () => { f = await monthlyReportFixture(); });
 afterAll(async () => { await f?.db.close(); await f?.h.close(); });
 beforeEach(async () => {
   await f.h.owner`DELETE FROM attendance_sessions WHERE company_id=${f.company}`;
+  await f.h.owner`UPDATE branches SET timezone=NULL WHERE company_id=${f.company} AND id=${f.secondBranch}`;
   await f.h.owner`UPDATE employees SET hire_date='2026-01-01',contract_end=NULL,deleted_at='2026-11-05T10:00:00Z'
     WHERE company_id=${f.company} AND id=${f.employee.id}`;
 });
@@ -30,6 +31,29 @@ it.each([false,true])('November 5 deletion preserves October contracts and diffe
     contracted_minutes:16080,difference_minutes:workedMinutes-16080}]);
 });
 
+it.each([false,true])('October 1 01:00 Kuwait deletion keeps October contracts (all branches: %s)', async (all) => {
+  await f.h.owner`UPDATE employees SET deleted_at='2026-09-30T22:00:00Z'
+    WHERE company_id=${f.company} AND id=${f.employee.id}`;
+  const contracted = all ? 16080 : 13680;
+  expect(await report(all ? 'all' : f.branch)).toMatchObject([{employee_id:f.employee.id,
+    worked_minutes:0,contracted_minutes:contracted,difference_minutes:-contracted}]);
+});
+
+it.each([false,true])('September 30 23:00 Kuwait deletion without October sessions is absent (all branches: %s)', async (all) => {
+  await f.h.owner`UPDATE employees SET deleted_at='2026-09-30T20:00:00Z'
+    WHERE company_id=${f.company} AND id=${f.employee.id}`;
+  expect(await report(all ? 'all' : f.branch)).toEqual([]);
+});
+
+it('all branches applies the deletion cutoff separately in each effective timezone', async () => {
+  await f.h.owner`UPDATE branches SET timezone='UTC' WHERE company_id=${f.company} AND id=${f.secondBranch}`;
+  await f.h.owner`UPDATE employees SET deleted_at='2026-09-30T22:00:00Z'
+    WHERE company_id=${f.company} AND id=${f.employee.id}`;
+  expect(await report(f.secondBranch)).toEqual([]);
+  expect(await report('all')).toMatchObject([{employee_id:f.employee.id,
+    contracted_minutes:13680,difference_minutes:-13680}]);
+});
+
 it('September 20 deletion excludes the employee from October when there are no sessions', async () => {
   await f.h.owner`UPDATE employees SET deleted_at='2026-09-20T10:00:00Z'
     WHERE company_id=${f.company} AND id=${f.employee.id}`;
@@ -46,8 +70,12 @@ it('historical contracts still respect hire date, contract end and exclusive bra
   expect(await report('all')).toMatchObject([{contracted_minutes:2880,difference_minutes:-2880}]);
 });
 
-it('EXPLAIN ANALYZE keeps employee, default-shift and branch-link tenant indexes for later-deleted employees', async () => {
-  const scope = {businessId:f.business,branches:[{id:f.branch,timezone:'Asia/Kuwait'}]};
+it.each([false,true])('EXPLAIN ANALYZE keeps tenant indexes at the local deletion boundary (all branches: %s)', async (all) => {
+  await f.h.owner`UPDATE employees SET deleted_at='2026-09-30T22:00:00Z'
+    WHERE company_id=${f.company} AND id=${f.employee.id}`;
+  const branches = [{id:f.branch,timezone:'Asia/Kuwait'}];
+  if (all) branches.push({id:f.secondBranch,timezone:'UTC'});
+  const scope = {businessId:f.business,branches};
   const plans = await f.db.withTenant(f.company,async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON)

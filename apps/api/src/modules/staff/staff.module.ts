@@ -124,6 +124,7 @@ export const staffControllers = [
   EmployeeImportController,
   AttendanceExceptionsReadController,
   AttendanceCorrectionHistoryController,
+  AttendanceEmployeesController,
 ];
 
 function attendanceCorrectionProviders(
@@ -282,3 +283,4 @@ function employeeImportProviders(
     },
   ];
 }
+import { AttendanceEmployeesController } from './http/attendance-employees.controller.ts';
