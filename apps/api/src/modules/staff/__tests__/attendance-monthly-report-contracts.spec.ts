@@ -17,7 +17,7 @@ it('set-based result shape equals the existing 16d inputs for both branches, inc
       WHERE company_id=${f.company} AND id=${f.employee.id}`;
     if (boundary === 'ended link') await f.h.owner`UPDATE employee_branches SET "to"='2026-10-10'
       WHERE company_id=${f.company} AND employee_id=${f.employee.id} AND branch_id=${f.branch}`;
-    if (boundary === 'deleted employee') await f.h.owner`UPDATE employees SET deleted_at=now()
+    if (boundary === 'deleted employee') await f.h.owner`UPDATE employees SET deleted_at='2026-09-20T10:00:00Z'
       WHERE company_id=${f.company} AND id=${f.employee.id}`;
     await f.db.withTenant(f.company,async (tx) => {
       const actual = await tx.execute(statement());

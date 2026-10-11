@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 
 // تقرير كل الفروع يحتاج إسقاط 16d مرة واحدة؛ الربط والتجميع لا يحسبان ساعات العمل أو الإجازة.
+// حذف الموظفة لاحقاً لا يمحو تعاقد الشهر السابق؛ نستبعد فقط الحذف السابق لبداية الشهر.
 export function attendanceReportContractsStatement(companyId: string, businessId: string, branchIds: SQL, from: string, to: string) {
   return sql`WITH defaults AS MATERIALIZED (SELECT d.employee_id,d.branch_id,
     jsonb_agg(jsonb_build_object('day',d.day,'start',left(d.start::text,5),
@@ -12,7 +13,8 @@ export function attendanceReportContractsStatement(companyId: string, businessId
       jsonb_agg(jsonb_build_object('from',to_char(eb."from",'YYYY-MM-DD'),
         'to',to_char(eb."to",'YYYY-MM-DD')) ORDER BY eb."from") AS links
       FROM employees e JOIN employee_branches eb ON eb.company_id=e.company_id AND eb.employee_id=e.id
-      WHERE e.company_id=${companyId} AND e.business_id=${businessId} AND e.deleted_at IS NULL
+      WHERE e.company_id=${companyId} AND e.business_id=${businessId}
+        AND (e.deleted_at IS NULL OR e.deleted_at>=(${from}::date::timestamp AT TIME ZONE 'UTC'))
         AND e.hire_date<=${to}::date AND (e.contract_end IS NULL OR e.contract_end>=${from}::date)
         AND eb.branch_id=ANY(${branchIds}) AND eb."from"<=${to}::date AND (eb."to" IS NULL OR eb."to">${from}::date)
       GROUP BY e.id,e.hire_date,e.contract_end,eb.branch_id
