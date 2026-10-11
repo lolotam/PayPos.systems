@@ -23,7 +23,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
 });
-function setup() {
+function setup(allowAllBranches = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onBranch = vi.fn();
   const view = render(
@@ -31,6 +31,7 @@ function setup() {
       <AttendanceReportPage
         scope={reportScope}
         branches={boardBranches}
+        allowAllBranches={allowAllBranches}
         timezone="Asia/Kuwait"
         onBranch={onBranch}
       />
@@ -45,6 +46,41 @@ function setup() {
     },
   };
 }
+it.each([true, false])(
+  'limits branch options to the workspace scope (all: %s)',
+  async (allowAllBranches) => {
+    state.locale = 'ar';
+    const view = setup(allowAllBranches);
+    await screen.findByRole('table');
+    const picker = screen.getByLabelText(t('ar', 'attendanceReport.branch'));
+    expect(
+      within(picker).queryByRole('option', { name: t('ar', 'attendanceReport.allBranches') }) !==
+        null,
+    ).toBe(allowAllBranches);
+    expect(
+      within(picker)
+        .getAllByRole('option')
+        .map((option) => (option as HTMLOptionElement).value),
+    ).toEqual(
+      allowAllBranches
+        ? ['all', ...boardBranches.map((branch) => branch.id)]
+        : boardBranches.map((branch) => branch.id),
+    );
+    view.close();
+  },
+);
+it('renders the existing not-found message when the server refuses all branches', async () => {
+  const view = setup();
+  await screen.findByRole('table');
+  api.GET.mockResolvedValue({ error: { code: 'NOT_FOUND' }, response: { status: 404 } });
+  fireEvent.change(screen.getByLabelText(t('en', 'attendanceReport.branch')), {
+    target: { value: 'all' },
+  });
+  await screen.findByText(t('en', 'attendanceReport.notFound'));
+  expect(api.GET.mock.calls.at(-1)?.[0]).toBe('/v1/businesses/{businessId}/attendance-report');
+  expect(screen.queryByRole('table')).toBeNull();
+  view.close();
+});
 it.each(['ar', 'en'] as const)(
   'renders monthly totals, leave, signed hours and warning styling in %s',
   async (locale) => {

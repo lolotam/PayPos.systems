@@ -6,12 +6,14 @@ import { useLocale } from '@/shared/locale/locale-context';
 
 export function AttendanceReportFilters({
   branches,
+  allowAllBranches,
   branchId,
   month,
   onBranch,
   onMonth,
 }: {
   branches: WorkspaceBranch[];
+  allowAllBranches: boolean;
   branchId: string;
   month: string;
   onBranch: (branchId: string) => void;
@@ -39,7 +41,9 @@ export function AttendanceReportFilters({
           value={branchId}
           onChange={(event) => onBranch(event.target.value)}
         >
-          <option value="all">{t(locale, 'attendanceReport.allBranches')}</option>
+          {allowAllBranches ? (
+            <option value="all">{t(locale, 'attendanceReport.allBranches')}</option>
+          ) : null}
           {branches.map((branch) => (
             <option key={branch.id} value={branch.id}>
               {locale === 'ar' ? (branch.name_ar ?? branch.name_en) : branch.name_en}

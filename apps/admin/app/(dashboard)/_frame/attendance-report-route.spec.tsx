@@ -50,6 +50,7 @@ it('uses the selected branch and scoped identity without a permission calculatio
   expect(state.props.mock.calls.at(-1)?.[0]).toMatchObject({
     scope: { companyId: boardId, businessId: boardId, branchId: boardId, userId: 'user' },
     branches: boardBranches,
+    allowAllBranches: false,
     timezone: 'Asia/Kuwait',
   });
   fireEvent.click(screen.getByRole('button', { name: 'branch' }));
@@ -59,6 +60,18 @@ it('uses the selected branch and scoped identity without a permission calculatio
     branchId: otherBoardId,
   });
 });
+it.each(['COMPANY', 'BUSINESS', 'BRANCH'] as const)(
+  'offers all branches only for a membership covering the business: %s',
+  (scope) => {
+    if (state.workspace?.status !== 'ready') throw new Error('Missing fixture');
+    state.workspace = {
+      ...state.workspace,
+      company: { ...state.workspace.company, scope },
+    };
+    render(<AttendanceReportRoute />);
+    expect(state.props.mock.calls.at(-1)?.[0].allowAllBranches).toBe(scope !== 'BRANCH');
+  },
+);
 it('uses the first business branch when no branch is selected', () => {
   if (state.workspace?.status !== 'ready') throw new Error('Missing fixture');
   state.workspace = { ...state.workspace, branch: undefined };

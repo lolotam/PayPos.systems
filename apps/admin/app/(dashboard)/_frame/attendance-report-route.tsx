@@ -25,6 +25,9 @@ export function AttendanceReportRoute() {
       key={`${scope.companyId}:${scope.businessId}:${userId}`}
       scope={scope}
       branches={workspace.business.branches}
+      allowAllBranches={
+        workspace.company.scope === 'COMPANY' || workspace.company.scope === 'BUSINESS'
+      }
       timezone={branch.effective_timezone}
       onBranch={(branchId) =>
         workspace.choose({

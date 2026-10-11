@@ -13,24 +13,27 @@ import { AttendanceReportTable } from '../ui/attendance-report-table';
 export function AttendanceReportPage({
   scope,
   branches,
+  allowAllBranches,
   timezone,
   onBranch,
 }: {
   scope: AttendanceReportScope;
   branches: WorkspaceBranch[];
+  allowAllBranches: boolean;
   timezone: string;
   onBranch: (branchId: string) => void;
 }) {
   const locale = useLocale();
   const [month, setMonth] = useState(() => localDate(new Date(), timezone).slice(0, 7));
   const [all, setAll] = useState(false);
-  const selected = { ...scope, branchId: all ? 'all' : scope.branchId };
+  const selected = { ...scope, branchId: all && allowAllBranches ? 'all' : scope.branchId };
   const report = useAttendanceReport(selected, month);
   return (
     <section className="flex min-w-0 flex-col gap-6 text-start">
       <PageHeader title={t(locale, 'attendanceReport.title')} />
       <AttendanceReportFilters
         branches={branches}
+        allowAllBranches={allowAllBranches}
         branchId={selected.branchId}
         month={month}
         onMonth={setMonth}
