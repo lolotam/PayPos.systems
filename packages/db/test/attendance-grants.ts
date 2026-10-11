@@ -55,6 +55,19 @@ export const ATTENDANCE_CHANGE_COLUMN_GRANTS = [
 ].map((column) => `attendance_change_requests.${column}:pospay_app:UPDATE`);
 
 export function testAttendanceDecisionPrivileges(database: () => Sql) {
+  it('attendance board migration grants exactly the five AB-Q2 global role defaults', async () => {
+    const rows = await database()`SELECT r.code FROM role_permissions rp JOIN roles r
+      ON r.id=rp.role_id AND r.owner_key=rp.role_owner_key
+      WHERE rp.permission_code='read:attendance:branch'
+        AND rp.role_owner_key='global' AND rp.company_id IS NULL ORDER BY r.code`;
+    expect(rows.map((row) => row['code'])).toEqual([
+      'accountant',
+      'branch_manager',
+      'business_manager',
+      'general_manager',
+      'owner',
+    ]);
+  });
   it('attendance decision migration grants only the global owner default', async () => {
     const owner = database();
     const rows = await owner`SELECT r.code FROM role_permissions rp JOIN roles r

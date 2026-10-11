@@ -44,6 +44,7 @@ const deviceForbidden = [
   'manage:discounts:company',
   'manage:discount-limits:business',
   'resolve:attendance:branch',
+  'read:attendance:branch',
   'correct:attendance:branch',
   'request:attendance-change:branch',
   'decide:attendance-change:company',

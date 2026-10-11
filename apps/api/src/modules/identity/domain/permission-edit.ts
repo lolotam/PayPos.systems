@@ -3,6 +3,7 @@ import { personalAllowFailure } from './permission-eligibility.ts';
 
 /** قرارات المالك تحصر منح هذه الصلاحيات فيه؛ القائمة الصافية تمنع اعتماد الدومين على قاعدة البيانات. */
 export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
+  'read:attendance:branch',
   'read:files:business',
   'manage:files:business',
   'manage:document-types:company',

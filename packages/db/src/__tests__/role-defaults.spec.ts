@@ -28,6 +28,7 @@ const expectations: Record<string, readonly string[]> = {
     'manage:services:business',
     'clock:attendance:branch',
     'resolve:attendance:branch',
+    'read:attendance:branch',
     'correct:attendance:branch',
     'request:attendance-change:branch',
     'read:schedules:branch',
@@ -53,6 +54,7 @@ const expectations: Record<string, readonly string[]> = {
     'manage:services:business',
     'clock:attendance:branch',
     'resolve:attendance:branch',
+    'read:attendance:branch',
     'correct:attendance:branch',
     'request:attendance-change:branch',
     'read:schedules:branch',
@@ -60,7 +62,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:schedules:business',
     'manage:schedules:business',
   ],
-  accountant: ['read:businesses:company', 'read:branches:branch'],
+  accountant: ['read:businesses:company', 'read:branches:branch', 'read:attendance:branch'],
   branch_manager: [
     'read:passkeys:branch',
     'unbind:passkeys:branch',
@@ -69,6 +71,7 @@ const expectations: Record<string, readonly string[]> = {
     'manage:devices:branch',
     'clock:attendance:branch',
     'resolve:attendance:branch',
+    'read:attendance:branch',
     'correct:attendance:branch',
     'request:attendance-change:branch',
     'read:schedules:branch',
@@ -131,4 +134,9 @@ it.each(SYSTEM_ROLES)(
 );
 it('DH-Q5 employee hours default to owner only', () => {
   expect(ROLE_DEFAULTS['manage:employee-hours:business']).toEqual(['owner']);
+});
+it.each(SYSTEM_ROLES)('AB-Q2 attendance read eligibility for $code excludes devices', (role) => {
+  expect(systemRolePolicy(role.id, 'global')?.permissions.includes('read:attendance:branch')).toBe(
+    role.code !== 'device',
+  );
 });

@@ -890,6 +890,13 @@
       "when": 1791655680038,
       "tag": "0128_2026-10-11_employee-hours-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1791655681038,
+      "tag": "0129_2026-10-11_read-attendance-board",
+      "breakpoints": true
     }
   ]
 }

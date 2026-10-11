@@ -52,7 +52,7 @@ start, against the rules below.
 | AB-Q9b | Overnight sessions belong to the clock-in working date. |
 | AB-Q9c | Lateness in the report: count of late sessions and total late minutes, including return-from-break lateness (16b-2). |
 | AB-Q9d | Hours shown as h:mm; the CSV also has decimal hours (2 decimals). |
-| AB-Q9e | CSV in Arabic (UTF-8 with BOM so Excel opens it), employee name only — never phone, salary or IBAN. The employee record has no employee number today; one is added only by its own row if the owner asks (asked 2026-10-11). |
+| AB-Q9e | CSV in Arabic (UTF-8 with BOM so Excel opens it), employee name only — never phone, salary or IBAN. The employee record has no employee number today; none is added now (AB-Q10, Waleed 2026-10-11: the name is enough). |
 | AB-Q9f | Every CSV download writes one audit entry: who, when, branch (or all), month. |
 | AB-Q9g | An OPEN session is not in the monthly report until it is closed; the board shows it as "still in" from its clock-in. |
 
@@ -65,7 +65,7 @@ branch time zone) and sees who is in, the day's sessions, and recent refused clo
 
 ### 4.2 Endpoints (under `/v1`, guarded `@Require('read:attendance:branch')`, branch scope checked server-side)
 
-1. `GET /v1/attendance/board?branch_id=&date=YYYY-MM-DD` → one object:
+1. `GET /v1/businesses/:businessId/branches/:branchId/attendance-board?date=YYYY-MM-DD` → one object:
    - `branch_id`, `date`, `timezone`, `generated_at`;
    - `in_now[]`: every OPEN, non-voided session at that branch (any working date), with employee id, name
      (ar/en), `clock_in`, `source`, `scheduled_end` (nullable);
@@ -73,10 +73,10 @@ branch time zone) and sees who is in, the day's sessions, and recent refused clo
      with: session id, employee id and name (ar/en), `clock_in`, `clock_out` (nullable), `status`
      (`OPEN|CLOSED|MISSED_OUT`), `source` (`QR|BARCODE|MANUAL`…as stored), `late_minutes`, `scheduled_start`,
      `scheduled_end`, `geo`/`out_geo`, `corrected` (boolean: at least one correction row), `revision`,
-     `open_exceptions[]` (kind + id; OPEN only), and for MANUAL sessions `manual: { requested_by_name,
-     approved_by_name }` taken from the approved change request (spec 044/045);
+     `open_exceptions[]` (kind + id; OPEN only), and for MANUAL sessions `manual: { change_request_id, requested_by,
+     approved_by }` (user ids, as the change-request list returns them; the 27c screen shows the names);
    - no hours figure on the board (hours are 27b).
-2. `GET /v1/attendance/board/refusals?branch_id=&cursor=&limit=` → the existing
+2. `GET /v1/businesses/:businessId/branches/:branchId/attendance-board/refusals?cursor=&limit=` → the existing
    `queries/attendance-device-refusals.query.ts` page (newest first, keyset cursor, no installation hash), now routed.
 
 Errors use the standard envelope. A branch outside the caller's scope → the same not-found answer used by other
@@ -105,7 +105,7 @@ branch-scoped staff reads (no existence leak). Staff feature disabled → `FEATU
 - Result-shape test + `EXPLAIN ANALYZE` assertion for each query (`CLAUDE.md` §9).
 - Integration: a manager scoped to branch A gets 404-equivalent for branch B; owner/general manager/accountant see
   any branch; a person with a personal DENY is refused; voided session and its OPEN exception absent; MANUAL session
-  shows requester and approver; overnight session listed on its clock-in date; OPEN session in `in_now` and in
+  carries requester and approver ids; overnight session listed on its clock-in date; OPEN session in `in_now` and in
   `sessions` of its working date; refusals route returns the 043 query page and never a hash.
 - Tenant isolation: another company's sessions never appear.
 
