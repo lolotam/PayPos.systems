@@ -2,11 +2,14 @@ import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
+const employee = z.strictObject({ id, name_ar: z.string().nullable(), name_en: z.string() });
 export const attendanceDeviceRefusal = z
   .strictObject({
     id,
     employee_id: id,
     holder_employee_id: id.nullable(),
+    employee,
+    holder: employee.nullable(),
     branch_id: id,
     step: z.enum(['CHALLENGE', 'CLOCK', 'ENROL']),
     reason: z.enum(['DEVICE_LOCKED', 'NOT_ENROLLED', 'DEVICE_TAKEN', 'OTHER_DEVICE']),

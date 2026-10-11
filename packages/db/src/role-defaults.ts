@@ -35,8 +35,9 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** صلاحيات الوثائق وإعداد الورديات وطلب تعديل الحضور وقراره متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
 export const OWNER_GRANTED_PERMISSIONS = [
+  'read:attendance:branch',
   'read:files:business',
   'manage:files:business',
   'manage:document-types:company',
@@ -118,6 +119,8 @@ export const ROLE_DEFAULTS = {
   // تصحيح PR 23 بطلب المراجع: كاشير الاستقبال يحتاج الدخول والحضور معاً؛ سلطة المدير وحدها لا تفتح جلسة الموظف.
   'login:staff:branch': ['staff', 'cashier'],
   'clock:attendance:branch': [...managers, 'branch_manager', 'shift_supervisor', 'cashier'],
+  // قرار AB-Q2: القراءة للمديرين والمحاسب ضمن نطاق العضوية، مع تفويض شخصي لباقي البشر.
+  'read:attendance:branch': [...managers, 'branch_manager', 'accountant'],
   // قرار المالك 2026-10-08 (RE-Q3): نفس حائزي decide:leave:branch، والجهاز ممنوع.
   'resolve:attendance:branch': [...managers, 'branch_manager'],
   // قرار المالك 2026-10-08 (CA-Q1): نفس الحائزين، صلاحية مستقلة، والجهاز ممنوع.
