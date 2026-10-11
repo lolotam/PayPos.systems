@@ -5,6 +5,7 @@ import type {
   AttendanceChangeKindScope,
 } from '../ports/attendance-change-kinds.port.ts';
 import {
+  asKindRefusal,
   assertNoPendingSessionChange,
   lockVoidSession,
   voidSessionRequest,
@@ -23,19 +24,22 @@ export function createVoidSessionKind(ids: IdGenerator): AttendanceChangeKind {
   return {
     code: 'VOID_SESSION',
     target: voidSessionTarget,
-    lock: async (scope) => {
-      await lockVoidSession(scope);
-    },
-    check: async (scope) => {
-      const session = await lockVoidSession(scope);
-      await assertNoPendingSessionChange(scope);
-      planAttendanceVoid(session, voidSessionRequest(scope), context(scope));
-      return voidSessionValues(session);
-    },
-    apply: async (scope) => {
-      const session = await lockVoidSession(scope);
-      const plan = planAttendanceVoid(session, voidSessionRequest(scope), context(scope));
-      return writeVoidSession(scope, ids, session, plan, 'voided');
-    },
+    lock: (scope) =>
+      asKindRefusal(async () => {
+        await lockVoidSession(scope);
+      }),
+    check: (scope) =>
+      asKindRefusal(async () => {
+        const session = await lockVoidSession(scope);
+        await assertNoPendingSessionChange(scope);
+        planAttendanceVoid(session, voidSessionRequest(scope), context(scope));
+        return voidSessionValues(session);
+      }),
+    apply: (scope) =>
+      asKindRefusal(async () => {
+        const session = await lockVoidSession(scope);
+        const plan = planAttendanceVoid(session, voidSessionRequest(scope), context(scope));
+        return writeVoidSession(scope, ids, session, plan, 'voided');
+      }),
   };
 }

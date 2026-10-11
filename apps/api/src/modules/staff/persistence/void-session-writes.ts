@@ -2,10 +2,11 @@ import { appendAuditLog, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { AttendanceChangeError } from '../domain/attendance-change-request.ts';
 import type { AttendanceVoidPlan, AttendanceVoidSession } from '../domain/attendance-void.ts';
-import type {
-  AttendanceChangeKind,
-  AttendanceChangeKindScope,
-  AttendanceChangeKindValues,
+import {
+  AttendanceChangeKindRefusal,
+  type AttendanceChangeKind,
+  type AttendanceChangeKindScope,
+  type AttendanceChangeKindValues,
 } from '../ports/attendance-change-kinds.port.ts';
 
 interface VoidSession extends AttendanceVoidSession {
@@ -15,6 +16,28 @@ interface VoidSession extends AttendanceVoidSession {
   timezone: string;
   voided_by: string | null;
   void_request_id: string | null;
+}
+
+const refusalStatus: Partial<Record<AttendanceChangeError['code'], 400 | 404 | 409 | 422>> = {
+  NOT_FOUND: 404,
+  VALIDATION_FAILED: 400,
+  ATTENDANCE_CHANGE_DUPLICATE_PENDING: 409,
+  ATTENDANCE_SESSION_OPEN: 409,
+  ATTENDANCE_SESSION_VOIDED: 409,
+  ATTENDANCE_SESSION_NOT_VOIDED: 409,
+  ATTENDANCE_SESSION_REVISION_CONFLICT: 409,
+  ATTENDANCE_RESTORE_OVERLAP: 422,
+};
+
+export async function asKindRefusal<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    const status = error instanceof AttendanceChangeError ? refusalStatus[error.code] : undefined;
+    if (status && error instanceof AttendanceChangeError)
+      throw new AttendanceChangeKindRefusal(error.code, status);
+    throw error;
+  }
 }
 
 export const voidSessionTarget: AttendanceChangeKind['target'] = async (scope) => {

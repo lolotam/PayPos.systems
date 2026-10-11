@@ -6,6 +6,7 @@ import type {
 } from '../ports/attendance-change-kinds.port.ts';
 import { correctionNeighbours } from './attendance-correction-records.ts';
 import {
+  asKindRefusal,
   assertNoPendingSessionChange,
   lockVoidSession,
   voidSessionRequest,
@@ -31,18 +32,21 @@ export function createRestoreSessionKind(ids: IdGenerator): AttendanceChangeKind
   return {
     code: 'RESTORE_SESSION',
     target: voidSessionTarget,
-    lock: async (scope) => {
-      await lockVoidSession(scope);
-    },
-    check: async (scope) => {
-      const session = await lockVoidSession(scope);
-      await assertNoPendingSessionChange(scope);
-      await restorePlan(scope, session);
-      return voidSessionValues(session);
-    },
-    apply: async (scope) => {
-      const session = await lockVoidSession(scope);
-      return writeVoidSession(scope, ids, session, await restorePlan(scope, session), 'restored');
-    },
+    lock: (scope) =>
+      asKindRefusal(async () => {
+        await lockVoidSession(scope);
+      }),
+    check: (scope) =>
+      asKindRefusal(async () => {
+        const session = await lockVoidSession(scope);
+        await assertNoPendingSessionChange(scope);
+        await restorePlan(scope, session);
+        return voidSessionValues(session);
+      }),
+    apply: (scope) =>
+      asKindRefusal(async () => {
+        const session = await lockVoidSession(scope);
+        return writeVoidSession(scope, ids, session, await restorePlan(scope, session), 'restored');
+      }),
   };
 }

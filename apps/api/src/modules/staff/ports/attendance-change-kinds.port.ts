@@ -97,7 +97,7 @@ export interface AttendanceChangeKind {
    */
   check(scope: AttendanceChangeKindScope): Promise<AttendanceChangeKindValues>;
   /**
-   * يطبق الأثر داخل المعاملة الحالية ويعيد معرّف الجلسة الناتجة، أو null للاحتفاظ بهدف الطلب.
+   * يطبق الأثر داخل المعاملة الحالية ويعيد قيم الجلسة الناتجة؛ session_id بقيمة null يحتفظ بهدف الطلب.
    *
    * @param scope الحقائق والمعاملة المشتركة
    * @param values نتيجة فحص النوع
