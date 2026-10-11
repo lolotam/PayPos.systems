@@ -6,11 +6,13 @@ import { attendanceReportError } from '../model/attendance-report-display';
 
 export function AttendanceReportFeedback({
   error,
+  hasData,
   loading,
   fetching,
   onRetry,
 }: {
   error: unknown;
+  hasData: boolean;
   loading: boolean;
   fetching: boolean;
   onRetry: () => void;
@@ -20,7 +22,11 @@ export function AttendanceReportFeedback({
   if (!error) return null;
   return (
     <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-      <p>{attendanceReportError(error, locale)}</p>
+      <p>
+        {hasData
+          ? t(locale, 'attendanceReport.refreshError')
+          : attendanceReportError(error, locale)}
+      </p>
       <Button variant="outline" onClick={onRetry} disabled={fetching}>
         {t(locale, 'attendanceReport.retry')}
       </Button>

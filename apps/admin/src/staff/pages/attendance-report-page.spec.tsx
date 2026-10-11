@@ -1,5 +1,5 @@
 import { localDate, t } from '@pospay/i18n';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { boardBranches, otherBoardId } from '../api/attendance-board.fixture';
@@ -22,15 +22,17 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
+  focusManager.setFocused(undefined);
 });
-function setup(allowAllBranches = true) {
+function setup(allowAllBranches = true, branches = boardBranches) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onBranch = vi.fn();
   const view = render(
     <QueryClientProvider client={client}>
       <AttendanceReportPage
         scope={reportScope}
-        branches={boardBranches}
+        branches={branches}
         allowAllBranches={allowAllBranches}
         timezone="Asia/Kuwait"
         onBranch={onBranch}
@@ -46,6 +48,36 @@ function setup(allowAllBranches = true) {
     },
   };
 }
+it('defaults to October at 2026-09-30T22:00Z in Kuwait', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-30T22:00:00Z'));
+  const view = setup();
+  await screen.findByRole('table');
+  expect((screen.getByLabelText(t('en', 'attendanceReport.month')) as HTMLInputElement).value).toBe(
+    '2026-10',
+  );
+  expect(api.GET.mock.calls[0]?.[1].params.query.month).toBe('2026-10');
+  view.close();
+});
+it('keeps monthly totals and shows a refresh notice when a focus refetch fails', async () => {
+  const view = setup();
+  await screen.findByRole('table');
+  focusManager.setFocused(false);
+  api.GET.mockRejectedValue(new Error('Synthetic outage'));
+  act(() => focusManager.setFocused(true));
+  await screen.findByText(t('en', 'attendanceReport.refreshError'));
+  expect(api.GET).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole('table')).toBeTruthy();
+  expect(screen.getByText('160:05')).toBeTruthy();
+  expect(
+    (
+      screen.getByRole('button', {
+        name: t('en', 'attendanceReport.download'),
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(false);
+  view.close();
+});
 it.each([true, false])(
   'limits branch options to the workspace scope (all: %s)',
   async (allowAllBranches) => {
@@ -205,14 +237,27 @@ it.each(['NOT_FOUND', 'FEATURE_DISABLED', 'NOT_READY'] as const)(
     view.close();
   },
 );
-it('hides loaded totals when access is revoked during a refresh', async () => {
+it.each([
+  { code: 'NOT_FOUND', status: 404 },
+  { code: 'FORBIDDEN', status: 403 },
+  { code: 'FEATURE_DISABLED', status: 409 },
+])('hides loaded totals when access is revoked during a refresh (%s)', async ({ code, status }) => {
   const view = setup();
   await screen.findByRole('table');
-  api.GET.mockResolvedValue({ error: { code: 'NOT_FOUND' }, response: { status: 404 } });
+  api.GET.mockResolvedValue({ error: { code }, response: { status } });
   await act(async () => {
     await view.client.invalidateQueries({ queryKey: ['attendance-report'] });
   });
-  await screen.findByText(t('en', 'attendanceReport.notFound'));
+  await screen.findByText(
+    t(
+      'en',
+      code === 'NOT_FOUND'
+        ? 'attendanceReport.notFound'
+        : code === 'FEATURE_DISABLED'
+          ? 'attendanceReport.featureDisabled'
+          : 'admin.unexpected',
+    ),
+  );
   expect(screen.queryByRole('table')).toBeNull();
   view.close();
 });
@@ -246,3 +291,28 @@ it('downloads the selected all-branches month, shows busy state and displays CSV
   await screen.findByText(t('en', 'attendanceReport.notFound'));
   view.close();
 });
+it.each(['ar', 'en'] as const)(
+  'passes the displayed branch name to the CSV download in %s',
+  async (locale) => {
+    state.locale = locale;
+    const branches = boardBranches.map((branch) => ({
+      ...branch,
+      name_ar: t('ar', 'attendanceReport.branch'),
+    }));
+    const view = setup(true, branches);
+    await screen.findByRole('table');
+    fireEvent.change(screen.getByLabelText(t(locale, 'attendanceReport.month')), {
+      target: { value: '2026-09' },
+    });
+    await screen.findByRole('table');
+    api.GET.mockResolvedValue({ data: new Blob(['synthetic']) });
+    fireEvent.click(screen.getByRole('button', { name: t(locale, 'attendanceReport.download') }));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
+    const anchor = vi.mocked(HTMLAnchorElement.prototype.click).mock.instances.at(-1) as
+      HTMLAnchorElement | undefined;
+    const name = locale === 'ar' ? t('ar', 'attendanceReport.branch') : 'Synthetic-branch';
+    expect(anchor?.download).toBe(`attendance-${name}-2026-09.csv`);
+    view.close();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:synthetic');
+  },
+);

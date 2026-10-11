@@ -1,7 +1,7 @@
-import { t, formatInstant } from '@pospay/i18n';
+import { t, formatInstant, localDate } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   boardBranches,
   boardFixture,
@@ -22,7 +22,8 @@ beforeEach(() => {
     data: path.endsWith('refusals') ? refusalFixture : boardFixture,
   }));
 });
-function setup() {
+afterEach(() => vi.useRealTimers());
+function setup(date?: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const onDate = vi.fn();
   const onBranch = vi.fn();
@@ -31,7 +32,7 @@ function setup() {
       <AttendanceBoardPage
         scope={boardScope}
         branches={boardBranches}
-        date={undefined}
+        date={date}
         onDate={onDate}
         onBranch={onBranch}
       />
@@ -48,7 +49,7 @@ function setup() {
   };
 }
 it.each(['ar', 'en'] as const)(
-  'renders all sections, local times, overnight attendance and badges in %s',
+  'renders all sections, local times and badges in %s',
   async (locale) => {
     state.locale = locale;
     const view = setup();
@@ -85,6 +86,52 @@ it.each(['ar', 'en'] as const)(
     view.close();
   },
 );
+it.each(['ar', 'en'] as const)(
+  'renders overnight cells on different Kuwait days in %s',
+  async (locale) => {
+    state.locale = locale;
+    const clockIn = new Date('2026-10-10T20:30:00Z');
+    const clockOut = new Date('2026-10-10T22:00:00Z');
+    const session = {
+      ...boardFixture.sessions[0],
+      clock_in: clockIn.toISOString(),
+      clock_out: clockOut.toISOString(),
+    };
+    api.GET.mockImplementation(async (path: string) => ({
+      data: path.endsWith('refusals')
+        ? refusalFixture
+        : { ...boardFixture, date: '2026-10-10', sessions: [session] },
+    }));
+    const view = setup('2026-10-10');
+    const table = await screen.findByRole('table');
+    const row = within(table).getAllByRole('row')[1];
+    if (!row) throw new Error('Missing overnight row');
+    const cells = within(row).getAllByRole('cell');
+    expect(cells[1]?.textContent).toBe(formatInstant(clockIn, locale, 'Asia/Kuwait'));
+    expect(cells[2]?.textContent).toBe(formatInstant(clockOut, locale, 'Asia/Kuwait'));
+    expect(localDate(clockIn, 'Asia/Kuwait')).toBe('2026-10-10');
+    expect(localDate(clockOut, 'Asia/Kuwait')).toBe('2026-10-11');
+    expect(
+      (screen.getByLabelText(t(locale, 'attendanceBoard.date')) as HTMLInputElement).value,
+    ).toBe('2026-10-10');
+    view.close();
+  },
+);
+it('keeps the date picker usable after a first-load failure with branch-local today', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-30T22:00:00Z'));
+  api.GET.mockRejectedValue(new Error('Synthetic outage'));
+  const view = setup();
+  await screen.findByRole('alert');
+  const date = screen.getByLabelText(t('en', 'attendanceBoard.date')) as HTMLInputElement;
+  expect(date.disabled).toBe(false);
+  expect(date.max).toBe('2026-10-01');
+  fireEvent.change(date, { target: { value: '2026-09-30' } });
+  expect(view.onDate).toHaveBeenCalledWith('2026-09-30');
+  fireEvent.change(date, { target: { value: '2026-10-02' } });
+  expect(view.onDate).toHaveBeenCalledTimes(1);
+  view.close();
+});
 it('loads more refusals by cursor, preserves newest first and removes duplicates', async () => {
   api.GET.mockImplementation(
     async (path: string, options: { params: { query: { cursor?: string } } }) => ({

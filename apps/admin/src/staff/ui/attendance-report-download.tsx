@@ -9,14 +9,16 @@ import { attendanceReportError } from '../model/attendance-report-display';
 export function AttendanceReportDownload({
   scope,
   month,
+  branchName,
   disabled,
 }: {
   scope: AttendanceReportScope;
   month: string;
+  branchName: string;
   disabled: boolean;
 }) {
   const locale = useLocale();
-  const download = useAttendanceReportCsv(scope, month);
+  const download = useAttendanceReportCsv(scope, month, branchName);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button

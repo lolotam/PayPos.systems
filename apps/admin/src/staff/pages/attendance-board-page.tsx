@@ -22,14 +22,19 @@ export function AttendanceBoardPage({ scope, branches, date, onDate, onBranch }:
   const { board, refusals } = useAttendanceBoard(scope, date);
   const data = board.data;
   const visible = data && !boardAccessLost(board.error);
-  const today = data ? localDate(new Date(data.generated_at), data.timezone) : undefined;
+  const timezone = branches.find((branch) => branch.id === scope.branchId)?.effective_timezone;
+  const today = data
+    ? localDate(new Date(data.generated_at), data.timezone)
+    : timezone
+      ? localDate(new Date(), timezone)
+      : undefined;
   return (
     <section className="flex min-w-0 flex-col gap-6 text-start">
       <PageHeader title={t(locale, 'attendanceBoard.title')} />
       <AttendanceBoardFilters
         branches={branches}
         branchId={scope.branchId}
-        date={date ?? data?.date ?? ''}
+        date={date ?? data?.date ?? today ?? ''}
         today={today}
         onDate={onDate}
         onBranch={onBranch}

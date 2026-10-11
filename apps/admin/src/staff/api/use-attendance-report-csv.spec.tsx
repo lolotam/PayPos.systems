@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { t } from '@pospay/i18n';
 import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -26,14 +27,17 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
 });
-function setup(branchId: string) {
+function setup(branchId: string, branchName = 'Synthetic branch') {
   const client = new QueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  const hook = renderHook(() => useAttendanceReportCsv({ ...reportScope, branchId }, reportMonth), {
-    wrapper,
-  });
+  const hook = renderHook(
+    () => useAttendanceReportCsv({ ...reportScope, branchId }, reportMonth, branchName),
+    {
+      wrapper,
+    },
+  );
   return { client, ...hook };
 }
 it.each([reportScope.branchId, 'all'])(
@@ -62,16 +66,53 @@ it.each([reportScope.branchId, 'all'])(
     );
     expect(createUrl).toHaveBeenCalledWith(csv);
     expect(clicked).toEqual({
-      filename: `attendance-${branchId}-${reportMonth}.csv`,
+      filename: `attendance-${branchId === 'all' ? 'all' : 'Synthetic-branch'}-${reportMonth}.csv`,
       href: 'blob:synthetic-csv',
     });
-    await vi.runAllTimersAsync();
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(revokeUrl).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
     expect(revokeUrl).toHaveBeenCalledWith('blob:synthetic-csv');
     expect(document.querySelector('a[download]')).toBeNull();
     hook.unmount();
+    expect(revokeUrl).toHaveBeenCalledTimes(1);
     hook.client.clear();
   },
 );
+it.each([
+  [
+    `  ${t('ar', 'attendanceReport.branch')} : * ? " < > | / \\ . `,
+    t('ar', 'attendanceReport.branch'),
+  ],
+  ['Synthetic\nbranch\u0000', 'Synthetic-branch'],
+  [' . / * ', 'all'],
+])('sanitises branch name %s for the CSV filename', async (branchName, name) => {
+  vi.useFakeTimers();
+  api.GET.mockResolvedValue({ data: new Blob(['synthetic']) });
+  const hook = setup(reportScope.branchId, branchName);
+  await act(async () => {
+    await hook.result.current.mutateAsync();
+  });
+  expect(clicked?.filename).toBe(`attendance-${name}-${reportMonth}.csv`);
+  hook.unmount();
+  hook.client.clear();
+});
+it('revokes every pending object URL immediately on unmount and cancels delayed cleanup', async () => {
+  vi.useFakeTimers();
+  createUrl.mockReturnValueOnce('blob:first').mockReturnValueOnce('blob:second');
+  api.GET.mockResolvedValue({ data: new Blob(['synthetic']) });
+  const hook = setup(reportScope.branchId);
+  await act(async () => {
+    await hook.result.current.mutateAsync();
+    await hook.result.current.mutateAsync();
+  });
+  expect(revokeUrl).not.toHaveBeenCalled();
+  hook.unmount();
+  expect(revokeUrl.mock.calls).toEqual([['blob:first'], ['blob:second']]);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(revokeUrl).toHaveBeenCalledTimes(2);
+  hook.client.clear();
+});
 it('does not download an error response', async () => {
   api.GET.mockResolvedValue({ error: { code: 'FEATURE_DISABLED' }, response: { status: 403 } });
   const hook = setup('all');

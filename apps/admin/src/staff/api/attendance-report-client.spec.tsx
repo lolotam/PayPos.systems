@@ -37,7 +37,7 @@ it.each([reportScope.branchId, 'all'])(
     const hook = renderHook(
       () => ({
         report: useAttendanceReport({ ...reportScope, branchId }, reportMonth),
-        csv: useAttendanceReportCsv({ ...reportScope, branchId }, reportMonth),
+        csv: useAttendanceReportCsv({ ...reportScope, branchId }, reportMonth, 'Synthetic branch'),
       }),
       { wrapper },
     );

@@ -6,9 +6,14 @@ import { apiClient } from '@/shared/api/client';
 import { downloadAttendanceCsv } from './download-attendance-csv';
 import type { AttendanceReportScope } from './use-attendance-report';
 
-export function useAttendanceReportCsv(scope: AttendanceReportScope, month: string) {
+export function useAttendanceReportCsv(
+  scope: AttendanceReportScope,
+  month: string,
+  branchName: string,
+) {
   const client = useQueryClient();
   const controller = useRef<AbortController | null>(null);
+  const downloads = useRef(new Set<() => void>());
   const { companyId, businessId, branchId, userId } = scope;
   const download = useMutation({
     mutationKey: ['attendance-report-csv', companyId, businessId, userId, branchId, month],
@@ -39,18 +44,22 @@ export function useAttendanceReportCsv(scope: AttendanceReportScope, month: stri
       if (request.signal.aborted) throw new DOMException('Aborted', 'AbortError');
       if (result.error) throw { ...result.error, status: result.response.status };
       if (!result.data) throw new Error('Empty CSV response');
-      downloadAttendanceCsv(result.data, branchId, month);
+      downloads.current.add(
+        downloadAttendanceCsv(result.data, branchId === 'all' ? 'all' : branchName, month),
+      );
     },
   });
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const releases = downloads.current;
+    return () => {
       controller.current?.abort();
+      for (const release of releases) release();
+      releases.clear();
       const cache = client.getMutationCache();
       const key = ['attendance-report-csv', companyId, businessId, userId, branchId, month];
       for (const mutation of cache.findAll({ mutationKey: key, exact: true }))
         cache.remove(mutation);
-    },
-    [client, companyId, businessId, userId, branchId, month],
-  );
+    };
+  }, [client, companyId, businessId, userId, branchId, month]);
   return download;
 }
