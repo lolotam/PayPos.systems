@@ -1,3 +1,4 @@
+import { Blob as NodeBlob } from 'node:buffer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { act, renderHook } from '@testing-library/react';
@@ -121,6 +122,36 @@ it('does not download an error response', async () => {
       code: 'FEATURE_DISABLED',
       status: 403,
     });
+  });
+  expect(createUrl).not.toHaveBeenCalled();
+  hook.unmount();
+  hook.client.clear();
+});
+it.each([
+  ['NOT_FOUND', 404],
+  ['FEATURE_DISABLED', 403],
+])('preserves %s from a JSON Blob during download', async (code, status) => {
+  api.GET.mockResolvedValue({
+    error: new NodeBlob([JSON.stringify({ code })], { type: 'application/json' }),
+    response: { status },
+  });
+  const hook = setup('all');
+  await act(async () => {
+    await expect(hook.result.current.mutateAsync()).rejects.toEqual({ code, status });
+  });
+  expect(createUrl).not.toHaveBeenCalled();
+  expect(clicked).toBeUndefined();
+  hook.unmount();
+  hook.client.clear();
+});
+it('uses a generic error for a non-JSON Blob without downloading it', async () => {
+  api.GET.mockResolvedValue({
+    error: new NodeBlob(['Synthetic outage']),
+    response: { status: 502 },
+  });
+  const hook = setup(reportScope.branchId);
+  await act(async () => {
+    await expect(hook.result.current.mutateAsync()).rejects.toEqual({ status: 502 });
   });
   expect(createUrl).not.toHaveBeenCalled();
   hook.unmount();

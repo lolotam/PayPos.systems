@@ -1,10 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { t } from '@pospay/i18n';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { reportFixture, reportMonth, reportScope } from './attendance-report.fixture';
 import { useAttendanceReport } from './use-attendance-report';
 import { useAttendanceReportCsv } from './use-attendance-report-csv';
+import { AttendanceReportDownload } from '../ui/attendance-report-download';
+vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 const fetcher = vi.fn<(request: Request) => Promise<Response>>();
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -57,6 +60,39 @@ it.each([reportScope.branchId, 'all'])(
       expect(request.headers.get('x-company-id')).toBe(reportScope.companyId);
     }
     hook.unmount();
+    client.clear();
+  },
+);
+it.each([
+  ['NOT_FOUND', 404, 'attendanceReport.notFound'],
+  ['FEATURE_DISABLED', 403, 'attendanceReport.featureDisabled'],
+] as const)(
+  'shows %s when the actual client receives a failed CSV download',
+  async (code, status, key) => {
+    fetcher.mockReset();
+    fetcher.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ code }), {
+          status,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    const client = new QueryClient();
+    const view = render(
+      <QueryClientProvider client={client}>
+        <AttendanceReportDownload
+          scope={reportScope}
+          month={reportMonth}
+          branchName="Synthetic branch"
+          disabled={false}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'attendanceReport.download') }));
+    expect((await screen.findByRole('alert')).textContent).toBe(t('en', key));
+    expect(fetcher.mock.calls[0]?.[0].url).toContain('/attendance-report.csv?month=');
+    view.unmount();
     client.clear();
   },
 );

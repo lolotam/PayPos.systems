@@ -10,11 +10,12 @@ export type AttendanceReportScope = {
   branchId: string;
   userId: string;
 };
-export function useAttendanceReport(scope: AttendanceReportScope, month: string) {
+export function useAttendanceReport(scope: AttendanceReportScope, month: string, enabled = true) {
   const client = useQueryClient();
   const { companyId, businessId, branchId, userId } = scope;
   const report = useQuery({
     queryKey: ['attendance-report', companyId, businessId, userId, branchId, month],
+    enabled,
     retry: false,
     staleTime: 0,
     refetchOnMount: 'always',
