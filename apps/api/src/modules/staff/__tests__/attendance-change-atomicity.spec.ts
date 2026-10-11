@@ -28,7 +28,7 @@ it('ACR-14 an outbox failure rolls back the kind effect, decision, audit and ide
   const effects = await effectCount(f);
   const actor = changeActor(f, row.id, f.owner);
   const useCase = new DecideAttendanceChangeUseCase(
-    createAttendanceChangeTransactions(f.db, { newId: () => collision }),
+    createAttendanceChangeTransactions(f.db, { newId: () => collision }, f.kinds),
     f.clock,
     f.kinds,
   );

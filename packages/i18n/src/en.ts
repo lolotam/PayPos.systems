@@ -143,6 +143,14 @@ export const en = {
   staffLogin: staffLoginEn,
   inApp: inAppEn,
   errors: {
+    ATTENDANCE_MANUAL_INVALID_TIMES:
+      'Manual attendance times must end after they start, not be in the future, last at most 16 hours, and not overlap another session.',
+    ATTENDANCE_MANUAL_NOT_ELIGIBLE:
+      'The employee is not attached to this branch on that date or the date is outside their contract.',
+    ATTENDANCE_MANUAL_TIMEZONE_CHANGED:
+      'The branch time zone changed after this request was filed. Reject it and file the day again.',
+    ATTENDANCE_CORRECTION_MANUAL_SESSION:
+      'A manual session cannot be corrected; request a void and a new session.',
     ...attendanceChangeEn.errors,
     ATTENDANCE_DEVICE_LOCKED:
       'This phone is registered to another employee. Clock in from your own phone or with the card at reception.',

@@ -1,3 +1,4 @@
+import type { ManualSessionPlan } from '../domain/manual-attendance-session.ts';
 import type { AttendanceChangePlan } from '../domain/attendance-change-request.ts';
 
 /** ترمي الأنواع هذا الرفض؛ تتراجع المعاملة ويظل الطلب PENDING حتى يمكن معالجة السبب. */
@@ -21,11 +22,17 @@ export class AttendanceChangeKindRefusal extends Error {
 
 /** الأنواع تتوسع في شرائح التطبيق التالية دون تغيير دورة الطلب. */
 export type AttendanceChangeKindCode = 'ADD_SESSION' | 'VOID_SESSION' | 'RESTORE_SESSION';
-/** مغلف مشترك؛ نوع الإلغاء أو الاسترجاع يثبت معرّف الجلسة ونسختها قبل التطبيق. */
+/** مغلف النوع يحمل أوقات وفرع الإضافة، أو معرّف جلسة الإلغاء أو الاسترجاع ونسختها. */
 export interface AttendanceChangeKindInput {
   kind: AttendanceChangeKindCode;
   employee_id: string;
   reason: string;
+  /** فرع اليوم اليدوي لفحص الأهلية التاريخية. */
+  branch_id?: string | undefined;
+  /** بداية اليوم اليدوي كوقت مطلق. */
+  clock_in?: string | undefined;
+  /** نهاية اليوم اليدوي المطلوبة بلا استراحات. */
+  clock_out?: string | undefined;
   session_id?: string | undefined;
   session_revision?: number | undefined;
 }
@@ -53,6 +60,10 @@ export interface AttendanceChangeApplyScope extends AttendanceChangeKindScope {
 }
 /** حقائق الجلسة التي يثبتها النوع بعد فحصه. */
 export interface AttendanceChangeKindValues {
+  /** القيم المثبتة وقت تقديم الطلب. */
+  manual?: { clock_in: string; clock_out: string; working_date: string; timezone: string };
+  /** لقطة الوردية والتأخير المحسوبة تحت القفل للتطبيق. */
+  manualPlan?: ManualSessionPlan;
   session_id: string | null;
   session_revision: number | null;
   /** أوقات الجلسة وتوقيتها لعرض مضمون الطلب في القائمة والرد. */

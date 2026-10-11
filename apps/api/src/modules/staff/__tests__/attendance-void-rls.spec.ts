@@ -46,8 +46,8 @@ it('refuses a foreign request reference at the statement and rolls the marks bac
     .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
     VALUES(${f.otherCompany},${foreignEmployee},${foreignBranch?.business_id},${foreignBranch?.id},'Synthetic foreign employee','synthetic foreign employee','staff','2026-01-01')`;
   await f.h
-    .owner`INSERT INTO attendance_change_requests(company_id,id,business_id,branch_id,employee_id,kind,reason,requested_by,requested_at)
-    VALUES(${f.otherCompany},${foreignId},${foreignBranch?.business_id},${foreignBranch?.id},${foreignEmployee},'ADD_SESSION','foreign request',${f.owner},'2026-10-04T10:00:00Z')`;
+    .owner`INSERT INTO attendance_change_requests(company_id,id,business_id,branch_id,employee_id,kind,reason,requested_by,requested_at,clock_in,clock_out,working_date,timezone)
+    VALUES(${f.otherCompany},${foreignId},${foreignBranch?.business_id},${foreignBranch?.id},${foreignEmployee},'ADD_SESSION','foreign request',${f.owner},'2026-10-04T10:00:00Z','2026-10-04T05:00:00Z','2026-10-04T08:00:00Z','2026-10-04','Asia/Kuwait')`;
   await expect(
     f.db.withTenant(f.company, (tx) =>
       tx.execute(

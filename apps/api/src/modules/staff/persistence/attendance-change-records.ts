@@ -13,7 +13,11 @@ export async function readChangeRequest(
     SELECT jsonb_build_object('id',r.id,'business_id',r.business_id,'branch_id',r.branch_id,
       'kind',r.kind,'status',r.status,'employee',jsonb_build_object('id',e.id,'name_ar',e.name_ar,'name_en',e.name_en),
       'session_id',r.session_id,'session_revision',r.session_revision,'reason',r.reason,
-      'requested',CASE WHEN s.id IS NULL THEN NULL ELSE jsonb_build_object(
+      'requested',CASE WHEN r.kind='ADD_SESSION' THEN jsonb_build_object(
+        'working_date',r.working_date::text,'timezone',r.timezone,
+        'clock_in',to_char(r.clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'clock_out',to_char(r.clock_out AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+        WHEN s.id IS NULL THEN NULL ELSE jsonb_build_object(
         'working_date',s.working_date::text,'timezone',s.timezone,
         'clock_in',to_char(s.clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
         'clock_out',to_char(s.clock_out AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) END,

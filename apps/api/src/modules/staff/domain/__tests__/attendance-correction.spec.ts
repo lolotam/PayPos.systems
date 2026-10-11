@@ -11,6 +11,7 @@ import {
 
 const session = (over: Partial<AttendanceCorrectionSession> = {}): AttendanceCorrectionSession => ({
   id: 'session',
+  source: 'QR',
   employee_id: 'employee',
   branch_id: 'branch',
   working_date: '2026-10-08',
@@ -50,6 +51,21 @@ const codeOf = (run: () => void) => {
   }
   return 'ACCEPTED';
 };
+
+it('refuses MANUAL after self and before state, revision and time rules', () => {
+  const manual = { ...session(), source: 'MANUAL' as const, closed_by: 'MANUAL' as const };
+  const change = { revision: 0, clock_out: '2026-10-08T04:00:00Z' };
+  expect(codeOf(() => plan(manual, change))).toBe('ATTENDANCE_CORRECTION_MANUAL_SESSION');
+  expect(codeOf(() => plan(manual, change, context({ actorIsEmployee: true })))).toBe(
+    'ATTENDANCE_CORRECTION_SELF_FORBIDDEN',
+  );
+  expect(codeOf(() => plan({ ...manual, status: 'OPEN' }, change))).toBe(
+    'ATTENDANCE_CORRECTION_MANUAL_SESSION',
+  );
+  expect(plan(session({ source: 'BARCODE' }), { clock_out: '2026-10-08T12:00:00Z' }).revision).toBe(
+    4,
+  );
+});
 
 it('refuses a voided target before OPEN and revision checks', () => {
   expect(

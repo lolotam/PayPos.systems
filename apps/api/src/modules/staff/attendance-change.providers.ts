@@ -1,3 +1,4 @@
+import { createAddSessionKind } from './persistence/add-session-kind.ts';
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
@@ -25,6 +26,7 @@ export function attendanceChangeProviders(
     {
       provide: ATTENDANCE_CHANGE_KINDS,
       useValue: createAttendanceChangeKinds([
+        createAddSessionKind(ids),
         createVoidSessionKind(ids),
         createRestoreSessionKind(ids),
       ]),

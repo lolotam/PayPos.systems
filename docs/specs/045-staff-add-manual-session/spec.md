@@ -172,7 +172,7 @@ One expand migration (plan from 0111, numbered at merge after 26a's).
   `packages/contracts/src/staff/attendance-change-request.ts`: `{ kind: 'ADD_SESSION', employee_id, branch_id,
   clock_in: ISO instant, clock_out: ISO instant, reason }`. The list/response `requested` field carries
   `{ branch_id, clock_in, clock_out, working_date }`; the decide response carries the created session.
-- **Errors (new)**: `ATTENDANCE_MANUAL_INVALID_TIMES` 422 · `ATTENDANCE_MANUAL_NOT_ELIGIBLE` 422 ·
+- **Errors (new)**: `ATTENDANCE_MANUAL_INVALID_TIMES` 422 · `ATTENDANCE_MANUAL_NOT_ELIGIBLE` 422 · `ATTENDANCE_MANUAL_TIMEZONE_CHANGED` 409 (branch time zone changed after filing — reject and file again) ·
   `ATTENDANCE_CORRECTION_MANUAL_SESSION` 409 (on PR 26's endpoint), each with `message_ar` / `message_en`.
 
 ### Permissions

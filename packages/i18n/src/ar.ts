@@ -145,6 +145,11 @@ export const ar: Catalog = {
   staffLogin: staffLoginAr,
   inApp: inAppAr,
   errors: {
+    ATTENDANCE_MANUAL_INVALID_TIMES: 'أوقات اليوم اليدوي مش صحيحة: الخروج لازم بعد الدخول، مش في المستقبل، ١٦ ساعة بالكتير، ومن غير تداخل مع حضور تاني',
+    ATTENDANCE_MANUAL_NOT_ELIGIBLE: 'الموظفة مش مرتبطة بالفرع ده في اليوم ده أو اليوم برّه عقدها',
+    ATTENDANCE_MANUAL_TIMEZONE_CHANGED: 'المنطقة الزمنية للفرع اتغيرت بعد تقديم الطلب. ارفض الطلب وقدّم اليوم من جديد',
+    ATTENDANCE_CORRECTION_MANUAL_SESSION: 'اليوم اليدوي مايتصححش؛ اطلب إلغاءه وإضافة يوم جديد',
+
     ...attendanceChangeAr.errors,
     ATTENDANCE_DEVICE_LOCKED:
       'هذا الهاتف مسجّل لموظف آخر. سجّل الحضور من هاتفك أو بالبطاقة عند الاستقبال.',

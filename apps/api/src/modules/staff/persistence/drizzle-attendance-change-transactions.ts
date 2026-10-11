@@ -13,7 +13,9 @@ import {
   AttendanceChangeKindRefusal,
   type AttendanceChangeKind,
   type AttendanceChangeKindInput,
+  type AttendanceChangeKindScope,
   type AttendanceChangeKinds,
+  type AttendanceChangeTarget,
 } from '../ports/attendance-change-kinds.port.ts';
 import type {
   AttendanceChangeActor,
@@ -45,68 +47,75 @@ function assertAuthority(
   )
     throw new AttendanceChangeError('NOT_FOUND');
 }
-async function lockContext(
-  tx: Tx,
-  actor: AttendanceChangeActor,
-  action: Action,
-  sample: Date,
-  filing?: Filing,
-) {
-  const candidate = filing ? null : await readChangeRequest(tx, actor);
-  const target = filing
-    ? await filing.kind.target({ transaction: tx, ...actor, input: filing.input, now: sample })
-    : candidate
-      ? { employee_id: candidate.employee.id, branch_id: candidate.branch_id }
-      : null;
-  if (!target) throw new AttendanceChangeError('NOT_FOUND');
-  const initial = await attendanceChangeAuthority(
+function readAuthority(tx: Tx, actor: AttendanceChangeActor, branchId: string, now: Date) {
+  return attendanceChangeAuthority(
     tx,
     actor.companyId,
     actor.userId,
     actor.businessId,
-    target.branch_id,
-    sample,
+    branchId,
+    now,
   );
-  assertAuthority(action, actor, initial, candidate);
-  await lockChangeState(tx, actor.companyId, target.employee_id);
-  if (!(await attendanceChangeAuthorityLock(tx, actor.companyId)))
-    throw new AttendanceChangeError('NOT_FOUND');
-  const before = filing ? null : await readChangeRequest(tx, actor, true);
+}
+async function loadTarget(
+  scope: Omit<AttendanceChangeKindScope, 'target' | 'request' | 'input' | 'requestId'>,
+  candidate: AttendanceChangeRequest | null,
+  filing?: Filing,
+) {
+  if (filing) return filing.kind.target({ ...scope, input: filing.input });
+  return candidate ? { employee_id: candidate.employee.id, branch_id: candidate.branch_id } : null;
+}
+function assertTarget(before: AttendanceChangeRequest | null, target: AttendanceChangeTarget) {
   if (
     before &&
     (before.employee.id !== target.employee_id || before.branch_id !== target.branch_id)
   )
     throw new AttendanceChangeError('NOT_FOUND');
-  return { target, before };
 }
 async function load(
   tx: Tx,
-  actor: AttendanceChangeActor & { requestId: string },
+  actor: AttendanceChangeActor,
   action: Action,
   clock: AttendanceChangeClock,
   kinds: AttendanceChangeKinds,
   filing?: Filing,
+  reject = false,
 ) {
   const sample = clock.now();
-  const { target, before } = await lockContext(tx, actor, action, sample, filing);
+  const candidate = filing ? null : await readChangeRequest(tx, actor);
+  const requestId = filing ? filing.requestId : candidate?.id;
+  if (!requestId) throw new AttendanceChangeError('NOT_FOUND');
+  const target = await loadTarget({ transaction: tx, ...actor, now: sample }, candidate, filing);
+  if (!target) throw new AttendanceChangeError('NOT_FOUND');
+  const initial = await readAuthority(tx, actor, target.branch_id, sample);
+  assertAuthority(action, actor, initial, candidate);
+  await lockChangeState(tx, actor.companyId, target.employee_id);
+  if (!(await attendanceChangeAuthorityLock(tx, actor.companyId)))
+    throw new AttendanceChangeError('NOT_FOUND');
+  const before = filing ? null : await readChangeRequest(tx, actor, true);
+  assertTarget(before, target);
   const employee = await changeEmployee(tx, actor, target.employee_id);
   if (!filing && !before) throw new AttendanceChangeError('NOT_FOUND');
   const input = filing ? filing.input : inputFrom(before as AttendanceChangeRequest);
-  const kind = filing ? filing.kind : kinds.find((before as AttendanceChangeRequest).kind);
-  if (action !== 'cancel')
-    await kind?.lock?.({ transaction: tx, ...actor, target, input, now: sample });
+  const kind =
+    action === 'file'
+      ? filing?.kind
+      : action === 'decide' && !reject
+        ? kinds.find(input.kind)
+        : null;
+  await kind?.lock?.({
+    transaction: tx,
+    ...actor,
+    requestId,
+    target,
+    input,
+    now: sample,
+  });
   const now = clock.now();
-  const access = await attendanceChangeAuthority(
-    tx,
-    actor.companyId,
-    actor.userId,
-    actor.businessId,
-    target.branch_id,
-    now,
-  );
+  const access = await readAuthority(tx, actor, target.branch_id, now);
   assertAuthority(action, actor, access, before);
   return {
-    requestId: filing ? filing.requestId : (before as AttendanceChangeRequest).id,
+    requestId,
     target,
     before,
     request: before,
@@ -124,6 +133,13 @@ function inputFrom(row: AttendanceChangeRequest): AttendanceChangeKindInput {
     kind: row.kind,
     employee_id: row.employee.id,
     reason: row.reason,
+    ...(row.kind === 'ADD_SESSION' && row.requested && row.requested.clock_out !== null
+      ? {
+          branch_id: row.branch_id,
+          clock_in: row.requested.clock_in,
+          clock_out: row.requested.clock_out,
+        }
+      : {}),
     ...(row.session_id === null ? {} : { session_id: row.session_id }),
     ...(row.session_revision === null ? {} : { session_revision: row.session_revision }),
   };
@@ -139,12 +155,14 @@ export function createAttendanceChangeTransactions(
     clock: AttendanceChangeClock,
     work: Work,
     filing?: Filing,
-  ) => changeOnce(database, ids, kinds, actor, action, clock, work, filing);
+    reject = false,
+  ) => changeOnce(database, ids, kinds, actor, action, clock, work, filing, reject);
   return {
     file: (actor, input, kind, clock, requestId, work) =>
       run(actor, 'file', clock, work, { input, kind, requestId }),
     cancel: (actor, clock, work) => run(actor, 'cancel', clock, work),
-    decide: (actor, clock, work) => run(actor, 'decide', clock, work),
+    decide: (actor, clock, work, decision) =>
+      run(actor, 'decide', clock, work, undefined, decision === 'REJECTED'),
   };
 }
 async function changeOnce(
@@ -156,13 +174,13 @@ async function changeOnce(
   clock: AttendanceChangeClock,
   work: Work,
   filing?: Filing,
+  reject = false,
 ): Promise<AttendanceChangeRequest> {
   try {
     return await database.withTenant(
       actor.companyId,
       async (tx) => {
-        const requestId = filing?.requestId ?? actor.requestId ?? ids.newId();
-        const context = await load(tx, { ...actor, requestId }, action, clock, kinds, filing);
+        const context = await load(tx, actor, action, clock, kinds, filing, reject);
         const result = await runIdempotent(
           tx,
           {
