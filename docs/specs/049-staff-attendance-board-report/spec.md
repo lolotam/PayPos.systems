@@ -137,6 +137,26 @@ case or query mapper beyond projection). CSV export follows AB-Q9d/e/f; anything
 - 27d: open-exceptions list with the resolve action (spec 034), correction form + history (spec 035), change-request
   forms and the owner's decide/withdraw list (specs 044–046). Times entered in the branch time zone and sent as UTC.
 
+## 6a. Part 27d — detailed plan (orchestrator, 2026-10-11)
+
+27d ships as two PRs, API first:
+
+**27d-1 (API, read only):**
+- **Display names for actors.** User ids on the board's `manual` object and on the change-request list get a display
+  name resolved from the tenant's own `employees` row linked by `user_id` (company-scoped, any business; never from the
+  auth tables, which `pospay_app` cannot read). A user with no employee row gets `name: null` and the screen shows a
+  neutral label («مستخدم»). Fields: `requested_by_name` / `approved_by_name` / `decided_by_name` as `{ ar, en } | null`.
+- **Open exceptions list** per branch: `GET /v1/businesses/:businessId/branches/:branchId/attendance-exceptions?status=OPEN&cursor=&limit=`
+  — exceptions of non-voided sessions (ACR-Q20), newest first, keyset cursor, with employee name, session times and
+  kind. Guard `read:attendance:branch`; the resolve/reopen actions keep their own permission (spec 034).
+- **Correction history** of one session: `GET /v1/businesses/:businessId/branches/:branchId/attendance-sessions/:sessionId/corrections`
+  — field, before, after, reason, by (id + name), at; oldest first. Guard `read:attendance:branch`.
+- Each new query: result-shape test, `EXPLAIN` assertion, tenant isolation, scope tests.
+
+**27d-2 (admin screens):** open-exceptions list with resolve/reopen (spec 034); correction form + history on a board
+session (spec 035); change-request forms (add manual day, void, restore) and the decider's list (specs 044–046); the
+board (27c) shows requester/approver names from 27d-1. Times entered in the branch time zone, sent as UTC.
+
 ## 7. Out of scope
 
 Payroll, overtime pay, deductions, public holidays (AB-Q5), the employee's own attendance view (57b), notifications.
