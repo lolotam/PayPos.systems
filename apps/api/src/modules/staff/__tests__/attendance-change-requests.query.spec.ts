@@ -85,7 +85,9 @@ it('scopes branch managers and projects requester cancellation independently fro
     clock_in: '2026-10-04T05:00:00.000Z',
     clock_out: '2026-10-04T08:00:00.000Z',
   });
-  expect(result.items.every((row) => row.requested === null)).toBe(true);
+  expect(
+    result.items.every((row) => (row.kind === 'VOID_SESSION') === (row.requested !== null)),
+  ).toBe(true);
   await asRole(f, 'business_manager');
 });
 it('the HTTP list uses the same access policy and contract', async () => {
