@@ -11,7 +11,7 @@
 - CHECK `attendance_sessions_void_marks`: all three NULL or all three NOT NULL.
 - CHECK `attendance_sessions_void_closed`: `voided_at IS NULL OR status <> 'OPEN'` (ACR-Q19).
 - FK `attendance_sessions_void_request_fk`: `(company_id, void_request_id)` → `attendance_change_requests(company_id, id)`,
-  `DEFERRABLE INITIALLY DEFERRED` (research R3).
+  an immediate FK (research R3).
 - Indexes (CONCURRENTLY): `attendance_sessions_voided_by_idx (company_id, voided_by)`,
   `attendance_sessions_void_request_idx (company_id, void_request_id)`.
 - `revision` (exists) increases by one on void and on restore.

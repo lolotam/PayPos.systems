@@ -21,16 +21,16 @@ option 2 the same day). This file records the technical choices.
 
 ## R3 — The owner one-step and `void_request_id`
 
-- **Decision**: 26a's transactions adapter mints the request id before the kind runs (`scope.requestId`); the FK
-  `attendance_sessions (company_id, void_request_id) → attendance_change_requests (company_id, id)` is
-  `DEFERRABLE INITIALLY DEFERRED`, set by a hand-written `ALTER TABLE … ALTER CONSTRAINT … DEFERRABLE INITIALLY
-  DEFERRED` after the Drizzle-generated `ADD CONSTRAINT … NOT VALID`.
-- **Rationale**: in 26a the owner's own filing runs `check → apply → save(insert)`. A void's `apply` writes the request
-  id into the session before the request row exists; an immediate FK would fail. Reordering `save` before `apply` would
-  break 26b, whose `apply` creates the session that the request row then references. Drizzle does not model
-  deferrability, so the snapshot and the drift check are unaffected.
-- **Alternatives**: no FK (loses tenant-qualified integrity); a second UPDATE after `save` (splits the effect from the
-  kind and changes 26a's use case order).
+- **Decision** (revised 2026-10-11 after 26a bf763299): the FK
+  `attendance_sessions (company_id, void_request_id) → attendance_change_requests (company_id, id)` is a normal,
+  immediate FK, added `NOT VALID` in 0120 and validated in 0121. The request id is allocated by the use case
+  (`scope.requestId`), and 26a's `scope.hold()` inserts the request row PENDING before the kind's `apply` runs, on the
+  owner one-step path as on the decide path, so the referenced row always exists when the void writes it.
+- **Rationale**: the first design (`DEFERRABLE INITIALLY DEFERRED`) existed only because 26a used to run
+  `check → apply → save(insert)` on the owner one-step. With `hold()` that ordering is gone, and an immediate FK fails
+  at the offending statement instead of at commit.
+- **Alternatives**: keep the deferred FK (no longer needed, later failure point); no FK (loses tenant-qualified
+  integrity).
 
 ## R4 — One PENDING void or restore per session
 

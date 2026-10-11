@@ -31,9 +31,8 @@ only. Migrations are numbered **0116+**. No new dependency, no new grant, no new
   on `(company_id, session_id) WHERE status = 'PENDING' AND kind IN ('VOID_SESSION','RESTORE_SESSION')`
 - [x] T003 Generate the migrations with the repo generator (`packages/db/scripts/generate-migration.ts`, snapshots and
   `meta/_journal.json`, `when` strictly increasing) and shape them per research R5:
-  `0120_2026-10-10_attendance-session-void.sql` (ADD COLUMN ×3; CHECKs and FK added `NOT VALID`; `ALTER TABLE
-  attendance_sessions ALTER CONSTRAINT attendance_sessions_void_request_fk DEFERRABLE INITIALLY DEFERRED` with an Arabic
-  comment pointing to research R3; `kind` CHECK dropped and re-added `NOT VALID`; session-shape CHECK `NOT VALID`),
+  `0120_2026-10-10_attendance-session-void.sql` (ADD COLUMN ×3; CHECKs and FK added `NOT VALID`; the FK is
+  immediate (research R3, revised 2026-10-11); `kind` CHECK dropped and re-added `NOT VALID`; session-shape CHECK `NOT VALID`),
   `0121_…_attendance-session-void-validate.sql` (`VALIDATE CONSTRAINT` for each, 0110 precedent),
   `0122_…_attendance-session-void-indexes.sql` (`CREATE [UNIQUE] INDEX CONCURRENTLY` for the three indexes, ADR-0033
   leading prefix), `0123_…_attendance-session-void-drop-old-index.sql` (`DROP INDEX CONCURRENTLY
@@ -80,7 +79,7 @@ only. Migrations are numbered **0116+**. No new dependency, no new grant, no new
   production registry): AVS-01 file → PENDING, session row unchanged; AVS-02 approve → `voided_at`, `voided_by` =
   approver, `void_request_id` = request, `revision + 1`, status/times/scan facts unchanged, request APPROVED, one
   `attendance_session.voided` audit with before/after, decide response `effect.session`; AVS-03 owner one-step (the
-  deferred FK holds at commit); AVS-09 exceptions and correction rows byte-identical after the void
+  request FK holds); AVS-09 exceptions and correction rows byte-identical after the void
 - [x] T012 [US1] Implement `apps/api/src/modules/staff/domain/attendance-void.ts` (`AttendanceVoidSession`,
   `planAttendanceVoid`; full Arabic JSDoc per `CLAUDE.md` §3.1)
 - [x] T013 [US1] Implement `apps/api/src/modules/staff/persistence/void-session-writes.ts` (session lock `FOR UPDATE`

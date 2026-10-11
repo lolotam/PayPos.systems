@@ -85,7 +85,7 @@ it.each(['CLOSED', 'MISSED_OUT'] as const)(
   },
 );
 
-it('AVS-03 owner one-step commits its deferred request FK and both lifecycle audits for an old day', async () => {
+it('AVS-03 owner one-step commits its request FK and both lifecycle audits for an old day', async () => {
   const input = await voidInput(f, {
     workingDate: '2020-01-01',
     clockIn: '2020-01-01T05:00:00Z',

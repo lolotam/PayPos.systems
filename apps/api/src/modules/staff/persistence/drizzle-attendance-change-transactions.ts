@@ -93,7 +93,8 @@ async function load(
   if (!filing && !before) throw new AttendanceChangeError('NOT_FOUND');
   const input = filing ? filing.input : inputFrom(before as AttendanceChangeRequest);
   const kind = filing ? filing.kind : kinds.find((before as AttendanceChangeRequest).kind);
-  await kind?.lock?.({ transaction: tx, ...actor, target, input, now: sample });
+  if (action !== 'cancel')
+    await kind?.lock?.({ transaction: tx, ...actor, target, input, now: sample });
   const now = clock.now();
   const access = await attendanceChangeAuthority(
     tx,

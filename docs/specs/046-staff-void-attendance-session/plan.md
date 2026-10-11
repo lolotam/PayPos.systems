@@ -107,11 +107,9 @@ restore kind are business rules recorded in the spec and the owner-questions fil
    - `persistence/attendance-change-writes.ts`: uses `scope.requestId` for the insert; the row carries `requested`.
    - `persistence/attendance-change-records.ts` and `queries/attendance-change-requests.query.ts`: `requested` read with
      `LEFT JOIN attendance_sessions s ON s.company_id = r.company_id AND s.id = r.session_id` (`null` when no session).
-4. **Owner one-step and the request id** (research R3): the owner's own filing is approved in one step, so `apply`
-   runs before 26a inserts the request row. `void_request_id` must name that row, so (a) the transactions adapter mints
-   the request id before `work` and exposes it as `scope.requestId`, used by `apply` and by `save`; (b) the FK
-   `(company_id, void_request_id) → attendance_change_requests` is altered to `DEFERRABLE INITIALLY DEFERRED` in the
-   migration (Drizzle does not model deferrability; the snapshot is unaffected, so the drift check stays clean).
+4. **Owner one-step and the request id** (research R3, revised after 26a bf763299): the use case allocates the request
+   id, and 26a's `scope.hold()` inserts the request row PENDING before `apply`, so `void_request_id = scope.requestId`
+   always names an existing row and the FK `(company_id, void_request_id) → attendance_change_requests` is immediate.
 5. **Locks** (044 BR-003, unchanged order): authority precheck → employee `AttendanceState` → identity locks → request
    row (decide) → the kind locks the session row → neighbours read under the State lock. The PR-26 correction takes the
    same State lock first, so void-vs-correction and void-vs-restore serialise (AVS-10, AVS-15).
@@ -167,6 +165,5 @@ apps/admin/src/notifications/model/render-notification.ts · apps/{admin,pos}/sr
 
 ## Complexity Tracking
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| Deferred FK `void_request_id` | The owner one-step voids the session in the same transaction, before 26a inserts the request row | Inserting the request before `apply` would reorder 26a's shared save path for every kind (26b's `ADD_SESSION` needs the reverse order); dropping the FK would lose tenant-qualified integrity |
+None. The deferred FK on `void_request_id` was dropped on 2026-10-11: 26a's `hold()` now inserts the request row
+before `apply`, so the FK is immediate (research R3).

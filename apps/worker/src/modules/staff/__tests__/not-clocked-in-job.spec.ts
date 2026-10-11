@@ -137,6 +137,26 @@ it('NCI-08 a clock-in at another branch inside the window suppresses the alert',
   expect(await f.notices(tenant.company, employee)).toHaveLength(0);
 });
 
+it.each([
+  ['a clock-in inside the counting window', '07:10', '07:15'],
+  ['a session starting before the window and spanning the alert', '04:00', '07:30'],
+] as const)('voiding %s no longer suppresses the not-clocked-in alert', async (_label, clockIn, clockOut) => {
+  const { tenant, employee } = await managed();
+  const session = await f.clockIn(tenant, employee, new Date(`2026-10-04T${clockIn}:00.000Z`));
+  await f.owner`UPDATE attendance_sessions SET status='CLOSED',closed_by='EMPLOYEE',
+    clock_out=${new Date(`2026-10-04T${clockOut}:00.000Z`)} WHERE company_id=${tenant.company} AND id=${session}`;
+  const at = new Date('2026-10-04T07:35:00.000Z');
+  f.setNow(at);
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 0 });
+  expect(await f.notices(tenant.company, employee)).toHaveLength(0);
+  await f.voidSession(tenant, session, at);
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
+  expect(await f.notices(tenant.company, employee)).toHaveLength(1);
+  expect(await f.events(tenant.company)).toHaveLength(1);
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 0 });
+  expect(f.failures).toEqual([]);
+});
+
 it('NCI-09 an ended shift is skipped and a late run still sends while the shift is running', async () => {
   const tenant = await f.tenant();
   const ended = await f.employee(tenant, { nameEn: 'Ended' });

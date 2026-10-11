@@ -8,9 +8,6 @@ ALTER TABLE "attendance_sessions" ADD CONSTRAINT "attendance_sessions_voided_by_
 --> statement-breakpoint
 ALTER TABLE "attendance_sessions" ADD CONSTRAINT "attendance_sessions_void_request_fk" FOREIGN KEY ("company_id","void_request_id") REFERENCES "public"."attendance_change_requests"("company_id","id") ON DELETE no action ON UPDATE no action NOT VALID;
 --> statement-breakpoint
--- الموافقة بخطوة واحدة تطبق الإلغاء قبل حفظ الطلب؛ research R3 في spec 046 يفرض فحص المرجع عند الإنهاء.
-ALTER TABLE "attendance_sessions" ALTER CONSTRAINT "attendance_sessions_void_request_fk" DEFERRABLE INITIALLY DEFERRED;
---> statement-breakpoint
 ALTER TABLE "attendance_sessions" ADD CONSTRAINT "attendance_sessions_void_marks" CHECK (("attendance_sessions"."voided_at" IS NULL AND "attendance_sessions"."voided_by" IS NULL AND "attendance_sessions"."void_request_id" IS NULL) OR ("attendance_sessions"."voided_at" IS NOT NULL AND "attendance_sessions"."voided_by" IS NOT NULL AND "attendance_sessions"."void_request_id" IS NOT NULL)) NOT VALID;
 --> statement-breakpoint
 ALTER TABLE "attendance_sessions" ADD CONSTRAINT "attendance_sessions_void_closed" CHECK ("attendance_sessions"."voided_at" IS NULL OR "attendance_sessions"."status" <> 'OPEN') NOT VALID;
