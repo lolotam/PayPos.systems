@@ -231,8 +231,9 @@ numbers: next free on `origin/main` at implementation, renumbered at merge.
 
 - `GET /v1/businesses/{businessId}/employees/{employeeId}/default-shifts` · same access as the employee detail ·
   feature `staff` → `EmployeeDefaultShifts { employee_id, can_manage: boolean, branches: [{ branch_id, linked:
-  boolean, shifts: ScheduleShift[], updated_at | null }] }` — one entry per currently linked branch (empty `shifts` =
-  notice), plus any stored branch no longer linked with `linked: false`.
+  boolean, can_manage: boolean, shifts: ScheduleShift[], updated_at | null }] }` — one entry per currently linked branch (empty `shifts` =
+  notice), plus any stored branch no longer linked with `linked: false`. Each branch's `can_manage` is
+  `manage:employee-hours` on that branch (branch DENY wins); the top-level `can_manage` is true when at least one is.
 - `PUT /v1/businesses/{businessId}/employees/{employeeId}/branches/{branchId}/default-shifts` ·
   `manage:employee-hours:business` · body `SetEmployeeDefaultShiftsInput { shifts: ScheduleShift[] (max 7) }`
   (empty = clear) → `EmployeeDefaultShifts`.
@@ -257,7 +258,7 @@ numbers: next free on `origin/main` at implementation, renumbered at merge.
 
 - Employee profile: a "Default working hours" section (beside salary and IBAN): one card per linked branch, seven
   weekday rows (start, end, optional break; empty = no default), each day's length including the break ("8 hours"),
-  and «دوامها مش مكتوب» for a branch with no rows. Edit controls only when `can_manage`.
+  and «دوامها مش مكتوب» for a branch with no rows. Edit controls only on a branch with `can_manage && linked`.
 - Schedule editor: first "Add shift" of a day uses the weekday default of this branch; a non-blocking warning line per
   differing day. All strings from `packages/i18n`; logical CSS only.
 

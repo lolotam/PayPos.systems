@@ -62,7 +62,7 @@ it('DH-04 GET hides ended-branch defaults from a branch-scoped manager while the
   expect(manager.status).toBe(200);
   expect(employeeDefaultShifts.parse(manager.body)).toMatchObject({ can_manage: false });
   expect(employeeDefaultShifts.parse(manager.body).branches).toEqual([
-    { branch_id: f.branch, linked: true, shifts: salmiyaDefaults, updated_at: '2026-10-11T10:00:00.000Z' },
+    { branch_id: f.branch, linked: true, can_manage: false, shifts: salmiyaDefaults, updated_at: '2026-10-11T10:00:00.000Z' },
   ]);
 });
 
@@ -97,6 +97,19 @@ it('DH-04 PUT response filters ended defaults by manage decisions and preserves 
   const view = employeeDefaultShifts.parse(response.body);
   expect(view.can_manage).toBe(true);
   expect(view.branches.map((branch) => branch.branch_id)).toEqual([f.branch]);
+});
+
+it('DH-04 GET returns can_manage per branch: hours ALLOW on the business, DENY on the ended branch', async () => {
+  await reader('BUSINESS');
+  await grant('manage:employees:business', 'ALLOW', 'BUSINESS', f.business);
+  await grant('manage:employee-hours:business', 'ALLOW', 'BUSINESS', f.business);
+  await grant('manage:employee-hours:business', 'DENY', 'BRANCH', f.secondBranch);
+  const response = await hoursHttp(f, 'GET', f.hoursPath);
+  expect(response.status).toBe(200);
+  const view = employeeDefaultShifts.parse(response.body);
+  expect(view.can_manage).toBe(true);
+  expect(Object.fromEntries(view.branches.map((branch) => [branch.branch_id, branch.can_manage])))
+    .toEqual({ [f.branch]: true, [f.secondBranch]: false });
 });
 
 it('DH-04 GET still returns 404 when a current branch is outside the reader scope', async () => {

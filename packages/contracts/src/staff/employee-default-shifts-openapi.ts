@@ -12,7 +12,7 @@ const errors = { description: 'Bilingual refusal', content: json('ErrorEnvelope'
 export const employeeDefaultShiftsPaths = {
   '/v1/businesses/{businessId}/employees/{employeeId}/default-shifts': {
     get: { operationId: 'employeeDefaultShifts', parameters,
-      description: 'Employee detail access and staff feature. Current linked branches and stored unlinked branches; can_manage reflects live human hours permission.',
+      description: 'Employee detail access and staff feature. Current linked branches and stored unlinked branches; each branch can_manage reflects the live human hours permission on that branch; the top-level can_manage is true when at least one branch is manageable.',
       responses: { '200': { description: 'Employee default week per branch', content: hoursJson(employeeDefaultShifts) }, '404': errors, default: errors } },
   },
   '/v1/businesses/{businessId}/employees/{employeeId}/branches/{branchId}/default-shifts': {

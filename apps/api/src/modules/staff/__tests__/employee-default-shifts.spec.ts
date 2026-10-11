@@ -149,10 +149,10 @@ it('reads all business branches through tenancy and preserves inactive unlinked 
   expect(contexts.some((branch) => branch.id === f.otherBranch)).toBe(false);
   const result = employeeDefaultShifts.parse((await hoursHttp(f, 'GET', f.hoursPath)).body);
   expect(result.branches.find((branch) => branch.branch_id === linked)).toEqual({
-    branch_id: linked, linked: true, shifts: [], updated_at: null,
+    branch_id: linked, linked: true, can_manage: true, shifts: [], updated_at: null,
   });
   expect(result.branches.find((branch) => branch.branch_id === ended)).toEqual({
-    branch_id: ended, linked: false, shifts: [{ day: 0, start: '09:00', end: '17:00', break_start: null, break_end: null }],
+    branch_id: ended, linked: false, can_manage: true, shifts: [{ day: 0, start: '09:00', end: '17:00', break_start: null, break_end: null }],
     updated_at: '2026-10-11T10:00:00.000Z',
   });
   expect(result.branches.some((branch) => branch.branch_id === future)).toBe(false);

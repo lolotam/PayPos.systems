@@ -6,10 +6,11 @@ vi.mock('../api/use-employee-default-hours', () => mocks);
 vi.mock('../api/use-schedule-settings', () => ({ useScheduleWorkspaceBranches: () => [{ id: 'b', name_en: 'Salmiya', name_ar: null }] }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 const props = { companyId: 'c', businessId: 'b', userId: 'u', employeeId: 'e' };
-function setup(can_manage: boolean) {
+function setup(can_manage: boolean, extra: object[] = []) {
   mocks.useEmployeeDefaultHours.mockReturnValue({ current: { isFetchedAfterMount: true,
-    data: { can_manage, branches: [{ branch_id: 'b', linked: true, shifts: [], updated_at: null },
-      { branch_id: 'old', linked: false, shifts: [{ day: 0, start: '09:00', end: '17:00' }], updated_at: null }] } }, save: { mutate: vi.fn() } });
+    data: { can_manage, branches: [{ branch_id: 'b', linked: true, can_manage, shifts: [], updated_at: null },
+      { branch_id: 'old', linked: false, can_manage, shifts: [{ day: 0, start: '09:00', end: '17:00' }], updated_at: null },
+      ...extra] } }, save: { mutate: vi.fn() } });
 }
 it('shows linked branches, missing hours notice and stored unlinked defaults read-only', () => {
   setup(false); render(<EmployeeDefaultHoursSection {...props} />);
@@ -21,6 +22,13 @@ it('shows linked branches, missing hours notice and stored unlinked defaults rea
 it('allows editing linked branches only when can_manage', () => {
   setup(true); render(<EmployeeDefaultHoursSection {...props} />);
   expect(screen.getAllByRole('button', { name: 'Save default hours' })).toHaveLength(1);
+});
+it('shows the editor only on the linked branch the reader may manage; the other linked branch stays read-only', () => {
+  setup(true, [{ branch_id: 'other', linked: true, can_manage: false,
+    shifts: [{ day: 1, start: '10:00', end: '18:00' }], updated_at: null }]);
+  render(<EmployeeDefaultHoursSection {...props} />);
+  expect(screen.getAllByRole('button', { name: 'Save default hours' })).toHaveLength(1);
+  expect(screen.getByText('10:00–18:00')).toBeTruthy();
 });
 
 it('clears unsaved days after a successful no-op with updated_at still null', async () => {

@@ -2337,7 +2337,7 @@
             }
           }
         ],
-        "description": "Employee detail access and staff feature. Current linked branches and stored unlinked branches; can_manage reflects live human hours permission.",
+        "description": "Employee detail access and staff feature. Current linked branches and stored unlinked branches; each branch can_manage reflects the live human hours permission on that branch; the top-level can_manage is true when at least one branch is manageable.",
         "responses": {
           "200": {
             "description": "Employee default week per branch",
@@ -2365,6 +2365,9 @@
                             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                           },
                           "linked": {
+                            "type": "boolean"
+                          },
+                          "can_manage": {
                             "type": "boolean"
                           },
                           "shifts": {
@@ -2415,6 +2418,7 @@
                         "required": [
                           "branch_id",
                           "linked",
+                          "can_manage",
                           "shifts",
                           "updated_at"
                         ]
@@ -2578,6 +2582,9 @@
                           "linked": {
                             "type": "boolean"
                           },
+                          "can_manage": {
+                            "type": "boolean"
+                          },
                           "shifts": {
                             "maxItems": 7,
                             "type": "array",
@@ -2626,6 +2633,7 @@
                         "required": [
                           "branch_id",
                           "linked",
+                          "can_manage",
                           "shifts",
                           "updated_at"
                         ]

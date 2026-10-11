@@ -55,7 +55,8 @@ export async function employeeDefaultShifts(tx: Tx, context: EmployeeHoursReadCo
   // بعد الحفظ تتقاس صلاحية الكتابة على الفرع المعدّل وحده، زي فحص الحفظ نفسه.
   const decision = await access.manage(tx, context.companyId, context.userId,
     context.businessId, managedBranchId ? [managedBranchId] : employee.branch_ids, candidateBranchIds);
-  let allowedBranchIds = decision.allowedBranchIds;
+  const managedBranchIds = decision.allowedBranchIds;
+  let allowedBranchIds = managedBranchIds;
   if (managedBranchId) {
     if (!decision.manage) return null;
     if (!decision.featureEnabled) return 'FEATURE_DISABLED' as const;
@@ -66,7 +67,10 @@ export async function employeeDefaultShifts(tx: Tx, context: EmployeeHoursReadCo
     if (!detail.featureEnabled) return 'FEATURE_DISABLED' as const;
     allowedBranchIds = detail.allowedBranchIds;
   }
-  const branches = await tx.execute(employeeDefaultShiftsStatement(context,
+  const rows = await tx.execute<{ branch_id: string } & Record<string, unknown>>(employeeDefaultShiftsStatement(context,
     branchContexts.filter((branch) => allowedBranchIds.includes(branch.id))));
-  return view.parse({ employee_id: context.employeeId, can_manage: decision.manage, branches });
+  // صلاحية التعديل تتقاس على كل فرع لوحده، فالقارئ يقدر يعدّل فرع ويشوف التاني للقراءة بس.
+  const branches = rows.map((row) => ({ ...row, can_manage: managedBranchIds.includes(row.branch_id) }));
+  return view.parse({ employee_id: context.employeeId,
+    can_manage: branches.some((branch) => branch.can_manage), branches });
 }

@@ -574,7 +574,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Employee detail access and staff feature. Current linked branches and stored unlinked branches; can_manage reflects live human hours permission. */
+        /** @description Employee detail access and staff feature. Current linked branches and stored unlinked branches; each branch can_manage reflects the live human hours permission on that branch; the top-level can_manage is true when at least one branch is manageable. */
         get: operations["employeeDefaultShifts"];
         put?: never;
         post?: never;
@@ -5190,6 +5190,7 @@ export interface operations {
                             /** Format: uuid */
                             branch_id: string;
                             linked: boolean;
+                            can_manage: boolean;
                             shifts: {
                                 day: number;
                                 start: string;
@@ -5264,6 +5265,7 @@ export interface operations {
                             /** Format: uuid */
                             branch_id: string;
                             linked: boolean;
+                            can_manage: boolean;
                             shifts: {
                                 day: number;
                                 start: string;
