@@ -128,6 +128,7 @@ Per branch and calendar month, one row per employee with any session or contract
 The hours arithmetic lives in `packages/domain` as pure functions with exhaustive unit tests (no arithmetic in a use
 case or query mapper beyond projection). CSV export follows AB-Q9d/e/f; anything above 200 ms becomes a worker job
 (`CLAUDE.md` §6) — decide in 27b's plan with a measurement.
+**Decided (Waleed 2026-10-11):** measured 113 ms at 3 branches × 30 employees (pilot scale, enforced by a test), 387 ms at 5 × 60, 578 ms at 10 × 60. The all-branches route stays synchronous for now; moving it to a worker job before large customers is deferred to issue #161 (row 27e).
 
 ## 6. Parts 27c and 27d — screens (rules only)
 
