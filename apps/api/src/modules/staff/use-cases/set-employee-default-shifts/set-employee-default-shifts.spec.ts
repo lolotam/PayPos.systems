@@ -18,7 +18,7 @@ function fixture(from = '2026-01-01', to: string | null = null, timezone = 'Asia
 it('uses the injected branch-local date and timestamp, then validates and replaces', async () => {
   const f = fixture('2026-10-11');
   await f.usecase.execute(command);
-  expect(f.scope.authorize).toHaveBeenCalledWith('business');
+  expect(f.scope.authorize).toHaveBeenCalledWith('business', 'branch');
   expect(f.scope.replace).toHaveBeenCalledWith([], [expect.objectContaining(input.shifts[0])], at);
   expect(f.clock.now).toHaveBeenCalledOnce();
 });

@@ -13,7 +13,7 @@ export class SetEmployeeDefaultShiftsUseCase {
   execute(command: EmployeeHoursActor & { businessId: string; employeeId: string; branchId: string; input: SetEmployeeDefaultShiftsInput }) {
     return this.transactions.run(command, async (scope) => {
       const { businessId, employeeId, branchId, input } = command;
-      await scope.authorize(businessId);
+      await scope.authorize(businessId, branchId);
       const employee = await scope.employee(businessId, employeeId, branchId);
       const at = this.clock.now();
       if (!linkedOn(employee.links, branchId, scheduleToday(at, employee.timezone)))

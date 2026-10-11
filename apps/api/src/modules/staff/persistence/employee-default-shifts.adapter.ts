@@ -17,11 +17,11 @@ export function createEmployeeHoursReadAccess() {
   };
 }
 
-async function authorize(tx: Tx, actor: EmployeeHoursActor, businessId: string) {
+async function authorize(tx: Tx, actor: EmployeeHoursActor, businessId: string, branchId: string) {
   await lockEmployeeHoursAccess(tx, actor.companyId);
   const context = await schedulingContext(tx, actor.companyId, businessId, null);
   if (!context) throw new EmployeeDefaultShiftsError('NOT_FOUND');
-  const access = await readEmployeeHoursAccess(tx, actor.companyId, actor.userId, businessId);
+  const access = await readEmployeeHoursAccess(tx, actor.companyId, actor.userId, businessId, [branchId]);
   if (!access.manage) throw new EmployeeDefaultShiftsError('FORBIDDEN');
   if (!access.featureEnabled) throw new EmployeeDefaultShiftsError('FEATURE_DISABLED');
 }
@@ -87,7 +87,7 @@ export function createEmployeeDefaultShiftsTransactions(database: TenantWrappers
       return await database.withTenant(actor.companyId, async (tx) => {
         let target: { businessId: string; employeeId: string; branchId: string } | undefined;
         return work({
-          authorize: (businessId) => authorize(tx, actor, businessId),
+          authorize: (businessId, branchId) => authorize(tx, actor, businessId, branchId),
           employee: async (businessId, employeeId, branchId) => {
             const result = await lockEmployee(tx, actor, businessId, employeeId, branchId);
             target = { businessId, employeeId, branchId };

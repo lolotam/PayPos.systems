@@ -2,7 +2,7 @@ import { Body, Controller, Get, Put, Inject, Param, Req, UseGuards } from '@nest
 import { id, setEmployeeDefaultShiftsInput, type SetEmployeeDefaultShiftsInput } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
-import { Authenticated, Require, RequiresFeature } from '../../../shared/access.decorators.ts';
+import { Authenticated } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
@@ -32,8 +32,8 @@ export class EmployeeDefaultShiftsController {
   }
 
   @Put('branches/:branchId/default-shifts')
-  @Require('manage:employee-hours:business', { business: 'businessId' })
-  @RequiresFeature('staff')
+  @Authenticated()
+  @UseGuards(SelectedCompanyGuard)
   async set(@Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
     @Param('branchId', new ZodValidationPipe(id)) branchId: string,

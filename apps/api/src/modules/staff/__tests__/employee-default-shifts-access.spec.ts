@@ -116,3 +116,22 @@ it('DH-04 GET still returns 404 when a current branch is outside the reader scop
       WHERE company_id=${f.company} AND id=${linkId}`;
   }
 });
+
+it('DH-05 PUT honours an owner BRANCH grant: the manager saves branch A and is refused on branch B', async () => {
+  await reader('BRANCH');
+  await grant('manage:employee-hours:business', 'ALLOW', 'BRANCH', f.branch);
+  const saved = await hoursHttp(f, 'PUT', f.putPath(), { shifts: salmiyaDefaults });
+  expect(saved.status).toBe(200);
+  expect(employeeDefaultShifts.parse(saved.body)).toMatchObject({ can_manage: true });
+  expect(employeeDefaultShifts.parse(saved.body).branches.map((branch) => branch.branch_id)).toEqual([f.branch]);
+  const refused = await hoursHttp(f, 'PUT', f.putPath(f.secondBranch), { shifts: hawalliDefaults });
+  expect([403, 404]).toContain(refused.status);
+});
+
+it('DH-05 PUT branch DENY still wins over a business ALLOW', async () => {
+  await reader('BUSINESS');
+  await grant('manage:employee-hours:business', 'ALLOW', 'BUSINESS', f.business);
+  await grant('manage:employee-hours:business', 'DENY', 'BRANCH', f.branch);
+  const response = await hoursHttp(f, 'PUT', f.putPath(), { shifts: salmiyaDefaults });
+  expect(response.status).toBe(403);
+});

@@ -8,11 +8,13 @@ export interface EmployeeHoursActor { companyId: string; userId: string }
  * ترتيب الأقفال ثابت (الشركة ثم الموظفة) لتجنب الـ deadlock مع حفظ متزامن.
  */
 export interface EmployeeHoursScope {
-  /** يثبت صلاحية الإدارة والميزة تحت قفل الشركة قبل قفل الموظفة.
+  /** يثبت صلاحية الإدارة على الفرع المطلوب والميزة تحت قفل الشركة قبل قفل الموظفة؛
+   * الفحص على الفرع حتى يعمل منح المالك على مستوى فرع، والمنع على الفرع يغلب منح النشاط.
    *
    * @param businessId النشاط المتحقق منه
+   * @param branchId الفرع اللي هيتحفظ دوامه
    */
-  authorize(businessId: string): Promise<void>;
+  authorize(businessId: string, branchId: string): Promise<void>;
   /** يقفل الموظفة ويعيد فترات ارتباطها وتوقيت الفرع لفحص يوم التغيير.
    *
    * @param businessId النشاط
