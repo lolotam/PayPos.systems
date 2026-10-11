@@ -1,10 +1,4 @@
-import {
-  appendAuditLog,
-  runIdempotent,
-  type IdGenerator,
-  type TenantWrappers,
-  type Tx,
-} from '@pospay/db';
+import { currentAttachment, appendAuditLog, runIdempotent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { EmployeeCardError, cardDisplaySuffix } from '../domain/employee-card.ts';
@@ -104,8 +98,8 @@ async function lockedEmployeeBranchIds(
       FOR UPDATE`);
   if (employee === undefined) return null;
   const branches = await tx.execute<{ branch_id: string }>(sql`
-    SELECT branch_id FROM employee_branches WHERE company_id=${scope.companyId}
-      AND employee_id=${scope.employeeId} AND "to" IS NULL`);
+    SELECT branch_id FROM employee_branches eb WHERE company_id=${scope.companyId}
+      AND employee_id=${scope.employeeId} AND ${currentAttachment()}`);
   return [employee.primary_branch_id, ...branches.map((branch) => branch.branch_id)];
 }
 

@@ -1,13 +1,4 @@
-import {
-  appendAuditLog,
-  appendOutboxEvent,
-  runIdempotent,
-  IdempotencyKeyBusyError,
-  IdempotencyKeyReusedError,
-  type TenantWrappers,
-  type IdGenerator,
-  type Tx,
-} from '@pospay/db';
+import { currentAttachment, appendAuditLog, appendOutboxEvent, runIdempotent, IdempotencyKeyBusyError, IdempotencyKeyReusedError, type TenantWrappers, type IdGenerator, type Tx } from '@pospay/db';
 import { parseMoney } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import { SalaryError, salarySnapshot, type SalaryRecord } from '../domain/set-salary.ts';
@@ -25,7 +16,7 @@ async function authorize(
   );
   if (employee === undefined) throw new SalaryError('NOT_FOUND');
   const branches = await tx.execute<{ branch_id: string }>(
-    sql`SELECT branch_id FROM employee_branches WHERE company_id=${companyId} AND employee_id=${employeeId} AND "to" IS NULL`,
+    sql`SELECT branch_id FROM employee_branches eb WHERE company_id=${companyId} AND employee_id=${employeeId} AND ${currentAttachment()}`,
   );
   const decision = await access.check(tx, companyId, userId, businessId, [
     employee.primary_branch_id,

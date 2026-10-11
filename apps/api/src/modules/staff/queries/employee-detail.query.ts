@@ -1,5 +1,5 @@
+import { currentAttachment, type Tx } from '@pospay/db';
 import { employeeDetailRecord, type EmployeeDetail } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 export const EMPLOYEE_DETAIL_ACCESS = Symbol('EMPLOYEE_DETAIL_ACCESS');
@@ -43,15 +43,19 @@ export async function employeeDetail(
     business_id: string;
     primary_branch_id: string;
     branch_ids: string[];
+    scope_branch_ids: string[];
   }>(sql`SELECT id, business_id, primary_branch_id, user_id, name_ar, name_en, revision,
     ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=employees.company_id AND eb.employee_id=employees.id AND eb."to" IS NULL ORDER BY eb.branch_id) AS branch_ids,
+    ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=employees.company_id AND eb.employee_id=employees.id AND ${currentAttachment()}) AS scope_branch_ids,
     role_code, to_char(hire_date, 'YYYY-MM-DD') AS hire_date, to_char(contract_end, 'YYYY-MM-DD') AS contract_end,
     to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at
     FROM employees WHERE company_id=${companyId} AND business_id=${businessId} AND id=${employeeId} AND deleted_at IS NULL`);
   if (row === undefined) return null;
-  const scopeBranches = [...row.branch_ids, row.primary_branch_id];
+  // الشاشة تعرض الفروع المضبوطة (المفتوحة)، لكن الإذن يشمل كمان ارتباط حالي ليه تاريخ نهاية لاحق (#156).
+  const { scope_branch_ids: currentBranches, ...record } = row;
+  const scopeBranches = [...new Set([...row.branch_ids, ...currentBranches, row.primary_branch_id])];
   const decision = await access.checkMany(tx, companyId, userId, row.business_id, scopeBranches);
   if (!scopeBranches.every((branch) => decision.allowedBranchIds.includes(branch))) return null;
   if (!decision.featureEnabled) return 'FEATURE_DISABLED';
-  return employeeDetailRecord.parse(row);
+  return employeeDetailRecord.parse(record);
 }

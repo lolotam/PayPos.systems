@@ -1,4 +1,4 @@
-import type { Tx } from '@pospay/db';
+import { currentAttachment, type BranchDay, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 export const MANAGER_PASSKEY_ACCESS = Symbol('MANAGER_PASSKEY_ACCESS');
 /** منفذ قراءة الشاشة يظل بجوار الاستعلامات دون اعتماد على طبقة الكتابة. */
@@ -32,23 +32,7 @@ export interface PasskeyAccessDecision {
   unbindBranchIds: string[];
   featureEnabled: boolean;
 }
-export interface BranchDay {
-  branchId: string;
-  today: string;
-}
-// النهاية مستبعدة والارتباط المستقبلي محسوب؛ فرع بلا يوم معروف محسوب أيضاً فيُرفض الشك ولا يُسمح به.
-export function currentAttachment(days: readonly BranchDay[]) {
-  const ids = sql`ARRAY[${sql.join(
-    days.map((day) => sql`${day.branchId}::uuid`),
-    sql`,`,
-  )}]::uuid[]`;
-  const dates = sql`ARRAY[${sql.join(
-    days.map((day) => sql`${day.today}::date`),
-    sql`,`,
-  )}]::date[]`;
-  return sql`(eb."to" IS NULL OR eb."to" > COALESCE((SELECT d.today FROM unnest(${ids},${dates}) AS d(branch_id,today) WHERE d.branch_id=eb.branch_id),'-infinity'::date))`;
-}
-// شاشة الموظف تحتاج فروع الربط الحالية كلها؛ الفحص يسبق أي كشف للتاريخ أو حالة الميزة.
+// شاشة ربط الموظف تفحص كل الفروع قبل كشف سجل الربط.
 export function passkeyEmployeeScopeStatement(
   scope: { companyId: string; businessId: string; employeeId: string; userId: string },
   days: readonly BranchDay[],

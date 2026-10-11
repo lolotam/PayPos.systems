@@ -18,6 +18,8 @@ export { appendAuditLog, appendAuditLogs, type AuditEntry } from './audit-log.ts
 export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { markEventConsumed } from './consumed-events.ts';
+export { branchToday, currentAttachment, type BranchDay } from './employee-branch-links.ts';
+export { employeeDefaultShiftsStatement } from './employee-default-shifts-projection.ts';
 export {
   createOutboxDispatcherDatabase,
   type ClaimedEvent,

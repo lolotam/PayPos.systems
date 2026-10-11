@@ -1,7 +1,7 @@
+import { type Tx, currentAttachment, type BranchDay } from '@pospay/db';
 import { passkeyEmployeePage, type PasskeyHistoryQuery } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { currentAttachment, type BranchDay, type ManagerPasskeyAccess } from './passkey-access.ts';
+import type { ManagerPasskeyAccess } from './passkey-access.ts';
 
 // قائمة صفحة الموظفين مستقلة عن سلطة التعديل؛ كل الفروع المحفوظة مصفّاة قبل المؤشر.
 export function passkeyEmployeesStatement(

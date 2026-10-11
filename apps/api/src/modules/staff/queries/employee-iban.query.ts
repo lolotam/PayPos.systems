@@ -1,5 +1,5 @@
+import { currentAttachment, type Tx } from '@pospay/db';
 import { employeeIbanView } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 export const EMPLOYEE_IBAN_ACCESS = Symbol('EMPLOYEE_IBAN_ACCESS');
@@ -29,7 +29,7 @@ export async function employeeIbanDecision(
   const { companyId, businessId, employeeId, userId } = context;
   // قسم الحساب وتاريخه يقيّمان الإذن عند الفروع المحفوظة قبل قراءة أي قيمة مصرفية.
   const [employee] = await tx.execute<{ branch_ids: string[] }>(sql`SELECT
-    ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND eb."to" IS NULL) || ARRAY[e.primary_branch_id] AS branch_ids
+    ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment()}) || ARRAY[e.primary_branch_id] AS branch_ids
     FROM employees e WHERE e.company_id=${companyId} AND e.business_id=${businessId} AND e.id=${employeeId} AND e.deleted_at IS NULL`);
   return employee ? access.check(tx, companyId, userId, businessId, employee.branch_ids) : null;
 }

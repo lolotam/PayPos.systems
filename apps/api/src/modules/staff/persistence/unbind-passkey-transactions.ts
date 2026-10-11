@@ -1,10 +1,4 @@
-import {
-  appendAuditLog,
-  appendOutboxEvent,
-  type IdGenerator,
-  type TenantWrappers,
-  type Tx,
-} from '@pospay/db';
+import { currentAttachment, appendAuditLog, appendOutboxEvent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { UnbindPasskeyError } from '../domain/unbind-passkey.ts';
 import type {
@@ -14,18 +8,6 @@ import type {
 } from '../ports/unbind-passkey.port.ts';
 import { createManagerPasskeyAccess } from './manager-passkey-access.adapter.ts';
 
-// نفس قاعدة شاشة القراءة: النهاية مستبعدة، المستقبلي محسوب، والفرع بلا يوم معروف محسوب.
-function currentAttachment(days: readonly { branchId: string; today: string }[]) {
-  const ids = sql`ARRAY[${sql.join(
-    days.map((day) => sql`${day.branchId}::uuid`),
-    sql`,`,
-  )}]::uuid[]`;
-  const dates = sql`ARRAY[${sql.join(
-    days.map((day) => sql`${day.today}::date`),
-    sql`,`,
-  )}]::date[]`;
-  return sql`(eb."to" IS NULL OR eb."to" > COALESCE((SELECT d.today FROM unnest(${ids},${dates}) AS d(branch_id,today) WHERE d.branch_id=eb.branch_id),'-infinity'::date))`;
-}
 
 async function authorize(tx: Tx, scope: ManagerPasskeyScope, clock: PasskeyAccessClock) {
   const { companyId, businessId, employeeId, userId } = scope;
