@@ -6,6 +6,7 @@ import {
   planChangeDecision,
   attendanceChangeRecipientGroups,
   attendanceChangeRecipients,
+  attendanceDecisionRecipients,
   attendanceChangeNoticeText,
 } from '../attendance-change-request.ts';
 const now = new Date('2026-10-10T08:00:00Z');
@@ -132,6 +133,16 @@ it('notifies eligible approvers excluding the requester and non-owner employee',
     'delegate',
     'owner',
   ]);
+});
+it('tells the requester of the decision unless she decided it, left, or is now the employee (FR-009)', () => {
+  const requester = { userId: 'requester', member: true, owner: false };
+  expect(attendanceDecisionRecipients(requester, 'owner', 'employee')).toEqual(['requester']);
+  expect(attendanceDecisionRecipients(requester, 'requester', null)).toEqual([]);
+  expect(attendanceDecisionRecipients({ ...requester, member: false }, 'owner', null)).toEqual([]);
+  expect(attendanceDecisionRecipients(requester, 'owner', 'requester')).toEqual([]);
+  expect(
+    attendanceDecisionRecipients({ ...requester, owner: true }, 'other-owner', 'requester'),
+  ).toEqual(['requester']);
 });
 it('uses safe display fallbacks and preserves a decision notice when its reason is unsafe', () => {
   const fallback = { ar: 'موظف', en: 'Employee' };

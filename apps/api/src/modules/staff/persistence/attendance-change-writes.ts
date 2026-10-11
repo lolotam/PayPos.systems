@@ -6,6 +6,7 @@ import {
   AttendanceChangeError,
   attendanceChangeRecipientGroups,
   attendanceChangeRecipients,
+  attendanceDecisionRecipients,
   attendanceChangeNoticeText,
   type AttendanceChangePlan,
 } from '../domain/attendance-change-request.ts';
@@ -190,7 +191,11 @@ async function eventRecipients(
     row.branch_id,
     context.now,
   );
-  return requester.member ? [row.requested_by] : [];
+  return attendanceDecisionRecipients(
+    { ...requester, userId: row.requested_by },
+    actor.userId,
+    context.employeeUserId,
+  );
 }
 async function events(
   tx: Tx,
