@@ -43,7 +43,7 @@ async function setup(day: string) {
   const kinds = createAttendanceChangeKinds([createAddSessionKind(f.ids)]);
   const tx = createAttendanceChangeTransactions(f.database, f.ids, kinds);
   const clock = { now: () => new Date(`${day}T09:00:00Z`) };
-  const row = await new RequestAttendanceChangeUseCase(tx, clock, kinds).execute(actor(), {
+  const row = await new RequestAttendanceChangeUseCase(tx, clock, kinds, f.ids).execute(actor(), {
     kind: 'ADD_SESSION',
     employee_id: f.employeeId,
     branch_id: f.branchId,

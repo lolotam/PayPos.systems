@@ -87,7 +87,7 @@ it.each(['file', 'decide'] as const)(
               decision: 'APPROVED',
               revision: 0,
             })
-          : new RequestAttendanceChangeUseCase(f.tx, clock, f.kinds).execute(actor, input);
+          : new RequestAttendanceChangeUseCase(f.tx, clock, f.kinds, leaveIds).execute(actor, input);
         outcome = operation.catch((error: unknown) => error);
         await branchWaiter();
         now = new Date('2026-10-04T10:02:00Z');
@@ -136,7 +136,7 @@ it('refuses an unauthorized filer without waiting for a locked branch', async ()
       ),
   };
   const transactions = createAttendanceChangeTransactions(database, leaveIds, f.kinds);
-  const useCase = new RequestAttendanceChangeUseCase(transactions, f.clock, f.kinds);
+  const useCase = new RequestAttendanceChangeUseCase(transactions, f.clock, f.kinds, leaveIds);
   const actor = changeActor(f);
   const before = await f.h.owner`SELECT id FROM attendance_change_requests ORDER BY id`;
   try {

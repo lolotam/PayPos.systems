@@ -74,16 +74,19 @@ Post-design re-check: unchanged, ✅. The kinds port has no production implement
 2. **Ports**:
    - `ports/attendance-change-transactions.port.ts` — `file`, `cancel`, `decide`: each runs `work(scope)` inside one
      tenant transaction after the locks, under `runIdempotent`, and gives the scope the locked facts (request row,
-     employee `user_id`, owner flag, `canDecide`, `now`) and `save` callbacks.
+     employee `user_id`, owner flag, `canDecide`, `now`, `requestId`) and `hold` / `save` callbacks.
    - `ports/attendance-change-kinds.port.ts` — `AttendanceChangeKinds.find(kind)` returns an
      `AttendanceChangeKind | null`. A kind exposes `target(input)` (employee + branch, read without locks, for the
      authority precheck), `check(scope)` (kind rules under locks; returns the values to store) and `apply(scope)`
-     (the effect, in the approval transaction). Production registry: empty (DI token `ATTENDANCE_CHANGE_KINDS`,
+     (the effect, in the approval transaction; the request row already exists as PENDING with `scope.requestId`, so
+     an effect may reference it by a tenant-qualified FK such as `change_request_id` / `void_request_id`). Production registry: empty (DI token `ATTENDANCE_CHANGE_KINDS`,
      `createAttendanceChangeKinds([])`). Tests register a test-only kind by overriding that provider in the test
      module only — never in `staff.module.ts`.
 3. **Use cases** (one-line Arabic doc each, no arithmetic, no SQL):
-   - `request-attendance-change` — kind lookup (`KIND_UNAVAILABLE` before any write) → transactions.file →
-     `kind.check` → `planChangeRequest` → save (+ `kind.apply` when owner one-step) → 201.
+   - `request-attendance-change` — kind lookup (`KIND_UNAVAILABLE` before any write) → request id from
+     `IdGenerator` → transactions.file → `planChangeRequest` → `kind.check` → save PENDING → 201. Owner one-step
+     (ACR-Q2): `hold` (row PENDING + `requested` audit, no event) → `kind.apply` → save APPROVED revision 1 (`approved`
+     audit, one Decided event without recipients); a kind refusal rolls the whole transaction back (PR #148 review).
    - `cancel-attendance-change` — transactions.cancel → `planChangeCancel` → save → 200.
    - `decide-attendance-change` — transactions.decide → `planChangeDecision` → on APPROVED `kind.check` again then
      `kind.apply` (ACR-Q13: any kind refusal propagates, the transaction rolls back, the request stays PENDING) →

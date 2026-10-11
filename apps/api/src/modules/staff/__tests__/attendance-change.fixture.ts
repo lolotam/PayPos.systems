@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import type * as StaffModule from '../staff.module.ts';
-import { appendAuditLog, type Tx } from '@pospay/db';
+import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type {
   AttendanceChangeKinds,
@@ -58,6 +58,11 @@ export async function attendanceChangeFixture(production = false) {
   const f = await attendanceCorrectionFixture();
   override.current = null;
   const owner = await ownerUserId(f);
+  await f.h
+    .owner`CREATE TABLE test_attendance_change_effects(company_id uuid NOT NULL, id uuid NOT NULL,
+    request_id uuid NOT NULL, PRIMARY KEY(company_id,id),
+    FOREIGN KEY(company_id,request_id) REFERENCES attendance_change_requests(company_id,id))`;
+  await f.h.owner`GRANT SELECT, INSERT ON test_attendance_change_effects TO pospay_app`;
   const tx = createAttendanceChangeTransactions(f.db, leaveIds, kinds);
   return {
     ...f,
@@ -65,7 +70,7 @@ export async function attendanceChangeFixture(production = false) {
     control,
     kinds,
     tx,
-    fileChange: new RequestAttendanceChangeUseCase(tx, f.clock, kinds),
+    fileChange: new RequestAttendanceChangeUseCase(tx, f.clock, kinds, leaveIds),
     cancelChange: new CancelAttendanceChangeUseCase(tx, f.clock),
     decideChange: new DecideAttendanceChangeUseCase(tx, f.clock, kinds),
   };
@@ -93,7 +98,7 @@ export const changeAudits = (f: ChangeFixture, id: string) =>
 export const changeEvents = (f: ChangeFixture, id: string) =>
   f.h.owner`SELECT event_type,payload FROM outbox WHERE aggregate_id=${id} ORDER BY id`;
 export const effectCount = (f: ChangeFixture) =>
-  f.h.owner`SELECT id FROM audit_log WHERE entity='test_attendance_change_effect'`;
+  f.h.owner`SELECT request_id FROM test_attendance_change_effects ORDER BY id`;
 
 function testKind(
   code: AttendanceChangeKind['code'],
@@ -136,12 +141,9 @@ function testKind(
       };
     },
     apply: async (scope, values) => {
-      await appendAuditLog(scope.transaction as Tx, leaveIds.newId(), {
-        entity: 'test_attendance_change_effect',
-        entityId: scope.target.employee_id,
-        action: 'test.kind.applied',
-        after: { applied: true },
-      });
+      await (scope.transaction as Tx).execute(
+        sql`INSERT INTO test_attendance_change_effects(company_id,id,request_id) VALUES(${scope.companyId},${leaveIds.newId()},${scope.requestId})`,
+      );
       if (control.failAfterEffect) throw new AttendanceChangeError('VALIDATION_FAILED');
       if (control.kindRefusalAfterEffect)
         throw new AttendanceChangeKindRefusal('TEST_KIND_REFUSED', 422);

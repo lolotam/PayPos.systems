@@ -28,10 +28,10 @@ import {
   attendanceChangeAuthorityLock,
 } from './attendance-change-context.adapter.ts';
 import { changeEmployee, lockChangeState, readChangeRequest } from './attendance-change-records.ts';
-import { saveAttendanceChange } from './attendance-change-writes.ts';
+import { holdAttendanceChange, saveAttendanceChange } from './attendance-change-writes.ts';
 
 type Action = 'file' | 'cancel' | 'decide';
-type Filing = { input: AttendanceChangeKindInput; kind: AttendanceChangeKind };
+type Filing = { input: AttendanceChangeKindInput; kind: AttendanceChangeKind; requestId: string };
 type Work = (scope: AttendanceChangeScope) => Promise<AttendanceChangeRequest>;
 
 function assertAuthority(
@@ -58,7 +58,7 @@ function readAuthority(tx: Tx, actor: AttendanceChangeActor, branchId: string, n
   );
 }
 async function loadTarget(
-  scope: Omit<AttendanceChangeKindScope, 'target' | 'request' | 'input'>,
+  scope: Omit<AttendanceChangeKindScope, 'target' | 'request' | 'input' | 'requestId'>,
   candidate: AttendanceChangeRequest | null,
   filing?: Filing,
 ) {
@@ -77,16 +77,15 @@ async function load(
   actor: AttendanceChangeActor,
   action: Action,
   clock: AttendanceChangeClock,
-  ids: IdGenerator,
   kinds: AttendanceChangeKinds,
   filing?: Filing,
 ) {
   const sample = clock.now();
   const candidate = filing ? null : await readChangeRequest(tx, actor);
-  const requestId = filing ? ids.newId() : candidate?.id;
+  const requestId = filing ? filing.requestId : candidate?.id;
   if (!requestId) throw new AttendanceChangeError('NOT_FOUND');
   const target = await loadTarget(
-    { transaction: tx, ...actor, now: sample, requestId },
+    { transaction: tx, ...actor, now: sample },
     candidate,
     filing,
   );
@@ -158,7 +157,8 @@ export function createAttendanceChangeTransactions(
     filing?: Filing,
   ) => changeOnce(database, ids, kinds, actor, action, clock, work, filing);
   return {
-    file: (actor, input, kind, clock, work) => run(actor, 'file', clock, work, { input, kind }),
+    file: (actor, input, kind, clock, requestId, work) =>
+      run(actor, 'file', clock, work, { input, kind, requestId }),
     cancel: (actor, clock, work) => run(actor, 'cancel', clock, work),
     decide: (actor, clock, work) => run(actor, 'decide', clock, work),
   };
@@ -177,7 +177,7 @@ async function changeOnce(
     return await database.withTenant(
       actor.companyId,
       async (tx) => {
-        const context = await load(tx, actor, action, clock, ids, kinds, filing);
+        const context = await load(tx, actor, action, clock, kinds, filing);
         const result = await runIdempotent(
           tx,
           {
@@ -202,6 +202,7 @@ async function changeOnce(
               ...actor,
               ...context,
               transaction: tx,
+              hold: (plan, values) => holdAttendanceChange(tx, ids, actor, context, plan, values),
               save: (plan, values) => saveAttendanceChange(tx, ids, actor, context, plan, values),
             }),
           }),
