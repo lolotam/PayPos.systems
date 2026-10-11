@@ -6,6 +6,22 @@ import { apiClient } from '@/shared/api/client';
 import { downloadAttendanceCsv } from './download-attendance-csv';
 import type { AttendanceReportScope } from './use-attendance-report';
 
+async function csvError(error: unknown, status: number) {
+  let envelope = error;
+  const blob = error as { text?: () => Promise<string> } | null;
+  if (typeof blob?.text === 'function') {
+    try {
+      envelope = JSON.parse(await blob.text()) as unknown;
+    } catch {
+      envelope = null;
+    }
+  }
+  return {
+    ...(typeof envelope === 'object' && envelope !== null ? envelope : {}),
+    status,
+  };
+}
+
 export function useAttendanceReportCsv(
   scope: AttendanceReportScope,
   month: string,
@@ -42,7 +58,7 @@ export function useAttendanceReportCsv(
               },
             );
       if (request.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-      if (result.error) throw { ...result.error, status: result.response.status };
+      if (result.error) throw await csvError(result.error, result.response.status);
       if (!result.data) throw new Error('Empty CSV response');
       downloads.current.add(
         downloadAttendanceCsv(result.data, branchId === 'all' ? 'all' : branchName, month),
