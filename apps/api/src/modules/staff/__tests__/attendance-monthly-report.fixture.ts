@@ -40,11 +40,12 @@ export async function denyReportBranch(f: MonthlyReportFixture, branch = f.secon
 export async function reportSession(f: MonthlyReportFixture, patch: {
   branch?: string; date?: string; start?: string; end?: string | null;
   status?: string; source?: string; late?: number; scheduledEnd?: string | null;
+  clockIn?: string; clockOut?: string;
 } = {}) {
   const id = salaryIds.newId(), date = patch.date ?? '2026-10-03', status = patch.status ?? 'CLOSED';
   const source = patch.source ?? 'QR', request = source === 'MANUAL' ? salaryIds.newId() : null;
-  const clockIn = `${date}T${patch.start ?? '06:00'}:00.000Z`;
-  const clockOut = status === 'OPEN' ? null : `${date}T${patch.end ?? '14:00'}:00.000Z`;
+  const clockIn = patch.clockIn ?? `${date}T${patch.start ?? '06:00'}:00.000Z`;
+  const clockOut = status === 'OPEN' ? null : patch.clockOut ?? `${date}T${patch.end ?? '14:00'}:00.000Z`;
   if (request) await f.h.owner`INSERT INTO attendance_change_requests(company_id,id,business_id,branch_id,employee_id,
     kind,clock_in,clock_out,working_date,timezone,reason,requested_by,requested_at)
     VALUES(${f.company},${request},${f.business},${patch.branch ?? f.branch},${f.employee.id},'ADD_SESSION',

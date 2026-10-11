@@ -14,7 +14,7 @@ export interface AttendanceReportInputRow extends Record<string, unknown> {
   branches: AttendanceReportBranchInputs[];
 }
 
-// يعيد SQL صفاً واحداً لكل موظفة بمدخلات الفرع والشهر فقط؛ 16d هو مصدر التعاقد بلا استيراد domain.
+// يوم السياق على طرفي الشهر يحفظ تجاور بريك الوردية الليلية؛ المرشحون والحساب النهائي يلتزمان بالشهر المطلوب.
 export function attendanceMonthlyInputsStatement(companyId: string, scope: AttendanceReportScope, from: string, to: string) {
   const branchIds = sql`ARRAY[${sql.join(scope.branches.map((branch) => sql`${branch.id}::uuid`), sql`, `)}]::uuid[]`;
   const zones = sql.join(scope.branches.map((branch) => sql`(${branch.id}::uuid,${branch.timezone}::text)`), sql`, `);
@@ -23,28 +23,29 @@ export function attendanceMonthlyInputsStatement(companyId: string, scope: Atten
   return sql`WITH contracts AS MATERIALIZED (${contracts}),
     zones(branch_id,timezone) AS (VALUES ${zones}),
     sessions AS MATERIALIZED (
-      SELECT s.employee_id,s.branch_id,json_agg(row_to_json(v) ORDER BY s.clock_in,s.id) AS sessions
+      SELECT s.employee_id,s.branch_id,json_agg(row_to_json(v) ORDER BY s.clock_in,s.id) AS sessions,
+        bool_or(s.working_date BETWEEN ${from}::date AND ${to}::date) AS in_month
       FROM attendance_sessions s CROSS JOIN LATERAL (SELECT s.working_date,s.clock_in,s.clock_out,s.status,
         s.source,s.late_minutes,s.scheduled_end,false AS voided,
         s.status='MISSED_OUT' AND EXISTS(SELECT 1 FROM attendance_corrections ac
           WHERE ac.company_id=s.company_id AND ac.session_id=s.id AND ac.field='CLOCK_OUT') AS clock_out_corrected) v
       WHERE s.company_id=${companyId} AND s.business_id=${scope.businessId}
-        AND s.branch_id=ANY(${branchIds}) AND s.working_date BETWEEN ${from}::date AND ${to}::date
+        AND s.branch_id=ANY(${branchIds}) AND s.working_date BETWEEN (${from}::date-1) AND (${to}::date+1)
         AND s.voided_at IS NULL AND s.status<>'OPEN' GROUP BY s.employee_id,s.branch_id),
     shifts AS MATERIALIZED (
       SELECT sc.employee_id,sc.branch_id,json_agg(row_to_json(v) ORDER BY sh.starts_at) AS shifts
       FROM staff_schedules sc JOIN staff_schedule_shifts sh ON sh.company_id=sc.company_id AND sh.schedule_id=sc.id
         CROSS JOIN LATERAL (SELECT sh.working_date,sh.starts_at,sh.ends_at,sh.break_starts_at,sh.break_ends_at) v
       WHERE sc.company_id=${companyId} AND sc.business_id=${scope.businessId} AND sc.branch_id=ANY(${branchIds})
-        AND sc.week_start BETWEEN (${from}::date-6) AND ${to}::date
-        AND sh.working_date BETWEEN ${from}::date AND ${to}::date GROUP BY sc.employee_id,sc.branch_id),
+        AND sc.week_start BETWEEN (${from}::date-7) AND ${to}::date
+        AND sh.working_date BETWEEN (${from}::date-1) AND ${to}::date GROUP BY sc.employee_id,sc.branch_id),
     leaves AS MATERIALIZED (
       SELECT l.employee_id,l.branch_id,json_agg(row_to_json(v)) AS leave
       FROM leave_requests l CROSS JOIN LATERAL (SELECT l.type,l.kind,l."from",l."to",l.starts_at,l.ends_at) v
       WHERE l.company_id=${companyId} AND l.business_id=${scope.businessId}
         AND l.branch_id=ANY(${branchIds}) AND l.status='APPROVED'
         AND l."from"<=${to}::date+1 AND l."to">=${from}::date GROUP BY l.employee_id,l.branch_id),
-    candidates AS (SELECT employee_id,branch_id FROM sessions UNION
+    candidates AS (SELECT employee_id,branch_id FROM sessions WHERE in_month UNION
       SELECT c.employee_id,c.branch_id FROM contracts c WHERE EXISTS (
         SELECT 1 FROM generate_series(${from}::date,${to}::date,interval '1 day') day
           CROSS JOIN jsonb_array_elements(c.entries) entry

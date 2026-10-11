@@ -1,8 +1,9 @@
-import { systemRoleGrantAllowedSql, systemRoleOverrideAllowedSql, type Tx } from '@pospay/db';
+import { canonicalOwnerSql, systemRoleGrantAllowedSql, systemRoleOverrideAllowedSql, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { attendanceReportWorkplaces } from './schedule-context.adapter.ts';
 
-// الصلاحية تُقرأ من العضويات الحية؛ DENY في أي نطاق يغطي الفرع يغلب كل ALLOW مطابق.
+// لا يوجد تقييم إذن عام في identity/index.ts؛ نطابق حماية المالك في identity/domain/owner-access.ts:14-15
+// واكتشافه في identity/persistence/access-reader.ts:92-102,128-138: DENY لا يقلل سلطة المالك الإداريّة.
 function grantsStatement(companyId: string, userId: string) {
   return sql`WITH active AS (SELECT m.* FROM memberships m
     WHERE m.company_id=${companyId} AND m.user_id=${userId}
@@ -13,7 +14,10 @@ function grantsStatement(companyId: string, userId: string) {
     UNION ALL SELECT o.scope_type,o.scope_id,o.effect FROM active m
       JOIN permission_overrides o ON o.company_id=m.company_id AND o.membership_id=m.id
       WHERE o.permission_code='read:attendance:branch' AND (o.expires_at IS NULL OR o.expires_at>now())
-        AND ${systemRoleOverrideAllowedSql('m', 'o')}`;
+        AND ${systemRoleOverrideAllowedSql('m', 'o')}
+        AND (o.effect<>'DENY' OR NOT EXISTS(SELECT 1 FROM active owner_membership
+          JOIN roles r ON r.id=owner_membership.role_id AND r.owner_key=owner_membership.role_owner_key
+          WHERE ${canonicalOwnerSql('owner_membership', companyId)}))`;
 }
 
 export async function attendanceReportScope(tx: Tx, companyId: string, userId: string, businessId: string, branchId: string) {

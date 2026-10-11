@@ -12,30 +12,40 @@ export function isCountedAttendanceSession(session: ReportSession): boolean {
 }
 
 /**
- * يحسب دقائق العمل الفعلية لليوم وبريك BW-Q8 فقط بين جلستين محتسبتين متجاورتين لنفس الوردية.
- * طرفا الفجوة داخل نافذة البريك بما فيه حدّاها؛ أي غياب خارجها لا يتحول إلى عمل.
+ * يحسب دقائق العمل وبريك BW-Q8 بين الجلسات المتجاورة لكل وردية حتى عبر منتصف الليل.
+ * رصيد الفجوة يمد جلسة الخروج وينسب ليوم دخولها؛ يُختار الشهر بعد حساب التجاور لا قبله.
  *
- * @param sessions جلسات يوم العمل الواحد في الفرع
- * @param shifts ورديات ذلك اليوم وبريكها المثبت
+ * @param sessions جلسات الفرع مع سياق الوردية قبل الشهر وبعده
+ * @param shifts ورديات الفترة وبريكها المثبت
+ * @param month الشهر المطلوب أو undefined لجمع كل أيام الدخول
  * @returns دقائق صحيحة، والفترات التي لا تكمل دقيقة لا تضيف دقيقة
  */
-export function workedAttendanceMinutes(sessions: readonly ReportSession[], shifts: readonly ReportShift[]): number {
+export function workedAttendanceMinutes(sessions: readonly ReportSession[], shifts: readonly ReportShift[], month?: string): number {
   const counted = sessions.filter(isCountedAttendanceSession)
     .toSorted((a, b) => Date.parse(a.clock_in) - Date.parse(b.clock_in));
-  let elapsed = counted.reduce((total, session) => total +
-    Math.max(0, Date.parse(session.clock_out ?? session.clock_in) - Date.parse(session.clock_in)), 0);
-  for (let index = 1; index < counted.length; index++) {
-    const previous = counted[index - 1], next = counted[index];
-    if (!previous || !next || previous.clock_out === null || previous.scheduled_end === null ||
-      next.scheduled_end === null || Date.parse(previous.scheduled_end) !== Date.parse(next.scheduled_end)) continue;
-    const shift = shifts.find((candidate) => Date.parse(candidate.ends_at) === Date.parse(next.scheduled_end ?? '') &&
-      candidate.working_date === previous.working_date);
-    if (!shift?.break_starts_at || !shift.break_ends_at) continue;
-    const out = Date.parse(previous.clock_out), back = Date.parse(next.clock_in);
-    const start = Date.parse(shift.break_starts_at), end = Date.parse(shift.break_ends_at);
-    if (start <= out && out <= back && back <= end) elapsed += back - out;
+  const elapsedByDate = new Map<string, number>();
+  const previousByShift = new Map<number, ReportSession>();
+  for (const session of counted) {
+    const elapsed = Math.max(0, Date.parse(session.clock_out ?? session.clock_in) - Date.parse(session.clock_in));
+    elapsedByDate.set(session.working_date, (elapsedByDate.get(session.working_date) ?? 0) + elapsed);
+    if (session.scheduled_end === null) continue;
+    const shiftEnd = Date.parse(session.scheduled_end);
+    const previous = previousByShift.get(shiftEnd);
+    const shift = shifts.find((candidate) => Date.parse(candidate.ends_at) === shiftEnd);
+    if (previous && shift) {
+      elapsedByDate.set(previous.working_date, (elapsedByDate.get(previous.working_date) ?? 0) + breakCredit(previous, session, shift));
+    }
+    previousByShift.set(shiftEnd, session);
   }
-  return Math.floor(elapsed / 60_000);
+  return [...elapsedByDate].filter(([date]) => month === undefined || date.startsWith(`${month}-`))
+    .reduce((minutes, [, elapsed]) => minutes + Math.floor(elapsed / 60_000), 0);
+}
+
+function breakCredit(previous: ReportSession, next: ReportSession, shift: ReportShift): number {
+  if (previous.clock_out === null || !shift.break_starts_at || !shift.break_ends_at) return 0;
+  const out = Date.parse(previous.clock_out), back = Date.parse(next.clock_in);
+  const start = Date.parse(shift.break_starts_at), end = Date.parse(shift.break_ends_at);
+  return start <= out && out <= back && back <= end ? back - out : 0;
 }
 
 /**

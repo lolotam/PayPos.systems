@@ -30,14 +30,21 @@ it.each(['owner','general_manager','accountant'])('AB-Q2 %s reads every branch a
   expect(response.statusCode).toBe(200);
   expect(attendanceMonthlyReport.parse(response.json())).toMatchObject({business_id:f.business,branch_id:'all'});
 });
-it('AB-Q7 business reader sees all; any branch DENY wins even over a company owner grant', async () => {
+it('AB-Q7 business reader sees all; a branch DENY wins over a non-owner company grant', async () => {
   await scopeReportReader(f,'BUSINESS',f.business);
   expect((await get('all')).statusCode).toBe(200);
-  await resetReportReader(f);
+  await scopeReportReader(f,'COMPANY',f.company);
   await denyReportBranch(f);
   expect((await get()).statusCode).toBe(200);
   expect((await get(f.secondBranch)).statusCode).toBe(404);
   expect((await get('all')).statusCode).toBe(404);
+});
+it('canonical owner with a branch DENY gets identical single-branch and all outcomes on JSON and CSV', async () => {
+  await denyReportBranch(f);
+  for (const csv of [false,true]) {
+    expect((await get(f.secondBranch,csv)).statusCode).toBe(200);
+    expect((await get('all',csv)).statusCode).toBe(200);
+  }
 });
 it('only month is accepted in query; invalid months and incompatible branch/business are refused', async () => {
   for (const url of [`${reportUrl(f,'all')}&branch_id=all`,

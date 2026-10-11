@@ -1,12 +1,31 @@
 import type { AttendanceMonthlyReport, AttendanceMonthlyReportRow } from '@pospay/contracts';
 import { attendanceDecimalHours, attendanceHoursMinutes } from '@pospay/domain';
+import { t, type MessageKey } from '@pospay/i18n';
 
-/* eslint-disable no-restricted-syntax -- brief 27b explicitly authorizes a fixed Arabic CSV header map within the staff fence. */
-const HEADERS = ['اسم الموظفة','أيام الحضور','ساعات العمل','ساعات العمل العشرية','ساعات الجدول','ساعات الجدول العشرية',
-  'الساعات المتفق عليها','الساعات المتفق عليها العشرية','الفرق','الفرق العشري','عدد التأخير','دقائق التأخير',
-  'ناقص بصمة خروج','أيام يدوية','أيام إجازة سنوية','ساعات إجازة سنوية جزئية','أيام إجازة مرضية',
-  'ساعات إجازة مرضية جزئية','أيام إجازة بدون راتب','ساعات إجازة بدون راتب جزئية','أيام إجازة أخرى','ساعات إجازة أخرى جزئية'];
-/* eslint-enable no-restricted-syntax */
+const HEADER_KEYS = [
+  'attendanceReport.employeeName',
+  'attendanceReport.daysPresent',
+  'attendanceReport.workedHours',
+  'attendanceReport.workedDecimalHours',
+  'attendanceReport.scheduledHours',
+  'attendanceReport.scheduledDecimalHours',
+  'attendanceReport.contractedHours',
+  'attendanceReport.contractedDecimalHours',
+  'attendanceReport.difference',
+  'attendanceReport.decimalDifference',
+  'attendanceReport.lateCount',
+  'attendanceReport.lateMinutes',
+  'attendanceReport.missingClockOut',
+  'attendanceReport.manualDays',
+  'attendanceReport.annualLeaveDays',
+  'attendanceReport.annualPartialLeaveHours',
+  'attendanceReport.sickLeaveDays',
+  'attendanceReport.sickPartialLeaveHours',
+  'attendanceReport.unpaidLeaveDays',
+  'attendanceReport.unpaidPartialLeaveHours',
+  'attendanceReport.otherLeaveDays',
+  'attendanceReport.otherPartialLeaveHours',
+] as const satisfies readonly MessageKey[];
 
 function quote(value: string | number): string {
   const text = String(value);
@@ -24,5 +43,5 @@ function csvRow(row: AttendanceMonthlyReportRow) {
     .map(quote).join(',');
 }
 export function attendanceMonthlyCsv(report: AttendanceMonthlyReport): string {
-  return `${String.fromCharCode(0xfeff)}${[HEADERS.map(quote).join(','), ...report.rows.map(csvRow)].join('\r\n')}\r\n`;
+  return `${String.fromCharCode(0xfeff)}${[HEADER_KEYS.map((key) => quote(t('ar', key))).join(','), ...report.rows.map(csvRow)].join('\r\n')}\r\n`;
 }

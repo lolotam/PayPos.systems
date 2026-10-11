@@ -13,11 +13,7 @@ import { attendanceLateness, isCountedAttendanceSession, workedAttendanceMinutes
 export function computeAttendanceMonthlyReport(branches: readonly ReportBranchInputs[], month: string) {
   const sessions = branches.flatMap((branch) => branch.sessions).filter((session) => session.working_date.startsWith(`${month}-`));
   const counted = sessions.filter(isCountedAttendanceSession);
-  const worked_minutes = branches.reduce((sum, branch) => {
-    const dates = new Set(branch.sessions.filter((session) => session.working_date.startsWith(`${month}-`)).map((session) => session.working_date));
-    return sum + [...dates].reduce((minutes, date) => minutes + workedAttendanceMinutes(
-      branch.sessions.filter((session) => session.working_date === date), branch.shifts.filter((shift) => shift.working_date === date)), 0);
-  }, 0);
+  const worked_minutes = branches.reduce((sum, branch) => sum + workedAttendanceMinutes(branch.sessions, branch.shifts, month), 0);
   const scheduled_minutes = branches.reduce((sum, branch) => sum + branch.shifts
     .filter((shift) => shift.working_date.startsWith(`${month}-`))
     .reduce((minutes, shift) => minutes + Math.floor((Date.parse(shift.ends_at) - Date.parse(shift.starts_at)) / 60_000), 0), 0);
