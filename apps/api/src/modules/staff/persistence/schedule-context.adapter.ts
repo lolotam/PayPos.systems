@@ -8,6 +8,15 @@ export async function employeeHoursBranches(tx: Tx, companyId: string, businessI
   return business?.branches.map((branch) => ({ id: branch.id, timezone: branch.effective_timezone })) ?? [];
 }
 
+export async function attendanceReportWorkplaces(tx: Tx, companyId: string, businessId: string, branchId: string) {
+  const tree = await describeWorkspaces(tx, [{ scope: 'BUSINESS', scopeId: businessId }]);
+  const business = tree?.id === companyId ? tree.businesses.find((entry) => entry.id === businessId) : undefined;
+  if (!business) return null;
+  return { businessId: business.id, branches: business.branches
+    .filter((branch) => branch.is_active && (branchId === 'all' || branch.id === branchId))
+    .map((branch) => ({ id: branch.id, timezone: branch.effective_timezone })) };
+}
+
 export async function schedulingContext(
   tx: Tx,
   companyId: string,
