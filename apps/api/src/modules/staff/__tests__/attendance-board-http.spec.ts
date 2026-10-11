@@ -155,8 +155,8 @@ it('FEATURE_DISABLED is consistent for both board endpoints after authorized bra
 it('mismatched business paths and malformed branch ids disclose no branch', async () => {
   await asRole(f, 'owner');
   for (const suffix of ['', '/refusals']) {
-    for (const business of [f.secondBusiness, leaveIds.newId()]) {
-      const result = await send(suffix, f.branch, '', business);
+    for (const business of [f.secondBusiness, f.secondBusiness.toUpperCase(), leaveIds.newId()]) {
+      const result = await send(suffix, f.branch.toUpperCase(), '', business);
       expect(result.status).toBe(404);
       expect(result.body.code).toBe('NOT_FOUND');
     }
@@ -176,3 +176,42 @@ it('malformed dates, cursors, limits and obsolete branch query fields use the va
     expect(result.body.code).toBe('VALIDATION_FAILED');
   }
 });
+it.each(['business', 'branch', 'both', 'mixed'])(
+  'upper-case business and branch ids (%s) read the same branch on both endpoints',
+  async (casing) => {
+    await asRole(f, 'branch_manager');
+    const mixed = (value: string) => value.replace(/[a-c]/g, (letter) => letter.toUpperCase());
+    const business =
+      casing === 'mixed'
+        ? mixed(f.business)
+        : casing === 'branch'
+          ? f.business
+          : f.business.toUpperCase();
+    const branch =
+      casing === 'mixed'
+        ? mixed(f.branch)
+        : casing === 'business'
+          ? f.branch
+          : f.branch.toUpperCase();
+    for (const suffix of ['', '/refusals']) {
+      const extra = suffix ? '' : '&date=2026-10-04';
+      const canonical = await send(suffix, f.branch, extra);
+      const result = await send(suffix, branch, extra, business);
+      expect(canonical.status).toBe(200);
+      expect(result.status).toBe(200);
+      expect(result.body).toEqual(canonical.body);
+      if (suffix) {
+        const page = attendanceDeviceRefusalPage.parse(result.body);
+        expect(page.items).toHaveLength(2);
+        expect(page.items.every((row) => row.branch_id === f.branch)).toBe(true);
+      } else {
+        const board = attendanceBoard.parse(result.body);
+        expect(board.branch_id).toBe(f.branch);
+        expect(board.sessions).toHaveLength(2);
+      }
+      const denied = await send(suffix, f.secondBranch.toUpperCase(), '', business);
+      expect(denied.status).toBe(404);
+      expect(denied.body.code).toBe('NOT_FOUND');
+    }
+  },
+);

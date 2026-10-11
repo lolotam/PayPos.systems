@@ -4,9 +4,11 @@ import { describeWorkspaces } from '../../tenancy/index.ts';
 export async function attendanceBoardContext(
   tx: Tx,
   companyId: string,
-  businessId: string,
-  branchId: string,
+  rawBusinessId: string,
+  rawBranchId: string,
 ) {
+  const businessId = rawBusinessId.toLowerCase();
+  const branchId = rawBranchId.toLowerCase();
   const tree = await describeWorkspaces(tx, [{ scope: 'BRANCH', scopeId: branchId }]);
   if (tree?.id !== companyId) return null;
   const business = tree.businesses.find((candidate) => candidate.id === businessId);
