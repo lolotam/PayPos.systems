@@ -238,3 +238,20 @@ it('ACR-Q13 refuses an ADD_SESSION approval over HTTP with its spec code and kee
     await f.h.owner`SELECT id FROM attendance_sessions WHERE change_request_id=${row.id}`,
   ).toHaveLength(0);
 });
+
+it('still lets the owner reject a PENDING ADD_SESSION after its branch is deactivated', async () => {
+  const row = await f.fileChange.execute(changeActor(f), terms('2026-09-16'));
+  await f.h.owner`UPDATE branches SET is_active=false WHERE id=${f.branch}`;
+  try {
+    await expect(approve(row.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(
+      await f.decideChange.execute(changeActor(f, row.id, f.owner), {
+        decision: 'REJECTED',
+        revision: 0,
+        reason: 'branch closed',
+      }),
+    ).toMatchObject({ status: 'REJECTED', session_id: null });
+  } finally {
+    await f.h.owner`UPDATE branches SET is_active=true WHERE id=${f.branch}`;
+  }
+});

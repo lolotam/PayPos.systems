@@ -22,17 +22,11 @@ export async function manualSessionTarget(
 
 export async function lockManualSessionContext(scope: AttendanceChangeKindScope): Promise<void> {
   const tx = scope.transaction as Tx;
-  const branch = await attendanceBranch(
-    tx,
-    scope.companyId,
-    scope.businessId,
-    scope.target.branch_id,
-  );
-  if (!branch) throw new AttendanceChangeError('NOT_FOUND');
-  const [employee] = await tx.execute(sql`SELECT id FROM employees
+  // الأقفال فقط هنا؛ الرفض في check وحده حتى يظل رفض الطلب ممكناً بعد إيقاف الفرع أو حذف الموظف.
+  await attendanceBranch(tx, scope.companyId, scope.businessId, scope.target.branch_id);
+  await tx.execute(sql`SELECT id FROM employees
     WHERE company_id=${scope.companyId} AND business_id=${scope.businessId}
       AND id=${scope.target.employee_id} AND deleted_at IS NULL FOR SHARE`);
-  if (!employee) throw new AttendanceChangeError('NOT_FOUND');
   await tx.execute(sql`SELECT id FROM employee_branches WHERE company_id=${scope.companyId}
     AND employee_id=${scope.target.employee_id} ORDER BY id FOR SHARE`);
 }
