@@ -15,6 +15,7 @@ import {
 import { AttendanceChangeKindRefusal } from '../ports/attendance-change-kinds.port.ts';
 import { createAttendanceChangeReadAccess } from '../persistence/attendance-change-context.adapter.ts';
 import { listAttendanceChangeRequests } from '../queries/attendance-change-requests.query.ts';
+import { RequestAttendanceChangeUseCase } from '../use-cases/request-attendance-change/request-attendance-change.usecase.ts';
 
 let f: ChangeFixture;
 beforeAll(async () => {
@@ -194,5 +195,52 @@ it('emits a decision without recipients after the requester membership expires',
     expect(event?.payload).not.toHaveProperty('notification_recipients');
   } finally {
     await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE id=${f.approverMember}`;
+  }
+});
+
+it('owner one-step persists the request before the kind writes an effect that references it', async () => {
+  const effects = await effectCount(f);
+  const row = await f.fileChange.execute(changeActor(f, undefined, f.owner), changeInput(f));
+  expect(row).toMatchObject({ status: 'APPROVED', revision: 1, decided_by: f.owner });
+  expect(await effectCount(f)).toEqual([...effects, { request_id: row.id }]);
+  const audits = await changeAudits(f, row.id);
+  expect(audits.map((a) => a['action'])).toEqual([
+    'attendance_change.requested',
+    'attendance_change.approved',
+  ]);
+  expect(audits[0]?.['after']).toMatchObject({ status: 'PENDING', revision: 0 });
+  expect(audits[1]?.['before']).toMatchObject({ status: 'PENDING', revision: 0 });
+  expect(audits[1]?.['after']).toMatchObject({ status: 'APPROVED', revision: 1 });
+  const events = await changeEvents(f, row.id);
+  expect(events).toMatchObject([{ event_type: 'AttendanceChangeDecided' }]);
+  expect(events[0]?.['payload']).not.toHaveProperty('notification_recipients');
+});
+
+it('the normal approval hands the request id to the kind', async () => {
+  const row = await f.fileChange.execute(changeActor(f), changeInput(f));
+  await f.decideChange.execute(changeActor(f, row.id, f.owner), {
+    decision: 'APPROVED',
+    revision: 0,
+  });
+  expect((await effectCount(f)).at(-1)).toEqual({ request_id: row.id });
+});
+
+it('a kind refusal in the owner one-step path leaves no PENDING row behind', async () => {
+  const id = leaveIds.newId();
+  const fileChange = new RequestAttendanceChangeUseCase(f.tx, f.clock, f.kinds, {
+    newId: () => id,
+  });
+  const effects = await effectCount(f);
+  f.control.kindRefusalAfterEffect = true;
+  try {
+    await expect(
+      fileChange.execute(changeActor(f, undefined, f.owner), changeInput(f)),
+    ).rejects.toBeInstanceOf(AttendanceChangeKindRefusal);
+    expect(await f.h.owner`SELECT id FROM attendance_change_requests WHERE id=${id}`).toEqual([]);
+    expect(await changeAudits(f, id)).toEqual([]);
+    expect(await changeEvents(f, id)).toEqual([]);
+    expect(await effectCount(f)).toEqual(effects);
+  } finally {
+    f.control.kindRefusalAfterEffect = false;
   }
 });

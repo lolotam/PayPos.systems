@@ -32,7 +32,7 @@ export function attendanceChangeProviders(
       provide: RequestAttendanceChangeUseCase,
       inject: [ATTENDANCE_CHANGE_KINDS],
       useFactory: (kinds: AttendanceChangeKinds) =>
-        tx === null ? null : new RequestAttendanceChangeUseCase(tx, systemClock, kinds),
+        tx === null ? null : new RequestAttendanceChangeUseCase(tx, systemClock, kinds, ids),
     },
     {
       provide: DecideAttendanceChangeUseCase,

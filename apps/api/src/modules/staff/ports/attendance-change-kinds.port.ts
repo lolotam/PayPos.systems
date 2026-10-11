@@ -43,7 +43,13 @@ export interface AttendanceChangeKindScope {
   target: AttendanceChangeTarget;
   input: AttendanceChangeKindInput;
   now: Date;
+  /** معرّف الطلب؛ مخصص قبل المعاملة عند التقديم، وصفه موجود فعلاً وقت التطبيق فقط. */
+  requestId: string;
   request: AttendanceChangePlan | null;
+}
+/** سياق التطبيق؛ صف الطلب محفوظ PENDING بالمعرّف requestId في المعاملة نفسها، فيصح ربط الأثر به بمفتاح أجنبي. */
+export interface AttendanceChangeApplyScope extends AttendanceChangeKindScope {
+  request: AttendanceChangePlan;
 }
 /** حقائق الجلسة التي يثبتها النوع بعد فحصه. */
 export interface AttendanceChangeKindValues {
@@ -59,7 +65,7 @@ export interface AttendanceChangeKind {
    * @param scope سياق الطلب الأولي
    */
   target(
-    scope: Omit<AttendanceChangeKindScope, 'target' | 'request'>,
+    scope: Omit<AttendanceChangeKindScope, 'target' | 'request' | 'requestId'>,
   ): Promise<AttendanceChangeTarget | null>;
   /**
    * يعيد القيم المثبتة بعد مراجعة قواعد النوع تحت الأقفال عند الطلب والموافقة.
@@ -69,12 +75,13 @@ export interface AttendanceChangeKind {
   check(scope: AttendanceChangeKindScope): Promise<AttendanceChangeKindValues>;
   /**
    * يطبق الأثر داخل المعاملة الحالية ويعيد معرّف الجلسة الناتجة، أو null للاحتفاظ بهدف الطلب.
+   * صف الطلب محفوظ قبله دائماً، حتى في خطوة المالك الواحدة، فيقدر النوع يكتب change_request_id أو void_request_id = scope.requestId.
    *
-   * @param scope الحقائق والمعاملة المشتركة
+   * @param scope الحقائق والمعاملة المشتركة ومعرّف الطلب المحفوظ
    * @param values نتيجة فحص النوع
    */
   apply(
-    scope: AttendanceChangeKindScope,
+    scope: AttendanceChangeApplyScope,
     values: AttendanceChangeKindValues,
   ): Promise<AttendanceChangeKindValues>;
 }
