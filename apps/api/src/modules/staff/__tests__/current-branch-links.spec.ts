@@ -7,6 +7,7 @@ import { createEmployeeIbanTransactions } from '../persistence/drizzle-employee-
 import { createUnbindPasskeyTransactions } from '../persistence/unbind-passkey-transactions.ts';
 import { currentAttachment } from '@pospay/db';
 import { employeeDefaultShifts } from '../queries/employee-default-shifts.query.ts';
+import { employeeDetail } from '../queries/employee-detail.query.ts';
 import { createEmployeeHoursReadAccess } from '../persistence/employee-default-shifts.adapter.ts';
 import { sql } from 'drizzle-orm';
 
@@ -85,6 +86,23 @@ it('default-hours query independently refuses the finite current B link before r
   expect(await read()).toBeNull();
   await endLink(0);
   expect(await read()).toMatchObject({ employee_id: f.employee.id });
+});
+
+it('employee detail shows only open links but checks scope against the finite current B link too', async () => {
+  const seen: string[][] = [];
+  const allowAll = {
+    listScope: async () => ({ allowedBranchIds: [], featureEnabled: true }),
+    check: async () => 'ALLOWED' as const,
+    checkMany: async (_tx: unknown, _c: string, _u: string, _b: string, branchIds: readonly string[]) => {
+      seen.push([...branchIds]);
+      return { allowedBranchIds: [...branchIds], featureEnabled: true };
+    },
+  };
+  const detail = await f.db.withTenant(f.company, (tx) =>
+    employeeDetail(tx, f.company, f.business, f.employee.id, f.userId, allowAll));
+  expect(detail).not.toBeNull();
+  expect((detail as { branch_ids: string[] }).branch_ids).not.toContain(f.secondBranch);
+  expect(seen[0]).toContain(f.secondBranch);
 });
 
 it('salary write scope refuses a finite current B link and permits the ended B link', async () => {

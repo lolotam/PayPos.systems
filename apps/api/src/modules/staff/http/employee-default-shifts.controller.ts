@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Put, Inject, Param, Req, UseGuards } from '@nestjs/common';
-import { id, setEmployeeDefaultShiftsInput, type SetEmployeeDefaultShiftsInput } from '@pospay/contracts';
+import { id, employeeDefaultShifts as hoursView, setEmployeeDefaultShiftsInput,
+  type SetEmployeeDefaultShiftsInput } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -42,7 +43,7 @@ export class EmployeeDefaultShiftsController {
     if (!this.setHours) throw new ApiError('NOT_READY');
     const context = { ...actorOf(request), businessId, employeeId };
     try {
-      return await this.setHours.execute({ ...context, branchId, input });
+      return hoursView.parse(await this.setHours.execute({ ...context, branchId, input }));
     } catch (error) {
       if (error instanceof ScheduleError) throw new ApiError(error.code, error.details);
       if (error instanceof EmployeeDefaultShiftsError)

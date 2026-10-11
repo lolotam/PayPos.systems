@@ -1,5 +1,4 @@
 import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx, employeeDefaultShiftsStatement } from '@pospay/db';
-import { employeeDefaultShifts as view } from '@pospay/contracts';
 import type { WeekdayDefaultShift } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import { lockEmployeeHoursAccess, readEmployeeHoursAccess } from '../../identity/index.ts';
@@ -18,9 +17,9 @@ async function savedResult(tx: Tx, actor: EmployeeHoursActor,
   const rows = await tx.execute<{ branch_id: string } & Record<string, unknown>>(
     employeeDefaultShiftsStatement({ ...actor, ...target },
       branches.filter((branch) => decision.allowedBranchIds.includes(branch.id))));
-  return view.parse({ employee_id: target.employeeId,
+  return { employee_id: target.employeeId,
     can_manage: rows.length > 0,
-    branches: rows.map((row) => ({ ...row, can_manage: true })) });
+    branches: rows.map((row) => ({ ...row, can_manage: true })) };
 }
 
 export function createEmployeeHoursReadAccess() {
