@@ -16,9 +16,6 @@ export const SCHEDULE_COLUMN_GRANTS = [
 ];
 
 export const SCHEDULE_TABLE_GRANTS = [
-  'employee_default_shifts:SELECT',
-  'employee_default_shifts:INSERT',
-  'employee_default_shifts:DELETE',
   'staff_branch_schedule_settings:DELETE',
   'staff_branch_schedule_settings:INSERT',
   'staff_branch_schedule_settings:SELECT',

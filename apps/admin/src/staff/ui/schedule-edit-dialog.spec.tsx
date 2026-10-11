@@ -47,7 +47,7 @@ const saved = {
     },
   ],
 };
-const row = { employee_id: id, name_en: 'Synthetic employee', name_ar: null, schedule: saved };
+const row = { employee_id: id, name_en: 'Synthetic employee', name_ar: null, schedule: saved, default_shifts: [] };
 function savedShift() {
   const shift = saved.shifts[0];
   if (!shift) throw new Error('Missing saved shift');
