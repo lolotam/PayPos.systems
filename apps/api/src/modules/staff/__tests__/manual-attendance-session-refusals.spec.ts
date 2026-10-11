@@ -8,6 +8,7 @@ import {
 } from './attendance-change.fixture.ts';
 import { seedSession } from './attendance-correction.fixture.ts';
 import { leaveIds, leaveTerms, leaveActor } from './leave.fixture.ts';
+import { AttendanceChangeKindRefusal } from '../ports/attendance-change-kinds.port.ts';
 import { paired, origin } from '../../../../test/staff-otp-harness.ts';
 
 let f: ChangeFixture;
@@ -62,7 +63,9 @@ it('AMS-05 rechecks real-session overlap at approval and leaves the request PEND
     clockIn: '2026-09-20T08:00:00Z',
     clockOut: '2026-09-20T09:00:00Z',
   });
-  await expect(approve(row.id)).rejects.toMatchObject({ code: 'ATTENDANCE_MANUAL_INVALID_TIMES' });
+  const refusal = await approve(row.id).catch((error: unknown) => error);
+  expect(refusal).toBeInstanceOf(AttendanceChangeKindRefusal);
+  expect(refusal).toMatchObject({ code: 'ATTENDANCE_MANUAL_INVALID_TIMES', status: 422 });
   expect(
     await f.h.owner`SELECT status,session_id FROM attendance_change_requests WHERE id=${row.id}`,
   ).toMatchObject([{ status: 'PENDING', session_id: null }]);
@@ -196,4 +199,42 @@ it('tenant-qualified deferred FK refuses another company request at commit and R
     }),
   ).rejects.toMatchObject({ code: '23503' });
   expect(inserted).toBe(true);
+});
+
+it('ACR-Q13 refuses an ADD_SESSION approval over HTTP with its spec code and keeps the request PENDING', async () => {
+  const signed = await f.h.app.inject({
+    method: 'POST',
+    url: '/v1/auth/sign-in/email',
+    headers: { origin: 'http://admin.test' },
+    payload: { email: 'employee-owner@example.test', password: 'operator-chosen-pass' },
+  });
+  const cookies = signed.headers['set-cookie'];
+  const ownerCookie = (Array.isArray(cookies) ? cookies : [cookies ?? ''])
+    .map((s) => s.split(';')[0])
+    .join('; ');
+  const row = await f.fileChange.execute(changeActor(f), terms('2026-09-17'));
+  await seedSession(f, {
+    employeeId: f.employee.id,
+    workingDate: '2026-09-17',
+    clockIn: '2026-09-17T10:00:00Z',
+    clockOut: '2026-09-17T11:00:00Z',
+  });
+  const response = await f.h.app.inject({
+    method: 'POST',
+    url: `/v1/businesses/${f.business}/attendance-change-requests/${row.id}/decide`,
+    headers: { cookie: ownerCookie, 'x-company-id': f.company, 'idempotency-key': leaveIds.newId() },
+    payload: { decision: 'APPROVED', revision: 0 },
+  });
+  expect(response.statusCode).toBe(422);
+  expect(response.json()).toMatchObject({
+    code: 'ATTENDANCE_MANUAL_INVALID_TIMES',
+    message_ar: expect.any(String),
+    message_en: expect.any(String),
+  });
+  expect(
+    await f.h.owner`SELECT status,revision,session_id FROM attendance_change_requests WHERE id=${row.id}`,
+  ).toEqual([{ status: 'PENDING', revision: 0, session_id: null }]);
+  expect(
+    await f.h.owner`SELECT id FROM attendance_sessions WHERE change_request_id=${row.id}`,
+  ).toHaveLength(0);
 });
