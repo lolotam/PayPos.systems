@@ -52,7 +52,7 @@ start, against the rules below.
 | AB-Q9b | Overnight sessions belong to the clock-in working date. |
 | AB-Q9c | Lateness in the report: count of late sessions and total late minutes, including return-from-break lateness (16b-2). |
 | AB-Q9d | Hours shown as h:mm; the CSV also has decimal hours (2 decimals). |
-| AB-Q9e | CSV in Arabic (UTF-8 with BOM so Excel opens it), employee name only — never phone, salary or IBAN. The employee record has no employee number today; one is added only by its own row if the owner asks (asked 2026-10-11). |
+| AB-Q9e | CSV in Arabic (UTF-8 with BOM so Excel opens it), employee name only — never phone, salary or IBAN. The employee record has no employee number today; none is added now (AB-Q10, Waleed 2026-10-11: the name is enough). |
 | AB-Q9f | Every CSV download writes one audit entry: who, when, branch (or all), month. |
 | AB-Q9g | An OPEN session is not in the monthly report until it is closed; the board shows it as "still in" from its clock-in. |
 
