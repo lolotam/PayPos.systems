@@ -43,8 +43,12 @@ export interface EmployeeHoursScope {
    * @param at وقت التغيير من الساعة المحقونة
    */
   replace(before: readonly WeekdayDefaultShift[], after: readonly WeekdayDefaultShift[], at: Date): Promise<void>;
-  /** يعيد الدوام المحفوظ ونطاق عرضه تحت أقفال معاملة الكتابة كي لا يحوّل سحب الإذن لاحقاً الحفظ الناجح إلى رفض. */
-  result(): Promise<EmployeeHoursSnapshot>;
+  /**
+   * يعيد الدوام المحفوظ ونطاق عرضه تحت أقفال معاملة الكتابة كي لا يحوّل سحب الإذن لاحقاً الحفظ الناجح إلى رفض.
+   *
+   * @param at نفس لحظة الساعة اللي اتفحص بيها الارتباط، فاليوم ما يختلفش عند منتصف الليل
+   */
+  result(at: Date): Promise<EmployeeHoursSnapshot>;
 }
 /** يفتح معاملة الحفظ الواحدة اللي تجمع الدوام وسطر التدقيق، فلا يُكتب أحدهما بدون الآخر. */
 export interface EmployeeDefaultShiftsTransactions {

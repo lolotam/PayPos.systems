@@ -5,7 +5,7 @@ import { createEmployeeCards } from '../persistence/drizzle-employee-cards.ts';
 import { createEmployeeCardAccess } from '../persistence/employee-card-access.adapter.ts';
 import { createEmployeeIbanTransactions } from '../persistence/drizzle-employee-iban-transactions.ts';
 import { createUnbindPasskeyTransactions } from '../persistence/unbind-passkey-transactions.ts';
-import { currentAttachment } from '@pospay/db';
+import { currentAttachment, employeeDefaultShiftsStatement } from '@pospay/db';
 import { employeeDefaultShifts } from '../queries/employee-default-shifts.query.ts';
 import { employeeDetail } from '../queries/employee-detail.query.ts';
 import { createEmployeeHoursReadAccess } from '../persistence/employee-default-shifts.adapter.ts';
@@ -103,6 +103,21 @@ it('employee detail shows only open links but checks scope against the finite cu
   expect(detail).not.toBeNull();
   expect((detail as { branch_ids: string[] }).branch_ids).not.toContain(f.secondBranch);
   expect(seen[0]).toContain(f.secondBranch);
+});
+
+it('saved-hours projection measures the link start on the injected instant, not the transaction start', async () => {
+  await f.h.owner`DELETE FROM employee_branches WHERE company_id=${f.company}
+    AND employee_id=${f.employee.id} AND branch_id=${f.secondBranch}`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from","to")
+    VALUES(${f.company},${salaryIds.newId()},${f.business},${f.employee.id},${f.secondBranch},
+      (CURRENT_TIMESTAMP AT TIME ZONE 'Pacific/Honolulu')::date+1,NULL)`;
+  const linked = (at?: Date) => f.db.withTenant(f.company, async (tx) => {
+    const rows = await tx.execute<{ branch_id: string; linked: boolean }>(employeeDefaultShiftsStatement(
+      { companyId: f.company, employeeId: f.employee.id }, [{ id: f.secondBranch, timezone: 'Pacific/Honolulu' }], at));
+    return rows[0]?.linked ?? false;
+  });
+  expect(await linked()).toBe(false);
+  expect(await linked(new Date(now.getTime() + 24 * 60 * 60 * 1000))).toBe(true);
 });
 
 it('salary write scope refuses a finite current B link and permits the ended B link', async () => {

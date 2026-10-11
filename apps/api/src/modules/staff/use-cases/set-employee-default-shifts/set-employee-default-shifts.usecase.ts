@@ -21,7 +21,7 @@ export class SetEmployeeDefaultShiftsUseCase {
       const after = validateDefaultShifts(input.shifts);
       const before = await scope.current(employeeId, branchId);
       if (!sameDefaultShifts(before, after)) await scope.replace(before, after, at);
-      return scope.result();
+      return scope.result(at);
     });
   }
 }

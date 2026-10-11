@@ -22,6 +22,7 @@ it('uses the injected branch-local date and timestamp, then validates and replac
   expect(f.scope.authorize).toHaveBeenCalledWith('business', 'branch');
   expect(f.scope.replace).toHaveBeenCalledWith([], [expect.objectContaining(input.shifts[0])], at);
   expect(f.clock.now).toHaveBeenCalledOnce();
+  expect(f.scope.result).toHaveBeenCalledWith(at);
 });
 it.each([
   ['2026-10-12', null, 'Asia/Kuwait'],
