@@ -2305,6 +2305,405 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/employees/{employeeId}/default-shifts": {
+      "get": {
+        "operationId": "employeeDefaultShifts",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "description": "Employee detail access and staff feature. Current linked branches and stored unlinked branches; can_manage reflects live human hours permission.",
+        "responses": {
+          "200": {
+            "description": "Employee default week per branch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "employee_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "can_manage": {
+                      "type": "boolean"
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "branch_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "linked": {
+                            "type": "boolean"
+                          },
+                          "shifts": {
+                            "maxItems": 7,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "day": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 6
+                                },
+                                "start": {
+                                  "type": "string",
+                                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                                },
+                                "end": {
+                                  "type": "string",
+                                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                                },
+                                "break_start": {
+                                  "nullable": true,
+                                  "type": "string",
+                                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                                },
+                                "break_end": {
+                                  "nullable": true,
+                                  "type": "string",
+                                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                                }
+                              },
+                              "required": [
+                                "day",
+                                "start",
+                                "end"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "updated_at": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          }
+                        },
+                        "required": [
+                          "branch_id",
+                          "linked",
+                          "shifts",
+                          "updated_at"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "employee_id",
+                    "can_manage",
+                    "branches"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employees/{employeeId}/branches/{branchId}/default-shifts": {
+      "put": {
+        "operationId": "setEmployeeDefaultShifts",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "description": "Human manage:employee-hours:business and staff feature. Replace one linked branch week; empty clears, identical values do not audit. One entry per weekday, duration includes break. No Idempotency-Key.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "shifts": {
+                    "maxItems": 7,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "day": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 6
+                        },
+                        "start": {
+                          "type": "string",
+                          "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                        },
+                        "end": {
+                          "type": "string",
+                          "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                        },
+                        "break_start": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                        },
+                        "break_end": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                        }
+                      },
+                      "required": [
+                        "day",
+                        "start",
+                        "end"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "shifts"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Employee default week per branch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "employee_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "can_manage": {
+                      "type": "boolean"
+                    },
+                    "branches": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "branch_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "linked": {
+                            "type": "boolean"
+                          },
+                          "shifts": {
+                            "maxItems": 7,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "day": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 6
+                                },
+                                "start": {
+                                  "type": "string",
+                                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                                },
+                                "end": {
+                                  "type": "string",
+                                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                                },
+                                "break_start": {
+                                  "nullable": true,
+                                  "type": "string",
+                                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                                },
+                                "break_end": {
+                                  "nullable": true,
+                                  "type": "string",
+                                  "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                                }
+                              },
+                              "required": [
+                                "day",
+                                "start",
+                                "end"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "updated_at": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          }
+                        },
+                        "required": [
+                          "branch_id",
+                          "linked",
+                          "shifts",
+                          "updated_at"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "employee_id",
+                    "can_manage",
+                    "branches"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/schedules": {
       "get": {
         "operationId": "branchScheduleWeek",
@@ -11473,13 +11872,21 @@
                 "$ref": "#/components/schemas/StaffSchedule"
               }
             ]
+          },
+          "default_shifts": {
+            "maxItems": 7,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleShift"
+            }
           }
         },
         "required": [
           "employee_id",
           "name_en",
           "name_ar",
-          "schedule"
+          "schedule",
+          "default_shifts"
         ]
       },
       "ScheduleGrid": {

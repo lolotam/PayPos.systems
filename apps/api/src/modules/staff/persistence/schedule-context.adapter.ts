@@ -2,6 +2,12 @@ import type { Tx } from '@pospay/db';
 import { describeWorkspaces } from '../../tenancy/index.ts';
 import { scheduleAccess } from '../../identity/index.ts';
 
+export async function employeeHoursBranches(tx: Tx, companyId: string, businessId: string) {
+  const tree = await describeWorkspaces(tx, [{ scope: 'BUSINESS', scopeId: businessId }]);
+  const business = tree?.id === companyId ? tree.businesses.find((b) => b.id === businessId) : undefined;
+  return business?.branches.map((branch) => ({ id: branch.id, timezone: branch.effective_timezone })) ?? [];
+}
+
 export async function schedulingContext(
   tx: Tx,
   companyId: string,

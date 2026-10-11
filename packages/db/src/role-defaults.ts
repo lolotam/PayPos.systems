@@ -43,6 +43,7 @@ export const OWNER_GRANTED_PERMISSIONS = [
   'manage:schedule-settings:business',
   'request:attendance-change:branch',
   'decide:attendance-change:company',
+  'manage:employee-hours:business',
 ] as const satisfies readonly Permission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
@@ -75,6 +76,8 @@ export const ROLE_DEFAULTS = {
   'manage:schedules:business': managers,
   // قرار المالك MS-Q2 بتاريخ 2026-10-10: المالك وحده افتراضياً مع تفويض شخصي للبشر.
   'manage:schedule-settings:business': ['owner'],
+  // قرار المالك DH-Q5 بتاريخ 2026-10-10: إدارة الدوام الافتراضي للمالك وحده افتراضياً.
+  'manage:employee-hours:business': ['owner'],
   'read:memberships:company': ['owner'],
   'manage:memberships:company': ['owner'],
   'read:memberships:business': ['owner'],

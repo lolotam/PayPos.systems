@@ -15,7 +15,7 @@ import { salaryEn } from './salary-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, serviceErrorsEn } from './catalog-services.js';
 import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
-import { scheduleShellEn } from './schedule-shell-catalog.js';
+import { scheduleShellEn } from './schedule-shell-catalog.js'; import { employeeDefaultHoursEn } from './employee-default-hours-catalog.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   phoneLock: {
@@ -23,7 +23,7 @@ export const en = {
     since: 'Since',
     release: 'Unbinding the passkey also frees the phone.',
   },
-  employeeIban: employeeIbanEn,
+  employeeIban: employeeIbanEn, employeeDefaultHours: employeeDefaultHoursEn,
   employeeDocuments: employeeDocumentsEn,
   passkeyAdmin: enPasskeyAdmin,
   leave: leaveEn,
@@ -178,6 +178,7 @@ export const en = {
     SCHEDULE_WEEK_INVALID: 'The schedule week must start on Saturday.',
     SCHEDULE_SHIFT_INVALID: 'Use valid shift times, with each shift at most 16 hours',
     SCHEDULE_DAY_LIMIT_EXCEEDED: 'The number of shifts exceeds the business daily limit',
+    EMPLOYEE_BRANCH_NOT_LINKED: 'The employee is not linked to this branch today.',
     SCHEDULE_BREAK_INVALID: 'The break must be inside the shift',
     SCHEDULE_SHIFT_OVERLAP: 'The employee has overlapping shifts.',
     SCHEDULE_LOCAL_TIME_INVALID: 'This local time has no unique occurrence in the branch timezone.',

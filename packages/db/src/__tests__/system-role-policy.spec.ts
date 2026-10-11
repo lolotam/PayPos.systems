@@ -145,3 +145,9 @@ it('schedule settings are eligible for humans only', () => {
       ),
     ).toBe(entry.code !== 'device');
 });
+
+it('employee hours grants are eligible for humans and never devices', () => {
+  for (const entry of SYSTEM_ROLES)
+    expect(systemRolePolicy(entry.id, 'global')?.permissions.includes('manage:employee-hours:business'))
+      .toBe(entry.code !== 'device');
+});

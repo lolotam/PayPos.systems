@@ -224,6 +224,7 @@ it('allows future expiry', () => {
 });
 
 const ownerGranted = [
+  'manage:employee-hours:business',
   'read:files:business',
   'manage:files:business',
   'manage:document-types:company',

@@ -855,6 +855,27 @@
       "when": 1791655675038,
       "tag": "0123_2026-10-10_attendance-session-void-drop-old-index",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1791655676038,
+      "tag": "0124_2026-10-11_employee-default-shifts",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1791655677038,
+      "tag": "0125_2026-10-11_employee-default-shifts-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1791655678038,
+      "tag": "0126_2026-10-11_employee-hours-permission",
+      "breakpoints": true
     }
   ]
 }

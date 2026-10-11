@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import type { ScheduleGrid, SetScheduleInput } from '@pospay/contracts';
+import type { ScheduleGrid, ScheduleShift, SetScheduleInput } from '@pospay/contracts';
 
 export const scheduleDayKeys = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'] as const;
 
@@ -65,7 +65,9 @@ export function newScheduleBreak(start: string, end: string) {
 // القيمة الأولى تطابق DEFAULT_MAX_SHIFTS_PER_DAY في staff/domain حتى تصل قيمة النشاط مع الشبكة.
 export const ScheduleLimitContext = createContext(3);
 
-export function newScheduleShift(day: number, count: number) {
+export function newScheduleShift(day: number, count: number, defaults: readonly ScheduleShift[] = []) {
+  const entry = count === 0 ? defaults.find((shift) => shift.day === day) : undefined;
+  if (entry) return { ...entry };
   const times = [
     ['09:00', '13:00'],
     ['14:00', '18:00'],

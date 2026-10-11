@@ -129,3 +129,6 @@ it.each(SYSTEM_ROLES)(
     ).toBe(role.code !== 'device');
   },
 );
+it('DH-Q5 employee hours default to owner only', () => {
+  expect(ROLE_DEFAULTS['manage:employee-hours:business']).toEqual(['owner']);
+});
