@@ -187,6 +187,28 @@ export function attendanceChangeRecipients(
     .map((a) => a.userId);
 }
 
+/**
+ * يحدد مستلم إشعار القرار: صاحب الطلب وحده، ما دام عضواً ولم يصبح هو الموظف نفسه بعد إعادة ربط الحساب.
+ * الموظف لا يُبلَّغ بتعديل حضوره (FR-009) إلا لو كان مالكاً، كما في إشعار الانتظار.
+ *
+ * @param requester صاحب الطلب وعضويته الحالية وهل هو مالك
+ * @param requester.userId حساب صاحب الطلب
+ * @param requester.member هل ما زال عضواً في نطاق الطلب
+ * @param requester.owner هل هو مالك يحق له رؤية حضوره
+ * @param actorId صاحب القرار؛ لا يُبلَّغ بقراره
+ * @param employeeUserId حساب الموظف وقت القرار أو null
+ * @returns معرّف صاحب الطلب أو قائمة فارغة
+ */
+export function attendanceDecisionRecipients(
+  requester: { userId: string; member: boolean; owner: boolean },
+  actorId: string,
+  employeeUserId: string | null,
+): string[] {
+  if (requester.userId === actorId || !requester.member) return [];
+  if (!requester.owner && requester.userId === employeeUserId) return [];
+  return [requester.userId];
+}
+
 const unsafeDisplayName =
   /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu;
 // كود من ٤ لـ ٨ أرقام لوحده يترفض بأي نظام أرقام، زي ما عقد الإشعار بيرفضه بالأرقام اللاتيني.

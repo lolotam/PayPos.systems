@@ -245,3 +245,25 @@ it('a kind refusal in the owner one-step path leaves no PENDING row behind', asy
     f.control.kindRefusalAfterEffect = false;
   }
 });
+
+it('does not tell the requester of the decision once she is relinked as the employee (FR-009)', async () => {
+  const row = await f.fileChange.execute(changeActor(f), changeInput(f));
+  const [linked] = await f.h.owner`SELECT user_id FROM employees WHERE id=${f.employee.id}`;
+  const others = await f.h
+    .owner`UPDATE employees SET user_id=NULL WHERE company_id=${f.company} AND user_id=${f.approverId} RETURNING id`;
+  await f.h.owner`UPDATE employees SET user_id=${f.approverId} WHERE id=${f.employee.id}`;
+  try {
+    await f.decideChange.execute(changeActor(f, row.id, f.owner), {
+      decision: 'APPROVED',
+      revision: 0,
+    });
+    const event = (await changeEvents(f, row.id)).at(-1);
+    expect(event).toMatchObject({ event_type: 'AttendanceChangeDecided' });
+    expect(event?.payload).not.toHaveProperty('notification_recipients');
+  } finally {
+    await f.h
+      .owner`UPDATE employees SET user_id=${linked?.user_id ?? null} WHERE id=${f.employee.id}`;
+    for (const other of others)
+      await f.h.owner`UPDATE employees SET user_id=${f.approverId} WHERE id=${other.id}`;
+  }
+});
