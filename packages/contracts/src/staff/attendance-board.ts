@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { employeeDate } from './employee.js';
+import { attendanceActorName } from './attendance-actor-name.js';
 
 export const attendanceBoardQuery = z
   .strictObject({
@@ -59,7 +60,13 @@ export const attendanceBoard = z
           z.strictObject({ id, kind: z.enum(['NONE', 'OUT_OF_RANGE', 'SUSPECTED_MISSED_OUT']) }),
         ),
         manual: z
-          .strictObject({ change_request_id: id, requested_by: id, approved_by: id })
+          .strictObject({
+            change_request_id: id,
+            requested_by: id,
+            requested_by_name: attendanceActorName,
+            approved_by: id,
+            approved_by_name: attendanceActorName,
+          })
           .nullable(),
       }),
     ),

@@ -1,6 +1,7 @@
 import { attendanceBoard as view, type AttendanceBoard } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import { attendanceActorNameStatement } from './attendance-actor-name.query.ts';
 
 export interface AttendanceBoardScope {
   companyId: string;
@@ -15,7 +16,7 @@ const instant = (column: string) =>
 // لوحة الحضور تُسقط حقول الجلسة مباشرة؛ الاسم لا يعتمد على ارتباط الموظفة الحالي بالفرع.
 const employeeProjection = sql`'employee_id',e.id,'name_ar',e.name_ar,'name_en',e.name_en`;
 
-// لوحة الحضور تجمع التحذيرات المفتوحة فقط؛ معرفات طرفي الطلب اليدوي تتيح للشاشة حل الأسماء لاحقاً.
+// لوحة الحضور تجمع التحذيرات المفتوحة وأسماء طرفي الطلب اليدوي من سجلات الشركة فقط.
 const sessionProjection = sql`jsonb_build_object('id',s.id,${employeeProjection},
   'clock_in',${instant('s.clock_in')},'clock_out',${instant('s.clock_out')},'status',s.status,'source',s.source,
   'late_minutes',s.late_minutes,'scheduled_start',${instant('s.scheduled_start')},'scheduled_end',${instant('s.scheduled_end')},
@@ -24,7 +25,10 @@ const sessionProjection = sql`jsonb_build_object('id',s.id,${employeeProjection}
   'open_exceptions',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',x.id,'kind',x.kind) ORDER BY x.id)
     FROM attendance_exceptions x WHERE x.company_id=s.company_id AND x.session_id=s.id AND x.status='OPEN'),'[]'::jsonb),
   'manual',CASE WHEN s.source='MANUAL' THEN (SELECT jsonb_build_object(
-    'change_request_id',r.id,'requested_by',r.requested_by,'approved_by',r.decided_by)
+    'change_request_id',r.id,'requested_by',r.requested_by,
+    'requested_by_name',${attendanceActorNameStatement(sql`s.company_id`, sql`r.requested_by`)},
+    'approved_by',r.decided_by,
+    'approved_by_name',${attendanceActorNameStatement(sql`s.company_id`, sql`r.decided_by`)})
     FROM attendance_change_requests r
     WHERE r.company_id=s.company_id AND r.id=s.change_request_id AND r.session_id=s.id
       AND r.kind='ADD_SESSION' AND r.status='APPROVED') ELSE NULL END)`;

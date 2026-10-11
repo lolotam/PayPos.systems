@@ -77,7 +77,9 @@ it('projects exactly the board contract without private employee fields, retaini
   expect(manualRow?.manual).toEqual({
     change_request_id: manualRequest,
     requested_by: f.userId,
+    requested_by_name: { ar: f.employee.name_ar, en: f.employee.name_en },
     approved_by: f.approverId,
+    approved_by_name: null,
   });
   expect(manualRow?.corrected).toBe(false);
   expect(result.sessions.find((row) => row.id === corrected)?.corrected).toBe(true);
@@ -141,9 +143,11 @@ it('returns manual provenance using pospay_app without any auth user-name grant'
     expect(result.sessions.find((row) => row.id === manual)?.manual).toEqual({
       change_request_id: manualRequest,
       requested_by: f.userId,
+      requested_by_name: { ar: f.employee.name_ar, en: f.employee.name_en },
       approved_by: f.approverId,
+      approved_by_name: null,
     });
-    expect(JSON.stringify(result)).not.toContain('_by_name');
+    expect(result.sessions.find((row) => row.id === manual)?.manual?.approved_by_name).toBeNull();
   });
 });
 it('EXPLAIN ANALYZE uses session/correction indexes and scans exceptions by the primary-key company prefix', async () => {
