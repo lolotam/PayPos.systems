@@ -1,19 +1,11 @@
 'use client';
 import { t } from '@pospay/i18n';
-import {
-  AppSidebarGroup,
-  AppSidebarItem,
-  House,
-  Inbox,
-  ShieldCheck,
-  UserRound,
-  Clock3,
-  Upload,
-} from '@pospay/ui';
+import { AppSidebarGroup, AppSidebarItem, House, Inbox, ShieldCheck, Clock3 } from '@pospay/ui';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
 import { CatalogNavItem } from './catalog-nav-item';
+import { StaffNavigation } from './staff-navigation';
 
 export function DashboardNavigation() {
   const locale = useLocale();
@@ -53,22 +45,7 @@ export function DashboardNavigation() {
         <Link href="/permissions" />
       </AppSidebarItem>
       <CatalogNavItem />
-      <AppSidebarItem
-        asChild
-        icon={<UserRound />}
-        label={t(locale, 'staff.listTitle')}
-        active={pathname.startsWith('/staff') && !pathname.startsWith('/staff/import')}
-      >
-        <Link href="/staff" />
-      </AppSidebarItem>
-      <AppSidebarItem
-        asChild
-        icon={<Upload />}
-        label={t(locale, 'employeeImport.title')}
-        active={pathname === '/staff/import'}
-      >
-        <Link href="/staff/import" />
-      </AppSidebarItem>
+      <StaffNavigation />
     </AppSidebarGroup>
   );
 }
