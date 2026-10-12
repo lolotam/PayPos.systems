@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { recordServiceSessionResponse } from '@pospay/contracts';
+import * as performerAdapter from '../persistence/performer-check.adapter.ts';
 import { sessionFixture, ids, must, type SessionFixture } from './session.fixture.ts';
 
 let f: SessionFixture;
@@ -36,4 +37,41 @@ it.each(['record', 'append'].flatMap((operation) => cases.map((test) => ({ opera
   expect(response.status).toBe(422);
   expect(response.body).toMatchObject({ code: 'SESSION_PERFORMER_SHARES_INVALID', details: { input_index: 1 } });
   expect(await effects()).toEqual(before);
+});
+
+it.each(['record', 'append'].flatMap((operation) => [
+  { operation, name: 'one line with no performers', lineCount: 1, performerCount: 0 },
+  { operation, name: 'one line with five performers', lineCount: 1, performerCount: 5 },
+  { operation, name: 'twenty lines with five distinct performers each', lineCount: 20, performerCount: 5 },
+]))('issue 179 $operation: $name never reaches the staff reader', async ({ operation, lineCount, performerCount }) => {
+  let url = f.base;
+  if (operation === 'append') {
+    const initial = await post({ customer_id: f.customer, lines: [f.line()] });
+    expect(initial.status).toBe(201);
+    url = `${f.base}/${recordServiceSessionResponse.parse(initial.body).session.id}/lines`;
+  }
+  const lines = Array.from({ length: lineCount }, () => ({ ...f.line(),
+    performers: Array.from({ length: performerCount }, () => ({ employee_id: ids.newId() })) }));
+  const before = await effects();
+  const ports: ReturnType<typeof performerAdapter.performerCheck>[] = [];
+  const original = performerAdapter.performerCheck;
+  const reader = vi.spyOn(performerAdapter, 'performerCheck').mockImplementation((...args) => {
+    const port = original(...args);
+    const observed = { lock: vi.fn(port.lock), read: vi.fn(port.read) };
+    ports.push(observed);
+    return observed;
+  });
+  try {
+    const response = await post(operation === 'append' ? { lines } : { customer_id: f.customer, lines }, url);
+    expect(response.status).toBe(422);
+    expect(response.body).toMatchObject({ code: 'SESSION_PERFORMER_SHARES_INVALID', details: { input_index: 0 } });
+    expect(ports.length).toBeGreaterThan(0);
+    for (const port of ports) {
+      expect(port.lock).not.toHaveBeenCalled();
+      expect(port.read).not.toHaveBeenCalled();
+    }
+    expect(await effects()).toEqual(before);
+  } finally {
+    reader.mockRestore();
+  }
 });
