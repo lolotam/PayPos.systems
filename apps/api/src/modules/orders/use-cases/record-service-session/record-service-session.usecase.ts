@@ -1,12 +1,12 @@
 import type { RecordServiceSessionInput, RecordServiceSessionResponse } from '@pospay/contracts';
-import { parseMoney } from '@pospay/domain';
+import { sessionDrafts } from '../../domain/session-drafts.ts';
 import { resolveSessionRecorder } from '../../domain/session-authority.ts';
 import { SessionError } from '../../domain/session-error.ts';
 import { prepareSessionLines } from '../../domain/prepare-session-lines.ts';
 import { sessionTime } from '../../domain/session-time.ts';
 import { planSessionWrite, recordedSessionLine } from '../../domain/session-write.ts';
 import { sessionSnapshot } from '../../domain/session-snapshot.ts';
-import type { SessionDraft, SessionRecord } from '../../domain/session-types.ts';
+import type { SessionRecord } from '../../domain/session-types.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 export { SessionError } from '../../domain/session-error.ts';
 
@@ -54,9 +54,4 @@ export class RecordServiceSessionUseCase {
     await tx.emit(record, lines, false);
     return { outcome: plan.outcome, session: sessionSnapshot(record), rejected_lines: plan.rejected_lines };
   }
-}
-
-export function sessionDrafts(lines: RecordServiceSessionInput['lines']): SessionDraft[] {
-  return lines.map((line) => ({ service_id: line.service_id, price: parseMoney(line.price), performers: line.performers,
-    discount: line.discount.kind === 'AMOUNT' ? { kind: 'AMOUNT', amount: parseMoney(line.discount.amount) } : line.discount }));
 }

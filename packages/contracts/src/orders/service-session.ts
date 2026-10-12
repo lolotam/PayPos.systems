@@ -7,7 +7,7 @@ const id = sharedId.toLowerCase();
 export const sessionMoney = z.string().regex(/^(0|[1-9]\d{0,10})\.\d{3}$/).meta({ id: 'SessionMoney' });
 const bps = z.number().int().min(0).max(10000);
 const names = { name_en: z.string(), name_ar: z.string().nullable() };
-export const sessionPerformerInput = z.strictObject({ employee_id: id, share_bps: bps.min(1).optional() })
+export const sessionPerformerInput = z.strictObject({ employee_id: id, share_bps: z.number().optional() })
   .meta({ id: 'SessionPerformerInput' });
 export const sessionLineInput = z.strictObject({
   service_id: id,
@@ -16,13 +16,7 @@ export const sessionLineInput = z.strictObject({
     z.strictObject({ kind: z.literal('AMOUNT'), amount: sessionMoney }),
     z.strictObject({ kind: z.literal('PERCENT'), bps }),
   ]),
-  performers: z.array(sessionPerformerInput).min(1).max(4).superRefine((entries, ctx) => {
-    if (new Set(entries.map((entry) => entry.employee_id)).size !== entries.length)
-      ctx.addIssue({ code: 'custom', message: 'Duplicate performer' });
-    const specified = entries.filter((entry) => entry.share_bps !== undefined).length;
-    if (specified !== 0 && specified !== entries.length)
-      ctx.addIssue({ code: 'custom', message: 'All shares must be supplied or omitted' });
-  }),
+  performers: z.array(sessionPerformerInput),
 }).meta({ id: 'SessionLineInput' });
 const writeFields = { lines: z.array(sessionLineInput).min(1).max(20), recorder_membership_id: id.optional() };
 export const recordServiceSessionInput = z.strictObject({

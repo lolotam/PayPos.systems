@@ -17,9 +17,22 @@ it('canonicalizes UUID case before identity comparisons and actor-bound fingerpr
 });
 it.each(['-1.000','1.00','01.000','100000000000.000','1e3','Infinity'])('rejects noncanonical money %s', (price) => expect(sessionMoney.safeParse(price).success).toBe(false));
 it.each([{ company_id: id }, { actorUserId: id }, { late: true }, { status: 'ACTIVE' }, { limit_bps: 10000 }])('rejects client authority/snapshot fields %#', (extra) => expect(recordServiceSessionInput.safeParse({ customer_id: id, lines: [line], ...extra }).success).toBe(false));
-it('checks bounded/distinct performers and mixed shares without duplicating money arithmetic', () => {
-  for (const performers of [[], [{ employee_id: id }, { employee_id: id }], [{ employee_id: id, share_bps: 5000 }, { employee_id: other }], [{ employee_id: id, share_bps: 0 }], [{ employee_id: id, share_bps: 1.5 }]])
-    expect(recordServiceSessionInput.safeParse({ customer_id: id, lines: [{ ...line, performers }] }).success).toBe(false);
+it.each([
+  [], Array.from({ length: 5 }, () => ({ employee_id: id })),
+  [{ employee_id: id }, { employee_id: id }],
+  [{ employee_id: id, share_bps: 5000 }, { employee_id: other }],
+  ...[0, 1.5, 9999, -1, 10001].map((share_bps) => [{ employee_id: id, share_bps }]),
+].map((performers) => ({ performers })))('leaves SS-20 business validation to the domain for indexed 422 errors %#', ({ performers }) => {
+  const lines = [{ ...line, performers }];
+  expect(recordServiceSessionInput.safeParse({ customer_id: id, lines }).success).toBe(true);
+  expect(appendServiceSessionLinesInput.safeParse({ lines }).success).toBe(true);
+});
+it.each([undefined, null, {}, [{ employee_id: 'invalid' }], [{ employee_id: id, share_bps: '10000' }], [{ employee_id: id, share_bps: null }], [{ employee_id: id, extra: true }]])('rejects performer shape/type errors %#', (performers) => {
+  const lines = [{ ...line, performers }];
+  expect(recordServiceSessionInput.safeParse({ customer_id: id, lines }).success).toBe(false);
+  expect(appendServiceSessionLinesInput.safeParse({ lines }).success).toBe(false);
+});
+it('leaves discount money arithmetic to the domain', () => {
   expect(recordServiceSessionInput.safeParse({ customer_id: id, lines: [{ ...line, price: '0.000', discount: { kind: 'AMOUNT', amount: '1.000' } }] }).success).toBe(true);
 });
 it('append cannot change customer, original time or visit header and shares the 20-line request bound', () => {

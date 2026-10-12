@@ -9320,7 +9320,7 @@ export interface operations {
                     "application/json": components["schemas"]["RecordServiceSessionResponse"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9329,7 +9329,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9338,7 +9338,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9347,7 +9347,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9356,7 +9356,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -9396,7 +9396,7 @@ export interface operations {
                     "application/json": components["schemas"]["AppendServiceSessionLinesResponse"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -9405,7 +9405,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9414,7 +9414,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -9423,7 +9423,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -9432,7 +9432,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             default: {
                 headers: {
                     [name: string]: unknown;

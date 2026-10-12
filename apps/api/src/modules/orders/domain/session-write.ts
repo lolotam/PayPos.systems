@@ -7,7 +7,7 @@ type LineIdentity = { id: string; session_id: string; ordinal: number; performer
 type LineRecorder = { userId: string; membershipId: string; at: Date; late: boolean };
 
 /**
- * يحدد المقبول قبل إدخال أي صف ويقدم معلومات تصحيح كل رفض بلا هوية محفوظة.
+ * يحدد المقبول قبل أي حفظ ويفحص إجمالي النشط وحده؛ الملغى يحتفظ بترتيبه وسعته.
  *
  * @param lines كل البنود المتحقق منها
  * @param limit السلطة المالية الموثقة
@@ -26,7 +26,7 @@ export function planSessionWrite(lines: readonly PreparedSessionLine[], limit: S
       limit_bps: limit.bps, limit_source: limit.source, minimum_net: moneyToString(amounts.minimum_net), max_discount_amount: moneyToString(amounts.max_discount_amount) };
   });
   if (accepted.length === 0) throw new SessionError('SESSION_DISCOUNT_ABOVE_LIMIT', { rejected_lines });
-  sessionTotal([...existing, ...accepted].map((l) => l.net));
+  sessionTotal([...existing.filter((line) => line.status === 'ACTIVE'), ...accepted].map((l) => l.net));
   const ordinals = appendOrdinals(existing.map((line) => line.ordinal), accepted.length);
   return { accepted, rejected_lines, ordinals, outcome: rejected.length === 0 ? 'COMPLETE' as const : 'PARTIAL' as const };
 }

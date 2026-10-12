@@ -13,18 +13,20 @@ export function equalShares(count: number): number[] {
   return Array.from({ length: count }, (_, i) => share + (i === 0 ? 10000 % count : 0));
 }
 /**
- * يمنع التكرار والصفر والخلط بين نسب صريحة وغائبة؛ النسب غير المتساوية مسموحة أولياً.
+ * يرفض عدد الموظفات أو نسبهن المخالفة لـ SS-20 مع موضع البند؛ النسب غير المتساوية مسموحة أولياً.
  *
  * @param performers موظفات المدخل ونسبهن الاختيارية
+ * @param input_index موضع البند في الطلب لعرض التصحيح عند رفض الزيارة كلها
  * @returns النسب المتحقق منها بترتيب المدخل
  */
-export function validateShares(performers: readonly { employee_id: string; share_bps?: number | undefined }[]): number[] {
+export function validateShares(performers: readonly { employee_id: string; share_bps?: number | undefined }[], input_index: number): number[] {
+  if (performers.length < 1 || performers.length > 4) throw new SessionError('SESSION_PERFORMER_SHARES_INVALID', { input_index });
   const defaults = equalShares(performers.length);
-  if (new Set(performers.map((p) => p.employee_id)).size !== performers.length) throw new SessionError('SESSION_PERFORMER_SHARES_INVALID');
+  if (new Set(performers.map((p) => p.employee_id)).size !== performers.length) throw new SessionError('SESSION_PERFORMER_SHARES_INVALID', { input_index });
   if (performers.every((p) => p.share_bps === undefined)) return defaults;
   const shares = performers.map((p) => p.share_bps ?? 0);
   if (shares.some((s) => !Number.isInteger(s) || s < 1 || s > 10000) || shares.reduce((a, b) => a + b, 0) !== 10000)
-    throw new SessionError('SESSION_PERFORMER_SHARES_INVALID');
+    throw new SessionError('SESSION_PERFORMER_SHARES_INVALID', { input_index });
   return shares;
 }
 /**

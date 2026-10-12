@@ -9188,7 +9188,7 @@
             }
           },
           "400": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9198,7 +9198,7 @@
             }
           },
           "403": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9208,7 +9208,7 @@
             }
           },
           "409": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9218,7 +9218,7 @@
             }
           },
           "422": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9228,7 +9228,7 @@
             }
           },
           "default": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9315,7 +9315,7 @@
             }
           },
           "400": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9325,7 +9325,7 @@
             }
           },
           "403": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9335,7 +9335,7 @@
             }
           },
           "409": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9345,7 +9345,7 @@
             }
           },
           "422": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9355,7 +9355,7 @@
             }
           },
           "default": {
-            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.",
+            "description": "Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.",
             "content": {
               "application/json": {
                 "schema": {
@@ -16621,9 +16621,7 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "share_bps": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 10000
+            "type": "number"
           }
         },
         "required": [
@@ -16687,8 +16685,6 @@
             ]
           },
           "performers": {
-            "minItems": 1,
-            "maxItems": 4,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SessionPerformerInput"

@@ -6,7 +6,7 @@ import { sessionTime, validateAppendWindow } from '../../domain/session-time.ts'
 import { planSessionWrite, recordedSessionLine } from '../../domain/session-write.ts';
 import { sessionLineSnapshot, sessionSnapshot } from '../../domain/session-snapshot.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
-import { sessionDrafts } from '../record-service-session/record-service-session.usecase.ts';
+import { sessionDrafts } from '../../domain/session-drafts.ts';
 
 type AppendContext = SessionWriteContext & { sessionId: string; input: AppendServiceSessionLinesInput };
 /** يضيف المصحح أو الخدمة الجديدة لنفس الزيارة دون تغيير أي بند محفوظ. */

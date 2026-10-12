@@ -26,9 +26,11 @@ describe('business date and append window', () => {
 });
 describe('performers', () => {
   it.each([[1, [10000]], [2, [5000, 5000]], [3, [3334, 3333, 3333]], [4, [2500, 2500, 2500, 2500]]])('equal count %s', (count, expected) => expect(equalShares(count)).toEqual(expected));
-  it('allows explicit 70/30 and preserves order', () => expect(validateShares([{ employee_id: 'B', share_bps: 7000 }, { employee_id: 'A', share_bps: 3000 }])).toEqual([7000, 3000]));
-  it('defaults all omitted with remainder to first input', () => expect(validateShares(['C', 'B', 'A'].map((employee_id) => ({ employee_id })))).toEqual([3334, 3333, 3333]));
-  it.each([[], Array.from({ length: 5 }, (_, i) => ({ employee_id: String(i) })), [{ employee_id: 'A' }, { employee_id: 'A' }], [{ employee_id: 'A', share_bps: 10000 }, { employee_id: 'B' }], [{ employee_id: 'A', share_bps: 0 }], [{ employee_id: 'A', share_bps: 9999 }], [{ employee_id: 'A', share_bps: 10000.1 }]].map((performers) => ({ performers })))('rejects malformed shares %#', ({ performers }) => expect(() => validateShares(performers)).toThrow('SESSION_PERFORMER_SHARES_INVALID'));
+  it('allows explicit 70/30 and preserves order', () => expect(validateShares([{ employee_id: 'B', share_bps: 7000 }, { employee_id: 'A', share_bps: 3000 }], 0)).toEqual([7000, 3000]));
+  it('defaults all omitted with remainder to first input', () => expect(validateShares(['C', 'B', 'A'].map((employee_id) => ({ employee_id })), 0)).toEqual([3334, 3333, 3333]));
+  it.each([[], Array.from({ length: 5 }, (_, i) => ({ employee_id: String(i) })), [{ employee_id: 'A' }, { employee_id: 'A' }], [{ employee_id: 'A', share_bps: 10000 }, { employee_id: 'B' }], ...[0, 9999, 10000.1, -1, 10001].map((share_bps) => [{ employee_id: 'A', share_bps }])].map((performers) => ({ performers })))('rejects malformed shares with the failing input index %#', ({ performers }) => {
+    expect(() => validateShares(performers, 3)).toThrow(expect.objectContaining({ code: 'SESSION_PERFORMER_SHARES_INVALID', details: { input_index: 3 } }));
+  });
   it.each([[true, false, false, false], [false, false, true, false], [true, true, false, true], [false, true, true, true]])('warning clock=%s leave=%s', (clocked_in, approved_leave, missing, leave) => expect(performerWarnings({ clocked_in, approved_leave })).toEqual({ not_clocked_in_warning: missing, approved_leave_warning: leave }));
   it('forbids linked recorder regardless of role; different/null links allowed', () => {
     expect(() => validateRecorderPerformers('recorder', [{ user_id: 'recorder' }])).toThrow('SESSION_PERFORMER_SELF_FORBIDDEN');

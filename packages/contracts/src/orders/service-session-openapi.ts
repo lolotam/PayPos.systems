@@ -4,7 +4,7 @@ const parameters = [
   { in: 'header', name: 'Idempotency-Key', required: true, schema: { type: 'string', minLength: 1, maxLength: 255, pattern: '^[!-~]+$' } },
   ...['businessId', 'branchId'].map((name) => ({ in: 'path', name, required: true, schema: { type: 'string', format: 'uuid' } })),
 ];
-const refusal = { description: 'Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing.', content: json('ErrorEnvelope') };
+const refusal = { description: 'Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED.', content: json('ErrorEnvelope') };
 function write(operationId: string, input: string, response: string, append: boolean) {
   return {
     operationId,

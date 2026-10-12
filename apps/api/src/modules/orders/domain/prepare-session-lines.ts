@@ -18,7 +18,7 @@ export function prepareSessionLines(drafts: readonly SessionDraft[], services: r
   return drafts.map((draft, input_index) => {
     const service = serviceById.get(draft.service_id);
     if (service === undefined) throw new SessionError('SESSION_SERVICE_NOT_FOUND', { input_index, service_id: draft.service_id });
-    const shares = validateShares(draft.performers);
+    const shares = validateShares(draft.performers, input_index);
     const performers = draft.performers.map((p, index) => {
       const employee = employeeById.get(p.employee_id);
       if (employee === undefined || !employee.eligible) throw new SessionError('SESSION_PERFORMER_NOT_ELIGIBLE', { input_index, employee_id: p.employee_id });

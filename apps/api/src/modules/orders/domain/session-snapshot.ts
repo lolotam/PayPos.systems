@@ -32,7 +32,7 @@ export function sessionLineSnapshot(line: SessionLine) {
   };
 }
 /**
- * يعيد الزيارة الكاملة بالإجمالي الصحيح ويحافظ على وقت وهويّة رأس الزيارة الأصليين.
+ * يعيد كل البنود للتاريخ وإجمالي النشط فقط؛ يحافظ على وقت وهويّة رأس الزيارة الأصليين.
  *
  * @param record الزيارة وكل بنودها المحفوظة
  * @returns لقطة الاستجابة الآمنة
@@ -42,5 +42,5 @@ export function sessionSnapshot(record: SessionRecord) {
     recorded_by: record.recorded_by, recorded_by_membership_id: record.recorded_by_membership_id,
     occurred_at: record.occurred_at.toISOString(), recorded_at: record.recorded_at.toISOString(), business_date: record.business_date,
     business_timezone: record.business_timezone, late: record.late,
-    total_net: moneyToString(sessionTotal(record.lines.map((l) => l.net))), lines: record.lines.map(sessionLineSnapshot) };
+    total_net: moneyToString(sessionTotal(record.lines.filter((line) => line.status === 'ACTIVE').map((l) => l.net))), lines: record.lines.map(sessionLineSnapshot) };
 }
