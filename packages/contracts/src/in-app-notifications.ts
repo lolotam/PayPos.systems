@@ -56,6 +56,14 @@ const inAppBase = {
   locale: z.enum(['ar', 'en']),
   template_revision: z.literal(1),
 };
+export const lateServiceSessionParameters = z.tuple([
+  displayParameter('branch_name_ar'),
+  displayParameter('branch_name_en'),
+  z.strictObject({ name: z.literal('business_date'), type: z.literal('text'), value: z.iso.date() }),
+]);
+export const lateServiceSessionRecipient = z.strictObject({
+  ...inAppBase, template_key: z.literal('late_service_session'), safe_parameters: lateServiceSessionParameters,
+});
 const changeParameter = z.strictObject({
   name: z.literal('change'),
   type: z.literal('text'),
@@ -78,6 +86,7 @@ export const attendanceChangeDecidedParameters = z.tuple([
   z.strictObject({ name: z.literal('reason'), type: z.literal('text'), value: safeText }),
 ]);
 export const inAppRecipient = z.discriminatedUnion('template_key', [
+  lateServiceSessionRecipient,
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('break_returned_other_branch'),
@@ -122,6 +131,10 @@ const inAppNotificationBase = {
 };
 export const inAppNotification = z
   .discriminatedUnion('template_key', [
+    z.strictObject({
+      ...inAppNotificationBase, template_key: z.literal('late_service_session'),
+      safe_parameters: lateServiceSessionParameters,
+    }),
     z.strictObject({
       ...inAppNotificationBase,
       template_key: z.literal('break_returned_other_branch'),

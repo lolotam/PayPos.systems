@@ -17,6 +17,7 @@ type EmailScope = {
 };
 
 export const NOTIFICATION_SOURCE_EVENTS = [
+  'LateServiceSessionNoticeRequested',
   'AttendanceChangeRequested',
   'AttendanceChangeDecided',
   'PaymentFailed',

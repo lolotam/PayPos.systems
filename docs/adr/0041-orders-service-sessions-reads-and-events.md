@@ -234,6 +234,40 @@ deadline are expired/cancelled, never sent retroactively. Opt-out and claim-time
 dedupe prevents duplicate bell notices. Keep a runbook count/checkpoint and tests for each recovery. Neither
 dispatching with no consumer nor a successful 35a merge proves those later features complete.
 
+## Addendum 2026-10-12 — 35b-2 late bell implementation
+
+35b is split into 35b-1 (branch day read, blocked on SS-Q12) and independently implementable 35b-2
+(late bell, settled by SS-Q11). This amendment authorizes only 35b-2; no read permission/default is added.
+ADR-0037 supplies the interim IN_APP manager rule and safe-name fallback; ADR-0018 supplies database-only
+notification storage and atomic consumer dedupe. Row 62 must include this kind in individual/master controls.
+
+Worker orders owns `request-late-service-session-notice`, consuming both recording and append contracts with
+stable consumer ID `orders.late-service-session-notice-v1`. Its transaction-bound recipient/place adapters call
+`identity.branchManagerRecipients` and `tenancy.companyOpen` at
+`apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts`, and `tenancy.branchPlace` at
+`apps/worker/src/modules/orders/persistence/branch-place.adapter.ts`. Existing import edges suffice; exact
+read entries and consumer-owned ports are added to the map. No orders → notifications import is authorized.
+
+The insert-only `late_service_session_notices` ledger has tenant/id PK, tenant/business/session FK, permanent
+UNIQUE(company_id,session_id), source event provenance without an outbox FK, decision instant and nonnegative
+recipient count. FORCE RLS and SELECT/INSERT-only application grants apply. INSERT ON CONFLICT DO NOTHING
+chooses one winner across both input event types. Ledger, all stable recipient groups (≤100) and consumed mark
+commit together; zero recipients commits an observable count of zero without an empty request event. Closed
+companies are skipped. Memberships are sampled at processing time; recorder/performer managers remain eligible.
+
+The new orders ⇒ notifications event `LateServiceSessionNoticeRequested` carries schema_version 1, session/
+business/branch IDs, saved business date/timezone and IN_APP recipients (locale ar, late_service_session revision
+1). Only branch_name_ar/branch_name_en/business_date enter safe_parameters; names reject phones (including
+Arabic/separated digits), URLs and codes, falling back to safe English then translated generic branch labels.
+Calendar dates receive explicit date validation, separate from display-name safety. Existing admin rendering
+uses the viewer's ar/en locale. There is no send job, provider call, financial event change or realtime consumer.
+
+Recovery pages retained recording and append events through the restricted dispatcher facade, with an explicit
+company, UUID checkpoint and fixed upper bound. Original IDs are delivered to only this consumer through
+application-role withTenant; publication metadata and existing consumed marks are preserved. No new grants or
+application-role outbox SELECT are authorized. The runbook requires counts/coverage and all-replica rollout;
+missing retained coverage stops recovery. Live delivery and replay converge through the permanent ledger.
+
 ## Consequences
 
 35a creates no commission/rating/notification projection and has no statement-status read. It introduces narrow

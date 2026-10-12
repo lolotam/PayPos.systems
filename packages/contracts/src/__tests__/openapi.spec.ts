@@ -7,7 +7,7 @@ const expectedSchemas = [
   'SessionMoney', 'SessionPerformerInput', 'SessionLineInput', 'RecordServiceSessionInput',
   'AppendServiceSessionLinesInput', 'SessionPerformer', 'SavedServiceLine', 'ServiceSession',
   'RejectedServiceLine', 'RecordServiceSessionResponse', 'AppendServiceSessionLinesResponse',
-  'ServiceLineChanged', 'RecordedServiceLine', 'ServiceSessionRecorded', 'ServiceSessionLinesAdded',
+  'ServiceLineChanged', 'RecordedServiceLine', 'ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'LateServiceSessionNoticeRequested',
   'CreateDocumentTypeInput',
   'DocumentType',
   'DocumentTypeList',

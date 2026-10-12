@@ -32,6 +32,22 @@ export const serviceSessions = pgTable('service_sessions', {
   index('service_sessions_recorded_by_fk_idx').on(t.recordedBy),
 ]);
 
+export const lateServiceSessionNotices = pgTable('late_service_session_notices', {
+  ...scope(), sessionId: uuid('session_id').notNull(),
+  // المصدر محفوظ دون FK للأوتبوكس حتى لا تتوقف الحماية عند حذف الحدث القديم.
+  sourceEventId: uuid('source_event_id').notNull(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+  // الصفر قرار نهائي قابل للمراجعة، وليس حدثاً بمستلمين فارغين.
+  recipientCount: integer('recipient_count').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.companyId, t.id] }),
+  unique('late_service_session_notices_session_key').on(t.companyId, t.sessionId),
+  foreignKey({ name: 'late_service_session_notices_session_fk', columns: [t.companyId, t.businessId, t.sessionId],
+    foreignColumns: [serviceSessions.companyId, serviceSessions.businessId, serviceSessions.id] }),
+  index('late_service_session_notices_session_fk_idx').on(t.companyId, t.businessId, t.sessionId),
+  check('late_service_session_notices_recipient_count', sql`${t.recipientCount} >= 0`),
+]);
+
 export const serviceLines = pgTable('service_lines', {
   ...scope(), ...recorder(), sessionId: uuid('session_id').notNull(), serviceId: uuid('service_id').notNull(), ordinal: integer('ordinal').notNull(),
   // الموضع في الطلب مستقل عن ترتيب الزيارة، لأن الإضافة تبدأ طلباً جديداً وقد يرفض بعض بنوده.

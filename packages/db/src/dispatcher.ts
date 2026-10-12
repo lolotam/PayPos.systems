@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { drizzle } from 'drizzle-orm/postgres-js';
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
 /**
@@ -34,6 +34,10 @@ export interface OutboxDispatcherDatabase {
     options?: DispatchOptions,
   ): Promise<number>;
   sweepExpiredIdempotencyKeys(batchSize: number): Promise<number>;
+  /** يقرأ صفحة أحداث الجلسات الأصلية لشركة محددة لاسترداد الجرس دون تغيير النشر أو الاستهلاك. */
+  serviceSessionReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
+    throughId: string | null; events: readonly ClaimedEvent[];
+  }>;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -183,6 +187,10 @@ export function createOutboxDispatcherDatabase(options: {
       if (crashed !== undefined) throw crashed.reason;
       return events.length;
     },
+    serviceSessionReplayPage: (companyId, afterId, throughId, limit) => db.transaction(async (tx) => {
+      await assertRole(tx);
+      return readServiceSessionReplayPage(tx, companyId, afterId, throughId, limit);
+    }),
     sweepExpiredIdempotencyKeys: async (batchSize) => {
       const [row] = await db.transaction(async (tx) => {
         await assertRole(tx);
@@ -196,4 +204,22 @@ export function createOutboxDispatcherDatabase(options: {
     ping: () => assertRole(db),
     close: () => client.end({ timeout: 5 }),
   };
+}
+
+async function readServiceSessionReplayPage(
+  tx: Pick<PostgresJsDatabase, 'execute'>, companyId: string, afterId: string | null,
+  throughId: string | null, limit: number,
+) {
+  const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+  if (!uuid.test(companyId) || (afterId !== null && !uuid.test(afterId)) ||
+    (throughId !== null && !uuid.test(throughId))) throw new TypeError('REPLAY_SCOPE_INVALID');
+  validate(limit, DEFAULT_LEASE_MS, DEFAULT_MAX_ATTEMPTS);
+  const types = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded')`;
+  const end = throughId ?? (await tx.execute<{ id: string }>(sql`SELECT id FROM outbox
+    WHERE company_id=${companyId} AND ${types} ORDER BY id DESC LIMIT 1`))[0]?.id ?? null;
+  if (end === null) return { throughId: null, events: [] };
+  const rows = await tx.execute<Row>(sql`SELECT company_id,id,aggregate_type,aggregate_id,event_type,payload,attempts
+    FROM outbox WHERE company_id=${companyId} AND ${types} AND id<=${end}::uuid
+      ${afterId === null ? sql`` : sql`AND id>${afterId}::uuid`} ORDER BY id LIMIT ${limit}`);
+  return { throughId: end, events: rows.map((row) => ({ ...toEvent(row), attempt: Math.max(1, row.attempts) })) };
 }

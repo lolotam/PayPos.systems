@@ -19,6 +19,7 @@ export type { FakeOutcome, FakeChannelHooks } from './adapters/fake.channel.ts';
 export { WhatsAppChannel } from './adapters/whatsapp.channel.ts';
 export { staffOtp } from './templates/staff-otp.ts';
 export { genericNotice, validInAppTemplate } from './templates/generic-notice.ts';
+export { lateServiceSession } from './templates/late-service-session.ts';
 export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { breakNotReturned } from './templates/break-not-returned.ts';
 export { validateParameters, templateComponents } from './templates/definition.ts';

@@ -53,6 +53,11 @@ export const outbox = pgTable(
     index('outbox_unpublished_aggregate_idx')
       .on(t.companyId, t.aggregateType, t.aggregateId, t.seq)
       .where(sql`${t.publishedAt} IS NULL`),
+    // إعادة تشغيل جلسات الخدمة تشمل المنشور؛ الفهرس الجزئي يمنع مسح باقي الأحداث المحتفظ بها.
+    index('outbox_service_session_replay_idx')
+      .on(t.companyId, t.id)
+      .concurrently()
+      .where(sql`${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded')`),
     check('outbox_event_type_format', sql`${t.eventType} ~ '^[A-Z][A-Za-z0-9]{1,99}$'`),
     check('outbox_aggregate_type_format', sql`${t.aggregateType} ~ '^[a-z][a-z0-9_]{1,62}$'`),
     check('outbox_attempts_non_negative', sql`${t.attempts} >= 0`),

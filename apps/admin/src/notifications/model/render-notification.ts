@@ -1,8 +1,15 @@
 import type { InAppNotification } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 
-/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
+/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
 export function renderNotification(item: InAppNotification, viewerLocale?: Locale): string {
+  if (item.template_key === 'late_service_session') {
+    const values = Object.fromEntries(
+      item.safe_parameters.map((parameter) => [parameter.name, parameter.value]),
+    );
+    values['branch_name_ar'] = values['branch_name_ar']?.trim() || values['branch_name_en'] || '';
+    return fill(t(viewerLocale ?? item.locale, 'inApp.late_service_session'), values);
+  }
   if (
     item.template_key === 'attendance_change_requested' ||
     item.template_key === 'attendance_change_decided'

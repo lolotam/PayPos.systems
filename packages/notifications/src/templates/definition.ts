@@ -7,8 +7,8 @@ export interface TemplateParameter {
   readonly sensitivity: 'safe' | 'sensitive';
   readonly component: 'header' | 'body' | 'button';
   readonly buttonIndex?: string;
-  /** safe يرفض أي سلسلة من ٤–٨ أرقام؛ display_name يسمح بسنة داخل الاسم ويرفض الرابط والهاتف والرمز وحده. */
-  readonly textKind?: 'safe' | 'display_name';
+  /** safe يرفض أي سلسلة من ٤–٨ أرقام؛ display_name يسمح بسنة داخل الاسم ويرفض الرابط والهاتف والرمز وحده؛ date يثبت التاريخ الميلادي الفعلي. */
+  readonly textKind?: 'safe' | 'display_name' | 'date';
 }
 export interface TemplateDefinition {
   readonly key: string;
@@ -56,6 +56,9 @@ export function validateParameters(
 
 function textAllowed(descriptor: TemplateParameter, value: string): boolean {
   if (value.length > 255) return false;
+  if (descriptor.textKind === 'date')
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+      Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
   if (descriptor.textKind === 'display_name')
     return value.trim().length > 0 && !DISPLAY_NAME_UNSAFE.test(value.trim());
   return !UNSAFE_TEXT.test(value);
