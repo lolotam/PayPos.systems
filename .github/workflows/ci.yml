@@ -113,8 +113,15 @@ jobs:
         run: pnpm turbo run test --filter=@pospay/domain
 
       # apps/api, the slow suite, runs in the four `api-tests` shards below; every other package stays here.
+      # turbo.json chains worker#test → api#test, so selecting the worker through turbo would run the whole api
+      # suite again unsharded: the worker is excluded here and run directly by vitest in the next step.
       - name: integration · RLS negative · EXPLAIN (packages)
-        run: pnpm turbo run test --filter=!@pospay/domain --filter=!@pospay/api
+        run: pnpm turbo run test --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker
+
+      - name: integration · worker
+        run: |
+          pnpm turbo run build --filter=@pospay/worker...
+          pnpm --filter @pospay/worker exec vitest run
 
       - name: build all apps
         run: pnpm turbo run build
