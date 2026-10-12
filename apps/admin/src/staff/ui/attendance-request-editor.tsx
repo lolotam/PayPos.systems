@@ -30,7 +30,7 @@ export function AttendanceRequestEditor({
       ? !capabilities.request_change
       : action === 'withdraw'
         ? !row.can_cancel
-        : !capabilities.decide || !row.can_decide
+        : !row.can_decide
   )
     return null;
   return (

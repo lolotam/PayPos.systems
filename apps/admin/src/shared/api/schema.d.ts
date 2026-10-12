@@ -5941,6 +5941,7 @@ export interface operations {
                             raised_at: string;
                             revision: number;
                             own: boolean;
+                            can_resolve: boolean;
                             session: {
                                 /** Format: uuid */
                                 id: string;

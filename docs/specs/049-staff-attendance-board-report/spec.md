@@ -170,6 +170,10 @@ board (27c) shows requester/approver names from 27d-1. Times entered in the bran
   Requests keep the server's `can_decide`/`can_cancel`; restore uses the target branch's request capability.
 - Approvers default to «كل الفروع» within one business (no `branch_id`); the branch view remains selectable.
   Each request retains its own branch for times and actions. No migration or new permission resolver.
+- L1 fix round: request decisions and cancellation use only their endpoint's `can_decide` / `can_cancel`, even
+  without board read access. Exception rows expose `can_resolve` from the shared evaluator on the exception's
+  movement branch, with spec 034's self restriction; the list remains scoped to the session branch. Board owner
+  metadata comes through the existing identity correction-access reader, with no direct membership query.
 
 ## 7. Out of scope
 

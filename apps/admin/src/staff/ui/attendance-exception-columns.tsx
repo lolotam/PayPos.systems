@@ -1,4 +1,4 @@
-import type { AttendanceExceptionPage, AttendanceCapabilities } from '@pospay/contracts';
+import type { AttendanceExceptionPage } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -8,7 +8,6 @@ export function attendanceExceptionColumns(
   locale: Locale,
   timezone: string,
   onAction: (row: ExceptionRow) => void,
-  capabilities: AttendanceCapabilities,
 ): ColumnDef<ExceptionRow>[] {
   return [
     {
@@ -44,9 +43,7 @@ export function attendanceExceptionColumns(
       id: 'actions',
       header: t(locale, 'attendanceActions.actions'),
       cell: ({ row }) =>
-        capabilities.resolve &&
-        !row.original.own &&
-        row.original.kind !== 'SUSPECTED_MISSED_OUT' ? (
+        row.original.can_resolve && row.original.kind !== 'SUSPECTED_MISSED_OUT' ? (
           <Button variant="outline" onClick={() => onAction(row.original)}>
             {t(
               locale,

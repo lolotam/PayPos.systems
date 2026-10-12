@@ -6,7 +6,6 @@ import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceExceptions } from '../api/use-attendance-actions-read';
-import { useAttendanceCapabilities } from '../api/use-attendance-capabilities';
 import { attendancePages } from '../model/attendance-action-display';
 import { boardAccessLost } from '../model/attendance-board-display';
 import { AttendanceExceptionTabs } from '../ui/attendance-exception-tabs';
@@ -29,7 +28,6 @@ export function AttendanceExceptionsPage({
   const [status, setStatus] = useState<'OPEN' | 'RESOLVED'>('OPEN');
   const [selection, setSelection] = useState<ExceptionRow>();
   const query = useAttendanceExceptions(scope, status);
-  const { capabilities } = useAttendanceCapabilities(scope);
   const timezone = branches.find((branch) => branch.id === scope.branchId)?.effective_timezone;
   const items = boardAccessLost(query.error) ? [] : attendancePages(query.data?.pages);
   return (
@@ -53,7 +51,7 @@ export function AttendanceExceptionsPage({
       {timezone && query.data && !boardAccessLost(query.error) ? (
         <AttendanceActionsTable
           items={items}
-          columns={attendanceExceptionColumns(locale, timezone, setSelection, capabilities)}
+          columns={attendanceExceptionColumns(locale, timezone, setSelection)}
         />
       ) : null}
       <AttendanceActionPagination
@@ -63,7 +61,11 @@ export function AttendanceExceptionsPage({
           void query.fetchNextPage();
         }}
       />
-      {selection && capabilities.resolve && !selection.own && !boardAccessLost(query.error) ? (
+      {selection &&
+      items.some(
+        (row) => row.id === selection.id && row.revision === selection.revision && row.can_resolve,
+      ) &&
+      !boardAccessLost(query.error) ? (
         <AttendanceExceptionEditor
           scope={scope}
           row={selection}

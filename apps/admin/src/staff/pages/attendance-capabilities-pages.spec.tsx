@@ -44,7 +44,11 @@ beforeEach(() => {
         data: {
           ...exceptionPage,
           next_cursor: null,
-          items: exceptionPage.items.map((row) => ({ ...row, own })),
+          items: exceptionPage.items.map((row) => ({
+            ...row,
+            own,
+            can_resolve: grants.resolve && !own,
+          })),
         },
       };
     if (path.endsWith('/corrections')) return { data: { items: [] } };
@@ -231,3 +235,61 @@ it('capability loss hides writes and closes an open correction while history sta
   expect(screen.getByRole('button', { name: t('en', 'attendanceActions.history') })).toBeTruthy();
   view.close();
 });
+it('decide-only user keeps approve/reject and withdraw when board capabilities are refused', async () => {
+  api.GET.mockImplementation(async (path) =>
+    path.endsWith('attendance-capabilities')
+      ? { error: { code: 'NOT_FOUND' }, response: { status: 404 } }
+      : { data: { ...requestPage, next_cursor: null } },
+  );
+  const view = setup('requests');
+  for (const action of ['approve', 'reject', 'withdraw'] as const) {
+    fireEvent.click(
+      await screen.findByRole('button', { name: t('en', `attendanceActions.${action}`) }),
+    );
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'attendanceActions.close') }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  }
+  expect(screen.queryByRole('button', { name: t('en', 'attendanceActions.manual') })).toBeNull();
+  view.close();
+});
+it.each([true, false])(
+  'exception actions follow row can_resolve=%s independently of branch capabilities',
+  async (canResolve) => {
+    api.GET.mockImplementation(async (path) =>
+      path.endsWith('attendance-capabilities')
+        ? { data: { ...noAttendanceWrites, resolve: !canResolve } }
+        : {
+            data: {
+              ...exceptionPage,
+              next_cursor: null,
+              items: exceptionPage.items.map((row) => ({
+                ...row,
+                branch_id: otherBoardId,
+                can_resolve: canResolve,
+              })),
+            },
+          },
+    );
+    const view = setup('exceptions');
+    await screen.findByRole('table');
+    const button = screen.queryByRole('button', { name: t('en', 'attendanceActions.resolve') });
+    expect(Boolean(button)).toBe(canResolve);
+    if (button) {
+      fireEvent.click(button);
+      await screen.findByRole('dialog');
+      api.GET.mockResolvedValue({
+        data: {
+          ...exceptionPage,
+          next_cursor: null,
+          items: exceptionPage.items.map((row) => ({ ...row, can_resolve: false })),
+        },
+      });
+      await view.client.invalidateQueries({
+        queryKey: ['attendance-actions', boardId, boardId, boardId, boardId, 'exceptions'],
+      });
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    }
+    view.close();
+  },
+);

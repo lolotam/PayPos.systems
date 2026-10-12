@@ -88,7 +88,9 @@ it('reads only sessions at the requested branch when an exception has a differen
   await f.h.owner`UPDATE attendance_exceptions SET branch_id=${f.secondBranch}
     WHERE company_id=${f.company} AND id=${f.visible.id}`;
   try {
-    expect((await list()).items.find((row) => row.id === f.visible.id)?.branch_id).toBe(f.branch);
+    expect((await list()).items.find((row) => row.id === f.visible.id)?.branch_id).toBe(
+      f.secondBranch,
+    );
     const other = await f.db.withTenant(f.company, (tx) =>
       attendanceExceptions(
         tx,

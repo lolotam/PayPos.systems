@@ -22,7 +22,7 @@ export function AttendanceRequestRowActions({
   const { capabilities } = useAttendanceCapabilities(scope);
   return (
     <div className="flex flex-wrap gap-2">
-      {row.status === 'PENDING' && row.can_decide && capabilities.decide ? (
+      {row.status === 'PENDING' && row.can_decide ? (
         <>
           <Button variant="outline" onClick={() => onAction(row, 'approve')}>
             {t(locale, 'attendanceActions.approve')}

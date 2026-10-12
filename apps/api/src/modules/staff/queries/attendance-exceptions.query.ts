@@ -1,6 +1,11 @@
-import { attendanceExceptionPage, type AttendanceExceptionsListQuery } from '@pospay/contracts';
+import {
+  attendanceExceptionPage,
+  type AttendanceExceptionsListQuery,
+  type AttendanceExceptionPage,
+} from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import type { RequestAuthorizer } from '../../../shared/request-authorizer.ts';
 import type { AttendanceBoardScope } from './attendance-board.query.ts';
 
 const instant = (column: string) =>
@@ -11,8 +16,9 @@ export function attendanceExceptionsStatement(
 ) {
   const [raisedAt, cursorId] = query.cursor?.split('|') ?? [];
   // شاشة التحذيرات تعرض جلسات الفرع المسموح بقراءته، وتخفي تحذيرات الجلسات الملغاة دون تعديلها.
-  return sql`SELECT jsonb_build_object('id',x.id,'branch_id',s.branch_id,'kind',x.kind,'status',x.status,
+  return sql`SELECT jsonb_build_object('id',x.id,'branch_id',x.branch_id,'kind',x.kind,'status',x.status,
     'own',COALESCE(e.user_id=${scope.userId ?? null}::uuid,false),
+    'can_resolve',false,
     'raised_at',${instant('x.raised_at')},'resolution',x.resolution,'resolved_by',x.resolved_by,
     'resolved_at',${instant('x.resolved_at')},'reason',x.reason,'revision',x.revision,
     'session',jsonb_build_object('id',s.id,'working_date',s.working_date::text,
@@ -43,5 +49,28 @@ export async function attendanceExceptions(
   const lastRow = rows[query.limit - 1];
   if (rows.length > query.limit && last && lastRow)
     page.next_cursor = `${lastRow.cursor_at}|${last.id}`;
+  return page;
+}
+export async function attendanceExceptionActions(
+  authorizer: RequestAuthorizer,
+  companyId: string,
+  userId: string,
+  page: AttendanceExceptionPage,
+): Promise<AttendanceExceptionPage> {
+  const allowed = new Map<string, boolean>();
+  for (const row of page.items) {
+    if (row.own) continue;
+    if (!allowed.has(row.branch_id))
+      allowed.set(
+        row.branch_id,
+        (await authorizer.execute({
+          userId,
+          requestedCompany: companyId,
+          branchParam: row.branch_id,
+          permission: 'resolve:attendance:branch',
+        })) !== null,
+      );
+    row.can_resolve = allowed.get(row.branch_id) === true;
+  }
   return page;
 }

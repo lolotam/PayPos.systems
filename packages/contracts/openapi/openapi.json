@@ -3705,6 +3705,9 @@
                           "own": {
                             "type": "boolean"
                           },
+                          "can_resolve": {
+                            "type": "boolean"
+                          },
                           "session": {
                             "type": "object",
                             "properties": {
@@ -3783,6 +3786,7 @@
                           "raised_at",
                           "revision",
                           "own",
+                          "can_resolve",
                           "session",
                           "employee"
                         ],

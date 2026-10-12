@@ -17,6 +17,7 @@ export const exceptionPage: AttendanceExceptionPage = {
       id: boardId,
       branch_id: boardId,
       own: false,
+      can_resolve: true,
       kind: 'NONE',
       status: 'OPEN',
       resolution: null,
@@ -45,6 +46,7 @@ export const exceptionRecord = {
 delete (exceptionRecord as Record<string, unknown>).session;
 delete (exceptionRecord as Record<string, unknown>).employee;
 delete (exceptionRecord as Record<string, unknown>).own;
+delete (exceptionRecord as Record<string, unknown>).can_resolve;
 export const requestPage: AttendanceChangeRequestPage = {
   items: [
     {
