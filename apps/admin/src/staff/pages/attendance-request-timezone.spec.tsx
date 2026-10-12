@@ -32,6 +32,7 @@ it.each(cases)(
     api.GET.mockResolvedValue({
       data: {
         can_decide_any: true,
+        can_request: false,
         items: [
           {
             ...requestPage.items[0],

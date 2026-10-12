@@ -12,7 +12,8 @@ import {
 } from './attendance-actions-read.fixture.ts';
 import { asRole, decision, exceptionActor, openException } from './attendance-exception.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
-import { REQUEST_AUTHORIZER, type RequestAuthorizer } from '../../../shared/request-authorizer.ts';
+import { REQUEST_AUTHORIZER } from '../../../shared/request-authorizer.ts';
+import type { AttendanceExceptionReadAccess } from '../queries/attendance-exceptions.query.ts';
 import { AttendanceExceptionsReadController } from '../http/attendance-exceptions-read.controller.ts';
 import { attendanceBoardContext } from '../persistence/attendance-board-context.adapter.ts';
 
@@ -212,12 +213,12 @@ it('shared authorization starts after the list transaction releases its connecti
         options,
       ),
   };
-  const shared = f.h.app.get<RequestAuthorizer>(REQUEST_AUTHORIZER);
-  const authorizer: RequestAuthorizer = {
-    execute: (input) => {
+  const shared = f.h.app.get<AttendanceExceptionReadAccess>(REQUEST_AUTHORIZER);
+  const authorizer: AttendanceExceptionReadAccess = {
+    executeBranches: (input) => {
       expect(reading).toBe(false);
       checks++;
-      return shared.execute(input);
+      return shared.executeBranches(input);
     },
   };
   const controller = new AttendanceExceptionsReadController(
@@ -230,5 +231,49 @@ it('shared authorization starts after the list transaction releases its connecti
   } as unknown as FastifyRequest;
   const page = await controller.list(f.business, f.branch, { status: 'OPEN', limit: 50 }, request);
   expect(page.items.length).toBeGreaterThan(0);
-  expect(checks).toBe(new Set(page.items.map((row) => row.branch_id)).size);
+  expect(checks).toBe(1);
+});
+
+it('a page spanning many movement branches makes one batched access read', async () => {
+  await asRole(f, 'owner');
+  const branches = Array.from({ length: 12 }, () => leaveIds.newId());
+  const exceptions: string[] = [];
+  for (const branch of branches) {
+    await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en)
+      VALUES(${f.company},${branch},${f.business},'Synthetic movement branch')`;
+    for (let n = 0; n < 2; n++) {
+      const exception = await openException(f, 'NONE');
+      exceptions.push(exception.id);
+      await f.h.owner`UPDATE attendance_exceptions SET branch_id=${branch}
+        WHERE company_id=${f.company} AND id=${exception.id}`;
+    }
+  }
+  const shared = f.h.app.get<AttendanceExceptionReadAccess>(REQUEST_AUTHORIZER);
+  let reads = 0;
+  const authorizer: AttendanceExceptionReadAccess = {
+    executeBranches: (input) => {
+      reads++;
+      expect(new Set(input.branchParams).size).toBe(input.branchParams.length);
+      expect(input.branchParams).toEqual(expect.arrayContaining(branches));
+      return shared.executeBranches(input);
+    },
+  };
+  const controller = new AttendanceExceptionsReadController(
+    f.db,
+    attendanceBoardContext,
+    authorizer,
+  );
+  const request = {
+    principal: { companyId: f.company, userId: f.approverId },
+  } as unknown as FastifyRequest;
+  const statementsBefore = f.h.calls.statements.length;
+  const page = await controller.list(f.business, f.branch, { status: 'OPEN', limit: 50 }, request);
+  expect(page.items.filter((row) => exceptions.includes(row.id))).toHaveLength(24);
+  expect(page.items.every((row) => row.can_resolve && !row.own)).toBe(true);
+  expect(reads).toBe(1);
+  expect(
+    f.h.calls.statements
+      .slice(statementsBefore)
+      .filter(({ sql }) => sql.includes('rp.permission_code AS permission')),
+  ).toHaveLength(1);
 });

@@ -49,6 +49,7 @@ delete (exceptionRecord as Record<string, unknown>).own;
 delete (exceptionRecord as Record<string, unknown>).can_resolve;
 export const requestPage: AttendanceChangeRequestPage = {
   can_decide_any: true,
+  can_request: false,
   items: [
     {
       id: boardId,

@@ -49,6 +49,7 @@ it('projects the contract and paginates tied timestamps in descending id order',
   expect(first.can_decide_any).toBe(true);
   expect(attendanceChangeRequestPage.parse(await page({ limit: 1, status: 'REJECTED' }))).toEqual({
     can_decide_any: true,
+    can_request: false,
     items: [],
     next_cursor: null,
   });
@@ -143,6 +144,7 @@ it('decide-only access remains visible in an empty requests page while board cap
     expect(response.statusCode).toBe(200);
     expect(attendanceChangeRequestPage.parse(response.json())).toEqual({
       can_decide_any: true,
+      can_request: false,
       items: [],
       next_cursor: null,
     });

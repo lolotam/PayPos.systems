@@ -2393,6 +2393,7 @@ export interface components {
         };
         AttendanceChangeRequestPage: {
             can_decide_any: boolean;
+            can_request: boolean;
             items: {
                 /** Format: uuid */
                 id: string;

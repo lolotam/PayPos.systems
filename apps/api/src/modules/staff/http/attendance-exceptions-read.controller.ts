@@ -10,7 +10,8 @@ import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
-import { REQUEST_AUTHORIZER, type RequestAuthorizer } from '../../../shared/request-authorizer.ts';
+import { REQUEST_AUTHORIZER } from '../../../shared/request-authorizer.ts';
+import type { BranchRequestAccess } from '../../identity/index.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import {
   attendanceExceptions,
@@ -28,7 +29,7 @@ export class AttendanceExceptionsReadController {
   constructor(
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
     @Inject(ATTENDANCE_BOARD_CONTEXT) private readonly context: AttendanceBoardContext,
-    @Inject(REQUEST_AUTHORIZER) private readonly authorizer: RequestAuthorizer | null,
+    @Inject(REQUEST_AUTHORIZER) private readonly authorizer: BranchRequestAccess | null,
   ) {}
   @Get()
   @Require('read:attendance:branch', { branch: 'branchId' })

@@ -5,8 +5,18 @@ import {
 } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { RequestAuthorizer } from '../../../shared/request-authorizer.ts';
 import type { AttendanceBoardScope } from './attendance-board.query.ts';
+
+/** قراءة إجراءات الصفحة تبقى واجهة محلية؛ يربطها المتحكم بمفوّض الهوية المشترك. */
+export interface AttendanceExceptionReadAccess {
+  /** يقيّم إذن المعالجة لكل فروع الحركة بقراءة واحدة قبل تطبيق منع معالجة الحضور الشخصي. */
+  executeBranches(input: {
+    userId: string;
+    requestedCompany: unknown;
+    permission: string;
+    branchParams: readonly unknown[];
+  }): Promise<ReadonlyMap<string, boolean>>;
+}
 
 const instant = (column: string) =>
   sql`to_char(${sql.raw(column)} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
@@ -52,25 +62,19 @@ export async function attendanceExceptions(
   return page;
 }
 export async function attendanceExceptionActions(
-  authorizer: RequestAuthorizer,
+  authorizer: AttendanceExceptionReadAccess,
   companyId: string,
   userId: string,
   page: AttendanceExceptionPage,
 ): Promise<AttendanceExceptionPage> {
-  const allowed = new Map<string, boolean>();
-  for (const row of page.items) {
-    if (row.own) continue;
-    if (!allowed.has(row.branch_id))
-      allowed.set(
-        row.branch_id,
-        (await authorizer.execute({
-          userId,
-          requestedCompany: companyId,
-          branchParam: row.branch_id,
-          permission: 'resolve:attendance:branch',
-        })) !== null,
-      );
-    row.can_resolve = allowed.get(row.branch_id) === true;
-  }
+  const branchParams = [...new Set(page.items.map((row) => row.branch_id))];
+  if (branchParams.length === 0) return page;
+  const allowed = await authorizer.executeBranches({
+    userId,
+    requestedCompany: companyId,
+    branchParams,
+    permission: 'resolve:attendance:branch',
+  });
+  for (const row of page.items) row.can_resolve = !row.own && allowed.get(row.branch_id) === true;
   return page;
 }
