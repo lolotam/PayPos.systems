@@ -128,9 +128,11 @@ jobs:
 
   # apps/api integration · RLS negative · EXPLAIN, split into four parallel shards (vitest --shard): each shard brings
   # up its own compose Postgres (ADR-0006) and runs a quarter of the spec files. Public repo → free runners.
+  # needs `check`: CLAUDE.md §10 orders the gates typecheck → lint → lint:docs → boundaries → cycles → module-map →
+  # unit → integration, so the api integration shards start only after those gates are green.
   api-tests:
     name: api tests ${{ matrix.shard }}/4
-    needs: changes
+    needs: [changes, check]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
