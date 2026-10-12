@@ -67,7 +67,7 @@ identity/settings tables. The identity adapter only proves record authority and 
 **Required map amendment in 35a:** §2 and §6 become
 `orders: [tenancy, catalog, customers, staff, identity, settings]`; add the new §3 rows above and one `reads:`
 entry per named symbol and adapter path. Generate YAML with `pnpm module-map:generate`; it has no `ports:` key.
-This ADR authorizes each new edge. The present docs-only change does not claim those map edits are already made.
+This ADR authorizes each new edge; the 35a implementation (PR 178) makes those map edits together with the adapters.
 For these orders adapters, this explicitly supersedes ADR-0010's “No import arrow is added” decision/consequence:
 the provider public-read imports do require the five compile-time edges, despite consumer-owned port interfaces.
 There is no providers → orders edge. For row 59b's already-declared reverse `customers → orders` runtime port,
@@ -244,5 +244,4 @@ this ADR, spec 050 and its 35a plan; executable maps and phase-wide docs are syn
 
 35b delivers late visibility and bells, 35c the admin reception screen, 35d audited price/discount editing (SS-Q10
 option 2). Price edits do not land in 35a and need their own revision/concurrency and permission design. All owner
-questions SS-Q1–SS-Q11 are answered; Abu Salem has not replied and any later differing answer supersedes Waleed's
-under CLAUDE.md §1 5b, without blocking work on the recorded answers.
+questions SS-Q1–SS-Q11 are answered by Waleed, and Abu Salem agreed with every pick on 2026-10-12.

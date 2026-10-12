@@ -1,6 +1,6 @@
 # Plan 050 — Record service session, 35a server write
 
-Date: 2026-10-12. Status: Design ready; implementation not started.
+Date: 2026-10-12. Status: Implemented in PR 178 (35a).
 Branch: `spec/050-sessions-record-service-session`.
 Sources: [spec.md](spec.md), [owner answers](owner-questions.ar.md),
 [ADR-0041](../../adr/0041-orders-service-sessions-reads-and-events.md), Phase 1 SPEC §§3/4/5.2/6/11.

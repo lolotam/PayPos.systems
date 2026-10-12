@@ -1,8 +1,8 @@
 # Spec 050 — Record a service session (Phase 1 row 35)
 
-> **Status:** Design ready · 2026-10-12 · SS-Q1…SS-Q11 **ANSWERED by Waleed, 2026-10-12**, batch 13 in
-> [owner-questions.ar.md](owner-questions.ar.md). Abu Salem has not replied; a later differing answer supersedes
-> Waleed's under CLAUDE.md §1 5b. Work proceeds on these recorded answers; no SS-Q rule remains pending.
+> **Status:** Implemented in 35a (PR 178) · 2026-10-12 · SS-Q1…SS-Q11 **ANSWERED by Waleed, 2026-10-12**, batch 13 in
+> [owner-questions.ar.md](owner-questions.ar.md). Abu Salem agreed with every pick (2026-10-12);
+> no SS-Q rule remains pending.
 > **ADR:** [0041](../../adr/0041-orders-service-sessions-reads-and-events.md) · **35a plan:** [plan.md](plan.md).
 > **Phase 1 row:** 35 `record-service-session` — effective discount up to the limit only; above it refused.
 > **Depends on:** 32 services, 34 customers, 9 employees/branches, 7b/7c discount limits — all merged.
@@ -356,8 +356,8 @@ performance target must be measured during implementation, not assumed here.
 
 ADR-0041 adds five adapter import edges (catalog/customers/staff/identity/settings) to existing orders → tenancy,
 with consuming ports under orders/ports, adapters under orders/persistence, provider public reads and bindings
-in orders.module.ts. 35a must synchronize map.md §2/3/4/6, generate YAML reads and initial-event docs; current maps
-remain unchanged in this docs-only task. Reverse customers → orders DaySessions binding stays at app root to avoid
+in orders.module.ts. 35a must synchronize map.md §2/3/4/6, generate YAML reads and initial-event docs; 35a (PR 178)
+makes these map edits. Reverse customers → orders DaySessions binding stays at app root to avoid
 an import cycle. No cross-module writes/table joins. Effective discount copy stays orders-local with parity fixtures.
 Actual guard lacks a selected membership ID; verified selection/ambiguity contract replaces that draft assumption.
 
