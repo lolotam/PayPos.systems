@@ -5,7 +5,7 @@ import { pageQuery } from '../pagination/cursor.js';
 import { sessionMoney } from './service-session.js';
 
 const id = sharedId.toLowerCase();
-// PostgreSQL لا يقبل السنة صفر؛ الرفض هنا يمنع تحويل تاريخ غير قابل للتخزين إلى NOT_READY.
+// PostgreSQL لا يقبل السنة صفر؛ الرفض هنا يعيد خطأ تحقق بدلاً من خطأ قاعدة البيانات.
 const date = z.iso.date().regex(/^(?!0000-)/);
 export const serviceSessionDayQuery = pageQuery.extend({
   date,
@@ -14,7 +14,7 @@ export const serviceSessionDayQuery = pageQuery.extend({
 }).strict().meta({ id: 'ServiceSessionDayQuery' });
 export const serviceSessionDayCursor = z.strictObject({
   v: z.literal(1), company: id, business: id, branch: id, date, late: z.boolean(),
-  at: timestamp.regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/), id,
+  at: timestamp.regex(/^(?!0000-)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/), id,
 });
 const names = { name_ar: z.string().nullable(), name_en: z.string() };
 export const serviceSessionDayPerformer = z.strictObject({

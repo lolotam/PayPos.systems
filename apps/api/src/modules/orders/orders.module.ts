@@ -10,7 +10,7 @@ import { catalogReader } from './persistence/catalog-reader.adapter.ts';
 import { customerLookup } from './persistence/customer-lookup.adapter.ts';
 import { performerCheck } from './persistence/performer-check.adapter.ts';
 import { discountLimit } from './persistence/discount-limit.adapter.ts';
-import { sessionPlace } from './persistence/session-place.adapter.ts';
+import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
 import { sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
 import { sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
@@ -22,7 +22,7 @@ import type { Clock } from './ports/service-session-transactions.port.ts';
 export const ordersControllers = [ServiceSessionsController];
 export function ordersDayQuery(database: TenantWrappers) {
   return new BranchDayServiceSessionsQuery(database, {
-    place: async (tx, scope) => await sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read() !== null,
+    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
     read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
   });
 }

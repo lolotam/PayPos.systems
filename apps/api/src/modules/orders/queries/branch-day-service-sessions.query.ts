@@ -7,7 +7,7 @@ export interface SessionDayScope {
   companyId: string; userId: string; businessId: string; branchId: string;
 }
 export interface SessionDayAccess {
-  /** يثبت النشاط والفرع قبل كشف زيارة أو قبول مؤشر الصفحة. */
+  /** يثبت تبعية الفرع للنشاط دون حجب تاريخه عند إيقافه. */
   place(tx: Tx, scope: SessionDayScope): Promise<boolean>;
   /** يعيد فحص إذن القراءة والميزة داخل معاملة كل صفحة. */
   read(tx: Tx, scope: SessionDayScope): Promise<'ALLOWED' | 'DENIED' | 'FEATURE_DISABLED'>;
@@ -76,20 +76,15 @@ export class BranchDayServiceSessionsQuery {
   async execute(scope: SessionDayScope, input: ServiceSessionDayQuery): Promise<ServiceSessionDayPage> {
     const query = serviceSessionDayQuery.parse(input);
     const statement = branchDayServiceSessionsStatement(scope, query);
-    try {
-      return await this.db.withTenant(scope.companyId, async (tx) => {
-        if (!await this.access.place(tx, scope)) throw new SessionDayReadError('FORBIDDEN');
-        const access = await this.access.read(tx, scope);
-        if (access !== 'ALLOWED') throw new SessionDayReadError(access === 'DENIED' ? 'FORBIDDEN' : 'FEATURE_DISABLED');
-        const rows = await tx.execute<{ item: ServiceSessionDayPage['items'][number]; cursor_at: string; cursor_id: string }>(statement);
-        const last = rows[Math.min(rows.length, query.limit) - 1];
-        return serviceSessionDayPage.parse({ items: rows.slice(0, query.limit).map((row) => row.item),
-          next_cursor: rows.length > query.limit && last !== undefined
-            ? Buffer.from(JSON.stringify({ ...cursorScope(scope, query), at: last.cursor_at, id: last.cursor_id })).toString('base64url') : null });
-      }, { userId: scope.userId });
-    } catch (error) {
-      if (error instanceof SessionDayReadError) throw error;
-      throw new SessionDayReadError('NOT_READY');
-    }
+    return this.db.withTenant(scope.companyId, async (tx) => {
+      if (!await this.access.place(tx, scope)) throw new SessionDayReadError('FORBIDDEN');
+      const access = await this.access.read(tx, scope);
+      if (access !== 'ALLOWED') throw new SessionDayReadError(access === 'DENIED' ? 'FORBIDDEN' : 'FEATURE_DISABLED');
+      const rows = await tx.execute<{ item: ServiceSessionDayPage['items'][number]; cursor_at: string; cursor_id: string }>(statement);
+      const last = rows[Math.min(rows.length, query.limit) - 1];
+      return serviceSessionDayPage.parse({ items: rows.slice(0, query.limit).map((row) => row.item),
+        next_cursor: rows.length > query.limit && last !== undefined
+          ? Buffer.from(JSON.stringify({ ...cursorScope(scope, query), at: last.cursor_at, id: last.cursor_id })).toString('base64url') : null });
+    }, { userId: scope.userId });
   }
 }

@@ -82,6 +82,35 @@ it('respects selected tenant, orders feature, unknown branches and strict query/
   expect((await f.h.app.inject({ method: 'GET', url: `${f.base}?date=2026-10-14` })).statusCode).toBe(401);
 });
 
+it('rejects a year-zero cursor over HTTP as VALIDATION_FAILED before executing the list SQL', async () => {
+  const page = serviceSessionDayPage.parse((await get('date=2026-10-14&limit=1', f.ownerCookie)).body);
+  const decoded = JSON.parse(Buffer.from(must(page.next_cursor), 'base64url').toString('utf8')) as Record<string, unknown>;
+  const cursor = Buffer.from(JSON.stringify({ ...decoded, at: '0000-01-01T00:00:00.000000Z' })).toString('base64url');
+  f.h.calls.statements.length = 0;
+  const response = await get(`date=2026-10-14&cursor=${cursor}`, f.ownerCookie);
+  expect(response.status).toBe(400);
+  expect(response.body['code']).toBe('VALIDATION_FAILED');
+  expect(f.h.calls.statements.some((statement) => statement.sql.startsWith('WITH candidates'))).toBe(false);
+});
+
+it('reads a deactivated branch past day while refusing new recordings and appends', async () => {
+  const before = serviceSessionDayPage.parse((await get('date=2026-10-14', f.ownerCookie)).body);
+  expect(before.items.length).toBeGreaterThan(0);
+  await f.h.owner`UPDATE branches SET is_active=false WHERE company_id=${f.company} AND id=${f.branch}`;
+  try {
+    const response = await get('date=2026-10-14', f.ownerCookie);
+    expect(response.status).toBe(200);
+    expect(serviceSessionDayPage.parse(response.body)).toEqual(before);
+    const options = { cookie: f.ownerCookie, company: f.company, key: ids.newId(), body: { customer_id: f.customer, lines: [f.line()] } };
+    expect((await f.h.send('POST', f.base, options)).status).toBe(403);
+    expect((await f.h.send('POST', `${f.base}/${must(before.items[0]).id}/lines`, { ...options, key: ids.newId(), body: { lines: [f.line()] } })).status).toBe(403);
+    const mismatch = `/v1/businesses/${f.secondBusiness}/branches/${f.branch}/service-sessions`;
+    expect((await get('date=2026-10-14', f.ownerCookie, f.company, mismatch)).status).toBe(403);
+  } finally {
+    await f.h.owner`UPDATE branches SET is_active=true WHERE company_id=${f.company} AND id=${f.branch}`;
+  }
+});
+
 it.each(['device', 'api-key'])('admin guard refuses the %s principal', (kind) => {
   const context = { switchToHttp: () => ({ getRequest: () => ({ principal: { kind } }) }) } as unknown as ExecutionContext;
   expect(() => new SessionAdminGuard().canActivate(context)).toThrow();
