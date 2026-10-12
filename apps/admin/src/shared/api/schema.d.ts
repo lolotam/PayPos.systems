@@ -3378,6 +3378,52 @@ export interface components {
             /** Format: date-time */
             read_at: string | null;
             /** @enum {string} */
+            template_key: "break_returned_other_branch";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "employee_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
             template_key: "attendance_change_requested";
             safe_parameters: ({
                 /** @enum {string} */
