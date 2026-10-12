@@ -11,15 +11,14 @@ export const noAttendanceWrites: AttendanceCapabilities = {
   request_change: false,
   decide: false,
 };
-export function useAttendanceCapabilities(scope: AttendanceBoardScope) {
+export function useAttendanceCapabilities(scope: AttendanceBoardScope, enabled = true) {
   const query = useQuery({
     queryKey: [...attendanceActionKey(scope), 'capabilities'],
+    enabled,
     retry: false,
     staleTime: 30_000,
     gcTime: 0,
     refetchOnMount: true,
-    refetchInterval: 30_000,
-    refetchIntervalInBackground: false,
     queryFn: async ({ signal }) => {
       const result = await apiClient().GET(
         '/v1/businesses/{businessId}/branches/{branchId}/attendance-capabilities',

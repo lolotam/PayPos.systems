@@ -204,7 +204,7 @@ it('owner has all write capabilities and starts with an inbox across both branch
   await screen.findByText('Synthetic other branch employee');
   view.close();
 });
-it('a decision about the other branch keeps that row branch scope', async () => {
+it('a decision about another branch opens without fetching that branch capabilities', async () => {
   const view = setup('requests');
   const employee = await screen.findByText('Synthetic other branch employee');
   const row = employee.closest('tr');
@@ -218,7 +218,7 @@ it('a decision about the other branch keeps that row branch scope', async () => 
       ([path, options]) =>
         path.endsWith('attendance-capabilities') && options.params.path.branchId === otherBoardId,
     ),
-  ).toBe(true);
+  ).toBe(false);
   view.close();
 });
 it('capability loss hides writes and closes an open correction while history stays readable', async () => {

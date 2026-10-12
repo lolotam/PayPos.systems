@@ -19,7 +19,8 @@ export function AttendanceRequestRowActions({
   onAction: (row: AttendanceRequestRow, action: RequestAction) => void;
 }) {
   const locale = useLocale();
-  const { capabilities } = useAttendanceCapabilities(scope);
+  const restoreEligible = canRestoreAttendance(row);
+  const { capabilities } = useAttendanceCapabilities(scope, restoreEligible);
   return (
     <div className="flex flex-wrap gap-2">
       {row.status === 'PENDING' && row.can_decide ? (
@@ -37,7 +38,7 @@ export function AttendanceRequestRowActions({
           {t(locale, 'attendanceActions.withdraw')}
         </Button>
       ) : null}
-      {capabilities.request_change && canRestoreAttendance(row) ? (
+      {restoreEligible && capabilities.request_change ? (
         <Button variant="outline" onClick={() => onAction(row, 'restore')}>
           {t(locale, 'attendanceActions.restore')}
         </Button>

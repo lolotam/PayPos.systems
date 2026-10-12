@@ -152,6 +152,74 @@ it('decide-only access remains visible in an empty requests page while board cap
     await asRole(f, 'business_manager');
   }
 });
+it.each([false, true])(
+  'company ALLOW with DENY on every active branch reports inbox access only for owner=%s',
+  async (owner) => {
+    await asRole(f, owner ? 'owner' : 'accountant');
+    const ids: string[] = [];
+    try {
+      const branches = await f.h
+        .owner`SELECT id FROM branches WHERE company_id=${f.company} AND business_id=${f.business} AND is_active`;
+      const grants = [
+        { scope: 'COMPANY', scopeId: f.company, effect: 'ALLOW' },
+        ...branches.map((branch) => ({
+          scope: 'BRANCH',
+          scopeId: branch.id as string,
+          effect: 'DENY',
+        })),
+      ];
+      for (const grant of grants) {
+        const id = leaveIds.newId();
+        ids.push(id);
+        await f.h
+          .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+        VALUES(${f.company},${id},${f.approverMember},'decide:attendance-change:company',${grant.effect},${grant.scope},${grant.scopeId},'Synthetic denied branches',${f.owner})`;
+      }
+      const access = await f.db.withTenant(f.company, (tx) =>
+        createAttendanceChangeReadAccess(f.clock).check(tx, context(f.approverId)),
+      );
+      expect(access?.decideBranches).toHaveLength(owner ? branches.length : 0);
+      for (const status of ['PENDING', 'REJECTED'] as const) {
+        const result = attendanceChangeRequestPage.parse(
+          await page({ limit: 50, status }, f.approverId),
+        );
+        expect(result.can_decide_any).toBe(owner);
+        expect(result.items.every((row) => row.can_decide === owner)).toBe(true);
+      }
+    } finally {
+      for (const id of ids)
+        await f.h
+          .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${id}`;
+      await asRole(f, 'business_manager');
+    }
+  },
+);
+it('permission on an inactive branch alone does not enable the inbox; an active allowed branch does', async () => {
+  await asRole(f, 'accountant');
+  const ids = [leaveIds.newId(), leaveIds.newId()];
+  try {
+    await f.h
+      .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+      VALUES(${f.company},${ids[0] as string},${f.approverMember},'decide:attendance-change:company','ALLOW','COMPANY',${f.company},'Synthetic active scope',${f.owner}),
+        (${f.company},${ids[1] as string},${f.approverMember},'decide:attendance-change:company','DENY','BRANCH',${f.branch},'Synthetic active scope',${f.owner})`;
+    await f.h
+      .owner`UPDATE branches SET is_active=false WHERE company_id=${f.company} AND id=${f.secondBranch}`;
+    expect(
+      attendanceChangeRequestPage.parse(await page({ limit: 50 }, f.approverId)).can_decide_any,
+    ).toBe(false);
+    await f.h
+      .owner`UPDATE branches SET is_active=true WHERE company_id=${f.company} AND id=${f.secondBranch}`;
+    expect(
+      attendanceChangeRequestPage.parse(await page({ limit: 50 }, f.approverId)).can_decide_any,
+    ).toBe(true);
+  } finally {
+    await f.h
+      .owner`UPDATE branches SET is_active=true WHERE company_id=${f.company} AND id=${f.secondBranch}`;
+    for (const id of ids)
+      await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${id}`;
+    await asRole(f, 'business_manager');
+  }
+});
 it('list actor names resolve across businesses, and missing employee names stay null beside their ids', async () => {
   const initial = attendanceChangeRequestPage.parse(await page({ limit: 50 }));
   expect(

@@ -22,7 +22,7 @@ export function AttendanceRequestEditor({
 }) {
   const locale = useLocale();
   const mutations = useAttendanceActions(scope);
-  const { capabilities } = useAttendanceCapabilities(scope);
+  const { capabilities } = useAttendanceCapabilities(scope, action === 'restore');
   const { request, decide, cancel } = mutations;
   const mutation = action === 'restore' ? request : action === 'withdraw' ? cancel : decide;
   if (
