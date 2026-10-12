@@ -3,6 +3,7 @@ import { sessionDrafts } from '../../domain/session-drafts.ts';
 import { resolveSessionRecorder } from '../../domain/session-authority.ts';
 import { SessionError } from '../../domain/session-error.ts';
 import { prepareSessionLines } from '../../domain/prepare-session-lines.ts';
+import { validatePerformerCardinality } from '../../domain/session-performers.ts';
 import { sessionTime } from '../../domain/session-time.ts';
 import { planSessionWrite, recordedSessionLine } from '../../domain/session-write.ts';
 import { sessionSnapshot } from '../../domain/session-snapshot.ts';
@@ -26,6 +27,7 @@ export class RecordServiceSessionUseCase {
   private async record(tx: SessionTransaction, context: SessionWriteContext & { input: RecordServiceSessionInput }): Promise<RecordServiceSessionResponse> {
     await tx.access.lock();
     const membershipId = resolveSessionRecorder(await tx.access.read(this.clock.now()), context.input.recorder_membership_id, undefined, context.userId);
+    context.input.lines.forEach((line, input_index) => validatePerformerCardinality(line.performers, input_index));
     const serviceIds = context.input.lines.map((l) => l.service_id);
     const employeeIds = context.input.lines.flatMap((l) => l.performers.map((p) => p.employee_id));
     await tx.catalog.lock(serviceIds);

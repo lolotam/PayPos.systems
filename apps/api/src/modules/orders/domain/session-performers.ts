@@ -13,6 +13,18 @@ export function equalShares(count: number): number[] {
   return Array.from({ length: count }, (_, i) => share + (i === 0 ? 10000 % count : 0));
 }
 /**
+ * يرفض العدد والتكرار حسب SS-20 قبل قراءة الموظفات، حتى لا يتحول خطأ المدخل إلى فشل تخزين.
+ * حد الأربع لكل بند يبقي دفعة الطلب ذي العشرين بنداً ضمن حد قارئ الموظفات.
+ *
+ * @param performers معرفات موظفات البند دون الحاجة إلى حقائق من التخزين
+ * @param input_index موضع البند لتوجيه تصحيح الطلب المرفوض
+ * @returns لا شيء؛ العدد خارج واحدة إلى أربع أو المعرف المكرر يرفض الطلب كله
+ */
+export function validatePerformerCardinality(performers: readonly { employee_id: string }[], input_index: number): void {
+  if (performers.length < 1 || performers.length > 4 || new Set(performers.map((p) => p.employee_id)).size !== performers.length)
+    throw new SessionError('SESSION_PERFORMER_SHARES_INVALID', { input_index });
+}
+/**
  * يرفض عدد الموظفات أو نسبهن المخالفة لـ SS-20 مع موضع البند؛ النسب غير المتساوية مسموحة أولياً.
  *
  * @param performers موظفات المدخل ونسبهن الاختيارية
@@ -20,9 +32,8 @@ export function equalShares(count: number): number[] {
  * @returns النسب المتحقق منها بترتيب المدخل
  */
 export function validateShares(performers: readonly { employee_id: string; share_bps?: number | undefined }[], input_index: number): number[] {
-  if (performers.length < 1 || performers.length > 4) throw new SessionError('SESSION_PERFORMER_SHARES_INVALID', { input_index });
+  validatePerformerCardinality(performers, input_index);
   const defaults = equalShares(performers.length);
-  if (new Set(performers.map((p) => p.employee_id)).size !== performers.length) throw new SessionError('SESSION_PERFORMER_SHARES_INVALID', { input_index });
   if (performers.every((p) => p.share_bps === undefined)) return defaults;
   const shares = performers.map((p) => p.share_bps ?? 0);
   if (shares.some((s) => !Number.isInteger(s) || s < 1 || s > 10000) || shares.reduce((a, b) => a + b, 0) !== 10000)
