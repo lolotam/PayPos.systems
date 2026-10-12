@@ -1,5 +1,7 @@
 import { scheduleSettingsPaths } from './schedule-settings-openapi.js';
 import { attendanceBoardPaths } from './attendance-board-openapi.js';
+import { attendanceActionsReadPaths } from './attendance-actions-read-openapi.js';
+import { attendanceEmployeesPaths } from './attendance-employees-openapi.js';
 import { schedulesPaths } from './schedules-openapi.js';
 import { employeeDefaultShiftsPaths } from './employee-default-shifts-openapi.js';
 import { z } from 'zod';
@@ -24,6 +26,8 @@ const parameters = [
 const errors = { description: 'Bilingual refusal', content: json('ErrorEnvelope') };
 export const staffPaths = {
   ...attendanceBoardPaths,
+  ...attendanceActionsReadPaths,
+  ...attendanceEmployeesPaths,
   ...employeeDefaultShiftsPaths,
   ...schedulesPaths,
   ...scheduleSettingsPaths,

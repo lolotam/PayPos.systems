@@ -9,7 +9,9 @@ let f: MonthlyReportFixture;
 beforeAll(async () => { f = await monthlyReportFixture(); });
 afterAll(async () => { await f?.db.close(); await f?.h.close(); });
 const statement = () => attendanceReportContractsStatement(f.company,f.business,
-  sql`ARRAY[${f.branch}::uuid,${f.secondBranch}::uuid]`, '2026-10-01','2026-10-31');
+  sql`ARRAY[${f.branch}::uuid,${f.secondBranch}::uuid]`,
+  sql`(${f.branch}::uuid,'Asia/Kuwait'::text),(${f.secondBranch}::uuid,'Asia/Kuwait'::text)`,
+  '2026-10-01','2026-10-31');
 
 it('set-based result shape equals the existing 16d inputs for both branches, including employment and link boundaries', async () => {
   for (const boundary of ['unchanged','limited contract','ended link','deleted employee']) {
@@ -17,7 +19,7 @@ it('set-based result shape equals the existing 16d inputs for both branches, inc
       WHERE company_id=${f.company} AND id=${f.employee.id}`;
     if (boundary === 'ended link') await f.h.owner`UPDATE employee_branches SET "to"='2026-10-10'
       WHERE company_id=${f.company} AND employee_id=${f.employee.id} AND branch_id=${f.branch}`;
-    if (boundary === 'deleted employee') await f.h.owner`UPDATE employees SET deleted_at=now()
+    if (boundary === 'deleted employee') await f.h.owner`UPDATE employees SET deleted_at='2026-09-20T10:00:00Z'
       WHERE company_id=${f.company} AND id=${f.employee.id}`;
     await f.db.withTenant(f.company,async (tx) => {
       const actual = await tx.execute(statement());

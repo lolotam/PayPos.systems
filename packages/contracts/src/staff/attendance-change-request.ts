@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
+import { attendanceActorName } from './attendance-actor-name.js';
 
 const reason = z.string().trim().min(1).max(500);
 const revision = z.number().int().min(0).max(2147483647);
@@ -106,9 +107,20 @@ export const attendanceChangeDecisionResult = attendanceChangeRequest
       .nullable(),
   })
   .meta({ id: 'AttendanceChangeDecisionResult' });
+export const attendanceChangeListItem = attendanceChangeRequest.extend({
+  requested_by_name: attendanceActorName,
+  decided_by_name: attendanceActorName,
+  session_state: z
+    .strictObject({
+      voided: z.boolean(),
+      void_request_id: id.nullable(),
+      restore_pending: z.boolean(),
+    })
+    .nullable(),
+});
 export const attendanceChangeRequestPage = z
   .strictObject({
-    items: z.array(attendanceChangeRequest),
+    items: z.array(attendanceChangeListItem),
     next_cursor: z.string().nullable(),
   })
   .meta({ id: 'AttendanceChangeRequestPage' });

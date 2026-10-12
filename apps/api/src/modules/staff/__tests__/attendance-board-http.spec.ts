@@ -66,7 +66,9 @@ it('the branch manager can read A and gets the same not-found answer for B, unkn
   ).toEqual({
     change_request_id: manual.requestId,
     requested_by: f.userId,
+    requested_by_name: { ar: f.employee.name_ar, en: f.employee.name_en },
     approved_by: f.approverId,
+    approved_by_name: null,
   });
   const denied = await send('', f.secondBranch);
   expect(denied.status).toBe(404);

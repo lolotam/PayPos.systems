@@ -312,3 +312,12 @@ export * from './staff/employee-name-matches.js';
 export * from './staff/schedule-settings.js';
 
 export { setEmployeeDefaultShiftsInput, employeeDefaultShifts, type SetEmployeeDefaultShiftsInput, type EmployeeDefaultShifts, type ScheduleShift } from './staff/employee-default-shifts.js';
+export * from './staff/attendance-actions-read.js';
+export {
+  attendanceEmployeeCursor,
+  attendanceEmployee,
+  attendanceEmployeesQuery,
+  attendanceEmployeePage,
+  type AttendanceEmployeesQuery,
+  type AttendanceEmployeePage,
+} from './staff/attendance-employees.js';

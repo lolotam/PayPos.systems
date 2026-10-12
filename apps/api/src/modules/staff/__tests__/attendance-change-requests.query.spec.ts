@@ -14,6 +14,7 @@ import {
   attendanceChangePageStatement,
   listAttendanceChangeRequests,
 } from '../queries/attendance-change-requests.query.ts';
+import { actorEmployee } from './attendance-actions-read.fixture.ts';
 
 let f: ChangeFixture;
 beforeAll(async () => {
@@ -57,6 +58,11 @@ it('projects the contract and paginates tied timestamps in descending id order',
   expect(new Set(ids).size).toBe(4);
   expect(ids).toEqual([...ids].sort().reverse());
   expect(second.next_cursor).toBeNull();
+  expect(
+    [...first.items, ...second.items]
+      .filter((row) => row.kind === 'ADD_SESSION')
+      .every((row) => row.session_state === null),
+  ).toBe(true);
   expect(await page({ limit: 2, cursor: 'malformed' })).toBe('VALIDATION_FAILED');
 });
 it('scopes branch managers and projects requester cancellation independently from owner decision', async () => {
@@ -101,6 +107,37 @@ it('the HTTP list uses the same access policy and contract', async () => {
   });
   expect(response.statusCode).toBe(200);
   expect(attendanceChangeRequestPage.parse(response.json()).items).toHaveLength(2);
+});
+it('list actor names resolve across businesses, and missing employee names stay null beside their ids', async () => {
+  const initial = attendanceChangeRequestPage.parse(await page({ limit: 50 }));
+  expect(
+    initial.items.every((row) => row.requested_by_name === null && row.decided_by_name === null),
+  ).toBe(true);
+  const actor = await actorEmployee({
+    ...f,
+    scope: {
+      companyId: f.company,
+      businessId: f.business,
+      branchId: f.branch,
+      timezone: 'Asia/Kuwait',
+    },
+    boardClock: f.clock,
+  });
+  const named = attendanceChangeRequestPage.parse(await page({ limit: 50 }));
+  expect(
+    named.items.every(
+      (row) => row.requested_by === f.approverId && row.requested_by_name?.en === actor.name.en,
+    ),
+  ).toBe(true);
+  const target = initial.items.find((row) => row.kind === 'VOID_SESSION');
+  await f.h
+    .owner`UPDATE attendance_change_requests SET status='APPROVED',decided_by=${f.userId},decided_at='2026-10-04T10:00:00Z'
+    WHERE company_id=${f.company} AND id=${target?.id as string}`;
+  const decided = attendanceChangeRequestPage.parse(await page({ limit: 50, status: 'APPROVED' }));
+  expect(decided.items[0]?.decided_by_name).toEqual({
+    ar: f.employee.name_ar,
+    en: f.employee.name_en,
+  });
 });
 it('EXPLAIN ANALYZE uses inbox and branch indexes for the owner inbox filters', async () => {
   await f.db.withTenant(f.company, async (tx) => {
