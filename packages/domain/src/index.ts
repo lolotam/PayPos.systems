@@ -9,6 +9,7 @@ export {
   type Money,
 } from './money.js';
 export { roundKwd } from './rounding.js';
+export { lineNet, discountFromPercent } from './discount-money.js';
 export {
   PERCENTAGE_SCALE,
   applyPercentage,

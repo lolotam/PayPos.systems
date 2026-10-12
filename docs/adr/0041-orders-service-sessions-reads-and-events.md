@@ -111,7 +111,7 @@ names, phones or membership IDs. An owner who also performs is subject to the sa
 
 Orders owns its pure `effectiveDiscountBps` copy in `orders/domain/`, following ADR-0035's separate-context
 validation precedent. Do not import identity's domain through its index or move this execution rule into
-`packages/domain`. The shared kernel continues to provide Money and `roundKwd`, not RBAC/commission enums.
+`packages/domain`. The shared kernel provides Money, `roundKwd` and context-free money operations (35c-1 below), not RBAC/commission enums.
 Keep matching data-only enforcement fixtures (zero list, above list, exact limit, fractional overflow,
 maximum money) in both contexts; no cross-module test import of the other domain function.
 
@@ -267,6 +267,20 @@ company, UUID checkpoint and fixed upper bound. Original IDs are delivered to on
 application-role withTenant; publication metadata and existing consumed marks are preserved. No new grants or
 application-role outbox SELECT are authorized. The runbook requires counts/coverage and all-replica rollout;
 missing retained coverage stops recovery. Live delivery and replay converge through the permanent ledger.
+
+## Addendum 2026-10-13 — 35c-1 shared discount money operations
+
+`packages/domain/discount-money.ts` exports `lineNet(price, discount)` and `discountFromPercent(price, bps)`
+through the package index so browser and API callers use one implementation. Money stays bigint mills within
+numeric(14,3); prices/discounts are nonnegative, discount cannot exceed price, and percent is integer 0…10000 bps.
+Percent discount uses `roundKwd` half-up once per line. Generic invalid money types raise TypeError; invalid
+ranges/discounts/percent raise RangeError. Orders' existing wrappers map both to SESSION_DISCOUNT_INVALID;
+sessionTotal keeps SESSION_TOTAL_TOO_LARGE for invalid nets or sum overflow. Recording behavior is unchanged.
+
+This extraction does not move effectiveDiscountBps, authorizedDiscountAmounts, partitioning or limit resolution:
+§3's authority ceiling remains orders-owned. Independent fixed numeric/error fixtures cover the shared helpers
+and orders wrappers, including 7.125 × 10% = 0.713, net 6.412, effective 1001 bps at a 1000-bps limit.
+No dependency, module arrow, contract, write path or event format changes.
 
 ## Consequences
 
