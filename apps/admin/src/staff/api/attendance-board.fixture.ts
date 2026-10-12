@@ -65,7 +65,13 @@ export const boardFixture: AttendanceBoard = {
         { id: otherBoardId, kind: 'OUT_OF_RANGE' },
         { id: '01920000-0000-7000-8000-0000000000a4', kind: 'SUSPECTED_MISSED_OUT' },
       ],
-      manual: { change_request_id: boardId, requested_by: boardId, approved_by: otherBoardId },
+      manual: {
+        change_request_id: boardId,
+        requested_by: boardId,
+        requested_by_name: null,
+        approved_by: otherBoardId,
+        approved_by_name: null,
+      },
     },
   ],
 };
