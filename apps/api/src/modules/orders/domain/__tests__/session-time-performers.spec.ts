@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sessionBusinessDate, sessionTime, validateAppendWindow, isLateEntry } from '../session-time.ts';
-import { equalShares, performerWarnings, validateRecorderPerformers, validateShares } from '../session-performers.ts';
+import { equalShares, performerWarnings, validatePerformerCardinality, validateRecorderPerformers, validateShares } from '../session-performers.ts';
 
 const at = (value: string) => new Date(value);
 const now = at('2026-10-15T08:00:00.000Z');
@@ -25,6 +25,12 @@ describe('business date and append window', () => {
   });
 });
 describe('performers', () => {
+  it.each([1, 2, 3, 4])('allows %s distinct performers before reading employee facts', (count) => {
+    expect(() => validatePerformerCardinality(Array.from({ length: count }, (_, i) => ({ employee_id: String(i) })), 2)).not.toThrow();
+  });
+  it.each([[], Array.from({ length: 5 }, (_, i) => ({ employee_id: String(i) })), [{ employee_id: 'A' }, { employee_id: 'A' }]].map((performers) => ({ performers })))('rejects invalid performer cardinality %# with its input index', ({ performers }) => {
+    expect(() => validatePerformerCardinality(performers, 2)).toThrow(expect.objectContaining({ code: 'SESSION_PERFORMER_SHARES_INVALID', details: { input_index: 2 } }));
+  });
   it.each([[1, [10000]], [2, [5000, 5000]], [3, [3334, 3333, 3333]], [4, [2500, 2500, 2500, 2500]]])('equal count %s', (count, expected) => expect(equalShares(count)).toEqual(expected));
   it('allows explicit 70/30 and preserves order', () => expect(validateShares([{ employee_id: 'B', share_bps: 7000 }, { employee_id: 'A', share_bps: 3000 }], 0)).toEqual([7000, 3000]));
   it('defaults all omitted with remainder to first input', () => expect(validateShares(['C', 'B', 'A'].map((employee_id) => ({ employee_id })), 0)).toEqual([3334, 3333, 3333]));
