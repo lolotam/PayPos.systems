@@ -35,11 +35,22 @@ const refusals = [
   ['FORBIDDEN', 403],
   ['NOT_FOUND', 404],
 ] as const;
-const cases = actions.flatMap((action) =>
-  refusals.flatMap(([code, status]) =>
-    (['ar', 'en'] as const).map((locale) => ({ action, code, status, locale })),
+const cases = [
+  ...actions.flatMap((action) =>
+    refusals.flatMap(([code, status]) =>
+      (['ar', 'en'] as const).map((locale) => ({ action, code, status, locale })),
+    ),
   ),
-);
+  ...(
+    [
+      ['correct', 'ATTENDANCE_CORRECTION_SELF_FORBIDDEN'],
+      ['resolve', 'ATTENDANCE_EXCEPTION_SELF_FORBIDDEN'],
+      ['approve', 'ATTENDANCE_CHANGE_SELF_FORBIDDEN'],
+    ] as const
+  ).flatMap(([action, code]) =>
+    (['ar', 'en'] as const).map((locale) => ({ action, code, status: 403, locale })),
+  ),
+];
 beforeEach(() => {
   api.GET.mockReset().mockResolvedValue({ data: employeesFixture });
   api.POST.mockReset();
@@ -127,10 +138,16 @@ it.each(cases)(
     const view = render(editor(action, onClose), { wrapper: test.wrapper });
     await submit(action, locale);
     await screen.findByText(
-      t(
-        locale,
-        status === 401 ? 'attendanceBoard.sessionExpired' : 'attendanceActions.permissionDenied',
-      ),
+      code.startsWith('ATTENDANCE_')
+        ? locale === 'ar'
+          ? 'Synthetic unrelated AR message'
+          : 'Synthetic unrelated EN message'
+        : t(
+            locale,
+            status === 401
+              ? 'attendanceBoard.sessionExpired'
+              : 'attendanceActions.permissionDenied',
+          ),
     );
     await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(1));
     expect(api.POST.mock.calls[0]?.[1].params.path.businessId).toBe(boardId);

@@ -17,7 +17,7 @@ export function attendanceLocalTime(instant: string, timezone: string) {
   return civilParts(new Date(instant), timezone);
 }
 
-// تجربة إزاحات جانبي تغيير التوقيت تمنع اختيار ساعة مكررة أو غير موجودة بالصدفة.
+// عند تكرار الساعة بسبب التوقيت الصيفي نختار الإزاحة التي تعطي اللحظة الأسبق، ونرفض الساعة غير الموجودة.
 export function attendanceUtc(value: string, timezone: string): string | undefined {
   if (!value) return undefined;
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) return '';
@@ -32,6 +32,5 @@ export function attendanceUtc(value: string, timezone: string): string | undefin
   const matches = [...offsets]
     .map((offset) => wall - offset)
     .filter((candidate) => civilParts(new Date(candidate), timezone) === local);
-  const candidate = matches[0];
-  return matches.length === 1 && candidate !== undefined ? new Date(candidate).toISOString() : '';
+  return matches.length > 0 ? new Date(Math.min(...matches)).toISOString() : '';
 }

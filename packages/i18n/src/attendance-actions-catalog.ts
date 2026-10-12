@@ -30,7 +30,7 @@ export const attendanceActionsEn = {
   reason: 'Reason (1–500 characters)',
   optionalReason: 'Approval reason (optional)',
   reasonInvalid: 'Enter a reason of 1–500 characters.',
-  timeInvalid: 'Enter at least one changed time, using a unique local time in the branch timezone.',
+  timeInvalid: 'Enter at least one changed time, using a valid local time in the branch timezone.',
   manualInvalid: 'Choose an employee and enter both valid local times and a reason.',
   timezone: 'Times use the branch timezone',
   empty: 'No records match these filters.',
@@ -91,8 +91,7 @@ export const attendanceActionsAr: Record<keyof typeof attendanceActionsEn, strin
   reason: 'السبب (١–٥٠٠ حرف)',
   optionalReason: 'سبب الموافقة (اختياري)',
   reasonInvalid: 'اكتب سببًا من ١ إلى ٥٠٠ حرف.',
-  timeInvalid:
-    'أدخل وقتًا متغيّرًا واحدًا على الأقل، في وقت محلي غير ملتبس بالمنطقة الزمنية للفرع.',
+  timeInvalid: 'أدخل وقتًا متغيّرًا واحدًا على الأقل، في وقت محلي صالح بالمنطقة الزمنية للفرع.',
   manualInvalid: 'اختر الموظفة وأدخل وقتي الدخول والخروج المحليين والسبب.',
   timezone: 'الأوقات حسب المنطقة الزمنية للفرع',
   empty: 'لا توجد سجلات تطابق الاختيارات.',

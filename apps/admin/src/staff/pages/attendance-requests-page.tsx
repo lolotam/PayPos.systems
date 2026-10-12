@@ -33,7 +33,9 @@ export function AttendanceRequestsPage({
         onStatus={setStatus}
         onManual={() => setManual(true)}
       />
-      <AttendanceRequestsList scope={scope} status={status} />
+      {timezone ? (
+        <AttendanceRequestsList scope={scope} status={status} timezone={timezone} />
+      ) : null}
       {manual && timezone ? (
         <AttendanceManualEditor
           scope={scope}

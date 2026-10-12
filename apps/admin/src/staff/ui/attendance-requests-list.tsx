@@ -15,9 +15,11 @@ import type { RequestAction } from './attendance-request-row-actions';
 export function AttendanceRequestsList({
   scope,
   status,
+  timezone,
 }: {
   scope: AttendanceBoardScope;
   status: AttendanceChangeListQuery['status'];
+  timezone: string;
 }) {
   const locale = useLocale();
   const [selection, setSelection] = useState<{
@@ -42,7 +44,9 @@ export function AttendanceRequestsList({
       {query.data && visible ? (
         <AttendanceActionsTable
           items={items}
-          columns={attendanceRequestColumns(locale, (row, action) => setSelection({ row, action }))}
+          columns={attendanceRequestColumns(locale, timezone, (row, action) =>
+            setSelection({ row, action }),
+          )}
         />
       ) : null}
       <AttendanceActionPagination

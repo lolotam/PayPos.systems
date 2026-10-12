@@ -6,6 +6,7 @@ import { boardTime } from '../model/attendance-board-display';
 import { AttendanceRequestRowActions, type RequestAction } from './attendance-request-row-actions';
 export function attendanceRequestColumns(
   locale: Locale,
+  timezone: string,
   onAction: (row: AttendanceRequestRow, action: RequestAction) => void,
 ): ColumnDef<AttendanceRequestRow>[] {
   return [
@@ -41,7 +42,7 @@ export function attendanceRequestColumns(
         ),
     },
     { accessorKey: 'reason', header: t(locale, 'attendanceActions.reason') },
-    ...attendanceRequestActorColumns(locale),
+    ...attendanceRequestActorColumns(locale, timezone),
     {
       id: 'actions',
       header: t(locale, 'attendanceActions.actions'),
@@ -50,7 +51,10 @@ export function attendanceRequestColumns(
   ];
 }
 
-function attendanceRequestActorColumns(locale: Locale): ColumnDef<AttendanceRequestRow>[] {
+function attendanceRequestActorColumns(
+  locale: Locale,
+  timezone: string,
+): ColumnDef<AttendanceRequestRow>[] {
   return [
     {
       id: 'requester',
@@ -61,7 +65,7 @@ function attendanceRequestActorColumns(locale: Locale): ColumnDef<AttendanceRequ
       id: 'requestedAt',
       header: t(locale, 'attendanceActions.at'),
       cell: ({ row }) =>
-        boardTime(row.original.requested_at, locale, row.original.requested?.timezone ?? 'UTC'),
+        boardTime(row.original.requested_at, locale, row.original.requested?.timezone ?? timezone),
     },
     {
       id: 'decider',
@@ -75,7 +79,7 @@ function attendanceRequestActorColumns(locale: Locale): ColumnDef<AttendanceRequ
       id: 'decidedAt',
       header: t(locale, 'attendanceActions.at'),
       cell: ({ row }) =>
-        boardTime(row.original.decided_at, locale, row.original.requested?.timezone ?? 'UTC'),
+        boardTime(row.original.decided_at, locale, row.original.requested?.timezone ?? timezone),
     },
     { accessorKey: 'decision_reason', header: t(locale, 'attendanceActions.optionalReason') },
   ];

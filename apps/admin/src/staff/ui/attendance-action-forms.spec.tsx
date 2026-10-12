@@ -128,7 +128,7 @@ it('rejects unchanged correction instants, even when timestamp precision differs
   await screen.findByRole('alert');
   expect(save).not.toHaveBeenCalled();
 });
-it('rejects a nonunique DST time in the correction form', async () => {
+it('submits the earlier instant for a DST fold in the correction form', async () => {
   const save = vi.fn();
   render(
     <AttendanceCorrectionForm
@@ -146,8 +146,11 @@ it('rejects a nonunique DST time in the correction form', async () => {
     target: { value: '2026-11-01T01:30' },
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'attendanceActions.save') }));
-  await screen.findByRole('alert');
-  expect(save).not.toHaveBeenCalled();
+  await waitFor(() =>
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({ clock_out: '2026-11-01T05:30:00.000Z' }),
+    ),
+  );
 });
 it('requires an employee, both times and a reason for a manual overnight day', async () => {
   const save = vi.fn();

@@ -16,13 +16,13 @@ it.each(['OPEN', 'CLOSED', 'MISSED_OUT'] as const)(
     const action = vi.fn();
     render(<AttendanceSessionActions row={{ ...actionSession, status }} onAction={action} />);
     expect(
-      screen.queryByRole('option', { name: t('en', 'attendanceActions.correct') }) !== null,
+      screen.queryByRole('button', { name: t('en', 'attendanceActions.correct') }) !== null,
     ).toBe(status !== 'OPEN');
-    expect(screen.queryByRole('option', { name: t('en', 'attendanceActions.void') }) !== null).toBe(
+    expect(screen.queryByRole('button', { name: t('en', 'attendanceActions.void') }) !== null).toBe(
       status !== 'OPEN',
     );
-    expect(screen.getByRole('option', { name: t('en', 'attendanceActions.history') })).toBeTruthy();
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'history' } });
+    expect(screen.queryByRole('combobox')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'attendanceActions.history') }));
     expect(action).toHaveBeenCalledWith(expect.objectContaining({ status }), 'history');
   },
 );
@@ -33,9 +33,23 @@ it('offers void and history for a manual day, following ACR-Q10', () => {
       onAction={vi.fn()}
     />,
   );
-  expect(screen.queryByRole('option', { name: t('en', 'attendanceActions.correct') })).toBeNull();
-  expect(screen.getByRole('option', { name: t('en', 'attendanceActions.void') })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: t('en', 'attendanceActions.correct') })).toBeNull();
+  expect(screen.getByRole('button', { name: t('en', 'attendanceActions.void') })).toBeTruthy();
 });
+it.each(['correct', 'history', 'void'] as const)(
+  'activates %s through a focusable button',
+  (name) => {
+    const action = vi.fn();
+    render(<AttendanceSessionActions row={actionSession} onAction={action} />);
+    const button = screen.getByRole('button', { name: t('en', `attendanceActions.${name}`) });
+    expect(button.tagName).toBe('BUTTON');
+    expect(button.getAttribute('type')).toBe('button');
+    button.focus();
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
+    expect(action).toHaveBeenCalledExactlyOnceWith(actionSession, name);
+  },
+);
 it.each(['ar', 'en'] as const)(
   'shows manual actor names and the neutral null fallback in %s',
   (locale) => {

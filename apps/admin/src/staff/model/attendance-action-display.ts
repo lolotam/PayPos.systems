@@ -18,8 +18,14 @@ export function attendanceActor(name: { ar: string | null; en: string } | null, 
 export function attendanceActionError(error: unknown, locale: Locale, write = false) {
   const value = error as { code?: string; status?: number } | null;
   const code = value?.code;
+  if (code?.startsWith('ATTENDANCE_')) return envelopeMessage(error, locale);
   if (value?.status === 401) return t(locale, 'attendanceBoard.sessionExpired');
-  if (write && (value?.status === 403 || value?.status === 404))
+  if (
+    write &&
+    (code === 'FORBIDDEN' ||
+      code === 'NOT_FOUND' ||
+      (!code && (value?.status === 403 || value?.status === 404)))
+  )
     return t(locale, 'attendanceActions.permissionDenied');
   if (code === 'NOT_FOUND') return t(locale, 'attendanceActions.notFound');
   if (code === 'FEATURE_DISABLED') return t(locale, 'attendanceActions.featureDisabled');

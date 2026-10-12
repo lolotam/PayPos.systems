@@ -14,7 +14,13 @@ export function AttendanceActionDialog({
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
   useEffect(() => {
-    dialog.current?.showModal();
+    const opener = document.activeElement;
+    const element = dialog.current;
+    element?.showModal();
+    return () => {
+      element?.close();
+      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    };
   }, []);
   return (
     <dialog
