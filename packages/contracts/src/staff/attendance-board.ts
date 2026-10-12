@@ -33,6 +33,7 @@ export const attendanceBoard = z
     date: employeeDate,
     timezone: z.string(),
     generated_at: timestamp,
+    owner: z.boolean(),
     in_now: z.array(
       z.strictObject({
         ...employeeFields,
@@ -45,6 +46,7 @@ export const attendanceBoard = z
       z.strictObject({
         id,
         ...employeeFields,
+        own: z.boolean(),
         clock_in: timestamp,
         clock_out: timestamp.nullable(),
         status: z.enum(['OPEN', 'CLOSED', 'MISSED_OUT']),

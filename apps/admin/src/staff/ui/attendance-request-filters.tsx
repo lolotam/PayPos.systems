@@ -9,6 +9,7 @@ type Props = {
   branchId: string;
   status: AttendanceChangeListQuery['status'];
   canCreate: boolean;
+  allowAllBranches: boolean;
   onBranch: (id: string) => void;
   onStatus: (status: AttendanceChangeListQuery['status']) => void;
   onManual: () => void;
@@ -18,6 +19,7 @@ export function AttendanceRequestFilters({
   branchId,
   status,
   canCreate,
+  allowAllBranches,
   onBranch,
   onStatus,
   onManual,
@@ -25,7 +27,12 @@ export function AttendanceRequestFilters({
   const locale = useLocale();
   return (
     <div className="flex flex-wrap items-end gap-3">
-      <AttendanceActionBranch branches={branches} branchId={branchId} onBranch={onBranch} />
+      <AttendanceActionBranch
+        branches={branches}
+        branchId={branchId}
+        onBranch={onBranch}
+        allowAllBranches={allowAllBranches}
+      />
       <div className="grid gap-1">
         <Label htmlFor="attendance-request-status">{t(locale, 'attendanceBoard.status')}</Label>
         <NativeSelect
@@ -47,9 +54,9 @@ export function AttendanceRequestFilters({
           ))}
         </NativeSelect>
       </div>
-      <Button disabled={!canCreate} onClick={onManual}>
-        {t(locale, 'attendanceActions.manual')}
-      </Button>
+      {canCreate ? (
+        <Button onClick={onManual}>{t(locale, 'attendanceActions.manual')}</Button>
+      ) : null}
     </div>
   );
 }

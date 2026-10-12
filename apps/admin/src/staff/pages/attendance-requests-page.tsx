@@ -8,6 +8,8 @@ import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { AttendanceRequestFilters } from '../ui/attendance-request-filters';
 import { AttendanceRequestsList } from '../ui/attendance-requests-list';
 import { AttendanceManualEditor } from '../ui/attendance-manual-editor';
+import { useAttendanceCapabilities } from '../api/use-attendance-capabilities';
+import { useAttendanceRequestsAccess } from '../api/use-attendance-requests-access';
 export function AttendanceRequestsPage({
   scope,
   branches,
@@ -20,26 +22,43 @@ export function AttendanceRequestsPage({
   const locale = useLocale();
   const [status, setStatus] = useState<AttendanceChangeListQuery['status']>('PENDING');
   const [manual, setManual] = useState(false);
+  const [view, setView] = useState<'all' | 'branch'>();
+  const { capabilities } = useAttendanceCapabilities(scope);
+  const inboxAccess = useAttendanceRequestsAccess(scope);
+  const allBranches = inboxAccess.canDecideAny && view !== 'branch';
   const timezone = branches.find((branch) => branch.id === scope.branchId)?.effective_timezone;
   return (
     <section className="flex min-w-0 flex-col gap-6 text-start">
       <PageHeader title={t(locale, 'attendanceActions.requests')} />
       <AttendanceRequestFilters
         branches={branches}
-        branchId={scope.branchId}
+        branchId={allBranches ? 'all' : scope.branchId}
         status={status}
-        canCreate={Boolean(timezone)}
-        onBranch={onBranch}
+        canCreate={Boolean(timezone) && capabilities.request_change}
+        allowAllBranches={inboxAccess.canDecideAny}
+        onBranch={(id) => {
+          setManual(false);
+          setView(id === 'all' ? 'all' : 'branch');
+          if (id !== 'all') onBranch(id);
+        }}
         onStatus={setStatus}
         onManual={() => setManual(true)}
       />
       {timezone ? (
-        <AttendanceRequestsList scope={scope} status={status} timezone={timezone} />
+        <AttendanceRequestsList
+          scope={scope}
+          status={status}
+          branches={branches}
+          timezone={timezone}
+          allBranches={allBranches}
+          enabled={!inboxAccess.isPending}
+        />
       ) : null}
-      {manual && timezone ? (
+      {manual && timezone && capabilities.request_change ? (
         <AttendanceManualEditor
           scope={scope}
           timezone={timezone}
+          branch={branches.find((branch) => branch.id === scope.branchId)}
           onClose={() => setManual(false)}
         />
       ) : null}

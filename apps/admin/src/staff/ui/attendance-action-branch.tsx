@@ -7,10 +7,12 @@ export function AttendanceActionBranch({
   branches,
   branchId,
   onBranch,
+  allowAllBranches = false,
 }: {
   branches: WorkspaceBranch[];
   branchId: string;
   onBranch: (id: string) => void;
+  allowAllBranches?: boolean;
 }) {
   const locale = useLocale();
   return (
@@ -21,6 +23,9 @@ export function AttendanceActionBranch({
         value={branchId}
         onChange={(event) => onBranch(event.target.value)}
       >
+        {allowAllBranches ? (
+          <option value="all">{t(locale, 'attendanceActions.allBranches')}</option>
+        ) : null}
         {branches.map((branch) => (
           <option key={branch.id} value={branch.id}>
             {locale === 'ar' ? (branch.name_ar ?? branch.name_en) : branch.name_en}

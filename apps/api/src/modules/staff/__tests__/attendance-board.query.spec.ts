@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { attendanceBoard as contract } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 import { attendanceBoard, attendanceBoardStatement } from '../queries/attendance-board.query.ts';
+import { attendanceBoardContext } from '../persistence/attendance-board-context.adapter.ts';
 import {
   attendanceBoardFixture,
   seedManual,
@@ -9,7 +10,7 @@ import {
   type BoardFixture,
 } from './attendance-board.fixture.ts';
 import { seedSession } from './attendance-correction.fixture.ts';
-import { openException } from './attendance-exception.fixture.ts';
+import { asRole, openException } from './attendance-exception.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
 
 let f: BoardFixture;
@@ -69,6 +70,7 @@ it('projects exactly the board contract without private employee fields, retaini
     'date',
     'generated_at',
     'in_now',
+    'owner',
     'sessions',
     'timezone',
   ]);
@@ -101,6 +103,32 @@ it('in_now includes every non-voided OPEN session regardless of working date', a
   expect(today.in_now[0]?.clock_in).toBe('2026-10-03T20:00:00.000Z');
   expect(today.sessions).toEqual([]);
   expect((await board('2026-10-03')).sessions.map((row) => row.id)).toEqual([open]);
+});
+it('own follows the linked caller user and owner metadata uses the canonical active company role', async () => {
+  const read = (userId: string) =>
+    f.db.withTenant(f.company, async (tx) => {
+      const scope = await attendanceBoardContext(tx, f.company, f.business, f.branch, userId);
+      if (!scope) throw new Error('MISSING_BOARD_SCOPE');
+      return attendanceBoard(tx, scope, f.boardClock.now(), '2026-10-04');
+    });
+  const own = await read(f.userId);
+  expect(own.sessions.find((row) => row.id === manual)?.own).toBe(true);
+  expect(own.sessions.find((row) => row.id === overnight)?.own).toBe(false);
+  expect(own.owner).toBe(false);
+  const other = await read(f.approverId);
+  expect(other.sessions.every((row) => !row.own)).toBe(true);
+  await asRole(f, 'owner');
+  try {
+    expect((await read(f.approverId)).owner).toBe(true);
+    await f.h
+      .owner`UPDATE memberships SET starts_at=now()-interval '1 day',ends_at=now()-interval '1 second'
+      WHERE company_id=${f.company} AND id=${f.approverMember}`;
+    expect((await read(f.approverId)).owner).toBe(false);
+  } finally {
+    await f.h
+      .owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.approverMember}`;
+    await asRole(f, 'general_manager');
+  }
 });
 it('overnight sessions belong to their clock-in working date and future dates return empty lists', async () => {
   expect((await board('2026-10-04')).sessions.some((row) => row.id === overnight)).toBe(true);

@@ -36,6 +36,7 @@ export function createAttendanceChangeReadAccess(clock: AttendanceChangeClock) {
           ? tree.businesses.find((b) => b.id === context.businessId)
           : null;
       if (!business) return null;
+      const activeBranches = new Set(business.branches.filter((b) => b.is_active).map((b) => b.id));
       const access = await readAttendanceChangeAccess(
         tx,
         context.companyId,
@@ -49,6 +50,7 @@ export function createAttendanceChangeReadAccess(clock: AttendanceChangeClock) {
         owner: access.owner,
         member: access.member,
         canDecide: access.canDecide,
+        canDecideAny: access.decideBranches.some((branchId) => activeBranches.has(branchId)),
         decideBranches: access.decideBranches,
         branches: access.owner
           ? business.branches.map((b) => b.id)

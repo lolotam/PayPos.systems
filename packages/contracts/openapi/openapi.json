@@ -2845,6 +2845,114 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-capabilities": {
+      "get": {
+        "operationId": "attendanceCapabilities",
+        "description": "Requires read:attendance:branch and staff feature. Live write grants from the shared request authorizer; row self restrictions still apply.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attendance write capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "correct": {
+                      "type": "boolean"
+                    },
+                    "resolve": {
+                      "type": "boolean"
+                    },
+                    "request_change": {
+                      "type": "boolean"
+                    },
+                    "decide": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "correct",
+                    "resolve",
+                    "request_change",
+                    "decide"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-board": {
       "get": {
         "operationId": "attendanceBoard",
@@ -2911,6 +3019,9 @@
                       "type": "string",
                       "format": "date-time",
                       "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "owner": {
+                      "type": "boolean"
                     },
                     "in_now": {
                       "type": "array",
@@ -2981,6 +3092,9 @@
                           },
                           "name_en": {
                             "type": "string"
+                          },
+                          "own": {
+                            "type": "boolean"
                           },
                           "clock_in": {
                             "type": "string",
@@ -3148,6 +3262,7 @@
                           "employee_id",
                           "name_ar",
                           "name_en",
+                          "own",
                           "clock_in",
                           "clock_out",
                           "status",
@@ -3171,6 +3286,7 @@
                     "date",
                     "timezone",
                     "generated_at",
+                    "owner",
                     "in_now",
                     "sessions"
                   ],
@@ -3586,6 +3702,12 @@
                             "minimum": 0,
                             "maximum": 9007199254740991
                           },
+                          "own": {
+                            "type": "boolean"
+                          },
+                          "can_resolve": {
+                            "type": "boolean"
+                          },
                           "session": {
                             "type": "object",
                             "properties": {
@@ -3663,6 +3785,8 @@
                           "reason",
                           "raised_at",
                           "revision",
+                          "own",
+                          "can_resolve",
                           "session",
                           "employee"
                         ],
@@ -12454,6 +12578,9 @@
       "AttendanceChangeRequestPage": {
         "type": "object",
         "properties": {
+          "can_decide_any": {
+            "type": "boolean"
+          },
           "items": {
             "type": "array",
             "items": {
@@ -12705,6 +12832,7 @@
           }
         },
         "required": [
+          "can_decide_any",
           "items",
           "next_cursor"
         ],

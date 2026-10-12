@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import type { TenantWrappers } from '@pospay/db';
+import type { FastifyRequest } from 'fastify';
 import {
   attendanceExceptionsListQuery,
   attendanceExceptionPage,
@@ -8,8 +10,11 @@ import {
   attendanceActionsReadFixture,
   type ActionsReadFixture,
 } from './attendance-actions-read.fixture.ts';
-import { asRole } from './attendance-exception.fixture.ts';
+import { asRole, decision, exceptionActor, openException } from './attendance-exception.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
+import { REQUEST_AUTHORIZER, type RequestAuthorizer } from '../../../shared/request-authorizer.ts';
+import { AttendanceExceptionsReadController } from '../http/attendance-exceptions-read.controller.ts';
+import { attendanceBoardContext } from '../persistence/attendance-board-context.adapter.ts';
 
 let f: ActionsReadFixture;
 beforeAll(async () => {
@@ -135,4 +140,95 @@ it('staff feature disabled returns FEATURE_DISABLED after the shared permission 
     await f.h
       .owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='staff'`;
   }
+});
+it.each([true, false])(
+  'session in A and exception in B resolves only with authority in B: %s',
+  async (inB) => {
+    await asRole(f, 'branch_manager');
+    const exception = await openException(f, 'NONE');
+    await f.h.owner`UPDATE attendance_exceptions SET branch_id=${f.secondBranch}
+    WHERE company_id=${f.company} AND id=${exception.id}`;
+    await f.h.owner`UPDATE memberships SET scope_id=${inB ? f.secondBranch : f.branch}
+    WHERE company_id=${f.company} AND id=${f.approverMember}`;
+    const readGrant = leaveIds.newId();
+    await f.h
+      .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES(${f.company},${readGrant},${f.approverMember},'read:attendance:branch','ALLOW','BRANCH',${f.branch},'synthetic',${f.userId})`;
+    try {
+      const response = await send('attendance-exceptions');
+      expect(response.status).toBe(200);
+      const row = attendanceExceptionPage
+        .parse(response.body)
+        .items.find((item) => item.id === exception.id);
+      expect(row).toMatchObject({ branch_id: f.secondBranch, own: false, can_resolve: inB });
+      if (inB)
+        expect(await f.resolve.execute(exceptionActor(f, exception.id), decision())).toMatchObject({
+          status: 'RESOLVED',
+        });
+      else
+        await expect(
+          f.resolve.execute(exceptionActor(f, exception.id), decision()),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    } finally {
+      await f.h
+        .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${readGrant}`;
+      await asRole(f, 'branch_manager');
+    }
+  },
+);
+it('owner cannot resolve an exception on her own attendance', async () => {
+  await asRole(f, 'owner');
+  await f.h
+    .owner`UPDATE employees SET user_id=${f.approverId} WHERE company_id=${f.company} AND id=${f.employee.id}`;
+  try {
+    const response = await send('attendance-exceptions');
+    expect(response.status).toBe(200);
+    expect(
+      attendanceExceptionPage
+        .parse(response.body)
+        .items.every((row) => row.own && !row.can_resolve),
+    ).toBe(true);
+  } finally {
+    await f.h
+      .owner`UPDATE employees SET user_id=${f.userId} WHERE company_id=${f.company} AND id=${f.employee.id}`;
+  }
+});
+it('shared authorization starts after the list transaction releases its connection', async () => {
+  let reading = false;
+  let checks = 0;
+  const database: TenantWrappers = {
+    ...f.db,
+    withTenant: (companyId, work, options) =>
+      f.db.withTenant(
+        companyId,
+        async (tx) => {
+          reading = true;
+          try {
+            return await work(tx);
+          } finally {
+            reading = false;
+          }
+        },
+        options,
+      ),
+  };
+  const shared = f.h.app.get<RequestAuthorizer>(REQUEST_AUTHORIZER);
+  const authorizer: RequestAuthorizer = {
+    execute: (input) => {
+      expect(reading).toBe(false);
+      checks++;
+      return shared.execute(input);
+    },
+  };
+  const controller = new AttendanceExceptionsReadController(
+    database,
+    attendanceBoardContext,
+    authorizer,
+  );
+  const request = {
+    principal: { companyId: f.company, userId: f.approverId },
+  } as unknown as FastifyRequest;
+  const page = await controller.list(f.business, f.branch, { status: 'OPEN', limit: 50 }, request);
+  expect(page.items.length).toBeGreaterThan(0);
+  expect(checks).toBe(new Set(page.items.map((row) => row.branch_id)).size);
 });

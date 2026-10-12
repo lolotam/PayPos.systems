@@ -10,8 +10,12 @@ import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
+import { REQUEST_AUTHORIZER, type RequestAuthorizer } from '../../../shared/request-authorizer.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import { attendanceExceptions } from '../queries/attendance-exceptions.query.ts';
+import {
+  attendanceExceptions,
+  attendanceExceptionActions,
+} from '../queries/attendance-exceptions.query.ts';
 import {
   ATTENDANCE_BOARD_CONTEXT,
   type AttendanceBoardContext,
@@ -24,6 +28,7 @@ export class AttendanceExceptionsReadController {
   constructor(
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
     @Inject(ATTENDANCE_BOARD_CONTEXT) private readonly context: AttendanceBoardContext,
+    @Inject(REQUEST_AUTHORIZER) private readonly authorizer: RequestAuthorizer | null,
   ) {}
   @Get()
   @Require('read:attendance:branch', { branch: 'branchId' })
@@ -35,16 +40,17 @@ export class AttendanceExceptionsReadController {
     query: AttendanceExceptionsListQuery,
     @Req() request: FastifyRequest,
   ) {
-    if (!this.database) throw new ApiError('NOT_READY');
+    if (!this.database || !this.authorizer) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
-    return this.database.withTenant(
+    const page = await this.database.withTenant(
       actor.companyId,
       async (tx) => {
         const scope = await this.context(tx, actor.companyId, businessId, branchId);
         if (!scope) throw new ApiError('NOT_FOUND');
-        return attendanceExceptions(tx, scope, query);
+        return attendanceExceptions(tx, { ...scope, userId: actor.userId }, query);
       },
       { userId: actor.userId },
     );
+    return attendanceExceptionActions(this.authorizer, actor.companyId, actor.userId, page);
   }
 }

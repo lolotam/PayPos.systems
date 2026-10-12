@@ -159,6 +159,32 @@ case or query mapper beyond projection). CSV export follows AB-Q9d/e/f; anything
 session (spec 035); change-request forms (add manual day, void, restore) and the decider's list (specs 044–046); the
 board (27c) shows requester/approver names from 27d-1. Times entered in the branch time zone, sent as UTC.
 
+## 6b. Row 27f — capability-aware actions and approver inbox (#167, #171)
+
+- `GET …/branches/:branchId/attendance-capabilities` returns `correct`, `resolve`, `request_change`, `decide` from
+  the shared `REQUEST_AUTHORIZER` used by `@Require`; read permission, staff feature and board branch consistency apply.
+- Board sessions and exception rows project `own` from `employees.user_id`; the board also projects canonical active
+  `owner` metadata for CA-Q2. Non-owners cannot correct or request changes on their own attendance. Spec 034 still
+  forbids resolving/reopening one's own exception, including owners (RE-Q3 differs deliberately from CA-Q2).
+- Actions fail closed while capabilities load or fail, share cached capability queries without polling, and retain
+  server refusal messages.
+  Requests keep the server's `can_decide`/`can_cancel`; restore uses the target branch's request capability.
+- Approvers default to «كل الفروع» within one business (no `branch_id`); the branch view remains selectable.
+  Each request retains its own branch for times and actions. No migration or new permission resolver.
+- P2 fix round: inbox availability comes from the requests list's `can_decide_any`, projecting shared
+  request-access results even on an empty page. Admin probes that list without `branch_id` and defaults
+  to «كل الفروع» when authorized, independently of board capabilities. A decide-only approver with no board read
+  gets the inbox; a branch-only reader does not. Row-level `can_decide` still controls each decision.
+- L1 fix round: request decisions and cancellation use only their endpoint's `can_decide` / `can_cancel`, even
+  without board read access. Exception rows expose `can_resolve` from the shared evaluator on the exception's
+  movement branch, with spec 034's self restriction; the list remains scoped to the session branch. Board owner
+  metadata comes through the existing identity correction-access reader, with no direct membership query.
+- PR #175 P2 fix round: only restore-eligible request rows fetch capabilities, sharing one TanStack Query key per
+  company/business/branch/user; decisions and cancellation fetch none. Fifty rows over three branches issue at most
+  three capability requests, with no capability polling. `can_decide_any` requires permission on at least one ACTIVE
+  branch of the business, using the existing shared evaluator's branch results (including owner protection).
+  A company ALLOW with DENY on every active branch returns false; a canonical owner with DENY still returns true.
+
 ## 7. Out of scope
 
 Payroll, overtime pay, deductions, public holidays (AB-Q5), the employee's own attendance view (57b), notifications.

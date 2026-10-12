@@ -43,7 +43,7 @@ export function attendanceExceptionColumns(
       id: 'actions',
       header: t(locale, 'attendanceActions.actions'),
       cell: ({ row }) =>
-        row.original.kind !== 'SUSPECTED_MISSED_OUT' ? (
+        row.original.can_resolve && row.original.kind !== 'SUSPECTED_MISSED_OUT' ? (
           <Button variant="outline" onClick={() => onAction(row.original)}>
             {t(
               locale,
