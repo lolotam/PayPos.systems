@@ -81,6 +81,7 @@ These answers replace recommendations; SS-Q5/6/10/11 chose option 2.
 | SS-Q9 | Default now, editable; late=earlier business date; back to first of previous month; no future, with small clock-skew allowance |
 | SS-Q10 | Audited edit of saved price/discount, separate row 35d; 35a appends new/corrected drafts without editing saved lines |
 | SS-Q11 | Late badge/filter **and** one bell notice to branch managers per late saved session (35b) |
+| SS-Q12 | Independent read:service-sessions:branch defaults owner/GM/business manager/branch manager within scope; grantable to any other human role. Reception without it retains recording. Ordinary staff see own services with manager-allowed columns and never customer phone (Waleed, 2026-10-12, option 1, batch 15) |
 
 ## 4. Salon example
 

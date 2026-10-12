@@ -58,3 +58,4 @@ export {
 } from './persistence/attendance-change-access.ts';
 export { lockEmployeeHoursAccess, readEmployeeHoursAccess } from './persistence/employee-hours-access.ts';
 export { lockServiceSessionAccess, readServiceSessionAccess } from './persistence/service-session-access.ts';
+export { readServiceSessionReadAccess } from './persistence/service-session-read-access.ts';

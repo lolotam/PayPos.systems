@@ -19,6 +19,21 @@ function write(operationId: string, input: string, response: string, append: boo
 }
 export const serviceSessionPaths = {
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions': {
+    get: {
+      operationId: 'listBranchDayServiceSessions',
+      description: 'Admin branch day list with read:service-sessions:branch and orders feature. Saved snapshots only, no phone. Late means header OR any saved line. Complete visits ordered by occurred_at/id descending; scoped cursor preserves microseconds.',
+      parameters: [
+        ...parameters.filter((p) => p.name !== 'Idempotency-Key'),
+        { in: 'query', name: 'date', required: true, schema: { type: 'string', format: 'date' } },
+        { in: 'query', name: 'late', required: false, schema: { type: 'string', enum: ['true'] } },
+        { in: 'query', name: 'cursor', required: false, schema: { type: 'string', minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9_-]+$' } },
+        { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
+      ],
+      responses: { '200': { description: 'Saved visits with nested lines and performers.', content: json('ServiceSessionDayPage') },
+        '400': { description: 'Invalid query or scoped cursor.', content: json('ErrorEnvelope') },
+        '403': { description: 'Uniform scope/authority refusal or disabled orders feature.', content: json('ErrorEnvelope') },
+        default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') } },
+    },
     post: write('recordServiceSession', 'RecordServiceSessionInput', 'RecordServiceSessionResponse', false),
   },
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines': {
