@@ -111,7 +111,7 @@ names, phones or membership IDs. An owner who also performs is subject to the sa
 
 Orders owns its pure `effectiveDiscountBps` copy in `orders/domain/`, following ADR-0035's separate-context
 validation precedent. Do not import identity's domain through its index or move this execution rule into
-`packages/domain`. The shared kernel provides Money, `roundKwd` and context-free money operations (35c-1 below), not RBAC/commission enums.
+`packages/domain`. The shared kernel continues to provide Money and `roundKwd`, not RBAC/commission enums.
 Keep matching data-only enforcement fixtures (zero list, above list, exact limit, fractional overflow,
 maximum money) in both contexts; no cross-module test import of the other domain function.
 

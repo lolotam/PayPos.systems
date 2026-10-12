@@ -2,7 +2,7 @@
 
 Date: 2026-10-13. DESIGN only: no code, commit or push.
 Worktree: `E:\Dev\Worktrees\PosPay\p1-35c`; branch `spec/050-35c-reception-screen`.
-Baseline: main with 35a and 35b-2 merged; 35b-1 / PR 183 is **not merged**.
+Baseline: main with 35a, 35b-2 (PR 182) and 35b-1 (PR 183, `read:service-sessions:branch`, SS-Q12 answered) merged.
 Sources: [spec](spec.md), [35a plan](plan.md), [35b plan](plan-35b.md),
 [owner answers](owner-questions.ar.md), [ADR-0041](../../adr/0041-orders-service-sessions-reads-and-events.md),
 [CLAUDE.md](../../../CLAUDE.md) §7, [architecture](../../../CLAUDE.architecture.md) §11,
@@ -85,8 +85,8 @@ into queries. Return only permitted warning facts, not their underlying attendan
 
 The limit/read snapshot is advisory. POST always resolves fresh authority/catalog/attendance itself. Return
 canonical prices and the business timezone, not the branch attendance timezone. No new write/event format.
-35b-1 is not a prerequisite: do not generate against unmerged GETs, seed its proposed permission, render a
-branch day list or infer its authorization from recording. Later list integration must use merged 35b-1 contracts
+35b-1 is merged but is not a prerequisite of the form: do not render a branch day list in 35c or infer its
+authorization from recording. Later list integration must use merged 35b-1 contracts
 and its approved permission. 35b-2 already supplies the bell; 35c does not send or recreate notices.
 
 ## 3. Form behavior and monetary calculations
@@ -250,7 +250,7 @@ holder read only service names/prices, dated branch performer names/warning bool
 membership limit for this form, without catalog/HR administration or whole-branch visit history? Option 1 is
 recommended; option 2 retains separate broader read grants. No approval is inferred from SS-Q2 or SS-Q12.
 Only the Claude Code orchestrator publishes a new numbered batch on the existing owner page and mirrors answers.
-SS-Q12 remains the separately pending 35b-1 history-read question; no new offline decision is pending.
+SS-Q12 (35b-1 history read) is answered and merged separately; no new offline decision is pending.
 
 This design delivers a plan and the unanswered question only. It does not implement the conditional endpoints,
 alter current permissions, publish the owner page, or claim any implementation test has passed.
