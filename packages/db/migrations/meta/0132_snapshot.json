@@ -2344,6 +2344,28 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "outbox_service_session_replay_idx": {
+          "name": "outbox_service_session_replay_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"outbox\".\"event_type\" IN ('ServiceSessionRecorded','ServiceSessionLinesAdded')",
+          "concurrently": true,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {

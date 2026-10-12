@@ -1,3 +1,5 @@
+CREATE INDEX CONCURRENTLY "outbox_service_session_replay_idx" ON "outbox" USING btree ("company_id","id") WHERE "outbox"."event_type" IN ('ServiceSessionRecorded','ServiceSessionLinesAdded');
+--> statement-breakpoint
 CREATE TABLE "late_service_session_notices" (
 	"company_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
