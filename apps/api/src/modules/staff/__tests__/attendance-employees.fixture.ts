@@ -26,14 +26,23 @@ export async function attendanceEmployeesFixture() {
     { key: 'other', name: 'Picker Other', ar: null, from: '2026-01-01', to: null },
     { key: 'unlinked', name: 'Picker Unlinked', ar: null, from: '2026-01-01', to: null },
     { key: 'literal', name: 'Picker | "100%_"', ar: null, from: '2026-01-01', to: null },
+    {
+      key: 'employment',
+      name: 'Employment Window',
+      ar: null,
+      from: '2026-01-01',
+      to: null,
+      hireDate: '2026-10-04',
+      contractEnd: '2026-10-06',
+    },
   ];
   const employees = [];
   for (const entry of cases) {
     const employee = { id: leaveIds.newId(), name_en: entry.name, name_ar: entry.ar };
     await f.h
-      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,deleted_at)
+      .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,contract_end,deleted_at)
       VALUES(${f.company},${employee.id},${f.business},${entry.key === 'unlinked' ? f.branch : f.secondBranch},
-        ${employee.name_ar},${employee.name_en},${employee.name_en.toLowerCase()},'staff','2026-01-01',${entry.key === 'deleted' ? new Date('2026-10-04') : null})`;
+        ${employee.name_ar},${employee.name_en},${employee.name_en.toLowerCase()},'staff',${entry.hireDate ?? '2026-01-01'},${entry.contractEnd ?? null},${entry.key === 'deleted' ? new Date('2026-10-04') : null})`;
     if (entry.key !== 'unlinked')
       await f.h
         .owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from","to")
@@ -46,9 +55,7 @@ export async function attendanceEmployeesFixture() {
   await f.h
     .owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${f.company},${leaveIds.newId()},${f.business},${current?.id as string},${f.branch},'2026-10-06')`;
-  const included = employees.filter((e) =>
-    ['current', 'endsLater', 'literal'].includes(e.key),
-  );
+  const included = employees.filter((e) => ['current', 'endsLater', 'literal'].includes(e.key));
   const expected = included.map(({ id, name_ar, name_en }) => ({ id, name_ar, name_en }));
   return { ...f, pickerEmployees: employees, expected };
 }

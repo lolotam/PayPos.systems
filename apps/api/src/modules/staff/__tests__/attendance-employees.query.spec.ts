@@ -78,6 +78,27 @@ it('paginates by name then id through ties and punctuation, with no duplicate em
   expect(tied.map((e) => e.id)).toEqual(tied.map((e) => e.id).sort());
   expect(all.map((e) => e.name_en)).toEqual(all.map((e) => e.name_en).sort());
 });
+it.each([
+  ['2026-10-03', false],
+  ['2026-10-04', true],
+  ['2026-10-06', true],
+  ['2026-10-07', false],
+] as const)(
+  'matches inclusive employment boundaries on %s (eligible: %s) despite an open branch link',
+  async (date, eligible) => {
+    const employee = f.pickerEmployees.find((row) => row.key === 'employment');
+    expect((await list({ search: 'Employment Window', date })).items).toEqual(
+      eligible
+        ? [{ id: employee?.id, name_ar: employee?.name_ar, name_en: employee?.name_en }]
+        : [],
+    );
+  },
+);
+it('keeps a null contract end eligible on later working dates', async () => {
+  expect((await list({ search: 'Picker Alpha', date: '2029-01-01' })).items).toEqual([
+    f.expected.find((e) => e.name_en === 'Picker Alpha'),
+  ]);
+});
 it('RLS hides the tenant employees and links even if the query names the foreign tenant', async () => {
   await f.db.withTenant(f.otherCompany, async (tx) => {
     expect(await attendanceEmployees(tx, f.scope, f.boardClock.now(), { limit: 50 })).toEqual({
@@ -110,6 +131,8 @@ it('EXPLAIN ANALYZE bounds name matching to indexed branch links without scannin
       { limit: 50 },
       { limit: 50, search: 'Picker' },
       { limit: 50, search: 'Picker Ended', date: '2026-10-03' },
+      { limit: 50, search: 'Employment Window', date: '2026-10-04' },
+      { limit: 50, search: 'Employment Window', date: '2026-10-07' },
       { limit: 1, search: 'ألف', cursor: JSON.stringify(['Picker', f.employee.id]) },
     ]) {
       const plan = await tx.execute(
