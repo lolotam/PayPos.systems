@@ -44,6 +44,12 @@ export const breakNotReturnedParameters = z.tuple([
   displayParameter('branch_name_en'),
   z.strictObject({ name: z.literal('break_end'), type: z.literal('text'), value: shiftStart }),
 ]);
+export const breakReturnedOtherBranchParameters = z.tuple([
+  displayParameter('employee_name_ar'),
+  displayParameter('employee_name_en'),
+  displayParameter('branch_name_ar'),
+  displayParameter('branch_name_en'),
+]);
 const inAppBase = {
   channel: z.literal('IN_APP'),
   user_id: id,
@@ -72,6 +78,11 @@ export const attendanceChangeDecidedParameters = z.tuple([
   z.strictObject({ name: z.literal('reason'), type: z.literal('text'), value: safeText }),
 ]);
 export const inAppRecipient = z.discriminatedUnion('template_key', [
+  z.strictObject({
+    ...inAppBase,
+    template_key: z.literal('break_returned_other_branch'),
+    safe_parameters: breakReturnedOtherBranchParameters,
+  }),
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('attendance_change_requested'),
@@ -111,6 +122,11 @@ const inAppNotificationBase = {
 };
 export const inAppNotification = z
   .discriminatedUnion('template_key', [
+    z.strictObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('break_returned_other_branch'),
+      safe_parameters: breakReturnedOtherBranchParameters,
+    }),
     z.strictObject({
       ...inAppNotificationBase,
       template_key: z.literal('attendance_change_requested'),

@@ -38,14 +38,14 @@ async function onBreak() {
   return { tenant, employee, shift };
 }
 
-function holdReturn(tenant: Tenant, employee: string, opened: () => void, release: Promise<void>) {
+function holdReturn(tenant: Tenant, employee: string, opened: () => void, release: Promise<void>, branch = tenant.branch) {
   return f.db.withTenant(tenant.company, async (tx) => {
     await tx.execute(sql`SELECT employee_id FROM attendance_states
       WHERE company_id=${tenant.company} AND employee_id=${employee} FOR UPDATE`);
     opened();
     await release;
     await tx.execute(sql`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,clock_in,status,source,geo,late_minutes)
-      VALUES(${tenant.company},${f.ids.newId()},${tenant.business},${tenant.branch},${employee},'2026-10-04','Asia/Kuwait',
+      VALUES(${tenant.company},${f.ids.newId()},${tenant.business},${branch},${employee},'2026-10-04','Asia/Kuwait',
         ${new Date(BREAK_END.getTime() + 5 * 60_000).toISOString()},'OPEN','QR','OK',0)`);
   });
 }
@@ -76,6 +76,33 @@ it('a return clock-in holding the State lock first wins and the job sends nothin
   expect(await job).toEqual({ notified: 0 });
   expect(await f.breakNotices(tenant.company, employee)).toHaveLength(0);
   expect(await f.breakEvents(tenant.company)).toHaveLength(0);
+});
+
+it('a cross-branch return holding State first suppresses the alert and records the destination once', async () => {
+  const { tenant, employee } = await onBreak();
+  const other = await f.branch(tenant);
+  const locked = gate();
+  const release = gate();
+  const scan = holdReturn(tenant, employee, locked.open, release.promise, other);
+  const settledScan = scan.catch((error: unknown) => error);
+  let job: Promise<unknown> | undefined;
+  try {
+    await locked.promise;
+    job = f.detectBreak().execute(tenant.company);
+    await lockWaiter(f.owner);
+    release.open();
+    await settledScan;
+    expect(await job).toEqual({ notified: 1 });
+    expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 0 });
+    expect(await f.breakNotices(tenant.company, employee)).toHaveLength(1);
+    const events = await f.breakEvents(tenant.company);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.['payload']).toMatchObject({ notice_kind: 'break_returned_other_branch', returned_branch_id: other });
+  } finally {
+    release.open();
+    await settledScan;
+    await job;
+  }
 });
 
 it('a return clock-in that waits behind the notice does not retract it', async () => {

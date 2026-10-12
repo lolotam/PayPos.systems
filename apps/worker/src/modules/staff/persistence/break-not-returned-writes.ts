@@ -1,6 +1,5 @@
 import { appendAuditLog, appendOutboxEvents, type IdGenerator, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import type { BreakNoticeParameter } from '../domain/break-not-returned.ts';
 import { inAppRecipientGroups } from '../domain/not-clocked-in.ts';
 import type { BreakNoticeWrite } from '../ports/break-not-returned.port.ts';
 
@@ -27,7 +26,7 @@ export async function recordBreakNotReturned(
   await appendAuditLog(tx, ids.newId(), {
     entity: 'attendance_notice',
     entityId: id,
-    action: 'break_not_returned.detected',
+    action: `${notice.kind}.detected`,
     after: { ...facts, recipient_user_ids: groups.flat() },
   });
   await appendOutboxEvents(tx, outboxEntries(ids, notice, facts, groups));
@@ -50,19 +49,19 @@ function outboxEntries(
     id: ids.newId(),
     event: {
       ...event,
-      payload: { ...facts, notification_recipients: recipientsFor(group, notice.parameters) },
+      payload: { ...facts, notification_recipients: recipientsFor(group, notice) },
     },
   }));
 }
 
-function recipientsFor(userIds: readonly string[], parameters: readonly BreakNoticeParameter[]) {
+function recipientsFor(userIds: readonly string[], notice: BreakNoticeWrite) {
   return userIds.map((userId) => ({
     channel: 'IN_APP' as const,
     user_id: userId,
     locale: 'ar' as const,
-    template_key: 'break_not_returned' as const,
+    template_key: notice.kind,
     template_revision: 1 as const,
-    safe_parameters: parameters,
+    safe_parameters: notice.parameters,
   }));
 }
 
@@ -78,5 +77,10 @@ function noticeFacts(id: string, notice: BreakNoticeWrite) {
     break_out_at: notice.breakOutAt.toISOString(),
     alert_due_at: notice.alertAt.toISOString(),
     detected_at: notice.detectedAt.toISOString(),
+    notice_kind: notice.kind,
+    ...(notice.returned === null ? {} : {
+      returned_branch_id: notice.returned.branchId,
+      returned_at: notice.returned.clockIn.toISOString(),
+    }),
   };
 }
