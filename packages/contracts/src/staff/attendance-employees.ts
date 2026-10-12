@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { id } from '../scalars/id.js';
+import { employeeDate } from './employee.js';
 
 export const attendanceEmployeeCursor = z.tuple([z.string().min(1).max(255), id]);
 const cursor = z
@@ -14,6 +15,7 @@ const cursor = z
   });
 export const attendanceEmployeesQuery = z
   .strictObject({
+    date: employeeDate.optional(),
     search: z.string().trim().max(100).optional(),
     cursor: cursor.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(50),

@@ -205,6 +205,9 @@ export const attendanceExceptions = pgTable(
       t.status,
       t.raisedAt,
     ),
+    index('attendance_exceptions_list_idx').on(
+      t.companyId, t.businessId, t.status, t.raisedAt.desc(), t.id.desc(),
+    ),
     index('attendance_exceptions_employee_idx').on(t.companyId, t.employeeId, t.raisedAt),
     index('attendance_exceptions_actor_idx').on(t.companyId, t.resolvedBy),
     // ضمان قاعدة البيانات أن الاشتباه يُرفع مرة واحدة لكل جلسة مهما تكررت الوظيفة.

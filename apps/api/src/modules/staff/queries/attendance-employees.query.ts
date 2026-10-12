@@ -16,13 +16,16 @@ export function attendanceEmployeesStatement(
   const cursor = query.cursor
     ? attendanceEmployeeCursor.parse(JSON.parse(query.cursor))
     : undefined;
-  const today = sql`(${now.toISOString()}::timestamptz AT TIME ZONE ${scope.timezone})::date`;
+  const date = query.date
+    ? sql`${query.date}::date`
+    : sql`(${now.toISOString()}::timestamptz AT TIME ZONE ${scope.timezone})::date`;
   // منتقي «يوم يدوي» يبحث داخل ارتباطات الفرع المفهرسة فقط؛ MATERIALIZED يمنع تحويل البحث لمسح أسماء الشركة.
   return sql`WITH candidates AS MATERIALIZED (
     SELECT DISTINCT e.id,e.name_ar,e.name_en FROM employee_branches eb
     JOIN employees e ON e.company_id=eb.company_id AND e.business_id=eb.business_id AND e.id=eb.employee_id
     WHERE eb.company_id=${scope.companyId} AND eb.business_id=${scope.businessId}
-      AND eb.branch_id=${scope.branchId} AND ${currentAttachment(today)} AND e.deleted_at IS NULL
+      AND eb.branch_id=${scope.branchId} AND eb."from"<=${date}
+      AND ${currentAttachment(date)} AND e.deleted_at IS NULL
   ) SELECT id,name_ar,name_en FROM candidates
     WHERE TRUE
       ${query.search ? sql`AND (strpos(lower(name_en),lower(${query.search}))>0 OR strpos(lower(name_ar),lower(${query.search}))>0)` : sql``}

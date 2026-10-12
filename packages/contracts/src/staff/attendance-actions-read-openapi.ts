@@ -32,7 +32,7 @@ export const attendanceActionsReadPaths = {
     get: {
       operationId: 'attendanceExceptions',
       description:
-        'Requires read:attendance:branch and staff feature. Exceptions of sessions at this branch, newest raised_at/id first, excluding voided sessions. branch_id identifies the exception movement branch for resolve/reopen. Resolution fields are null while OPEN. Cursor preserves microseconds.',
+        'Requires read:attendance:branch and staff feature. Exceptions of sessions at this branch, newest raised_at/id first, excluding voided sessions. branch_id identifies the session branch, consistent with the list filter; resolve/reopen checks authority on the stored exception movement branch. Resolution fields are null while OPEN. Cursor preserves microseconds.',
       parameters: [
         ...parameters,
         {
@@ -65,7 +65,7 @@ export const attendanceActionsReadPaths = {
     get: {
       operationId: 'attendanceCorrectionHistory',
       description:
-        'Requires read:attendance:branch and staff feature. Oldest corrected_at/id first, including voided sessions. Existing sessions without corrections return an empty items array. Actors use the first non-deleted employee by business_id/id within the company, or null.',
+        'Requires read:attendance:branch and staff feature. Oldest corrected_at/id first, including voided sessions. Existing sessions without corrections return an empty items array. Actors prefer an employee in the scoped business, then any non-deleted row, then a soft-deleted row; business_id/id breaks ties. Null only when no employee row exists in the company.',
       parameters: [
         ...parameters,
         {

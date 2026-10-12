@@ -17,7 +17,7 @@ export function attendanceCorrectionHistoryStatement(
   return sql`SELECT COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'field',c.field,
       'before_at',${instant('c.before_at')},'after_at',${instant('c.after_at')},'reason',c.reason,
       'corrected_by',jsonb_build_object('id',c.corrected_by,
-        'name',${attendanceActorNameStatement(sql`c.company_id`, sql`c.corrected_by`)}),
+        'name',${attendanceActorNameStatement(sql`c.company_id`, sql`c.corrected_by`, sql`c.business_id`)}),
       'corrected_at',${instant('c.corrected_at')}) ORDER BY c.corrected_at,c.id)
     FROM attendance_corrections c WHERE c.company_id=s.company_id AND c.session_id=s.id),'[]'::jsonb) AS items
     FROM attendance_sessions s WHERE s.company_id=${scope.companyId} AND s.business_id=${scope.businessId}
