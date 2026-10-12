@@ -22,7 +22,9 @@ export function EmployeeDefaultHoursBulkFields({ id, shifts, pending, onApply }:
     if (range) onApply(scheduleDayKeys.flatMap((_, day) => daysOff[day] ? [] : [{ ...range, day }]));
   });
   return <FormProvider {...form}>
-    <fieldset id={id} className="flex flex-col gap-3 rounded-card border border-border p-4">
+    <fieldset id={id} className="flex flex-col gap-3 rounded-card border border-border p-4" onKeyDown={(event) => {
+      if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault();
+    }}>
       <legend>{t(locale, 'employeeDefaultHours.hoursToCopy')}</legend>
       <p className="text-sm text-muted-foreground">{t(locale, 'employeeDefaultHours.sameHoursHint')}</p>
       <div>

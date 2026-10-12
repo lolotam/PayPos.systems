@@ -26,6 +26,29 @@ async function renderSection() {
   return { client, view, panel: within(screen.getByRole('group', { name: 'Hours to copy' })) };
 }
 
+it.each(['Start', 'End', 'Break start', 'Break end'])('Enter in bulk %s neither saves nor applies the week', async (label) => {
+  api.PUT.mockResolvedValue({ data });
+  const { client, view, panel } = await renderSection();
+  fireEvent.change(panel.getByLabelText('Start'), { target: { value: '10:00' } });
+  const input = panel.getByLabelText(label);
+  input.focus();
+  const uncanceled = fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', charCode: 13 });
+  // jsdom لا ينفذ الحفظ الضمني؛ نحاكيه فقط لو لم تُلغَ ضغطة Enter.
+  if (uncanceled) fireEvent.click(screen.getByRole('button', { name: 'Save default hours' }));
+  fireEvent.keyUp(input, { key: 'Enter', code: 'Enter' });
+  expect(uncanceled).toBe(false);
+  expect(screen.getByRole('group', { name: 'Hours to copy' })).toBeTruthy();
+  const saturday = screen.getAllByRole('checkbox', { name: 'Saturday' }).at(-1)?.closest('label')?.parentElement;
+  if (!saturday) throw new Error('Missing Saturday row');
+  expect((within(saturday).getByLabelText('Start') as HTMLInputElement).value).toBe('09:00');
+  expect(api.PUT).not.toHaveBeenCalled();
+  fireEvent.click(panel.getByRole('button', { name: 'Apply to working days' }));
+  await waitFor(() => expect(screen.queryByRole('group', { name: 'Hours to copy' })).toBeNull());
+  expect(screen.getAllByLabelText('Start').every((field) => (field as HTMLInputElement).value === '10:00')).toBe(true);
+  expect(api.PUT).not.toHaveBeenCalled();
+  view.unmount(); client.clear();
+});
+
 it('sends no PUT on bulk fill or a later edit; Save sends the branch week once', async () => {
   api.PUT.mockResolvedValue({ data });
   const { client, view, panel } = await renderSection();
