@@ -2,7 +2,7 @@
 
 Date: 2026-10-13. DESIGN only: no code, commit or push.
 Worktree: `E:\Dev\Worktrees\PosPay\p1-35c`; branch `spec/050-35c-reception-screen`.
-Baseline: main with 35a and 35b-2 merged; 35b-1 / PR 183 is **not merged**.
+Baseline: main with 35a, 35b-2 (PR 182) and 35b-1 (PR 183, `read:service-sessions:branch`, SS-Q12 answered) merged.
 Sources: [spec](spec.md), [35a plan](plan.md), [35b plan](plan-35b.md),
 [owner answers](owner-questions.ar.md), [ADR-0041](../../adr/0041-orders-service-sessions-reads-and-events.md),
 [CLAUDE.md](../../../CLAUDE.md) §7, [architecture](../../../CLAUDE.architecture.md) §11,
@@ -15,11 +15,9 @@ route is exposed. Each PR includes its own tests and translations, rather than l
 Sizes count hand-written added/changed lines, including tests, copy and architectural documentation; generated
 OpenAPI/client changes are reported separately. If an estimate exceeds its upper bound, split again before code.
 
-**SS-Q13 answered:** Waleed, 2026-10-12, option 1, [owner answer](owner-questions.ar.md):
-`record:service-sessions:branch` alone authorizes 35c-2…4's limited recording-form reads:
-service names/prices, dated eligible branch performer names/warning booleans, and the recorder's own
-branch-covering memberships/selected discount limit. It grants nothing wider; customer find-or-create
-keeps its separate permission and branch history keeps SS-Q12's independent read permission.
+**SS-Q13 answered (Waleed, 2026-10-12, option 1):** `record:service-sessions:branch` alone authorizes the limited
+recording-form reads below (service names/prices, eligible performers on the session date with the attendance/leave
+warning, and the recorder's own memberships/limit) and nothing wider. 35c-2…4 and 35c-12 are unblocked.
 
 ## 1. Host, entry point and connectivity
 
@@ -59,7 +57,7 @@ requires `request:attendance-change:branch`; discount UI offers management write
 provide recorder discount limits or performer warnings. Do not grant catalog/HR/permission administration merely
 to make this form work; do not import catalog/staff/permissions components or hooks into orders (§11).
 
-Under SS-Q13 option 1, add limited **recording-form** reads under the branch service-session resource:
+Per SS-Q13 option 1, add limited **recording-form** reads under the branch service-session resource:
 
 | Authorized GET suffix | Minimum result and purpose |
 |---|---|
@@ -87,8 +85,8 @@ into queries. Return only permitted warning facts, not their underlying attendan
 
 The limit/read snapshot is advisory. POST always resolves fresh authority/catalog/attendance itself. Return
 canonical prices and the business timezone, not the branch attendance timezone. No new write/event format.
-35b-1 is not a prerequisite: do not generate against unmerged GETs, seed its proposed permission, render a
-branch day list or infer its authorization from recording. Later list integration must use merged 35b-1 contracts
+35b-1 is merged but is not a prerequisite of the form: do not render a branch day list in 35c or infer its
+authorization from recording. Later list integration must use merged 35b-1 contracts
 and its approved permission. 35b-2 already supplies the bell; 35c does not send or recreate notices.
 
 ## 3. Form behavior and monetary calculations
@@ -189,9 +187,9 @@ Every frontend PR adds component/hook tests beside its files and just its ar/en 
 | PR | Goal / independently deployable result | 1–3 subtasks | Files touched | Tests / expected hand-written size |
 |---|---|---|---|---|
 | **35c-1** | Shared money operations; unchanged server recording | 1. Extract generic net/percent helpers into kernel. 2. Delegate existing orders wrappers. 3. Independent numeric parity/error tests. | packages/domain/src/discount-money.ts, index.ts, __tests__/discount-money.spec.ts; O/domain/session-pricing.ts and its pricing tests; ADR-0041 technical addendum | Unit: zero/above-price/maximum, half-up and sum overflow; existing SS pricing suite. No component/e2e needed. **180–280 lines** |
-| **35c-2** | Own recording context/limit GET, **SS-Q13 option 1** | 1. Strict context contract/OpenAPI. 2. Query + read adapters/controller/wiring. 3. Authority/shape/EXPLAIN tests and ADR/map entries. | C/recording-context.ts, service-session-form-openapi.ts, contracts index/openapi; O/queries/recording-context.query.ts, persistence/recording-context.adapter.ts, http/service-session-form.controller.ts, orders.module.ts; API tests; ADR-0041, module-map.md/YAML; generated clients | Real DB: own/foreign candidates, ambiguous selection, zero/unlimited/unconfigured, DENY/expiry/feature, route mismatch, current limit; exact-query EXPLAIN. No UI yet. **300–450 lines** |
-| **35c-3** | Limited service picker GET, **SS-Q13 option 1** | 1. Paged options contract. 2. Catalog public reader + orders read adapter/route. 3. Scope/cursor/shape/EXPLAIN tests and exact map entries. | C/service-session-options.ts/OpenAPI; catalog/queries/session-service-options.query.ts and index.ts; O/queries/session-service-options.query.ts, persistence/session-service-options.adapter.ts, form controller/module; tests; ADR/map/generated clients | Real DB: business isolation, price/revision, cursor ties, empty/pages, denied record authority; no broad catalog read granted. **280–420 lines** |
-| **35c-4** | Dated performer picker GET, **SS-Q13 option 1** | 1. Minimal dated options contract. 2. Staff public reader + orders adapter/route. 3. Dated eligibility/warning/privacy/EXPLAIN tests and map entries. | C/service-session-options.ts/OpenAPI; staff/queries/session-performer-options.query.ts and index.ts; O/queries/session-performer-options.query.ts, persistence/session-performer-options.adapter.ts, form controller/module; tests; ADR/map/generated clients | Real DB: hire/contract/branch-date edges, occurred-day attendance/leave, manual/closed/void, no private HR fields, RLS/cursor/authority. **350–500 lines** |
+| **35c-2** | Own recording context/limit GET | 1. Strict context contract/OpenAPI. 2. Query + read adapters/controller/wiring. 3. Authority/shape/EXPLAIN tests and ADR/map entries. | C/recording-context.ts, service-session-form-openapi.ts, contracts index/openapi; O/queries/recording-context.query.ts, persistence/recording-context.adapter.ts, http/service-session-form.controller.ts, orders.module.ts; API tests; ADR-0041, module-map.md/YAML; generated clients | Real DB: own/foreign candidates, ambiguous selection, zero/unlimited/unconfigured, DENY/expiry/feature, route mismatch, current limit; exact-query EXPLAIN. No UI yet. **300–450 lines** |
+| **35c-3** | Limited service picker GET | 1. Paged options contract. 2. Catalog public reader + orders read adapter/route. 3. Scope/cursor/shape/EXPLAIN tests and exact map entries. | C/service-session-options.ts/OpenAPI; catalog/queries/session-service-options.query.ts and index.ts; O/queries/session-service-options.query.ts, persistence/session-service-options.adapter.ts, form controller/module; tests; ADR/map/generated clients | Real DB: business isolation, price/revision, cursor ties, empty/pages, denied record authority; no broad catalog read granted. **280–420 lines** |
+| **35c-4** | Dated performer picker GET | 1. Minimal dated options contract. 2. Staff public reader + orders adapter/route. 3. Dated eligibility/warning/privacy/EXPLAIN tests and map entries. | C/service-session-options.ts/OpenAPI; staff/queries/session-performer-options.query.ts and index.ts; O/queries/session-performer-options.query.ts, persistence/session-performer-options.adapter.ts, form controller/module; tests; ADR/map/generated clients | Real DB: hire/contract/branch-date edges, occurred-day attendance/leave, manual/closed/void, no private HR fields, RLS/cursor/authority. **350–500 lines** |
 | **35c-5** | Reusable customer entry/selection field with real scoped API | 1. Customer contract hook. 2. Required entry/selected masked card. 3. Component/hook tests and ar/en keys. | A/api/use-session-customer.ts; A/ui/session-customer-field.tsx; tests; L/service-session-catalog.ts, catalog.ts | Component: existing/new customer, changed text invalidates, error/opt-out, raw phone cleared; hook scope/payload; no directory invented. E2E covered in 35c-12. **200–320 lines** |
 | **35c-6** | Tested service-line draft editor/picker | 1. Options hook. 2. Stable draft rows with explicit price prefill/edit. 3. Component/hook tests and keys. | A/api/use-session-services.ts; A/model/session-drafts.ts; A/ui/session-service-field.tsx, session-draft-lines.tsx; tests; L/service-session-catalog.ts | Component: duplicate services, add/remove row mapping, 20-row bound, catalog refresh preserves override, canonical money/above-list/zero. **220–350 lines** |
 | **35c-7** | Amount/percent discounts, limit display and shared totals | 1. Context/membership hook and field. 2. Discount/same-%/summary components using shared money. 3. Boundary/component tests and keys. | A/api/use-recording-context.ts; A/ui/recorder-membership-field.tsx, session-discount-field.tsx, session-draft-summary.tsx; tests; L/service-session-catalog.ts | Component: own selection, unlimited/zero, 7.125/10%=0.713, lowered price rejection evidence, same-% unsaved rows only, no client authority clamp, large totals. **260–400 lines** |
@@ -247,11 +245,12 @@ freshness gate requires it (generated-only, no POS UI change). Preserve Arabic J
 
 ## 7. Owner question and handoff
 
-**SS-Q13 answered**, Waleed, 2026-10-12, option 1, mirrored in
-[owner-questions.ar.md](owner-questions.ar.md): recording permission covers only the limited form inputs
-and the caller's own selected membership limit. This does not grant catalog/HR administration, other
-people's limits or whole-branch visit history. SS-Q12 separately authorizes the independent history read.
-Only the Claude Code orchestrator publishes on the existing owner page; no new offline decision is pending.
+**SS-Q13, answered (option 1, 2026-10-12)**, mirrored in [owner-questions.ar.md](owner-questions.ar.md): may a recording-permission
+holder read only service names/prices, dated branch performer names/warning booleans and their own selected
+membership limit for this form, without catalog/HR administration or whole-branch visit history? Option 1 is
+recommended; option 2 retains separate broader read grants. No approval is inferred from SS-Q2 or SS-Q12.
+Only the Claude Code orchestrator publishes a new numbered batch on the existing owner page and mirrors answers.
+SS-Q12 (35b-1 history read) is answered and merged separately; no new offline decision is pending.
 
-35c-2…4 may implement their authorized limited reads in the ordered small PRs above. This plan does not
-claim any implementation test has passed or publish the reception screen ahead of 35c-12.
+This design delivers the plan; SS-Q13 is answered (option 1) and 35c-2…4 implement its limited reads. 35c-1 ships the
+shared money helpers with this plan.

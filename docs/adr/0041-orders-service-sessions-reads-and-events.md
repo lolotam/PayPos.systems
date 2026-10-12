@@ -111,7 +111,7 @@ names, phones or membership IDs. An owner who also performs is subject to the sa
 
 Orders owns its pure `effectiveDiscountBps` copy in `orders/domain/`, following ADR-0035's separate-context
 validation precedent. Do not import identity's domain through its index or move this execution rule into
-`packages/domain`. The shared kernel provides Money, `roundKwd` and context-free money operations (35c-1 below), not RBAC/commission enums.
+`packages/domain`. The shared kernel continues to provide Money and `roundKwd`, not RBAC/commission enums.
 Keep matching data-only enforcement fixtures (zero list, above list, exact limit, fractional overflow,
 maximum money) in both contexts; no cross-module test import of the other domain function.
 
@@ -298,6 +298,18 @@ This extraction does not move effectiveDiscountBps, authorizedDiscountAmounts, p
 and orders wrappers, including 7.125 × 10% = 0.713, net 6.412, effective 1001 bps at a 1000-bps limit.
 No dependency, module arrow, contract, write path or event format changes.
 
+## Consequences
+
+35a creates no commission/rating/notification projection and has no statement-status read. It introduces narrow
+provider read exports and five declared adapter import edges; these are deliberate additional files in catalog,
+customers, staff and identity, not permission to refactor those modules. Changes to the map/events in the code PR
+must cite this ADR, including the initial-event amendment to ADR-0010/SPEC §3. The design-only delivery changes
+this ADR, spec 050 and its 35a plan; executable maps and phase-wide docs are synchronized in the implementation PR.
+
+35b delivers late visibility and bells, 35c the admin reception screen, 35d audited price/discount editing (SS-Q10
+option 2). Price edits do not land in 35a and need their own revision/concurrency and permission design. All owner
+questions SS-Q1–SS-Q11 are answered by Waleed, and Abu Salem agreed with every pick on 2026-10-12.
+
 ## Addendum 2026-10-13 — 35c-2 own recording context
 
 SS-Q13 (Waleed, 2026-10-12, option 1, batch 16) authorizes the limited recording-form reads under
@@ -313,15 +325,3 @@ readEffectiveDiscountLimit; its two exact symbol/path entries reuse already appr
 After settings' existing SHARE locks, identity authority/expiry/feature and active place are checked again at a
 fresh injected instant. This is advisory; POST still resolves its own fresh context. No new table, grant,
 write/event, service/performer picker or history access is added. Exact callback SQL gets EXPLAIN ANALYZE tests.
-
-## Consequences
-
-35a creates no commission/rating/notification projection and has no statement-status read. It introduces narrow
-provider read exports and five declared adapter import edges; these are deliberate additional files in catalog,
-customers, staff and identity, not permission to refactor those modules. Changes to the map/events in the code PR
-must cite this ADR, including the initial-event amendment to ADR-0010/SPEC §3. The design-only delivery changes
-this ADR, spec 050 and its 35a plan; executable maps and phase-wide docs are synchronized in the implementation PR.
-
-35b delivers late visibility and bells, 35c the admin reception screen, 35d audited price/discount editing (SS-Q10
-option 2). Price edits do not land in 35a and need their own revision/concurrency and permission design. All owner
-questions SS-Q1–SS-Q11 are answered by Waleed, and Abu Salem agreed with every pick on 2026-10-12.
