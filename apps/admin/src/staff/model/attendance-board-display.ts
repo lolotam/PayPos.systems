@@ -11,14 +11,21 @@ export function stillIn(clockIn: string, generatedAt: string): string {
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
 }
 export function boardError(error: unknown, locale: Locale): string {
-  const code = (error as { code?: string } | null)?.code;
+  const value = error as { code?: string; status?: number } | null;
+  const code = value?.code;
+  if (value?.status === 401) return t(locale, 'attendanceBoard.sessionExpired');
   if (code === 'NOT_FOUND') return t(locale, 'attendanceBoard.notFound');
   if (code === 'FEATURE_DISABLED') return t(locale, 'attendanceBoard.featureDisabled');
   return t(locale, 'admin.unexpected');
 }
 export function boardAccessLost(error: unknown): boolean {
   const value = error as { code?: string; status?: number } | null;
-  return value?.code === 'FEATURE_DISABLED' || value?.status === 403 || value?.status === 404;
+  return (
+    value?.code === 'FEATURE_DISABLED' ||
+    value?.status === 401 ||
+    value?.status === 403 ||
+    value?.status === 404
+  );
 }
 export function boardEmployeeName(
   employee: AttendanceDeviceRefusalPage['items'][number]['holder'],
