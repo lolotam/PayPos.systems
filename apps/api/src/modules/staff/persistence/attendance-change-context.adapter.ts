@@ -51,6 +51,7 @@ export function createAttendanceChangeReadAccess(clock: AttendanceChangeClock) {
         member: access.member,
         canDecide: access.canDecide,
         canDecideAny: access.decideBranches.some((branchId) => activeBranches.has(branchId)),
+        requestBranches: access.branches.filter((branchId) => activeBranches.has(branchId)),
         decideBranches: access.decideBranches,
         branches: access.owner
           ? business.branches.map((b) => b.id)

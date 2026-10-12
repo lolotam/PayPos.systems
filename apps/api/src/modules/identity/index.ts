@@ -1,4 +1,5 @@
 export { COMPANY_HEADER } from './http/access.guard.ts';
+export type { BranchRequestAccess } from './ports/access-reader.port.ts';
 export { lockLeaveAccess, readLeaveAccess } from './persistence/leave-access.ts';
 export {
   lockAttendanceExceptionAccess,

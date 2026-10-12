@@ -18,11 +18,21 @@ export function useAttendanceRequestsAccess(scope: AttendanceBoardScope) {
     queryFn: async ({ signal }) => {
       const result = await apiClient().GET(
         '/v1/businesses/{businessId}/attendance-change-requests',
-        { params: { ...attendanceActionParams(scope), query: { limit: 1 } }, signal },
+        {
+          params: {
+            ...attendanceActionParams(scope),
+            query: { limit: 1, branch_id: scope.branchId },
+          },
+          signal,
+        },
       );
       if (result.error) throw { ...result.error, status: result.response.status };
-      return attendanceChangeRequestPage.parse(result.data).can_decide_any;
+      return attendanceChangeRequestPage.parse(result.data);
     },
   });
-  return { ...query, canDecideAny: !query.isError && query.data === true };
+  return {
+    ...query,
+    canDecideAny: !query.isError && query.data?.can_decide_any === true,
+    canRequest: !query.isError && query.data?.can_request === true,
+  };
 }

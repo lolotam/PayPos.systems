@@ -179,6 +179,7 @@ it('pages requests, displays actor names and follows server action flags', async
     data: options.params.query.cursor
       ? {
           can_decide_any: true,
+          can_request: false,
           items: [
             requestPage.items[0],
             {
@@ -210,6 +211,7 @@ it('starts restore from an approved void and sends the post-void revision', asyn
   api.GET.mockResolvedValue({
     data: {
       can_decide_any: true,
+      can_request: false,
       items: [
         {
           ...requestPage.items[0],

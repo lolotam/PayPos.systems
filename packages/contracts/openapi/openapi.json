@@ -12581,6 +12581,9 @@
           "can_decide_any": {
             "type": "boolean"
           },
+          "can_request": {
+            "type": "boolean"
+          },
           "items": {
             "type": "array",
             "items": {
@@ -12833,6 +12836,7 @@
         },
         "required": [
           "can_decide_any",
+          "can_request",
           "items",
           "next_cursor"
         ],

@@ -8,7 +8,6 @@ import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { AttendanceRequestFilters } from '../ui/attendance-request-filters';
 import { AttendanceRequestsList } from '../ui/attendance-requests-list';
 import { AttendanceManualEditor } from '../ui/attendance-manual-editor';
-import { useAttendanceCapabilities } from '../api/use-attendance-capabilities';
 import { useAttendanceRequestsAccess } from '../api/use-attendance-requests-access';
 export function AttendanceRequestsPage({
   scope,
@@ -23,7 +22,6 @@ export function AttendanceRequestsPage({
   const [status, setStatus] = useState<AttendanceChangeListQuery['status']>('PENDING');
   const [manual, setManual] = useState(false);
   const [view, setView] = useState<'all' | 'branch'>();
-  const { capabilities } = useAttendanceCapabilities(scope);
   const inboxAccess = useAttendanceRequestsAccess(scope);
   const allBranches = inboxAccess.canDecideAny && view !== 'branch';
   const timezone = branches.find((branch) => branch.id === scope.branchId)?.effective_timezone;
@@ -34,7 +32,7 @@ export function AttendanceRequestsPage({
         branches={branches}
         branchId={allBranches ? 'all' : scope.branchId}
         status={status}
-        canCreate={Boolean(timezone) && capabilities.request_change}
+        canCreate={Boolean(timezone) && inboxAccess.canRequest}
         allowAllBranches={inboxAccess.canDecideAny}
         onBranch={(id) => {
           setManual(false);
@@ -54,7 +52,7 @@ export function AttendanceRequestsPage({
           enabled={!inboxAccess.isPending}
         />
       ) : null}
-      {manual && timezone && capabilities.request_change ? (
+      {manual && timezone && inboxAccess.canRequest ? (
         <AttendanceManualEditor
           scope={scope}
           timezone={timezone}

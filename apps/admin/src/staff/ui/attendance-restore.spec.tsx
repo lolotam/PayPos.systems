@@ -84,7 +84,7 @@ it('approves a void, requests restore, then approves restore and refreshes witho
     session_state: { voided: true, void_request_id: boardId, restore_pending: true },
   };
   api.GET.mockImplementation(async () => ({
-    data: { can_decide_any: true, items: rows, next_cursor: null },
+    data: { can_decide_any: true, can_request: false, items: rows, next_cursor: null },
   }));
   api.POST.mockImplementation(async (path) => {
     if (!path.endsWith('/decide')) {

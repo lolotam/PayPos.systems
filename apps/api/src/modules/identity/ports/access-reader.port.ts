@@ -57,6 +57,16 @@ export interface AccessReader {
    */
   businessOfBranch(companyId: string, branchId: string): Promise<string | null>;
   /**
+   * يعيد أنشطة الفروع الموجودة داخل الشركة دفعة واحدة لتقييم صفحة كاملة دون قراءة لكل فرع.
+   *
+   * @param companyId الشركة المؤكدة
+   * @param branchIds معرّفات الفروع المطلوب تقييمها
+   */
+  businessesOfBranches(
+    companyId: string,
+    branchIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>>;
+  /**
    * هل الـ business ده موجود في الشركة دي — عشان business شركة تانية يترفض قبل تقييم الصلاحية (TEN-03).
    *
    * @param companyId الشركة المتأكد منها
@@ -70,4 +80,24 @@ export interface AccessReader {
    * @param flag      اسم الـ feature flag
    */
   isFeatureEnabled(companyId: string, flag: string): Promise<boolean>;
+}
+
+/** قراءة إذن واحد لفروع كثيرة عبر نفس تفويض الطلب المفرد؛ يحتاجها عرض إجراءات الصفحة. */
+export interface BranchRequestAccess {
+  /**
+   * يعيد قرار كل فرع بقراءة صلاحيات واحدة مع نفس العضويات والمنح وحماية المالك في الطلب المفرد.
+   * مفاتيح النتيجة هي المعرّفات الصحيحة بأحرف صغيرة؛ الفرع المجهول أو الأجنبي مرفوض.
+   *
+   * @param input سياق الصفحة التي تحتاج قرارات الفروع
+   * @param input.userId المستخدم الموثق
+   * @param input.requestedCompany الشركة المطلوبة، تُثبت عضويته قبل دخولها
+   * @param input.permission إذن واحد مطلوب لكل الفروع
+   * @param input.branchParams الفروع المطلوبة، يتجاهل القيم غير الصالحة ويزيل التكرار
+   */
+  executeBranches(input: {
+    userId: string;
+    requestedCompany: unknown;
+    permission: string;
+    branchParams: readonly unknown[];
+  }): Promise<ReadonlyMap<string, boolean>>;
 }

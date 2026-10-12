@@ -4,6 +4,7 @@ import type {
   ActiveMembership,
   SourcedGrant,
   ResolvedAccessTargets,
+  BranchRequestAccess,
 } from '../../ports/access-reader.port.ts';
 
 /**
@@ -33,7 +34,7 @@ const asUuid = (value: unknown): string | null =>
   typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : null;
 
 // Authorizes one request for a user (ADR-0003 §4, path A): company membership first, then the permission at the target.
-export class AuthorizeRequest {
+export class AuthorizeRequest implements BranchRequestAccess {
   readonly #reader: AccessReader;
 
   constructor(reader: AccessReader) {
@@ -63,6 +64,33 @@ export class AuthorizeRequest {
     )
       return null;
     return { companyId, memberships: access.memberships, grants: access.grants };
+  }
+
+  /** يفوّض فروع الصفحة بنفس تقييم الطلب المفرد بعد تأكيد الشركة مرة واحدة وقراءة المنح مرة واحدة. */
+  async executeBranches(
+    input: Parameters<BranchRequestAccess['executeBranches']>[0],
+  ): ReturnType<BranchRequestAccess['executeBranches']> {
+    const allowed = new Map<string, boolean>();
+    const branchIds = [...new Set(input.branchParams.map(asUuid).filter((id) => id !== null))];
+    for (const branchId of branchIds) allowed.set(branchId, false);
+    const companyId = asUuid(input.requestedCompany);
+    if (companyId === null || branchIds.length === 0) return allowed;
+    if (!(await this.#reader.companiesOf(input.userId)).includes(companyId)) return allowed;
+    const businesses = await this.#reader.businessesOfBranches(companyId, branchIds);
+    if (businesses.size === 0) return allowed;
+    const access = await this.#reader.accessIn(companyId, input.userId);
+    for (const [branchId, businessId] of businesses) {
+      allowed.set(
+        branchId,
+        permissionPossessionFailure(
+          access.grants,
+          input.permission,
+          { companyId, businessId, branchId },
+          [],
+        ) === null,
+      );
+    }
+    return allowed;
   }
 
   async #target(

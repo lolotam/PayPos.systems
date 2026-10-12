@@ -22,6 +22,7 @@ export interface AttendanceChangeReadAccess {
     member?: boolean;
     canDecide: boolean;
     canDecideAny: boolean;
+    requestBranches: string[];
     decideBranches: string[];
     branches: string[];
   } | null>;
@@ -113,6 +114,9 @@ export async function listAttendanceChangeRequests(
   const last = items.at(-1);
   return {
     can_decide_any: access.canDecideAny,
+    can_request:
+      query.branch_id !== undefined &&
+      access.requestBranches.includes(query.branch_id.toLowerCase()),
     items,
     next_cursor:
       rows.length > query.limit && last
