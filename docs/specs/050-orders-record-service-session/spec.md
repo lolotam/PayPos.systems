@@ -289,7 +289,8 @@ shape/EXPLAIN tests. It is not part of 35a.
 
 ## 9. Pure domain functions and tests
 
-orders/domain owns lineNet, discountFromPercent, effectiveDiscountBps (local copy per ADR-0035/0041),
+lineNet and discountFromPercent live in packages/domain (35c-1; orders/domain keeps thin wrappers that map errors to
+SESSION_DISCOUNT_INVALID); orders/domain owns effectiveDiscountBps (local copy per ADR-0035/0041),
 partitionDiscountLines, authorized minimum-net/max-discount display calculation, equalShares, validateShares,
 sessionTime/isLateEntry, performerWarnings/self rule and sessionTotal. Arabic JSDoc and exhaustive no-DB tests.
 Use shared Money/roundKwd; never import identity domain or move RBAC execution into shared kernel.
