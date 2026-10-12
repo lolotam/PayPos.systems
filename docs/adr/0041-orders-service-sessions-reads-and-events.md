@@ -284,6 +284,20 @@ uses saved names/amounts/warnings and emits no phone, limits or commission input
 line; disjoint header-late/append-late arms allow the existing partial indexes. The versioned base64url cursor
 binds company/business/branch/date/filter and preserves PostgreSQL microseconds. It never supplies authority.
 
+## Addendum 2026-10-13 — 35c-1 shared discount money operations
+
+`packages/domain/discount-money.ts` exports `lineNet(price, discount)` and `discountFromPercent(price, bps)`
+through the package index so browser and API callers use one implementation. Money stays bigint mills within
+numeric(14,3); prices/discounts are nonnegative, discount cannot exceed price, and percent is integer 0…10000 bps.
+Percent discount uses `roundKwd` half-up once per line. Generic invalid money types raise TypeError; invalid
+ranges/discounts/percent raise RangeError. Orders' existing wrappers map both to SESSION_DISCOUNT_INVALID;
+sessionTotal keeps SESSION_TOTAL_TOO_LARGE for invalid nets or sum overflow. Recording behavior is unchanged.
+
+This extraction does not move effectiveDiscountBps, authorizedDiscountAmounts, partitioning or limit resolution:
+§3's authority ceiling remains orders-owned. Independent fixed numeric/error fixtures cover the shared helpers
+and orders wrappers, including 7.125 × 10% = 0.713, net 6.412, effective 1001 bps at a 1000-bps limit.
+No dependency, module arrow, contract, write path or event format changes.
+
 ## Consequences
 
 35a creates no commission/rating/notification projection and has no statement-status read. It introduces narrow

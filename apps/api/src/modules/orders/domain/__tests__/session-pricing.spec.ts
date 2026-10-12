@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MONEY_MAX, parseMoney } from '@pospay/domain';
 import { appendOrdinals, authorizedDiscountAmounts, discountFromPercent, effectiveDiscountBps, lineNet, partitionDiscountLines, sessionTotal } from '../session-pricing.ts';
 import type { PreparedSessionLine } from '../session-types.ts';
+import { SessionError } from '../session-error.ts';
 
 describe('service session money: independent expected mills', () => {
   it.each([[0n, 0n, 0n], [25000n, 2500n, 22500n], [MONEY_MAX, MONEY_MAX, 0n], [MONEY_MAX, 0n, MONEY_MAX]])('net %s less %s = %s', (price, discount, net) => expect(lineNet(price, discount)).toBe(net));
@@ -32,5 +33,56 @@ describe('service session money: independent expected mills', () => {
     expect(appendOrdinals([1,3],1)).toEqual([4]);
     expect(() => appendOrdinals(Array.from({ length: 19 }, (_,i) => i+1), 2)).toThrow('SESSION_LINE_CAPACITY_EXCEEDED');
     expect(() => appendOrdinals([], 0)).toThrow('SESSION_LINE_CAPACITY_EXCEEDED');
+  });
+});
+
+describe('shared-money wrapper regression: independent numeric and error expectations', () => {
+  it.each([
+    [0n, 10000, 0n, 0n],
+    [1n, 4999, 0n, 1n], [1n, 5000, 1n, 0n], [1n, 5001, 1n, 0n],
+    [7125n, 1000, 713n, 6412n],
+    [MONEY_MAX, 1, 10_000_000_000n, 99_989_999_999_999n],
+    [MONEY_MAX, 9999, 99_989_999_999_999n, 10_000_000_000n],
+    [MONEY_MAX, 10000, MONEY_MAX, 0n],
+  ])('price %s at %s bps stores discount %s/net %s', (price, bps, discount, net) => {
+    expect(discountFromPercent(price, bps)).toBe(discount);
+    expect(lineNet(price, discount)).toBe(net);
+  });
+
+  it.each([
+    [-1n, 0n], [0n, -1n], [0n, 1n],
+    [MONEY_MAX, MONEY_MAX + 1n], [-MONEY_MAX - 1n, 0n], [0n, -MONEY_MAX - 1n],
+  ])('keeps SessionError for invalid net amounts %s/%s', (price, discount) => {
+    expect(() => lineNet(price, discount)).toThrow(SessionError);
+    expect(() => lineNet(price, discount)).toThrow(expect.objectContaining({ code: 'SESSION_DISCOUNT_INVALID' }));
+  });
+
+  it.each([0, '0.000', null, undefined])('maps runtime money type errors %s', (value) => {
+    const invalid = value as unknown as bigint;
+    for (const compute of [() => lineNet(invalid, 0n), () => lineNet(1000n, invalid), () => discountFromPercent(invalid, 0)]) {
+      expect(compute).toThrow(SessionError);
+      expect(compute).toThrow(expect.objectContaining({ code: 'SESSION_DISCOUNT_INVALID' }));
+    }
+  });
+
+  it.each([-Infinity, Infinity, '1000', 1000n, null, undefined])('maps invalid percent %s without coercion', (value) => {
+    const compute = () => discountFromPercent(0n, value as unknown as number);
+    expect(compute).toThrow(SessionError);
+    expect(compute).toThrow(expect.objectContaining({ code: 'SESSION_DISCOUNT_INVALID' }));
+  });
+
+  it.each([-1n, MONEY_MAX + 1n])('maps invalid price %s before percent calculation', (price) => {
+    expect(() => discountFromPercent(price, 0)).toThrow(SessionError);
+    expect(() => discountFromPercent(price, 0)).toThrow(expect.objectContaining({ code: 'SESSION_DISCOUNT_INVALID' }));
+  });
+
+  it('retains authority ceiling and whole-visit overflow errors', () => {
+    const discount = discountFromPercent(7125n, 1000);
+    expect(effectiveDiscountBps(7125n, lineNet(7125n, discount))).toBe(1001);
+    expect(authorizedDiscountAmounts(7125n, 7125n, 1000)).toEqual({ minimum_net: 6413n, max_discount_amount: 712n });
+    expect(sessionTotal([])).toBe(0n);
+    expect(() => sessionTotal([MONEY_MAX, 1n])).toThrow(SessionError);
+    expect(() => sessionTotal([MONEY_MAX, 1n])).toThrow(expect.objectContaining({ code: 'SESSION_TOTAL_TOO_LARGE' }));
+    expect(() => sessionTotal([0 as unknown as bigint])).toThrow(expect.objectContaining({ code: 'SESSION_TOTAL_TOO_LARGE' }));
   });
 });

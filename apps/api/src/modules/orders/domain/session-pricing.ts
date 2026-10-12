@@ -1,30 +1,30 @@
-import { assertMoney, roundKwd, sumMoney } from '@pospay/domain';
+import { lineNet as moneyLineNet, discountFromPercent as moneyDiscountFromPercent, sumMoney } from '@pospay/domain';
 import { SessionError } from './session-error.ts';
 import type { PreparedSessionLine, SessionLimit } from './session-types.ts';
 
 /**
  * يحسب صافي البند ويمنع الخصم الأكبر من السعر قبل أي حفظ.
+ * يستخدم حساب المال المشترك ويحول رفضه إلى رمز الجلسة الثابت للعميل.
  *
  * @param price السعر المدخل بالفلس
  * @param discount مبلغ الخصم بالفلس
  * @returns الصافي الصحيح بالفلس
  */
 export function lineNet(price: bigint, discount: bigint): bigint {
-  try { assertMoney(price); assertMoney(discount); } catch { throw new SessionError('SESSION_DISCOUNT_INVALID'); }
-  if (price < 0n || discount < 0n || discount > price) throw new SessionError('SESSION_DISCOUNT_INVALID');
-  return price - discount;
+  try { return moneyLineNet(price, discount); }
+  catch { throw new SessionError('SESSION_DISCOUNT_INVALID'); }
 }
 /**
  * يقرب مبلغ الخصم نصفياً لأعلى؛ لا يخفضه لإدخاله في حد الشخص.
+ * يستخدم نفس دالة المتصفح ويحتفظ برمز رفض الخصم الخاص بالجلسة.
  *
  * @param price السعر بالفلس
  * @param bps النسبة بوحدات أساس
  * @returns الخصم بالفلس بعد تقريب SS-Q5
  */
 export function discountFromPercent(price: bigint, bps: number): bigint {
-  lineNet(price, 0n);
-  if (!Number.isInteger(bps) || bps < 0 || bps > 10000) throw new SessionError('SESSION_DISCOUNT_INVALID');
-  return roundKwd(price * BigInt(bps), 10000n);
+  try { return moneyDiscountFromPercent(price, bps); }
+  catch { throw new SessionError('SESSION_DISCOUNT_INVALID'); }
 }
 /**
  * يحتسب تخفيض السعر أيضاً؛ كسر أعلى من السلطة يرفض بالتقريب لأعلى حسب D-56.
