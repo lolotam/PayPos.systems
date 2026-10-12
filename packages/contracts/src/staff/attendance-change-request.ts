@@ -120,6 +120,7 @@ export const attendanceChangeListItem = attendanceChangeRequest.extend({
 });
 export const attendanceChangeRequestPage = z
   .strictObject({
+    can_decide_any: z.boolean(),
     items: z.array(attendanceChangeListItem),
     next_cursor: z.string().nullable(),
   })

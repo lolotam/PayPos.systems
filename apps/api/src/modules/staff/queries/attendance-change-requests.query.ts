@@ -111,6 +111,7 @@ export async function listAttendanceChangeRequests(
   const items = rows.slice(0, query.limit).map((r) => r.record);
   const last = items.at(-1);
   return {
+    can_decide_any: access.canDecide,
     items,
     next_cursor:
       rows.length > query.limit && last

@@ -83,7 +83,9 @@ it('approves a void, requests restore, then approves restore and refreshes witho
     session_revision: 4,
     session_state: { voided: true, void_request_id: boardId, restore_pending: true },
   };
-  api.GET.mockImplementation(async () => ({ data: { items: rows, next_cursor: null } }));
+  api.GET.mockImplementation(async () => ({
+    data: { can_decide_any: true, items: rows, next_cursor: null },
+  }));
   api.POST.mockImplementation(async (path) => {
     if (!path.endsWith('/decide')) {
       rows = [{ ...approvedVoid, session_state: pendingRestore.session_state }, pendingRestore];
@@ -119,7 +121,7 @@ it('approves a void, requests restore, then approves restore and refreshes witho
   await approveRequest();
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(api.POST).toHaveBeenCalledTimes(3);
-  expect(api.GET).toHaveBeenCalledTimes(4);
+  expect(api.GET).toHaveBeenCalledTimes(8);
   expect(screen.queryByRole('button', { name: t('en', 'attendanceActions.restore') })).toBeNull();
   expect(screen.queryByRole('button', { name: t('en', 'attendanceActions.approve') })).toBeNull();
   view.unmount();

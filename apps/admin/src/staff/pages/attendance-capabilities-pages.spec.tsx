@@ -67,6 +67,7 @@ beforeEach(() => {
     ];
     return {
       data: {
+        can_decide_any: grants.decide,
         items: rows.filter(
           (row) =>
             !options.params.query.branch_id || row.branch_id === options.params.query.branch_id,
@@ -186,7 +187,7 @@ it('owner has all write capabilities and starts with an inbox across both branch
     ).toHaveLength(2),
   );
   const calls = api.GET.mock.calls.filter(([path]) => path.endsWith('attendance-change-requests'));
-  expect(calls).toHaveLength(1);
+  expect(calls).toHaveLength(2);
   expect(calls[0]?.[1].params.query).not.toHaveProperty('branch_id');
   fireEvent.change(screen.getByLabelText(t('en', 'attendanceBoard.branch')), {
     target: { value: boardId },

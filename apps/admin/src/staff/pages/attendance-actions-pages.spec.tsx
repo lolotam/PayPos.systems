@@ -178,6 +178,7 @@ it('pages requests, displays actor names and follows server action flags', async
   api.GET.mockImplementation(async (_path, options) => ({
     data: options.params.query.cursor
       ? {
+          can_decide_any: true,
           items: [
             requestPage.items[0],
             {
@@ -208,6 +209,7 @@ it('pages requests, displays actor names and follows server action flags', async
 it('starts restore from an approved void and sends the post-void revision', async () => {
   api.GET.mockResolvedValue({
     data: {
+      can_decide_any: true,
       items: [
         {
           ...requestPage.items[0],

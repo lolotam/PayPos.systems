@@ -31,6 +31,7 @@ it.each(cases)(
     const decidedAt = '2026-10-11T02:45:00Z';
     api.GET.mockResolvedValue({
       data: {
+        can_decide_any: true,
         items: [
           {
             ...requestPage.items[0],

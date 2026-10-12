@@ -12578,6 +12578,9 @@
       "AttendanceChangeRequestPage": {
         "type": "object",
         "properties": {
+          "can_decide_any": {
+            "type": "boolean"
+          },
           "items": {
             "type": "array",
             "items": {
@@ -12829,6 +12832,7 @@
           }
         },
         "required": [
+          "can_decide_any",
           "items",
           "next_cursor"
         ],

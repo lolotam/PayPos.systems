@@ -15,6 +15,7 @@ import {
   listAttendanceChangeRequests,
 } from '../queries/attendance-change-requests.query.ts';
 import { actorEmployee } from './attendance-actions-read.fixture.ts';
+import { leaveIds } from './leave.fixture.ts';
 
 let f: ChangeFixture;
 beforeAll(async () => {
@@ -45,6 +46,12 @@ const page = (query: AttendanceChangeListQuery, userId = f.owner) =>
 
 it('projects the contract and paginates tied timestamps in descending id order', async () => {
   const first = attendanceChangeRequestPage.parse(await page({ limit: 2 }));
+  expect(first.can_decide_any).toBe(true);
+  expect(attendanceChangeRequestPage.parse(await page({ limit: 1, status: 'REJECTED' }))).toEqual({
+    can_decide_any: true,
+    items: [],
+    next_cursor: null,
+  });
   expect(first.items).toHaveLength(2);
   expect(first.items.every((r) => r.can_decide && !r.can_cancel)).toBe(true);
   expect(first.items[0]?.employee).toMatchObject({
@@ -68,6 +75,7 @@ it('projects the contract and paginates tied timestamps in descending id order',
 it('scopes branch managers and projects requester cancellation independently from owner decision', async () => {
   await asRole(f, 'branch_manager');
   const result = attendanceChangeRequestPage.parse(await page({ limit: 50 }, f.approverId));
+  expect(result.can_decide_any).toBe(false);
   expect(result.items).toHaveLength(4);
   expect(result.items.every((r) => !r.can_decide && r.can_cancel)).toBe(true);
   const own = attendanceChangeRequestPage.parse(
@@ -107,6 +115,42 @@ it('the HTTP list uses the same access policy and contract', async () => {
   });
   expect(response.statusCode).toBe(200);
   expect(attendanceChangeRequestPage.parse(response.json()).items).toHaveLength(2);
+});
+it('decide-only access remains visible in an empty requests page while board capabilities return 404', async () => {
+  await asRole(f, 'accountant');
+  const overrides = [
+    ['decide:attendance-change:company', 'ALLOW'],
+    ['read:attendance:branch', 'DENY'],
+  ] as const;
+  const ids = overrides.map(() => leaveIds.newId());
+  try {
+    for (const [index, [permission, effect]] of overrides.entries())
+      await f.h
+        .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+        VALUES(${f.company},${ids[index] as string},${f.approverMember},${permission},${effect},'COMPANY',${f.company},'Synthetic inbox access',${f.owner})`;
+    const headers = { cookie: f.approverCookie, 'x-company-id': f.company };
+    const board = await f.h.app.inject({
+      method: 'GET',
+      url: `/v1/businesses/${f.business}/branches/${f.branch}/attendance-capabilities`,
+      headers,
+    });
+    expect(board.statusCode).toBe(404);
+    const response = await f.h.app.inject({
+      method: 'GET',
+      url: `/v1/businesses/${f.business}/attendance-change-requests?status=REJECTED&limit=1`,
+      headers,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(attendanceChangeRequestPage.parse(response.json())).toEqual({
+      can_decide_any: true,
+      items: [],
+      next_cursor: null,
+    });
+  } finally {
+    for (const id of ids)
+      await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${id}`;
+    await asRole(f, 'business_manager');
+  }
 });
 it('list actor names resolve across businesses, and missing employee names stay null beside their ids', async () => {
   const initial = attendanceChangeRequestPage.parse(await page({ limit: 50 }));
