@@ -252,5 +252,5 @@ recommended; option 2 retains separate broader read grants. No approval is infer
 Only the Claude Code orchestrator publishes a new numbered batch on the existing owner page and mirrors answers.
 SS-Q12 (35b-1 history read) is answered and merged separately; no new offline decision is pending.
 
-This design delivers a plan and the unanswered question only. It does not implement the conditional endpoints,
-alter current permissions, publish the owner page, or claim any implementation test has passed.
+This design delivers the plan; SS-Q13 is answered (option 1) and 35c-2…4 implement its limited reads. 35c-1 ships the
+shared money helpers with this plan.
