@@ -79,6 +79,54 @@ it('loads another names page without submitting the manual-day form', async () =
   expect(test.save).not.toHaveBeenCalled();
   test.close();
 });
+it.each([
+  ['Asia/Kuwait', '2026-10-11T00:30', '2026-10-11T21:00', '2026-10-12T00:30'],
+  ['America/New_York', '2026-07-12T23:30', '2026-07-12T22:00', '2026-07-13T23:30'],
+])(
+  'queries the chosen local date in %s, preserves eligible selection and clears an absent employee',
+  async (timezone, first, same, next) => {
+    api.GET.mockResolvedValue({ data: employeesFixture });
+    const test = attendanceTestClient();
+    const view = render(
+      <AttendanceManualForm
+        scope={boardScope}
+        timezone={timezone}
+        pending={false}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+      />,
+      { wrapper: test.wrapper },
+    );
+    await screen.findByRole('option', { name: 'Synthetic employee' });
+    const clockIn = screen.getByLabelText(t('en', 'attendanceBoard.clockIn'));
+    const employee = screen.getByLabelText(
+      t('en', 'attendanceBoard.employee'),
+    ) as HTMLSelectElement;
+    fireEvent.change(clockIn, { target: { value: first } });
+    await waitFor(() =>
+      expect(api.GET.mock.calls.at(-1)?.[1].params.query.date).toBe(first.slice(0, 10)),
+    );
+    await screen.findByRole('option', { name: 'Synthetic employee' });
+    fireEvent.change(employee, { target: { value: otherBoardId } });
+    const count = api.GET.mock.calls.length;
+    fireEvent.change(clockIn, { target: { value: same } });
+    expect(api.GET).toHaveBeenCalledTimes(count);
+    expect(employee.value).toBe(otherBoardId);
+    fireEvent.change(clockIn, { target: { value: next } });
+    await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(count + 1));
+    await screen.findByRole('option', { name: 'Synthetic employee' });
+    expect(employee.value).toBe(otherBoardId);
+    api.GET.mockResolvedValue({
+      data: { items: [{ id: boardId, name_ar: null, name_en: 'New employee' }], next_cursor: null },
+    });
+    fireEvent.change(clockIn, { target: { value: first } });
+    await screen.findByRole('option', { name: 'New employee' });
+    await waitFor(() => expect(employee.value).toBe(''));
+    expect(api.GET.mock.calls.at(-1)?.[1].params.query.date).toBe(first.slice(0, 10));
+    view.unmount();
+    test.client.clear();
+  },
+);
 it.each(['NOT_FOUND', 'FORBIDDEN', 'FEATURE_DISABLED'] as const)(
   'shows %s and retries without submitting',
   async (code) => {

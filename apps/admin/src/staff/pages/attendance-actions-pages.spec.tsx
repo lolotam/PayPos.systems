@@ -205,6 +205,7 @@ it('starts restore from an approved void and sends the post-void revision', asyn
         {
           ...requestPage.items[0],
           status: 'APPROVED',
+          session_state: { voided: true, void_request_id: boardId, restore_pending: false },
           can_decide: false,
           can_cancel: false,
           decided_by: otherBoardId,

@@ -30,7 +30,7 @@ export function AttendanceManualEditor({
         onClose={onClose}
         onSave={(input) => request.mutate(input, { onSuccess: onClose })}
       />
-      <AttendanceActionFeedback error={request.error} />
+      <AttendanceActionFeedback error={request.error} write />
     </AttendanceActionDialog>
   );
 }

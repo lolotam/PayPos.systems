@@ -7,11 +7,13 @@ export function AttendanceActionFeedback({
   error,
   loading = false,
   saved = false,
+  write = false,
   onRetry,
 }: {
   error?: unknown;
   loading?: boolean;
   saved?: boolean;
+  write?: boolean;
   onRetry?: () => void;
 }) {
   const locale = useLocale();
@@ -19,7 +21,7 @@ export function AttendanceActionFeedback({
   if (error)
     return (
       <div role="alert" className="flex flex-wrap items-center gap-2">
-        <p>{attendanceActionError(error, locale)}</p>
+        <p>{attendanceActionError(error, locale, write)}</p>
         {onRetry ? (
           <Button type="button" variant="outline" onClick={onRetry}>
             {t(locale, 'attendanceBoard.retry')}

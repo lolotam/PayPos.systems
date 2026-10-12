@@ -62,7 +62,7 @@ export function AttendanceSessionEditor({
           }
         />
       )}
-      <AttendanceActionFeedback error={mutation.error} />
+      <AttendanceActionFeedback error={mutation.error} write />
     </AttendanceActionDialog>
   );
 }

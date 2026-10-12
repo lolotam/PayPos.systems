@@ -1,8 +1,9 @@
 'use client';
 import { attendanceMonthlyReportQuery } from '@pospay/contracts';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { apiClient } from '@/shared/api/client';
+import { boardAccessLost } from '../model/attendance-board-display';
 import { downloadAttendanceCsv } from './download-attendance-csv';
 import type { AttendanceReportScope } from './use-attendance-report';
 
@@ -21,6 +22,16 @@ async function csvError(error: unknown, status: number) {
     status,
   };
 }
+async function resetAttendanceReportsOnAccessLoss(
+  client: QueryClient,
+  scope: AttendanceReportScope,
+  error: unknown,
+) {
+  if (!boardAccessLost(error)) return;
+  const queryKey = ['attendance-report', scope.companyId, scope.businessId, scope.userId];
+  await client.cancelQueries({ queryKey });
+  void client.resetQueries({ queryKey });
+}
 
 export function useAttendanceReportCsv(
   scope: AttendanceReportScope,
@@ -35,6 +46,7 @@ export function useAttendanceReportCsv(
     mutationKey: ['attendance-report-csv', companyId, businessId, userId, branchId, month],
     gcTime: 0,
     retry: false,
+    onError: (error) => resetAttendanceReportsOnAccessLoss(client, scope, error),
     mutationFn: async () => {
       controller.current?.abort();
       const request = new AbortController();

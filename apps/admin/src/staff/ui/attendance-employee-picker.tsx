@@ -1,8 +1,8 @@
 'use client';
-import type { AttendanceChangeRequestInput } from '@pospay/contracts';
+import type { AttendanceChangeRequestInput, AttendanceEmployeePage } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Input, Label, NativeSelect } from '@pospay/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { UseFormRegister } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
@@ -13,15 +13,38 @@ import { AttendanceActionFeedback } from './attendance-action-feedback';
 import { AttendanceActionPagination } from './attendance-action-pagination';
 type Props = {
   scope: AttendanceBoardScope;
+  date: string | undefined;
   register: UseFormRegister<AttendanceChangeRequestInput>;
   employeeId: string;
   onSearchChanged: () => void;
 };
-export function AttendanceEmployeePicker({ scope, register, employeeId, onSearchChanged }: Props) {
+function useAttendanceEmployeeSelection(
+  employeeId: string,
+  pages: AttendanceEmployeePage[] | undefined,
+  error: unknown,
+  onClear: () => void,
+) {
+  useEffect(() => {
+    if (
+      employeeId &&
+      (boardAccessLost(error) ||
+        (pages && !attendancePages(pages).some((row) => row.id === employeeId)))
+    )
+      onClear();
+  }, [pages, error, employeeId, onClear]);
+}
+export function AttendanceEmployeePicker({
+  scope,
+  date,
+  register,
+  employeeId,
+  onSearchChanged,
+}: Props) {
   const locale = useLocale();
   const [search, setSearch] = useState('');
-  const query = useAttendanceEmployees(scope, search);
+  const query = useAttendanceEmployees(scope, search, date);
   const items = boardAccessLost(query.error) ? [] : attendancePages(query.data?.pages);
+  useAttendanceEmployeeSelection(employeeId, query.data?.pages, query.error, onSearchChanged);
   return (
     <div className="grid gap-2">
       <Label htmlFor="manual-employee-search">

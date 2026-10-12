@@ -5,11 +5,11 @@ import { apiClient } from '@/shared/api/client';
 import { useAttendanceActionScope } from './use-attendance-action-scope';
 import { attendanceActionKey, attendanceActionParams } from './use-attendance-actions-read';
 import type { AttendanceBoardScope } from './use-attendance-board';
-export function useAttendanceEmployees(scope: AttendanceBoardScope, search = '') {
+export function useAttendanceEmployees(scope: AttendanceBoardScope, search = '', date?: string) {
   useAttendanceActionScope(scope, 'employees');
   const term = search.trim();
   return useInfiniteQuery({
-    queryKey: [...attendanceActionKey(scope), 'employees', term],
+    queryKey: [...attendanceActionKey(scope), 'employees', term, date],
     retry: false,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page: AttendanceEmployeePage) => page.next_cursor ?? undefined,
@@ -19,7 +19,12 @@ export function useAttendanceEmployees(scope: AttendanceBoardScope, search = '')
         {
           params: {
             ...attendanceActionParams(scope),
-            query: { limit: 50, search: term, ...(pageParam ? { cursor: pageParam } : {}) },
+            query: {
+              limit: 50,
+              search: term,
+              ...(date ? { date } : {}),
+              ...(pageParam ? { cursor: pageParam } : {}),
+            },
           },
           signal,
         },

@@ -2,7 +2,10 @@
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
-import type { AttendanceRequestRow } from '../model/attendance-action-display';
+import {
+  canRestoreAttendance,
+  type AttendanceRequestRow,
+} from '../model/attendance-action-display';
 export type RequestAction = 'approve' | 'reject' | 'withdraw' | 'restore';
 export function AttendanceRequestRowActions({
   row,
@@ -29,10 +32,7 @@ export function AttendanceRequestRowActions({
           {t(locale, 'attendanceActions.withdraw')}
         </Button>
       ) : null}
-      {row.kind === 'VOID_SESSION' &&
-      row.status === 'APPROVED' &&
-      row.session_id &&
-      row.session_revision !== null ? (
+      {canRestoreAttendance(row) ? (
         <Button variant="outline" onClick={() => onAction(row, 'restore')}>
           {t(locale, 'attendanceActions.restore')}
         </Button>

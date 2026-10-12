@@ -39,7 +39,7 @@ export function AttendanceExceptionEditor({
         onClose={onClose}
         onSave={(input) => exception.mutate({ id: row.id, action, input }, { onSuccess: onClose })}
       />
-      <AttendanceActionFeedback error={exception.error} />
+      <AttendanceActionFeedback error={exception.error} write />
     </AttendanceActionDialog>
   );
 }

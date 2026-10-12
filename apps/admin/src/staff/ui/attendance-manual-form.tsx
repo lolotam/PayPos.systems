@@ -1,7 +1,7 @@
 'use client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { attendanceChangeRequestInput, type AttendanceChangeRequestInput } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import { localDate, t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
 import { useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -21,6 +21,8 @@ export function AttendanceManualForm({ scope, timezone, pending, onSave, onClose
     resolver: zodResolver(attendanceChangeRequestInput),
     defaultValues: { kind: 'ADD_SESSION', employee_id: '', branch_id: scope.branchId, reason: '' },
   });
+  const clockIn = form.watch('clock_in');
+  const date = clockIn ? localDate(new Date(clockIn), timezone) : undefined;
   return (
     <form onSubmit={form.handleSubmit(onSave)} className="flex flex-col gap-3">
       <p>{t(locale, 'attendanceActions.manualHint')}</p>
@@ -30,6 +32,7 @@ export function AttendanceManualForm({ scope, timezone, pending, onSave, onClose
       <fieldset disabled={pending} className="flex flex-col gap-3">
         <AttendanceEmployeePicker
           scope={scope}
+          date={date}
           register={form.register}
           employeeId={form.watch('employee_id')}
           onSearchChanged={() => form.setValue('employee_id', '', { shouldValidate: false })}

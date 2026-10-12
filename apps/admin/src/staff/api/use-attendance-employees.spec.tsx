@@ -79,11 +79,46 @@ it.each(['companyId', 'businessId', 'branchId', 'userId'] as const)(
       scope.userId,
       'employees',
       '',
+      undefined,
     ]);
     hook.unmount();
     test.client.clear();
   },
 );
+it('restarts pagination and isolates the employee list when the chosen date changes', async () => {
+  api.GET.mockResolvedValue({ data: { ...employeesFixture, next_cursor: cursor } });
+  const test = attendanceTestClient();
+  const hook = renderHook(({ date }) => useAttendanceEmployees(boardScope, '', date), {
+    initialProps: { date: '2026-10-10' },
+    wrapper: test.wrapper,
+  });
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+  await act(() => hook.result.current.fetchNextPage());
+  expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({
+    limit: 50,
+    search: '',
+    date: '2026-10-10',
+    cursor,
+  });
+  api.GET.mockResolvedValue({ data: { items: [], next_cursor: null } });
+  hook.rerender({ date: '2026-10-11' });
+  await waitFor(() => expect(hook.result.current.data?.pages[0]?.items).toEqual([]));
+  expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({
+    limit: 50,
+    search: '',
+    date: '2026-10-11',
+  });
+  expect(hook.result.current.hasNextPage).toBe(false);
+  expect(
+    test.client
+      .getQueryCache()
+      .getAll()
+      .map((query) => query.queryKey.at(-1)),
+  ).toEqual(['2026-10-10', '2026-10-11']);
+  hook.unmount();
+  expect(test.client.getQueryCache().getAll()).toHaveLength(0);
+  test.client.clear();
+});
 it.each(['NOT_FOUND', 'FORBIDDEN', 'FEATURE_DISABLED'])(
   'preserves %s and its HTTP status for the picker',
   async (code) => {

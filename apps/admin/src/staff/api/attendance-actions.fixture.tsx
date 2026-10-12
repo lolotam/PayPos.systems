@@ -54,6 +54,7 @@ export const requestPage: AttendanceChangeRequestPage = {
       employee: { id: otherBoardId, name_ar: null, name_en: 'Synthetic employee' },
       session_id: boardId,
       session_revision: 3,
+      session_state: { voided: false, void_request_id: null, restore_pending: false },
       requested: {
         working_date: '2026-10-11',
         clock_in: '2026-10-10T21:30:00Z',
@@ -80,6 +81,7 @@ export const requestPage: AttendanceChangeRequestPage = {
 export const requestRecord = { ...requestPage.items[0] };
 delete (requestRecord as Record<string, unknown>).requested_by_name;
 delete (requestRecord as Record<string, unknown>).decided_by_name;
+delete (requestRecord as Record<string, unknown>).session_state;
 export const historyFixture: AttendanceCorrectionHistory = {
   items: [
     {
