@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { serviceSessionSchemas } from './orders/service-session.js';
+import { recordingContextSchemas } from './orders/recording-context.js';
+import { serviceSessionFormPaths } from './orders/service-session-form-openapi.js';
 import { serviceSessionDaySchemas } from './orders/service-session-day.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
 import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
@@ -160,8 +162,7 @@ const SCHEMAS = [
   customer,
   findOrCreateCustomerInput,
   ...catalogSchemas,
-  ...serviceSessionSchemas,
-  ...serviceSessionDaySchemas,
+  ...serviceSessionSchemas, ...serviceSessionDaySchemas, ...recordingContextSchemas,
   attendanceQrToken,
   attendanceQrBranch,
   attendanceQrIssue,
@@ -259,6 +260,7 @@ const PATHS = {
   ...customerPaths,
   ...catalogPaths,
   ...serviceSessionPaths,
+  ...serviceSessionFormPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(

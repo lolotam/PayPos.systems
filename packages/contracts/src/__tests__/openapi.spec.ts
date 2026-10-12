@@ -4,6 +4,7 @@ import committed from '../../openapi/openapi.json' with { type: 'json' };
 import { buildOpenApiDocument } from '../openapi.js';
 
 const expectedSchemas = [
+  'RecordingContext', 'RecordingContextQuery', 'RecordingDiscountLimit',
   'SessionMoney', 'SessionPerformerInput', 'SessionLineInput', 'RecordServiceSessionInput',
   'AppendServiceSessionLinesInput', 'SessionPerformer', 'SavedServiceLine', 'ServiceSession',
   'RejectedServiceLine', 'RecordServiceSessionResponse', 'AppendServiceSessionLinesResponse',

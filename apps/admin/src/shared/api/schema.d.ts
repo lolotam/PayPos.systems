@@ -1502,6 +1502,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/recording-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Admin recording-form context under record:service-sessions:branch and orders feature (SS-Q13). Own active branch-covering memberships only. Sole or explicit selection resolves its fresh advisory discount limit; ambiguity returns null selection/limit. No wider read authority. */
+        get: operations["getServiceSessionRecordingContext"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices/me/attendance-qr": {
         parameters: {
             query?: never;
@@ -3695,6 +3712,43 @@ export interface components {
         ServiceSessionDayPage: {
             items: components["schemas"]["ServiceSessionDayItem"][];
             next_cursor: string | null;
+        };
+        RecordingContextQuery: {
+            /** Format: uuid */
+            recorder_membership_id?: string;
+        };
+        RecordingDiscountLimit: {
+            /** @enum {string} */
+            source: "OWNER";
+            /** @enum {string|null} */
+            bps: null;
+        } | {
+            /** @enum {string} */
+            source: "PERSON" | "BUSINESS";
+            bps: number;
+        } | {
+            /** @enum {string} */
+            source: "NOT_CONFIGURED";
+            /** @enum {number} */
+            bps: 0;
+        };
+        RecordingContext: {
+            /** Format: date-time */
+            generated_at: string;
+            business_timezone: string;
+            recorder_membership_ids: string[];
+            /** Format: uuid */
+            recorder_membership_id: string;
+            discount_limit: components["schemas"]["RecordingDiscountLimit"];
+        } | {
+            /** Format: date-time */
+            generated_at: string;
+            business_timezone: string;
+            recorder_membership_ids: string[];
+            /** @enum {string|null} */
+            recorder_membership_id: null;
+            /** @enum {string|null} */
+            discount_limit: null;
         };
         AttendanceQrToken: {
             /** Format: uuid */
@@ -9645,6 +9699,60 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceSessionRecordingContext: {
+        parameters: {
+            query?: {
+                recorder_membership_id?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own choices, business timezone and server instant; limit only after verified selection. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordingContext"];
+                };
+            };
+            /** @description Invalid strict query. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform scope/selection/permission refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;

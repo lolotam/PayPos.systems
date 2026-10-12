@@ -332,5 +332,6 @@ export {
   type AttendanceCapabilities,
 } from './staff/attendance-capabilities.js';
 export * from './orders/service-session.js';
+export * from './orders/recording-context.js';
 export * from './orders/service-session-day.js';
 export * from './orders/late-service-session-notice.js';

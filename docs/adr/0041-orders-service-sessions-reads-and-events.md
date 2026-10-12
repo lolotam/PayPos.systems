@@ -309,3 +309,19 @@ this ADR, spec 050 and its 35a plan; executable maps and phase-wide docs are syn
 35b delivers late visibility and bells, 35c the admin reception screen, 35d audited price/discount editing (SS-Q10
 option 2). Price edits do not land in 35a and need their own revision/concurrency and permission design. All owner
 questions SS-Q1–SS-Q11 are answered by Waleed, and Abu Salem agreed with every pick on 2026-10-12.
+
+## Addendum 2026-10-13 — 35c-2 own recording context
+
+SS-Q13 (Waleed, 2026-10-12, option 1, batch 16) authorizes the limited recording-form reads under
+record:service-sessions:branch alone. 35c-2 exposes only server generated_at, business_timezone,
+caller-owned active branch-covering recorder_membership_ids, verified recorder_membership_id and discount_limit.
+Multiple candidates without selection return null selection/limit; a sole candidate is selected automatically.
+OWNER has null bps, PERSON/BUSINESS retain explicit zero, and NOT_CONFIGURED displays zero. Foreign,
+inactive or out-of-scope selection is uniformly forbidden; no highest-limit choice or wider authority is added.
+
+The orders query receives read callbacks at orders.module.ts, reusing sessionPlace and the public identity/settings
+readers on one withTenant transaction. recording-context.adapter.ts calls readServiceSessionAccess and
+readEffectiveDiscountLimit; its two exact symbol/path entries reuse already approved import/port arrows.
+After settings' existing SHARE locks, identity authority/expiry/feature and active place are checked again at a
+fresh injected instant. This is advisory; POST still resolves its own fresh context. No new table, grant,
+write/event, service/performer picker or history access is added. Exact callback SQL gets EXPLAIN ANALYZE tests.

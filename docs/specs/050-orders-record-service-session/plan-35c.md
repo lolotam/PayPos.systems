@@ -59,7 +59,7 @@ to make this form work; do not import catalog/staff/permissions components or ho
 
 Per SS-Q13 option 1, add limited **recording-form** reads under the branch service-session resource:
 
-| Proposed GET suffix | Minimum result and purpose |
+| Authorized GET suffix | Minimum result and purpose |
 |---|---|
 | `/recording-context` | Server `generated_at`, business timezone, caller's eligible recorder membership IDs; after sole/explicit selection, that membership's limit `{bps:null\|0…10000,source:OWNER\|PERSON\|BUSINESS\|NOT_CONFIGURED}` |
 | `/service-options` | Cursor-paged service `id,name_ar,name_en,price,revision` from selected business; price is the list-price prefill, no commission rule/threshold data |
