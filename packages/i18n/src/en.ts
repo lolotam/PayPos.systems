@@ -1,5 +1,6 @@
 import { attendanceActionsEn, attendanceBoardEn, attendanceReportEn } from './attendance-actions-catalog.js';
 import { attendanceChangeEn } from './attendance-change.js';
+import { attendanceBoardEn } from './attendance-board-catalog.js';
 import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
