@@ -8,6 +8,10 @@
 same answers; on BW-Q5 Waleed then adopted the partner's pick (option 2, 2026-10-10), which adds the not-returned
 alert (User Story 4). Arabic questions and answers: [owner-questions.ar.md](owner-questions.ar.md).
 
+**16b-3 amendment:** Abu Salem's BW-Q10 pick, approved by Waleed on 2026-10-11, makes a return at any
+branch of the same business count. A return at another branch sends the departure managers a return
+notice instead of a missing-return alert. FR-010 lateness remains unchanged; see [16b-3.md](16b-3.md).
+
 **Input**: Phase 1 plan row **16b** (`docs/specs/phase-1/IMPLEMENTATION-PLAN.md:59`): "fixed break window per employee
 per shift (from–to) in schedules and templates". Depends on row 16 (spec 020, schedules + templates, merged). Source
 decision: owner review 2026-10-09, `docs/specs/phase-1/owner-review-2026-10-09.ar.md:74-78`, item **LR-Q1**.
@@ -189,8 +193,9 @@ injected clock past break end + 10 minutes, run the not-clocked-in job: one brea
   - A return clock-in counts from that clock-out up to the moment the job decides, so she is not alerted if she is
     back when the job runs. A notice already sent is never retracted (spec 036 NC-Q9).
   - The clock-out must be on the same shift and branch: a closed session she ended herself, at the shift's branch,
-    carrying this shift's end as its snapshot (the 16b-2 link). BW-Q10 (Waleed, 2026-10-10): the return must be at
-    the same branch she clocked out from, otherwise the alert fires.
+    carrying this shift's end as its snapshot (the 16b-2 link). BW-Q10 (Abu Salem, approved by Waleed,
+    2026-10-11): return at any branch of the same business counts; another branch gives the departure
+    managers a return notice instead of an absence alert. Same-branch return stays quiet.
   - Return lateness is unchanged by BW-Q11. Out at 12:55 and back at 14:05 is a return, measured from the break end
     (0 late), because a return needs only an earlier closed session on the shift.
   - Approved leave applies as in spec 036 (NC-Q6), anchored at the break end. Full-day leave → no alert. Leave
@@ -237,11 +242,13 @@ injected clock past break end + 10 minutes, run the not-clocked-in job: one brea
   (BW-Q8). This row exposes no hours figure itself; row 27 implements the figure.
 - **FR-012**: The admin schedule editor MUST show and round-trip the break, so saving a week without touching a break
   never erases it.
-- **FR-013** (BW-Q5 (2), BW-Q10, BW-Q11, 2026-10-10): when the employee clocked out inside her shift's scheduled break
+- **FR-013** (BW-Q5 (2), BW-Q10 amended 2026-10-11, BW-Q11): when the employee clocked out inside her shift's scheduled break
   (or up to 10 minutes before it starts) and has no
-  clock-in at the shift's branch after that clock-out by the break end + 10 minutes, the system MUST alert the managers
+  clock-in at any branch of the same business after that clock-out by the break end + 10 minutes, the system MUST alert the managers
   of the shift's branch once per shift. The recipients, channel, cadence, once-only protocol and audit are spec 036's
   (FR-005 … FR-010 there).
+  A return at another branch before the job decides MUST instead produce one `break_returned_other_branch`
+  in-app notice to the same departure-branch recipients. A same-branch return produces neither.
 - **FR-014**: The not-returned alert MUST NOT be raised when she never clocked out inside the break (BW-Q5: the
   option asks for an alert on a missing return only). It is also not raised when she is back before the job decides,
   when the shift has ended, when approved leave excuses her, or when she is no longer employed.
@@ -271,13 +278,15 @@ injected clock past break end + 10 minutes, run the not-clocked-in job: one brea
 - **BR-007** (BW-Q5 (2), BW-Q10, BW-Q11): the not-returned alert. Break-out = the latest `clock_out` in
   `[break_starts_at − 10 min, break_ends_at)` (BW-Q11) of a session with `status = 'CLOSED'`, the shift's branch and
   `scheduled_end = ends_at`. Alert moment = break end + 10 min, moved by approved leave as in spec 036 BR-002 with
-  the break end as the anchor. Returned = any session of hers at the branch with `clock_in` from the break-out up
-  to the decision instant (status `OPEN`, `CLOSED` or `MISSED_OUT`). Decision order:
+  the break end as the anchor. Returned = any session of hers with `clock_in` strictly after the break-out up
+  to the decision instant (status `OPEN`, `CLOSED` or `MISSED_OUT`, not voided), at any branch of the same
+  business (BW-Q10 amendment, 16b-3). The first such clock-in identifies the return branch. Decision order:
   1. `STALE` when now ≥ shift end or alert moment ≥ shift end;
   2. `INELIGIBLE` for a deleted employee or an ended contract;
   3. `NO_BREAK_OUT` when there is no break-out;
   4. `EXCUSED` by leave;
-  5. `RETURNED` when she came back;
+  5. `RETURNED` when she came back to the same branch; `RETURNED_OTHER_BRANCH` records the departure
+     managers' return notice when she came back at another branch;
   6. `WAIT` before the alert moment;
   7. otherwise `ALERT`.
 - **BR-008**: recipients, channel, cadence (every 5 minutes, in the same company job as spec 036) and the interim

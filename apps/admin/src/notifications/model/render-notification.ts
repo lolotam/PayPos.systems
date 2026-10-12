@@ -33,6 +33,10 @@ export function renderNotification(item: InAppNotification, viewerLocale?: Local
     const locale = viewerLocale ?? item.locale;
     return fill(t(locale, 'inApp.break_not_returned'), shiftValues(item.safe_parameters));
   }
+  if (item.template_key === 'break_returned_other_branch') {
+    const locale = viewerLocale ?? item.locale;
+    return fill(t(locale, 'inApp.break_returned_other_branch'), shiftValues(item.safe_parameters));
+  }
   return fill(
     t(item.locale, 'inApp.generic_notice'),
     Object.fromEntries(item.safe_parameters.map((parameter) => [parameter.name, parameter.value])),

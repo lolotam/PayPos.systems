@@ -15,6 +15,16 @@ export const genericNotice: TemplateDefinition = {
   copy: { ar: 'تحديث بخصوص {{subject}}', en: 'Update for {{subject}}' },
 };
 
+const breakReturnedOtherBranch: TemplateDefinition = {
+  ...breakNotReturned,
+  key: 'break_returned_other_branch',
+  parameters: breakNotReturned.parameters.filter((parameter) => parameter.name !== 'break_end'),
+  copy: {
+    ar: '{{employee_name_ar}} رجعت من البريك في فرع {{branch_name_ar}}',
+    en: '{{employee_name_en}} returned from the break at {{branch_name_en}}',
+  },
+};
+
 export function validInAppTemplate(
   key: string,
   revision: number,
@@ -26,6 +36,7 @@ export function validInAppTemplate(
       genericNotice,
       shiftNotClockedIn,
       breakNotReturned,
+      breakReturnedOtherBranch,
       attendanceChangeRequested,
       attendanceChangeDecided,
     ].find((item) => item.key === key) ?? null;

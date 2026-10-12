@@ -94,20 +94,21 @@ export function breakOutStatement(companyId: string, shift: LockedBreakShift, fr
       AND clock_out < ${shift.breakEndsAt.toISOString()}::timestamptz`;
 }
 
-// أي جلسة في فرع الوردية بدأت بعد خروج البريك ولحد لحظة القرار رجوع؛ الحالات معدودة عشان حالة جديدة ماتتحسبش رجوع.
+// BW-Q10: أول رجوع في نفس النشاط يحسم البريك؛ حدود يوم العمل تبقي فهرس الموظفة والتاريخ فعالاً عبر الفروع.
 export function returnedStatement(
   companyId: string,
   shift: LockedBreakShift,
   from: Date,
   to: Date,
 ) {
-  return sql`SELECT EXISTS (SELECT 1 FROM attendance_sessions
+  return sql`SELECT branch_id, clock_in FROM attendance_sessions
     WHERE company_id = ${companyId} AND employee_id = ${shift.employeeId}
       AND working_date BETWEEN ${dayAround(shift.startsAt, -1)}::date AND ${dayAround(shift.endsAt, 1)}::date
-      AND branch_id = ${shift.branchId} AND status IN ('OPEN', 'CLOSED', 'MISSED_OUT')
+      AND business_id = ${shift.businessId} AND status IN ('OPEN', 'CLOSED', 'MISSED_OUT')
       AND voided_at IS NULL
-      AND clock_in >= ${from.toISOString()}::timestamptz
-      AND clock_in <= ${to.toISOString()}::timestamptz) AS returned`;
+      AND clock_in > ${from.toISOString()}::timestamptz
+      AND clock_in <= ${to.toISOString()}::timestamptz
+    ORDER BY clock_in, id LIMIT 1`;
 }
 
 export function breakNotReturnedTransactions(
@@ -161,10 +162,13 @@ function locked(
       return row?.clock_out == null ? null : instant(row.clock_out);
     },
     returned: async (shift, from, to) => {
-      const [row] = await tx.execute<{ returned: boolean }>(
+      const [row] = await tx.execute<{ branch_id: string; clock_in: Moment }>(
         returnedStatement(companyId, shift, from, to),
       );
-      return row?.returned === true;
+      if (row === undefined) return null;
+      const place = await places.forBranch(tx, companyId, shift.businessId, row.branch_id);
+      if (place === null) throw new Error('ATTENDANCE_BREAK_RETURN_BRANCH_MISSING');
+      return { branchId: row.branch_id, clockIn: instant(row.clock_in), nameAr: place.nameAr, nameEn: place.nameEn };
     },
     managers: (businessId, branchId, roles) =>
       branchManagerRecipientsAdapter.forBranch(tx, companyId, businessId, branchId, at, roles),

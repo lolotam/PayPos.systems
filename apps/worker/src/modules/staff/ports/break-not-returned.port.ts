@@ -1,4 +1,4 @@
-import type { BreakNoticeParameter } from '../domain/break-not-returned.ts';
+import type { BreakNoticeParameter, BreakReturn } from '../domain/break-not-returned.ts';
 import type { LeaveInterval } from '../domain/not-clocked-in.ts';
 import type { LockedShift, NotClockedInCursor } from './not-clocked-in.port.ts';
 
@@ -15,8 +15,10 @@ export interface LockedBreakShift extends LockedShift {
   readonly breakEndsAt: Date | null;
 }
 
-/** ما يُكتب في دفتر المنع والحدث فقط عندما يدرج الصف لأول مرة. */
+/** نتيجة البريك في دفتر المنع والحدث؛ غياب أو رجوع لفرع آخر، ولا كتابة ثانية لنفس الوردية. */
 export interface BreakNoticeWrite {
+  readonly kind: 'break_not_returned' | 'break_returned_other_branch';
+  readonly returned: BreakReturn | null;
   readonly shift: LockedBreakShift;
   readonly breakEndsAt: Date;
   readonly breakOutAt: Date;
@@ -59,14 +61,14 @@ export interface LockedBreakNotReturned {
    */
   breakOut(shift: LockedBreakShift, from: Date): Promise<Date | null>;
   /**
-   * هل بصمت دخولاً في فرع الوردية بعد خروج البريك وحتى لحظة القرار، فيسقط التنبيه.
+   * أول دخول في أي فرع للنشاط بعد خروج البريك وحتى لحظة القرار، لإسقاط الغياب وتسمية فرع الرجوع.
    *
-   * @param shift الوردية وفرعها
+   * @param shift الوردية ونشاطها
    * @param from خروج البريك
    * @param to لحظة القرار
-   * @returns true لو رجعت
+   * @returns الرجوع وأسماء فرعه أو null إن لم ترجع
    */
-  returned(shift: LockedBreakShift, from: Date, to: Date): Promise<boolean>;
+  returned(shift: LockedBreakShift, from: Date, to: Date): Promise<BreakReturn | null>;
   /**
    * مستخدمو العضويات النشطة التي تغطي فرع الوردية بالأدوار المعطاة، كما في تنبيه عدم الحضور.
    *
@@ -81,7 +83,7 @@ export interface LockedBreakNotReturned {
     roles: readonly string[],
   ): Promise<readonly string[]>;
   /**
-   * يدرج دفتر المنع مرة واحدة مع التدقيق وحدث لكل مجموعة مستلمين لا تتجاوز مئة، في نفس المعاملة.
+   * يدرج نتيجة البريك مرة واحدة مع التدقيق وحدث لكل مجموعة مستلمين لا تتجاوز مئة، في نفس المعاملة.
    *
    * @param notice حقائق التنبيه والمستلمون
    * @returns true لو أُدرج الصف الآن
