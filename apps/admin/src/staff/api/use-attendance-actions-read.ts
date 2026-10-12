@@ -25,6 +25,10 @@ export function useAttendanceExceptions(scope: AttendanceBoardScope, status: 'OP
   return useInfiniteQuery({
     queryKey: [...attendanceActionKey(scope), 'exceptions', status],
     retry: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page: AttendanceExceptionPage) => page.next_cursor ?? undefined,
     queryFn: async ({ signal, pageParam }) => {
@@ -72,6 +76,10 @@ export function useAttendanceRequests(
   return useInfiniteQuery({
     queryKey: [...attendanceActionKey(scope), 'requests', status],
     retry: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page: AttendanceChangeRequestPage) => page.next_cursor ?? undefined,
     queryFn: async ({ signal, pageParam }) => {

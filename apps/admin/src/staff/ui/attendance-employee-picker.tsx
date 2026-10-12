@@ -1,13 +1,13 @@
 'use client';
-import type { AttendanceChangeRequestInput, AttendanceEmployeePage } from '@pospay/contracts';
+import type { AttendanceChangeRequestInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Input, Label, NativeSelect } from '@pospay/ui';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { UseFormRegister } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceEmployees } from '../api/use-attendance-employees';
-import { attendancePages } from '../model/attendance-action-display';
+import { useAttendanceEmployeeSelection } from '../model/use-attendance-employee-selection';
 import { boardAccessLost } from '../model/attendance-board-display';
 import { AttendanceActionFeedback } from './attendance-action-feedback';
 import { AttendanceActionPagination } from './attendance-action-pagination';
@@ -18,21 +18,6 @@ type Props = {
   employeeId: string;
   onSearchChanged: () => void;
 };
-function useAttendanceEmployeeSelection(
-  employeeId: string,
-  pages: AttendanceEmployeePage[] | undefined,
-  error: unknown,
-  onClear: () => void,
-) {
-  useEffect(() => {
-    if (
-      employeeId &&
-      (boardAccessLost(error) ||
-        (pages && !attendancePages(pages).some((row) => row.id === employeeId)))
-    )
-      onClear();
-  }, [pages, error, employeeId, onClear]);
-}
 export function AttendanceEmployeePicker({
   scope,
   date,
@@ -43,8 +28,7 @@ export function AttendanceEmployeePicker({
   const locale = useLocale();
   const [search, setSearch] = useState('');
   const query = useAttendanceEmployees(scope, search, date);
-  const items = boardAccessLost(query.error) ? [] : attendancePages(query.data?.pages);
-  useAttendanceEmployeeSelection(employeeId, query.data?.pages, query.error, onSearchChanged);
+  const items = useAttendanceEmployeeSelection(scope, date, employeeId, query, onSearchChanged);
   return (
     <div className="grid gap-2">
       <Label htmlFor="manual-employee-search">
