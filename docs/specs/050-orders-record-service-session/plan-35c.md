@@ -15,9 +15,9 @@ route is exposed. Each PR includes its own tests and translations, rather than l
 Sizes count hand-written added/changed lines, including tests, copy and architectural documentation; generated
 OpenAPI/client changes are reported separately. If an estimate exceeds its upper bound, split again before code.
 
-**TODO(spec) SS-Q13:** limited picker/own-limit read authority is not specified. The conditional read design
-below is a proposal, not a grant. Stop at that rule until the orchestrator mirrors the answer; do not implement
-35c-2…4 or publish the screen on assumed permissions. Independent money/form work can still be reviewed.
+**SS-Q13 answered (Waleed, 2026-10-12, option 1):** `record:service-sessions:branch` alone authorizes the limited
+recording-form reads below (service names/prices, eligible performers on the session date with the attendance/leave
+warning, and the recorder's own memberships/limit) and nothing wider. 35c-2…4 and 35c-12 are unblocked.
 
 ## 1. Host, entry point and connectivity
 
@@ -57,7 +57,7 @@ requires `request:attendance-change:branch`; discount UI offers management write
 provide recorder discount limits or performer warnings. Do not grant catalog/HR/permission administration merely
 to make this form work; do not import catalog/staff/permissions components or hooks into orders (§11).
 
-Conditional on SS-Q13 option 1, add limited **recording-form** reads under the branch service-session resource:
+Per SS-Q13 option 1, add limited **recording-form** reads under the branch service-session resource:
 
 | Proposed GET suffix | Minimum result and purpose |
 |---|---|
@@ -187,9 +187,9 @@ Every frontend PR adds component/hook tests beside its files and just its ar/en 
 | PR | Goal / independently deployable result | 1–3 subtasks | Files touched | Tests / expected hand-written size |
 |---|---|---|---|---|
 | **35c-1** | Shared money operations; unchanged server recording | 1. Extract generic net/percent helpers into kernel. 2. Delegate existing orders wrappers. 3. Independent numeric parity/error tests. | packages/domain/src/discount-money.ts, index.ts, __tests__/discount-money.spec.ts; O/domain/session-pricing.ts and its pricing tests; ADR-0041 technical addendum | Unit: zero/above-price/maximum, half-up and sum overflow; existing SS pricing suite. No component/e2e needed. **180–280 lines** |
-| **35c-2** | Own recording context/limit GET, **after SS-Q13** | 1. Strict context contract/OpenAPI. 2. Query + read adapters/controller/wiring. 3. Authority/shape/EXPLAIN tests and ADR/map entries. | C/recording-context.ts, service-session-form-openapi.ts, contracts index/openapi; O/queries/recording-context.query.ts, persistence/recording-context.adapter.ts, http/service-session-form.controller.ts, orders.module.ts; API tests; ADR-0041, module-map.md/YAML; generated clients | Real DB: own/foreign candidates, ambiguous selection, zero/unlimited/unconfigured, DENY/expiry/feature, route mismatch, current limit; exact-query EXPLAIN. No UI yet. **300–450 lines** |
-| **35c-3** | Limited service picker GET, **after SS-Q13** | 1. Paged options contract. 2. Catalog public reader + orders read adapter/route. 3. Scope/cursor/shape/EXPLAIN tests and exact map entries. | C/service-session-options.ts/OpenAPI; catalog/queries/session-service-options.query.ts and index.ts; O/queries/session-service-options.query.ts, persistence/session-service-options.adapter.ts, form controller/module; tests; ADR/map/generated clients | Real DB: business isolation, price/revision, cursor ties, empty/pages, denied record authority; no broad catalog read granted. **280–420 lines** |
-| **35c-4** | Dated performer picker GET, **after SS-Q13** | 1. Minimal dated options contract. 2. Staff public reader + orders adapter/route. 3. Dated eligibility/warning/privacy/EXPLAIN tests and map entries. | C/service-session-options.ts/OpenAPI; staff/queries/session-performer-options.query.ts and index.ts; O/queries/session-performer-options.query.ts, persistence/session-performer-options.adapter.ts, form controller/module; tests; ADR/map/generated clients | Real DB: hire/contract/branch-date edges, occurred-day attendance/leave, manual/closed/void, no private HR fields, RLS/cursor/authority. **350–500 lines** |
+| **35c-2** | Own recording context/limit GET | 1. Strict context contract/OpenAPI. 2. Query + read adapters/controller/wiring. 3. Authority/shape/EXPLAIN tests and ADR/map entries. | C/recording-context.ts, service-session-form-openapi.ts, contracts index/openapi; O/queries/recording-context.query.ts, persistence/recording-context.adapter.ts, http/service-session-form.controller.ts, orders.module.ts; API tests; ADR-0041, module-map.md/YAML; generated clients | Real DB: own/foreign candidates, ambiguous selection, zero/unlimited/unconfigured, DENY/expiry/feature, route mismatch, current limit; exact-query EXPLAIN. No UI yet. **300–450 lines** |
+| **35c-3** | Limited service picker GET | 1. Paged options contract. 2. Catalog public reader + orders read adapter/route. 3. Scope/cursor/shape/EXPLAIN tests and exact map entries. | C/service-session-options.ts/OpenAPI; catalog/queries/session-service-options.query.ts and index.ts; O/queries/session-service-options.query.ts, persistence/session-service-options.adapter.ts, form controller/module; tests; ADR/map/generated clients | Real DB: business isolation, price/revision, cursor ties, empty/pages, denied record authority; no broad catalog read granted. **280–420 lines** |
+| **35c-4** | Dated performer picker GET | 1. Minimal dated options contract. 2. Staff public reader + orders adapter/route. 3. Dated eligibility/warning/privacy/EXPLAIN tests and map entries. | C/service-session-options.ts/OpenAPI; staff/queries/session-performer-options.query.ts and index.ts; O/queries/session-performer-options.query.ts, persistence/session-performer-options.adapter.ts, form controller/module; tests; ADR/map/generated clients | Real DB: hire/contract/branch-date edges, occurred-day attendance/leave, manual/closed/void, no private HR fields, RLS/cursor/authority. **350–500 lines** |
 | **35c-5** | Reusable customer entry/selection field with real scoped API | 1. Customer contract hook. 2. Required entry/selected masked card. 3. Component/hook tests and ar/en keys. | A/api/use-session-customer.ts; A/ui/session-customer-field.tsx; tests; L/service-session-catalog.ts, catalog.ts | Component: existing/new customer, changed text invalidates, error/opt-out, raw phone cleared; hook scope/payload; no directory invented. E2E covered in 35c-12. **200–320 lines** |
 | **35c-6** | Tested service-line draft editor/picker | 1. Options hook. 2. Stable draft rows with explicit price prefill/edit. 3. Component/hook tests and keys. | A/api/use-session-services.ts; A/model/session-drafts.ts; A/ui/session-service-field.tsx, session-draft-lines.tsx; tests; L/service-session-catalog.ts | Component: duplicate services, add/remove row mapping, 20-row bound, catalog refresh preserves override, canonical money/above-list/zero. **220–350 lines** |
 | **35c-7** | Amount/percent discounts, limit display and shared totals | 1. Context/membership hook and field. 2. Discount/same-%/summary components using shared money. 3. Boundary/component tests and keys. | A/api/use-recording-context.ts; A/ui/recorder-membership-field.tsx, session-discount-field.tsx, session-draft-summary.tsx; tests; L/service-session-catalog.ts | Component: own selection, unlimited/zero, 7.125/10%=0.713, lowered price rejection evidence, same-% unsaved rows only, no client authority clamp, large totals. **260–400 lines** |
@@ -199,7 +199,7 @@ Every frontend PR adds component/hook tests beside its files and just its ar/en 
 | **35c-11** | Complete/PARTIAL/all-rejected response handling | 1. Typed result state transitions. 2. Saved/read-only and rejected-draft feedback panels. 3. Transition/component tests and keys. | A/model/session-recording-result.ts; A/ui/session-saved-result.tsx, session-rejected-lines.tsx, session-write-feedback.tsx; tests; L/service-session-catalog.ts | Component/model: request indices with duplicate services, 201 mixed/repeated append/replay, 422 create vs append, distinct error codes, saved vs draft totals, line late OR header, both warnings. **300–450 lines** |
 | **35c-12** | Publish the fully working reception route | 1. Compose form/page and thin route/navigation. 2. Connectivity/identity/scope lifecycle integration. 3. Critical-flow Playwright tests and runner wiring. | A/pages/record-service-session-page.tsx, ui/record-service-session-form.tsx, model/use-session-recording.ts and tests; apps/admin/app/(dashboard)/orders/service-sessions/new/page.tsx, _frame/service-session-route.tsx, _frame/session-nav-item.tsx, dashboard-navigation.tsx; L keys; apps/admin/playwright.config.ts, tsconfig.e2e.json, e2e/service-session*.pw.ts, e2e/session-fixture.ts; package/config CI wiring only as needed | Component: permission denial, branch required, identity reset, offline/interrupted-save. E2E matrix below, both locales. **300–500 lines** |
 
-Order is the table order; 35c-12 merges only after SS-Q13 and 35c-1…11 are green. 35c-5…11 are complete tested
+Order is the table order; 35c-12 merges only after 35c-1…11 are green. 35c-5…11 are complete tested
 form/client capabilities, not unfinished publicly exposed pages; they need no fake data or temporary executable
 TODO. Never bundle the twelve PRs into one 35c PR. No speculative day-list integration in the final PR.
 
@@ -245,7 +245,7 @@ freshness gate requires it (generated-only, no POS UI change). Preserve Arabic J
 
 ## 7. Owner question and handoff
 
-New **SS-Q13, PENDING**, mirrored in [owner-questions.ar.md](owner-questions.ar.md): may a recording-permission
+**SS-Q13, answered (option 1, 2026-10-12)**, mirrored in [owner-questions.ar.md](owner-questions.ar.md): may a recording-permission
 holder read only service names/prices, dated branch performer names/warning booleans and their own selected
 membership limit for this form, without catalog/HR administration or whole-branch visit history? Option 1 is
 recommended; option 2 retains separate broader read grants. No approval is inferred from SS-Q2 or SS-Q12.
