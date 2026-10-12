@@ -159,6 +159,18 @@ case or query mapper beyond projection). CSV export follows AB-Q9d/e/f; anything
 session (spec 035); change-request forms (add manual day, void, restore) and the decider's list (specs 044–046); the
 board (27c) shows requester/approver names from 27d-1. Times entered in the branch time zone, sent as UTC.
 
+## 6b. Row 27f — capability-aware actions and approver inbox (#167, #171)
+
+- `GET …/branches/:branchId/attendance-capabilities` returns `correct`, `resolve`, `request_change`, `decide` from
+  the shared `REQUEST_AUTHORIZER` used by `@Require`; read permission, staff feature and board branch consistency apply.
+- Board sessions and exception rows project `own` from `employees.user_id`; the board also projects canonical active
+  `owner` metadata for CA-Q2. Non-owners cannot correct or request changes on their own attendance. Spec 034 still
+  forbids resolving/reopening one's own exception, including owners (RE-Q3 differs deliberately from CA-Q2).
+- Actions fail closed while capabilities load or fail, refresh every 30 seconds, and retain server refusal messages.
+  Requests keep the server's `can_decide`/`can_cancel`; restore uses the target branch's request capability.
+- Approvers default to «كل الفروع» within one business (no `branch_id`); the branch view remains selectable.
+  Each request retains its own branch for times and actions. No migration or new permission resolver.
+
 ## 7. Out of scope
 
 Payroll, overtime pay, deductions, public holidays (AB-Q5), the employee's own attendance view (57b), notifications.

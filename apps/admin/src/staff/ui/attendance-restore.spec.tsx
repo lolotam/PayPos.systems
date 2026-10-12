@@ -30,6 +30,13 @@ const approvedVoid: AttendanceRequestRow = {
   decided_at: '2026-10-11T05:00:00Z',
   session_state: { voided: true, void_request_id: boardId, restore_pending: false },
 };
+
+vi.mock('@/staff/api/use-attendance-capabilities', () => ({
+  useAttendanceCapabilities: () => ({
+    isPending: false,
+    capabilities: { correct: true, resolve: true, request_change: true, decide: true },
+  }),
+}));
 beforeEach(() => {
   state.locale = 'en';
   api.GET.mockReset();
@@ -50,7 +57,7 @@ it.each(eligibility)(
   'offers restore only for the current void without a pending restore: %s',
   (session_state, allowed) => {
     const row = { ...approvedVoid, session_state };
-    render(<AttendanceRequestRowActions row={row} onAction={vi.fn()} />);
+    render(<AttendanceRequestRowActions scope={boardScope} row={row} onAction={vi.fn()} />);
     expect(
       Boolean(screen.queryByRole('button', { name: t('en', 'attendanceActions.restore') })),
     ).toBe(allowed);

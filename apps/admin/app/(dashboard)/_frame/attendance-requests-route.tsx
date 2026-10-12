@@ -21,7 +21,7 @@ export function AttendanceRequestsRoute() {
   };
   return (
     <AttendanceRequestsPage
-      key={Object.values(scope).join(':')}
+      key={`${scope.companyId}:${scope.businessId}:${userId}`}
       scope={scope}
       branches={workspace.business.branches}
       onBranch={(branchId) =>

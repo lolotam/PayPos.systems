@@ -71,10 +71,13 @@ export function useAttendanceHistory(scope: AttendanceBoardScope, sessionId: str
 export function useAttendanceRequests(
   scope: AttendanceBoardScope,
   status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED',
+  allBranches = false,
+  enabled = true,
 ) {
   useAttendanceActionScope(scope, 'requests');
   return useInfiniteQuery({
-    queryKey: [...attendanceActionKey(scope), 'requests', status],
+    queryKey: [...attendanceActionKey(scope), 'requests', status, allBranches],
+    enabled,
     retry: false,
     staleTime: 0,
     refetchOnMount: 'always',
@@ -89,7 +92,7 @@ export function useAttendanceRequests(
           params: {
             ...attendanceActionParams(scope),
             query: {
-              branch_id: scope.branchId,
+              ...(allBranches ? {} : { branch_id: scope.branchId }),
               limit: 50,
               ...(status ? { status } : {}),
               ...(pageParam ? { cursor: pageParam } : {}),

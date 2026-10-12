@@ -75,6 +75,15 @@ it('keyset pagination handles tied timestamps and preserves PostgreSQL microseco
   expect(new Set([...first.items, ...second.items].map((row) => row.id)).size).toBe(2);
   expect(second.next_cursor).toBeNull();
 });
+it('own is projected from the session employee user link, without exposing the user id', async () => {
+  const read = (userId: string) =>
+    f.db.withTenant(f.company, (tx) =>
+      attendanceExceptions(tx, { ...f.scope, userId }, { status: 'OPEN', limit: 50 }),
+    );
+  expect((await read(f.userId)).items.every((row) => row.own)).toBe(true);
+  expect((await read(f.approverId)).items.every((row) => !row.own)).toBe(true);
+  expect(JSON.stringify(await read(f.userId))).not.toContain('user_id');
+});
 it('reads only sessions at the requested branch when an exception has a different movement branch', async () => {
   await f.h.owner`UPDATE attendance_exceptions SET branch_id=${f.secondBranch}
     WHERE company_id=${f.company} AND id=${f.visible.id}`;

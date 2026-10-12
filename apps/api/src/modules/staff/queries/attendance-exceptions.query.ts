@@ -12,6 +12,7 @@ export function attendanceExceptionsStatement(
   const [raisedAt, cursorId] = query.cursor?.split('|') ?? [];
   // شاشة التحذيرات تعرض جلسات الفرع المسموح بقراءته، وتخفي تحذيرات الجلسات الملغاة دون تعديلها.
   return sql`SELECT jsonb_build_object('id',x.id,'branch_id',s.branch_id,'kind',x.kind,'status',x.status,
+    'own',COALESCE(e.user_id=${scope.userId ?? null}::uuid,false),
     'raised_at',${instant('x.raised_at')},'resolution',x.resolution,'resolved_by',x.resolved_by,
     'resolved_at',${instant('x.resolved_at')},'reason',x.reason,'revision',x.revision,
     'session',jsonb_build_object('id',s.id,'working_date',s.working_date::text,

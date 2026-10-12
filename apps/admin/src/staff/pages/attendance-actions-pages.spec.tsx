@@ -20,6 +20,13 @@ const state = vi.hoisted(() => ({ locale: 'en' as 'en' | 'ar' }));
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
+
+vi.mock('@/staff/api/use-attendance-capabilities', () => ({
+  useAttendanceCapabilities: () => ({
+    isPending: false,
+    capabilities: { correct: true, resolve: true, request_change: true, decide: true },
+  }),
+}));
 beforeEach(() => {
   state.locale = 'en';
   api.GET.mockReset();

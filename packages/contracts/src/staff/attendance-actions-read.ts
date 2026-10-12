@@ -23,6 +23,7 @@ export const attendanceExceptionsListQuery = z
 export const attendanceExceptionListItem = attendanceExceptionRecord
   .omit({ session_id: true, employee_id: true })
   .extend({
+    own: z.boolean(),
     session: z.strictObject({
       id,
       working_date: z.iso.date(),

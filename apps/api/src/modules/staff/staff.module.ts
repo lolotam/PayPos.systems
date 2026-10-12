@@ -93,9 +93,11 @@ import {
 import { attendanceBoardContext } from './persistence/attendance-board-context.adapter.ts';
 import { AttendanceExceptionsReadController } from './http/attendance-exceptions-read.controller.ts';
 import { AttendanceEmployeesController } from './http/attendance-employees.controller.ts';
+import { AttendanceCapabilitiesController } from './http/attendance-capabilities.controller.ts';
 import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';
 
 export const staffControllers = [
+  AttendanceCapabilitiesController,
   AttendanceMonthlyReportController,
   AttendanceBoardController,
   AttendanceChangeRequestsController,

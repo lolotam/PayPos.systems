@@ -1,5 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
+import type { WorkspaceBranch } from '@pospay/contracts';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceActions } from '../api/use-attendance-actions';
@@ -10,10 +11,12 @@ export function AttendanceManualEditor({
   scope,
   timezone,
   onClose,
+  branch,
 }: {
   scope: AttendanceBoardScope;
   timezone: string;
   onClose: () => void;
+  branch?: WorkspaceBranch | undefined;
 }) {
   const locale = useLocale();
   const { request } = useAttendanceActions(scope);
@@ -23,6 +26,12 @@ export function AttendanceManualEditor({
       pending={request.isPending}
       onClose={onClose}
     >
+      {branch ? (
+        <p>
+          {t(locale, 'attendanceBoard.branch')}:{' '}
+          {locale === 'ar' ? (branch.name_ar ?? branch.name_en) : branch.name_en}
+        </p>
+      ) : null}
       <AttendanceManualForm
         scope={scope}
         timezone={timezone}

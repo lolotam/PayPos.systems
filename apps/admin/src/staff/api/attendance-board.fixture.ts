@@ -33,6 +33,7 @@ export const boardFixture: AttendanceBoard = {
   date: '2026-10-11',
   timezone: 'Asia/Kuwait',
   generated_at: '2026-10-10T22:45:00Z',
+  owner: false,
   in_now: [
     {
       employee_id: boardId,
@@ -47,6 +48,7 @@ export const boardFixture: AttendanceBoard = {
     {
       id: boardId,
       employee_id: otherBoardId,
+      own: false,
       name_en: 'Synthetic manual employee',
       name_ar: null,
       clock_in: '2026-10-10T21:30:00Z',

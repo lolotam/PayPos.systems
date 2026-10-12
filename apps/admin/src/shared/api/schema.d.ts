@@ -635,6 +635,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Live write grants from the shared request authorizer; row self restrictions still apply. */
+        get: operations["attendanceCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-board": {
         parameters: {
             query?: never;
@@ -5584,6 +5601,72 @@ export interface operations {
             };
         };
     };
+    attendanceCapabilities: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance write capabilities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correct: boolean;
+                        resolve: boolean;
+                        request_change: boolean;
+                        decide: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     attendanceBoard: {
         parameters: {
             query?: {
@@ -5614,6 +5697,7 @@ export interface operations {
                         timezone: string;
                         /** Format: date-time */
                         generated_at: string;
+                        owner: boolean;
                         in_now: {
                             /** Format: uuid */
                             employee_id: string;
@@ -5633,6 +5717,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
+                            own: boolean;
                             /** Format: date-time */
                             clock_in: string;
                             /** Format: date-time */
@@ -5855,6 +5940,7 @@ export interface operations {
                             /** Format: date-time */
                             raised_at: string;
                             revision: number;
+                            own: boolean;
                             session: {
                                 /** Format: uuid */
                                 id: string;

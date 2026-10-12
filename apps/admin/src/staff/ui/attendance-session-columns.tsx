@@ -1,4 +1,4 @@
-import type { AttendanceBoard } from '@pospay/contracts';
+import type { AttendanceBoard, AttendanceCapabilities } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Badge } from '@pospay/ui';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -11,6 +11,8 @@ export function attendanceSessionColumns(
   locale: Locale,
   timezone: string,
   onAction: (row: Row, action: SessionAction) => void,
+  capabilities: AttendanceCapabilities,
+  owner = false,
 ): ColumnDef<Row>[] {
   return [
     {
@@ -28,23 +30,7 @@ export function attendanceSessionColumns(
       header: t(locale, 'attendanceBoard.clockOut'),
       cell: ({ row }) => boardTime(row.original.clock_out, locale, timezone),
     },
-    {
-      id: 'status',
-      header: t(locale, 'attendanceBoard.status'),
-      cell: ({ row }) => (
-        <Badge
-          variant={
-            row.original.status === 'MISSED_OUT'
-              ? 'warning'
-              : row.original.status === 'CLOSED'
-                ? 'success'
-                : 'info'
-          }
-        >
-          {t(locale, `attendanceBoard.${row.original.status}`)}
-        </Badge>
-      ),
-    },
+    attendanceSessionStatusColumn(locale),
     {
       id: 'source',
       header: t(locale, 'attendanceBoard.source'),
@@ -61,7 +47,34 @@ export function attendanceSessionColumns(
     {
       id: 'actions',
       header: t(locale, 'attendanceActions.actions'),
-      cell: ({ row }) => <AttendanceSessionActions row={row.original} onAction={onAction} />,
+      cell: ({ row }) => (
+        <AttendanceSessionActions
+          row={row.original}
+          onAction={onAction}
+          capabilities={capabilities}
+          owner={owner}
+        />
+      ),
     },
   ];
+}
+
+function attendanceSessionStatusColumn(locale: Locale): ColumnDef<Row> {
+  return {
+    id: 'status',
+    header: t(locale, 'attendanceBoard.status'),
+    cell: ({ row }) => (
+      <Badge
+        variant={
+          row.original.status === 'MISSED_OUT'
+            ? 'warning'
+            : row.original.status === 'CLOSED'
+              ? 'success'
+              : 'info'
+        }
+      >
+        {t(locale, `attendanceBoard.${row.original.status}`)}
+      </Badge>
+    ),
+  };
 }

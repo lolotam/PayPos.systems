@@ -42,7 +42,7 @@ export class AttendanceExceptionsReadController {
       async (tx) => {
         const scope = await this.context(tx, actor.companyId, businessId, branchId);
         if (!scope) throw new ApiError('NOT_FOUND');
-        return attendanceExceptions(tx, scope, query);
+        return attendanceExceptions(tx, { ...scope, userId: actor.userId }, query);
       },
       { userId: actor.userId },
     );
