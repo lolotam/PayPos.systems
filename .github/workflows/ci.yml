@@ -164,8 +164,9 @@ jobs:
             turbo-${{ runner.os }}-api-${{ matrix.shard }}-
             turbo-${{ runner.os }}-
 
-      - name: build api and its dependencies
-        run: pnpm turbo run build --filter=@pospay/api...
+      # the built-production smoke spec (files/production.spec.ts) starts dist/main.js of api AND worker
+      - name: build api, worker and their dependencies
+        run: pnpm turbo run build --filter=@pospay/api... --filter=@pospay/worker...
 
       - name: api integration · RLS negative · EXPLAIN (shard ${{ matrix.shard }}/4)
         run: pnpm --filter @pospay/api exec vitest run --shard=${{ matrix.shard }}/4
