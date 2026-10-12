@@ -1,18 +1,18 @@
 # Plan 050 — 35b branch day list and late bell
 
-Date: 2026-10-12. DESIGN only; no implementation, commit or push.
-Worktree: `E:\Dev\Worktrees\PosPay\p1-35b`; branch `spec/050-35b-day-list`.
-Baseline: `main b8d93e86`, including 35a / PR 178 and migration 0131.
+Date: 2026-10-12. 35b-1 implementation; no commit or push.
+Worktree: `E:\Dev\Worktrees\PosPay\p1-35b1`; branch `feat/35b-1-day-list`.
+Baseline includes 35a / PR 178 and 35b-2 / PR 182 (in review), through migration 0132.
 Sources: [spec.md](spec.md), [35a plan](plan.md), [owner answers](owner-questions.ar.md),
 [ADR-0041](../../adr/0041-orders-service-sessions-reads-and-events.md),
 [ADR-0037](../../adr/0037-not-clocked-in-alert-discovery-and-recipients.md),
 [module map](../../module-map.md) / generated YAML, Phase 1 SPEC §§3/5.2/6 and visibility V1/V2.
 
-**Status: blocked on TODO(spec) SS-Q12, the read permission's defaults and delegation.** SS-Q1–SS-Q11
-remain answered. The proposed read authorization below is not an owner decision. Record SS-Q12 as `PENDING`
-in the owner file; only the Claude Code orchestrator publishes a new numbered batch on the existing decisions
-page. Stop at that authorization rule: do not implement it, seed defaults or broaden reception/staff visibility
-until the answer is mirrored back. The remaining sections document independently established technical work.
+**Status: SS-Q12 answered by Waleed, 2026-10-12, option 1 (batch 15).** Add
+`read:service-sessions:branch`, default to owner, general_manager, business_manager and branch_manager within
+their scopes; explicit grants to any other human role are allowed. Reception without this permission retains
+the recording screen. Ordinary staff see only their own services with manager-allowed columns and never the
+customer phone. The verbatim answer is mirrored in [owner-questions.ar.md](owner-questions.ar.md).
 
 ## 1. Split and order — one use case per PR
 
@@ -23,8 +23,8 @@ until the answer is mirrored back. The remaining sections document independently
 
 Both depend on 35a. This is two independently testable capabilities, so they must not share an implementation
 PR. The notice does not technically depend on the list query; the ordering supplies the day-list contract before
-35c composes reception and before managers review notices. SS-Q12 blocks 35b-1; it does not reopen SS-Q11 or
-the already documented manager recipient rule. The present design handoff stops with that owner question pending.
+35c composes reception and before managers review notices. SS-Q12 authorizes 35b-1; SS-Q11 and
+the already documented manager recipient rule remain unchanged.
 35b is complete only when both slices pass their own gates. 35c owns the reception screen; 35d owns money edits.
 
 ## 2. 35b-1 contract and authorization
@@ -45,24 +45,25 @@ No implicit today, date range, offset pagination or client-supplied actor/compan
 recording date. An October 14 visit entered on October 15 appears on `date=2026-10-14`. Readable history is not
 restricted by the write API's first-of-previous-month entry window. Do not recalculate dates from today's timezone.
 
-**Permission proposal: new `read:service-sessions:branch`.** The real permission catalog currently contains
-`record:service-sessions:branch`, but no service-session read permission. The `read:orders:branch` string in an
+**Approved permission: new `read:service-sessions:branch` (SS-Q12 option 1).** The baseline permission catalog contained
+`record:service-sessions:branch`, but no service-session read permission; migration 0133 adds it. The `read:orders:branch` string in an
 identity unit fixture is not a seeded permission. `read:services:business` reads catalog definitions, and
 `view:notifications:business` reads delivery logs; neither authorizes customer service visits.
 
-TODO(spec) **SS-Q12**: propose defaults for `owner`, `general_manager`, `business_manager`, `branch_manager`
-only; no default for `cashier`, `staff`, `accountant`, other human roles or `device`. Propose explicit delegation
-through existing human role/personal ALLOW mechanisms, with normal scope, DENY, expiry and active-owner rules.
-Ask whether reception instead receives the whole-branch read by default, and whether other human roles may be
-delegated that broader read. These are proposed business choices, not inferred from SS-Q2's write permission.
-Once approved, add permission/default/policy and ar/en labels by additive migration and update role-policy tests;
+**SS-Q12 — Waleed, 2026-10-12, option 1:** defaults for `owner`, `general_manager`, `business_manager`,
+`branch_manager` only, each within scope; no default for cashier/staff/accountant/other human roles/device.
+Explicit delegation to any other human role through existing role/personal ALLOW mechanisms is allowed,
+with normal scope, DENY, expiry and active-owner rules. Reception without the grant retains recording only;
+ordinary staff see their own services with manager-allowed columns and never customer phone.
+Add permission/default/policy and ar/en labels by additive migration and update role-policy tests;
 preserve tenant custom roles. Do not alter 0131 or silently grant read to existing record-permission holders.
 
-The conditional guard contract is `SelectedCompanyGuard`, authenticated admin user (`SessionAdminGuard`),
+The guard contract is `SelectedCompanyGuard`, authenticated admin user (`SessionAdminGuard`),
 `@Require('read:service-sessions:branch', {branch:'branchId'})`, `@RequiresFeature('orders')`.
 Use identity's current scope/grant machinery. Separately prove business/branch ownership on the tenant transaction:
 the branch-target guard alone does not validate the simultaneously supplied businessId. Unknown, foreign or
-mismatched branch/business and insufficient authority return uniform 403; malformed path/query/cursor → 400;
+mismatched branch/business and insufficient authority return uniform 403; malformed business path/query/cursor → 400;
+the existing global guard refuses malformed branch targets with uniform 403 before controller validation.
 authorized but unavailable DB wiring → NOT_READY. Repeat fresh authorization on every page; cursor contents
 never authorize anything. No `Idempotency-Key` on this GET.
 
@@ -72,7 +73,7 @@ employee view plus entry, not an automatic whole-branch browsing grant. This end
 list; it supplies no own-staff route or implicit subset when authority is missing. Normal personal/device-scoped
 staff sessions cannot call an admin endpoint. Row 57 implements the own-row/column-controlled view and its
 server-resolved employee identity. Do not introduce staff peer visibility, a phone column or a row-57 permission
-here. An explicitly delegated admin duty, if SS-Q12 approves it, is separate from a normal staff session.
+here. An explicitly delegated admin duty, as approved by SS-Q12, is separate from a normal staff session.
 
 ### Result shape and pagination
 
@@ -157,6 +158,50 @@ Required tests use real compose Postgres, cloned DB per spec file, restricted `p
   reject a broad session or child-table sequential scan. Do not merely search the plan for any Index Scan.
   Use normal planner settings for the performance proof; forced-index probes can supplement it, not replace it.
   Count a fixed number of authorization reads and exactly one list statement regardless of page size.
+
+### 35b-1 implementation shape choices
+
+- Reuse `SessionDayAccess` callbacks beside the query, like the staff read-side access interfaces; bind existing
+  session-place and new identity read-access callbacks only in orders.module.ts. There is no write port/use case.
+- Preserve the shared AccessGuard's validation precedence: a malformed branch target returns uniform 403 before
+  controller pipes; malformed business paths, query values and decoded cursors return 400 after authorization.
+  This follows existing scoped controllers without changing their behavior.
+- Cursor timestamp uses six UTC fractional digits. Bind it as text then cast in PostgreSQL, avoiding the driver's
+  JavaScript Date serialization. The cursor is bounded to the existing 512-character pagination limit.
+- Calendar validation rejects year 0000 because PostgreSQL cannot represent it; positive four-digit years retain
+  the unrestricted historical read contract.
+- Feature-disabled replies retain the existing bilingual FEATURE_DISABLED envelope; database failures use NOT_READY
+  without driver parameters or causes. Query data reads remain one statement after seven fixed authorization/place reads.
+- Permission/default-only migration is 0133; no new tables, runtime table grants or day-list indexes are added.
+
+### 35b-1 changed files
+
+| Area | Files (paths relative to repository root) |
+|---|---|
+| Orders API | `apps/api/src/modules/orders/queries/branch-day-service-sessions.query.ts`, `persistence/session-read-access.adapter.ts`, `http/service-sessions.controller.ts`, `orders.module.ts`; `__tests__/service-session-day.spec.ts`, `service-session-day-access.spec.ts`, `service-session-day-explain.spec.ts` under the same module |
+| Identity boundary | `apps/api/src/modules/identity/persistence/service-session-read-access.ts`, `apps/api/src/modules/identity/index.ts` |
+| Contracts | `packages/contracts/src/orders/service-session-day.ts`, `service-session-day.spec.ts`, `service-session-openapi.ts`; `packages/contracts/src/index.ts`, `src/openapi.ts`, `src/__tests__/openapi.spec.ts`, `openapi/openapi.json` |
+| DB | `packages/db/migrations/0133_2026-10-12_service-session-day-read.sql`, `meta/0133_snapshot.json`, `meta/_journal.json`; `packages/db/src/access-catalog.ts`, `role-defaults.ts`, `system-role-policy.ts`, `__tests__/role-defaults.spec.ts`, `__tests__/system-role-policy.spec.ts` |
+| Permission labels | `packages/i18n/src/permission-name.ts`, `packages/i18n/src/permission-codes-catalog.ts` |
+| Generated clients | `apps/admin/src/shared/api/schema.d.ts`, `apps/pos/src/shared/api/schema.d.ts` |
+| Decisions/maps | This plan, `docs/specs/050-orders-record-service-session/spec.md`, `docs/adr/0041-orders-service-sessions-reads-and-events.md`, `docs/module-map.md`, `docs/module-map.yaml` |
+
+### 35b-1 verification
+
+Real-Postgres orders suite: 18 files / 267 tests passed. All 16 new day-list tests pass, including normal-planner
+EXPLAIN on 8,000 complete visits, microsecond cursor ties, current authorization on later pages, persisted
+late-appends, canonical zero/maximum money, RLS/context cleanup and real staff-purpose cookie refusal.
+After rejecting PostgreSQL's unrepresentable year 0000, the three day-list files were rerun: 16/16 passed.
+DB suite: 62 files / 1,563 tests plus public-export smoke passed. Contracts: 37 files / 502 tests plus smoke passed.
+Required gates: **8 passed / 0 failed**. Typecheck: 23 successful tasks; lint: 24 successful tasks;
+lint:docs: zero errors / 28 existing warnings; module-map:check and both admin/pos api:check commands passed.
+The unchanged 35a 20-line/80-performer timing check varied under concurrent work; the final full orders run passed
+at median 182.4ms (range 170.0–260.9ms), and its isolated rerun passed at 184.2ms. No threshold was relaxed.
+No new TODO(spec), commit, push or PR. The 35b-2 worker/template/recovery behavior is unchanged.
+
+Local tool execution used Node 24.21.0 and the installed pnpm 12.9.1 JavaScript entry point: native pnpm cannot
+open its engine-store lock in this sandbox. A temporary os.userInfo fallback handled the sandbox's ENOMEM;
+it is not a production change or dependency. Temporary tooling is removed after verification.
 
 ## 4. 35b-2 — existing bell production path
 
@@ -343,16 +388,18 @@ Implementation order per PR: contracts → approved ADR/map → additive migrati
 where relevant → query or notice use case → adapters/wiring → integration/RLS/EXPLAIN → generated artifacts.
 Arabic documentation accompanies domain/port/event exports. Run `pnpm check`, boundaries/cycles/module-map and
 the relevant API/worker/DB/contracts/i18n/renderer suites; old images must remain compatible with additive schema.
-Report tests actually run. No implementation tests were run for this design-only change.
+Report tests actually run; the 35b-1 results are recorded in §3 above. The 35b-2 implementation remains its own slice.
 
-## 7. Owner stop — TODO(spec) SS-Q12
+## 7. Owner answer — SS-Q12
 
-Arabic proposed question is mirrored in [owner-questions.ar.md](owner-questions.ar.md):
+Arabic question and answer are mirrored in [owner-questions.ar.md](owner-questions.ar.md):
 
 > مين يشوف قايمة جلسات الفرع كلها؟ نقترح صلاحية مستقلة «قراءة جلسات الفرع»، افتراضيًا للمالك والمدير العام
 > ومدير النشاط ومدير الفرع فقط. هل الريسبشن تاخدها افتراضيًا كمان، ولا تفضل تشوف جلساتها كموظفة وشاشة التسجيل؟
 > وهل ينفع تفويض قراءة الفرع لأي دور بشري بحساب لوحة التحكم؟ الموظفة في عرضها العادي تفضل تشوف خدماتها فقط
 > بالأعمدة اللي المدير سمح بها ومن غير رقم الزبونة.
 
-Answer: **PENDING**. SS-Q2 authorizes recording, SS-Q11 authorizes bells, and neither answers the whole-branch
-read/delegation question. No guessed default or implied business approval is applied in this handoff.
+Answer: **Waleed, 2026-10-12, option 1** — defaults owner/general_manager/business_manager/branch_manager
+within scope; grantable to any other human role. Reception without the permission retains recording; ordinary
+staff see only their own services with manager-allowed columns and no customer phone. SS-Q2 recording and
+SS-Q11 bells remain separate. Abu Salem has not answered yet; a later differing partner choice is binding.

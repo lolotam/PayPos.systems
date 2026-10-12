@@ -58,6 +58,7 @@ export const SCHEDULE_PERMISSIONS = [
 /** الحزم المرجعية النهائية لكل كود؛ إضافة كود بدون قرار صريح تمنع typecheck بدلاً من منحه تلقائياً. */
 export const ROLE_DEFAULTS = {
   'record:service-sessions:branch': [...managers, 'branch_manager', 'cashier'],
+  'read:service-sessions:branch': [...managers, 'branch_manager'],
   // قرار المالك 2026-10-04 (UNB-Q1): المديرون الأربعة فقط افتراضياً ضمن نطاقاتهم؛ تفويض الأدوار المخصصة يبقى كما هو.
   'read:passkeys:branch': [...managers, 'branch_manager'],
   'unbind:passkeys:branch': [...managers, 'branch_manager'],

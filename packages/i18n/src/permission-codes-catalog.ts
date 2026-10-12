@@ -1,5 +1,6 @@
 export const permissionCodesEn = {
   recordServiceSessionsBranch: 'Record branch service sessions',
+  readServiceSessionsBranch: 'Read branch service sessions',
   manageEmployeeHoursBusiness: 'Manage employee default working hours',
   readPackageTypesBusiness: 'Read business package types',
   managePackageTypesBusiness: 'Manage business package types',
@@ -39,6 +40,7 @@ export const permissionCodesEn = {
 };
 export const permissionCodesAr: Record<keyof typeof permissionCodesEn, string> = {
   recordServiceSessionsBranch: 'تسجيل جلسات خدمات الفرع',
+  readServiceSessionsBranch: 'قراءة جلسات خدمات الفرع',
   manageEmployeeHoursBusiness: 'إدارة الدوام الافتراضي للموظفات',
   readPackageTypesBusiness: 'قراءة أنواع باقات النشاط',
   managePackageTypesBusiness: 'إدارة أنواع باقات النشاط',

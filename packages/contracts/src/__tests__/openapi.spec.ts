@@ -187,6 +187,11 @@ describe('openapi/openapi.json', () => {
     expect(Object.keys(schemas).sort()).toEqual(
       [
         ...expectedSchemas,
+        'ServiceSessionDayQuery',
+        'ServiceSessionDayPerformer',
+        'ServiceSessionDayLine',
+        'ServiceSessionDayItem',
+        'ServiceSessionDayPage',
         'AttendanceChangeDecisionResult',
         'AttendanceChangeListQuery',
         'AttendanceChangeRequest',

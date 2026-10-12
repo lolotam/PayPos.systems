@@ -11,6 +11,7 @@ import {
 // spec 009 يجعل الأدوار المحذوفة من الصف ❌؛ الجهاز لا يرث سلطة موظف من ALLOW قديم.
 const deviceForbidden = [
   'record:service-sessions:branch',
+  'read:service-sessions:branch',
   'read:passkeys:branch',
   'unbind:passkeys:branch',
   ...LEAVE_PERMISSIONS,
@@ -81,6 +82,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           (OWNER_GRANTED_PERMISSIONS as readonly string[]).includes(code) ||
           ['decide:leave:branch', 'revoke:leave:branch', 'read:leave:branch'].includes(code) ||
           code === 'record:service-sessions:branch' ||
+          code === 'read:service-sessions:branch' ||
           optional[role.code]?.includes(code),
     ),
   };

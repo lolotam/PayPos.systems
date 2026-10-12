@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Param, Post, Req, UseFilters, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Req, UseFilters, UseGuards } from '@nestjs/common';
 import { appendServiceSessionLinesInput, recordServiceSessionInput, id, type AppendServiceSessionLinesInput, type RecordServiceSessionInput } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
 import { Authenticated, Require, RequiresFeature } from '../../../shared/access.decorators.ts';
@@ -11,6 +11,8 @@ import { RecordServiceSessionUseCase } from '../use-cases/record-service-session
 import { AppendServiceSessionLinesUseCase } from '../use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
 import { SessionAdminGuard, SessionAppendGuard } from './session-access.guard.ts';
 import { SessionErrorsFilter } from './session-errors.filter.ts';
+import { serviceSessionDayQuery, type ServiceSessionDayQuery } from '@pospay/contracts';
+import { BranchDayServiceSessionsQuery, SessionDayReadError } from '../queries/branch-day-service-sessions.query.ts';
 
 function fingerprint(request: FastifyRequest, body: unknown, businessId: string, branchId: string, sessionId?: string): string {
   const actor = actorOf(request);
@@ -23,7 +25,23 @@ const pathId = id.toLowerCase();
 @UseFilters(SessionErrorsFilter)
 export class ServiceSessionsController {
   constructor(@Inject(RecordServiceSessionUseCase) private readonly record: RecordServiceSessionUseCase | null,
-    @Inject(AppendServiceSessionLinesUseCase) private readonly appendLines: AppendServiceSessionLinesUseCase | null) {}
+    @Inject(AppendServiceSessionLinesUseCase) private readonly appendLines: AppendServiceSessionLinesUseCase | null,
+    @Inject(BranchDayServiceSessionsQuery) private readonly dayList: BranchDayServiceSessionsQuery | null) {}
+  @Get()
+  @Require('read:service-sessions:branch', { branch: 'branchId' })
+  @RequiresFeature('orders')
+  @UseGuards(SelectedCompanyGuard, SessionAdminGuard)
+  async list(@Param('businessId', new ZodValidationPipe(pathId)) businessId: string,
+    @Param('branchId', new ZodValidationPipe(pathId)) branchId: string,
+    @Query(new ZodValidationPipe(serviceSessionDayQuery)) query: ServiceSessionDayQuery,
+    @Req() request: FastifyRequest) {
+    if (this.dayList === null) throw new ApiError('NOT_READY');
+    try { return await this.dayList.execute({ ...actorOf(request), businessId, branchId }, query); }
+    catch (error) {
+      if (error instanceof SessionDayReadError) throw new ApiError(error.code);
+      throw error;
+    }
+  }
   @Post()
   @HttpCode(201)
   @Require('record:service-sessions:branch', { branch: 'branchId' })
