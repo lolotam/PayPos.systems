@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. */
+        get: operations["attendanceMonthlyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-report.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, names only. One audit per successful export. */
+        get: operations["attendanceMonthlyReportCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/attendance-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Every active branch of this business must have a covering grant and no covering DENY. */
+        get: operations["attendanceMonthlyReportAll"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/attendance-report.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Every active branch of this business must have a covering grant and no covering DENY. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, names only. One audit per successful export. */
+        get: operations["attendanceMonthlyReportAllCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/iban": {
         parameters: {
             query?: never;
@@ -561,6 +629,108 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["issueFileDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Live write grants from the shared request authorizer; row self restrictions still apply. */
+        get: operations["attendanceCapabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Open sessions from any working date; non-voided sessions for the requested working date. Future dates return empty lists. No private employee fields or hours. */
+        get: operations["attendanceBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-board/refusals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Newest first keyset page of branch refusals, without installation hashes. */
+        get: operations["attendanceBoardRefusals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Exceptions of sessions at this branch, newest raised_at/id first, excluding voided sessions. branch_id identifies the session branch, consistent with the list filter; resolve/reopen checks authority on the stored exception movement branch. Resolution fields are null while OPEN. Cursor preserves microseconds. */
+        get: operations["attendanceExceptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-sessions/{sessionId}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Oldest corrected_at/id first, including voided sessions. Existing sessions without corrections return an empty items array. Actors prefer an employee in the scoped business, then any non-deleted row, then a soft-deleted row; business_id/id breaks ties. Null only when no employee row exists in the company. */
+        get: operations["attendanceCorrectionHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Manual-day employee picker. Requires request:attendance-change:branch and staff feature; inaccessible branches return NOT_FOUND. Only id, name_ar and name_en. Non-deleted employees whose branch link covers date (YYYY-MM-DD), defaulting to branch-local today. Link start is inclusive and end exclusive; future-start links are excluded until their start date. Ordered by name_en/id. Case-insensitive literal substring search is bounded to the indexed company/business/branch link set, materialized before matching names; no global name scan. */
+        get: operations["attendanceEmployees"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1295,6 +1465,40 @@ export interface paths {
         head?: never;
         /** @description Full replacement of names, price, validity and ordered components against expected_revision. Requires manage:package-types:business and the catalog feature. Effective changes are audited; a no-op preserves the revision and writes no audit entry. A stale revision returns PACKAGE_TYPE_REVISION_CONFLICT (409); duplicate names return PACKAGE_TYPE_NAME_TAKEN (409). Existing sold entitlements are unaffected. */
         patch: operations["updatePackageType"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Records a visit with record:service-sessions:branch and orders feature, admin login only. Only above-limit discounts cause PARTIAL. One transaction/event and replayable 201; actor-bound idempotency. */
+        post: operations["recordServiceSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Adds accepted lines to the same immutable visit. Original recorder OR current record permission, with active branch membership, DENY and orders feature checks. Actor-bound idempotency; maximum 20 persisted lines. Uses appender authority and original occurred_at. */
+        post: operations["appendServiceSessionLines"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/devices/me/attendance-qr": {
@@ -2222,7 +2426,69 @@ export interface components {
             } | null;
         };
         AttendanceChangeRequestPage: {
-            items: components["schemas"]["AttendanceChangeRequest"][];
+            can_decide_any: boolean;
+            can_request: boolean;
+            items: {
+                /** Format: uuid */
+                id: string;
+                /** @enum {string} */
+                kind: "ADD_SESSION" | "VOID_SESSION" | "RESTORE_SESSION";
+                /** @enum {string} */
+                status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+                /** Format: uuid */
+                business_id: string;
+                /** Format: uuid */
+                branch_id: string;
+                employee: {
+                    /** Format: uuid */
+                    id: string;
+                    name_ar: string | null;
+                    name_en: string;
+                };
+                /** Format: uuid */
+                session_id: string | null;
+                session_revision: number | null;
+                requested: {
+                    /** Format: date */
+                    working_date: string;
+                    /** Format: date-time */
+                    clock_in: string;
+                    /** Format: date-time */
+                    clock_out: string | null;
+                    timezone: string;
+                } | null;
+                reason: string;
+                /** Format: uuid */
+                requested_by: string;
+                /** Format: date-time */
+                requested_at: string;
+                /** Format: uuid */
+                decided_by: string | null;
+                /** Format: date-time */
+                decided_at: string | null;
+                decision_reason: string | null;
+                /** Format: uuid */
+                cancelled_by: string | null;
+                /** Format: date-time */
+                cancelled_at: string | null;
+                revision: number;
+                can_decide: boolean;
+                can_cancel: boolean;
+                requested_by_name: {
+                    ar: string | null;
+                    en: string;
+                } | null;
+                decided_by_name: {
+                    ar: string | null;
+                    en: string;
+                } | null;
+                session_state: {
+                    voided: boolean;
+                    /** Format: uuid */
+                    void_request_id: string | null;
+                    restore_pending: boolean;
+                } | null;
+            }[];
             next_cursor: string | null;
         };
         /** @default {} */
@@ -2349,6 +2615,18 @@ export interface components {
             employee_id: string;
             /** Format: uuid */
             holder_employee_id: string | null;
+            employee: {
+                /** Format: uuid */
+                id: string;
+                name_ar: string | null;
+                name_en: string;
+            };
+            holder: {
+                /** Format: uuid */
+                id: string;
+                name_ar: string | null;
+                name_en: string;
+            } | null;
             /** Format: uuid */
             branch_id: string;
             /** @enum {string} */
@@ -3032,6 +3310,278 @@ export interface components {
             items: components["schemas"]["PackageServiceOption"][];
             next_cursor: string | null;
         };
+        SessionMoney: string;
+        SessionPerformerInput: {
+            /** Format: uuid */
+            employee_id: string;
+            share_bps?: number;
+        };
+        SessionLineInput: {
+            /** Format: uuid */
+            service_id: string;
+            price: components["schemas"]["SessionMoney"];
+            discount: {
+                /** @enum {string} */
+                kind: "AMOUNT";
+                amount: components["schemas"]["SessionMoney"];
+            } | {
+                /** @enum {string} */
+                kind: "PERCENT";
+                bps: number;
+            };
+            performers: components["schemas"]["SessionPerformerInput"][];
+        };
+        RecordServiceSessionInput: {
+            /** Format: uuid */
+            customer_id: string;
+            /** Format: date-time */
+            occurred_at?: string;
+            lines: components["schemas"]["SessionLineInput"][];
+            /** Format: uuid */
+            recorder_membership_id?: string;
+        };
+        AppendServiceSessionLinesInput: {
+            lines: components["schemas"]["SessionLineInput"][];
+            /** Format: uuid */
+            recorder_membership_id?: string;
+        };
+        SessionPerformer: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            performer_ordinal: number;
+            share_bps: number;
+            name_en: string;
+            name_ar: string | null;
+            not_clocked_in_warning: boolean;
+            approved_leave_warning: boolean;
+        };
+        SavedServiceLine: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            service_id: string;
+            input_index: number;
+            ordinal: number;
+            name_en: string;
+            name_ar: string | null;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            effective_discount_bps: number;
+            limit_bps_applied: number | null;
+            /** @enum {string} */
+            limit_source: "OWNER" | "PERSON" | "BUSINESS" | "NOT_CONFIGURED";
+            /** @enum {string} */
+            status: "ACTIVE" | "CANCELLED";
+            revision: number;
+            rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+            counts_snapshot: boolean;
+            catalog_revision: number;
+            has_performer_warning: boolean;
+            performers: components["schemas"]["SessionPerformer"][];
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            /** Format: date-time */
+            recorded_at: string;
+            late: boolean;
+        };
+        ServiceSession: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            customer: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                phone_masked: string;
+            };
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            business_timezone: string;
+            late: boolean;
+            total_net: components["schemas"]["SessionMoney"];
+            lines: components["schemas"]["SavedServiceLine"][];
+        };
+        RejectedServiceLine: {
+            input_index: number;
+            /** Format: uuid */
+            service_id: string;
+            name_en: string;
+            name_ar: string | null;
+            /** @enum {string} */
+            code: "SESSION_DISCOUNT_ABOVE_LIMIT";
+            message_ar: string;
+            message_en: string;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            effective_discount_bps: number;
+            limit_bps: number;
+            /** @enum {string} */
+            limit_source: "PERSON" | "BUSINESS" | "NOT_CONFIGURED";
+            minimum_net: components["schemas"]["SessionMoney"];
+            max_discount_amount: components["schemas"]["SessionMoney"];
+        };
+        RecordServiceSessionResponse: {
+            /** @enum {string} */
+            outcome: "COMPLETE" | "PARTIAL";
+            session: components["schemas"]["ServiceSession"];
+            rejected_lines: components["schemas"]["RejectedServiceLine"][];
+        };
+        AppendServiceSessionLinesResponse: {
+            /** @enum {string} */
+            outcome: "COMPLETE" | "PARTIAL";
+            session: components["schemas"]["ServiceSession"];
+            rejected_lines: components["schemas"]["RejectedServiceLine"][];
+            added_lines: components["schemas"]["SavedServiceLine"][];
+        };
+        ServiceLineChanged: {
+            /** Format: uuid */
+            line_id: string;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            service_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "CANCELLED";
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            late: boolean;
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            performers: {
+                /** Format: uuid */
+                employee_id: string;
+                share_bps: number;
+            }[];
+            rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+            counts_snapshot: boolean;
+            /** @enum {string|null} */
+            package: null;
+            revision: number;
+        };
+        RecordedServiceLine: {
+            /** Format: uuid */
+            line_id: string;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            service_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** @enum {string} */
+            status: "ACTIVE";
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            late: boolean;
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            performers: {
+                /** Format: uuid */
+                employee_id: string;
+                share_bps: number;
+            }[];
+            rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+            counts_snapshot: boolean;
+            /** @enum {string|null} */
+            package: null;
+            /** @enum {number} */
+            revision: 1;
+        };
+        ServiceSessionRecorded: {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            business_timezone: string;
+            late: boolean;
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            lines: components["schemas"]["RecordedServiceLine"][];
+        };
+        ServiceSessionLinesAdded: {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            business_timezone: string;
+            late: boolean;
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            lines: components["schemas"]["RecordedServiceLine"][];
+        };
         AttendanceQrToken: {
             /** Format: uuid */
             branch_id: string;
@@ -3116,6 +3666,52 @@ export interface components {
             "hub.challenge": string;
         };
         InAppNotification: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "break_returned_other_branch";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "employee_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "employee_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            })[];
+        } | {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
@@ -3621,6 +4217,200 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    attendanceMonthlyReport: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monthly attendance rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        business_id: string;
+                        branch_id: string | "all";
+                        month: string;
+                        rows: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            days_present: number;
+                            worked_minutes: number;
+                            scheduled_minutes: number;
+                            contracted_minutes: number;
+                            leave: {
+                                /** @enum {string} */
+                                type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+                                days: number;
+                                partial_minutes: number;
+                            }[];
+                            difference_minutes: number;
+                            late_count: number;
+                            late_minutes: number;
+                            missing_clock_out: number;
+                            manual_days: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceMonthlyReportCsv: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description UTF-8 attendance CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceMonthlyReportAll: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monthly attendance rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        business_id: string;
+                        branch_id: string | "all";
+                        month: string;
+                        rows: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            days_present: number;
+                            worked_minutes: number;
+                            scheduled_minutes: number;
+                            contracted_minutes: number;
+                            leave: {
+                                /** @enum {string} */
+                                type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+                                days: number;
+                                partial_minutes: number;
+                            }[];
+                            difference_minutes: number;
+                            late_count: number;
+                            late_minutes: number;
+                            missing_clock_out: number;
+                            manual_days: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceMonthlyReportAllCsv: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description UTF-8 attendance CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getEmployeeIban: {
         parameters: {
             query?: never;
@@ -5155,6 +5945,568 @@ export interface operations {
                 };
             };
             /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceCapabilities: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance write capabilities */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        correct: boolean;
+                        resolve: boolean;
+                        request_change: boolean;
+                        decide: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceBoard: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance board */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        branch_id: string;
+                        /** Format: date */
+                        date: string;
+                        timezone: string;
+                        /** Format: date-time */
+                        generated_at: string;
+                        owner: boolean;
+                        in_now: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            /** Format: date-time */
+                            clock_in: string;
+                            /** @enum {string} */
+                            source: "QR" | "BARCODE" | "MANUAL";
+                            /** Format: date-time */
+                            scheduled_end: string | null;
+                        }[];
+                        sessions: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            own: boolean;
+                            /** Format: date-time */
+                            clock_in: string;
+                            /** Format: date-time */
+                            clock_out: string | null;
+                            /** @enum {string} */
+                            status: "OPEN" | "CLOSED" | "MISSED_OUT";
+                            /** @enum {string} */
+                            source: "QR" | "BARCODE" | "MANUAL";
+                            late_minutes: number;
+                            /** Format: date-time */
+                            scheduled_start: string | null;
+                            /** Format: date-time */
+                            scheduled_end: string | null;
+                            /** @enum {string} */
+                            geo: "OK" | "NONE" | "OUT_OF_RANGE";
+                            /** @enum {string|null} */
+                            out_geo: "OK" | "NONE" | "OUT_OF_RANGE" | null;
+                            corrected: boolean;
+                            revision: number;
+                            open_exceptions: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                kind: "NONE" | "OUT_OF_RANGE" | "SUSPECTED_MISSED_OUT";
+                            }[];
+                            manual: {
+                                /** Format: uuid */
+                                change_request_id: string;
+                                /** Format: uuid */
+                                requested_by: string;
+                                requested_by_name: {
+                                    ar: string | null;
+                                    en: string;
+                                } | null;
+                                /** Format: uuid */
+                                approved_by: string;
+                                approved_by_name: {
+                                    ar: string | null;
+                                    en: string;
+                                } | null;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceBoardRefusals: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refused attendance attempts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            employee_id: string;
+                            /** Format: uuid */
+                            holder_employee_id: string | null;
+                            employee: {
+                                /** Format: uuid */
+                                id: string;
+                                name_ar: string | null;
+                                name_en: string;
+                            };
+                            holder: {
+                                /** Format: uuid */
+                                id: string;
+                                name_ar: string | null;
+                                name_en: string;
+                            } | null;
+                            /** Format: uuid */
+                            branch_id: string;
+                            /** @enum {string} */
+                            step: "CHALLENGE" | "CLOCK" | "ENROL";
+                            /** @enum {string} */
+                            reason: "DEVICE_LOCKED" | "NOT_ENROLLED" | "DEVICE_TAKEN" | "OTHER_DEVICE";
+                            /** Format: date-time */
+                            attempted_at: string;
+                        }[];
+                        next_cursor: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceExceptions: {
+        parameters: {
+            query?: {
+                status?: "OPEN" | "RESOLVED";
+                /** @description UTC raised_at|id keyset cursor */
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance action records */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            branch_id: string;
+                            /** @enum {string} */
+                            kind: "NONE" | "OUT_OF_RANGE" | "SUSPECTED_MISSED_OUT";
+                            /** @enum {string} */
+                            status: "OPEN" | "RESOLVED";
+                            /** @enum {string|null} */
+                            resolution: "CLOSED_LATE" | "MISSED_OUT" | "ACKNOWLEDGED" | "CARD_SCAN" | null;
+                            /** Format: uuid */
+                            resolved_by: string | null;
+                            /** Format: date-time */
+                            resolved_at: string | null;
+                            reason: string | null;
+                            /** Format: date-time */
+                            raised_at: string;
+                            revision: number;
+                            own: boolean;
+                            can_resolve: boolean;
+                            session: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: date */
+                                working_date: string;
+                                /** Format: date-time */
+                                clock_in: string;
+                                /** Format: date-time */
+                                clock_out: string | null;
+                                /** @enum {string} */
+                                status: "OPEN" | "CLOSED" | "MISSED_OUT";
+                            };
+                            employee: {
+                                /** Format: uuid */
+                                id: string;
+                                name_ar: string | null;
+                                name_en: string;
+                            };
+                        }[];
+                        next_cursor: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceCorrectionHistory: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance action records */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            field: "CLOCK_IN" | "CLOCK_OUT";
+                            /** Format: date-time */
+                            before_at: string;
+                            /** Format: date-time */
+                            after_at: string;
+                            reason: string;
+                            corrected_by: {
+                                /** Format: uuid */
+                                id: string;
+                                name: {
+                                    ar: string | null;
+                                    en: string;
+                                } | null;
+                            };
+                            /** Format: date-time */
+                            corrected_at: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceEmployees: {
+        parameters: {
+            query?: {
+                /** @description Branch-local working date; defaults to today in the branch timezone */
+                date?: string;
+                search?: string;
+                /** @description URL-encoded JSON [name_en,id] keyset cursor from next_cursor */
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance employee page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                        }[];
+                        next_cursor: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
             default: {
                 headers: {
                     [name: string]: unknown;
@@ -7930,6 +9282,157 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    recordServiceSession: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordServiceSessionInput"];
+            };
+        };
+        responses: {
+            /** @description COMPLETE or PARTIAL; rejected drafts have no saved IDs. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordServiceSessionResponse"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    appendServiceSessionLines: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppendServiceSessionLinesInput"];
+            };
+        };
+        responses: {
+            /** @description COMPLETE or PARTIAL; rejected drafts have no saved IDs. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppendServiceSessionLinesResponse"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
             default: {
                 headers: {
                     [name: string]: unknown;

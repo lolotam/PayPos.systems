@@ -15,7 +15,7 @@
 | Kind       | What it looks like in code                                           | When to use it                                                                 | Cost                                                                                       |
 | ---------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
 | **Import** | `import { X } from '../tenancy'` — the module's `index.ts` only      | Shared _types_ and NestJS module wiring. Almost always `import type`.          | Creates a hard compile-time edge. Keep these to a minimum.                                 |
-| **Port**   | Consumer defines `ports/<x>.port.ts`; an adapter implements it       | "I need an answer **now**" — a price, a credit limit, a membership             | No compile-time edge between the two modules. The adapter is the only file that sees both. |
+| **Port**   | Consumer defines `ports/<x>.port.ts`; an adapter implements it       | "I need an answer **now**" — a price, a credit limit, a membership             | Consumer-owned interface; provider-reading adapters declare their import edges (ADR-0041). |
 | **Event**  | Producer appends to `outbox`; consumer has `events/handlers/on-*.ts` | "This **happened**, react to it" — the default for anything that changes state | Zero coupling. The producer does not know the consumer exists.                             |
 
 **Rule of thumb:** if you are about to add an Import arrow, check whether it is really a Port (a read) or an Event (a write). Nine times out of ten it is.
@@ -40,7 +40,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `staff`         | `tenancy`, `identity`, `files` | An employee may be linked to a user; a document binds a verified file (ADR-0031). |
 | `realtime`      | `identity`            | Channel scope is resolved from the session.                                    |
 | `notifications` | —                     | Deliberately root-level: it is a service, it knows nothing about the business. |
-| `orders`        | `tenancy`             | Catalog and customer data arrive by **port**, not import (§3).                 |
+| `orders`        | `tenancy`, `catalog`, `customers`, `staff`, `identity`, `settings` | Consumer-owned ports call provider public readers on the same transaction (ADR-0041). |
 | `payments`      | `tenancy`             | Order totals arrive by **port**.                                               |
 | `cash`          | `identity`            | Payment tenders arrive by **port**.                                            |
 | `appointments`  | `tenancy`             | Catalog / staff / customers arrive by **port**.                                |
@@ -67,7 +67,17 @@ This adds no tenant exception, business import/write arrow, notifications → id
 
 ---
 
-## 3. Port arrows (runtime reads, no compile-time edge)
+## 3. Port arrows (consumer-owned runtime reads)
+
+ADR-0041: orders' consumer-owned ports have explicit adapter import edges. They read provider-owned tables
+through public functions on the caller's transaction; they do not join across contexts or call writes.
+SessionPlacePort reads tenancy's business timezone and branch ownership; DiscountLimitPort reads settings'
+effective discount limit; SessionRecordAccessPort reads identity's scoped authority and recorder memberships.
+CustomerLookupPort also returns the name and already-masked phone. PerformerCheckPort includes dated
+eligibility, persisted user links and attendance/leave warning facts. CatalogReaderPort snapshots all four
+service rule kinds, list price, names, revision and threshold participation. These are ADR-0041's bounded reads.
+The reverse customers → orders DaySessionsPort is bound by an injected callback at the application root;
+customers must not import orders and introduce a compile-time cycle (ADR-0041).
 
 ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
 `describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.
@@ -80,7 +90,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 
 | Consumer                            | Port it defines                                                                         | Reads from  | What it needs                                                                                                                                                        |
 | ----------------------------------- | --------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `orders`                            | `CatalogReaderPort`                                                                     | `catalog`   | price for item × branch × channel, item name snapshot, tax rule id; Phase 1 adds: service names, commission rule, threshold flag, package-type components (ADR-0010) |
+| `orders` | `CatalogReaderPort` | `catalog` | 35a bounded service list price, names, revision, all four commission rules and threshold flag (ADR-0041); later item/package reads remain as planned in ADR-0010 |
 | `orders`                            | `CustomerCreditPort`                                                                    | `customers` | credit limit, current balance, block status                                                                                                                          |
 | `payments`                          | `OrderTotalsPort`                                                                       | `orders`    | order total + currency to charge                                                                                                                                     |
 | `cash`                              | `ShiftPaymentsPort`                                                                     | `payments`  | tenders belonging to a shift, incl. `PENDING_GATEWAY` ones                                                                                                           |
@@ -97,8 +107,11 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeDetailAccess` (read-side interface beside the query) | `identity` | effective grants at the persisted business/primary branch and staff feature; never global user existence (ADR-0021, PR #79) |
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `identity` | schedule permissions and staff feature; writes retain company and ordered membership locks (ADR-0024) |
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `tenancy` | branch ownership and effective timezone through describeWorkspaces, using PR 19 fallback (ADR-0024) |
-| `orders`                            | `CustomerLookupPort`                                                                    | `customers` | `exists(customerId)` — reception finds or creates the customer first through `customers`' own endpoint (ADR-0010)                                                    |
-| `orders`                            | `PerformerCheckPort`                                                                    | `staff`     | employee active and attached to the branch on the date (ADR-0010)                                                                                                    |
+| `orders` | `CustomerLookupPort` | `customers` | company-scoped customer existence, name and already-masked phone; reception first finds/creates the customer through customers' own endpoint (ADR-0041) |
+| `orders` | `PerformerCheckPort` | `staff` | dated employee/branch eligibility, persisted user link and attendance/approved-leave warnings at occurredAt; staff owns the working-day calculation (ADR-0041) |
+| `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041) |
+| `orders` | `SessionRecordAccessPort` | `identity` | locked record authority, DENY, orders feature and caller-owned recorder memberships (ADR-0041) |
+| `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
@@ -176,6 +189,8 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
 | `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`                                                                        |
+| `ServiceSessionRecorded` | `orders` | `commissions` (50), `customers` (59); one batch of accepted revision-1 lines on creation, known with zero consumers in 35a (ADR-0041) |
+| `ServiceSessionLinesAdded` | `orders` | `commissions` (50), `customers` (59); newly appended revision-1 lines only for the same visit (ADR-0041) |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `RatingRequestReady`                                                        | `customers`     | `notifications`                                                                                   |
@@ -229,7 +244,7 @@ imports:
   customers: [tenancy]
   expenses: [tenancy]
   inventory: [tenancy]
-  orders: [tenancy]
+  orders: [tenancy, catalog, customers, staff, identity, settings]
   payments: [tenancy]
   appointments: [tenancy]
   channels: [tenancy]
@@ -259,6 +274,14 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - orders -> catalog.readSessionServices @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
+  - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
+  - orders -> staff.readSessionPerformers @ apps/api/src/modules/orders/persistence/performer-check.adapter.ts
+  - orders -> settings.readEffectiveDiscountLimit @ apps/api/src/modules/orders/persistence/discount-limit.adapter.ts
+  - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
+  - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
+  - orders -> tenancy.businessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
+  - orders -> tenancy.describeWorkspaces @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/attendance-board-context.adapter.ts
   - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/manual-session-context.adapter.ts
   - staff -> identity.lockAttendanceExceptionAccess @ apps/api/src/modules/staff/persistence/attendance-change-context.adapter.ts

@@ -331,3 +331,4 @@ export {
   attendanceCapabilities,
   type AttendanceCapabilities,
 } from './staff/attendance-capabilities.js';
+export * from './orders/service-session.js';
