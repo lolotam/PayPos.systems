@@ -1,341 +1,382 @@
 # Spec 050 — Record a service session (Phase 1 row 35)
 
-> **Status:** Draft · 2026-10-12 · owner questions SS-Q1…SS-Q11 **PENDING** in
-> [owner-questions.ar.md](owner-questions.ar.md) (next batch on the decisions page, posted by the orchestrator).
-> Every rule marked `TODO(spec) SS-Qn` waits for that answer; nothing marked so may be implemented on a guess.
-> **Phase 1 row:** 35 `record-service-session` — "effective discount up to the limit only; above it refused" · size L.
-> **Depends on:** rows 32 (services), 34 (customers find-or-create), 9 (employees and branches), 7b/7c (discount
-> limits) — all merged.
-> **Later rows that build on it:** 36 tips · 37 cancel line · 37b change performers · 38–41 discount approval above the
-> limit · 42–47 packages (redemption lines, row 43) · 50 commission projection · 57 staff app · 59 rating scheduling.
+> **Status:** Design ready · 2026-10-12 · SS-Q1…SS-Q11 **ANSWERED by Waleed, 2026-10-12**, batch 13 in
+> [owner-questions.ar.md](owner-questions.ar.md). Abu Salem has not replied; a later differing answer supersedes
+> Waleed's under CLAUDE.md §1 5b. Work proceeds on these recorded answers; no SS-Q rule remains pending.
+> **ADR:** [0041](../../adr/0041-orders-service-sessions-reads-and-events.md) · **35a plan:** [plan.md](plan.md).
+> **Phase 1 row:** 35 `record-service-session` — effective discount up to the limit only; above it refused.
+> **Depends on:** 32 services, 34 customers, 9 employees/branches, 7b/7c discount limits — all merged.
+> **Later consumers:** 36 tips, 37 cancel, 37b performers, 38–41 approval, 42–47 packages, 50 commission projection,
+> 57 staff app, 59/59b ratings.
 
 ## 1. Scope
 
-**This slice does:** the receptionist records one visit of one customer at one branch: one or more service lines,
-each with its price, its discount and its performer(s) with shares. The line is written with its snapshots (list
-price, service commission rule, threshold flag), its effective discount is checked against the recorder's limit, and
-one `ServiceLineChanged` event per line is written to the outbox in the same transaction.
+Reception records one customer visit at one branch with service price, discount and performer shares. Each
+accepted line stores list-price/rule/threshold snapshots and passes the recorder's effective discount limit.
+Only lines above that limit are returned for editing; the other valid lines are saved (SS-Q6 option 2).
+The successful write is one tenant transaction, including audit, idempotent response and **one** outbox event
+containing all accepted line snapshots (ADR-0041's initial-recording amendment to SPEC §3 / ADR-0010).
 
-**This slice does NOT:**
+### Split
 
-| Not here | Where |
+| Row | Deliverable |
 |---|---|
-| Tips | row 36 |
-| Cancelling a line | row 37 |
-| Changing performers or shares after recording | row 37b |
-| Recording a discount above the limit (proposal, PIN, remote approval, consumption) | rows 38–41 — here it is **refused** |
-| Package sale and package redemption lines (`redemption_id`) | rows 42, 43 |
-| Commission projection, estimate, statements, corrections | rows 48a–55 |
-| Rating scheduling | rows 59, 59b |
-| Payments, payment method, receipt printing, POS sell screen | Phase 2 (SPEC §2 Out) |
-| Service barcode | Phase 2 (D-15) |
-| Editing a recorded price or discount | none planned — see SS-Q10 |
+| 35a | Create and append write APIs for the same visit, snapshots, partial acceptance, migration/RLS, domain/tests, audit and one event per write |
+| 35b | Branch day list, late badge/filter and late IN_APP bell notice to branch managers through existing notifications |
+| 35c | `apps/admin` reception screen, individual login, price/amount/percent entry and same-% shortcut; PARTIAL corrections use append on returned session ID |
+| 35d | Audited edit of recorded price/discount, own revision/permission design (SS-Q10 option 2) |
 
-## 2. Decisions already made (not asked again)
+| Not in 35a | Where |
+|---|---|
+| Tips | 36 |
+| Cancel line | 37 |
+| Change performers/shares after recording | 37b |
+| Above-limit approval/proposal/consumption | 38–41; here the offending line is refused |
+| Package sale/redemption | 42/43 |
+| Commission projection/estimate/statements/corrections | 48a–55 |
+| Rating scheduling/claim | 59/59b |
+| Payment, printing, POS sale, service barcode, offline sync | Phase 2 |
+| Recorded price/discount edits | 35d |
 
-- **Customer is required** on every session (D-43; SPEC §4 `ServiceSession.customer_id`). Reception finds or creates
-  her first through `customers`' own endpoint (row 34, spec 010/022); `orders` only checks `exists(customerId)`
-  through `CustomerLookupPort` (ADR-0010). Staff see her name only; the phone is masked to its last 3 digits
-  everywhere except the customer entry form (D-43, SPEC R1).
-- **Reception may override the price** (D-44); every price override and discount records the actor and time (M1;
-  `CLAUDE.md` §8 audit of prices and discounts).
-- **Effective discount of a line = (list_price − net) / list_price** — lowering the price counts too; 0 % when
-  `list_price = 0`; a price above list is 0 % (D-56, SPEC §4, M13, spec 016). Checked **per line, never per session**
-  (spec 016 business rules).
-- **Fractional bps round UP when enforcing** the limit: any fraction above the limit is above it (owner decision
-  2026-10-03, spec 016). This is not money rounding (ADR-0005).
-- **The limit:** active owner → unlimited; else the person's own limit; else the business default; else
-  `NOT_CONFIGURED`, which this row enforces as **0 %** — every positive discount is above the limit (owner decision
-  2026-10-03, spec 018). Resolution is `settings`' `readEffectiveDiscountLimit(tx, companyId, businessId,
-  membershipId)` inside the session's tenant transaction (spec 018 FR-006).
-- **Above the limit the line is refused** in this row (plan row 35). Approval and its consumption in the same
-  transaction are rows 38–41 (M2).
-- **Shares:** split equal by default; the manager may change shares (D-14); Σ `share_bps` = 10000 per line (SPEC §4).
-  Commission is on the line net after discount; tips excluded (D-14).
-- **Performer check:** every performer is an employee **active and attached to the session's branch on the session
-  date** (`PerformerCheckPort`, SPEC §3, ADR-0010) — `employee_branches.from ≤ date < to`, not soft-deleted, within
-  hire/contract dates. Being clocked in is **not** part of the SPEC check (see SS-Q8).
-- **Late entry:** a forgotten session may be recorded with its real date until the period is approved, **flagged as
-  late and shown to the manager**; after approval it lands in the next period as a correction (D-49, M3). The
-  correction itself is the commissions consumer's job (rows 50, 55); this row records `occurred_at`, `recorded_at`
-  and `late`.
-- **Snapshots on the line:** `list_price`, `rule_snapshot` (service commission rule) and `counts_snapshot` (threshold
-  flag) are copied from the service at record time through `CatalogReaderPort`; a later service edit never changes a
-  recorded line (SPEC §6 "Service rules are snapshots on each line"; spec 031 SV-10).
-- **Dates are business dates** in the business timezone (D-10, SPEC §5); display in the branch timezone.
-- **Sessions are not payments** (SPEC §2 Out). No payment method is recorded here; tips (row 36) carry their own
-  method (D-36).
-- **Reception = the `cashier` system role** (ADR-0036, spec 019 amendment).
+## 2. Established decisions
 
-## 3. Open questions (owner) — all PENDING
+- Customer is required (D-43). Reception finds/creates her through customers' endpoint first (row 34); orders
+  checks company-scoped existence via `CustomerLookupPort`. Phone is masked outside customer entry and absent
+  from events/audit/logs; staff see the name only. Ratings opt-out never prevents recording.
+- Reception may override price, including above list (D-44, SS-Q4); actor/time are audited for every price
+  override or positive discount (M1). Sessions are not payments; no payment method is recorded here.
+- Effective discount is `(list_price − net) / list_price`, zero for list zero or net ≥ list (D-56/M13).
+  Lowering the entered price counts too. Enforcement is per line, inclusive, with fractional bps rounded **up**:
+  a fraction above the limit is refused (owner 2026-10-03, spec 016). This differs from money rounding.
+- Settings' existing `readEffectiveDiscountLimit(tx,companyId,businessId,membershipId)` resolves active owner → UNLIMITED, personal → business default → NOT_CONFIGURED. Orders enforces NOT_CONFIGURED as zero
+  (2026-10-03, spec 018). It reads on the same transaction with spec 018's stable locks; no Redis limit cache.
+- Equal shares default; Σ share_bps=10000 (D-14). Reception may supply unequal initial shares (SS-Q7);
+  post-recording changes belong to 37b. Commission uses net after discount; tips are separate.
+- Every performer must be active/non-deleted in the business, within hire/contract dates (contract end inclusive),
+  and attached to this branch on the occurred date: `from ≤ date < to`, open-ended to allowed.
+  Missing attendance or approved leave warns, never blocks (SS-Q8).
+- List price, service rule and threshold flag are captured at save time; later catalog edits cannot reprice the
+  saved line (SPEC §6, spec 031). Names are captured too to avoid cross-context list joins.
+- Dates/periods/late/window use the business timezone (SPEC §5). Staff's performer reader takes occurredAt and
+  derives its own branch working day using attendance working_date rules; orders never needs branch timezone.
+  Store the business date and timezone. A valid late line in an APPROVED/PAID period is still recorded;
+  rows 50/55 own the correction (D-49/M3). Orders reads no statement status.
+- Reception is the `cashier` system role (ADR-0036); SS-Q3 uses individual admin login, not device login.
 
-| ID | Topic | Recommended (⭐) | Blocks |
-|---|---|---|---|
-| SS-Q1 | How row 35 is split into PRs | 35a write API · 35b day list read · 35c reception screen | the plan |
-| SS-Q2 | Who may record a session | new `record:service-sessions:branch`; owner, GM, business manager, branch manager, cashier | FR-002, migration |
-| SS-Q3 | Which screen / device | `apps/admin` web screen on the reception computer, own login | 35c |
-| SS-Q4 | How price and discount are entered | price (pre-filled, editable) + discount as amount **or** percent per line, plus a "same % on all lines" shortcut | FR-005, contract |
-| SS-Q5 | Rounding a percent discount to mills | round the discount **down** to the mill | FR-006 |
-| SS-Q6 | What happens above the limit before rows 38–41 | whole session refused, nothing saved; the message names the line and the recorder's maximum | FR-008 |
-| SS-Q7 | Performers and shares at recording | equal split pre-filled, reception may change it; remainder bps to the first performer listed; every share ≥ 1 bps; up to 4 performers per line | FR-009, FR-010 |
-| SS-Q8 | Performer not clocked in / on approved leave that day | allowed, with a warning on the screen and a flag on the line | FR-011 |
-| SS-Q9 | Session time, "late", how far back, future times | time defaults to now and is editable; late = business date before the recording day; back to the 1st of the previous month; future refused | FR-012…FR-014 |
-| SS-Q10 | Fixing a mistake / adding a service later | no edit: cancel the line (row 37) and record again; a later service is a new session | FR-016 |
-| SS-Q11 | How the manager sees late entries | a «متأخر» badge and a filter on the day list, no notification | 35b |
+## 3. Owner decisions — Waleed, 2026-10-12
 
-## 4. The salon example used throughout
+Verbatim Arabic answers and the original alternatives remain in [owner-questions.ar.md](owner-questions.ar.md).
+These answers replace recommendations; SS-Q5/6/10/11 chose option 2.
 
-Business «صالون الأميرة», branch **السالمية** (timezone Asia/Kuwait). Receptionist **منى** (role `cashier`, personal
-discount limit **10.00 %** = 1000 bps). Branch manager limit 20 %; the owner is unlimited.
+| ID | Answer |
+|---|---|
+| SS-Q1 | 35a server write, 35b day list, 35c reception; the additional edit request is 35d |
+| SS-Q2 | Grantable new record permission, defaults owner/GM/business manager/branch manager/cashier; staff cannot record their own performance |
+| SS-Q3 | Admin on reception computer, each recorder's own account |
+| SS-Q4 | Editable pre-filled price, even above list; discount amount or percent; same-% shortcut |
+| SS-Q5 | Nearest mill **half-up**; 0.7125 → 0.713; refuse if this exceeds authority |
+| SS-Q6 | Save valid lines and return above-limit lines for editing; precise 201/422 semantics in §8 |
+| SS-Q7 | Unequal initial shares allowed; equal default; remainder bps to first input; no zero; maximum four performers |
+| SS-Q8 | Allow missing attendance/approved leave with reception warning and persisted line flag for manager |
+| SS-Q9 | Default now, editable; late=earlier business date; back to first of previous month; no future, with small clock-skew allowance |
+| SS-Q10 | Audited edit of saved price/discount, separate row 35d; 35a appends new/corrected drafts without editing saved lines |
+| SS-Q11 | Late badge/filter **and** one bell notice to branch managers per late saved session (35b) |
 
-Services: **صبغة شعر** 25.000 KWD (rule `FOLLOW_PLAN`, counts) · **مناكير** 7.125 KWD (`PCT` 1000 bps, counts) ·
-**رموش** 15.000 KWD (`FOLLOW_PLAN`, counts) · **استشارة** 0.000 KWD (`ZERO`, does not count).
+## 4. Salon example
 
-Performers: **سارة** (hair), **هبة** (nails), **Reem / ريم** (lashes) — all attached to السالمية.
-
-Customer: **نورة**, phone shown as `•••• •123` outside the entry form.
+Business «صالون الأميرة», branch السالمية, Asia/Kuwait. Receptionist منى (`cashier`) has 1000-bps personal
+limit; branch manager 2000 bps; owner unlimited. Services: صبغة 25.000 FOLLOW_PLAN/counts; مناكير 7.125
+PCT 1000 bps/counts; رموش 15.000 FOLLOW_PLAN/counts; استشارة 0.000 ZERO/non-counting. Performers سارة,
+هبة and ريم are attached to the branch. Customer نورة; display phone `•••• •123` outside entry.
 
 ## 5. User stories and acceptance scenarios
 
-### US-1 — Record a visit with several services (P1)
+### US-1 — Record several services
 
-On 2026-10-14 at 11:00 نورة has صبغة by سارة, مناكير by هبة, and رموش by ريم and هبة together. منى finds نورة by phone,
-adds the three lines and saves.
+On October 14 at 11:00 Kuwait, نورة has hair/nails/lashes. منى records three lines.
 
-- **SS-01** The session is saved with three ACTIVE lines, each `revision = 1`; `recorded_by` = منى, `recorded_at` =
-  server time, `occurred_at` = 11:00 Kuwait, `late = false`.
-- **SS-02** رموش has performers ريم 5000 bps and هبة 5000 bps (equal split default, D-14).
-- **SS-03** Each line carries `list_price` = the service price at that moment, `rule_snapshot`, `counts_snapshot`.
-- **SS-04** Three `ServiceLineChanged` outbox rows (one per line, `revision = 1`) commit in the same transaction as
-  the lines; a failure anywhere rolls back everything (session, lines, performers, audit, outbox, idempotency claim).
-- **SS-05** The response returns the session with names (ar/en), nets and each line's effective discount in bps; the
-  customer phone is masked.
+- **SS-01** One session, three ACTIVE lines, revision 1; recorded_by=منى; recorded_at=server clock,
+  occurred_at=08:00Z, business_date=2026-10-14, late=false.
+- **SS-02** Shared lashes defaults to ريم/هبة 5000/5000; initial 7000/3000 is also allowed and attributable.
+- **SS-03** Each line stores current list price, rule, threshold and name snapshots.
+- **SS-04** One `ServiceSessionRecorded` envelope with three full revision-1 line snapshots commits with
+  session/lines/performers/audit/idempotency. Any persistence failure rolls back all of them.
+- **SS-05** 201 COMPLETE includes names, accepted nets/effective bps and masked customer phone; no rejections.
 
-### US-2 — Discount within the limit (P1)
+### US-2 — Discount within authority
 
-- **SS-06** صبغة 25.000 with discount 2.500 → net 22.500 → effective 1000 bps = منى's limit → **saved** (the limit
-  is inclusive, spec 016).
-- **SS-07** منى overrides the price of صبغة to 22.500 with no discount → net 22.500 → 1000 bps → saved; the line
-  stores `list_price 25.000`, `price 22.500`, `discount 0.000`, `net 22.500`; one audit entry records the price
-  override with منى and the time (M1).
-- **SS-08** A price **above** list (صبغة at 27.000) is 0 % effective discount and is saved (D-56); audited as a price
-  override. `TODO(spec) SS-Q4` confirms the screen allows it.
-- **SS-09** استشارة at 0.000 has 0 % effective discount whatever is entered (M13); a discount larger than the price
-  is refused (`SESSION_LINE_DISCOUNT_INVALID`).
-- **SS-10** The owner records صبغة at 15.000 (40 %) → saved (UNLIMITED).
+- **SS-06** Hair 25.000 less 2.500 → net 22.500/effective 1000 bps → saved at the inclusive limit.
+- **SS-07** Override hair price to 22.500, discount 0 → same effective 1000 bps; store list 25.000/price 22.500/
+  discount 0/net 22.500 and actor/time price audit.
+- **SS-08** Price 27.000 above list → zero effective discount, saved and audited (SS-Q4).
+- **SS-09** List zero has effective zero; an amount discount exceeding entered price is still invalid.
+- **SS-10** Owner hair at 15.000 (40%) → saved, unless the owner is also an input performer (SS-Q2).
 
-### US-3 — Discount above the limit is refused (P1)
+### US-3 — Above-limit line returned for editing
 
-- **SS-11** منى enters discount 3.000 on صبغة → 1200 bps > 1000 → `SESSION_DISCOUNT_ABOVE_LIMIT`; **nothing** is saved
-  (`TODO(spec) SS-Q6`), the error names the line and منى's maximum.
-- **SS-12** مناكير 7.125 with a 10 % discount entered as a percent: the discount is 0.712 (rounded down,
-  `TODO(spec) SS-Q5`), net 6.413, effective `ceil(7120000 / 7125)` = 1000 bps → saved. With half-up rounding it would
-  be 0.713 → 1001 bps → refused; SS-Q5 exists because of this case.
-- **SS-13** A receptionist whose membership has no personal limit, in a business with no default
-  (`NOT_CONFIGURED`), can save only lines with 0 % effective discount (spec 018).
-- **SS-14** Two lines, one within and one above: the whole request is refused (`TODO(spec) SS-Q6`).
+- **SS-11** Hair discount 3.000 → 1200 bps > 1000; refuse that line with its maximum additional discount 2.500.
+  As the only line: 422, no writes. Other otherwise-valid lines can still save.
+- **SS-12** Nails 7.125 with 10% discount → half-up 0.713, net 6.412, `ceil(7130000/7125)`=1001 bps → refused
+  at 1000 bps. Never floor/clamp to 0.712 (SS-Q5 option 2).
+- **SS-13** NOT_CONFIGURED is enforced as 0; only zero effective discount saves.
+- **SS-14** One within/one above → 201 PARTIAL; one saved line, one rejection keyed to original input index,
+  one session event. Correct only the rejected draft and send a new key to append to the **same session**;
+  saved lines are not resent. One ServiceSessionLinesAdded contains only newly accepted lines.
 
-### US-4 — Late entry (P2)
+### US-4 — Late entry
 
-- **SS-15** On 2026-10-15 منى records a session of 2026-10-14 17:00 that she forgot → saved with `late = true`
-  (`TODO(spec) SS-Q9` for the exact definition); the day list shows it as late (`TODO(spec) SS-Q11`).
-- **SS-16** A session time in the future (beyond the clock-skew tolerance) is refused (`SESSION_TIME_IN_FUTURE`).
-- **SS-17** A session older than the allowed window is refused (`SESSION_TIME_TOO_OLD`, `TODO(spec) SS-Q9`).
-- **SS-18** A late line whose date falls in a period already approved is **recorded** like any other; it becomes a
-  correction in the commissions consumer (D-49, M3, rows 50/55). Nothing here reads statement status.
+- **SS-15** October 15 recording October 14 17:00 → late=true. 35b supplies badge/filter and one IN_APP bell
+  notice per persisted late session to active managers covering its branch (SS-Q11).
+- **SS-16** Occurred beyond server time + 120 seconds → SESSION_TIME_IN_FUTURE; within the small allowance
+  normalize to server recorded_at, so no future instant is stored.
+- **SS-17** On October 15, business-local September 1 midnight is accepted; 1 ms earlier → SESSION_TIME_TOO_OLD.
+- **SS-18** Valid previous-month line saves even when commissions approved/paid; correction belongs to 50/55.
 
-### US-5 — Performer rules (P1)
+### US-5 — Performer rules
 
-- **SS-19** A performer not attached to السالمية on 2026-10-14, soft-deleted, before her hire date or after her
-  contract end → `SESSION_PERFORMER_NOT_ELIGIBLE` naming the line and the employee.
-- **SS-20** Shares not summing to 10000, a duplicate performer on one line, or zero performers →
-  `SESSION_PERFORMER_SHARES_INVALID`.
-- **SS-21** A performer not clocked in, or on approved leave that day → `TODO(spec) SS-Q8` (recommended: saved with a
-  warning flag).
+- **SS-19** Wrong business/branch/date, deleted, before hire or after inclusive contract end → SESSION_PERFORMER_NOT_ELIGIBLE with input index/employee; whole request rolls back.
+- **SS-20** Zero/>4/duplicate performers, mixed omitted/explicit shares, zero/fraction share or sum ≠ 10000 → SESSION_PERFORMER_SHARES_INVALID, whole request rolls back.
+- **SS-21** Missing attendance/approved leave on occurred day saves per-performer warnings and the line flag;
+  both can coexist and do not affect amounts/shares.
+- **SS-25** Any performer linked to recorder user → SESSION_PERFORMER_SELF_FORBIDDEN (403), even with owner
+  or delegated record permission; whole request rolls back. “Own” means persisted employees.user_id equals
+  current recorder user ID, compared by a pure orders domain function using staff-returned nullable user_id.
+  An unlinked employee cannot be detected as the recorder; matching/different/null cases are unit-tested.
 
-### US-6 — Retries and isolation (P1)
+### US-6 — Retries, authority and isolation
 
-- **SS-22** The same `Idempotency-Key` with the same body returns the original 201 response and writes nothing new;
-  with a different body → `IDEMPOTENCY_KEY_REUSED` (422); while the first is still running →
-  `IDEMPOTENCY_KEY_IN_PROGRESS` (409).
-- **SS-23** A customer, service, employee or branch of another company — or a service of another business — answers
-  exactly like an unknown one; RLS negative tests on every new table (cross-tenant read = 0 rows, write = error).
-- **SS-24** A recorder without the permission on that branch gets the uniform 403 used by branch-scoped routes,
-  whether the branch exists or not.
+- **SS-22** Same key/body/actor/route replays original complete/partial 201 without writes. Changed fingerprint → IDEMPOTENCY_KEY_REUSED(422). Concurrent duplicate waits then replays; only claim timeout returns 409.
+- **SS-23** Other-company customer/service/employee behaves as unknown; wrong-business service/employee is
+  refused; all three new tenant tables have negative RLS tests.
+- **SS-24** Missing record permission, foreign/nonexistent branch or route business/branch mismatch → uniform 403.
+- **SS-26** Partial refusal applies only to above-limit discount. Any other invalid line or accepted-write failure
+  rolls back all accepted effects. All-over-limit creates no empty session, event, audit or surviving claim.
+- **SS-27** Multiple eligible recorder memberships without selection → SESSION_RECORDER_MEMBERSHIP_REQUIRED.
+  A supplied selection must belong to the user and cover the branch now; foreign/inactive selection → uniform 403.
+
+### US-7 — Finish the same visit
+
+- **SS-28** After PARTIAL, 35c keeps the session ID and posts only corrected rejected lines to the append route
+  with a new key. Session/customer/occurred_at/business_date remain unchanged, old line IDs/revisions are retained.
+- **SS-29** Original recorder OR current branch record-permission holder may append while active and branch
+  eligible, subject to DENY/orders feature. Other actors/branches/tenants fail 403. The appender selects and
+  audits their own membership and uses their own limit; self prohibition applies to that current actor.
+- **SS-30** Session business_date outside the first-of-previous-month window at fresh append time → 422 without
+  additions. Concurrent appends serialize, maintain contiguous ordinals and a maximum of 20 persisted lines;
+  capacity overflow rolls back that append, and retry of a committed key adds nothing twice.
+- **SS-31** Each accepted append commits one ServiceSessionLinesAdded event, audit and replayable 201 together;
+  all-over-limit/other failures leave the existing visit unchanged. PARTIAL append corrections repeat this route.
 
 ## 6. Functional requirements
 
-- **FR-001** One endpoint records one session with 1…N lines in **one** tenant transaction under `withTenant()`;
-  N ≤ 20 lines (input bound, not a business rule).
-- **FR-002** Guarded by exactly one `@Require('record:service-sessions:branch')` at the server-resolved branch, plus
-  `Feature('orders')`. Role defaults `TODO(spec) SS-Q2`. Device memberships never hold it unless SS-Q3 picks the POS.
-- **FR-003** `customer_id` must exist in the company (`CustomerLookupPort.exists`), else `SESSION_CUSTOMER_NOT_FOUND`.
-- **FR-004** Each `service_id` must belong to the session's business (`CatalogReaderPort`), else
-  `SESSION_SERVICE_NOT_FOUND`. The adapter returns price (bigint mills), names, rule and threshold flag; orders maps
-  every rule kind with an exhaustive switch (spec 031 "Touched outside the slice").
-- **FR-005** Each line input carries the price and the discount in the shape decided by `TODO(spec) SS-Q4`. Money is
-  a 3-decimal string in the contract and `bigint` mills in TS; price ≥ 0; 0 ≤ discount ≤ price; `net = price −
-  discount`, computed in `orders/domain`.
-- **FR-006** A percent discount is converted to mills in `orders/domain` with the rounding decided by
-  `TODO(spec) SS-Q5`; the stored line keeps the amount, never the percent.
-- **FR-007** The recorder's limit is read once per request, in the same transaction, for the membership the guard
-  resolved for that branch, through a new `orders` port `DiscountLimitPort` bound to `settings`'
-  `readEffectiveDiscountLimit`. `NOT_CONFIGURED` → 0 bps; `UNLIMITED` → no check; `MEMBERSHIP_NOT_FOUND` → 403.
-- **FR-008** For every line: `effective_bps = ceil((list_price − net) × 10000 / list_price)` (0 when list is 0 or
-  net ≥ list); `effective_bps > limit` → refused as decided by `TODO(spec) SS-Q6`. Pure functions in
-  `orders/domain`, unit-tested exhaustively (§9).
-- **FR-009** Performers: 1…4 per line (`TODO(spec) SS-Q7` for the cap), distinct employees, each `share_bps` an integer
-  ≥ 1 (`TODO(spec) SS-Q7`), Σ = 10000. When the client sends no shares, the domain fills an equal split; how the
-  remainder bps is placed is `TODO(spec) SS-Q7`.
-- **FR-010** Whether the recorder may send unequal shares at record time is `TODO(spec) SS-Q7`; if not, the API
-  refuses any non-default split and only row 37b changes shares.
-- **FR-011** Every performer passes `PerformerCheckPort` for the branch and the session's business date. The clock-in
-  and leave check (warning or block) is `TODO(spec) SS-Q8`.
-- **FR-012** `occurred_at` is a UTC instant; its default and editability are `TODO(spec) SS-Q9`. `recorded_at` comes
-  from the injected `Clock`, never from the client.
-- **FR-013** `late` is computed in `orders/domain` from `occurred_at`, `recorded_at` and the business timezone, by the
-  definition in `TODO(spec) SS-Q9`; stored on the session, never recomputed.
-- **FR-014** The oldest allowed `occurred_at` and the future tolerance are `TODO(spec) SS-Q9`.
-- **FR-015** One audit entry per line whose price differs from its list price or whose discount is positive: actor,
-  time, line, list price, price, discount, net, effective bps, the limit applied and its source (PERSON / BUSINESS /
-  OWNER / NOT_CONFIGURED). No customer phone in the audit or any log (`CLAUDE.md` §8).
-- **FR-016** No endpoint edits a recorded line's price, discount, service or customer. Corrections go through rows 37
-  and 37b (`TODO(spec) SS-Q10`).
-- **FR-017** IDs are UUID v7 from the injected `IdGenerator`. No `Date.now()` or `randomUUID()` in a use case.
-- **FR-018** The session total shown to the recorder is the sum of line nets, computed in `orders/domain` (no
-  arithmetic in the use case or the controller).
+- **FR-001** POST records 1…20 input lines; accepted set saves in one `withTenant` transaction. Only above-limit
+  discount causes partial acceptance; all other errors remain atomic.
+- **FR-002** Require record:service-sessions:branch and orders feature, with SS-Q2 default roles/grantability,
+  individual admin login and self-performance prohibition. Recheck authority after lock waits in the transaction.
+- **FR-003** Customer must exist in company, otherwise SESSION_CUSTOMER_NOT_FOUND; no customer write here.
+- **FR-004** Service must belong to business, otherwise SESSION_SERVICE_NOT_FOUND. Catalog reader snapshots
+  price/names/rule/threshold; exhaustively map every rule kind into orders-owned types (ADR-0035).
+- **FR-005** Each line has price and AMOUNT/PERCENT discount; contract money canonical three-decimal KWD strings,
+  domain bigint mills. price ≥ 0, 0 ≤ discount ≤ price, net = price−discount; price above list allowed (SS-Q4).
+- **FR-006** Percent amount=`roundKwd(priceMills*BigInt(bps), 10000n)`, nearest mill half-up (SS-Q5); stored as amount.
+- **FR-007** Read settings limit once on the same transaction for verified recorder membership. NOT_CONFIGURED → 0; UNLIMITED → no numerical check; MEMBERSHIP_NOT_FOUND → 403. Actual guard has no membership ID: optional
+  recorder_membership_id selects a caller-owned active branch-covering membership, or auto-use the sole candidate.
+  Ambiguity is explicit, never highest-limit/scope precedence (ADR-0041).
+- **FR-008** Effective bps=ceil((list−net)*10000/list), zero at list 0 or net ≥ list. Over limit returns per-line
+  editing information while within-limit lines save (SS-Q6). Calculations/partition/display maxima are domain functions.
+- **FR-009** 1…4 distinct performers, each integer share ≥ 1, sum = 10000. All omitted → equal split with remaining
+  bps added to first input performer; preserve input order (SS-Q7).
+- **FR-010** Reception may supply unequal shares at initial record; no post-recording share edit here.
+- **FR-011** Staff port checks active/branch/date eligibility and supplies warning facts/user links. Warn when no
+  non-void attendance on the working day staff derives from occurredAt using its branch timezone, or approved FULL_DAY leave on that day/PARTIAL leave at the
+  occurred instant. OPEN/CLOSED/MISSED_OUT including MANUAL count as clock-in evidence; current OPEN is not required.
+  Evaluate late inputs on occurred day, never today's attendance. Persist performer flags and line aggregate.
+- **FR-012** occurred_at UTC, optional (default fresh injected now) and editable; recorded_at only injected server Clock.
+- **FR-013** late=(occurred business date<recording business date), computed in domain, stored with business timezone/date.
+- **FR-014** Oldest is first of previous calendar month at local midnight inclusive; no manager-only late gate.
+  Approved small clock-skew engineering allowance=120 seconds; ≤ that future normalizes to recorded_at, > that refused.
+- **FR-015** Audit accepted price overrides/discounts: actor/time/line/list/price/discount/net/effective bps/applied
+  limit/source; record initial unequal shares and overall session creation. No rejected financial row or phone audit.
+- **FR-016** Price/discount edits after recording are required by SS-Q10 option 2 and delivered in 35d with audit.
+  35a's append route adds corrected rejected drafts/additional lines to the same visit; it never edits saved money.
+- **FR-017** UUID v7 IDs from injected IdGenerator; no Date.now/randomUUID in use cases.
+- **FR-018** Sum accepted rounded nets only in orders/domain, bounded to Money/numeric(14,3); aggregate overflow
+  returns SESSION_TOTAL_TOO_LARGE and rolls back the whole request. No controller/use-case arithmetic.
+- **FR-019** 35b delivers late badge/filter and once-per-late-session bell via existing notifications; 35a emits late metadata.
+- **FR-020** Append requires the original recorder OR branch record permission and the persisted business_date
+  within the back-dating window; all creation line rules, actor-bound idempotency and one-transaction/one-event
+  guarantees apply. Fresh snapshots/limit belong to the appender; performer eligibility uses original occurredAt.
+  Limit the whole visit to 20 persisted lines, allocating ordinals under the tenant/session advisory lock.
 
-## 7. Data model (migration + RLS in the same PR)
+## 7. Data model — migration and RLS in 35a
 
-All tables: tenant PK `(company_id, id)`, UUID v7, `ENABLE` + `FORCE` RLS on `app.company_id`, grants to
-`pospay_app` of SELECT/INSERT only (UPDATE columns added by rows 37/37b when they need them; no DELETE), negative
-isolation test per table. Money `numeric(14,3)`; timestamps `timestamptz` UTC.
+All three tables have UUID v7 PK **(company_id,id)**, business_id, ENABLE+FORCE RLS with explicit USING/WITH CHECK,
+SELECT/INSERT-only runtime grants and negative isolation tests. Monetary columns numeric(14,3), UTC timestamptz.
+Exact schema/constraints/indexes are in [plan.md](plan.md), including provider-reader indexes.
 
-| Table | Columns | Constraints / indexes |
-|---|---|---|
-| `service_sessions` | company_id, id, business_id, branch_id, customer_id, recorded_by (user id), recorded_by_membership_id, occurred_at, business_date (date, resolved in the business timezone), recorded_at, late bool, created_at | FK (company_id, business_id, branch_id) → branches; FK (company_id, customer_id) → customers. Indexes: (company_id, branch_id, business_date, occurred_at) for the day list; (company_id, customer_id, business_date) for `DaySessionsPort` (row 59b); (company_id, business_id, business_date) WHERE late for the late filter |
-| `service_lines` | company_id, id, session_id, business_id, service_id, ordinal smallint, status (`ACTIVE` \| `CANCELLED`, CHECK; only ACTIVE written here), revision int (1 here), list_price, price, discount, net, effective_discount_bps int, limit_bps_applied int NULL, limit_source text, rule_kind, rule_pct_bps NULL, rule_fixed_amount NULL, counts_toward_threshold bool, performer_warning text NULL (`TODO(spec) SS-Q8`), created_at | CHECKs: price ≥ 0, 0 ≤ discount ≤ price, net = price − discount, list_price ≥ 0, revision > 0, rule columns consistent (same CHECKs as `services`), effective bps 0…10000. FK (company_id, session_id) → service_sessions; FK (company_id, business_id, service_id) → services. UNIQUE (company_id, session_id, ordinal). Index (company_id, session_id). `redemption_id` is **not** added here — row 43 adds it (expand/contract) |
-| `service_line_performers` | company_id, line_id, employee_id, share_bps int | PK (company_id, line_id, employee_id); CHECK share_bps BETWEEN 1 AND 10000 (`TODO(spec) SS-Q7`); FK line, FK (company_id, business_id, employee_id) → employees via the line's business; index (company_id, employee_id, line_id) for the staff app (row 57) and the projection. Σ = 10000 enforced in the domain and by a deferred constraint trigger |
+| Table | Data and key constraints |
+|---|---|
+| service_sessions | business/branch/customer/recorder user+membership, occurred/recorded/business_date/business_timezone/late/created; tenant-qualified branch/customer/membership FKs, UNIQUE(company,business,id) |
+| service_lines | business/session/service/ordinal/status/revision, list/price/discount/net/effective/applied limit+source, service-name/rule/threshold snapshots, has_performer_warning, recorded_at/late/recorded_by/recorded_by_membership_id/created; tenant+business and recorder FKs, UNIQUE(company,session,ordinal), UNIQUE(company,business,id) |
+| line_performers | business/line/employee, performer_ordinal/share_bps/name snapshots, missing-clock/approved-leave flags; tenant+business FKs, UNIQUE(company,line,employee), UNIQUE(company,line,performer_ordinal) |
 
-Notes:
+Checks enforce monetary bounds/net equation, bps/revision/status/rule consistency and share bounds. Deferred
+SECURITY INVOKER triggers enforce 1…4 performers, sum = 10000 and warning consistency at commit. Parent/child
+business FKs prevent same-tenant cross-business references. No redemption_id until 43; no UPDATE/DELETE grant yet.
 
-- The rule snapshot is stored in validated columns, never JSON numbers (spec 031 precedent).
-- `business_date` is stored so period, day-list and rating reads never recompute a timezone.
-- Permission migration: catalog code `record:service-sessions:branch` + role defaults per SS-Q2 (pattern of
-  migration 0088/0129), ar/en labels in the permissions catalog i18n.
+Indexes lead with company: branch/day/time/id and partial late-day session lists, customer/business/day for 59b,
+recorder membership/user FKs, line session/ordinal and service FK, performer line/employee and employee lookup.
+Use existing PK/unique indexes where they cover predicates; plan lists the exact indexes and concurrent protocol.
 
-## 8. API contract
+Permission migration adds record:service-sessions:branch and the five SS-Q2 system-role defaults plus ar/en labels.
+The draft's service_line_performers natural-key table is replaced by line_performers with a tenant/id PK.
 
-`POST /v1/businesses/:businessId/branches/:branchId/service-sessions` → **201** `ServiceSession`
+## 8. API contract and partial acceptance
 
-- Headers: `Idempotency-Key` required (money effect, `CLAUDE.md` §6); scope COMPANY, operation
-  `record-service-session`, request fingerprint over the canonical body.
-- Body (Zod in `packages/contracts/src/orders/service-session.ts`, strict):
+POST /v1/businesses/:businessId/branches/:branchId/service-sessions → 201
+`{outcome:'COMPLETE'|'PARTIAL',session,rejected_lines}`. Strict Zod in packages/contracts/src/orders/service-session.ts;
+Idempotency-Key required, COMPANY scope/record-service-session operation. HTTP validates the key then recomputes
+`requestFingerprint({method,route,query,body,params:{businessId,branchId,companyId,actorUserId,sessionId?}})` using
+the existing shared helper; actor/company come from actorOf, never client input. SHA-256 over canonical JSON
+sorts object keys and preserves array order/omitted occurred_at. The stock decorator alone does not bind actor.
 
 ```json
 {
   "customer_id": "uuid",
   "occurred_at": "2026-10-14T08:00:00.000Z",
-  "lines": [
-    {
-      "service_id": "uuid",
-      "price": "25.000",
-      "discount": { "kind": "AMOUNT", "amount": "2.500" },
-      "performers": [{ "employee_id": "uuid", "share_bps": 10000 }]
-    }
-  ]
+  "lines": [{
+    "service_id": "uuid",
+    "price": "25.000",
+    "discount": { "kind": "AMOUNT", "amount": "2.500" },
+    "performers": [{ "employee_id": "uuid", "share_bps": 10000 }]
+  }]
 }
 ```
 
-  `discount.kind` ∈ `AMOUNT` | `PERCENT` (`bps`) per `TODO(spec) SS-Q4`; `performers[].share_bps` optional when equal
-  split (SS-Q7); `occurred_at` optional if SS-Q9 picks "default now".
-- Response: `id`, `business_id`, `branch_id`, `customer {id, name, phone_masked}`, `occurred_at`, `business_date`,
-  `recorded_at`, `late`, `recorded_by`, `total_net`, `lines[{id, ordinal, service {id, name_ar, name_en}, list_price,
-  price, discount, net, effective_discount_bps, status, revision, performers[{employee_id, name_ar, name_en,
-  share_bps}], warning?}]`.
-- Errors (bilingual envelope `{code, message_ar, message_en, details?}`): `VALIDATION_FAILED` 400 ·
-  `SESSION_CUSTOMER_NOT_FOUND` 404 · `SESSION_SERVICE_NOT_FOUND` 404 (`details.line_index`) ·
-  `SESSION_PERFORMER_NOT_ELIGIBLE` 422 (`line_index`, `employee_id`, `reason`) · `SESSION_PERFORMER_SHARES_INVALID`
-  422 · `SESSION_LINE_DISCOUNT_INVALID` 422 · `SESSION_DISCOUNT_ABOVE_LIMIT` 422 (`line_index`, `effective_bps`,
-  `limit_bps`, `max_discount` in KWD) · `SESSION_TIME_IN_FUTURE` 422 · `SESSION_TIME_TOO_OLD` 422 ·
-  `IDEMPOTENCY_KEY_REQUIRED` 400 · `IDEMPOTENCY_KEY_REUSED` 422 · `IDEMPOTENCY_KEY_IN_PROGRESS` 409 ·
-  `FEATURE_DISABLED` · `FORBIDDEN` 403 · `TRANSACTION_RETRY_REQUIRED` 409.
-- Generated OpenAPI and admin client regenerated.
-- The day-list read (part 35b, if SS-Q1 agrees): `GET /v1/businesses/:businessId/branches/:branchId/service-sessions
-  ?date=YYYY-MM-DD&late=true&cursor=&limit=` through `queries/`, guarded by a read permission named in 35b's plan.
+Also supported: PERCENT `{kind:'PERCENT',bps}`, optional recorder_membership_id, omitted occurred_at and all
+omitted share_bps for equal split. Price remains explicit; 35c pre-fills it from catalog. No client authority/late fields.
 
-## 9. Domain functions (`orders/domain`, pure, Arabic JSDoc, exhaustive unit tests)
+Creation response contains accepted lines only with server IDs, zero-based request input_index and contiguous
+session ordinal in accepted input order, name/rule snapshots, amounts, revisions/shares/warnings, line recorder/
+membership/recorded_at/late, masked customer and accepted total.
+Rejected entries have no saved IDs: input_index/service/name, bilingual SESSION_DISCOUNT_ABOVE_LIMIT, attempted
+amounts/effective bps/applied limit/source/minimum_net/max_discount_amount. Display maxima are domain-derived:
+minimumNet=ceil(list*(10000-limit)/10000), max additional discount=max(0,price−minimumNet), bounded by price.
 
-`lineNet(price, discount)` · `discountFromPercent(price, bps)` (SS-Q5) · `effectiveDiscountBps(list, net)` (same
-rule as identity's; orders owns its copy — ADR-0035 precedent, see §13) · `checkDiscountLimit(lines, limit)` ·
-`equalShares(performerIds)` (SS-Q7) · `validateShares(performers)` · `isLateEntry(occurredAt, recordedAt, tz)`
-(SS-Q9) · `sessionTotal(lines)`.
+Validate every non-limit invariant first. At least one accepted line → 201 and one atomic write/event/response;
+all over limit → 422(details.rejected_lines) and full rollback, including claim. Any other invalid line aborts
+entire request. Never commit valid lines behind 422 or use separate transactions. Original-key/body retry replays
+partial 201 including rejections. Edit only rejected drafts and use a new key on the same visit's append route;
+never resend accepted lines. Changed body/actor/route with committed key → 422; concurrent duplicate waits/replays,
+claim timeout → 409. The plan specifies all status/error mappings and optional-empty readiness behavior.
+
+POST /v1/businesses/:businessId/branches/:branchId/service-sessions/:sessionId/lines → 201
+`{outcome:'COMPLETE'|'PARTIAL',session,added_lines,rejected_lines}`, body `{lines,recorder_membership_id?}`,
+COMPANY operation `append-service-session-lines`. Inherit original customer/branch/occurred_at/business_date/
+timezone. Authorize original recorder OR branch-permission holder with current active branch membership/DENY/
+feature checks; unknown/foreign/wrong-route session → 403. Use the appender's limit/selection and fresh catalog
+snapshots, applying the same performers/shares/time/partial rules. After lock waits require stored business_date
+within the current back-dating window. Tenant/session advisory lock serializes count/ordinal assignment; max
+20 persisted lines across the visit (cancelled included). Capacity overflow → 422 with full append rollback.
+`session` includes the full visit/total; `added_lines` identifies this request's accepted subset. All rejected →
+422/no append effects or surviving claim; retry replays the original response. The original session header stays
+immutable; new lines store current actor/membership/recorded_at/late. 35b derives visit late as header OR any line
+late. 35c repeats appends after PARTIAL, never resends saved lines or creates another visit for these corrections.
+
+Day list in 35b: GET on same path with date/late/cursor/limit through queries/, with its own read permission and
+shape/EXPLAIN tests. It is not part of 35a.
+
+## 9. Pure domain functions and tests
+
+orders/domain owns lineNet, discountFromPercent, effectiveDiscountBps (local copy per ADR-0035/0041),
+partitionDiscountLines, authorized minimum-net/max-discount display calculation, equalShares, validateShares,
+sessionTime/isLateEntry, performerWarnings/self rule and sessionTotal. Arabic JSDoc and exhaustive no-DB tests.
+Use shared Money/roundKwd; never import identity domain or move RBAC execution into shared kernel.
+
+SS-Q7 bps remainder to first input differs from SPEC §5.2 money-share remainder to ascending employee_id.
+35a persists bps and whole-line net; row 50 owns money allocation/projection/commission arithmetic.
 
 ## 10. Permissions
 
-- New: `record:service-sessions:branch` — defaults `TODO(spec) SS-Q2`; branch scope follows the holder's membership
-  reach (PR 7 semantics). Device: never, unless SS-Q3 picks the POS device.
-- Reused: `create:customers:branch` (cashier/branch manager/business manager, spec 022) for the find-or-create step
-  that precedes the session.
-- The discount limit is a parameter of the recorder's membership (spec 016/018), not a separate permission here.
+New grantable record:service-sessions:branch defaults owner/general_manager/business_manager/branch_manager/cashier;
+current scope/DENY/expiry rules apply. Staff/self-performance refusal is independent of grants and owner unlimited
+limit. Admin only. Reuse customer create permissions on customers' existing scoped find-or-create endpoints before
+recording; no implicit customer creation by orders. Discount limit is recorder-membership data, not another grant.
+For multiple eligible memberships the recorder chooses `recorder_membership_id`; persist and audit that selection
+on creation and each append. Never auto-pick the highest limit. Append's original-recorder alternative still
+requires live scoped membership and DENY/feature checks; its guard must express the OR rule explicitly.
 
-## 11. Events (outbox, same transaction)
+## 11. Events and consumers arriving later
 
-One `ServiceLineChanged` per line (SPEC §3, ADR-0010), declared with its Arabic one-line JSDoc in
-`orders/events/published.ts`:
+35a emits exactly **one ServiceSessionRecorded** (Arabic doc comment, schema_version = 1) per saved session:
+session/business/branch/customer IDs, recorder/membership, occurred_at/recorded_at/business_date/business_timezone/
+late and accepted `lines` carrying the SPEC §3 full line state: line/session/service/branch/business/customer IDs,
+ACTIVE, timestamps/business_date/late/line recorder+membership, list_price/price/discount/net,
+performer employee_id/share_bps, rule_snapshot, counts_snapshot, package:null,
+revision = 1. **All monetary fields**, including net/list_price/price/discount and rule_snapshot.FIXED, are canonical
+KWD three-decimal strings (`"6.412"`, `"25.000"`, FIXED `"2.500"`), matching ADR-0035 and shipped SalaryChanged.
+Consumers use parseMoney; bigint mills stay internal only. No rejected draft or phone. No duplicate initial ServiceLineChanged.
 
-`line_id`, `session_id`, `service_id`, `branch_id`, `business_id`, `customer_id`, `status: 'ACTIVE'`, `occurred_at`,
-`recorded_at`, `net` (string mills), `performers [{employee_id, share_bps}]`, `rule_snapshot`, `counts_snapshot`,
-`package: null`, `revision: 1`.
+Each successful append emits exactly **one ServiceSessionLinesAdded**, schema_version=1, with original session/
+business/branch/customer/occurred_at/business_date/timezone and current append actor/membership/recorded_at/late;
+`lines` contains only appended full revision-1 snapshots. Line recorded_at is its own creation/append instant.
+The distinct event preserves visit identity while telling row 50 to project only new line × performer inputs;
+row 59 refreshes the same customer/business/day rating group and performers, never another visit/request.
 
-Consumers (`commissions` row 50, `customers` row 59) do not exist yet. The worker's known-event registry must list
-`ServiceLineChanged` so the dispatcher delivers it with no consumer (precedent: `SalaryChanged` before row 50). Row
-50 must therefore build its projection from `service_lines` for rows written before it ships, or replay — recorded
-here so row 50's plan owns it.
+ADR-0041 explicitly amends initial creation transport in SPEC §3/ADR-0010. Later 35d/37/37b retain
+ServiceLineChanged with full state and increased per-line revision. Rows 50/59 consume both batch envelopes;
+50 dedupes parent event and applies newer line revisions atomically; 59 schedules by customer/business/day.
+No ServiceCompleted or OrderCompleted is emitted for this Phase 1 recording.
+
+Worker known-event registry includes both recording and append events even before consumers, following SalaryChanged precedent.
+Published-with-no-consumer does not imply automatic future replay. 50 must bootstrap/replay all earlier lines,
+using orders' public reader for a state bootstrap, with revision guards and coverage before approval opens.
+59 bootstraps active customer/day groups; expired deadlines never trigger historical ratings; 59b reads authoritative
+active lines at claim time. 35b recovers the rollout gap for late notices with consumer dedupe.
+Row 50 replay/bootstrap and approval's pending-input count cover recording, append and changed-line events;
+parent event dedupe/per-line revision guards handle replay/reordering without duplicate commissions.
+
+35b worker orders uses recipient read ports following ADR-0037 and emits grouped LateServiceSessionNoticeRequested
+with IN_APP recipients for active scope-covered owner/GM/business/branch managers. Existing
+notificationRequestConsumer → StoreInAppNotification → admin bell delivers once/session. Groups ≤ 100, atomic consumed
+mark/group events; no direct notifications calls/package import. Interim rule later becomes row 62 alert settings.
+It consumes both recording and append events, deduping by tenant/session: the first late append can notify,
+later appends cannot repeat the visit notice. Late badge/filter uses header late OR any line late.
 
 ## 12. Edge cases
 
-- Same service twice in one session: allowed, two lines (no rule forbids it).
-- A service whose price changed between the screen load and the save: the server snapshots the price **at save**; the
-  effective discount uses that list price (SS-03). The screen shows the new value in the response.
-- A customer who opted out of ratings is recorded normally (opt-out affects ratings only, D-41).
-- An employee attached to two branches records at either one (SPEC §3 port; AB-Q7 precedent).
-- A session crossing midnight UTC but not Kuwait: `business_date` is the Kuwait date (SPEC §5 fixture rule).
-- The recorder is also a performer: allowed (no rule forbids it).
-- An owner who also has an employee row: unlimited discount (spec 016/018 owner rule).
-- 20 lines at the cap: one transaction, 20 outbox rows, well under 200 ms.
+Same service twice allowed. Server list/rule snapshot at save wins over a stale screen; no silent clamp. Customer
+opt-out records normally. Employees attached to two branches may perform at either valid link. UTC midnight does
+not define business date. Self-performer recorder is refused. Valid late approved-period input still records.
+Partial 201 leaves drafts unsaved, not cancelled rows; maximum 20 input lines/request and 20 persisted lines/visit,
+one recording or append envelope per successful write. 20-line 200 ms
+performance target must be measured during implementation, not assumed here.
 
-## 13. Engineering notes found while drafting (orchestrator, not owner)
+## 13. Engineering decisions settled
 
-1. **Module map conflict.** ADR-0010 says no import arrow is needed, but `module-map.yaml` has `orders: [tenancy]`,
-   and every adapter precedent (`staff → identity`, `settings → identity`) counts adapter imports as module arrows.
-   The four adapters this row needs (`catalog`, `customers`, `staff`, `settings`) need either arrows declared by an
-   ADR amendment or binding at a composition root outside the module (ADR-0037 `BranchPlaceReader` precedent), plus
-   `reads:` lines. **Must be settled before 35a's plan.**
-2. **No `orders → settings` port row** exists in `module-map.md` §3 for the discount limit; spec 018 says "PR 35 owns
-   its consuming read port". Add `DiscountLimitPort` to §3 in the same amendment.
-3. `effectiveDiscountBps` lives in `identity/domain`; `orders` may not import `identity`. Orders owns a copy with the
-   same tests (ADR-0035 precedent) or the function moves to `packages/domain` — decide in the plan.
-4. `orders` has only `domain/` today; this row creates `orders.module.ts`, `index.ts`, `ports/`, `persistence/`,
-   `http/`, `events/`.
-5. `readEffectiveDiscountLimit` takes one membership id; a person with several memberships uses the one the guard
-   resolved for the branch.
+ADR-0041 adds five adapter import edges (catalog/customers/staff/identity/settings) to existing orders → tenancy,
+with consuming ports under orders/ports, adapters under orders/persistence, provider public reads and bindings
+in orders.module.ts. 35a must synchronize map.md §2/3/4/6, generate YAML reads and initial-event docs; current maps
+remain unchanged in this docs-only task. Reverse customers → orders DaySessions binding stays at app root to avoid
+an import cycle. No cross-module writes/table joins. Effective discount copy stays orders-local with parity fixtures.
+Actual guard lacks a selected membership ID; verified selection/ambiguity contract replaces that draft assumption.
 
-## 14. Behaviour tests mapped to SPEC §11
+## 14. Behaviour-test mapping
 
-| SPEC | Test in this row |
+| SPEC | 35a evidence |
 |---|---|
-| M1 | price override and discount store actor and time; audit entry per FR-015 (SS-06, SS-07) |
-| M2 | first half only: above the limit is refused, nothing written (SS-11, SS-14); consumption comes in row 41 |
-| M3 | late entry flagged (SS-15); a line in an approved period is still recorded (SS-18) — the correction test is row 55 |
-| M12 | performer validation and share sums at record time (SS-19, SS-20); changes are row 37b |
-| M13 | (list − net)/list, 0 % at list 0, price above list 0 %, round-up of fractional bps (SS-06…SS-13) |
-| M10 | same key retried: one session, one set of outbox rows (SS-22) |
-| — | RLS negatives for the three tables; `EXPLAIN` + shape tests for any `queries/` file (35b); a domain fixture for the 7.125 / 10 % case of SS-Q5 |
+| M1 | Accepted price/discount actor/time audits; unequal initial shares attributable |
+| M2 | Above-limit line refused, other valid lines saved; proposal consumption stays 41 |
+| M3 | Exact late/window, no statement-status read; closed-period correction stays 50/55 |
+| M12 | Eligible performers/valid shares/self refusal; changes stay 37b |
+| M13 | Lowered-price effective discount, zero list, above-list zero, ceiling bps, half-up 0.713 refusal |
+| M10 | Complete/partial response retries: one effect/event; altered fingerprint refused |
+| R1 | Customer phone masked at boundary, absent from events/audit/logs |
+| — | Three-table RLS/FK negatives, atomic failure injection, authority/limit races; 35b owns list EXPLAIN/bell tests |
 
-Integration tests run on the T2 compose Postgres, one cloned database per spec file (ADR-0006).
+Integration uses T2 compose Postgres, cloned DB per spec file (ADR-0006). Detailed obligations are in plan.md.
 
-## 15. Out of scope
+## 15. Out of scope for 35a
 
-Tips, cancel, performer change, above-limit approval, packages, commission projection, ratings, payments, printing,
-barcode, offline POS sync, realtime (screens poll).
+Day-list/bell delivery/UI, recorded money edits, tips, cancel/performer changes, approvals, packages, commission
+projection, ratings, payments, printing, barcode, offline/realtime. They remain required in their named slices.
