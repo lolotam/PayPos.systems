@@ -1,6 +1,6 @@
 'use client';
-import type { AttendanceChangeListQuery } from '@pospay/contracts';
-import { useState } from 'react';
+import type { AttendanceChangeListQuery, WorkspaceBranch } from '@pospay/contracts';
+import { useMemo, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceRequests } from '../api/use-attendance-actions-read';
@@ -12,21 +12,35 @@ import { AttendanceActionsTable } from './attendance-actions-table';
 import { attendanceRequestColumns } from './attendance-request-columns';
 import { AttendanceRequestEditor } from './attendance-request-editor';
 import type { RequestAction } from './attendance-request-row-actions';
+type Props = {
+  scope: AttendanceBoardScope;
+  status: AttendanceChangeListQuery['status'];
+  timezone: string;
+  branches: WorkspaceBranch[];
+  allBranches: boolean;
+  enabled: boolean;
+};
 export function AttendanceRequestsList({
   scope,
   status,
   timezone,
-}: {
-  scope: AttendanceBoardScope;
-  status: AttendanceChangeListQuery['status'];
-  timezone: string;
-}) {
+  branches,
+  allBranches,
+  enabled,
+}: Props) {
   const locale = useLocale();
   const [selection, setSelection] = useState<{
     row: AttendanceRequestRow;
     action: RequestAction;
   }>();
-  const query = useAttendanceRequests(scope, status);
+  const query = useAttendanceRequests(scope, status, allBranches, enabled);
+  const columns = useMemo(
+    () =>
+      attendanceRequestColumns(locale, timezone, scope, branches, (row, action) =>
+        setSelection({ row, action }),
+      ),
+    [locale, timezone, scope, branches],
+  );
   const visible = !boardAccessLost(query.error);
   const items = visible ? attendancePages(query.data?.pages) : [];
   const current =
@@ -41,14 +55,7 @@ export function AttendanceRequestsList({
           void query.refetch();
         }}
       />
-      {query.data && visible ? (
-        <AttendanceActionsTable
-          items={items}
-          columns={attendanceRequestColumns(locale, timezone, (row, action) =>
-            setSelection({ row, action }),
-          )}
-        />
-      ) : null}
+      {query.data && visible ? <AttendanceActionsTable items={items} columns={columns} /> : null}
       <AttendanceActionPagination
         hasMore={query.hasNextPage && visible}
         fetching={query.isFetching}
@@ -58,7 +65,7 @@ export function AttendanceRequestsList({
       />
       {current && selection ? (
         <AttendanceRequestEditor
-          scope={scope}
+          scope={{ ...scope, branchId: current.branch_id }}
           row={current}
           action={selection.action}
           onClose={() => setSelection(undefined)}

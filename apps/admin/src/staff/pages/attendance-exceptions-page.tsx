@@ -61,7 +61,11 @@ export function AttendanceExceptionsPage({
           void query.fetchNextPage();
         }}
       />
-      {selection && !boardAccessLost(query.error) ? (
+      {selection &&
+      items.some(
+        (row) => row.id === selection.id && row.revision === selection.revision && row.can_resolve,
+      ) &&
+      !boardAccessLost(query.error) ? (
         <AttendanceExceptionEditor
           scope={scope}
           row={selection}

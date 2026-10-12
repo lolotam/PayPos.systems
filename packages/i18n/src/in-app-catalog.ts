@@ -18,6 +18,8 @@ export const inAppEn = {
     '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
   break_not_returned:
     '{{employee_name_en}} has not clocked back in from the break that ended at {{break_end}} at {{branch_name_en}}',
+  break_returned_other_branch:
+    '{{employee_name_en}} returned from the break at {{branch_name_en}}',
 };
 
 export const inAppAr = {
@@ -37,4 +39,6 @@ export const inAppAr = {
     'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
   break_not_returned:
     'لم يُسجَّل رجوع {{employee_name_ar}} من البريك المنتهي الساعة {{break_end}} في {{branch_name_ar}}',
+  break_returned_other_branch:
+    '{{employee_name_ar}} رجعت من البريك في فرع {{branch_name_ar}}',
 };

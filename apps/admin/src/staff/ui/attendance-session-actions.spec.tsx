@@ -14,7 +14,13 @@ it.each(['OPEN', 'CLOSED', 'MISSED_OUT'] as const)(
   'shows only status-valid actions for %s',
   (status) => {
     const action = vi.fn();
-    render(<AttendanceSessionActions row={{ ...actionSession, status }} onAction={action} />);
+    render(
+      <AttendanceSessionActions
+        capabilities={{ correct: true, resolve: true, request_change: true, decide: true }}
+        row={{ ...actionSession, status }}
+        onAction={action}
+      />,
+    );
     expect(
       screen.queryByRole('button', { name: t('en', 'attendanceActions.correct') }) !== null,
     ).toBe(status !== 'OPEN');
@@ -29,6 +35,7 @@ it.each(['OPEN', 'CLOSED', 'MISSED_OUT'] as const)(
 it('offers void and history for a manual day, following ACR-Q10', () => {
   render(
     <AttendanceSessionActions
+      capabilities={{ correct: true, resolve: true, request_change: true, decide: true }}
       row={{ ...actionSession, status: 'CLOSED', source: 'MANUAL' }}
       onAction={vi.fn()}
     />,
@@ -40,7 +47,13 @@ it.each(['correct', 'history', 'void'] as const)(
   'activates %s through a focusable button',
   (name) => {
     const action = vi.fn();
-    render(<AttendanceSessionActions row={actionSession} onAction={action} />);
+    render(
+      <AttendanceSessionActions
+        capabilities={{ correct: true, resolve: true, request_change: true, decide: true }}
+        row={actionSession}
+        onAction={action}
+      />,
+    );
     const button = screen.getByRole('button', { name: t('en', `attendanceActions.${name}`) });
     expect(button.tagName).toBe('BUTTON');
     expect(button.getAttribute('type')).toBe('button');

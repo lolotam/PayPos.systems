@@ -58,6 +58,18 @@ export function createAccessReader(db: TenantWrappers): AccessReader {
         return row?.business_id ?? null;
       }),
 
+    businessesOfBranches: (companyId, branchIds) =>
+      db.withTenant(companyId, async (tx) => {
+        const rows = await tx.execute<{ id: string; business_id: string }>(sql`
+          SELECT id, business_id FROM branches
+          WHERE company_id=${companyId}
+            AND id=ANY(ARRAY[${sql.join(
+              branchIds.map((id) => sql`${id}`),
+              sql`, `,
+            )}]::uuid[])`);
+        return new Map(rows.map((row) => [row.id, row.business_id]));
+      }),
+
     businessInCompany: (companyId, businessId) =>
       db.withTenant(companyId, async (tx) => {
         const rows = await tx.execute(sql`

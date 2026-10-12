@@ -8,6 +8,8 @@ export interface AttendanceBoardScope {
   businessId: string;
   branchId: string;
   timezone: string;
+  userId?: string;
+  owner?: boolean;
 }
 type BoardRows = Pick<AttendanceBoard, 'date' | 'in_now' | 'sessions'>;
 const instant = (column: string) =>
@@ -17,7 +19,10 @@ const instant = (column: string) =>
 const employeeProjection = sql`'employee_id',e.id,'name_ar',e.name_ar,'name_en',e.name_en`;
 
 // لوحة الحضور تجمع التحذيرات المفتوحة وأسماء طرفي الطلب اليدوي من سجلات الشركة فقط.
-const sessionProjection = sql`jsonb_build_object('id',s.id,${employeeProjection},
+const sessionProjection = (
+  userId: string | undefined,
+) => sql`jsonb_build_object('id',s.id,${employeeProjection},
+  'own',COALESCE(e.user_id=${userId ?? null}::uuid,false),
   'clock_in',${instant('s.clock_in')},'clock_out',${instant('s.clock_out')},'status',s.status,'source',s.source,
   'late_minutes',s.late_minutes,'scheduled_start',${instant('s.scheduled_start')},'scheduled_end',${instant('s.scheduled_end')},
   'geo',s.geo,'out_geo',s.out_geo,'revision',s.revision,
@@ -51,7 +56,7 @@ export function attendanceBoardStatement(
       'source',s.source,'scheduled_end',${instant('s.scheduled_end')}) ORDER BY s.clock_in,s.id)
       FROM attendance_sessions s JOIN employees e ON e.company_id=s.company_id AND e.business_id=s.business_id AND e.id=s.employee_id
       WHERE ${filter} AND b.date<=b.today AND s.status='OPEN'),'[]'::jsonb) AS in_now,
-    COALESCE((SELECT jsonb_agg(${sessionProjection} ORDER BY s.clock_in,s.id)
+    COALESCE((SELECT jsonb_agg(${sessionProjection(scope.userId)} ORDER BY s.clock_in,s.id)
       FROM attendance_sessions s JOIN employees e ON e.company_id=s.company_id AND e.business_id=s.business_id AND e.id=s.employee_id
       WHERE ${filter} AND b.date<=b.today AND s.working_date=b.date),'[]'::jsonb) AS sessions
     FROM board_date b`;
@@ -69,6 +74,7 @@ export async function attendanceBoard(
     branch_id: scope.branchId,
     timezone: scope.timezone,
     generated_at: now.toISOString(),
+    owner: scope.owner ?? false,
     ...rows,
   });
 }

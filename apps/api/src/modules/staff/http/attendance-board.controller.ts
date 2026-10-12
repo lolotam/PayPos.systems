@@ -25,6 +25,7 @@ export type AttendanceBoardContext = (
   companyId: string,
   businessId: string,
   branchId: string,
+  userId?: string,
 ) => Promise<AttendanceBoardScope | null>;
 
 @Controller('businesses/:businessId/branches/:branchId/attendance-board')
@@ -50,9 +51,9 @@ export class AttendanceBoardController {
     return this.database.withTenant(
       actor.companyId,
       async (tx) => {
-        const scope = await this.context(tx, actor.companyId, businessId, branchId);
+        const scope = await this.context(tx, actor.companyId, businessId, branchId, actor.userId);
         if (!scope) throw new ApiError('NOT_FOUND');
-        return attendanceBoard(tx, scope, now, query.date);
+        return attendanceBoard(tx, { ...scope, userId: actor.userId }, now, query.date);
       },
       { userId: actor.userId },
     );

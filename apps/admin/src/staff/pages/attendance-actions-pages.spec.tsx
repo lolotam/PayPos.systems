@@ -20,6 +20,13 @@ const state = vi.hoisted(() => ({ locale: 'en' as 'en' | 'ar' }));
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
+
+vi.mock('@/staff/api/use-attendance-capabilities', () => ({
+  useAttendanceCapabilities: () => ({
+    isPending: false,
+    capabilities: { correct: true, resolve: true, request_change: true, decide: true },
+  }),
+}));
 beforeEach(() => {
   state.locale = 'en';
   api.GET.mockReset();
@@ -171,6 +178,8 @@ it('pages requests, displays actor names and follows server action flags', async
   api.GET.mockImplementation(async (_path, options) => ({
     data: options.params.query.cursor
       ? {
+          can_decide_any: true,
+          can_request: false,
           items: [
             requestPage.items[0],
             {
@@ -201,6 +210,8 @@ it('pages requests, displays actor names and follows server action flags', async
 it('starts restore from an approved void and sends the post-void revision', async () => {
   api.GET.mockResolvedValue({
     data: {
+      can_decide_any: true,
+      can_request: false,
       items: [
         {
           ...requestPage.items[0],

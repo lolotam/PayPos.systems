@@ -9,6 +9,13 @@ const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en' }));
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
+
+vi.mock('@/staff/api/use-attendance-capabilities', () => ({
+  useAttendanceCapabilities: () => ({
+    isPending: false,
+    capabilities: { correct: true, resolve: true, request_change: true, decide: true },
+  }),
+}));
 beforeEach(() => api.GET.mockReset());
 
 const cases = (['ar', 'en'] as const).flatMap((locale) =>
@@ -24,9 +31,12 @@ it.each(cases)(
     const decidedAt = '2026-10-11T02:45:00Z';
     api.GET.mockResolvedValue({
       data: {
+        can_decide_any: true,
+        can_request: false,
         items: [
           {
             ...requestPage.items[0],
+            branch_id: branch.id,
             kind,
             status: 'APPROVED',
             requested: null,

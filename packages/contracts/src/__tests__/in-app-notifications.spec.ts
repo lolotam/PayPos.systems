@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 
-import { inAppRecipient, notificationRequest, notificationResult } from '../index.js';
+import { inAppRecipient, inAppNotification, notificationRequest, notificationResult } from '../index.js';
 import { shiftNotClockedInParameters } from '../in-app-notifications.js';
 
 const recipient = {
@@ -37,6 +37,31 @@ it.each([
       { name: 'shift_start', type: 'text', value: '10:00' },
     ]).success,
   ).toBe(false);
+});
+
+it('accepts the cross-branch break return kind and rejects unsafe or extra parameters', () => {
+  const values = ['سارة', 'Sara', 'حولي', 'Hawalli'];
+  const names = ['employee_name_ar', 'employee_name_en', 'branch_name_ar', 'branch_name_en'];
+  const notice = {
+    ...recipient, template_key: 'break_returned_other_branch',
+    safe_parameters: names.map((name, index) => ({ name, type: 'text', value: values[index] })),
+  };
+  expect(inAppRecipient.parse(notice)).toEqual(notice);
+  expect(notificationRequest.safeParse({ notification_recipients: [notice] }).success).toBe(true);
+  expect(inAppNotification.safeParse({
+    template_key: notice.template_key, template_revision: notice.template_revision,
+    locale: notice.locale, safe_parameters: notice.safe_parameters,
+    id: recipient.user_id, company_id: recipient.user_id,
+    business_id: recipient.user_id, branch_id: recipient.user_id, source_event_id: recipient.user_id,
+    created_at: '2026-10-04T11:10:00Z', read_at: null,
+  }).success).toBe(true);
+  expect(inAppRecipient.safeParse({ ...notice, safe_parameters: [
+    ...notice.safe_parameters, { name: 'break_end', type: 'text', value: '14:00' },
+  ] }).success).toBe(false);
+  for (const value of ['https://example.test', '123456', ' '])
+    expect(inAppRecipient.safeParse({ ...notice, safe_parameters: notice.safe_parameters.map(
+      (p) => p.name === 'branch_name_en' ? { ...p, value } : p,
+    ) }).success).toBe(false);
 });
 
 it('discriminates user recipients from unchanged WhatsApp phone recipients', () => {

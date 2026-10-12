@@ -23,6 +23,25 @@ const shift = (locale: 'ar' | 'en', arabic = 'ليلى', english = 'Laila'): InA
   read_at: null,
 });
 
+it('renders the cross-branch return in the viewer locale and falls back to English names', () => {
+  const item = {
+    ...shift('ar'), template_key: 'break_returned_other_branch',
+    safe_parameters: [
+      { name: 'employee_name_ar', type: 'text', value: 'سارة' },
+      { name: 'employee_name_en', type: 'text', value: 'Sara' },
+      { name: 'branch_name_ar', type: 'text', value: 'حولي' },
+      { name: 'branch_name_en', type: 'text', value: 'Hawalli' },
+    ],
+  } as InAppNotification;
+  expect(renderNotification(item, 'ar')).toBe('سارة رجعت من البريك في فرع حولي');
+  expect(renderNotification(item, 'en')).toBe('Sara returned from the break at Hawalli');
+  expect(renderNotification(item)).toBe('سارة رجعت من البريك في فرع حولي');
+  const blank = { ...item, safe_parameters: item.safe_parameters.map((p) =>
+    p.name.endsWith('_ar') ? { ...p, value: '   ' } : p,
+  ) } as InAppNotification;
+  expect(renderNotification(blank, 'ar')).toBe('Sara رجعت من البريك في فرع Hawalli');
+});
+
 function sentence(locale: 'ar' | 'en', employee: string, branch: string) {
   const employeeKey = locale === 'ar' ? 'employee_name_ar' : 'employee_name_en';
   const branchKey = locale === 'ar' ? 'branch_name_ar' : 'branch_name_en';

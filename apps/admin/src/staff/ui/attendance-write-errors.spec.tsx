@@ -51,6 +51,13 @@ const cases = [
     (['ar', 'en'] as const).map((locale) => ({ action, code, status: 403, locale })),
   ),
 ];
+
+vi.mock('@/staff/api/use-attendance-capabilities', () => ({
+  useAttendanceCapabilities: () => ({
+    isPending: false,
+    capabilities: { correct: true, resolve: true, request_change: true, decide: true },
+  }),
+}));
 beforeEach(() => {
   api.GET.mockReset().mockResolvedValue({ data: employeesFixture });
   api.POST.mockReset();

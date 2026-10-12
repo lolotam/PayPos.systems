@@ -2,6 +2,7 @@ import type {
   AttendanceBoard,
   AttendanceChangeRequestPage,
   AttendanceChangeRequestInput,
+  AttendanceCapabilities,
 } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { envelopeMessage } from '@/shared/api/api-error';
@@ -33,8 +34,17 @@ export function attendanceActionError(error: unknown, locale: Locale, write = fa
     return t(locale, 'attendanceActions.forbidden');
   return envelopeMessage(error, locale);
 }
-export function attendanceSessionActions(row: AttendanceSession) {
-  return { correct: row.status !== 'OPEN' && row.source !== 'MANUAL', void: row.status !== 'OPEN' };
+export function attendanceSessionActions(
+  row: AttendanceSession,
+  capabilities: AttendanceCapabilities,
+  owner = false,
+) {
+  const otherOrOwner = !row.own || owner;
+  return {
+    correct:
+      capabilities.correct && otherOrOwner && row.status !== 'OPEN' && row.source !== 'MANUAL',
+    void: capabilities.request_change && otherOrOwner && row.status !== 'OPEN',
+  };
 }
 export function attendancePages<T extends { id: string }>(pages?: { items: T[] }[]): T[] {
   return [...new Map(pages?.flatMap((page) => page.items).map((row) => [row.id, row])).values()];

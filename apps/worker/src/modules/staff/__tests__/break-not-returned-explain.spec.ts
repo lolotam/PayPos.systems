@@ -29,6 +29,28 @@ afterAll(async () => {
 
 type Tenant = { company: string; business: string; branch: string };
 
+it('return probe projects the first same-business destination and instant, isolated by company', async () => {
+  const tenant = await f.tenant();
+  const employee = await f.employee(tenant);
+  await f.breakShift(tenant, employee);
+  await f.session(tenant, employee, { clockIn: MORNING_IN, clockOut: BREAK_OUT });
+  const other = await f.branch(tenant);
+  const firstIn = new Date(BREAK_END.getTime() + 60_000);
+  await f.session(tenant, employee, { clockIn: firstIn, branch: other, clockOut: new Date(firstIn.getTime() + 60_000) });
+  await f.session(tenant, employee, { clockIn: new Date(firstIn.getTime() + 120_000) });
+  const shift = await lockedSample(tenant);
+  const statement = returnedStatement(tenant.company, shift, BREAK_OUT, BREAK_ALERT_AT);
+  const rows = await f.db.withTenant(tenant.company, (tx) => tx.execute<{ branch_id: string; clock_in: Date | string }>(statement));
+  expect(rows).toHaveLength(1);
+  const row = rows[0];
+  if (row === undefined) throw new Error('RETURN_PROBE_EMPTY');
+  expect(Object.keys(row)).toEqual(['branch_id', 'clock_in']);
+  expect(row.branch_id).toBe(other);
+  expect(new Date(row.clock_in).toISOString()).toBe(firstIn.toISOString());
+  const foreign = await f.tenant();
+  expect(await f.db.withTenant(foreign.company, (tx) => tx.execute(statement))).toHaveLength(0);
+});
+
 it('pages past one hundred due breaks and every probe uses its named index', async () => {
   const tenant = await f.tenant();
   await seedPage(tenant);

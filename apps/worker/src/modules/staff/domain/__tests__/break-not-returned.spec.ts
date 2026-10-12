@@ -5,6 +5,7 @@ import {
   breakOutWindowStart,
   breakNotReturnedDecision,
   breakNotReturnedParameters,
+  breakReturnedOtherBranchParameters,
   breakReturnDeadline,
   dueBreakCutoff,
   interimBreakNotReturnedRule,
@@ -26,7 +27,8 @@ function facts(overrides: Partial<BreakNotReturnedFacts> = {}): BreakNotReturned
     contractEnd: null,
     workingDate: SHIFT.workingDate,
     breakOutAt: at('13:02'),
-    returned: false,
+    shiftBranchId: 'branch-a',
+    returnedBranchId: null,
     ...overrides,
   };
 }
@@ -105,7 +107,11 @@ describe('breakNotReturnedDecision', () => {
   });
 
   it('does not alert when she is back before the job decides', () => {
-    expect(breakNotReturnedDecision(facts({ now: at('14:35'), returned: true }))).toBe('RETURNED');
+    expect(breakNotReturnedDecision(facts({ now: at('14:35'), returnedBranchId: 'branch-a' }))).toBe('RETURNED');
+  });
+
+  it('replaces the missing-return alert with a notice for a return at another branch', () => {
+    expect(breakNotReturnedDecision(facts({ returnedBranchId: 'branch-b' }))).toBe('RETURNED_OTHER_BRANCH');
   });
 
   it('skips a finished shift and an alert moment at or after the shift end', () => {
@@ -129,8 +135,28 @@ describe('breakNotReturnedDecision', () => {
     expect(breakNotReturnedDecision(facts({ breakOutAt: null, excused: true }))).toBe(
       'NO_BREAK_OUT',
     );
-    expect(breakNotReturnedDecision(facts({ excused: true, returned: true }))).toBe('EXCUSED');
+    expect(breakNotReturnedDecision(facts({ excused: true, returnedBranchId: 'branch-b' }))).toBe('EXCUSED');
   });
+});
+
+it('other-branch parameters contain safe employee and destination names without a break time', () => {
+  const fallback = { employeeAr: 'موظف', employeeEn: 'Employee', branchAr: 'فرع', branchEn: 'Branch' };
+  expect(breakReturnedOtherBranchParameters('سارة', 'Sara', {
+    branchId: 'branch-b', clockIn: at('14:05'), nameAr: 'حولي', nameEn: 'Hawalli',
+  }, fallback)).toEqual([
+    { name: 'employee_name_ar', type: 'text', value: 'سارة' },
+    { name: 'employee_name_en', type: 'text', value: 'Sara' },
+    { name: 'branch_name_ar', type: 'text', value: 'حولي' },
+    { name: 'branch_name_en', type: 'text', value: 'Hawalli' },
+  ]);
+  expect(breakReturnedOtherBranchParameters(null, 'https://example.test', {
+    branchId: 'branch-b', clockIn: at('14:05'), nameAr: null, nameEn: 'https://example.test',
+  }, fallback)).toEqual([
+    { name: 'employee_name_ar', type: 'text', value: 'موظف' },
+    { name: 'employee_name_en', type: 'text', value: 'Employee' },
+    { name: 'branch_name_ar', type: 'text', value: 'فرع' },
+    { name: 'branch_name_en', type: 'text', value: 'Branch' },
+  ]);
 });
 
 describe('dueBreakCutoff', () => {

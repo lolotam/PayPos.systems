@@ -8,6 +8,7 @@ import { AttendanceActionDialog } from './attendance-action-dialog';
 import { AttendanceActionFeedback } from './attendance-action-feedback';
 import { AttendanceRequestEditorForm } from './attendance-request-editor-form';
 import type { RequestAction } from './attendance-request-row-actions';
+import { useAttendanceCapabilities } from '../api/use-attendance-capabilities';
 export function AttendanceRequestEditor({
   scope,
   row,
@@ -21,8 +22,17 @@ export function AttendanceRequestEditor({
 }) {
   const locale = useLocale();
   const mutations = useAttendanceActions(scope);
+  const { capabilities } = useAttendanceCapabilities(scope, action === 'restore');
   const { request, decide, cancel } = mutations;
   const mutation = action === 'restore' ? request : action === 'withdraw' ? cancel : decide;
+  if (
+    action === 'restore'
+      ? !capabilities.request_change
+      : action === 'withdraw'
+        ? !row.can_cancel
+        : !row.can_decide
+  )
+    return null;
   return (
     <AttendanceActionDialog
       title={t(locale, `attendanceActions.${action}`)}

@@ -1,7 +1,22 @@
-import { attendanceExceptionPage, type AttendanceExceptionsListQuery } from '@pospay/contracts';
+import {
+  attendanceExceptionPage,
+  type AttendanceExceptionsListQuery,
+  type AttendanceExceptionPage,
+} from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { AttendanceBoardScope } from './attendance-board.query.ts';
+
+/** قراءة إجراءات الصفحة تبقى واجهة محلية؛ يربطها المتحكم بمفوّض الهوية المشترك. */
+export interface AttendanceExceptionReadAccess {
+  /** يقيّم إذن المعالجة لكل فروع الحركة بقراءة واحدة قبل تطبيق منع معالجة الحضور الشخصي. */
+  executeBranches(input: {
+    userId: string;
+    requestedCompany: unknown;
+    permission: string;
+    branchParams: readonly unknown[];
+  }): Promise<ReadonlyMap<string, boolean>>;
+}
 
 const instant = (column: string) =>
   sql`to_char(${sql.raw(column)} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
@@ -11,7 +26,9 @@ export function attendanceExceptionsStatement(
 ) {
   const [raisedAt, cursorId] = query.cursor?.split('|') ?? [];
   // شاشة التحذيرات تعرض جلسات الفرع المسموح بقراءته، وتخفي تحذيرات الجلسات الملغاة دون تعديلها.
-  return sql`SELECT jsonb_build_object('id',x.id,'branch_id',s.branch_id,'kind',x.kind,'status',x.status,
+  return sql`SELECT jsonb_build_object('id',x.id,'branch_id',x.branch_id,'kind',x.kind,'status',x.status,
+    'own',COALESCE(e.user_id=${scope.userId ?? null}::uuid,false),
+    'can_resolve',false,
     'raised_at',${instant('x.raised_at')},'resolution',x.resolution,'resolved_by',x.resolved_by,
     'resolved_at',${instant('x.resolved_at')},'reason',x.reason,'revision',x.revision,
     'session',jsonb_build_object('id',s.id,'working_date',s.working_date::text,
@@ -42,5 +59,22 @@ export async function attendanceExceptions(
   const lastRow = rows[query.limit - 1];
   if (rows.length > query.limit && last && lastRow)
     page.next_cursor = `${lastRow.cursor_at}|${last.id}`;
+  return page;
+}
+export async function attendanceExceptionActions(
+  authorizer: AttendanceExceptionReadAccess,
+  companyId: string,
+  userId: string,
+  page: AttendanceExceptionPage,
+): Promise<AttendanceExceptionPage> {
+  const branchParams = [...new Set(page.items.map((row) => row.branch_id))];
+  if (branchParams.length === 0) return page;
+  const allowed = await authorizer.executeBranches({
+    userId,
+    requestedCompany: companyId,
+    branchParams,
+    permission: 'resolve:attendance:branch',
+  });
+  for (const row of page.items) row.can_resolve = !row.own && allowed.get(row.branch_id) === true;
   return page;
 }

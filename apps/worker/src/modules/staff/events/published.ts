@@ -34,7 +34,7 @@ export interface ShiftNotClockedIn {
   readonly detected_at: string;
 }
 
-/** يصدر مع دفتر عدم الرجوع من البريك والتدقيق لكل مجموعة من مئة مستلم كحد أقصى؛ مرة واحدة لكل موظفة وبداية وردية (BW-Q5). */
+/** مسار البريك القديم: يصدر بعد الكشف مع الدفتر والتدقيق؛ notice_kind يميز الغياب من إشعار الرجوع لفرع آخر (BW-Q10). */
 export interface ShiftBreakNotReturned {
   readonly notice_id: string;
   readonly employee_id: string;
@@ -46,6 +46,9 @@ export interface ShiftBreakNotReturned {
   readonly break_out_at: string;
   readonly alert_due_at: string;
   readonly detected_at: string;
+  readonly notice_kind?: 'break_not_returned' | 'break_returned_other_branch';
+  readonly returned_branch_id?: string;
+  readonly returned_at?: string;
 }
 
 // TODO(spec) MO-Q1: لا notification_recipients قبل وصول AlertRulesPort (PR 62)؛ مستهلك الإشعارات يقبل الحدث بلا إرسال (موصى به).

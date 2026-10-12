@@ -1,5 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
+import type { AttendanceCapabilities } from '@pospay/contracts';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import {
@@ -10,12 +11,16 @@ export type SessionAction = 'correct' | 'history' | 'void';
 export function AttendanceSessionActions({
   row,
   onAction,
+  capabilities,
+  owner = false,
 }: {
   row: AttendanceSession;
+  capabilities: AttendanceCapabilities;
+  owner?: boolean;
   onAction: (row: AttendanceSession, action: SessionAction) => void;
 }) {
   const locale = useLocale();
-  const allowed = attendanceSessionActions(row);
+  const allowed = attendanceSessionActions(row, capabilities, owner);
   return (
     <div
       role="group"

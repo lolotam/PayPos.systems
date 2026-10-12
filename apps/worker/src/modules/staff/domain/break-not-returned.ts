@@ -15,9 +15,17 @@ export const BREAK_RETURN_GRACE_MS = 10 * 60 * 1000;
 /** خروج قبل بداية البريك بعشر دقائق أو أقل يُحسب خروجاً للبريك (BW-Q11). */
 export const BREAK_OUT_LEAD_MS = 10 * 60 * 1000;
 
-/** قرار الوظيفة لبريك وردية واحدة في لحظة واحدة؛ ALERT وحده يكتب إشعاراً. */
+/** قرار الوظيفة لبريك وردية واحدة؛ الرجوع لفرع آخر يكتب إشعاراً بدل تنبيه الغياب (BW-Q10). */
 export type BreakNotReturnedDecision =
-  'ALERT' | 'WAIT' | 'NO_BREAK_OUT' | 'RETURNED' | 'EXCUSED' | 'STALE' | 'INELIGIBLE';
+  'ALERT' | 'WAIT' | 'NO_BREAK_OUT' | 'RETURNED' | 'RETURNED_OTHER_BRANCH' | 'EXCUSED' | 'STALE' | 'INELIGIBLE';
+
+/** أول بصمة رجوع بعد خروج البريك في نفس النشاط، وأسماء فرع الرجوع لإشعار مدير فرع الخروج. */
+export interface BreakReturn {
+  readonly branchId: string;
+  readonly clockIn: Date;
+  readonly nameAr: string | null;
+  readonly nameEn: string;
+}
 
 /** القاعدة المؤقتة لتنبيه عدم الرجوع؛ نفس مستلمي وقناة تنبيه عدم الحضور حتى يصل PR 62. */
 export interface InterimBreakNotReturnedRule {
@@ -45,7 +53,8 @@ export interface BreakNotReturnedFacts {
   readonly contractEnd: string | null;
   readonly workingDate: string;
   readonly breakOutAt: Date | null;
-  readonly returned: boolean;
+  readonly shiftBranchId: string;
+  readonly returnedBranchId: string | null;
 }
 
 /** معامل قالب break_not_returned؛ آخر معامل ساعة نهاية البريك بدل ساعة بداية الوردية. */
@@ -96,7 +105,7 @@ export function breakReturnDeadline(
 /**
  * يقرر مصير بريك الوردية بالترتيب الملزم: منتهية، غير مؤهلة، بلا خروج في البريك، إجازة، رجعت، انتظار، وإلا تنبيه.
  * التي لم تبصم خروجاً للبريك لا تُنبَّه أبداً لأن الاختيار يطلب التنبيه على عدم الرجوع فقط.
- * الرجوع يُحسب حتى لحظة القرار، فمن رجعت قبل تشغيل الوظيفة لا تُنبَّه.
+ * الرجوع في أي فرع للنشاط حتى لحظة القرار يسقط تنبيه الغياب؛ الفرع الآخر له إشعار مستقل (BW-Q10).
  *
  * @param facts اللحظة والوردية والإجازة والخروج والرجوع بعد القفل
  * @returns القرار
@@ -111,7 +120,8 @@ export function breakNotReturnedDecision(facts: BreakNotReturnedFacts): BreakNot
     return 'INELIGIBLE';
   if (facts.breakOutAt === null) return 'NO_BREAK_OUT';
   if (facts.excused) return 'EXCUSED';
-  if (facts.returned) return 'RETURNED';
+  if (facts.returnedBranchId !== null)
+    return facts.returnedBranchId === facts.shiftBranchId ? 'RETURNED' : 'RETURNED_OTHER_BRANCH';
   if (facts.now.getTime() < facts.alertAt.getTime()) return 'WAIT';
   return 'ALERT';
 }
@@ -166,4 +176,24 @@ export function breakNotReturnedParameters(
       ? { name: 'break_end', type: 'text', value: parameter.value }
       : { name: parameter.name, type: 'text', value: parameter.value },
   );
+}
+
+/**
+ * أسماء الموظفة وفرع الرجوع الآمنة لإشعار BW-Q10، بنفس حماية الأسماء في تنبيه الغياب.
+ *
+ * @param employeeNameAr اسم الموظفة العربي
+ * @param employeeNameEn اسم الموظفة الإنجليزي
+ * @param returned أول رجوع في النشاط بعد الخروج
+ * @param fallback الأسماء العامة من الكتالوج
+ * @returns معاملات الأسماء فقط بلا وقت البريك
+ */
+export function breakReturnedOtherBranchParameters(
+  employeeNameAr: string | null,
+  employeeNameEn: string,
+  returned: BreakReturn,
+  fallback: NameFallback,
+): readonly BreakNoticeParameter[] {
+  return (breakNotReturnedParameters(
+    employeeNameAr, employeeNameEn, returned.nameAr, returned.nameEn, '00:00', fallback,
+  ) ?? []).filter((parameter) => parameter.name !== 'break_end');
 }

@@ -208,13 +208,16 @@ it('the latest clock-out inside the break counts: out 13:02, in 13:10, out 13:20
   expect(new Date(notice?.['break_out_at'] as string | Date).toISOString()).toBe(lastOut.toISOString());
 });
 
-it('a return clock-in at another branch does not count (same shift and branch)', async () => {
+it('a return clock-in at another branch suppresses the alert and records a return notice', async () => {
   const { tenant, employee } = await onBreak([]);
   const other = await f.branch(tenant);
   await f.session(tenant, employee, { clockIn: MORNING_IN, clockOut: BREAK_OUT });
   await f.session(tenant, employee, { clockIn: minute(BREAK_END, 5), branch: other, scheduledEnd: null });
   f.setNow(BREAK_ALERT_AT);
   expect(await f.detectBreak().execute(tenant.company)).toEqual({ notified: 1 });
+  const events = await f.breakEvents(tenant.company);
+  expect(events).toHaveLength(1);
+  expect(events[0]?.['payload']).toMatchObject({ notice_kind: 'break_returned_other_branch' });
 });
 
 it('after the shift ended the break is never re-evaluated', async () => {
