@@ -1,8 +1,9 @@
 import { sql, type SQL } from 'drizzle-orm';
 
-// شاشات إجراءات الحضور تختار أصغر (business_id,id) للاسم كي تبقى النتيجة ثابتة عند تعدد سجلات المستخدم.
-export function attendanceActorNameStatement(companyId: SQL, userId: SQL) {
+// شاشات إجراءات الحضور تفضّل سجل النشاط، ثم السجل غير المحذوف؛ الاسم التاريخي يبقى بعد المغادرة والتعادل ثابت.
+export function attendanceActorNameStatement(companyId: SQL, userId: SQL, businessId: SQL) {
   return sql`(SELECT jsonb_build_object('ar',actor.name_ar,'en',actor.name_en)
     FROM employees actor WHERE actor.company_id=${companyId} AND actor.user_id=${userId}
-      AND actor.deleted_at IS NULL ORDER BY actor.business_id,actor.id LIMIT 1)`;
+    ORDER BY (actor.business_id=${businessId}) DESC, (actor.deleted_at IS NULL) DESC,
+      actor.business_id,actor.id LIMIT 1)`;
 }

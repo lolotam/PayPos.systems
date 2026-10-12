@@ -59,10 +59,10 @@ export function attendanceChangePageStatement(
         'working_date',s.working_date::text,'timezone',s.timezone,
         'clock_in',to_char(s.clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
         'clock_out',to_char(s.clock_out AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) END,
-    'requested_by',r.requested_by,'requested_by_name',${attendanceActorNameStatement(sql`r.company_id`, sql`r.requested_by`)},
+    'requested_by',r.requested_by,'requested_by_name',${attendanceActorNameStatement(sql`r.company_id`, sql`r.requested_by`, sql`r.business_id`)},
     'requested_at',to_char(r.requested_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
     'decided_by',r.decided_by,'decided_at',to_char(r.decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'decided_by_name',${attendanceActorNameStatement(sql`r.company_id`, sql`r.decided_by`)},
+    'decided_by_name',${attendanceActorNameStatement(sql`r.company_id`, sql`r.decided_by`, sql`r.business_id`)},
     'decision_reason',r.decision_reason,'cancelled_by',r.cancelled_by,
     'cancelled_at',to_char(r.cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
     'revision',r.revision,'can_decide',${access.canDecide} AND r.branch_id=ANY(${uuidArray(access.decideBranches)})

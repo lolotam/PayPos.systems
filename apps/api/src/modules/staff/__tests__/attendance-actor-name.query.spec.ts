@@ -18,18 +18,15 @@ afterAll(async () => {
   await f?.db.close();
   await f?.h.close();
 });
-const statement = (userId = f.approverId) =>
-  sql`SELECT ${attendanceActorNameStatement(sql`${f.company}::uuid`, sql`${userId}::uuid`)} AS name`;
+const statement = (userId = f.approverId, businessId = f.business) =>
+  sql`SELECT ${attendanceActorNameStatement(sql`${f.company}::uuid`, sql`${userId}::uuid`, sql`${businessId}::uuid`)} AS name`;
 
 it('projects only bilingual names across company businesses and chooses a deterministic employee', async () => {
-  const foreignBusiness = await actorEmployee(f);
+  await actorEmployee(f);
   const sameBusiness = await actorEmployee(f, f.approverId, f.business);
   await f.h
     .owner`UPDATE employees SET name_en='Synthetic alternative' WHERE company_id=${f.company} AND id=${sameBusiness.id}`;
-  const expected =
-    f.business < f.secondBusiness
-      ? { ...sameBusiness.name, en: 'Synthetic alternative' }
-      : foreignBusiness.name;
+  const expected = { ...sameBusiness.name, en: 'Synthetic alternative' };
   const rows = await f.db.withTenant(f.company, (tx) => tx.execute<{ name: unknown }>(statement()));
   expect(rows[0]?.name).toEqual(expected);
   const manual = await seedManual(f);
@@ -40,7 +37,7 @@ it('projects only bilingual names across company businesses and chooses a determ
     board.sessions.find((row) => row.id === manual.sessionId)?.manual?.approved_by_name,
   ).toEqual(expected);
 });
-it('returns null for absent or deleted actor employees and cannot read actor names across tenants', async () => {
+it('retains a soft-deleted-only actor name, returns null for absent actors, and isolates tenants', async () => {
   const rows = await f.db.withTenant(f.company, (tx) =>
     tx.execute<{ name: unknown }>(statement(leaveIds.newId())),
   );
@@ -49,7 +46,7 @@ it('returns null for absent or deleted actor employees and cannot read actor nam
     .owner`UPDATE employees SET deleted_at=now() WHERE company_id=${f.company} AND user_id=${f.approverId}`;
   expect(
     (await f.db.withTenant(f.company, (tx) => tx.execute<{ name: unknown }>(statement())))[0]?.name,
-  ).toBeNull();
+  ).toEqual({ ar: 'اسم اصطناعي', en: 'Synthetic alternative' });
   expect(
     (
       await f.db.withTenant(f.otherCompany, (tx) =>
@@ -57,6 +54,27 @@ it('returns null for absent or deleted actor employees and cannot read actor nam
       )
     )[0]?.name,
   ).toBeNull();
+});
+it('prefers a non-deleted row when there is no employee in the scoped business, with stable deleted fallback', async () => {
+  const unrelatedBusiness = leaveIds.newId();
+  await f.h.owner`UPDATE employees SET deleted_at=NULL
+    WHERE company_id=${f.company} AND business_id=${f.secondBusiness} AND user_id=${f.approverId}`;
+  try {
+    const [row] = await f.db.withTenant(f.company, (tx) =>
+      tx.execute<{ name: unknown }>(statement(f.approverId, unrelatedBusiness)),
+    );
+    expect(row?.name).toEqual({ ar: 'اسم اصطناعي', en: 'Synthetic actor' });
+  } finally {
+    await f.h.owner`UPDATE employees SET deleted_at=now()
+      WHERE company_id=${f.company} AND business_id=${f.secondBusiness} AND user_id=${f.approverId}`;
+  }
+  const [row] = await f.db.withTenant(f.company, (tx) =>
+    tx.execute<{ name: unknown }>(statement(f.approverId, unrelatedBusiness)),
+  );
+  expect(row?.name).toEqual({
+    ar: 'اسم اصطناعي',
+    en: f.business < f.secondBusiness ? 'Synthetic alternative' : 'Synthetic actor',
+  });
 });
 it('EXPLAIN ANALYZE uses the employee company/user lookup index', async () => {
   const ids = Array.from({ length: 2000 }, () => leaveIds.newId());

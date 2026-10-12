@@ -14,6 +14,7 @@ import {
 } from '../queries/attendance-correction-history.query.ts';
 import {
   attendanceActionsReadFixture,
+  seedActionHistory,
   type ActionsReadFixture,
 } from './attendance-actions-read.fixture.ts';
 import { leaveIds } from './leave.fixture.ts';
@@ -78,7 +79,7 @@ it('reads only sessions at the requested branch when an exception has a differen
   await f.h.owner`UPDATE attendance_exceptions SET branch_id=${f.secondBranch}
     WHERE company_id=${f.company} AND id=${f.visible.id}`;
   try {
-    expect((await list()).items.some((row) => row.id === f.visible.id)).toBe(true);
+    expect((await list()).items.find((row) => row.id === f.visible.id)?.branch_id).toBe(f.branch);
     const other = await f.db.withTenant(f.company, (tx) =>
       attendanceExceptions(
         tx,
@@ -110,13 +111,13 @@ it('correction history remains readable after void, oldest first with determinis
   expect(await history(f.otherBranchSession)).toBeNull();
   expect(await history(leaveIds.newId())).toBeNull();
 });
-it('a deleted actor employee becomes null while the correction and user id stay readable', async () => {
+it('a deleted actor employee keeps her name on past corrections', async () => {
   await f.h
     .owner`UPDATE employees SET deleted_at=now() WHERE company_id=${f.company} AND id=${f.actor.id}`;
   try {
     expect((await history(f.hidden.sessionId))?.items[1]?.corrected_by).toEqual({
       id: f.approverId,
-      name: null,
+      name: f.actor.name,
     });
   } finally {
     await f.h
@@ -139,28 +140,25 @@ it('tenant RLS hides exceptions and corrections even when query scope names the 
     }
   });
 });
-it('EXPLAIN ANALYZE uses existing session branch and exception/correction session indexes', async () => {
-  const ids = Array.from({ length: 2000 }, () => leaveIds.newId());
-  await f.h
-    .owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,
-    clock_in,clock_out,status,source,closed_by,geo,out_geo,late_minutes)
-    SELECT ${f.company},id,${f.business},${f.secondBranch},${f.employee.id},'2026-10-01','Asia/Kuwait',
-      '2026-10-01T05:00:00Z','2026-10-01T08:00:00Z','CLOSED','QR','EMPLOYEE','NONE','NONE',0
-    FROM unnest(${ids}::uuid[]) AS id`;
-  await f.h.owner`ANALYZE attendance_sessions`;
-  const exceptionIds = Array.from({ length: 2000 }, () => leaveIds.newId());
-  await f.h
-    .owner`INSERT INTO attendance_exceptions(company_id,id,business_id,branch_id,employee_id,session_id,kind,raised_at)
-    SELECT ${f.company},exception_id,${f.business},${f.secondBranch},${f.employee.id},session_id,'NONE','2026-10-01T05:00:00Z'
-    FROM unnest(${exceptionIds}::uuid[],${ids}::uuid[]) AS rows(exception_id,session_id)`;
-  await f.h.owner`ANALYZE attendance_exceptions`;
+it('EXPLAIN ANALYZE drives LIMIT from ordered exceptions without sorting the branch history', async () => {
+  await seedActionHistory(f);
   await f.db.withTenant(f.company, async (tx) => {
     for (const status of ['OPEN', 'RESOLVED'] as const) {
-      const plan = await tx.execute(
-        sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceExceptionsStatement(f.scope, { status, limit: 50 })}`,
-      );
-      expect(JSON.stringify(plan)).toContain('attendance_sessions_board_idx');
-      expect(JSON.stringify(plan)).toContain('attendance_exceptions_session_idx');
+      for (const cursor of [undefined, `2026-10-03T00:00:00Z|${f.visible.id}`]) {
+        const query = { status, limit: 50, ...(cursor ? { cursor } : {}) };
+        const [row] = await tx.execute<{ 'QUERY PLAN': { Plan: ExplainNode }[] }>(
+          sql`EXPLAIN (ANALYZE,FORMAT JSON) ${attendanceExceptionsStatement(f.scope, query)}`,
+        );
+        const root = row?.['QUERY PLAN'][0]?.Plan;
+        expect(root?.['Node Type']).toBe('Limit');
+        const nodes = planNodes(root);
+        const scan = nodes.find((node) => node['Index Name'] === 'attendance_exceptions_list_idx');
+        expect(nodes.filter((node) => node['Node Type'].includes('Sort'))).toEqual([]);
+        expect(scan?.['Node Type']).toBe('Index Scan');
+        expect(scan?.['Actual Loops']).toBe(1);
+        expect(scan?.['Actual Rows']).toBeLessThanOrEqual(query.limit + 2);
+        expect(root?.['Actual Rows']).toBe(query.limit + 1);
+      }
     }
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     const plan = await tx.execute(
@@ -170,6 +168,16 @@ it('EXPLAIN ANALYZE uses existing session branch and exception/correction sessio
     expect(JSON.stringify(plan)).toContain('attendance_sessions_company_id_id_pk');
   });
 });
+interface ExplainNode {
+  'Node Type': string;
+  'Index Name'?: string;
+  'Actual Rows': number;
+  'Actual Loops': number;
+  Plans?: ExplainNode[];
+}
+function planNodes(node: ExplainNode | undefined): ExplainNode[] {
+  return node ? [node, ...(node.Plans ?? []).flatMap(planNodes)] : [];
+}
 it('cross-tenant exception and correction inserts are rejected by RLS', async () => {
   const statements = [
     sql`INSERT INTO attendance_exceptions(company_id,id,business_id,branch_id,employee_id,session_id,kind,raised_at)

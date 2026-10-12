@@ -87,3 +87,24 @@ async function foreignSession(f: BoardFixture) {
   return { businessId, session, exception };
 }
 export type ActionsReadFixture = Awaited<ReturnType<typeof attendanceActionsReadFixture>>;
+
+export async function seedActionHistory(f: ActionsReadFixture) {
+  const ids = Array.from({ length: 8000 }, () => leaveIds.newId());
+  const exceptionIds = ids.map(() => leaveIds.newId());
+  await f.h
+    .owner`INSERT INTO attendance_sessions(company_id,id,business_id,branch_id,employee_id,working_date,timezone,
+    clock_in,clock_out,status,source,closed_by,geo,out_geo,late_minutes)
+    SELECT ${f.company},id,${f.business},${f.branch},${f.employee.id},'2026-01-01','Asia/Kuwait',
+      '2026-01-01T05:00:00Z','2026-01-01T08:00:00Z','CLOSED','QR','EMPLOYEE','NONE','NONE',0
+    FROM unnest(${ids}::uuid[]) AS id`;
+  await f.h
+    .owner`INSERT INTO attendance_exceptions(company_id,id,business_id,branch_id,employee_id,session_id,
+    kind,status,raised_at,resolution,resolved_at)
+    SELECT ${f.company},exception_id,${f.business},${f.branch},${f.employee.id},session_id,'NONE',
+      CASE WHEN n<=6000 THEN 'RESOLVED' ELSE 'OPEN' END,'2026-01-01T05:00:00Z',
+      CASE WHEN n<=6000 THEN 'ACKNOWLEDGED' ELSE NULL END,
+      CASE WHEN n<=6000 THEN '2026-01-01T09:00:00Z'::timestamptz ELSE NULL END
+    FROM unnest(${exceptionIds}::uuid[],${ids}::uuid[]) WITH ORDINALITY AS rows(exception_id,session_id,n)`;
+  await f.h.owner`ANALYZE attendance_sessions`;
+  await f.h.owner`ANALYZE attendance_exceptions`;
+}

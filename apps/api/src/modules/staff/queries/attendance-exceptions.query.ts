@@ -11,7 +11,7 @@ export function attendanceExceptionsStatement(
 ) {
   const [raisedAt, cursorId] = query.cursor?.split('|') ?? [];
   // شاشة التحذيرات تعرض جلسات الفرع المسموح بقراءته، وتخفي تحذيرات الجلسات الملغاة دون تعديلها.
-  return sql`SELECT jsonb_build_object('id',x.id,'branch_id',x.branch_id,'kind',x.kind,'status',x.status,
+  return sql`SELECT jsonb_build_object('id',x.id,'branch_id',s.branch_id,'kind',x.kind,'status',x.status,
     'raised_at',${instant('x.raised_at')},'resolution',x.resolution,'resolved_by',x.resolved_by,
     'resolved_at',${instant('x.resolved_at')},'reason',x.reason,'revision',x.revision,
     'session',jsonb_build_object('id',s.id,'working_date',s.working_date::text,
@@ -24,7 +24,7 @@ export function attendanceExceptionsStatement(
     WHERE x.company_id=${scope.companyId} AND x.business_id=${scope.businessId}
       AND s.branch_id=${scope.branchId} AND x.status=${query.status} AND s.voided_at IS NULL
       ${raisedAt && cursorId ? sql`AND (x.raised_at,x.id)<(${raisedAt}::timestamptz,${cursorId}::uuid)` : sql``}
-    ORDER BY x.raised_at DESC,x.id DESC LIMIT ${query.limit + 1}`;
+    ORDER BY x.raised_at DESC NULLS LAST,x.id DESC NULLS LAST LIMIT ${query.limit + 1}`;
 }
 export async function attendanceExceptions(
   tx: Tx,

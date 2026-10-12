@@ -34,7 +34,7 @@ it('projects only names and id through the shared currentAttachment definition, 
   expect((await list()).items.some((row) => row.id === f.employee.id)).toBe(true);
 });
 it('matches either name case-insensitively and treats SQL wildcard characters literally', async () => {
-  expect((await list({ search: '  pIcKeR bEtA  ' })).items).toHaveLength(2);
+  expect((await list({ search: '  pIcKeR bEtA  ', date: '2027-01-01' })).items).toHaveLength(2);
   expect((await list({ search: 'ألف' })).items).toEqual([
     f.expected.find((e) => e.name_en === 'Picker Alpha'),
   ]);
@@ -44,17 +44,36 @@ it('matches either name case-insensitively and treats SQL wildcard characters li
   expect((await list({ search: "' OR true --" })).items).toEqual([]);
   expect(await list({ search: '' })).toEqual(await list());
 });
+it('covers the requested working date with an exclusive link end and excludes future starts from today', async () => {
+  const ended = f.pickerEmployees.find((row) => row.key === 'ended');
+  expect((await list({ search: 'Picker Ended', date: '2026-10-03' })).items).toEqual([
+    { id: ended?.id, name_ar: ended?.name_ar, name_en: ended?.name_en },
+  ]);
+  for (const date of ['2026-10-04', '2026-10-05'])
+    expect((await list({ search: 'Picker Ended', date })).items).toEqual([]);
+  expect((await list({ search: 'Picker Beta' })).items).toEqual([]);
+  expect((await list({ search: 'Picker Beta', date: '2026-12-31' })).items).toEqual([]);
+  expect((await list({ search: 'Picker Beta', date: '2027-01-01' })).items).toHaveLength(2);
+  expect(await list({ date: '2026-10-05' })).toEqual(await list());
+  expect((await list({ search: 'Picker Today', date: '2026-10-04' })).items).toHaveLength(1);
+  expect((await list({ search: 'Picker Today' })).items).toEqual([]);
+});
 it('paginates by name then id through ties and punctuation, with no duplicate employees from multiple current links', async () => {
-  const all = (await list({ search: 'Picker' })).items;
+  const all = (await list({ search: 'Picker', date: '2027-01-01' })).items;
   const seen = [];
   let cursor: string | null = null;
   do {
-    const page = await list({ search: 'Picker', limit: 1, ...(cursor ? { cursor } : {}) });
+    const page = await list({
+      search: 'Picker',
+      date: '2027-01-01',
+      limit: 1,
+      ...(cursor ? { cursor } : {}),
+    });
     seen.push(...page.items);
     cursor = page.next_cursor;
   } while (cursor);
   expect(seen).toEqual(all);
-  expect(new Set(seen.map((e) => e.id)).size).toBe(f.expected.length);
+  expect(new Set(seen.map((e) => e.id)).size).toBe(all.length);
   const tied = all.filter((e) => e.name_en === 'Picker Beta');
   expect(tied.map((e) => e.id)).toEqual(tied.map((e) => e.id).sort());
   expect(all.map((e) => e.name_en)).toEqual(all.map((e) => e.name_en).sort());
@@ -90,6 +109,7 @@ it('EXPLAIN ANALYZE bounds name matching to indexed branch links without scannin
     for (const query of [
       { limit: 50 },
       { limit: 50, search: 'Picker' },
+      { limit: 50, search: 'Picker Ended', date: '2026-10-03' },
       { limit: 1, search: 'ألف', cursor: JSON.stringify(['Picker', f.employee.id]) },
     ]) {
       const plan = await tx.execute(

@@ -47,7 +47,7 @@ export async function attendanceEmployeesFixture() {
     .owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${f.company},${leaveIds.newId()},${f.business},${current?.id as string},${f.branch},'2026-10-06')`;
   const included = employees.filter((e) =>
-    ['current', 'future', 'futureEnd', 'endsLater', 'literal'].includes(e.key),
+    ['current', 'endsLater', 'literal'].includes(e.key),
   );
   const expected = included.map(({ id, name_ar, name_en }) => ({ id, name_ar, name_en }));
   return { ...f, pickerEmployees: employees, expected };

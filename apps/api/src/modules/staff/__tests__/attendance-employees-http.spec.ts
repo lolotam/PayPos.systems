@@ -100,6 +100,8 @@ it('rejects malformed cursors and search/limit bounds, and accepts the maximum l
     '?limit=0',
     '?limit=101',
     '?cursor=invalid',
+    '?date=2026-02-30',
+    '?date=not-a-date',
     '?cursor=%5B%22x%22%5D',
     `?search=${'a'.repeat(101)}`,
   ]) {
@@ -108,6 +110,12 @@ it('rejects malformed cursors and search/limit bounds, and accepts the maximum l
     expect(result.body.code).toBe('VALIDATION_FAILED');
   }
   expect((await send('?limit=100')).status).toBe(200);
+});
+it('accepts a past branch-local date and excludes ended or future links outside it', async () => {
+  expect((await send('?search=Picker%20Ended&date=2026-10-03')).body.items).toHaveLength(1);
+  expect((await send('?search=Picker%20Ended&date=2026-10-04')).body.items).toEqual([]);
+  expect((await send('?search=Picker%20Ended&date=2026-10-05')).body.items).toEqual([]);
+  expect((await send('?search=Picker%20Beta')).body.items).toEqual([]);
 });
 it('disabled staff feature returns FEATURE_DISABLED after permission scope succeeds', async () => {
   await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)

@@ -26,9 +26,9 @@ const sessionProjection = sql`jsonb_build_object('id',s.id,${employeeProjection}
     FROM attendance_exceptions x WHERE x.company_id=s.company_id AND x.session_id=s.id AND x.status='OPEN'),'[]'::jsonb),
   'manual',CASE WHEN s.source='MANUAL' THEN (SELECT jsonb_build_object(
     'change_request_id',r.id,'requested_by',r.requested_by,
-    'requested_by_name',${attendanceActorNameStatement(sql`s.company_id`, sql`r.requested_by`)},
+    'requested_by_name',${attendanceActorNameStatement(sql`s.company_id`, sql`r.requested_by`, sql`s.business_id`)},
     'approved_by',r.decided_by,
-    'approved_by_name',${attendanceActorNameStatement(sql`s.company_id`, sql`r.decided_by`)})
+    'approved_by_name',${attendanceActorNameStatement(sql`s.company_id`, sql`r.decided_by`, sql`s.business_id`)})
     FROM attendance_change_requests r
     WHERE r.company_id=s.company_id AND r.id=s.change_request_id AND r.session_id=s.id
       AND r.kind='ADD_SESSION' AND r.status='APPROVED') ELSE NULL END)`;

@@ -897,6 +897,13 @@
       "when": 1791655681038,
       "tag": "0129_2026-10-11_read-attendance-board",
       "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1791762155391,
+      "tag": "0130_2026-10-12_attendance-exceptions-list",
+      "breakpoints": true
     }
   ]
 }
