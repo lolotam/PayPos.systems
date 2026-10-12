@@ -164,11 +164,16 @@ describe('every error is the bilingual envelope', () => {
 describe('request logs go through the redaction list', () => {
   it('a PIN, a token and a full phone number logged by a handler never reach the output', async () => {
     await request('GET', '/v1/probe/log-secrets');
-    expect(logs).toContain('"msg":"probe"');
+    const probe = logs.split(/\r?\n/).find((line) => line.includes('"msg":"probe"')) ?? '';
+    expect(probe).not.toBe('');
+    // بنفحص سطر الـ probe بس: الـ PIN أربع أرقام وممكن تظهر بالصدفة جوه UUID عشوائي في سطر تاني.
     for (const secret of ['4821', 'tok_live_secret', '96550012345']) {
+      expect(probe).not.toContain(secret);
+    }
+    for (const secret of ['tok_live_secret', '96550012345']) {
       expect(logs).not.toContain(secret);
     }
-    expect(logs).toContain('***345');
+    expect(probe).toContain('***345');
   });
 });
 

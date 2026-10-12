@@ -5,8 +5,13 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { boardTime } from '../model/attendance-board-display';
 import { AttendanceSessionBadges } from './attendance-session-badges';
 import { AttendanceSourceBadge } from './attendance-source-badge';
+import { AttendanceSessionActions, type SessionAction } from './attendance-session-actions';
 type Row = AttendanceBoard['sessions'][number];
-export function attendanceSessionColumns(locale: Locale, timezone: string): ColumnDef<Row>[] {
+export function attendanceSessionColumns(
+  locale: Locale,
+  timezone: string,
+  onAction: (row: Row, action: SessionAction) => void,
+): ColumnDef<Row>[] {
   return [
     {
       id: 'employee',
@@ -43,13 +48,20 @@ export function attendanceSessionColumns(locale: Locale, timezone: string): Colu
     {
       id: 'source',
       header: t(locale, 'attendanceBoard.source'),
-      cell: ({ row }) => <AttendanceSourceBadge source={row.original.source} />,
+      cell: ({ row }) => (
+        <AttendanceSourceBadge source={row.original.source} manual={row.original.manual} />
+      ),
     },
     { id: 'late', header: t(locale, 'attendanceBoard.late'), accessorKey: 'late_minutes' },
     {
       id: 'exceptions',
       header: t(locale, 'attendanceBoard.exceptions'),
       cell: ({ row }) => <AttendanceSessionBadges row={row.original} />,
+    },
+    {
+      id: 'actions',
+      header: t(locale, 'attendanceActions.actions'),
+      cell: ({ row }) => <AttendanceSessionActions row={row.original} onAction={onAction} />,
     },
   ];
 }

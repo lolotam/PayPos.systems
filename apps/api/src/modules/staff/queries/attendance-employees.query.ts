@@ -19,6 +19,8 @@ export function attendanceEmployeesStatement(
   const date = query.date
     ? sql`${query.date}::date`
     : sql`(${now.toISOString()}::timestamptz AT TIME ZONE ${scope.timezone})::date`;
+  // نطابق attendanceEligible في domain/clock-attendance.ts لئلا يرفض اليوم اليدوي اختياراً معروضاً: التعيين ونهاية العقد inclusive ونهاية ارتباط الفرع exclusive.
+  const employment = sql`AND e.hire_date<=${date} AND (e.contract_end IS NULL OR e.contract_end>=${date})`;
   // منتقي «يوم يدوي» يبحث داخل ارتباطات الفرع المفهرسة فقط؛ MATERIALIZED يمنع تحويل البحث لمسح أسماء الشركة.
   return sql`WITH candidates AS MATERIALIZED (
     SELECT DISTINCT e.id,e.name_ar,e.name_en FROM employee_branches eb
@@ -26,6 +28,7 @@ export function attendanceEmployeesStatement(
     WHERE eb.company_id=${scope.companyId} AND eb.business_id=${scope.businessId}
       AND eb.branch_id=${scope.branchId} AND eb."from"<=${date}
       AND ${currentAttachment(date)} AND e.deleted_at IS NULL
+      ${employment}
   ) SELECT id,name_ar,name_en FROM candidates
     WHERE TRUE
       ${query.search ? sql`AND (strpos(lower(name_en),lower(${query.search}))>0 OR strpos(lower(name_ar),lower(${query.search}))>0)` : sql``}

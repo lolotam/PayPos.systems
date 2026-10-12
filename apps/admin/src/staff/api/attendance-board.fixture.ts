@@ -68,8 +68,8 @@ export const boardFixture: AttendanceBoard = {
       manual: {
         change_request_id: boardId,
         requested_by: boardId,
-        requested_by_name: null,
         approved_by: otherBoardId,
+        requested_by_name: null,
         approved_by_name: null,
       },
     },

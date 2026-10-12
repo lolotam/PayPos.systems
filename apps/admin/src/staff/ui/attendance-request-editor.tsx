@@ -1,0 +1,45 @@
+'use client';
+import { t } from '@pospay/i18n';
+import { useLocale } from '@/shared/locale/locale-context';
+import type { AttendanceBoardScope } from '../api/use-attendance-board';
+import { useAttendanceActions } from '../api/use-attendance-actions';
+import type { AttendanceRequestRow } from '../model/attendance-action-display';
+import { AttendanceActionDialog } from './attendance-action-dialog';
+import { AttendanceActionFeedback } from './attendance-action-feedback';
+import { AttendanceRequestEditorForm } from './attendance-request-editor-form';
+import type { RequestAction } from './attendance-request-row-actions';
+export function AttendanceRequestEditor({
+  scope,
+  row,
+  action,
+  onClose,
+}: {
+  scope: AttendanceBoardScope;
+  row: AttendanceRequestRow;
+  action: RequestAction;
+  onClose: () => void;
+}) {
+  const locale = useLocale();
+  const mutations = useAttendanceActions(scope);
+  const { request, decide, cancel } = mutations;
+  const mutation = action === 'restore' ? request : action === 'withdraw' ? cancel : decide;
+  return (
+    <AttendanceActionDialog
+      title={t(locale, `attendanceActions.${action}`)}
+      pending={mutation.isPending}
+      onClose={onClose}
+    >
+      <p>
+        {locale === 'ar' ? (row.employee.name_ar ?? row.employee.name_en) : row.employee.name_en}
+      </p>
+      <p>{row.reason}</p>
+      <AttendanceRequestEditorForm
+        row={row}
+        action={action}
+        mutations={mutations}
+        onClose={onClose}
+      />
+      <AttendanceActionFeedback error={mutation.error} write />
+    </AttendanceActionDialog>
+  );
+}

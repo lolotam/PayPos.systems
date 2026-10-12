@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
 import { AttendanceBoardNavItem } from './attendance-board-nav-item';
+import { AttendanceActionsNavItem } from './attendance-actions-nav-item';
 import { AttendanceReportNavItem } from './attendance-report-nav-item';
 
 export function StaffNavigation() {
@@ -33,6 +34,8 @@ export function StaffNavigation() {
         <Link href="/staff/import" />
       </AppSidebarItem>
       <AttendanceBoardNavItem />
+      <AttendanceActionsNavItem kind="exceptions" />
+      <AttendanceActionsNavItem kind="requests" />
       <AttendanceReportNavItem />
     </>
   );

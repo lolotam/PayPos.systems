@@ -2,6 +2,7 @@
 import { localDate, t } from '@pospay/i18n';
 import { AttendanceReportPage } from '@/staff/pages/attendance-report-page';
 import { useAttendanceReport } from '@/staff/api/use-attendance-report';
+import { boardAccessLost } from '@/staff/model/attendance-board-display';
 import { useSessionUser } from '@/session/api/use-session';
 import { useMounted } from '@/shared/browser/use-mounted';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -39,7 +40,7 @@ export function AttendanceReportRoute() {
       key={`${scope.companyId}:${scope.businessId}:${userId}`}
       scope={scope}
       branches={workspace.business.branches}
-      allowAllBranches={allBranches.isSuccess}
+      allowAllBranches={Boolean(allBranches.data) && !boardAccessLost(allBranches.error)}
       timezone={branch.effective_timezone}
       onBranch={(branchId) =>
         workspace.choose({

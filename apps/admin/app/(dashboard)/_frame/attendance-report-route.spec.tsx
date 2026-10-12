@@ -1,7 +1,7 @@
 import type { WorkspaceController } from '@/workspace/model/workspace-provider';
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { boardBranches, boardId, otherBoardId } from '@/staff/api/attendance-board.fixture';
 import { reportFixture } from '@/staff/api/attendance-report.fixture';
@@ -95,6 +95,25 @@ it('offers all branches when the selected business read succeeds despite a narro
   renderRoute();
   await waitFor(() => expect(state.props.mock.calls.at(-1)?.[0].allowAllBranches).toBe(true));
 });
+it.each([
+  [new Error('Synthetic network outage'), true],
+  [{ code: 'NOT_READY', status: 503 }, true],
+  [{ code: 'UNAUTHENTICATED', status: 401 }, false],
+  [{ code: 'FORBIDDEN', status: 403 }, false],
+  [{ code: 'NOT_FOUND', status: 404 }, false],
+  [{ code: 'FEATURE_DISABLED', status: 409 }, false],
+])(
+  'retains last successful all-branches eligibility only for transient errors: %s',
+  async (error, allowed) => {
+    state.GET.mockResolvedValue({ data: reportFixture });
+    renderRoute();
+    await waitFor(() => expect(state.props.mock.calls.at(-1)?.[0].allowAllBranches).toBe(true));
+    state.GET.mockRejectedValue(error);
+    await act(() => client.invalidateQueries({ queryKey: ['attendance-report'] }));
+    await waitFor(() => expect(client.getQueryCache().getAll()[0]?.state.status).toBe('error'));
+    expect(state.props.mock.calls.at(-1)?.[0].allowAllBranches).toBe(allowed);
+  },
+);
 it.each([
   [boardId, otherBoardId],
   [otherBoardId, boardId],
