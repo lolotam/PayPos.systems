@@ -1,11 +1,13 @@
 import {
   breakNotReturnedDecision,
   breakNotReturnedParameters,
+  breakReturnedOtherBranchParameters,
   breakOutWindowStart,
   breakReturnDeadline,
   dueBreakCutoff,
   interimBreakNotReturnedRule,
   type InterimBreakNotReturnedRule,
+  type BreakReturn,
 } from '../../domain/break-not-returned.ts';
 import {
   formatLocalShiftStart,
@@ -33,7 +35,7 @@ export interface BreakNotReturnedRun {
   notified: number;
 }
 
-/** يكتشف عدم الرجوع من البريك لشركة واحدة: تنبيه واحد لكل موظفة وبداية وردية ما دامت الوردية جارية (BW-Q5). */
+/** يفحص رجوع البريك لشركة واحدة؛ الغياب ينبه، والرجوع لفرع آخر يخطر مديري فرع الخروج مرة واحدة (BW-Q10). */
 export class DetectBreakNotReturned {
   constructor(
     private readonly transactions: BreakNotReturnedTransactions,
@@ -108,6 +110,7 @@ export class DetectBreakNotReturned {
     const breakOutAt = await tx.breakOut(
       shift, breakOutWindowStart(breakStartsAt, rule.breakOutLeadMs),
     );
+    const returned = breakOutAt === null ? null : await tx.returned(shift, breakOutAt, at);
     const decision = breakNotReturnedDecision({
       now: at,
       shiftEndsAt: shift.endsAt,
@@ -117,10 +120,11 @@ export class DetectBreakNotReturned {
       contractEnd: shift.contractEnd,
       workingDate: shift.workingDate,
       breakOutAt,
-      returned: breakOutAt !== null && (await tx.returned(shift, breakOutAt, at)),
+      shiftBranchId: shift.branchId,
+      returnedBranchId: returned?.branchId ?? null,
     });
-    if (decision !== 'ALERT' || breakOutAt === null) return false;
-    return this.record(tx, shift, { breakEndsAt, breakOutAt, alertAt: deadline.alertAt }, at, rule);
+    if ((decision !== 'ALERT' && decision !== 'RETURNED_OTHER_BRANCH') || breakOutAt === null) return false;
+    return this.record(tx, shift, { breakEndsAt, breakOutAt, alertAt: deadline.alertAt }, at, rule, returned);
   }
 
   private async record(
@@ -129,18 +133,21 @@ export class DetectBreakNotReturned {
     moments: { readonly breakEndsAt: Date; readonly breakOutAt: Date; readonly alertAt: Date },
     at: Date,
     rule: InterimBreakNotReturnedRule,
+    returned: BreakReturn | null,
   ): Promise<boolean> {
     const managers = await tx.managers(shift.businessId, shift.branchId, rule.roles);
-    const parameters = breakNotReturnedParameters(
+    const parameters = returned === null ? breakNotReturnedParameters(
       shift.nameAr,
       shift.nameEn,
       shift.branchNameAr,
       shift.branchNameEn,
       formatLocalShiftStart(moments.breakEndsAt, shift.timeZone),
       this.nameFallback,
-    );
+    ) : breakReturnedOtherBranchParameters(shift.nameAr, shift.nameEn, returned, this.nameFallback);
     if (parameters === null) throw new Error('ATTENDANCE_BREAK_NOT_RETURNED_PARAMETERS_INVALID');
     return tx.record({
+      kind: returned === null ? 'break_not_returned' : 'break_returned_other_branch',
+      returned,
       shift,
       ...moments,
       detectedAt: at,

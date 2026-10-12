@@ -108,7 +108,7 @@ export async function notClockedInFixture() {
     audit: (company: string, noticeId: string) =>
       owner`SELECT actor_user_id, entity, action FROM audit_log WHERE company_id=${company} AND entity_id=${noticeId}`,
     inbox: (eventId: string) =>
-      owner`SELECT recipient_user_id, template_key FROM in_app_notifications WHERE source_event_id=${eventId}`,
+      owner`SELECT recipient_user_id, template_key, branch_id FROM in_app_notifications WHERE source_event_id=${eventId}`,
     attempts: (eventId: string) =>
       owner`SELECT id FROM notification_attempts WHERE source_event_id=${eventId}`,
     close: async () => {

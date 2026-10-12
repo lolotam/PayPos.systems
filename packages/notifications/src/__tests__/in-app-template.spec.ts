@@ -1,6 +1,26 @@
 import { expect, it } from 'vitest';
 
-import { validInAppTemplate } from '../index.ts';
+import { validInAppTemplate, type SafeParameter } from '../index.ts';
+
+it.each(['ar', 'en'])('validates the cross-branch break return in %s', (locale) => {
+  const names: readonly SafeParameter[] = [
+    { name: 'employee_name_ar', type: 'text', value: 'سارة' },
+    { name: 'employee_name_en', type: 'text', value: 'Sara' },
+    { name: 'branch_name_ar', type: 'text', value: 'حولي' },
+    { name: 'branch_name_en', type: 'text', value: 'Hawalli' },
+  ];
+  expect(validInAppTemplate('break_returned_other_branch', 1, locale, names)).toBe(true);
+  expect(validInAppTemplate('break_returned_other_branch', 2, locale, names)).toBe(false);
+  expect(validInAppTemplate('break_returned_other_branch', 1, locale, [
+    ...names, { name: 'break_end', type: 'text', value: '14:00' },
+  ])).toBe(false);
+  expect(validInAppTemplate('break_returned_other_branch', 1, locale, names.slice(1))).toBe(false);
+  expect(validInAppTemplate('break_returned_other_branch', 1, locale, names.map((parameter) =>
+    parameter.name === 'branch_name_en'
+      ? { ...parameter, value: 'https://example.test' }
+      : parameter,
+  ))).toBe(false);
+});
 
 it.each([
   '123456',
