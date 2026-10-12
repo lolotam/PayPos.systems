@@ -1474,7 +1474,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description Admin branch day list with read:service-sessions:branch and orders feature. Saved snapshots only, no phone. Late means header OR any saved line. Complete visits ordered by occurred_at/id descending; scoped cursor preserves microseconds. */
+        get: operations["listBranchDayServiceSessions"];
         put?: never;
         /** @description Records a visit with record:service-sessions:branch and orders feature, admin login only. Only above-limit discounts cause PARTIAL. One transaction/event and replayable 201; actor-bound idempotency. */
         post: operations["recordServiceSession"];
@@ -3626,6 +3627,74 @@ export interface components {
                     value: string;
                 })[];
             }[];
+        };
+        ServiceSessionDayQuery: {
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            date: string & (string);
+            /** @enum {string} */
+            late?: "true";
+        };
+        ServiceSessionDayPerformer: {
+            /** Format: uuid */
+            employee_id: string;
+            name_ar: string | null;
+            name_en: string;
+            share_bps: number;
+            not_clocked_in_warning: boolean;
+            approved_leave_warning: boolean;
+        };
+        ServiceSessionDayLine: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            service_id: string;
+            ordinal: number;
+            name_ar: string | null;
+            name_en: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "CANCELLED";
+            revision: number;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            effective_discount_bps: number;
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: date-time */
+            recorded_at: string;
+            late: boolean;
+            has_performer_warning: boolean;
+            performers: components["schemas"]["ServiceSessionDayPerformer"][];
+        };
+        ServiceSessionDayItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            customer: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+            };
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string & (string);
+            business_timezone: string;
+            /** Format: uuid */
+            recorded_by: string;
+            late: boolean;
+            lines: components["schemas"]["ServiceSessionDayLine"][];
+        };
+        ServiceSessionDayPage: {
+            items: components["schemas"]["ServiceSessionDayItem"][];
+            next_cursor: string | null;
         };
         AttendanceQrToken: {
             /** Format: uuid */
@@ -9368,6 +9437,63 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listBranchDayServiceSessions: {
+        parameters: {
+            query: {
+                date: string;
+                late?: "true";
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Saved visits with nested lines and performers. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceSessionDayPage"];
+                };
+            };
+            /** @description Invalid query or scoped cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform scope/authority refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;

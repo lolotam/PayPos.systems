@@ -918,6 +918,13 @@
       "when": 1791827092419,
       "tag": "0132_2026-10-12_late-service-session-notices",
       "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1791834952358,
+      "tag": "0133_2026-10-12_service-session-day-read",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { serviceSessionSchemas } from './orders/service-session.js';
+import { serviceSessionDaySchemas } from './orders/service-session-day.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
 import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
 import { employeeIbanSchemas } from './staff/employee-iban.js';
@@ -160,6 +161,7 @@ const SCHEMAS = [
   findOrCreateCustomerInput,
   ...catalogSchemas,
   ...serviceSessionSchemas,
+  ...serviceSessionDaySchemas,
   attendanceQrToken,
   attendanceQrBranch,
   attendanceQrIssue,

@@ -13,8 +13,8 @@ export function must<T>(value: T | null | undefined): T {
   if (value === undefined || value === null) throw new Error('Required fixture value missing');
   return value;
 }
-export async function sessionFixture() {
-  const h = await startHarness();
+export async function sessionFixture(options: Parameters<typeof startHarness>[0] = {}) {
+  const h = await startHarness(options);
   const ownerCookie = await h.signedInOperator('session-owner@example.test');
   const cookie = await h.signedInOperator('session-cashier@example.test');
   const company = await h.onboard(ownerCookie, 'Synthetic session employer');

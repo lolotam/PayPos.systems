@@ -268,6 +268,22 @@ application-role withTenant; publication metadata and existing consumed marks ar
 application-role outbox SELECT are authorized. The runbook requires counts/coverage and all-replica rollout;
 missing retained coverage stops recovery. Live delivery and replay converge through the permanent ledger.
 
+## Addendum 2026-10-12 — 35b-1 branch day read
+
+SS-Q12 (Waleed, 2026-10-12, option 1, batch 15) authorizes the independent
+`read:service-sessions:branch`: default owner/general_manager/business_manager/branch_manager within scope,
+explicitly grantable to any other human role. Reception without it retains recording; ordinary staff see only
+their own services with manager-allowed columns and never customer phone. Row 57 owns that ordinary staff view.
+Admin-only GET uses the existing guarded scope/DENY/expiry/feature rules and repeats them inside each page's
+tenant transaction. `readServiceSessionReadAccess` is a new narrow identity export, called only through
+`orders/persistence/session-read-access.adapter.ts`; existing record access and 35b-2 are unchanged.
+
+Read-side `SessionDayAccess` callbacks are bound in orders.module.ts, reusing the existing session-place adapter
+to prove business/branch ownership. The list SQL reads only orders tables, pages visits before nested aggregation,
+uses saved names/amounts/warnings and emits no phone, limits or commission inputs. Late is header OR any saved
+line; disjoint header-late/append-late arms allow the existing partial indexes. The versioned base64url cursor
+binds company/business/branch/date/filter and preserves PostgreSQL microseconds. It never supplies authority.
+
 ## Addendum 2026-10-13 — 35c-1 shared discount money operations
 
 `packages/domain/discount-money.ts` exports `lineNet(price, discount)` and `discountFromPercent(price, bps)`
