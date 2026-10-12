@@ -99,6 +99,24 @@ it('keeps a null contract end eligible on later working dates', async () => {
     f.expected.find((e) => e.name_en === 'Picker Alpha'),
   ]);
 });
+it.each([
+  ['futureHire', false],
+  ['contractEndedYesterday', false],
+  ['contractEndsToday', true],
+] as const)(
+  'defaults employment eligibility to branch-local today for %s (eligible: %s)',
+  async (key, eligible) => {
+    const employee = f.pickerEmployees.find((row) => row.key === key);
+    if (!employee) throw new Error(`Missing employee fixture: ${key}`);
+    expect((await list()).items).toEqual(
+      eligible
+        ? expect.arrayContaining([
+            { id: employee.id, name_ar: employee.name_ar, name_en: employee.name_en },
+          ])
+        : expect.not.arrayContaining([expect.objectContaining({ id: employee.id })]),
+    );
+  },
+);
 it('RLS hides the tenant employees and links even if the query names the foreign tenant', async () => {
   await f.db.withTenant(f.otherCompany, async (tx) => {
     expect(await attendanceEmployees(tx, f.scope, f.boardClock.now(), { limit: 50 })).toEqual({
@@ -130,6 +148,7 @@ it('EXPLAIN ANALYZE bounds name matching to indexed branch links without scannin
     for (const query of [
       { limit: 50 },
       { limit: 50, search: 'Picker' },
+      { limit: 50, search: 'Default Employment' },
       { limit: 50, search: 'Picker Ended', date: '2026-10-03' },
       { limit: 50, search: 'Employment Window', date: '2026-10-04' },
       { limit: 50, search: 'Employment Window', date: '2026-10-07' },
