@@ -29,6 +29,7 @@ export const serviceSessions = pgTable('service_sessions', {
   index('service_sessions_late_day_idx').on(t.companyId, t.branchId, t.businessDate, t.occurredAt, t.id).where(sql`${t.late}`),
   index('service_sessions_membership_idx').on(t.companyId, t.recordedByMembershipId),
   index('service_sessions_recorder_idx').on(t.companyId, t.recordedBy),
+  index('service_sessions_recorded_by_fk_idx').on(t.recordedBy),
 ]);
 
 export const serviceLines = pgTable('service_lines', {
@@ -51,6 +52,7 @@ export const serviceLines = pgTable('service_lines', {
   index('service_lines_session_fk_idx').on(t.companyId, t.businessId, t.sessionId),
   index('service_lines_service_idx').on(t.companyId, t.businessId, t.serviceId),
   index('service_lines_membership_idx').on(t.companyId, t.recordedByMembershipId), index('service_lines_recorder_idx').on(t.companyId, t.recordedBy),
+  index('service_lines_recorded_by_fk_idx').on(t.recordedBy),
   index('service_lines_late_session_idx').on(t.companyId, t.sessionId).where(sql`${t.late}`),
   check('service_lines_amounts', sql`${t.listPrice} >= 0 AND ${t.price} >= 0 AND ${t.discount} BETWEEN 0 AND ${t.price} AND ${t.net} = ${t.price} - ${t.discount}`),
   check('service_lines_bps', sql`${t.effectiveDiscountBps} BETWEEN 0 AND 10000`),

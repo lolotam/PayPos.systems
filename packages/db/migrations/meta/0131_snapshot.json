@@ -14395,6 +14395,21 @@
           "method": "btree",
           "with": {}
         },
+        "service_lines_recorded_by_fk_idx": {
+          "name": "service_lines_recorded_by_fk_idx",
+          "columns": [
+            {
+              "expression": "recorded_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "service_lines_late_session_idx": {
           "name": "service_lines_late_session_idx",
           "columns": [
@@ -14810,6 +14825,21 @@
             },
             {
               "expression": "recorded_by_membership_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "service_sessions_recorded_by_fk_idx": {
+          "name": "service_sessions_recorded_by_fk_idx",
+          "columns": [
+            {
+              "expression": "recorded_by",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

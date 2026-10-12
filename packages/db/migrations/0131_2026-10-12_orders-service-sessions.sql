@@ -97,6 +97,7 @@ CREATE INDEX "service_lines_session_fk_idx" ON "service_lines" USING btree ("com
 CREATE INDEX "service_lines_service_idx" ON "service_lines" USING btree ("company_id","business_id","service_id");--> statement-breakpoint
 CREATE INDEX "service_lines_membership_idx" ON "service_lines" USING btree ("company_id","recorded_by_membership_id");--> statement-breakpoint
 CREATE INDEX "service_lines_recorder_idx" ON "service_lines" USING btree ("company_id","recorded_by");--> statement-breakpoint
+CREATE INDEX "service_lines_recorded_by_fk_idx" ON "service_lines" USING btree ("recorded_by");--> statement-breakpoint
 CREATE INDEX "service_lines_late_session_idx" ON "service_lines" USING btree ("company_id","session_id") WHERE "service_lines"."late";--> statement-breakpoint
 CREATE INDEX "service_sessions_day_idx" ON "service_sessions" USING btree ("company_id","branch_id","business_date","occurred_at","id");--> statement-breakpoint
 CREATE INDEX "service_sessions_branch_fk_idx" ON "service_sessions" USING btree ("company_id","business_id","branch_id");--> statement-breakpoint
@@ -104,6 +105,8 @@ CREATE INDEX "service_sessions_customer_day_idx" ON "service_sessions" USING btr
 CREATE INDEX "service_sessions_late_day_idx" ON "service_sessions" USING btree ("company_id","branch_id","business_date","occurred_at","id") WHERE "service_sessions"."late";--> statement-breakpoint
 CREATE INDEX "service_sessions_membership_idx" ON "service_sessions" USING btree ("company_id","recorded_by_membership_id");--> statement-breakpoint
 CREATE INDEX "service_sessions_recorder_idx" ON "service_sessions" USING btree ("company_id","recorded_by");
+--> statement-breakpoint
+CREATE INDEX "service_sessions_recorded_by_fk_idx" ON "service_sessions" USING btree ("recorded_by");
 --> statement-breakpoint
 ALTER TABLE service_sessions ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint

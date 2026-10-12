@@ -1467,6 +1467,40 @@ export interface paths {
         patch: operations["updatePackageType"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Records a visit with record:service-sessions:branch and orders feature, admin login only. Only above-limit discounts cause PARTIAL. One transaction/event and replayable 201; actor-bound idempotency. */
+        post: operations["recordServiceSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Adds accepted lines to the same immutable visit. Original recorder OR current record permission, with active branch membership, DENY and orders feature checks. Actor-bound idempotency; maximum 20 persisted lines. Uses appender authority and original occurred_at. */
+        post: operations["appendServiceSessionLines"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices/me/attendance-qr": {
         parameters: {
             query?: never;
@@ -3275,6 +3309,278 @@ export interface components {
         PackageServiceOptionPage: {
             items: components["schemas"]["PackageServiceOption"][];
             next_cursor: string | null;
+        };
+        SessionMoney: string;
+        SessionPerformerInput: {
+            /** Format: uuid */
+            employee_id: string;
+            share_bps?: number;
+        };
+        SessionLineInput: {
+            /** Format: uuid */
+            service_id: string;
+            price: components["schemas"]["SessionMoney"];
+            discount: {
+                /** @enum {string} */
+                kind: "AMOUNT";
+                amount: components["schemas"]["SessionMoney"];
+            } | {
+                /** @enum {string} */
+                kind: "PERCENT";
+                bps: number;
+            };
+            performers: components["schemas"]["SessionPerformerInput"][];
+        };
+        RecordServiceSessionInput: {
+            /** Format: uuid */
+            customer_id: string;
+            /** Format: date-time */
+            occurred_at?: string;
+            lines: components["schemas"]["SessionLineInput"][];
+            /** Format: uuid */
+            recorder_membership_id?: string;
+        };
+        AppendServiceSessionLinesInput: {
+            lines: components["schemas"]["SessionLineInput"][];
+            /** Format: uuid */
+            recorder_membership_id?: string;
+        };
+        SessionPerformer: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            performer_ordinal: number;
+            share_bps: number;
+            name_en: string;
+            name_ar: string | null;
+            not_clocked_in_warning: boolean;
+            approved_leave_warning: boolean;
+        };
+        SavedServiceLine: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            service_id: string;
+            input_index: number;
+            ordinal: number;
+            name_en: string;
+            name_ar: string | null;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            effective_discount_bps: number;
+            limit_bps_applied: number | null;
+            /** @enum {string} */
+            limit_source: "OWNER" | "PERSON" | "BUSINESS" | "NOT_CONFIGURED";
+            /** @enum {string} */
+            status: "ACTIVE" | "CANCELLED";
+            revision: number;
+            rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+            counts_snapshot: boolean;
+            catalog_revision: number;
+            has_performer_warning: boolean;
+            performers: components["schemas"]["SessionPerformer"][];
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            /** Format: date-time */
+            recorded_at: string;
+            late: boolean;
+        };
+        ServiceSession: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            customer: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                phone_masked: string;
+            };
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            business_timezone: string;
+            late: boolean;
+            total_net: components["schemas"]["SessionMoney"];
+            lines: components["schemas"]["SavedServiceLine"][];
+        };
+        RejectedServiceLine: {
+            input_index: number;
+            /** Format: uuid */
+            service_id: string;
+            name_en: string;
+            name_ar: string | null;
+            /** @enum {string} */
+            code: "SESSION_DISCOUNT_ABOVE_LIMIT";
+            message_ar: string;
+            message_en: string;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            effective_discount_bps: number;
+            limit_bps: number;
+            /** @enum {string} */
+            limit_source: "PERSON" | "BUSINESS" | "NOT_CONFIGURED";
+            minimum_net: components["schemas"]["SessionMoney"];
+            max_discount_amount: components["schemas"]["SessionMoney"];
+        };
+        RecordServiceSessionResponse: {
+            /** @enum {string} */
+            outcome: "COMPLETE" | "PARTIAL";
+            session: components["schemas"]["ServiceSession"];
+            rejected_lines: components["schemas"]["RejectedServiceLine"][];
+        };
+        AppendServiceSessionLinesResponse: {
+            /** @enum {string} */
+            outcome: "COMPLETE" | "PARTIAL";
+            session: components["schemas"]["ServiceSession"];
+            rejected_lines: components["schemas"]["RejectedServiceLine"][];
+            added_lines: components["schemas"]["SavedServiceLine"][];
+        };
+        ServiceLineChanged: {
+            /** Format: uuid */
+            line_id: string;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            service_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** @enum {string} */
+            status: "ACTIVE" | "CANCELLED";
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            late: boolean;
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            performers: {
+                /** Format: uuid */
+                employee_id: string;
+                share_bps: number;
+            }[];
+            rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+            counts_snapshot: boolean;
+            /** @enum {string|null} */
+            package: null;
+            revision: number;
+        };
+        RecordedServiceLine: {
+            /** Format: uuid */
+            line_id: string;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            service_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** @enum {string} */
+            status: "ACTIVE";
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            late: boolean;
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            list_price: components["schemas"]["SessionMoney"];
+            price: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"];
+            net: components["schemas"]["SessionMoney"];
+            performers: {
+                /** Format: uuid */
+                employee_id: string;
+                share_bps: number;
+            }[];
+            rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+            counts_snapshot: boolean;
+            /** @enum {string|null} */
+            package: null;
+            /** @enum {number} */
+            revision: 1;
+        };
+        ServiceSessionRecorded: {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            business_timezone: string;
+            late: boolean;
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            lines: components["schemas"]["RecordedServiceLine"][];
+        };
+        ServiceSessionLinesAdded: {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            recorded_at: string;
+            business_date: string;
+            business_timezone: string;
+            late: boolean;
+            /** Format: uuid */
+            recorded_by: string;
+            /** Format: uuid */
+            recorded_by_membership_id: string;
+            lines: components["schemas"]["RecordedServiceLine"][];
         };
         AttendanceQrToken: {
             /** Format: uuid */
@@ -8976,6 +9282,157 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    recordServiceSession: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordServiceSessionInput"];
+            };
+        };
+        responses: {
+            /** @description COMPLETE or PARTIAL; rejected drafts have no saved IDs. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordServiceSessionResponse"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    appendServiceSessionLines: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppendServiceSessionLinesInput"];
+            };
+        };
+        responses: {
+            /** @description COMPLETE or PARTIAL; rejected drafts have no saved IDs. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppendServiceSessionLinesResponse"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. */
             default: {
                 headers: {
                     [name: string]: unknown;
