@@ -35,6 +35,7 @@ import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notificati
 import { tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
 import { customersControllers, customersProviders } from './modules/customers/index.ts';
 import { catalogControllers, catalogProviders } from './modules/catalog/index.ts';
+import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
 import { staffControllers, staffProviders } from './modules/staff/index.ts';
 import { filesControllers, filesProviders, type FilesRuntime } from './modules/files/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
@@ -138,6 +139,7 @@ class AppModule {
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...customersProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...catalogProviders(deps.database, deps.ids ?? systemUuidV7()),
+        ...ordersProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp),
         ...staffProviders(
@@ -272,6 +274,7 @@ export async function createApp(
     ...tenancyControllers,
     ...customersControllers,
     ...catalogControllers,
+    ...ordersControllers,
     ...settingsControllers,
     ...notificationsControllers,
     ...staffControllers,

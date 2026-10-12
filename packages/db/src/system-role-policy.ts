@@ -10,6 +10,7 @@ import {
 
 // spec 009 يجعل الأدوار المحذوفة من الصف ❌؛ الجهاز لا يرث سلطة موظف من ALLOW قديم.
 const deviceForbidden = [
+  'record:service-sessions:branch',
   'read:passkeys:branch',
   'unbind:passkeys:branch',
   ...LEAVE_PERMISSIONS,
@@ -79,6 +80,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           (SCHEDULE_PERMISSIONS as readonly string[]).includes(code) ||
           (OWNER_GRANTED_PERMISSIONS as readonly string[]).includes(code) ||
           ['decide:leave:branch', 'revoke:leave:branch', 'read:leave:branch'].includes(code) ||
+          code === 'record:service-sessions:branch' ||
           optional[role.code]?.includes(code),
     ),
   };
@@ -101,14 +103,14 @@ export function systemRoleGrantAllowedSql(memberAlias: string, grantAlias: strin
       OR ${g}.permission_code <> 'create:customers:branch' OR ${m}.scope_type = 'BRANCH')))`;
 }
 
-/** يستبعد ALLOW المحظور للدور العالمي بما فيه الجهاز؛ يحفظ DENY والتاريخ ويقيد تفويض مدير النشاط بنطاقه. */
-export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias: string): SQL {
+/** يستبعد ALLOW المحظور للدور العالمي بما فيه الجهاز؛ يحفظ DENY والتاريخ ويقيد تفويض مدير النشاط بنطاقه. تحديد permissionCode يقلص المنح المقروءة إلى كود واحد ويحصر SQL فيه أيضاً دون تغيير سياسة الأدوار. */
+export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias: string, permissionCode?: Permission): SQL {
   const m = sql.identifier(memberAlias),
     o = sql.identifier(overrideAlias);
   const human = SYSTEM_ROLES.filter((r) => r.code !== 'device');
   const device = SYSTEM_ROLES.find((r) => r.code === 'device');
   const cells = human.map((role) => {
-    const codes = systemRolePolicy(role.id, 'global')?.permissions ?? [];
+    const codes = (systemRolePolicy(role.id, 'global')?.permissions ?? []).filter((code) => permissionCode === undefined || code === permissionCode);
     return sql`(${m}.role_id = ${role.id}::uuid AND ${
       codes.length === 0
         ? sql`false`
@@ -120,7 +122,7 @@ export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias:
   });
   const manager = human.find((r) => r.code === 'business_manager');
   const branchCreators = human.filter((r) => ['branch_manager', 'cashier'].includes(r.code));
-  return sql`(NOT (${m}.role_owner_key = 'global' AND ${m}.role_id = ${device?.id}::uuid
+  return sql`(${permissionCode === undefined ? sql`true` : sql`${o}.permission_code=${permissionCode}`} AND NOT (${m}.role_owner_key = 'global' AND ${m}.role_id = ${device?.id}::uuid
     AND ${o}.effect = 'ALLOW' AND ${o}.permission_code IN (${sql.join(
       deviceForbidden.map((code) => sql`${code}`),
       sql`,`,

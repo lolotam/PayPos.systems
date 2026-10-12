@@ -1,6 +1,9 @@
 import { ATTENDANCE_TENANT_TABLES } from './attendance-grants.ts';
 
 export const TENANT_TABLES = [
+  'service_sessions',
+  'service_lines',
+  'line_performers',
   'document_types',
   'employee_documents',
   'employee_document_expiry_notices',

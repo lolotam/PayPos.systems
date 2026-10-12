@@ -57,3 +57,4 @@ export {
   readAttendanceChangeApprovers,
 } from './persistence/attendance-change-access.ts';
 export { lockEmployeeHoursAccess, readEmployeeHoursAccess } from './persistence/employee-hours-access.ts';
+export { lockServiceSessionAccess, readServiceSessionAccess } from './persistence/service-session-access.ts';

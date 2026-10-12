@@ -904,6 +904,13 @@
       "when": 1791762155391,
       "tag": "0130_2026-10-12_attendance-exceptions-list",
       "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1791807302694,
+      "tag": "0131_2026-10-12_orders-service-sessions",
+      "breakpoints": true
     }
   ]
 }
