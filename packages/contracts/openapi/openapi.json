@@ -12645,6 +12645,30 @@
                     "en"
                   ],
                   "additionalProperties": false
+                },
+                "session_state": {
+                  "nullable": true,
+                  "type": "object",
+                  "properties": {
+                    "voided": {
+                      "type": "boolean"
+                    },
+                    "void_request_id": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "restore_pending": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "voided",
+                    "void_request_id",
+                    "restore_pending"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -12669,7 +12693,8 @@
                 "can_decide",
                 "can_cancel",
                 "requested_by_name",
-                "decided_by_name"
+                "decided_by_name",
+                "session_state"
               ],
               "additionalProperties": false
             }

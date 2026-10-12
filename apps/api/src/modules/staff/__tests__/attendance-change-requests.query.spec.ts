@@ -58,6 +58,11 @@ it('projects the contract and paginates tied timestamps in descending id order',
   expect(new Set(ids).size).toBe(4);
   expect(ids).toEqual([...ids].sort().reverse());
   expect(second.next_cursor).toBeNull();
+  expect(
+    [...first.items, ...second.items]
+      .filter((row) => row.kind === 'ADD_SESSION')
+      .every((row) => row.session_state === null),
+  ).toBe(true);
   expect(await page({ limit: 2, cursor: 'malformed' })).toBe('VALIDATION_FAILED');
 });
 it('scopes branch managers and projects requester cancellation independently from owner decision', async () => {

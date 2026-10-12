@@ -51,6 +51,11 @@ export function attendanceChangePageStatement(
   return sql`SELECT jsonb_build_object('id',r.id,'business_id',r.business_id,'branch_id',r.branch_id,
     'kind',r.kind,'status',r.status,'employee',jsonb_build_object('id',e.id,'name_ar',e.name_ar,'name_en',e.name_en),
     'session_id',r.session_id,'session_revision',r.session_revision,'reason',r.reason,
+    'session_state',CASE WHEN s.id IS NULL THEN NULL ELSE jsonb_build_object(
+      'voided',s.voided_at IS NOT NULL,'void_request_id',s.void_request_id,
+      'restore_pending',EXISTS(SELECT 1 FROM attendance_change_requests pending
+        WHERE pending.company_id=r.company_id AND pending.session_id=s.id
+          AND pending.status='PENDING' AND pending.kind='RESTORE_SESSION')) END,
       'requested',CASE WHEN r.kind='ADD_SESSION' THEN jsonb_build_object(
         'working_date',r.working_date::text,'timezone',r.timezone,
         'clock_in',to_char(r.clock_in AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),

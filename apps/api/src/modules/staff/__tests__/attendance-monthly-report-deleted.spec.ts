@@ -31,12 +31,25 @@ it.each([false,true])('November 5 deletion preserves October contracts and diffe
     contracted_minutes:16080,difference_minutes:workedMinutes-16080}]);
 });
 
-it.each([false,true])('October 1 01:00 Kuwait deletion keeps October contracts (all branches: %s)', async (all) => {
+it.each([false,true])('October 1 01:00 Kuwait deletion counts only October 1 (all branches: %s)', async (all) => {
   await f.h.owner`UPDATE employees SET deleted_at='2026-09-30T22:00:00Z'
     WHERE company_id=${f.company} AND id=${f.employee.id}`;
-  const contracted = all ? 16080 : 13680;
+  const contracted = 720;
   expect(await report(all ? 'all' : f.branch)).toMatchObject([{employee_id:f.employee.id,
     worked_minutes:0,contracted_minutes:contracted,difference_minutes:-contracted}]);
+});
+
+it.each([false,true])('October 15 Kuwait deletion includes that day and caps the difference (worked: %s)', async (worked) => {
+  await f.h.owner`UPDATE employees SET deleted_at='2026-10-14T22:00:00Z'
+    WHERE company_id=${f.company} AND id=${f.employee.id}`;
+  if (worked) await reportSession(f,{date:'2026-10-15'});
+  const workedMinutes = worked ? 480 : 0;
+  expect(await report()).toMatchObject([{employee_id:f.employee.id,worked_minutes:workedMinutes,
+    contracted_minutes:6960,difference_minutes:workedMinutes-6960}]);
+  expect(await report(f.secondBranch)).toMatchObject([{employee_id:f.employee.id,
+    contracted_minutes:960,difference_minutes:-960}]);
+  expect(await report('all')).toMatchObject([{employee_id:f.employee.id,worked_minutes:workedMinutes,
+    contracted_minutes:7920,difference_minutes:workedMinutes-7920}]);
 });
 
 it.each([false,true])('September 30 23:00 Kuwait deletion without October sessions is absent (all branches: %s)', async (all) => {
@@ -51,7 +64,7 @@ it('all branches applies the deletion cutoff separately in each effective timezo
     WHERE company_id=${f.company} AND id=${f.employee.id}`;
   expect(await report(f.secondBranch)).toEqual([]);
   expect(await report('all')).toMatchObject([{employee_id:f.employee.id,
-    contracted_minutes:13680,difference_minutes:-13680}]);
+    contracted_minutes:720,difference_minutes:-720}]);
 });
 
 it('September 20 deletion excludes the employee from October when there are no sessions', async () => {

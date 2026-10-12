@@ -110,6 +110,13 @@ export const attendanceChangeDecisionResult = attendanceChangeRequest
 export const attendanceChangeListItem = attendanceChangeRequest.extend({
   requested_by_name: attendanceActorName,
   decided_by_name: attendanceActorName,
+  session_state: z
+    .strictObject({
+      voided: z.boolean(),
+      void_request_id: id.nullable(),
+      restore_pending: z.boolean(),
+    })
+    .nullable(),
 });
 export const attendanceChangeRequestPage = z
   .strictObject({
