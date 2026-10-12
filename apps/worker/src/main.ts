@@ -36,6 +36,7 @@ import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
 import { createWorker } from './worker.ts';
 import { startFilesWorker } from './modules/files/index.ts';
 import { createStaffDocumentDefaults, startStaffWorker } from './modules/staff/index.ts';
+import { createLateServiceSessionNoticeConsumer } from './modules/orders/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 
 const config = readConfig(process.env);
@@ -108,6 +109,7 @@ const businessDeliver = createDeliverer(
         : [inApp.consumer]
       : [notifications.consumer]),
     createStaffDocumentDefaults(systemUuidV7()),
+    createLateServiceSessionNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
   ],
   logger,
   { knownEventTypes: knownEventTypes(staff, notifications, inApp) },

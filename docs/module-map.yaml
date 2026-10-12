@@ -35,6 +35,9 @@ composition_roots:
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
 reads:
+  - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts }
+  - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts }
+  - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/branch-place.adapter.ts }
   - { from: orders, to: catalog, symbol: readSessionServices, file: apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts }
   - { from: orders, to: customers, symbol: readSessionCustomer, file: apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts }
   - { from: orders, to: staff, symbol: readSessionPerformers, file: apps/api/src/modules/orders/persistence/performer-check.adapter.ts }

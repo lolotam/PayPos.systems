@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { id as sharedId } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
+import { lateServiceSessionNoticeRequested } from './late-service-session-notice.js';
 import { serviceCommissionRule } from '../catalog/service.js';
 const id = sharedId.toLowerCase();
 
@@ -75,7 +76,7 @@ export const serviceSessionRecorded = z.strictObject(eventFields).meta({ id: 'Se
 export const serviceSessionLinesAdded = z.strictObject(eventFields).meta({ id: 'ServiceSessionLinesAdded' });
 export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessionLineInput, recordServiceSessionInput,
   appendServiceSessionLinesInput, sessionPerformer, savedServiceLine, serviceSession, rejectedServiceLine,
-  recordServiceSessionResponse, appendServiceSessionLinesResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded];
+  recordServiceSessionResponse, appendServiceSessionLinesResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested];
 export type RecordServiceSessionInput = z.infer<typeof recordServiceSessionInput>;
 export type AppendServiceSessionLinesInput = z.infer<typeof appendServiceSessionLinesInput>;
 export type RecordServiceSessionResponse = z.infer<typeof recordServiceSessionResponse>;

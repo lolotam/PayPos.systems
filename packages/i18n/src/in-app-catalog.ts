@@ -14,6 +14,7 @@ export const inAppEn = {
   generic_notice: 'Update for {{subject}}',
   generic_employee: 'Employee',
   generic_branch: 'Branch',
+  late_service_session: 'A late service session dated {{business_date}} was recorded at {{branch_name_en}}.',
   shift_not_clocked_in:
     '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
   break_not_returned:
@@ -35,6 +36,7 @@ export const inAppAr = {
   generic_notice: 'تحديث بخصوص {{subject}}',
   generic_employee: 'موظف',
   generic_branch: 'فرع',
+  late_service_session: 'سُجّلت جلسة متأخرة بتاريخ {{business_date}} في فرع {{branch_name_ar}}.',
   shift_not_clocked_in:
     'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
   break_not_returned:

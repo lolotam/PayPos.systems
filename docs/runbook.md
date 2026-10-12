@@ -78,3 +78,61 @@ Closed companies keep their schedulers. A company with `deleted_at` set records 
 (deleted or contract-ended before the working date) also record nothing. A nonzero failed-job count or an
 `ATTENDANCE_NOT_CLOCKED_IN_RETRY` log requires investigation even if other shifts succeeded. Logs contain safe
 error types/codes and cause types/codes, never employee names, error messages or query parameters.
+
+
+## 35b-2: recover retained late service-session bells
+
+After every replica runs the 35b-2 consumer/template, use the new release from apps/worker with ordinary
+DATABASE_URL (pospay_app) and DISPATCHER_DATABASE_URL (pospay_dispatcher). Obtain explicit company IDs and
+expected pre-rollout recording/append event counts from the release inventory. Never reset published_at,
+consumed_events or the permanent late_service_session_notices ledger. A published input is still eligible.
+
+For each company run this operator script, preserving its UUID upper bound/checkpoint and counts in the
+operations record alongside release SHA. On retry, set AFTER_ID and THROUGH_ID from the last successful page.
+If a page fails, retain its starting checkpoint; already committed consumers are safe to repeat. New live writes
+are handled by the normal consumer, including appends racing the replay. The dispatcher page is read-only,
+tenant-qualified, accepts only recording/append event types, and uses the existing outbox PK; no grant changes.
+
+```sh
+node --input-type=module <<'JS'
+import { createDatabase, createOutboxDispatcherDatabase } from '@pospay/db';
+import { systemUuidV7 } from '@pospay/ids';
+import { createLogger } from '@pospay/observability';
+import { createLateServiceSessionNoticeConsumer } from './dist/modules/orders/index.js';
+import { createDeliverer } from './dist/outbox/deliver.js';
+const ids = systemUuidV7();
+const app = createDatabase({ url: process.env.DATABASE_URL, ids });
+const dispatcher = createOutboxDispatcherDatabase({ url: process.env.DISPATCHER_DATABASE_URL });
+const logger = createLogger('info');
+const consumer = createLateServiceSessionNoticeConsumer(ids, { now: () => new Date() });
+const deliver = createDeliverer(app, [consumer], logger, { knownEventTypes: consumer.eventTypes });
+const company = process.env.COMPANY_ID ?? '';
+let after = process.env.AFTER_ID || null;
+let through = process.env.THROUGH_ID || null;
+let recorded = 0, appended = 0;
+try {
+  for (;;) {
+    const page = await dispatcher.serviceSessionReplayPage(company, after, through, 100);
+    through = page.throughId;
+    for (const event of page.events) {
+      if (!(await deliver(event)).delivered) throw new Error('LATE_NOTICE_REPLAY_RETRY');
+      if (event.eventType === 'ServiceSessionRecorded') recorded++; else appended++;
+    }
+    after = page.events.at(-1)?.id ?? after;
+    logger.info({ company_id: company, after_id: after, through_id: through, recorded, appended }, 'log');
+    if (page.events.length < 100) break;
+  }
+} finally { await dispatcher.close(); await app.close(); }
+JS
+```
+
+Checkpoint counts are per invocation; total them with previous successful pages and compare both event types
+against the release inventory. Inspect per-company ledger totals, recipient_count=0 decisions, grouped request
+counts, inbox/results and failed outbox events. Through application-role withTenant, compare orders' saved
+header-late OR any line-late sessions against the ledger; every eligible retained visit must be covered. Closed
+companies are intentionally skipped. Notification delivery runs through normal outbox dispatch after requests
+commit; await it before checking inbox coverage. Rerun recovery and verify ledger/request/inbox counts stay fixed.
+
+If an expected retained input is absent, or saved late visits have no recoverable event, stop and record missing
+coverage and IDs. Do not claim recovery complete, fabricate events, query outbox through orders, broaden grants,
+reset dedupe or regenerate requests. This procedure does not replay commissions/ratings or grant day-list access.

@@ -104,6 +104,14 @@ business knowledge. Until PR 62, `ShiftNotClockedIn` is the exception: the worke
 The safe parameters carry both languages of the employee and branch names; the admin bell renders the viewer's
 UI locale. `ServiceCompleted` in the map is replaced in Phase 1 by `ServiceLineChanged` (ADR-0010).
 
+35b-2 (ADR-0041 addendum): worker orders consumes ServiceSessionRecorded and ServiceSessionLinesAdded,
+then emits LateServiceSessionNoticeRequested to notifications for the existing IN_APP bell. A permanent
+(company_id,session_id) ledger makes the first late event win; manager groups ≤100 commit atomically with
+the consumed mark. Active scope-covered owner/GM/business/branch managers are recipients, including a
+recorder or performer who is a manager. Zero recipients is a durable decision. Row 62 must include this kind
+in individual/master disable controls; no realtime consumer until Phase 2, no provider send. The branch day
+read (35b-1) remains blocked on SS-Q12; no read authorization is implied by this notice.
+
 ---
 
 ## 4. Domain model — Phase 1 subset

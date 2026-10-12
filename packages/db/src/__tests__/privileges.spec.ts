@@ -87,6 +87,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'in_app_notifications:INSERT',
     'in_app_notifications:SELECT',
     'in_app_notifications:UPDATE',
+    'late_service_session_notices:INSERT',
+    'late_service_session_notices:SELECT',
     'leave_requests:INSERT',
     'leave_requests:SELECT',
     'line_performers:INSERT',

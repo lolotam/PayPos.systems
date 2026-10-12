@@ -184,3 +184,34 @@ it('renders break_not_returned in the viewer locale with the break end', () => {
   expect(renderNotification(item, 'ar')).toBe(text('ar', 'ليلى', 'السالمية'));
   expect(renderNotification(item, 'en')).toContain('14:00');
 });
+
+it('late session copy follows viewer locale, saved date and English fallback', () => {
+  const item: InAppNotification = {
+    ...shift('ar'),
+    template_key: 'late_service_session',
+    safe_parameters: [
+      { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
+      { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
+      { name: 'business_date', type: 'text', value: '2026-10-14' },
+    ],
+  };
+  expect(renderNotification(item, 'ar')).toBe(
+    'سُجّلت جلسة متأخرة بتاريخ 2026-10-14 في فرع السالمية.',
+  );
+  expect(renderNotification(item, 'en')).toBe(
+    'A late service session dated 2026-10-14 was recorded at Salmiya.',
+  );
+  expect(
+    renderNotification(
+      {
+        ...item,
+        safe_parameters: [
+          { name: 'branch_name_ar', type: 'text', value: '   ' },
+          item.safe_parameters[1],
+          item.safe_parameters[2],
+        ],
+      },
+      'ar',
+    ),
+  ).toBe('سُجّلت جلسة متأخرة بتاريخ 2026-10-14 في فرع Salmiya.');
+});
