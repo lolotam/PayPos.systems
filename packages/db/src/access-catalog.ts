@@ -5,6 +5,7 @@
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
  */
 export const PERMISSIONS = [
+  'record:service-sessions:branch',
   'read:passkeys:branch',
   'unbind:passkeys:branch',
   'create:leave:own',

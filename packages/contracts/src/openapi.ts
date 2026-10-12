@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { serviceSessionSchemas } from './orders/service-session.js';
+import { serviceSessionPaths } from './orders/service-session-openapi.js';
 import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
 import { employeeIbanSchemas } from './staff/employee-iban.js';
 import { employeeIbanPaths } from './staff/employee-iban-openapi.js';
@@ -157,6 +159,7 @@ const SCHEMAS = [
   customer,
   findOrCreateCustomerInput,
   ...catalogSchemas,
+  ...serviceSessionSchemas,
   attendanceQrToken,
   attendanceQrBranch,
   attendanceQrIssue,
@@ -253,6 +256,7 @@ const PATHS = {
   ...permissionPaths,
   ...customerPaths,
   ...catalogPaths,
+  ...serviceSessionPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(

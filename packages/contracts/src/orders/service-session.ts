@@ -1,0 +1,94 @@
+import { z } from 'zod';
+import { id as sharedId } from '../scalars/id.js';
+import { timestamp } from '../scalars/timestamp.js';
+import { serviceCommissionRule } from '../catalog/service.js';
+const id = sharedId.toLowerCase();
+
+export const sessionMoney = z.string().regex(/^(0|[1-9]\d{0,10})\.\d{3}$/).meta({ id: 'SessionMoney' });
+const bps = z.number().int().min(0).max(10000);
+const names = { name_en: z.string(), name_ar: z.string().nullable() };
+export const sessionPerformerInput = z.strictObject({ employee_id: id, share_bps: bps.min(1).optional() })
+  .meta({ id: 'SessionPerformerInput' });
+export const sessionLineInput = z.strictObject({
+  service_id: id,
+  price: sessionMoney,
+  discount: z.discriminatedUnion('kind', [
+    z.strictObject({ kind: z.literal('AMOUNT'), amount: sessionMoney }),
+    z.strictObject({ kind: z.literal('PERCENT'), bps }),
+  ]),
+  performers: z.array(sessionPerformerInput).min(1).max(4).superRefine((entries, ctx) => {
+    if (new Set(entries.map((entry) => entry.employee_id)).size !== entries.length)
+      ctx.addIssue({ code: 'custom', message: 'Duplicate performer' });
+    const specified = entries.filter((entry) => entry.share_bps !== undefined).length;
+    if (specified !== 0 && specified !== entries.length)
+      ctx.addIssue({ code: 'custom', message: 'All shares must be supplied or omitted' });
+  }),
+}).meta({ id: 'SessionLineInput' });
+const writeFields = { lines: z.array(sessionLineInput).min(1).max(20), recorder_membership_id: id.optional() };
+export const recordServiceSessionInput = z.strictObject({
+  customer_id: id, occurred_at: timestamp.optional(), ...writeFields,
+}).meta({ id: 'RecordServiceSessionInput' });
+export const appendServiceSessionLinesInput = z.strictObject(writeFields).meta({ id: 'AppendServiceSessionLinesInput' });
+export const sessionPerformer = z.strictObject({
+  id, employee_id: id, performer_ordinal: z.number().int().min(1).max(4), share_bps: bps.min(1), ...names,
+  not_clocked_in_warning: z.boolean(), approved_leave_warning: z.boolean(),
+}).meta({ id: 'SessionPerformer' });
+export const savedServiceLine = z.strictObject({
+  id, session_id: id, service_id: id, input_index: z.number().int().min(0).max(19),
+  ordinal: z.number().int().min(1).max(20), ...names,
+  list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
+  effective_discount_bps: bps, limit_bps_applied: bps.nullable(),
+  limit_source: z.enum(['OWNER', 'PERSON', 'BUSINESS', 'NOT_CONFIGURED']),
+  status: z.enum(['ACTIVE', 'CANCELLED']), revision: z.number().int().positive(),
+  rule_snapshot: serviceCommissionRule, counts_snapshot: z.boolean(), catalog_revision: z.number().int().positive(),
+  has_performer_warning: z.boolean(), performers: z.array(sessionPerformer).min(1).max(4),
+  recorded_by: id, recorded_by_membership_id: id, recorded_at: timestamp, late: z.boolean(),
+}).meta({ id: 'SavedServiceLine' });
+export const serviceSession = z.strictObject({
+  id, business_id: id, branch_id: id, customer: z.strictObject({ id, name: z.string(), phone_masked: z.string() }),
+  recorded_by: id, recorded_by_membership_id: id, occurred_at: timestamp, recorded_at: timestamp,
+  business_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), business_timezone: z.string(), late: z.boolean(),
+  total_net: sessionMoney, lines: z.array(savedServiceLine).min(1).max(20),
+}).meta({ id: 'ServiceSession' });
+export const rejectedServiceLine = z.strictObject({
+  input_index: z.number().int().min(0).max(19), service_id: id, ...names,
+  code: z.literal('SESSION_DISCOUNT_ABOVE_LIMIT'), message_ar: z.string(), message_en: z.string(),
+  list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
+  effective_discount_bps: bps, limit_bps: bps, limit_source: z.enum(['PERSON', 'BUSINESS', 'NOT_CONFIGURED']),
+  minimum_net: sessionMoney, max_discount_amount: sessionMoney,
+}).meta({ id: 'RejectedServiceLine' });
+const responseFields = { outcome: z.enum(['COMPLETE', 'PARTIAL']), session: serviceSession, rejected_lines: z.array(rejectedServiceLine).max(20) };
+export const recordServiceSessionResponse = z.strictObject(responseFields).meta({ id: 'RecordServiceSessionResponse' });
+export const appendServiceSessionLinesResponse = z.strictObject({ ...responseFields, added_lines: z.array(savedServiceLine).min(1).max(20) })
+  .meta({ id: 'AppendServiceSessionLinesResponse' });
+export const serviceLineChanged = z.strictObject({
+  line_id: id, session_id: id, service_id: id, branch_id: id, business_id: id, customer_id: id,
+  status: z.enum(['ACTIVE', 'CANCELLED']), occurred_at: timestamp, recorded_at: timestamp,
+  business_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), late: z.boolean(), recorded_by: id, recorded_by_membership_id: id,
+  list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
+  performers: z.array(z.strictObject({ employee_id: id, share_bps: bps.min(1) })).min(1).max(4),
+  rule_snapshot: serviceCommissionRule, counts_snapshot: z.boolean(), package: z.null(), revision: z.number().int().positive(),
+}).meta({ id: 'ServiceLineChanged' });
+export const recordedServiceLine = serviceLineChanged.extend({ status: z.literal('ACTIVE'), revision: z.literal(1) })
+  .meta({ id: 'RecordedServiceLine' });
+const eventFields = {
+  schema_version: z.literal(1), session_id: id, business_id: id, branch_id: id, customer_id: id,
+  occurred_at: timestamp, recorded_at: timestamp, business_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  business_timezone: z.string(), late: z.boolean(), recorded_by: id, recorded_by_membership_id: id,
+  lines: z.array(recordedServiceLine).min(1).max(20),
+};
+export const serviceSessionRecorded = z.strictObject(eventFields).meta({ id: 'ServiceSessionRecorded' });
+export const serviceSessionLinesAdded = z.strictObject(eventFields).meta({ id: 'ServiceSessionLinesAdded' });
+export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessionLineInput, recordServiceSessionInput,
+  appendServiceSessionLinesInput, sessionPerformer, savedServiceLine, serviceSession, rejectedServiceLine,
+  recordServiceSessionResponse, appendServiceSessionLinesResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded];
+export type RecordServiceSessionInput = z.infer<typeof recordServiceSessionInput>;
+export type AppendServiceSessionLinesInput = z.infer<typeof appendServiceSessionLinesInput>;
+export type RecordServiceSessionResponse = z.infer<typeof recordServiceSessionResponse>;
+export type AppendServiceSessionLinesResponse = z.infer<typeof appendServiceSessionLinesResponse>;
+export type ServiceSession = z.infer<typeof serviceSession>;
+export type SavedServiceLine = z.infer<typeof savedServiceLine>;
+export type RejectedServiceLine = z.infer<typeof rejectedServiceLine>;
+export type ServiceSessionRecorded = z.infer<typeof serviceSessionRecorded>;
+export type ServiceSessionLinesAdded = z.infer<typeof serviceSessionLinesAdded>;
+export type ServiceLineChanged = z.infer<typeof serviceLineChanged>;

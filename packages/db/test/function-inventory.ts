@@ -1,4 +1,6 @@
 export const FUNCTION_INVENTORY = [
+  { proname: 'orders_check_performers', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  { proname: 'orders_performer_consistency', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   {
     proname: 'initialize_attendance_state',
     prosecdef: false,
