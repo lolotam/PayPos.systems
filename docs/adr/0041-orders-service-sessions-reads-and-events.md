@@ -298,6 +298,22 @@ This extraction does not move effectiveDiscountBps, authorizedDiscountAmounts, p
 and orders wrappers, including 7.125 × 10% = 0.713, net 6.412, effective 1001 bps at a 1000-bps limit.
 No dependency, module arrow, contract, write path or event format changes.
 
+## Addendum 2026-10-13 — 35c-2 own recording context
+
+SS-Q13 (Waleed, 2026-10-12, option 1, batch 16) authorizes the limited recording-form reads under
+record:service-sessions:branch alone. 35c-2 exposes only server generated_at, business_timezone,
+caller-owned active branch-covering recorder_membership_ids, verified recorder_membership_id and discount_limit.
+Multiple candidates without selection return null selection/limit; a sole candidate is selected automatically.
+OWNER has null bps, PERSON/BUSINESS retain explicit zero, and NOT_CONFIGURED displays zero. Foreign,
+inactive or out-of-scope selection is uniformly forbidden; no highest-limit choice or wider authority is added.
+
+The orders query receives read callbacks at orders.module.ts, reusing sessionPlace and the public identity/settings
+readers on one withTenant transaction. recording-context.adapter.ts calls readServiceSessionAccess and
+readEffectiveDiscountLimit; its two exact symbol/path entries reuse already approved import/port arrows.
+After settings' existing SHARE locks, identity authority/expiry/feature and active place are checked again at a
+fresh injected instant. This is advisory; POST still resolves its own fresh context. No new table, grant,
+write/event, service/performer picker or history access is added. Exact callback SQL gets EXPLAIN ANALYZE tests.
+
 ## Consequences
 
 35a creates no commission/rating/notification projection and has no statement-status read. It introduces narrow

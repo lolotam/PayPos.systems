@@ -35,6 +35,8 @@ composition_roots:
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
 reads:
+  - { from: orders, to: identity, symbol: readServiceSessionAccess, file: apps/api/src/modules/orders/persistence/recording-context.adapter.ts }
+  - { from: orders, to: settings, symbol: readEffectiveDiscountLimit, file: apps/api/src/modules/orders/persistence/recording-context.adapter.ts }
   - { from: orders, to: identity, symbol: readServiceSessionReadAccess, file: apps/api/src/modules/orders/persistence/session-read-access.adapter.ts }
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts }

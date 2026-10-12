@@ -110,7 +110,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `CustomerLookupPort` | `customers` | company-scoped customer existence, name and already-masked phone; reception first finds/creates the customer through customers' own endpoint (ADR-0041) |
 | `orders` | `PerformerCheckPort` | `staff` | dated employee/branch eligibility, persisted user link and attendance/approved-leave warnings at occurredAt; staff owns the working-day calculation (ADR-0041) |
 | `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041) |
-| `orders` | `SessionRecordAccessPort` | `identity` | locked record authority, DENY, orders feature and caller-owned recorder memberships (ADR-0041) |
+| `orders` | `SessionRecordAccessPort` | `identity` | record authority, DENY, orders feature and caller-owned recorder memberships; 35c-2 own context reuses the read (ADR-0041) |
 | `orders` | `SessionDayAccess` (read-side callbacks) | `identity`, `tenancy` | fresh independent branch-read permission/orders feature and existing session-place ownership callback (ADR-0041 35b-1) |
 | `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
 | worker `orders` | `LateNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers, including recorder/performer (ADR-0041 35b-2) |
@@ -278,6 +278,8 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/recording-context.adapter.ts
+  - orders -> settings.readEffectiveDiscountLimit @ apps/api/src/modules/orders/persistence/recording-context.adapter.ts
   - orders -> identity.readServiceSessionReadAccess @ apps/api/src/modules/orders/persistence/session-read-access.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts
