@@ -1,6 +1,5 @@
 import { attendanceActionsAr, attendanceBoardAr, attendanceReportAr } from './attendance-actions-catalog.js';
 import { attendanceChangeAr } from './attendance-change.js';
-import { attendanceBoardAr } from './attendance-board-catalog.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
 import { attendanceAr } from './attendance-ar.js';

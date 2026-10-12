@@ -676,7 +676,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Requires read:attendance:branch and staff feature. Exceptions of sessions at this branch, newest raised_at/id first, excluding voided sessions. branch_id identifies the exception movement branch for resolve/reopen. Resolution fields are null while OPEN. Cursor preserves microseconds. */
+        /** @description Requires read:attendance:branch and staff feature. Exceptions of sessions at this branch, newest raised_at/id first, excluding voided sessions. branch_id identifies the session branch, consistent with the list filter; resolve/reopen checks authority on the stored exception movement branch. Resolution fields are null while OPEN. Cursor preserves microseconds. */
         get: operations["attendanceExceptions"];
         put?: never;
         post?: never;
@@ -693,7 +693,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Requires read:attendance:branch and staff feature. Oldest corrected_at/id first, including voided sessions. Existing sessions without corrections return an empty items array. Actors use the first non-deleted employee by business_id/id within the company, or null. */
+        /** @description Requires read:attendance:branch and staff feature. Oldest corrected_at/id first, including voided sessions. Existing sessions without corrections return an empty items array. Actors prefer an employee in the scoped business, then any non-deleted row, then a soft-deleted row; business_id/id breaks ties. Null only when no employee row exists in the company. */
         get: operations["attendanceCorrectionHistory"];
         put?: never;
         post?: never;
@@ -710,7 +710,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Manual-day employee picker. Requires request:attendance-change:branch and staff feature; inaccessible branches return NOT_FOUND. Only id, name_ar and name_en. Non-deleted employees with currentAttachment links, including future-start links and links ending after branch-local today. Ordered by name_en/id. Case-insensitive literal substring search is bounded to the indexed company/business/branch link set, materialized before matching names; no global name scan. */
+        /** @description Manual-day employee picker. Requires request:attendance-change:branch and staff feature; inaccessible branches return NOT_FOUND. Only id, name_ar and name_en. Non-deleted employees whose branch link covers date (YYYY-MM-DD), defaulting to branch-local today. Link start is inclusive and end exclusive; future-start links are excluded until their start date. Ordered by name_en/id. Case-insensitive literal substring search is bounded to the indexed company/business/branch link set, materialized before matching names; no global name scan. */
         get: operations["attendanceEmployees"];
         put?: never;
         post?: never;
@@ -2428,6 +2428,12 @@ export interface components {
                 decided_by_name: {
                     ar: string | null;
                     en: string;
+                } | null;
+                session_state: {
+                    voided: boolean;
+                    /** Format: uuid */
+                    void_request_id: string | null;
+                    restore_pending: boolean;
                 } | null;
             }[];
             next_cursor: string | null;
@@ -5997,6 +6003,8 @@ export interface operations {
     attendanceEmployees: {
         parameters: {
             query?: {
+                /** @description Branch-local working date; defaults to today in the branch timezone */
+                date?: string;
                 search?: string;
                 /** @description URL-encoded JSON [name_en,id] keyset cursor from next_cursor */
                 cursor?: string;
