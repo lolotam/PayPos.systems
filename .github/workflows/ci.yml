@@ -59,7 +59,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
@@ -112,8 +112,100 @@ jobs:
       - name: unit (domain)
         run: pnpm turbo run test --filter=@pospay/domain
 
-      - name: integration · RLS negative · EXPLAIN
-        run: pnpm turbo run test --filter=!@pospay/domain
+      # apps/api, the slow suite, runs in the four `api-tests` shards below; every other package stays here.
+      # turbo.json chains worker#test → api#test, so selecting the worker through turbo would run the whole api
+      # suite again unsharded: the worker is excluded here and run directly by vitest in the next step.
+      - name: integration · RLS negative · EXPLAIN (packages)
+        run: pnpm turbo run test --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker
+
+      - name: integration · worker
+        run: |
+          pnpm turbo run build --filter=@pospay/worker...
+          pnpm --filter @pospay/worker exec vitest run
+
+  # apps/api integration · RLS negative · EXPLAIN, split into four parallel shards (vitest --shard): each shard brings
+  # up its own compose Postgres (ADR-0006) and runs a quarter of the spec files. Public repo → free runners.
+  # needs `check`: CLAUDE.md §10 orders the gates typecheck → lint → lint:docs → boundaries → cycles → module-map →
+  # unit → integration, so the api integration shards start only after those gates are green.
+  api-tests:
+    name: api tests ${{ matrix.shard }}/4
+    needs: [changes, check]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Local infra (Postgres 16 + Redis 7)
+        run: |
+          {
+            echo "POSTGRES_OWNER_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_APP_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_AUTH_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_DISPATCHER_PASSWORD=$(openssl rand -hex 24)"
+            echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
+          } > .env
+          pnpm infra:up
+
+      - name: Turbo cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-api-${{ matrix.shard }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-api-${{ matrix.shard }}-
+            turbo-${{ runner.os }}-
+
+      # the built-production smoke spec (files/production.spec.ts) starts dist/main.js of api AND worker
+      - name: build api, worker and their dependencies
+        run: pnpm turbo run build --filter=@pospay/api... --filter=@pospay/worker...
+
+      - name: api integration · RLS negative · EXPLAIN (shard ${{ matrix.shard }}/4)
+        run: pnpm --filter @pospay/api exec vitest run --shard=${{ matrix.shard }}/4
+
+  # CLAUDE.md §10 order ends with "… → integration → RLS negative tests → EXPLAIN checks → build all apps → docker
+  # images": the full build runs after every integration job (packages, worker and the four api shards) is green.
+  build:
+    name: build all apps
+    needs: [changes, check, api-tests]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Turbo cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-build-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-build-
+            turbo-${{ runner.os }}-
 
       - name: build all apps
         run: pnpm turbo run build
@@ -184,7 +276,7 @@ jobs:
   # skipped because only docs changed — and fails on anything else, including a failed `changes`.
   gate:
     name: ci-gate
-    needs: [changes, check, images]
+    needs: [changes, check, api-tests, build, images]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -192,13 +284,15 @@ jobs:
       - env:
           CHANGES: ${{ needs.changes.result }}
           CHECK: ${{ needs.check.result }}
+          API_TESTS: ${{ needs.api-tests.result }}
+          BUILD: ${{ needs.build.result }}
           IMAGES: ${{ needs.images.result }}
           CODE: ${{ needs.changes.outputs.code }}
         run: |
-          echo "changes=$CHANGES check=$CHECK images=$IMAGES code=$CODE"
+          echo "changes=$CHANGES check=$CHECK api_tests=$API_TESTS build=$BUILD images=$IMAGES code=$CODE"
           [ "$CHANGES" = "success" ] || exit 1
           if [ "$CODE" = "true" ]; then
-            [ "$CHECK" = "success" ] && [ "$IMAGES" = "success" ]
+            [ "$CHECK" = "success" ] && [ "$API_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$IMAGES" = "success" ]
           else
-            [ "$CHECK" = "skipped" ] && [ "$IMAGES" = "skipped" ]
+            [ "$CHECK" = "skipped" ] && [ "$API_TESTS" = "skipped" ] && [ "$BUILD" = "skipped" ] && [ "$IMAGES" = "skipped" ]
           fi
