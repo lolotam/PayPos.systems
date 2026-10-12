@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. */
+        get: operations["attendanceMonthlyReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-report.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, names only. One audit per successful export. */
+        get: operations["attendanceMonthlyReportCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/attendance-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Every active branch of this business must have a covering grant and no covering DENY. */
+        get: operations["attendanceMonthlyReportAll"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/attendance-report.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Every active branch of this business must have a covering grant and no covering DENY. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, names only. One audit per successful export. */
+        get: operations["attendanceMonthlyReportAllCsv"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/iban": {
         parameters: {
             query?: never;
@@ -561,6 +629,40 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["issueFileDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Open sessions from any working date; non-voided sessions for the requested working date. Future dates return empty lists. No private employee fields or hours. */
+        get: operations["attendanceBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/attendance-board/refusals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires read:attendance:branch and staff feature. Newest first keyset page of branch refusals, without installation hashes. */
+        get: operations["attendanceBoardRefusals"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2349,6 +2451,18 @@ export interface components {
             employee_id: string;
             /** Format: uuid */
             holder_employee_id: string | null;
+            employee: {
+                /** Format: uuid */
+                id: string;
+                name_ar: string | null;
+                name_en: string;
+            };
+            holder: {
+                /** Format: uuid */
+                id: string;
+                name_ar: string | null;
+                name_en: string;
+            } | null;
             /** Format: uuid */
             branch_id: string;
             /** @enum {string} */
@@ -3621,6 +3735,200 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    attendanceMonthlyReport: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monthly attendance rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        business_id: string;
+                        branch_id: string | "all";
+                        month: string;
+                        rows: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            days_present: number;
+                            worked_minutes: number;
+                            scheduled_minutes: number;
+                            contracted_minutes: number;
+                            leave: {
+                                /** @enum {string} */
+                                type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+                                days: number;
+                                partial_minutes: number;
+                            }[];
+                            difference_minutes: number;
+                            late_count: number;
+                            late_minutes: number;
+                            missing_clock_out: number;
+                            manual_days: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceMonthlyReportCsv: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description UTF-8 attendance CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceMonthlyReportAll: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monthly attendance rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        business_id: string;
+                        branch_id: string | "all";
+                        month: string;
+                        rows: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            days_present: number;
+                            worked_minutes: number;
+                            scheduled_minutes: number;
+                            contracted_minutes: number;
+                            leave: {
+                                /** @enum {string} */
+                                type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+                                days: number;
+                                partial_minutes: number;
+                            }[];
+                            difference_minutes: number;
+                            late_count: number;
+                            late_minutes: number;
+                            missing_clock_out: number;
+                            manual_days: number;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceMonthlyReportAllCsv: {
+        parameters: {
+            query: {
+                month: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description UTF-8 attendance CSV */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getEmployeeIban: {
         parameters: {
             query?: never;
@@ -5155,6 +5463,224 @@ export interface operations {
                 };
             };
             /** @description Bilingual error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceBoard: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attendance board */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        branch_id: string;
+                        /** Format: date */
+                        date: string;
+                        timezone: string;
+                        /** Format: date-time */
+                        generated_at: string;
+                        in_now: {
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            /** Format: date-time */
+                            clock_in: string;
+                            /** @enum {string} */
+                            source: "QR" | "BARCODE" | "MANUAL";
+                            /** Format: date-time */
+                            scheduled_end: string | null;
+                        }[];
+                        sessions: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            employee_id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            /** Format: date-time */
+                            clock_in: string;
+                            /** Format: date-time */
+                            clock_out: string | null;
+                            /** @enum {string} */
+                            status: "OPEN" | "CLOSED" | "MISSED_OUT";
+                            /** @enum {string} */
+                            source: "QR" | "BARCODE" | "MANUAL";
+                            late_minutes: number;
+                            /** Format: date-time */
+                            scheduled_start: string | null;
+                            /** Format: date-time */
+                            scheduled_end: string | null;
+                            /** @enum {string} */
+                            geo: "OK" | "NONE" | "OUT_OF_RANGE";
+                            /** @enum {string|null} */
+                            out_geo: "OK" | "NONE" | "OUT_OF_RANGE" | null;
+                            corrected: boolean;
+                            revision: number;
+                            open_exceptions: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                kind: "NONE" | "OUT_OF_RANGE" | "SUSPECTED_MISSED_OUT";
+                            }[];
+                            manual: {
+                                /** Format: uuid */
+                                change_request_id: string;
+                                /** Format: uuid */
+                                requested_by: string;
+                                /** Format: uuid */
+                                approved_by: string;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    attendanceBoardRefusals: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Refused attendance attempts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            employee_id: string;
+                            /** Format: uuid */
+                            holder_employee_id: string | null;
+                            employee: {
+                                /** Format: uuid */
+                                id: string;
+                                name_ar: string | null;
+                                name_en: string;
+                            };
+                            holder: {
+                                /** Format: uuid */
+                                id: string;
+                                name_ar: string | null;
+                                name_en: string;
+                            } | null;
+                            /** Format: uuid */
+                            branch_id: string;
+                            /** @enum {string} */
+                            step: "CHALLENGE" | "CLOCK" | "ENROL";
+                            /** @enum {string} */
+                            reason: "DEVICE_LOCKED" | "NOT_ENROLLED" | "DEVICE_TAKEN" | "OTHER_DEVICE";
+                            /** Format: date-time */
+                            attempted_at: string;
+                        }[];
+                        next_cursor: string | null;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
             default: {
                 headers: {
                     [name: string]: unknown;
