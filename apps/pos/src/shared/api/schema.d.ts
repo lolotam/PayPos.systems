@@ -1509,7 +1509,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE "und-x-icu", then id. Opaque base64url keyset cursor contains the exact displayed name and id; malformed cursors return 400. Case-insensitive search matches either name. No private HR fields or wider staff permission. */
+        /** @description Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE "und-x-icu", then id. Opaque base64url cursor contains the exact displayed name, id, lang and hash of normalized q; malformed or mismatched cursors return 400. Case-insensitive search matches either name. No private HR fields or wider staff permission. */
         get: operations["getServiceSessionPerformerOptions"];
         put?: never;
         post?: never;
@@ -3809,7 +3809,10 @@ export interface components {
             limit: number;
             /** @enum {string} */
             lang: "ar" | "en";
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description POST window: from the first of the previous month in business timezone through server now + 120 seconds; tolerated future values normalize to server now.
+             */
             occurred_at: string;
             q?: string;
         };
@@ -9787,6 +9790,7 @@ export interface operations {
     getServiceSessionPerformerOptions: {
         parameters: {
             query: {
+                /** @description From the first of the previous month in business timezone through injected server now + 120 seconds. Tolerated future values normalize to server now. */
                 occurred_at: string;
                 lang: "ar" | "en";
                 /** @description Trimmed, literal case-insensitive substring of name_ar or name_en. */
@@ -9815,7 +9819,7 @@ export interface operations {
                     "application/json": components["schemas"]["SessionPerformerOptionPage"];
                 };
             };
-            /** @description Invalid strict query. */
+            /** @description Invalid query/cursor binding, SESSION_TIME_IN_FUTURE or SESSION_TIME_TOO_OLD. */
             400: {
                 headers: {
                     [name: string]: unknown;

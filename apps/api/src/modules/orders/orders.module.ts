@@ -9,6 +9,7 @@ import { RecordingContextQueryHandler } from './queries/recording-context.query.
 import { SessionServiceOptionsQueryHandler } from './queries/session-service-options.query.ts';
 import { sessionServiceOptions } from './persistence/session-service-options.adapter.ts';
 import { SessionPerformerOptionsQueryHandler } from './queries/session-performer-options.query.ts';
+import { sessionTime } from './domain/session-time.ts';
 import { sessionPerformerOptions } from './persistence/session-performer-options.adapter.ts';
 import { recordingAccess, recordingLimit } from './persistence/recording-context.adapter.ts';
 import { SessionAdminGuard, SessionAppendGuard } from './http/session-access.guard.ts';
@@ -29,6 +30,7 @@ import type { Clock } from './ports/service-session-transactions.port.ts';
 export const ordersControllers = [ServiceSessionsController, ServiceSessionFormController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new SessionPerformerOptionsQueryHandler(database, {
+    time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
     place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
     access: (tx, scope, at) => recordingAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
     options: (tx, scope, query) => sessionPerformerOptions(tx, scope.companyId, scope.businessId, scope.branchId, query),
@@ -65,7 +67,7 @@ export function ordersTransactions(database: TenantWrappers, ids: IdGenerator) {
 }
 export function ordersProviders(database: TenantWrappers | undefined, ids: IdGenerator, clock: Clock = systemClock): Provider[] {
   const transactions = database === undefined ? null : ordersTransactions(database, ids);
-  return [SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, SessionErrorsFilter,
+  return [SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, { provide: SessionErrorsFilter, useValue: new SessionErrorsFilter() },
     { provide: SessionPerformerOptionsQueryHandler, useValue: database === undefined ? null : ordersPerformerOptionsQuery(database, clock) },
     { provide: SessionServiceOptionsQueryHandler, useValue: database === undefined ? null : ordersServiceOptionsQuery(database, clock) },
     { provide: RecordingContextQueryHandler, useValue: database === undefined ? null : ordersRecordingContextQuery(database, clock) },

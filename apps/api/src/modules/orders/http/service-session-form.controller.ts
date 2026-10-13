@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, Req, UseFilters, UseGuards } from '@nestjs/common';
 import { id, recordingContextQuery, sessionServiceOptionsQuery, sessionPerformerOptionsQuery, type RecordingContextQuery,
   type SessionServiceOptionsQuery, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
@@ -11,6 +11,7 @@ import { RecordingContextQueryHandler, RecordingContextReadError } from '../quer
 import { SessionAdminGuard } from './session-access.guard.ts';
 import { SessionServiceOptionsQueryHandler } from '../queries/session-service-options.query.ts';
 import { SessionPerformerOptionsQueryHandler } from '../queries/session-performer-options.query.ts';
+import { SessionErrorsFilter } from './session-errors.filter.ts';
 
 @Controller('businesses/:businessId/branches/:branchId/service-sessions')
 export class ServiceSessionFormController {
@@ -18,6 +19,7 @@ export class ServiceSessionFormController {
     @Inject(SessionServiceOptionsQueryHandler) private readonly options: SessionServiceOptionsQueryHandler | null,
     @Inject(SessionPerformerOptionsQueryHandler) private readonly performerOptions: SessionPerformerOptionsQueryHandler | null) {}
   @Get('performer-options')
+  @UseFilters(new SessionErrorsFilter(400))
   @Require('record:service-sessions:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
   @UseGuards(SelectedCompanyGuard, SessionAdminGuard)

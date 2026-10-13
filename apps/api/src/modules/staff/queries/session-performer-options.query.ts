@@ -1,12 +1,18 @@
 import { sessionPerformerCursorData, sessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
+
+function searchHash(query: SessionPerformerOptionsQuery) {
+  return createHash('sha256').update((query.q ?? '').trim().toLowerCase()).digest('hex');
+}
 
 function decodeCursor(query: SessionPerformerOptionsQuery) {
   if (query.cursor === undefined) return null;
   try {
     const cursor = sessionPerformerCursorData.parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
-    if (Buffer.from(JSON.stringify(cursor)).toString('base64url') !== query.cursor) throw new Error();
+    if (Buffer.from(JSON.stringify(cursor)).toString('base64url') !== query.cursor ||
+      cursor.lang !== query.lang || cursor.q_hash !== searchHash(query)) throw new Error();
     return cursor;
   } catch { throw new RangeError('SESSION_PERFORMER_CURSOR_INVALID'); }
 }
@@ -48,5 +54,5 @@ export async function sessionPerformerOptionsPage(tx: Tx, companyId: string, bus
     not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave }));
   const last = rows[items.length - 1];
   return sessionPerformerOptionPage.parse({ items, next_cursor: rows.length > query.limit && last !== undefined
-    ? Buffer.from(JSON.stringify({ key: last.sort_key, id: last.id })).toString('base64url') : null });
+    ? Buffer.from(JSON.stringify({ key: last.sort_key, id: last.id, lang: query.lang, q_hash: searchHash(query) })).toString('base64url') : null });
 }

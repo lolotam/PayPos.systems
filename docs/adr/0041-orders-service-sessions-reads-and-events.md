@@ -341,10 +341,11 @@ access is added. Both query paths have result-shape and exact SQL EXPLAIN ANALYZ
 
 SS-Q13 authorizes GET /performer-options under record:service-sessions:branch alone with selected company,
 admin authentication, orders feature and active business/branch ownership rechecked on every page.
-Staff's composition-root public readSessionPerformerOptions resolves its branch working day through existing schedulingContext
+Staff's persistence/session-readers.ts public reader resolves its branch working day through existing schedulingContext
 and attendanceWorkingDate, then delegates to queries/session-performer-options.query.ts. Eligibility predicates
 precede pagination: hire/contract boundaries inclusive, branch-link end exclusive, deleted employees excluded.
-The composition root injects shared warning SQL into readSessionPerformers and the picker consumes it directly:
+The public index composes the persistence readers with query callbacks; staff.module.ts remains Nest wiring.
+Shared warning SQL feeds readSessionPerformers and the picker consumes it directly:
 non-void OPEN/CLOSED/MISSED_OUT (including MANUAL)
 and approved FULL_DAY/PARTIAL leave at the occurred day/instant. Warnings do not exclude eligible employees.
 Only id/name_ar/name_en/not_clocked_in_warning/approved_leave_warning leave staff; no private HR or user link.
@@ -353,6 +354,9 @@ the exact public symbol/path read on its existing staff edge. SS-Q15 (Waleed, 20
 trimmed 1–50-character case-insensitive literal name search. The reviewed ordering decision (PR 187) requires
 lang=ar|en and global displayed-name,id keyset pages, default 20/max 100. The name uses
 coalesce(name_<lang>,name_<other>) COLLATE "und-x-icu" for both sorting and keyset comparison, without lowercasing.
-Canonical base64url JSON carries the exact displayed name and id; strict payload/encoding checks refuse
-malformed cursors with 400. Existing employee/link/attendance/leave indexes and the scoped sort are EXPLAIN-tested;
+Canonical base64url JSON carries the exact displayed name, id, lang and SHA-256 of trimmed/lowercased q;
+strict payload/encoding/binding checks refuse malformed or mismatched cursors with 400.
+Orders injects the POST sessionTime rule into the read handler: the first of the previous month in business
+timezone is inclusive; over 120 seconds ahead refuses with 400 and POST's time code. Tolerated future input
+normalizes to the injected server clock before staff reads warning facts. Existing indexes and the scoped sort are EXPLAIN-tested;
 no new table, grant or migration. POST still refreshes its own facts. Both queries have shape/EXPLAIN coverage.

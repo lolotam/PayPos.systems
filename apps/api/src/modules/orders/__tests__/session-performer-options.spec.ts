@@ -2,15 +2,16 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sessionPerformerOptionPage } from '@pospay/contracts';
 import { SYSTEM_ROLES, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import { ordersPerformerOptionsQuery } from '../orders.module.ts';
 import { sessionPerformerOptions } from '../persistence/session-performer-options.adapter.ts';
-import { ids, must, sessionFixture, sessionPerformerOptionsStatement, type SessionFixture } from '../../../../test/service-session-picker.fixture.ts';
+import { ids, AT, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
 
 let f: SessionFixture;
 const sibling = ids.newId();
 const occurred_at = '2026-10-14T08:00:00Z';
 beforeAll(async () => {
-  f = await sessionFixture();
+  f = await sessionFixture({ ordersClock: { now: () => f?.clock.now() ?? AT } });
   await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.company},${sibling},${f.business},'Synthetic sibling')`;
   for (const [company, business, branch] of [[f.company, f.secondBusiness, f.secondBranch], [f.otherCompany, f.foreignBusiness, f.foreignBranch]]) {
     const employee = ids.newId();
@@ -27,7 +28,8 @@ afterAll(async () => { await f?.close(); });
 const get = (query = '', cookie = f.cookie, company = f.company, base = f.base) =>
   f.h.send('GET', `${base}/performer-options?occurred_at=${occurred_at}&${query.includes('lang=') ? query : `lang=en&${query}`}`, { cookie, company });
 const read = () => ordersPerformerOptionsQuery(f.db, f.clock).execute(f.context(), { occurred_at, lang: 'en', limit: 2 });
-const cursor = (key: string | null, id: string) => Buffer.from(JSON.stringify({ key, id })).toString('base64url');
+const cursor = (key: string | null, id: string, lang: 'ar' | 'en' = 'en', q = '') => Buffer.from(JSON.stringify({ key, id,
+  lang, q_hash: createHash('sha256').update(q.trim().toLowerCase()).digest('hex') })).toString('base64url');
 
 it('record-only access yields exact private-field-free pages, stable cursors with name ties, and no writes', async () => {
   f.h.calls.statements.length = 0;
@@ -35,9 +37,9 @@ it('record-only access yields exact private-field-free pages, stable cursors wit
   const page = sessionPerformerOptionPage.parse(first.body);
   expect(page).toEqual({ items: f.employees.slice(0, 2).map((id) => ({ id, name_ar: 'باء', name_en: 'ZULU',
     not_clocked_in_warning: true, approved_leave_warning: false })), next_cursor: null });
-  const last = sessionPerformerOptionPage.parse((await get(`lang=ar&limit=2&cursor=${cursor('باء', must(f.employees[1]))}`)).body);
+  const last = sessionPerformerOptionPage.parse((await get(`lang=ar&limit=2&cursor=${cursor('باء', must(f.employees[1]), 'ar')}`)).body);
   expect(last.items.map((r) => r.id)).toEqual([f.employees[2]]); expect(last.next_cursor).toBeNull();
-  expect((await get(`lang=ar&cursor=${cursor('ياء', must(f.employees[2]))}`)).body).toEqual({ items: [], next_cursor: null });
+  expect((await get(`lang=ar&cursor=${cursor('ياء', must(f.employees[2]), 'ar')}`)).body).toEqual({ items: [], next_cursor: null });
   expect((await get('limit=4')).body['next_cursor']).toBeNull();
   expect(f.h.calls.statements.every(({ sql: statement }) => !/\b(INSERT|UPDATE|DELETE)\b/i.test(statement))).toBe(true);
   expect((await f.h.send('GET', `${f.base}?date=2026-10-14`, { cookie: f.cookie, company: f.company })).status).toBe(403);
@@ -54,9 +56,9 @@ it('pages globally by the displayed ICU name and id without gaps or duplicates',
   }
 });
 it('searches either name case-insensitively after trimming before cursor pagination', async () => {
-  for (const lang of ['ar', 'en']) for (const q of ['zUlU', '  باء  ']) {
+  for (const lang of ['ar', 'en'] as const) for (const q of ['zUlU', '  باء  ']) {
     const page = sessionPerformerOptionPage.parse((await get(`lang=${lang}&limit=1&q=${encodeURIComponent(q)}`)).body);
-    expect(page.items.map((r) => r.id)).toEqual([f.employees[0]]); expect(page.next_cursor).toBe(cursor(lang === 'ar' ? 'باء' : 'ZULU', must(f.employees[0])));
+    expect(page.items.map((r) => r.id)).toEqual([f.employees[0]]); expect(page.next_cursor).toBe(cursor(lang === 'ar' ? 'باء' : 'ZULU', must(f.employees[0]), lang, q));
     const last = sessionPerformerOptionPage.parse((await get(`lang=${lang}&limit=1&q=${encodeURIComponent(q)}&cursor=${page.next_cursor}`)).body);
     expect(last.items.map((r) => r.id)).toEqual([f.employees[1]]); expect(last.next_cursor).toBeNull();
   }
@@ -68,9 +70,37 @@ it('searches either name case-insensitively after trimming before cursor paginat
   for (const query of ['limit=0', 'limit=101', 'q=', 'q=%20', `q=${'a'.repeat(51)}`, 'user_id=bad', 'lang=', 'lang=AR', 'lang=fr']) expect((await get(query)).status).toBe(400);
   for (const query of ['', 'occurred_at=bad', `occurred_at=${occurred_at}`, 'lang=en']) expect((await f.h.send('GET', `${f.base}/performer-options?${query}`, { cookie: f.cookie, company: f.company })).status).toBe(400);
 });
+it('binds cursors to language and normalized search, refusing changed or removed search', async () => {
+  const page = sessionPerformerOptionPage.parse((await get('lang=en&limit=1&q=%20ZuLu%20')).body);
+  for (const query of ['lang=ar&q=zulu', 'lang=en&q=Alpha', 'lang=en'])
+    expect((await get(`${query}&cursor=${page.next_cursor}`)).status).toBe(400);
+  expect(sessionPerformerOptionPage.parse((await get(`lang=en&q=ZULU&cursor=${page.next_cursor}`)).body).items.map((r) => r.id))
+    .toEqual([f.employees[1]]);
+});
+it('uses the POST window in business timezone, accepts both edges and normalizes future tolerance', async () => {
+  const now = new Date('2026-10-31T21:30:00.000Z');
+  const at = (occurredAt: string) => f.h.send('GET', `${f.base}/performer-options?lang=en&occurred_at=${occurredAt}`, { cookie: f.cookie, company: f.company });
+  f.setAt(now);
+  await f.h.owner`UPDATE branches SET timezone='America/New_York' WHERE company_id=${f.company} AND id=${f.branch}`;
+  try {
+    await f.h.owner`INSERT INTO leave_requests(company_id,id,business_id,branch_id,employee_id,kind,"from","to",start,"end",timezone,starts_at,ends_at,type,status,requested_by,requested_at,decided_by,decided_at)
+      VALUES(${f.company},${ids.newId()},${f.business},${f.branch},${must(f.employees[0])},'PARTIAL','2026-10-31','2026-10-31','17:31','18:00','America/New_York',
+        '2026-10-31T21:31:00Z','2026-10-31T22:00:00Z','ANNUAL','APPROVED',${f.userId},now(),${f.ownerId},now())`;
+    for (const [instant, code] of [[new Date(now.getTime() + 120001).toISOString(), 'SESSION_TIME_IN_FUTURE'],
+      ['2026-09-30T20:59:59.999Z', 'SESSION_TIME_TOO_OLD']]) {
+      const result = await at(must(instant)); expect(result.status).toBe(400); expect(result.body['code']).toBe(code);
+      await expect(ordersPerformerOptionsQuery(f.db, f.clock).execute(f.context(), { occurred_at: must(instant), lang: 'en', limit: 20 })).rejects.toMatchObject({ code });
+    }
+    expect((await at('2026-09-30T21:00:00.000Z')).status).toBe(200);
+    const current = await at(now.toISOString()); expect(current.status).toBe(200);
+    expect(sessionPerformerOptionPage.parse(current.body).items.every((r) => !r.approved_leave_warning)).toBe(true);
+    const edge = await at(new Date(now.getTime() + 120000).toISOString()); expect(edge.status).toBe(200); expect(edge.body).toEqual(current.body);
+  } finally {
+    f.setAt(AT);
+    await f.h.owner`UPDATE branches SET timezone=NULL WHERE company_id=${f.company} AND id=${f.branch}`;
+  }
+});
 it('provider respects real RLS, business and dated branch links; cannot enumerate another scope', async () => {
-  expect(await f.db.withTenant(f.company, (tx) => tx.execute(sessionPerformerOptionsStatement(
-    f.otherCompany, f.foreignBusiness, f.foreignBranch, '2026-10-14', { occurred_at, lang: 'en', limit: 20 })))).toHaveLength(0);
   expect((await f.db.withTenant(f.company, (tx) => sessionPerformerOptions(tx, f.company, f.secondBusiness, f.secondBranch,
     { occurred_at, lang: 'en', limit: 20 }))).items).toHaveLength(1);
   for (const [company, business, branch] of [[f.company, f.business, sibling], [f.otherCompany, f.foreignBusiness, f.foreignBranch]])
@@ -126,7 +156,7 @@ it('EXPLAIN ANALYZE covers exact orders callbacks and staff SQL for first/next s
       plans.push(JSON.stringify(await target.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${query}`))); return target.execute(query);
     } : Reflect.get(target, property, receiver) }) as Tx);
   }, options) };
-  for (const lang of ['ar', 'en'] as const) for (const after of [undefined, cursor(lang === 'ar' ? 'باء' : 'ZULU', must(f.employees[0]))]) {
+  for (const lang of ['ar', 'en'] as const) for (const after of [undefined, cursor(lang === 'ar' ? 'باء' : 'ZULU', must(f.employees[0]), lang, 'zulu')]) {
     plans.length = 0;
     expect((await ordersPerformerOptionsQuery(db, f.clock).execute(f.context(), { occurred_at, lang, q: 'zulu', limit: 1,
       ...(after === undefined ? {} : { cursor: after }) })).items).toHaveLength(1);

@@ -16,4 +16,8 @@ export type {
 export { createPersonalEligibility } from './persistence/personal-employee.ts';
 export { createActivePasskeyBindings } from './queries/active-passkey-bindings.query.ts';
 export type { AttendanceChangeRequested, AttendanceChangeDecided } from './events/published.ts';
-export { readSessionPerformers, readSessionPerformerOptions } from './staff.module.ts';
+import { createSessionReaders } from './persistence/session-readers.ts';
+import { sessionPerformerOptionsPage, sessionPerformerWarningColumns } from './queries/session-performer-options.query.ts';
+export const { readSessionPerformers, readSessionPerformerOptions } = createSessionReaders({
+  page: sessionPerformerOptionsPage, warningColumns: sessionPerformerWarningColumns,
+});

@@ -22,11 +22,12 @@ export const sessionServiceOptionsSchemas = [sessionServiceOptionsQuery, session
 const performerCursor = z.string().min(1).max(4096).regex(/^[A-Za-z0-9_-]+$/);
 export const sessionPerformerCursorData = z.strictObject({
   key: z.string().max(1024).refine((value) => !value.includes('\u0000')), id: id.toLowerCase(),
+  lang: z.enum(['ar', 'en']), q_hash: z.string().regex(/^[a-f0-9]{64}$/),
 });
 export const sessionPerformerOptionsQuery = sessionServiceOptionsQuery.extend({
   cursor: performerCursor.optional(),
   lang: z.enum(['ar', 'en']),
-  occurred_at: timestamp,
+  occurred_at: timestamp.describe('POST window: from the first of the previous month in business timezone through server now + 120 seconds; tolerated future values normalize to server now.'),
   q: z.string().trim().min(1).max(50).optional(),
 }).meta({ id: 'SessionPerformerOptionsQuery' });
 export const sessionPerformerOption = z.strictObject({

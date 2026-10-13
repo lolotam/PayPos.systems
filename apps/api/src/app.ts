@@ -55,6 +55,7 @@ import {
 import { AUTH_SERVICE, SessionGuard } from './shared/session.guard.ts';
 
 export interface AppDependencies {
+  readonly ordersClock?: { now(): Date };
   readonly employeeCardKey?: Buffer;
   readonly personal?: PersonalAuthentication | null;
   readonly files?: FilesRuntime | null;
@@ -139,7 +140,7 @@ class AppModule {
         ...tenancyProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...customersProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...catalogProviders(deps.database, deps.ids ?? systemUuidV7()),
-        ...ordersProviders(deps.database, deps.ids ?? systemUuidV7()),
+        ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp),
         ...staffProviders(

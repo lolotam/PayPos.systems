@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { sessionServiceOption, sessionServiceOptionPage, sessionServiceOptionsQuery,
-  sessionPerformerOptionsQuery, sessionPerformerOptionPage } from './service-session-options.js';
+  sessionPerformerOptionsQuery, sessionPerformerOptionPage, sessionPerformerCursorData } from './service-session-options.js';
 import { serviceSessionFormPaths } from './service-session-form-openapi.js';
 
 const id = '00000000-0000-7000-8000-000000000001';
@@ -13,6 +13,12 @@ it('documents dated performer search and stable cursor bounds under recording au
   expect(route.parameters.find((p) => p.name === 'cursor')?.schema).not.toHaveProperty('format');
   expect(route.parameters.find((p) => p.name === 'q')?.schema).toEqual({ type: 'string', minLength: 1, maxLength: 50 });
   expect(route.responses['200'].content['application/json'].schema.$ref).toBe('#/components/schemas/SessionPerformerOptionPage');
+});
+it('requires strict cursor language and search-hash binding without carrying search text', () => {
+  const payload = { key: 'Displayed name', id, lang: 'ar', q_hash: 'a'.repeat(64) };
+  expect(sessionPerformerCursorData.parse(payload)).toEqual(payload);
+  for (const change of [{ lang: undefined }, { lang: 'fr' }, { q_hash: undefined }, { q_hash: 'bad' }, { q: 'private search' }])
+    expect(sessionPerformerCursorData.safeParse({ ...payload, ...change }).success).toBe(false);
 });
 it('requires occurred time, trims bounded search and rejects private performer fields', () => {
   const occurred_at = '2026-10-14T08:00:00Z';

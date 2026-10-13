@@ -95,25 +95,6 @@ import { AttendanceExceptionsReadController } from './http/attendance-exceptions
 import { AttendanceEmployeesController } from './http/attendance-employees.controller.ts';
 import { AttendanceCapabilitiesController } from './http/attendance-capabilities.controller.ts';
 import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';
-import type { SessionPerformerOptionsQuery } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
-import { attendanceWorkingDate } from './domain/clock-attendance.ts';
-import { schedulingContext } from './persistence/schedule-context.adapter.ts';
-import { sessionPerformers } from './persistence/session-performers.reader.ts';
-import { sessionPerformerOptionsPage, sessionPerformerWarningColumns } from './queries/session-performer-options.query.ts';
-
-export function readSessionPerformers(tx: Tx, companyId: string, businessId: string, branchId: string,
-  employeeIds: readonly string[], occurredAt: Date, lockOnly = false) {
-  return sessionPerformers(tx, companyId, businessId, branchId, employeeIds, occurredAt, sessionPerformerWarningColumns, lockOnly);
-}
-export async function readSessionPerformerOptions(tx: Tx, companyId: string, businessId: string, branchId: string,
-  query: SessionPerformerOptionsQuery) {
-  const place = await schedulingContext(tx, companyId, businessId, branchId);
-  if (place === null || !('timezone' in place)) return { items: [], next_cursor: null };
-  const day = attendanceWorkingDate(new Date(query.occurred_at), place.timezone);
-  return sessionPerformerOptionsPage(tx, companyId, businessId, branchId, day, query);
-}
-
 export const staffControllers = [
   AttendanceCapabilitiesController,
   AttendanceMonthlyReportController,

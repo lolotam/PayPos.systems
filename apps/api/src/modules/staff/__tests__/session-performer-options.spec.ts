@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { readSessionPerformerOptions, readSessionPerformers } from '../staff.module.ts';
+import { createHash } from 'node:crypto';
+import { readSessionPerformerOptions, readSessionPerformers } from '../index.ts';
 import { sessionPerformerOptionsStatement } from '../queries/session-performer-options.query.ts';
-import { ids, must, sessionFixture, type SessionFixture } from '../../../../test/service-session-picker.fixture.ts';
+import { ids, must, sessionFixture, type SessionFixture } from '../../../../test/service-session.fixture.ts';
 
 let f: SessionFixture;
 const sibling = ids.newId();
@@ -22,11 +23,21 @@ it('pages every employee lacking name_ar using the displayed English fallback ke
   for (let i = 0; i < 4; i++) {
     const result = await page(next); found.push(...result.items.map((r) => r.id));
     if (i < 3) expect(JSON.parse(Buffer.from(must(result.next_cursor), 'base64url').toString('utf8')))
-      .toEqual({ key: `Synthetic employee ${i}`, id: f.employees[i] });
+      .toEqual({ key: `Synthetic employee ${i}`, id: f.employees[i], lang: 'ar', q_hash: createHash('sha256').update('').digest('hex') });
     else expect(result.next_cursor).toBeNull();
     next = result.next_cursor ?? undefined;
   }
   expect(found).toEqual(f.employees);
+});
+it('enforces RLS on exact picker SQL even when explicitly passed another company scope', async () => {
+  const employee = ids.newId();
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
+    VALUES(${f.otherCompany},${employee},${f.foreignBusiness},${f.foreignBranch},'Foreign employee','foreign employee','staff','2026-01-01')`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.otherCompany},${ids.newId()},${f.foreignBusiness},${employee},${f.foreignBranch},'2026-01-01')`;
+  const statement = sessionPerformerOptionsStatement(f.otherCompany, f.foreignBusiness, f.foreignBranch, '2026-10-14', { occurred_at, lang: 'en', limit: 20 });
+  expect(await f.db.withTenant(f.company, (tx) => tx.execute(statement))).toHaveLength(0);
+  expect(await f.db.withTenant(f.otherCompany, (tx) => tx.execute(statement))).toHaveLength(1);
 });
 it('uses ICU Arabic alphabetical order across pages rather than code-point order', async () => {
   const names = ['محمد', 'مُحمد', 'محمود'];
@@ -110,7 +121,8 @@ it('counts OPEN/CLOSED/MISSED_OUT including MANUAL; void, other-day and other-br
 it('EXPLAIN ANALYZE uses existing employee/link/clock/leave indexes for exact searched and cursor SQL', async () => {
   await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
-    for (const lang of ['ar', 'en'] as const) for (const cursor of [undefined, Buffer.from(JSON.stringify({ key: 'Synthetic employee 0', id: f.employees[0] })).toString('base64url')]) {
+    for (const lang of ['ar', 'en'] as const) for (const cursor of [undefined, Buffer.from(JSON.stringify({ key: 'Synthetic employee 0', id: f.employees[0],
+      lang, q_hash: createHash('sha256').update('synthetic').digest('hex') })).toString('base64url')]) {
       const query = { occurred_at, lang, q: 'synthetic', limit: 2, ...(cursor === undefined ? {} : { cursor }) };
       const plan = JSON.stringify(await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sessionPerformerOptionsStatement(f.company, f.business, f.branch, '2026-10-13', query)}`));
       for (const name of ['employees_', 'employee_branches_', 'attendance_sessions_', 'leave_requests_']) expect(plan).toContain(name);

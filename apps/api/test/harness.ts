@@ -173,6 +173,7 @@ interface HarnessOptions {
   logs?: DestinationStream;
   staffOrigin?: string;
   clock?: { now(): Date };
+  ordersClock?: { now(): Date };
   staffOtpFactory?: (
     auth: AuthService,
     authUrl: string,
@@ -228,6 +229,7 @@ async function prepareHarness(
         auth: { service: auth, baseURL: BASE },
         employeeCardKey: deriveEmployeeCardKey('test-secret-that-is-long-enough-for-hmac'),
         database: wrappers,
+        ...(options.ordersClock === undefined ? {} : { ordersClock: options.ordersClock }),
         ...(options.files === undefined ? {} : { files: options.files }),
         ...staffWiring(options, staffOtp, auth),
         ids,
