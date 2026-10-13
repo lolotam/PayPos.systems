@@ -1,6 +1,15 @@
-import { sessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@pospay/contracts';
+import { sessionPerformerCursorData, sessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+
+function decodeCursor(query: SessionPerformerOptionsQuery) {
+  if (query.cursor === undefined) return null;
+  try {
+    const cursor = sessionPerformerCursorData.parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
+    if (Buffer.from(JSON.stringify(cursor)).toString('base64url') !== query.cursor) throw new Error();
+    return cursor;
+  } catch { throw new RangeError('SESSION_PERFORMER_CURSOR_INVALID'); }
+}
 
 // نموذج التسجيل ولقطة الحفظ يستهلكان حقائق يوم الأداء نفسها دون اشتراط جلسة حضور مفتوحة الآن.
 export function sessionPerformerWarningColumns(branchId: string, day: string, occurredAt: Date) {
@@ -16,20 +25,28 @@ export function sessionPerformerWarningColumns(branchId: string, day: string, oc
 // منتقي الموظفات يعرض الأهلية التاريخية والأسماء والتنبيهين فقط؛ فلاتر الأهلية تسبق حد الصفحة.
 export function sessionPerformerOptionsStatement(companyId: string, businessId: string, branchId: string,
   day: string, query: SessionPerformerOptionsQuery) {
-  return sql`SELECT e.id,e.name_ar,e.name_en,${sessionPerformerWarningColumns(branchId, day, new Date(query.occurred_at))}
+  const name = query.lang === 'ar'
+    ? sql`coalesce(e.name_ar,e.name_en) COLLATE "und-x-icu"`
+    : sql`coalesce(e.name_en,e.name_ar) COLLATE "und-x-icu"`;
+  const cursor = decodeCursor(query);
+  const after = cursor === null ? sql``
+    : sql`AND (${name},e.id)>(${cursor.key}::text COLLATE "und-x-icu",${cursor.id}::uuid)`;
+  return sql`SELECT e.id,e.name_ar,e.name_en,${name} AS sort_key,${sessionPerformerWarningColumns(branchId, day, new Date(query.occurred_at))}
     FROM employees e WHERE e.company_id=${companyId} AND e.business_id=${businessId}
       AND e.deleted_at IS NULL AND e.hire_date<=${day}::date AND (e.contract_end IS NULL OR e.contract_end>=${day}::date)
       AND EXISTS(SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.business_id=e.business_id
         AND eb.employee_id=e.id AND eb.branch_id=${branchId} AND eb."from"<=${day}::date AND (eb."to" IS NULL OR eb."to">${day}::date))
-      ${query.cursor === undefined ? sql`` : sql`AND e.id>${query.cursor}`}
+      ${after}
       ${query.q === undefined ? sql`` : sql`AND (strpos(lower(e.name_ar),lower(${query.q}))>0 OR strpos(lower(e.name_en),lower(${query.q}))>0)`}
-    ORDER BY e.id LIMIT ${query.limit + 1}`;
+    ORDER BY ${name} ASC,e.id ASC LIMIT ${query.limit + 1}`;
 }
 export async function sessionPerformerOptionsPage(tx: Tx, companyId: string, businessId: string, branchId: string,
   day: string, query: SessionPerformerOptionsQuery) {
-  const rows = await tx.execute<{ id: string; name_ar: string | null; name_en: string; clocked_in: boolean; approved_leave: boolean }>(
+  const rows = await tx.execute<{ id: string; name_ar: string | null; name_en: string; sort_key: string; clocked_in: boolean; approved_leave: boolean }>(
     sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query));
   const items = rows.slice(0, query.limit).map((r) => ({ id: r.id, name_ar: r.name_ar, name_en: r.name_en,
     not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave }));
-  return sessionPerformerOptionPage.parse({ items, next_cursor: rows.length > query.limit ? items.at(-1)?.id : null });
+  const last = rows[items.length - 1];
+  return sessionPerformerOptionPage.parse({ items, next_cursor: rows.length > query.limit && last !== undefined
+    ? Buffer.from(JSON.stringify({ key: last.sort_key, id: last.id })).toString('base64url') : null });
 }

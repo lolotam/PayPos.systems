@@ -9,15 +9,18 @@ it('documents dated performer search and stable cursor bounds under recording au
   const route = serviceSessionFormPaths['/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options'].get;
   expect(route.description).toContain('record:service-sessions:branch');
   expect(route.parameters.find((p) => p.name === 'occurred_at')?.required).toBe(true);
+  expect(route.parameters.find((p) => p.name === 'lang')).toMatchObject({ required: true, schema: { type: 'string', enum: ['ar', 'en'] } });
+  expect(route.parameters.find((p) => p.name === 'cursor')?.schema).not.toHaveProperty('format');
   expect(route.parameters.find((p) => p.name === 'q')?.schema).toEqual({ type: 'string', minLength: 1, maxLength: 50 });
   expect(route.responses['200'].content['application/json'].schema.$ref).toBe('#/components/schemas/SessionPerformerOptionPage');
 });
 it('requires occurred time, trims bounded search and rejects private performer fields', () => {
   const occurred_at = '2026-10-14T08:00:00Z';
-  expect(sessionPerformerOptionsQuery.parse({ occurred_at, q: '  سارة  ' })).toEqual({ occurred_at, q: 'سارة', limit: 20 });
-  expect(sessionPerformerOptionsQuery.parse({ occurred_at, cursor: id, limit: '100' }).limit).toBe(100);
-  for (const query of [{}, { occurred_at: 'bad' }, { occurred_at, q: '' }, { occurred_at, q: ' ' },
-    { occurred_at, q: 'a'.repeat(51) }, { occurred_at, limit: 101 }, { occurred_at, cursor: 'bad' }, { occurred_at, user_id: id }])
+  expect(sessionPerformerOptionsQuery.parse({ occurred_at, lang: 'ar', q: '  سارة  ' })).toEqual({ occurred_at, lang: 'ar', q: 'سارة', limit: 20 });
+  expect(sessionPerformerOptionsQuery.parse({ occurred_at, lang: 'en', limit: '100' }).limit).toBe(100);
+  for (const query of [{}, { occurred_at: 'bad', lang: 'en' }, { occurred_at, lang: 'en', q: '' }, { occurred_at, lang: 'en', q: ' ' },
+    { occurred_at, lang: 'en', q: 'a'.repeat(51) }, { occurred_at, lang: 'en', limit: 101 }, { occurred_at, lang: 'en', cursor: 'bad=' },
+    { occurred_at, lang: 'en', user_id: id }, { occurred_at }, { occurred_at, lang: 'AR' }])
     expect(sessionPerformerOptionsQuery.safeParse(query).success).toBe(false);
   const item = { id, name_ar: null, name_en: 'Synthetic employee', not_clocked_in_warning: true, approved_leave_warning: false };
   expect(sessionPerformerOptionPage.parse({ items: [item], next_cursor: null }).items).toEqual([item]);

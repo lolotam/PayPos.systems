@@ -19,7 +19,13 @@ export type SessionServiceOptionsQuery = z.infer<typeof sessionServiceOptionsQue
 export type SessionServiceOptionPage = z.infer<typeof sessionServiceOptionPage>;
 export const sessionServiceOptionsSchemas = [sessionServiceOptionsQuery, sessionServiceOption, sessionServiceOptionPage];
 
+const performerCursor = z.string().min(1).max(4096).regex(/^[A-Za-z0-9_-]+$/);
+export const sessionPerformerCursorData = z.strictObject({
+  key: z.string().max(1024).refine((value) => !value.includes('\u0000')), id: id.toLowerCase(),
+});
 export const sessionPerformerOptionsQuery = sessionServiceOptionsQuery.extend({
+  cursor: performerCursor.optional(),
+  lang: z.enum(['ar', 'en']),
   occurred_at: timestamp,
   q: z.string().trim().min(1).max(50).optional(),
 }).meta({ id: 'SessionPerformerOptionsQuery' });
@@ -30,7 +36,7 @@ export const sessionPerformerOption = z.strictObject({
 }).meta({ id: 'SessionPerformerOption' });
 export const sessionPerformerOptionPage = z.strictObject({
   items: z.array(sessionPerformerOption).max(100),
-  next_cursor: id.toLowerCase().nullable(),
+  next_cursor: performerCursor.nullable(),
 }).meta({ id: 'SessionPerformerOptionPage' });
 export type SessionPerformerOptionsQuery = z.infer<typeof sessionPerformerOptionsQuery>;
 export type SessionPerformerOptionPage = z.infer<typeof sessionPerformerOptionPage>;

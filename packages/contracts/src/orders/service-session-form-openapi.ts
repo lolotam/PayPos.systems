@@ -6,13 +6,14 @@ export const serviceSessionFormPaths = {
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options': {
     get: {
       operationId: 'getServiceSessionPerformerOptions',
-      description: 'Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. SS-Q15: case-insensitive name search, ascending UUID cursor; UI sorts the loaded page alphabetically. No private HR fields or wider staff permission.',
+      description: 'Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE "und-x-icu", then id. Opaque base64url keyset cursor contains the exact displayed name and id; malformed cursors return 400. Case-insensitive search matches either name. No private HR fields or wider staff permission.',
       parameters: [
         { in: 'header', name: 'x-company-id', required: true, schema: { type: 'string', format: 'uuid' } },
         ...['businessId', 'branchId'].map((name) => ({ in: 'path', name, required: true, schema: { type: 'string', format: 'uuid' } })),
         { in: 'query', name: 'occurred_at', required: true, schema: { type: 'string', format: 'date-time' } },
+        { in: 'query', name: 'lang', required: true, schema: { type: 'string', enum: ['ar', 'en'] } },
         { in: 'query', name: 'q', required: false, description: 'Trimmed, literal case-insensitive substring of name_ar or name_en.', schema: { type: 'string', minLength: 1, maxLength: 50 } },
-        { in: 'query', name: 'cursor', required: false, schema: { type: 'string', format: 'uuid' } },
+        { in: 'query', name: 'cursor', required: false, description: 'Opaque base64url sort-key/id cursor from the previous page; keep lang and q unchanged.', schema: { type: 'string', minLength: 1, maxLength: 4096, pattern: '^[A-Za-z0-9_-]+$' } },
         { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
       ],
       responses: {

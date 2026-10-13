@@ -13,7 +13,37 @@ beforeAll(async () => {
 });
 afterAll(async () => { await f?.close(); });
 const read = (at = occurred_at) => f.db.withTenant(f.company, (tx) =>
-  readSessionPerformerOptions(tx, f.company, f.business, f.branch, { occurred_at: at, limit: 20 }));
+  readSessionPerformerOptions(tx, f.company, f.business, f.branch, { occurred_at: at, lang: 'en', limit: 20 }));
+
+it('pages every employee lacking name_ar using the displayed English fallback key', async () => {
+  const page = (cursor?: string) => f.db.withTenant(f.company, (tx) => readSessionPerformerOptions(tx, f.company, f.business, f.branch,
+    { occurred_at, lang: 'ar', limit: 1, ...(cursor === undefined ? {} : { cursor }) }));
+  const found: string[] = []; let next: string | undefined;
+  for (let i = 0; i < 4; i++) {
+    const result = await page(next); found.push(...result.items.map((r) => r.id));
+    if (i < 3) expect(JSON.parse(Buffer.from(must(result.next_cursor), 'base64url').toString('utf8')))
+      .toEqual({ key: `Synthetic employee ${i}`, id: f.employees[i] });
+    else expect(result.next_cursor).toBeNull();
+    next = result.next_cursor ?? undefined;
+  }
+  expect(found).toEqual(f.employees);
+});
+it('uses ICU Arabic alphabetical order across pages rather than code-point order', async () => {
+  const names = ['محمد', 'مُحمد', 'محمود'];
+  expect([...names].sort()).toEqual(['محمد', 'محمود', 'مُحمد']);
+  try {
+    for (const [i, name] of names.entries())
+      await f.h.owner`UPDATE employees SET name_ar=${name} WHERE company_id=${f.company} AND id=${must(f.employees[i])}`;
+    const found: string[] = []; let cursor: string | undefined;
+    for (let i = 0; i < 4; i++) {
+      const result = await f.db.withTenant(f.company, (tx) => readSessionPerformerOptions(tx, f.company, f.business, f.branch,
+        { occurred_at, lang: 'ar', limit: 1, ...(cursor === undefined ? {} : { cursor }) }));
+      found.push(...result.items.map((r) => r.id)); cursor = result.next_cursor ?? undefined;
+      expect(result.next_cursor === null).toBe(i === 3);
+    }
+    expect(found).toEqual([f.employees[3], ...f.employees.slice(0, 3)]);
+  } finally { await f.h.owner`UPDATE employees SET name_ar=NULL WHERE company_id=${f.company}`; }
+});
 
 it('filters hire/contract/link boundaries before paging, independent of primary branch', async () => {
   const employee = must(f.employees[0]);
@@ -80,8 +110,8 @@ it('counts OPEN/CLOSED/MISSED_OUT including MANUAL; void, other-day and other-br
 it('EXPLAIN ANALYZE uses existing employee/link/clock/leave indexes for exact searched and cursor SQL', async () => {
   await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
-    for (const cursor of [undefined, must(f.employees[0])]) {
-      const query = { occurred_at, q: 'synthetic', limit: 2, ...(cursor === undefined ? {} : { cursor }) };
+    for (const lang of ['ar', 'en'] as const) for (const cursor of [undefined, Buffer.from(JSON.stringify({ key: 'Synthetic employee 0', id: f.employees[0] })).toString('base64url')]) {
+      const query = { occurred_at, lang, q: 'synthetic', limit: 2, ...(cursor === undefined ? {} : { cursor }) };
       const plan = JSON.stringify(await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sessionPerformerOptionsStatement(f.company, f.business, f.branch, '2026-10-13', query)}`));
       for (const name of ['employees_', 'employee_branches_', 'attendance_sessions_', 'leave_requests_']) expect(plan).toContain(name);
       expect(plan).not.toContain('Seq Scan');

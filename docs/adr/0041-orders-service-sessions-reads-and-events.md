@@ -350,6 +350,9 @@ and approved FULL_DAY/PARTIAL leave at the occurred day/instant. Warnings do not
 Only id/name_ar/name_en/not_clocked_in_warning/approved_leave_warning leave staff; no private HR or user link.
 Orders binds callbacks through session-performer-options.adapter.ts on the same tenant transaction and declares
 the exact public symbol/path read on its existing staff edge. SS-Q15 (Waleed, 2026-10-13, option 1) adds optional
-trimmed 1–50-character case-insensitive literal name search; ascending UUID pages stay default 20/max 100.
-The UI sorts each loaded page alphabetically. Existing employee/link/attendance/leave indexes are EXPLAIN-tested;
+trimmed 1–50-character case-insensitive literal name search. The reviewed ordering decision (PR 187) requires
+lang=ar|en and global displayed-name,id keyset pages, default 20/max 100. The name uses
+coalesce(name_<lang>,name_<other>) COLLATE "und-x-icu" for both sorting and keyset comparison, without lowercasing.
+Canonical base64url JSON carries the exact displayed name and id; strict payload/encoding checks refuse
+malformed cursors with 400. Existing employee/link/attendance/leave indexes and the scoped sort are EXPLAIN-tested;
 no new table, grant or migration. POST still refreshes its own facts. Both queries have shape/EXPLAIN coverage.

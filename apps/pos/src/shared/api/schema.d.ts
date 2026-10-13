@@ -1509,7 +1509,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. SS-Q15: case-insensitive name search, ascending UUID cursor; UI sorts the loaded page alphabetically. No private HR fields or wider staff permission. */
+        /** @description Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE "und-x-icu", then id. Opaque base64url keyset cursor contains the exact displayed name and id; malformed cursors return 400. Case-insensitive search matches either name. No private HR fields or wider staff permission. */
         get: operations["getServiceSessionPerformerOptions"];
         put?: never;
         post?: never;
@@ -3804,10 +3804,11 @@ export interface components {
             next_cursor: string | null;
         };
         SessionPerformerOptionsQuery: {
-            /** Format: uuid */
             cursor?: string;
             /** @default 20 */
             limit: number;
+            /** @enum {string} */
+            lang: "ar" | "en";
             /** Format: date-time */
             occurred_at: string;
             q?: string;
@@ -3822,7 +3823,6 @@ export interface components {
         };
         SessionPerformerOptionPage: {
             items: components["schemas"]["SessionPerformerOption"][];
-            /** Format: uuid */
             next_cursor: string | null;
         };
         AttendanceQrToken: {
@@ -9788,8 +9788,10 @@ export interface operations {
         parameters: {
             query: {
                 occurred_at: string;
+                lang: "ar" | "en";
                 /** @description Trimmed, literal case-insensitive substring of name_ar or name_en. */
                 q?: string;
+                /** @description Opaque base64url sort-key/id cursor from the previous page; keep lang and q unchanged. */
                 cursor?: string;
                 limit?: number;
             };
