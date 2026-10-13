@@ -325,3 +325,14 @@ readEffectiveDiscountLimit; its two exact symbol/path entries reuse already appr
 After settings' existing SHARE locks, identity authority/expiry/feature and active place are checked again at a
 fresh injected instant. This is advisory; POST still resolves its own fresh context. No new table, grant,
 write/event, service/performer picker or history access is added. Exact callback SQL gets EXPLAIN ANALYZE tests.
+
+## Addendum 2026-10-13 — 35c-3 limited service options
+
+SS-Q13 authorizes GET /service-options under record:service-sessions:branch alone, with selected company,
+admin authentication, orders feature and active business/branch ownership rechecked on every page.
+Catalog's public readSessionServiceOptions projects only id/name_ar/name_en/price/revision from services;
+orders' session-service-options.adapter.ts calls it on the same tenant transaction through read-side callbacks.
+This exact symbol/path read reuses the approved orders → catalog edge. Ascending UUID pages (default 20, max 100)
+use the existing services_company_business_id_key; equal names do not affect cursor stability. Price remains
+canonical KWD text. No commission fields, catalog read grant, table/grant/migration, performer read or history
+access is added. Both query paths have result-shape and exact SQL EXPLAIN ANALYZE coverage.

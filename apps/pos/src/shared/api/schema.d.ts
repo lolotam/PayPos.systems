@@ -1502,6 +1502,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/service-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Admin recording-form service names, list prices and revisions only (SS-Q13). Requires record:service-sessions:branch and orders feature, confirmed business/branch ownership on every page. Ascending service UUID cursor; no commission data or broader catalog permission. */
+        get: operations["getServiceSessionServiceOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/recording-context": {
         parameters: {
             query?: never;
@@ -3749,6 +3766,25 @@ export interface components {
             recorder_membership_id: null;
             /** @enum {string|null} */
             discount_limit: null;
+        };
+        SessionServiceOptionsQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        SessionServiceOption: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            price: components["schemas"]["ServicePrice"];
+            revision: number;
+        };
+        SessionServiceOptionPage: {
+            items: components["schemas"]["SessionServiceOption"][];
+            /** Format: uuid */
+            next_cursor: string | null;
         };
         AttendanceQrToken: {
             /** Format: uuid */
@@ -9699,6 +9735,61 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceSessionServiceOptions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Limited service page; null cursor on the last page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionServiceOptionPage"];
+                };
+            };
+            /** @description Invalid strict query. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform scope/permission refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;
