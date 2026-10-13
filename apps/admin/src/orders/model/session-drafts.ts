@@ -1,7 +1,10 @@
 import { discountPercentage, type RecordServiceSessionInput, type SessionServiceOptionPage, type SessionPerformerOptionPage } from '@pospay/contracts';
 import { moneyToString, parseMoney } from '@pospay/domain';
 
-export type SessionServiceSelection = SessionServiceOptionPage['items'][number];
+// الاسترجاع يحتفظ بالاسم والسعر المعروفين، من غير اختراع revision للكتالوج.
+export type SessionServiceSelection = Omit<SessionServiceOptionPage['items'][number], 'revision'> & {
+  revision?: number; price_source?: 'INPUT' | 'CATALOG';
+};
 export type SessionPerformerSelection = SessionPerformerOptionPage['items'][number];
 export const sessionSharePercentage = discountPercentage.refine((bps) => bps > 0);
 export type SessionDraftLine = Pick<RecordServiceSessionInput['lines'][number], 'service_id' | 'price'> & {

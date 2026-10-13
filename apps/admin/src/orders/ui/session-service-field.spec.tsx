@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { SessionServiceField } from './session-service-field';
+import { emptySessionRecordingResult, transitionSessionRecordingResult as transition } from '../model/session-recording-result';
+import { recordAttempt, response } from '../model/session-recording-result.fixture';
 const state = vi.hoisted(() => ({ get: vi.fn(), locale: 'en' as 'ar' | 'en' }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
@@ -73,4 +75,20 @@ it('localizes a refusal and permits an explicit read retry', async () => {
   expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(true);
   fireEvent.click(screen.getByRole('button', { name: t('ar', 'serviceSessions.retryServices') }));
   await screen.findByRole('option', { name: option.name_en }); expect(state.get).toHaveBeenCalledTimes(2);
+});
+it.each(['ar', 'en'] as const)('shows a recovered rejected selection outside the first options page in %s', async (locale) => {
+  state.locale = locale; state.get.mockReset(); state.get.mockResolvedValue({ data: { items: [option], next_cursor: 'next' } });
+  const pending = transition(emptySessionRecordingResult(), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: recordAttempt } });
+  const restored = pending.drafts.lines[1]; if (!restored?.service) throw new Error('Missing restored selection');
+  const client = new QueryClient(), onChange = vi.fn(), view = render(<QueryClientProvider client={client}>
+    <SessionServiceField scope={scope} value={restored.service} onChange={onChange} /></QueryClientProvider>);
+  await screen.findByRole('option', { name: option.name_en });
+  const select = screen.getByRole('combobox') as HTMLSelectElement;
+  expect(select.value).toBe(restored.service_id); expect(select.selectedOptions[0]?.textContent).toBe(restored.service_id);
+  expect(screen.queryByText(t(locale, 'serviceSessions.listPrice'))).toBeNull();
+  const partial = transition(pending, { type: 'RECORDED', attempt: recordAttempt, response }), rejected = partial.drafts.lines[0];
+  if (!rejected?.service) throw new Error('Missing rejected selection');
+  view.rerender(<QueryClientProvider client={client}><SessionServiceField scope={scope} value={rejected.service} onChange={onChange} /></QueryClientProvider>);
+  expect(select.value).toBe(rejected.service_id); expect(select.selectedOptions[0]?.textContent).toBe(response.rejected_lines[0]?.name_en);
+  expect(screen.getByText(t(locale, 'serviceSessions.listPrice')).textContent).toContain('7.125'); expect(onChange).not.toHaveBeenCalled();
 });

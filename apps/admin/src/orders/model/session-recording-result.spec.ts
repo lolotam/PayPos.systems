@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { serviceSessionErrors } from '@pospay/i18n';
-import { SessionSavedDisplayFailure } from './session-attempt';
+import { SessionSavedDisplayFailure, type SessionJournalEnvelope } from './session-attempt';
 import { createSessionAttemptJournal } from './session-attempt-journal';
 import { emptySessionRecordingResult, newSessionVisit, sessionResultCommand, sessionResultFrozen, sessionResultLate, transitionSessionRecordingResult as transition } from './session-recording-result';
 import { appendAttempt, attempt, discountError, id, initial, inputLine, instant, recordAttempt, rejection, response, savedLine, scope } from './session-recording-result.fixture';
@@ -40,7 +40,8 @@ it.each(['record', 'append'] as const)('keeps the appropriate drafts and visit o
     const error = { ...discountError, details: { rejected_lines: [{ ...rejection, input_index: 0 }] } };
     await expect(journal.run(pending, () => Promise.reject(error))).rejects.toBe(error);
     const result = transition(state, { type: 'FAILED', attempt: pending, error });
-    expect(result.drafts.lines).toEqual(state.drafts.lines); expect(result.sessionId).toBe(kind === 'record' ? null : id(12));
+    const inputs = (drafts: typeof state.drafts) => drafts.lines.map((row) => [row.local_id, row.price, row.discount_kind, row.discount_amount, row.discount_percentage, row.performers]);
+    expect(inputs(result.drafts)).toEqual(inputs(state.drafts)); expect(result.sessionId).toBe(kind === 'record' ? null : id(12));
     const retry = journal.begin(sessionResultCommand(result, [inputLine]), [id(10)]);
     expect(retry.kind).toBe(kind); expect(retry.key).not.toBe(pending.key);
   } finally { journal.changeScope(null); journal.dispose(); }
@@ -93,7 +94,9 @@ it.each(['record', 'append'] as const)('restores a cold %s replay, retaining rej
   const replay = { ...response, rejected_lines: [{ ...rejection, price: '8.000', discount: '2.000', net: '6.000', effective_discount_bps: 1579, max_discount_amount: '1.587' }] };
   const result = frozen.kind === 'record' ? transition(pending, { type: 'RECORDED', attempt: frozen, response: replay })
     : transition(pending, { type: 'APPENDED', attempt: frozen, response: { ...replay, added_lines: [savedLine] } });
-  expect(result.drafts.lines).toEqual([row]); expect(result.rejected[0]?.localId).toBe(row.local_id);
+  expect(result.drafts.lines).toHaveLength(1); expect(result.drafts.lines[0]).toMatchObject({ local_id: row.local_id, price: row.price,
+    discount_amount: row.discount_amount, performers: row.performers, service: { id: row.service_id, name_en: rejection.name_en, price: rejection.list_price } });
+  expect(result.rejected[0]?.localId).toBe(row.local_id);
   expect(sessionResultCommand(result, [inputLine])).toMatchObject({ kind: 'append', sessionId: id(12) });
 });
 it('restores missing rejected rows even if the replay response arrives without a pending projection', () => {
@@ -109,6 +112,28 @@ it.each([400, 403, 422])('a cold append with definite %s retains its target and 
 it('a cold all-rejected creation retains its frozen customer ID for another creation', () => {
   const result = transition(emptySessionRecordingResult(), { type: 'FAILED', attempt: recordAttempt, error: discountError });
   expect(result.drafts.lines).toHaveLength(2); expect(sessionResultCommand(result, [inputLine])).toMatchObject({ kind: 'record', body: { customer_id: id(7) } });
+});
+it('drops a stale selected customer so recovered creation retries and same-customer visits belong to the frozen customer', () => {
+  const customerId = id(77), frozen = { ...recordAttempt, rowIds: [id(10)], body: { customer_id: customerId, lines: [inputLine] } };
+  const pending = transition(emptySessionRecordingResult(initial.customer), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: frozen } });
+  expect(pending.customer).toBeNull(); expect(pending.customerId).toBe(customerId);
+  const refused = transition(pending, { type: 'FAILED', attempt: frozen, error: { ...discountError, details: { rejected_lines: [{ ...rejection, input_index: 0 }] } } });
+  expect(sessionResultCommand(refused, [inputLine])).toMatchObject({ kind: 'record', body: { customer_id: customerId } });
+  const customer = { ...response.session.customer, id: customerId, name: 'Recovered synthetic customer' };
+  const complete = transition(refused, { type: 'RECORDED', attempt: frozen, response: { ...response, outcome: 'COMPLETE', rejected_lines: [], session: { ...response.session, customer } } });
+  expect(newSessionVisit(complete, { leaveVisit: vi.fn() }, true).customer).toEqual({ id: customerId, name: customer.name, phone: customer.phone_masked });
+});
+it.each([null, { version: 1, state: 'PARTIAL', scope, sessionId: id(12) }, { version: 1, state: 'PARTIAL', scope, sessionId: id(99) },
+  { version: 1, state: 'PENDING', attempt: { ...appendAttempt, rowIds: [id(10)], body: { lines: [inputLine] } } },
+  { version: 1, state: 'PENDING', attempt: { ...appendAttempt, sessionId: id(99), route: `${attempt.route}/${id(99)}/lines` } },
+  { version: 1, state: 'EXPIRED', scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(99) },
+  { version: 1, state: 'SAVED_DISPLAY_FAILED', scope, sessionId: id(99) }] satisfies (SessionJournalEnvelope | null)[])('storage warnings preserve the saved PARTIAL visit and drafts for journal %j', (entry) => {
+  const saved = recorded(); let result = saved;
+  for (let repeat = 0; repeat < 2; repeat++) {
+    result = transition(result, { type: 'JOURNAL', entry, persistenceWarning: 'NOT_PERSISTED' });
+    expect(result.session).toBe(saved.session); expect(result.sessionId).toBe(saved.sessionId); expect(result.drafts.lines).toEqual(saved.drafts.lines);
+    expect(result.rejected).toEqual(saved.rejected); expect(sessionResultFrozen(result)).toBe(true);
+  }
 });
 it('replaying a pending write resolves the frozen result and keeps the authoritative header/line late OR', () => {
   const pending = transition(initial, { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt } });

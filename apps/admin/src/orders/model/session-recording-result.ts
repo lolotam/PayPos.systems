@@ -37,6 +37,13 @@ function indexedRejections(attempt: SessionAttempt, errors: RejectedServiceLine[
 function retainRejected(drafts: SessionDraftForm, rejected: SessionRecordingResult['rejected']) {
   return { ...drafts, lines: drafts.lines.filter((line) => rejected.some((row) => row.localId === line.local_id)) };
 }
+function rejectionSnapshots(drafts: SessionDraftForm, rejected: SessionRecordingResult['rejected']): SessionDraftForm {
+  return { ...drafts, lines: drafts.lines.map((line) => {
+    const error = rejected.find((row) => row.localId === line.local_id)?.error;
+    return error && line.service?.revision === undefined ? { ...line, service: { id: error.service_id,
+      name_ar: error.name_ar, name_en: error.name_en, price: error.list_price, price_source: 'CATALOG' } } : line;
+  }) };
+}
 function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, wantedIds = attempt.rowIds, replaceVisit = false): SessionRecordingResult {
   const sessionId = attempt.kind === 'append' ? attempt.sessionId : replaceVisit ? null : state.sessionId;
   if (state.sessionId !== sessionId) state = emptySessionRecordingResult(state.customer);
@@ -45,13 +52,15 @@ function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, 
     if (!localId || !wantedIds.includes(localId) || state.drafts.lines.some((row) => row.local_id === localId)) return [];
     const draft = createSessionDraft(localId);
     return [{ ...draft, service_id: line.service_id, price: line.price, discount_kind: line.discount.kind,
+      service: { id: line.service_id, name_ar: null, name_en: line.service_id, price: line.price, price_source: 'INPUT' },
       discount_amount: line.discount.kind === 'AMOUNT' ? line.discount.amount : draft.discount_amount,
       discount_percentage: line.discount.kind === 'PERCENT' ? sessionBpsText(line.discount.bps) : draft.discount_percentage,
       share_mode: line.performers.some((row) => row.share_bps !== undefined) ? 'CUSTOM' : 'EQUAL',
       performers: line.performers.map((row) => ({ employee_id: row.employee_id, selection: null,
         share_percentage: row.share_bps === undefined ? '' : sessionBpsText(row.share_bps) })) }];
   });
-  return { ...state, sessionId, customerId: attempt.kind === 'record' ? attempt.body.customer_id : state.customerId,
+  const customerId = attempt.kind === 'record' ? attempt.body.customer_id : state.customerId;
+  return { ...state, sessionId, customerId, customer: state.customer?.id === customerId ? state.customer : null,
     drafts: missing.length ? { ...state.drafts, lines: [...state.drafts.lines, ...missing],
     recorder_membership_id: attempt.body.recorder_membership_id ?? null,
     ...(attempt.kind === 'record' ? { occurred_at: attempt.body.occurred_at } : {}) } : state.drafts };
@@ -67,8 +76,9 @@ function failedResult(state: SessionRecordingResult, attempt: SessionAttempt, er
   const errors = rejectedServiceLine.array().min(1).safeParse(details && typeof details === 'object' && 'rejected_lines' in details ? details.rejected_lines : undefined);
   if (status === 422 && envelope.success && envelope.data.code === 'SESSION_DISCOUNT_ABOVE_LIMIT' && errors.success) {
     const rejected = indexedRejections(attempt, errors.data);
+    const drafts = rejectionSnapshots(state.drafts, rejected);
     return { ...state, attempt: null, rejected, addedLineIds: [],
-      drafts: attempt.kind === 'record' ? state.drafts : retainRejected(state.drafts, rejected),
+      drafts: attempt.kind === 'record' ? drafts : retainRejected(drafts, rejected),
       session: attempt.kind === 'record' ? null : state.session,
       sessionId: attempt.kind === 'record' ? null : attempt.sessionId, feedback: { kind: 'ALL_REJECTED' } };
   }
@@ -79,14 +89,17 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
   if (event.type === 'FAILED') return failedResult(state, event.attempt, event.error);
   if (event.type === 'JOURNAL') {
     const entry = event.entry;
-    const clearedPendingVisit = !entry && ['SAVING', 'UNRESOLVED', 'NOT_PERSISTED', 'PARTIAL'].includes(state.feedback.kind);
-    if (clearedPendingVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId)) state = emptySessionRecordingResult(state.customer);
+    const preserveVisit = !!event.persistenceWarning && !!state.sessionId;
+    if (preserveVisit && entry?.state === 'PENDING' && (entry.attempt.kind === 'record' || entry.attempt.sessionId !== state.sessionId))
+      return { ...state, persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: 'NOT_PERSISTED' } };
+    const clearedPendingVisit = !entry && !event.persistenceWarning && ['SAVING', 'UNRESOLVED', 'NOT_PERSISTED', 'PARTIAL'].includes(state.feedback.kind);
+    if (!preserveVisit && (clearedPendingVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId))) state = emptySessionRecordingResult(state.customer);
     state = { ...state, persistenceWarning: event.persistenceWarning ?? null };
-    if (entry?.state === 'PARTIAL') state = { ...state, sessionId: entry.sessionId };
+    if (entry?.state === 'PARTIAL' && !preserveVisit) state = { ...state, sessionId: entry.sessionId };
     if (entry?.state === 'PENDING') return { ...recoverAttempt(state, entry.attempt, entry.attempt.rowIds, true), attempt: entry.attempt,
       persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: event.inFlight ? 'SAVING' : 'UNRESOLVED' } };
     if (entry?.state === 'EXPIRED' || entry?.state === 'SAVED_DISPLAY_FAILED') return { ...state, attempt: null,
-      sessionId: entry.sessionId ?? state.sessionId, feedback: { kind: entry.state } };
+      sessionId: preserveVisit ? state.sessionId : entry.sessionId ?? state.sessionId, feedback: { kind: entry.state } };
     if (event.persistenceWarning) return { ...state, attempt: null, feedback: { kind: 'NOT_PERSISTED' } };
     const feedback = ['NOT_PERSISTED', 'SAVING', 'UNRESOLVED'].includes(state.feedback.kind)
       ? { kind: state.session ? state.rejected.length ? 'PARTIAL' as const : 'COMPLETE' as const : 'IDLE' as const } : state.feedback;
@@ -95,10 +108,10 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
   const response = event.response, rejected = indexedRejections(event.attempt, response.rejected_lines);
   state = recoverAttempt(state, event.attempt, rejected.map((row) => row.localId));
   return { ...state, session: response.session, sessionId: response.session.id, attempt: null, rejected,
-    customerId: response.session.customer.id, customer: state.customer ?? { id: response.session.customer.id, name: response.session.customer.name, phone: response.session.customer.phone_masked },
+    customerId: response.session.customer.id, customer: state.customer?.id === response.session.customer.id ? state.customer : { id: response.session.customer.id, name: response.session.customer.name, phone: response.session.customer.phone_masked },
     persistenceWarning: event.persistenceWarning ?? null,
     addedLineIds: (event.type === 'APPENDED' ? event.response.added_lines : response.session.lines).map((line) => line.id),
-    drafts: retainRejected(state.drafts, rejected), feedback: { kind: response.outcome } };
+    drafts: retainRejected(rejectionSnapshots(state.drafts, rejected), rejected), feedback: { kind: response.outcome } };
 }
 
 export function sessionLeaveFeedback(error: unknown): SessionFeedback {

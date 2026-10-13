@@ -27,5 +27,7 @@ export const initial = { ...emptySessionRecordingResult({ id: id(7), name: 'Synt
     discount_kind: 'PERCENT' as const, discount_percentage: '10' })) } };
 export const attempt = freezeSessionAttempt(scope, { kind: 'record', body: { customer_id: id(7), lines: [inputLine, inputLine] } }, [id(9), id(10)], { now: () => Date.parse(instant), newId: () => id(20) });
 export const recordAttempt = { ...attempt, kind: 'record' as const, body: { customer_id: id(7), lines: [inputLine, inputLine] } };
-export const appendAttempt = { ...attempt, kind: 'append' as const, sessionId: id(12), body: { lines: [inputLine, inputLine] } };
+const frozenAppend = freezeSessionAttempt(scope, { kind: 'append', sessionId: id(12), body: { lines: [inputLine, inputLine] } }, [id(9), id(10)], { now: () => Date.parse(instant), newId: () => id(21) });
+if (frozenAppend.kind !== 'append') throw new Error('Invalid append fixture');
+export const appendAttempt = frozenAppend;
 export const discountError = { status: 422, code: rejection.code, ...serviceSessionErrors.SESSION_DISCOUNT_ABOVE_LIMIT, details: { rejected_lines: [rejection] } };
