@@ -12,9 +12,10 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale
 const id = '01920000-0000-7000-8000-0000000000a2';
 const saved = { id, name: 'Canonical synthetic customer', locale: 'ar', opted_out: false, phone: '***001' };
 let selection: SessionCustomerSelection | null;
-function Harness({ disabled = false, companyId = 'company', branchId = 'branch', userId = 'actor' }: { disabled?: boolean; companyId?: string; branchId?: string; userId?: string }) {
+function Harness({ disabled = false, companyId = 'company', branchId = 'branch', userId = 'actor', externalValue }: { externalValue?: SessionCustomerSelection | null; disabled?: boolean; companyId?: string; branchId?: string; userId?: string }) {
   const form = useForm<{ customer: SessionCustomerSelection | null }>({ defaultValues: { customer: null } });
-  const watched = useWatch({ control: form.control, name: 'customer' });
+  const { setValue } = form; const watched = useWatch({ control: form.control, name: 'customer' });
+  useEffect(() => { if (externalValue !== undefined) setValue('customer', externalValue); }, [externalValue, setValue]);
   useEffect(() => { selection = watched; }, [watched]);
   return <form><Controller control={form.control} name="customer" render={({ field }) =>
     <SessionCustomerField companyId={companyId} branchId={branchId} userId={userId} value={field.value}
@@ -54,6 +55,7 @@ it.each(['name', 'callingCode', 'phone'] as const)('invalidates the RHF selectio
   await screen.findByRole('status');
   fireEvent.change(screen.getByLabelText(t(state.locale, `serviceSessions.${key}`)), { target: { value: '2' } });
   expect(selection).toBeNull(); expect(screen.queryByRole('status')).toBeNull();
+  expect((screen.getByLabelText(t(state.locale, `serviceSessions.${key}`)) as HTMLInputElement).value).toBe('2');
 });
 
 it('requires valid entry and preserves it on a localized HTTP refusal', async () => {
@@ -113,4 +115,14 @@ it('does not select a customer after the field unmounts', async () => {
   const view = render(<QueryClientProvider client={new QueryClient()}><SessionCustomerField companyId='company' branchId='branch' userId='actor' value={null} onChange={onChange} /></QueryClientProvider>);
   fill(); resolve(); await waitFor(() => expect(finish).toBeDefined()); onChange.mockClear();
   view.unmount(); await act(async () => { finish({ data: saved }); }); expect(onChange).not.toHaveBeenCalled();
+});
+it.each([null, { id: '01920000-0000-7000-8000-0000000000a3', name: 'Replacement synthetic customer', phone: '***002' }])('synchronizes a parent replacement %j after selection', async (next) => {
+  state.post.mockResolvedValueOnce({ data: saved }); const view = scopedMount(); fill(); resolve(); await screen.findByRole('status');
+  view.changeScope({ externalValue: next });
+  expect(selection).toEqual(next);
+  for (const key of ['name', 'callingCode', 'phone'] as const) {
+    expect((screen.getByLabelText(t(state.locale, `serviceSessions.${key}`)) as HTMLInputElement).value).toBe(key === 'name' ? next?.name ?? '' : '');
+  }
+  expect(screen.queryByRole('status')?.textContent ?? '').toBe(next ? t(state.locale, 'serviceSessions.selected') + next.name + next.phone : '');
+  expect(view.client.getMutationCache().getAll()).toHaveLength(0);
 });
