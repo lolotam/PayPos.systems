@@ -2,7 +2,7 @@
 import { sessionMoney, type RecordingDiscountLimit } from '@pospay/contracts';
 import { normalizeKwdInput, t } from '@pospay/i18n';
 import { Button, Card, Input, Label } from '@pospay/ui';
-import { Controller, useFieldArray, useFormContext } from 'react-hook-form';
+import { Controller, useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { SessionServiceScope } from '../api/use-session-services';
@@ -17,6 +17,7 @@ export function SessionDraftLines({ scope, occurredAt, disabled = false }: { sco
   const locale = useLocale();
   const [limit, setLimit] = useState<RecordingDiscountLimit | null>(null);
   const { control, register, getValues, setValue } = useFormContext<SessionDraftForm>();
+  const selectedTime = useWatch({ control, name: 'occurred_at' });
   const { fields, append, remove } = useFieldArray({ control, name: 'lines',
     rules: { minLength: SESSION_DRAFT_MIN, maxLength: SESSION_DRAFT_MAX } });
   return <fieldset disabled={disabled} className="grid gap-3 text-start">
@@ -44,7 +45,7 @@ export function SessionDraftLines({ scope, occurredAt, disabled = false }: { sco
           {fieldState.error ? <p id={`${row.local_id}-error`} role="alert">{t(locale, 'serviceSessions.invalidPrice')}</p> : null}
         </>} />
       <SessionDiscountField index={index} disabled={disabled} />
-      <SessionPerformersField scope={scope} index={index} occurredAt={occurredAt} disabled={disabled} />
+      <SessionPerformersField scope={scope} index={index} occurredAt={occurredAt ?? selectedTime} disabled={disabled} />
       <Button type="button" variant="outline" disabled={fields.length <= SESSION_DRAFT_MIN}
         onClick={() => remove(index)}>{t(locale, 'serviceSessions.removeLine')}</Button>
       </fieldset>

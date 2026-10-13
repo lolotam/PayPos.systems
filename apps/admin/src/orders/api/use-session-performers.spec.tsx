@@ -19,6 +19,13 @@ it.each([true, false])('reads unfiltered selected facts until found=%s or pages 
     { lang: 'ar', occurred_at: instant, limit: 100 }, { lang: 'ar', occurred_at: instant, limit: 100, cursor: 'next' }]);
   hook.rerender({ missing: false }); expect(state.get).toHaveBeenCalledTimes(2);
 });
+it('does not fall back to now for an invalid edited time', () => {
+  state.get.mockReset(); const client = new QueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  const hook = renderHook(() => useSessionPerformers(scope, '', '', false), { wrapper });
+  expect(hook.result.current.instant).toBe(''); expect(hook.result.current.data).toBeUndefined();
+  expect(state.get).not.toHaveBeenCalled();
+});
 it('pins server-now across focus, recorder changes and new line observers', async () => {
   const client = new QueryClient(); state.get.mockReset();
   state.get.mockImplementation((path) => Promise.resolve({ data: path.endsWith('/recording-context') ? {

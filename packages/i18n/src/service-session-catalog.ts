@@ -1,4 +1,9 @@
 export const serviceSessionsEn = {
+  occurredAt: 'Session time', now: 'Now', useNow: 'Use now', timezone: 'Business timezone:',
+  windowHelp: 'Oldest allowed: {oldest}, inclusive. The server rejects future times beyond 120 seconds and normalizes smaller clock differences to now.',
+  invalidTime: 'Enter a valid date and time.',
+  nonexistentTime: 'This local time does not exist because the clocks move forward. Choose another time.',
+  ambiguousTime: 'This local time occurs twice because the clocks move back. Choose an unambiguous time.',
   performers: 'Performers', searchPerformers: 'Search performers', choosePerformer: 'Choose a performer',
   performerNumber: 'Performer {n}', share: 'Share for performer {n} (%)', removePerformer: 'Remove performer {n}', addPerformer: 'Add performer',
   equalSplit: 'Equal split automatically', customShares: 'Custom shares', shareTotal: 'All shares must total 100%.',
@@ -26,6 +31,11 @@ export const serviceSessionsEn = {
   invalidCustomer: 'Enter a customer name, calling code and phone number. Use digits only for the phone.',
 };
 export const serviceSessionsAr: Record<keyof typeof serviceSessionsEn, string> = {
+  occurredAt: 'وقت الجلسة', now: 'دلوقتي', useNow: 'استخدمي وقت دلوقتي', timezone: 'المنطقة الزمنية للنشاط:',
+  windowHelp: 'أقدم وقت مسموح: {oldest}، شاملًا هذا الوقت. الخادم يرفض المستقبل بأكثر من 120 ثانية ويعدّل فرق الساعة الأصغر لوقت دلوقتي.',
+  invalidTime: 'اكتبي تاريخ ووقت صحيحين.',
+  nonexistentTime: 'الوقت المحلي ده مش موجود بسبب تقديم الساعة. اختاري وقت تاني.',
+  ambiguousTime: 'الوقت المحلي ده بيتكرر مرتين بسبب تأخير الساعة. اختاري وقت غير ملتبس.',
   performers: 'الموظفات', searchPerformers: 'البحث عن الموظفات', choosePerformer: 'اختاري موظفة',
   performerNumber: 'الموظفة {n}', share: 'نسبة الموظفة {n} (%)', removePerformer: 'حذف الموظفة {n}', addPerformer: 'إضافة موظفة',
   equalSplit: 'تقسيم بالتساوي تلقائيًا', customShares: 'نسب مخصصة', shareTotal: 'مجموع كل النسب لازم يكون 100%.',
