@@ -1,4 +1,9 @@
 export const serviceSessionsEn = {
+  service: 'Service', price: 'Price (KWD)', listPrice: 'Catalog price (KWD)',
+  addLine: 'Add service', removeLine: 'Remove service',
+  searchServices: 'Search services', chooseService: 'Choose a service',
+  noServices: 'No matching services', moreServices: 'More services', retryServices: 'Retry services',
+  invalidPrice: 'Enter a non-negative KWD amount with up to three decimal places.',
   customer: 'Customer',
   name: 'Customer name',
   callingCode: 'Calling code',
@@ -8,6 +13,11 @@ export const serviceSessionsEn = {
   invalidCustomer: 'Enter a customer name, calling code and phone number. Use digits only for the phone.',
 };
 export const serviceSessionsAr: Record<keyof typeof serviceSessionsEn, string> = {
+  service: 'الخدمة', price: 'السعر (د.ك)', listPrice: 'سعر الكتالوج (د.ك)',
+  addLine: 'إضافة خدمة', removeLine: 'حذف الخدمة',
+  searchServices: 'البحث عن الخدمات', chooseService: 'اختار خدمة',
+  noServices: 'مفيش خدمات مطابقة', moreServices: 'خدمات إضافية', retryServices: 'حاول تحميل الخدمات تاني',
+  invalidPrice: 'اكتب مبلغ بالدينار غير سالب وبحد أقصى ثلاث خانات عشرية.',
   customer: 'الزبونة',
   name: 'اسم الزبونة',
   callingCode: 'رمز الاتصال',
