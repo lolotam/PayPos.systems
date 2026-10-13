@@ -2,7 +2,7 @@
 import { appendServiceSessionLinesResponse } from '@pospay/contracts';
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
-import type { SessionAttempt } from '../model/session-attempt';
+import { SessionSavedDisplayFailure, type SessionAttempt } from '../model/session-attempt';
 import type { SessionAttemptJournal } from '../model/session-attempt-journal';
 
 export function useAppendServiceSessionLines(journal: SessionAttemptJournal) {
@@ -15,7 +15,10 @@ export function useAppendServiceSessionLines(journal: SessionAttemptJournal) {
       });
       if (result.error) throw { ...result.error, status: result.response.status };
       const parsed = appendServiceSessionLinesResponse.safeParse(result.data);
-      if (!parsed.success) throw Object.assign(parsed.error, { status: result.response.status });
+      if (!parsed.success) {
+        if (result.response.status >= 200 && result.response.status < 300) throw new SessionSavedDisplayFailure(result.response.status, result.data);
+        throw Object.assign(parsed.error, { status: result.response.status });
+      }
       return { status: result.response.status, data: parsed.data };
     }),
   });

@@ -51,5 +51,51 @@ export const sameSessionScope = (a: SessionAttemptScope, b: SessionAttemptScope)
 
 export function sessionAttemptUnresolved(error: unknown): boolean {
   if (!error || typeof error !== 'object' || !('status' in error) || typeof error.status !== 'number') return true;
-  return !(error.status >= 400 && error.status < 500) || (error.status === 409 && 'code' in error && error.code === 'IDEMPOTENCY_KEY_IN_PROGRESS');
+  return !(error.status >= 400 && error.status < 500) || (error.status === 409 && 'code' in error &&
+    (error.code === 'IDEMPOTENCY_KEY_IN_PROGRESS' || error.code === 'TRANSACTION_RETRY_REQUIRED'));
+}
+
+export type SessionJournalEnvelope =
+  | { version: 1; state: 'PENDING'; attempt: SessionAttempt }
+  | { version: 1; state: 'EXPIRED'; scope: SessionAttemptScope; key: string; createdAt: number; sessionId?: string }
+  | { version: 1; state: 'PARTIAL'; scope: SessionAttemptScope; sessionId: string }
+  | { version: 1; state: 'SAVED_DISPLAY_FAILED'; scope: SessionAttemptScope; sessionId?: string };
+
+function strictFields(value: unknown, required: string[], optional: string[] = []): asserts value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || required.some((key) => !Object.hasOwn(value, key)) ||
+    Object.keys(value).some((key) => !required.includes(key) && !optional.includes(key))) throw new Error('SESSION_JOURNAL_INVALID');
+}
+
+/** التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويرفض الحقول الزائدة قبل استعادة أي طلب أو معرف زيارة. */
+export function parseSessionJournalEnvelope(value: unknown, now: number): SessionJournalEnvelope {
+  strictFields(value, ['version', 'state'], ['attempt', 'scope', 'key', 'createdAt', 'sessionId']);
+  if (value.version !== 1) throw new Error('SESSION_JOURNAL_VERSION_INVALID');
+  if (value.state === 'PENDING') {
+    strictFields(value, ['version', 'state', 'attempt']);
+    strictFields(value.attempt, ['kind', 'body', 'scope', 'key', 'createdAt', 'route', 'rowIds'], ['sessionId']);
+    if (value.attempt.kind !== 'record' && value.attempt.kind !== 'append') throw new Error('SESSION_JOURNAL_INVALID');
+    strictFields(value.attempt, ['kind', 'body', 'scope', 'key', 'createdAt', 'route', 'rowIds', ...(value.attempt.kind === 'append' ? ['sessionId'] : [])]);
+  } else {
+    if (typeof value.state !== 'string' || !['PARTIAL', 'EXPIRED', 'SAVED_DISPLAY_FAILED'].includes(value.state)) throw new Error('SESSION_JOURNAL_INVALID');
+    strictFields(value, ['version', 'state', 'scope', ...(value.state === 'EXPIRED' ? ['key', 'createdAt'] : value.state === 'PARTIAL' ? ['sessionId'] : [])], value.state === 'PARTIAL' ? [] : ['sessionId']);
+    if (Object.hasOwn(value, 'sessionId')) id.parse(value.sessionId);
+    if (value.state === 'EXPIRED') id.parse(value.key);
+  }
+  const entry = value.state === 'PENDING' ? value.attempt as Record<string, unknown> : value;
+  strictFields(entry.scope, ['companyId', 'businessId', 'branchId', 'userId']);
+  freezeSessionAttemptScope(entry.scope as SessionAttemptScope);
+  if (Object.hasOwn(entry, 'createdAt') && (typeof entry.createdAt !== 'number' || !Number.isSafeInteger(entry.createdAt) || entry.createdAt < 0 || entry.createdAt > now)) throw new Error('SESSION_JOURNAL_TIME_INVALID');
+  if (value.state === 'EXPIRED' && typeof entry.createdAt === 'number' && now - entry.createdAt < SESSION_ATTEMPT_RETENTION_MS) throw new Error('SESSION_JOURNAL_TIME_INVALID');
+  return freeze(value.state === 'PENDING' ? { version: 1, state: 'PENDING', attempt: restoreSessionAttempt(value.attempt as SessionAttempt) } : value as SessionJournalEnvelope);
+}
+
+export class SessionSavedDisplayFailure extends Error {
+  readonly code = 'SESSION_SAVED_DISPLAY_FAILED';
+  readonly sessionId: string | undefined;
+  constructor(readonly status: number, data: unknown) {
+    super('SESSION_SAVED_DISPLAY_FAILED');
+    const session = data && typeof data === 'object' && 'session' in data ? data.session : undefined;
+    const parsed = id.safeParse(session && typeof session === 'object' && 'id' in session ? session.id : undefined);
+    this.sessionId = parsed.success ? parsed.data : undefined;
+  }
 }
