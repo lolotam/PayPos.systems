@@ -36,20 +36,19 @@ function writeStored(storage: JournalStorage | undefined, value: SessionJournalE
 }
 
 function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRuntime, storage?: JournalStorage) {
-  let scope: SessionAttemptScope | null = freezeSessionAttemptScope(initialScope), value: SessionJournalEnvelope | null = null;
+  let scope: SessionAttemptScope | null = freezeSessionAttemptScope(initialScope), value: SessionJournalEnvelope | null | undefined;
   let flight: { key: string; promise: Promise<WriteResult> } | undefined, stopIdentity: (() => void) | undefined;
   let persistenceWarning: 'NOT_PERSISTED' | null = null;
   const persist = () => {
-    if (value) value = Object.freeze(value); persistenceWarning = writeStored(storage, value);
+    if (value) value = Object.freeze(value); persistenceWarning = writeStored(storage, value ?? null);
   };
   const stored = () => {
-    const recovered = readStored(storage, scope, runtime.now());
-    // المحاولة غير المحسومة في الذاكرة تتقدم على إدخال قديم بقي بعد فشل التخزين.
-    if (recovered && value?.state !== 'PENDING' && value?.state !== 'EXPIRED' && !flight) value = recovered;
+    // نستعيد التخزين مرة عند تحميل التبويب؛ بعدها تتقدم حالة الذاكرة حتى لو فشل حفظها.
+    if (value === undefined) value = readStored(storage, scope, runtime.now());
   };
   const read = () => {
-    stored(); const next = expired(value, runtime.now()); if (next !== value) { value = next; persist(); }
-    return value;
+    stored(); const next = expired(value ?? null, runtime.now()); if (next !== value) { value = next; persist(); }
+    return value ?? null;
   };
   const changeScope = (next: SessionAttemptScope | null) => {
     if (!next || !scope || !sameSessionScope(scope, next)) { scope = next ? freezeSessionAttemptScope(next) : null; value = null; flight = undefined; persist(); }
@@ -81,7 +80,7 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
     begin(command: SessionAttemptCommand, rowIds: string[]) {
       const recovered = read();
       if (!scope || flight || recovered?.state === 'PENDING' || recovered?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED');
-      if (recovered && (command.kind !== 'append' || command.sessionId !== recovered.sessionId)) throw new Error('SESSION_VISIT_ALREADY_SAVED');
+      if (recovered && (recovered.state !== 'PARTIAL' || command.kind !== 'append' || command.sessionId !== recovered.sessionId)) throw new Error('SESSION_VISIT_ALREADY_SAVED');
       const attempt = freezeSessionAttempt(scope, command, rowIds, runtime); value = { version: 1, state: 'PENDING', attempt }; persist(); return attempt;
     },
     run<T extends WriteResult>(attempt: SessionAttempt, send: () => Promise<T>): Promise<T> {

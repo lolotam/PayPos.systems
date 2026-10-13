@@ -216,12 +216,12 @@ it('keeps an append authoritative over stale PARTIAL storage after quota failure
   expect(second.persistenceWarning).toBeNull();
 });
 
-it('begin re-reads storage even after an instance was initialized idle', () => {
+it('keeps initialized idle memory authoritative over stale storage after a scope reset', () => {
   const first = journal(), second = journal(), attempt = first.begin({ kind: 'record', body }, rows), raw = sessionStorage.getItem(storageKey);
   first.changeScope(null); second.changeScope(scope);
   if (!raw) throw new Error('Missing persisted attempt'); sessionStorage.setItem(storageKey, raw);
-  expect(() => second.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
-  expect(second.read()).toEqual({ version: 1, state: 'PENDING', attempt }); expect(runtime.newId).toHaveBeenCalledTimes(1);
+  expect(second.read()).toBeNull();
+  expect(second.begin({ kind: 'record', body }, rows).key).not.toBe(attempt.key); expect(runtime.newId).toHaveBeenCalledTimes(2);
 });
 
 it.each(['companyId', 'businessId', 'branchId', 'userId'] as const)('invalidates an old instance when another selects a different %s', async (field) => {
@@ -266,6 +266,42 @@ it.each(['record', 'append'] as const)('records malformed %s 2xx as saved/displa
   expect(sessionStorage.getItem(storageKey)).not.toMatch(/phone|body|key/);
   const recovered = await reload(); await expect(recovered.run(attempt, vi.fn())).rejects.toThrow('UNAVAILABLE');
   expect(post).toHaveBeenCalledTimes(1); expect(recovered.read()).toMatchObject({ state: 'SAVED_DISPLAY_FAILED', sessionId: id(12) });
+  expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('ALREADY_SAVED');
+  const append: SessionAttemptCommand = { kind: 'append', sessionId: id(12), body: { lines: body.lines } };
+  expect(() => recovered.begin(append, rows)).toThrow('ALREADY_SAVED'); expect(runtime.newId).toHaveBeenCalledTimes(1);
+  recovered.leaveVisit(); expect(recovered.begin(append, rows).key).not.toBe(attempt.key);
+});
+
+it.each(['PARTIAL', 'SAVED_DISPLAY_FAILED'] as const)('keeps committed %s memory authoritative when persisting it fails', async (state) => {
+  let full = false;
+  const backing = { getItem: (key: string) => sessionStorage.getItem(key), removeItem: (key: string) => sessionStorage.removeItem(key),
+    setItem(key: string, value: string) { if (full) throw new DOMException('Quota exceeded', 'QuotaExceededError'); sessionStorage.setItem(key, value); } };
+  const store = createSessionAttemptJournal(scope, runtime, backing); journals.push(store);
+  const attempt = store.begin({ kind: 'record', body }, rows), persisted = sessionStorage.getItem(storageKey), hook = hooks(store);
+  full = true;
+  post.mockResolvedValueOnce({ data: state === 'PARTIAL' ? response : { session: { id: id(12) } }, response: { status: 201 } });
+  await act(async () => {
+    if (state === 'PARTIAL') await hook.send(attempt);
+    else await expect(hook.send(attempt)).rejects.toMatchObject({ code: 'SESSION_SAVED_DISPLAY_FAILED' });
+  });
+  expect(sessionStorage.getItem(storageKey)).toBe(persisted);
+  const remounted = createSessionAttemptJournal(scope, runtime, backing); journals.push(remounted);
+  for (const current of [store, remounted]) {
+    expect(current.read()).toEqual({ version: 1, state, scope, sessionId: id(12) });
+    expect(current.persistenceWarning).toBe('NOT_PERSISTED');
+    const send = vi.fn(); await expect(current.run(attempt, send)).rejects.toThrow('UNAVAILABLE'); expect(send).not.toHaveBeenCalled();
+  }
+  expect(post).toHaveBeenCalledTimes(1); expect(runtime.newId).toHaveBeenCalledTimes(1);
+});
+
+it('keeps initialized idle memory after COMPLETE even if removing the stale PENDING entry fails', async () => {
+  const backing = { getItem: (key: string) => sessionStorage.getItem(key), setItem: (key: string, value: string) => sessionStorage.setItem(key, value),
+    removeItem() { throw new Error('Storage denied'); } };
+  const store = createSessionAttemptJournal(scope, runtime, backing); journals.push(store);
+  const attempt = store.begin({ kind: 'record', body }, rows);
+  await store.run(attempt, async () => ({ status: 201, data: { ...response, outcome: 'COMPLETE', rejected_lines: [] } }));
+  expect(store.read()).toBeNull(); expect(store.persistenceWarning).toBe('NOT_PERSISTED');
+  await expect(store.run(attempt, vi.fn())).rejects.toThrow('UNAVAILABLE');
 });
 
 it('marks malformed 2xx saved even without a valid response session id', async () => {
