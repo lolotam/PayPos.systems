@@ -6,14 +6,15 @@ import { useEffect } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { normalizeSessionPercent, sessionSharePercentage, type SessionDraftForm, type SessionPerformerSelection } from '../model/session-drafts';
 
-export function SessionPerformerRow({ index, ordinal, items, instant, timeZone, factsKey, remove }: {
+export function SessionPerformerRow({ index, ordinal, items, selectedFacts, instant, timeZone, factsKey, remove }: {
   index: number; ordinal: number; items: SessionPerformerSelection[]; instant: string | undefined; timeZone: string | undefined; factsKey: string; remove: () => void;
+  selectedFacts: SessionPerformerSelection[];
 }) {
   const locale = useLocale(), { control, setValue, getValues, clearErrors } = useFormContext<SessionDraftForm>();
   const line = useWatch({ control, name: `lines.${index}` }), row = line.performers[ordinal];
-  const current = items.find((item) => item.id === row?.employee_id), path = `lines.${index}.performers.${ordinal}` as const;
+  const current = items.find((item) => item.id === row?.employee_id) ?? selectedFacts.find((item) => item.id === row?.employee_id), path = `lines.${index}.performers.${ordinal}` as const;
   useEffect(() => {
-    if (!current || (row?.facts_key === factsKey && row.selection?.not_clocked_in_warning === current.not_clocked_in_warning && row.selection.approved_leave_warning === current.approved_leave_warning)) return;
+    if (!current || (row?.facts_key === factsKey && row.selection?.not_clocked_in_warning === current.not_clocked_in_warning && row.selection?.approved_leave_warning === current.approved_leave_warning)) return;
     setValue(`${path}.selection`, current); setValue(`${path}.facts_key`, factsKey);
   }, [current, factsKey, row, path, setValue]);
   if (!row) return null;
@@ -30,7 +31,7 @@ export function SessionPerformerRow({ index, ordinal, items, instant, timeZone, 
           onChange={(event) => { const selection = choices.find((item) => item.id === event.target.value); if (!selection) return;
             clearErrors(`lines.${index}.performers`); field.onChange(selection.id); setValue(`${path}.selection`, selection); setValue(`${path}.facts_key`, factsKey); }}>
           <option value="" disabled>{t(locale, 'serviceSessions.choosePerformer')}</option>
-          {row.selection && !current ? <option value={row.selection.id}>{name(row.selection)}</option> : null}
+          {row.selection && !choices.some((item) => item.id === row.selection?.id) ? <option value={row.selection.id}>{name(row.selection)}</option> : null}
           {choices.map((item) => <option key={item.id} value={item.id}>{name(item)}</option>)}
         </NativeSelect>
         {fieldState.error ? <p id={`${id}-error`} role="alert">{fieldState.error.message}</p> : null}

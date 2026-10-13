@@ -2,12 +2,23 @@ import type { ReactNode } from 'react';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import { useSessionPerformers } from './use-session-performers';
+import { useSessionPerformers, useSessionPerformerFacts } from './use-session-performers';
 const state = vi.hoisted(() => ({ get: vi.fn(), locale: 'en' as 'ar' | 'en' }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 const scope = { companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' };
 const instant = '2026-10-13T08:00:00.000Z';
+it.each([true, false])('reads unfiltered selected facts until found=%s or pages end, and disables when nothing is missing', async (found) => {
+  state.locale = 'ar'; state.get.mockReset(); const id = '01920000-0000-7000-8000-0000000000a1';
+  const item = { id, name_ar: null, name_en: 'Synthetic', not_clocked_in_warning: true, approved_leave_warning: false };
+  state.get.mockResolvedValueOnce({ data: { items: [], next_cursor: 'next' } }).mockResolvedValue({ data: { items: found ? [item] : [], next_cursor: found ? 'unused' : null } });
+  const client = new QueryClient(), wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  const hook = renderHook(({ missing }) => useSessionPerformerFacts(scope, instant, [id], missing), { wrapper, initialProps: { missing: false } });
+  expect(state.get).not.toHaveBeenCalled(); hook.rerender({ missing: true }); await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+  expect(hook.result.current.data).toEqual(found ? [item] : []); expect(state.get.mock.calls.map(([, options]) => options.params.query)).toEqual([
+    { lang: 'ar', occurred_at: instant, limit: 100 }, { lang: 'ar', occurred_at: instant, limit: 100, cursor: 'next' }]);
+  hook.rerender({ missing: false }); expect(state.get).toHaveBeenCalledTimes(2);
+});
 it('pins server-now across focus, recorder changes and new line observers', async () => {
   const client = new QueryClient(); state.get.mockReset();
   state.get.mockImplementation((path) => Promise.resolve({ data: path.endsWith('/recording-context') ? {

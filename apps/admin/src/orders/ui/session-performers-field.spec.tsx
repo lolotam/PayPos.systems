@@ -33,7 +33,8 @@ const text = (key: 'performerNumber' | 'share' | 'removePerformer', n: number) =
 function fixtureAt<T>(values: T[], index: number): T { const value = values[index]; if (value === undefined) throw new Error('Missing fixture'); return value; }
 function choose(n: number, item = n) { fireEvent.change(screen.getByLabelText(text('performerNumber', n)), { target: { value: fixtureAt(items, item - 1).id } }); }
 it.each(['ar', 'en'] as const)('keeps input order, enforces 1/4 bounds and excludes duplicates in %s', async (locale) => {
-  state.locale = locale; mount(); await screen.findByRole('option', { name: locale === 'ar' ? fixtureAt(items, 0).name_ar : 'Synthetic 1' }); choose(1, 2);
+  state.locale = locale; mount(); const select = screen.getByLabelText(text('performerNumber', 1)) as HTMLSelectElement;
+  await waitFor(() => expect(select.options.length).toBe(5)); expect(select.options.item(1)?.text).toBe(locale === 'ar' ? fixtureAt(items, 0).name_ar : 'Synthetic 1'); choose(1, 2);
   expect((screen.getByRole('button', { name: text('removePerformer', 1) }) as HTMLButtonElement).disabled).toBe(true);
   const add = screen.getByText(t(locale, 'serviceSessions.addPerformer')) as HTMLButtonElement;
   for (const n of [2, 3, 4]) { fireEvent.click(add); choose(n, n === 2 ? 1 : n); }
@@ -83,19 +84,23 @@ it('disables fresh reads and reports required performer selection', async () => 
   const { submit } = mount(); fireEvent.click(screen.getByRole('button', { name: 'Submit fixture' }));
   await screen.findByRole('alert'); expect(submit).not.toHaveBeenCalled();
 });
-it('refreshes occurred-day leave warnings without replacing chosen performers or shares', async () => {
+it('refreshes selected facts through unfiltered pages when search excludes the performer at a new time', async () => {
   state.locale = 'en'; const { rerender, client } = mount(); await screen.findByRole('option', { name: 'Synthetic 1' }); choose(1, 2);
   expect(screen.getByText(/Approved leave/).textContent).toContain('Oct 13');
   const at = '2026-10-12T08:00:00.000Z', context = client.getQueryData(['session-performer-context', 'company', 'business', 'branch', 'actor', 'now']);
   state.get.mockImplementation((path, options) => Promise.resolve({ data: path.endsWith('/recording-context') ? context
-    : { items: options.params.query.cursor ? [{ ...fixtureAt(items, 1), not_clocked_in_warning: true, approved_leave_warning: false }] : [fixtureAt(items, 0)], next_cursor: options.params.query.cursor ? null : 'next' } }));
+    : { items: options.params.query.cursor ? [{ ...fixtureAt(items, 1), not_clocked_in_warning: true, approved_leave_warning: false }] : [fixtureAt(items, 0)], next_cursor: options.params.query.q ? null : options.params.query.cursor ? 'unused' : 'next' } }));
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'first' } });
+  await waitFor(() => expect(state.get.mock.lastCall?.[1].params.query.q).toBe('first')); expect(screen.getByText(/Approved leave/)).toBeTruthy();
   rerender(<QueryClientProvider client={client}><Harness at={at} /></QueryClientProvider>);
   expect(screen.queryByText(/Approved leave/)).toBeNull(); expect(screen.getByText(/Not checked for this time yet/)).toBeTruthy();
   await waitFor(() => expect(state.get.mock.lastCall?.[1].params.query.occurred_at).toBe(at));
   expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe(fixtureAt(items, 1).id);
   expect(sessionPerformerInputs(form.getValues('lines.0'))).toEqual([{ employee_id: fixtureAt(items, 1).id }]);
-  fireEvent.click(await screen.findByText(t('en', 'serviceSessions.morePerformers')));
   expect((await screen.findByText(/Not clocked in/)).textContent).toContain('Oct 12'); expect(screen.queryByText(/Approved leave/)).toBeNull();
+  expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('first');
+  expect(state.get.mock.calls.filter(([, options]) => options.params.query.limit === 100).map(([, options]) => options.params.query)).toEqual([
+    { lang: 'en', occurred_at: at, limit: 100 }, { lang: 'en', occurred_at: at, limit: 100, cursor: 'next' }]);
   rerender(<QueryClientProvider client={client}><Harness at={at} place={{ ...scope, branchId: 'other' }} /></QueryClientProvider>);
   expect(screen.queryByText(/Not clocked in/)).toBeNull(); expect(screen.getByText(/Not checked for this time yet/)).toBeTruthy();
 });
