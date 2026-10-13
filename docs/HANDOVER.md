@@ -38,7 +38,7 @@ Solo developer (Waleed) building entirely with AI agents.
 | `.specify/PROJECT-OVERRIDES.md` | local changes to spec-kit defaults | — |
 | `AGENTS.md` | index for Codex and other agents; review guidelines | — |
 
-ADRs (0001–0041 on 2026-10-14; the Phase 0 ones): `0001` domain/subdomain topology · `0002` workspace tooling baseline · `0003` auth ↔ RLS boundary ·
+ADRs `0001`–`0041` exist in `docs/adr/` (2026-10-14); the earliest foundational ones are: `0001` domain/subdomain topology · `0002` workspace tooling baseline · `0003` auth ↔ RLS boundary ·
 `0004` test runner (Vitest) · `0005` money rounding (half away from zero) and percentage precision (4 dp) ·
 `0006` database tests on the compose Postgres, postgres.js driver, migration naming · `0007` tenant tables key on `(company_id, id)` · `0008` API stack pins, explicit `@Inject`.
 
@@ -132,8 +132,10 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
 - Row **35** `record-service-session`, reception screen **35c**: 35c-1…11 and 35c-3b are merged (PR #184–#200).
   Next: **35c-11b** (the two correctness findings of issue #202), then **35c-12** (publish the full route + Playwright).
 - Then **35d** (edit price/discount after saving; batch 17 answered) after issue #189 declares its bell event.
-- Owner question #199 (leaving an EXPIRED recording without logging out) goes in the next decisions-page batch;
-  until answered, logout or a scope change is the exit, and it does not block 35c-12.
+- Owner question #199 (leaving an EXPIRED recording without logging out) is **already published** as batch 18
+  (SS-Q18, 2026-10-14); only its answer is pending. Until then the merged safe behaviour (#198) stays: logout or a
+  scope change is the exit. 35c-12 may be built meanwhile, but it merges only after SS-Q18 is answered or Waleed
+  explicitly approves shipping with the current exit.
 
 ### 4.2 Package facts worth knowing
 

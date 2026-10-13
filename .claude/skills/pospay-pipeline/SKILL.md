@@ -95,19 +95,20 @@ what saves tokens is reusing one session and keeping its prefix stable:
    ```powershell
    $sid = [guid]::NewGuid().ToString()
    grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7-build-fast --reasoning-effort high `
-       -s $sid --prompt-file brief.txt --always-approve --permission-mode bypassPermissions --output-format plain
+       -s $sid --prompt-file F:DevWorktreesPosPayriefs<task>rief.txt --always-approve --permission-mode bypassPermissions --output-format plain
    ```
 
 2. **Every later round resumes that session** instead of starting a new one, so Grok does not re-read the repo:
 
    ```powershell
    grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7-build-fast --reasoning-effort high `
-       --resume $sid --prompt-file fix.txt --always-approve --permission-mode bypassPermissions --output-format plain
+       --resume $sid --prompt-file F:DevWorktreesPosPayriefs<task>ix-<round>.txt --always-approve --permission-mode bypassPermissions --output-format plain
    ```
 
    Pass the brief with `--prompt-file`. `grok "prompt"` without `--prompt-file`/`-p` opens the interactive TUI and
    looks hung in a background shell. Keep briefs **outside** the worktree (`F:\Dev\Worktrees\PosPay\briefs\<task>\`)
-   so they never land in the diff.
+   so they never land in the diff, and pass them by absolute path: `--prompt-file` resolves against the shell's
+   current directory, not against `--cwd`.
 3. **A fixed brief header, always in the same order and wording**, then the part that changes last:
    1. Role and fences — "You implement only task N. Do not commit. Do not touch files outside: …"
    2. Required reading — file **paths** only, in this fixed order: `CLAUDE.md`, `CLAUDE.architecture.md`, the spec
