@@ -7,6 +7,8 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { createSessionDraft, selectSessionService, SESSION_DRAFT_MAX, SESSION_DRAFT_MIN, type SessionDraftForm } from '../model/session-drafts';
 import { SessionServiceField } from './session-service-field';
+import { SessionDiscountField } from './session-discount-field';
+import { SessionDraftSummary } from './session-draft-summary';
 
 export function SessionDraftLines({ scope, disabled = false }: { scope: SessionServiceScope; disabled?: boolean }) {
   const locale = useLocale();
@@ -37,11 +39,13 @@ export function SessionDraftLines({ scope, disabled = false }: { scope: SessionS
             onBlur={() => { field.onChange(normalizeKwdInput(field.value)); field.onBlur(); }} />
           {fieldState.error ? <p id={`${row.local_id}-error`} role="alert">{t(locale, 'serviceSessions.invalidPrice')}</p> : null}
         </>} />
+      <SessionDiscountField index={index} disabled={disabled} />
       <Button type="button" variant="outline" disabled={fields.length <= SESSION_DRAFT_MIN}
         onClick={() => remove(index)}>{t(locale, 'serviceSessions.removeLine')}</Button>
       </fieldset>
     </Card>)}
     <Button type="button" variant="outline" disabled={fields.length >= SESSION_DRAFT_MAX}
       onClick={() => append(createSessionDraft())}>{t(locale, 'serviceSessions.addLine')}</Button>
+    <SessionDraftSummary />
   </fieldset>;
 }

@@ -1,4 +1,10 @@
 export const serviceSessionsEn = {
+  discountAmount: 'Discount amount (KWD)', discountPercent: 'Discount (%)', samePercent: 'Same percentage on all unsaved services',
+  invalidDiscount: 'Enter a valid amount no greater than the price, or a percentage from 0 to 100 with up to two decimal places.',
+  recorderMembership: 'Recorder membership', chooseMembership: 'Choose your membership', retryContext: 'Retry recording context',
+  limit: 'Discount limit:', limitSource: 'Limit source:', unlimited: 'Unlimited', notConfigured: 'Not configured: 0%',
+  limitOwner: 'Owner', limitPerson: 'Personal limit', limitBusiness: 'Business default', percentValue: '{value}%',
+  draftNet: 'Draft net (KWD)', draftTotal: 'Provisional unsaved total (KWD):', draftUnavailable: 'Total unavailable: check amounts and discounts.',
   service: 'Service', price: 'Price (KWD)', listPrice: 'Catalog price (KWD)',
   addLine: 'Add service', removeLine: 'Remove service',
   searchServices: 'Search services', chooseService: 'Choose a service',
@@ -14,6 +20,12 @@ export const serviceSessionsEn = {
   invalidCustomer: 'Enter a customer name, calling code and phone number. Use digits only for the phone.',
 };
 export const serviceSessionsAr: Record<keyof typeof serviceSessionsEn, string> = {
+  discountAmount: 'مبلغ الخصم (د.ك)', discountPercent: 'الخصم (%)', samePercent: 'نفس النسبة على كل الخدمات غير المحفوظة',
+  invalidDiscount: 'اكتب مبلغ صالح لا يتجاوز السعر، أو نسبة من 0 إلى 100 بحد أقصى خانتين عشريتين.',
+  recorderMembership: 'عضوية المسجّل', chooseMembership: 'اختار عضويتك', retryContext: 'حاول تحميل سياق التسجيل تاني',
+  limit: 'حد الخصم:', limitSource: 'مصدر الحد:', unlimited: 'بدون حد', notConfigured: 'غير محدد: 0%',
+  limitOwner: 'المالك', limitPerson: 'حد شخصي', limitBusiness: 'حد النشاط الافتراضي', percentValue: '{value}%',
+  draftNet: 'صافي المسودة (د.ك)', draftTotal: 'إجمالي غير المحفوظ مؤقتًا (د.ك):', draftUnavailable: 'الإجمالي غير متاح: راجع المبالغ والخصومات.',
   service: 'الخدمة', price: 'السعر (د.ك)', listPrice: 'سعر الكتالوج (د.ك)',
   addLine: 'إضافة خدمة', removeLine: 'حذف الخدمة',
   searchServices: 'البحث عن الخدمات', chooseService: 'اختار خدمة',
