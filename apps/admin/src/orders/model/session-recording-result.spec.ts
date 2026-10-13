@@ -3,7 +3,8 @@ import { serviceSessionErrors } from '@pospay/i18n';
 import { SessionSavedDisplayFailure } from './session-attempt';
 import { createSessionAttemptJournal } from './session-attempt-journal';
 import { emptySessionRecordingResult, newSessionVisit, sessionResultCommand, sessionResultFrozen, sessionResultLate, transitionSessionRecordingResult as transition } from './session-recording-result';
-import { attempt, discountError, id, initial, inputLine, instant, recordAttempt, rejection, response, savedLine, scope } from './session-recording-result.fixture';
+import { appendAttempt, attempt, discountError, id, initial, inputLine, instant, recordAttempt, rejection, response, savedLine, scope } from './session-recording-result.fixture';
+import { sessionPerformerInputs } from './session-drafts';
 
 afterEach(() => sessionStorage.clear());
 const recorded = () => transition(initial, { type: 'RECORDED', attempt: recordAttempt, response });
@@ -56,8 +57,55 @@ it.each([new TypeError('Network'), { status: 409, code: 'IDEMPOTENCY_KEY_IN_PROG
 });
 it('idempotency reuse with rejection-looking details remains an atomic error on the saved visit', () => {
   const first = recorded(), error = { ...discountError, code: 'IDEMPOTENCY_KEY_REUSED', message_ar: 'synthetic', message_en: 'synthetic' };
-  const result = transition(first, { type: 'FAILED', attempt, error });
+  const result = transition(first, { type: 'FAILED', attempt: { ...appendAttempt, rowIds: [id(10)], body: { lines: [inputLine] } }, error });
   expect(result.feedback.kind).toBe('ERROR'); expect(result.drafts).toBe(first.drafts); expect(result.session).toBe(first.session); expect(result.rejected).toEqual([]);
+});
+it('clears an old visit when the journal is empty or switches to a different saved visit', () => {
+  const old = recorded(), empty = transition(old, { type: 'JOURNAL', entry: null });
+  expect(empty).toEqual(emptySessionRecordingResult(old.customer)); expect(sessionResultCommand(empty, [inputLine]).kind).toBe('record');
+  const switched = transition(old, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(99) } });
+  expect(switched).toEqual({ ...emptySessionRecordingResult(old.customer), sessionId: id(99) });
+});
+it.each(['NOT_PERSISTED', 'SAVING', 'UNRESOLVED'] as const)('a settled journal clears stale %s feedback, warning and attempt', (kind) => {
+  const stale = { ...recorded(), attempt, feedback: { kind }, persistenceWarning: 'NOT_PERSISTED' as const };
+  const result = transition(stale, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(12) } });
+  expect(result.feedback.kind).toBe('PARTIAL'); expect(result.attempt).toBeNull(); expect(sessionResultFrozen(result)).toBe(false);
+});
+it.each(['record', 'append'] as const)('a %s success clears stale storage warnings and retains only a fresh warning', (kind) => {
+  const stale = { ...emptySessionRecordingResult(), persistenceWarning: 'NOT_PERSISTED' as const };
+  const event = kind === 'record' ? { type: 'RECORDED' as const, attempt: recordAttempt, response }
+    : { type: 'APPENDED' as const, attempt: appendAttempt, response: { ...response, added_lines: [savedLine] } };
+  expect(sessionResultFrozen(transition(stale, event))).toBe(false);
+  expect(sessionResultFrozen(transition(stale, { ...event, persistenceWarning: 'NOT_PERSISTED' }))).toBe(true);
+});
+it.each(['record', 'append'] as const)('restores a cold %s replay, retaining rejected rows for correction on the same visit', (kind) => {
+  const body = { recorder_membership_id: id(8), lines: [inputLine, { ...inputLine, price: '8.000', discount: { kind: 'AMOUNT' as const, amount: '2.000' },
+    performers: [{ employee_id: id(6), share_bps: 7000 }, { employee_id: id(17), share_bps: 3000 }] }] };
+  const frozen = kind === 'record' ? { ...recordAttempt, body: { ...body, customer_id: id(7), occurred_at: instant } } : { ...appendAttempt, body };
+  const pending = transition(emptySessionRecordingResult(), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: frozen } });
+  expect(pending.drafts.lines.map((line) => line.local_id)).toEqual(frozen.rowIds); expect(pending.sessionId).toBe(kind === 'append' ? id(12) : null);
+  const row = pending.drafts.lines[1]; if (!row) throw new Error('Missing recovered draft');
+  expect(row).toMatchObject({ price: '8.000', discount_kind: 'AMOUNT', discount_amount: '2.000', share_mode: 'CUSTOM' });
+  expect(sessionPerformerInputs(row)).toEqual(frozen.body.lines[1]?.performers);
+  const replay = { ...response, rejected_lines: [{ ...rejection, price: '8.000', discount: '2.000', net: '6.000', effective_discount_bps: 1579, max_discount_amount: '1.587' }] };
+  const result = frozen.kind === 'record' ? transition(pending, { type: 'RECORDED', attempt: frozen, response: replay })
+    : transition(pending, { type: 'APPENDED', attempt: frozen, response: { ...replay, added_lines: [savedLine] } });
+  expect(result.drafts.lines).toEqual([row]); expect(result.rejected[0]?.localId).toBe(row.local_id);
+  expect(sessionResultCommand(result, [inputLine])).toMatchObject({ kind: 'append', sessionId: id(12) });
+});
+it('restores missing rejected rows even if the replay response arrives without a pending projection', () => {
+  const result = transition(emptySessionRecordingResult(), { type: 'RECORDED', attempt: recordAttempt, response });
+  expect(result.drafts.lines[0]).toMatchObject({ local_id: id(10), price: inputLine.price, discount_kind: 'PERCENT', discount_percentage: '10.00' });
+});
+it.each([400, 403, 422])('a cold append with definite %s retains its target and editable drafts', (status) => {
+  const pending = transition(emptySessionRecordingResult(), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: appendAttempt } });
+  const result = transition(pending, { type: 'FAILED', attempt: appendAttempt, error: { status, code: 'SESSION_TIME_TOO_OLD', ...serviceSessionErrors.SESSION_TIME_TOO_OLD } });
+  expect(result.sessionId).toBe(id(12)); expect(result.drafts.lines).toHaveLength(2); expect(sessionResultFrozen(result)).toBe(false);
+  expect(sessionResultCommand(result, [inputLine])).toMatchObject({ kind: 'append', sessionId: id(12) });
+});
+it('a cold all-rejected creation retains its frozen customer ID for another creation', () => {
+  const result = transition(emptySessionRecordingResult(), { type: 'FAILED', attempt: recordAttempt, error: discountError });
+  expect(result.drafts.lines).toHaveLength(2); expect(sessionResultCommand(result, [inputLine])).toMatchObject({ kind: 'record', body: { customer_id: id(7) } });
 });
 it('replaying a pending write resolves the frozen result and keeps the authoritative header/line late OR', () => {
   const pending = transition(initial, { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt } });

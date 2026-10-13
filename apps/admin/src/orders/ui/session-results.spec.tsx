@@ -4,7 +4,7 @@ import { FormProvider, useForm } from 'react-hook-form';
 import { expect, it, vi } from 'vitest';
 import type { SessionDraftForm } from '../model/session-drafts';
 import { emptySessionRecordingResult, transitionSessionRecordingResult as transition, type SessionRecordingResult } from '../model/session-recording-result';
-import { attempt, discountError, id, initial, recordAttempt, rejection, response, savedLine, scope } from '../model/session-recording-result.fixture';
+import { appendAttempt, attempt, discountError, id, initial, recordAttempt, rejection, response, savedLine, scope } from '../model/session-recording-result.fixture';
 import { SessionDraftSummary } from './session-draft-summary';
 import { SessionSavedResult } from './session-saved-result';
 import { SessionRejectedLines } from './session-rejected-lines';
@@ -39,11 +39,34 @@ it.each(['ar', 'en'] as const)('shows separate saved/draft totals, read-only lin
   fireEvent.click(within(rejected).getByRole('button')); expect(onEdit).toHaveBeenCalledWith(id(10));
 });
 it('reports an unresolved attempt and storage failure together while disabling correction', () => {
-  state.locale = 'en'; const result = transition(partial(), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt }, persistenceWarning: 'NOT_PERSISTED' });
+  state.locale = 'en'; const result = transition(partial(), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: appendAttempt }, persistenceWarning: 'NOT_PERSISTED' });
   render(<Harness result={result} />);
   expect(screen.getByText(serviceSessionErrors.SESSION_ATTEMPT_NOT_PERSISTED.message_en)).toBeTruthy();
   expect(screen.getByText(t('en', 'serviceSessions.unresolved'))).toBeTruthy();
   expect((screen.getByRole('button', { name: t('en', 'serviceSessions.editRejected') }) as HTMLButtonElement).disabled).toBe(true);
+});
+it.each(['ar', 'en'] as const)('catches both journal leave failures and displays localized feedback in %s', (locale) => {
+  state.locale = locale;
+  const result = transition(initial, { type: 'RECORDED', attempt: recordAttempt, response: { ...response, outcome: 'COMPLETE', rejected_lines: [] } });
+  for (const code of ['SESSION_ATTEMPT_NOT_PERSISTED', 'SESSION_ATTEMPT_UNRESOLVED']) {
+    const onNewVisit = vi.fn(), view = render(<SessionSavedResult result={result} onNewVisit={onNewVisit} journal={{ leaveVisit: () => { throw new Error(code); } }} />);
+    fireEvent.click(screen.getByRole('button', { name: t(locale, 'serviceSessions.newVisit') })); expect(onNewVisit).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toBe(code === 'SESSION_ATTEMPT_NOT_PERSISTED'
+      ? serviceSessionErrors.SESSION_ATTEMPT_NOT_PERSISTED[locale === 'ar' ? 'message_ar' : 'message_en'] : t(locale, 'serviceSessions.unresolved'));
+    expect(screen.queryByRole('button')).toBeNull(); view.unmount();
+  }
+});
+it.each([401, 403])('requests scope refresh once for an authority error with status %s', (status) => {
+  const error = { status, code: 'FORBIDDEN', ...errorMessages('FORBIDDEN') }, onRefreshScope = vi.fn();
+  const result = transition(initial, { type: 'FAILED', attempt, error });
+  const view = render(<SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} />); expect(onRefreshScope).toHaveBeenCalledTimes(1);
+  view.rerender(<SessionWriteFeedback result={{ ...result }} onRefreshScope={() => onRefreshScope()} />); expect(onRefreshScope).toHaveBeenCalledTimes(1);
+});
+it('shows new-visit buttons after COMPLETE clears a stale storage warning', () => {
+  state.locale = 'en'; const result = transition({ ...initial, persistenceWarning: 'NOT_PERSISTED' }, { type: 'RECORDED', attempt: recordAttempt,
+    response: { ...response, outcome: 'COMPLETE', rejected_lines: [] } });
+  render(<SessionSavedResult result={result} journal={{ leaveVisit: vi.fn() }} onNewVisit={vi.fn()} />);
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisit') })).toBeTruthy();
 });
 it('uses authoritative late flags and identifies only newly added lines', () => {
   state.locale = 'en'; const result = partial(), extra = { ...savedLine, id: id(15), ordinal: 2, late: true };
