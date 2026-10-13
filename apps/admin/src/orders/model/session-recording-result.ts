@@ -44,25 +44,27 @@ function rejectionSnapshots(drafts: SessionDraftForm, rejected: SessionRecording
       name_ar: error.name_ar, name_en: error.name_en, price: error.list_price, price_source: 'CATALOG' } } : line;
   }) };
 }
-// العضوية ووقت الإنشاء متجمّدين جوه المحاولة، والاسترجاع يرجعهم حتى لو مفيش سطر ناقص.
+// الرأس يرجع من المحاولة وهي لسه مش محسومة بس: نفس state.attempt، أو استرجاع PENDING، أو سطر ناقص بيتبني.
+// غير كده recorder_membership_id و occurred_at يفضلوا زي ما المستخدم سايبهم.
 function withAttemptHeader(drafts: SessionDraftForm, attempt: SessionAttempt, lines: SessionDraftLine[]): SessionDraftForm {
   const recorder_membership_id = attempt.body.recorder_membership_id ?? null;
   const occurred_at = attempt.kind === 'record' ? attempt.body.occurred_at : drafts.occurred_at;
   if (lines === drafts.lines && drafts.recorder_membership_id === recorder_membership_id && drafts.occurred_at === occurred_at) return drafts;
   return { ...drafts, lines, recorder_membership_id, ...(attempt.kind === 'record' ? { occurred_at } : {}) };
 }
+// دفتر اليومية بيفضل حافظ مدخل PARTIAL في الذاكرة حتى لو الكتابة فشلت، فـ null هنا معناها الزيارة اتسابت فعلًا.
+// SAVING و UNRESOLVED و PARTIAL تابعة للمدخل؛ NOT_PERSISTED تابعة له بس لو مفيش زيارة محفوظة؛ COMPLETE لأ.
 function journalDependent(state: SessionRecordingResult) {
   const kind = state.feedback.kind;
-  if (kind === 'SAVING' || kind === 'UNRESOLVED') return true;
-  if (kind === 'NOT_PERSISTED') return !state.session;
-  // تحذير التخزين مش سلطة على نتيجة السيرفر؛ PARTIAL المحفوظة ما تتسابش لمجرد إن التحذير زال.
-  return kind === 'PARTIAL' && !(state.session && state.persistenceWarning);
+  if (kind === 'SAVING' || kind === 'UNRESOLVED' || kind === 'PARTIAL') return true;
+  return kind === 'NOT_PERSISTED' && !state.session;
 }
 function warnedFeedback(state: SessionRecordingResult): SessionFeedback {
   return state.session ? state.feedback : { kind: 'NOT_PERSISTED' };
 }
 function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, wantedIds = attempt.rowIds, replaceVisit = false): SessionRecordingResult {
   const sessionId = attempt.kind === 'append' ? attempt.sessionId : replaceVisit ? null : state.sessionId;
+  const sameAttempt = state.attempt?.key === attempt.key;
   if (state.sessionId !== sessionId) state = emptySessionRecordingResult(state.customer);
   const missing = attempt.body.lines.flatMap((line, index): SessionDraftLine[] => {
     const localId = attempt.rowIds[index];
@@ -77,8 +79,10 @@ function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, 
         share_percentage: row.share_bps === undefined ? '' : sessionBpsText(row.share_bps) })) }];
   });
   const customerId = attempt.kind === 'record' ? attempt.body.customer_id : state.customerId;
+  const lines = missing.length ? [...state.drafts.lines, ...missing] : state.drafts.lines;
+  const restoreHeader = replaceVisit || sameAttempt || missing.length > 0;
   return { ...state, sessionId, customerId, customer: state.customer?.id === customerId ? state.customer : null,
-    drafts: withAttemptHeader(state.drafts, attempt, missing.length ? [...state.drafts.lines, ...missing] : state.drafts.lines) };
+    drafts: restoreHeader ? withAttemptHeader(state.drafts, attempt, lines) : state.drafts };
 }
 function failedResult(state: SessionRecordingResult, attempt: SessionAttempt, error: unknown): SessionRecordingResult {
   state = recoverAttempt(state, attempt);

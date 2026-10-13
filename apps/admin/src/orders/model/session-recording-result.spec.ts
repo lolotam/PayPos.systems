@@ -50,13 +50,14 @@ it.each(['record', 'append'] as const)('keeps the appropriate drafts and visit o
 it.each(['SESSION_RECORDER_MEMBERSHIP_REQUIRED', 'SESSION_TIME_TOO_OLD', 'SESSION_PERFORMER_SHARES_INVALID', 'SESSION_PERFORMER_SELF_FORBIDDEN', 'SESSION_LINE_CAPACITY_EXCEEDED', 'SESSION_TOTAL_TOO_LARGE'] as const)('preserves drafts without partial success on %s', (code) => {
   const error = { status: code === 'SESSION_PERFORMER_SELF_FORBIDDEN' ? 403 : 422, code, ...serviceSessionErrors[code] };
   const result = transition(initial, { type: 'FAILED', attempt, error });
-  expect(result.drafts.lines).toBe(initial.drafts.lines); expect(result.session).toBeNull(); expect(result.feedback).toEqual({ kind: 'ERROR', error, refreshScope: error.status === 403 });
+  expect(result.drafts).toBe(initial.drafts);
+  expect(result.session).toBeNull(); expect(result.feedback).toEqual({ kind: 'ERROR', error, refreshScope: error.status === 403 });
   const settled = transition(result, { type: 'JOURNAL', entry: null });
-  expect(settled).toEqual(result); expect(settled.drafts.lines).toBe(initial.drafts.lines);
+  expect(settled).toEqual(result); expect(settled.drafts).toBe(initial.drafts);
 });
 it.each([new TypeError('Network'), { status: 409, code: 'IDEMPOTENCY_KEY_IN_PROGRESS', message_ar: 'retry', message_en: 'retry' }])('freezes an unresolved attempt for identical replay', (error) => {
   const result = transition(initial, { type: 'FAILED', attempt, error });
-  expect(result.attempt).toBe(attempt); expect(sessionResultFrozen(result)).toBe(true); expect(result.drafts.lines).toBe(initial.drafts.lines);
+  expect(result.attempt).toBe(attempt); expect(sessionResultFrozen(result)).toBe(true); expect(result.drafts).toBe(initial.drafts);
   expect(() => sessionResultCommand(result, [inputLine])).toThrow('UNRESOLVED');
 });
 it('idempotency reuse with rejection-looking details remains an atomic error on the saved visit', () => {
@@ -180,15 +181,21 @@ it('keeps a saved complete visit when a storage warning appears and then clears'
   expect(cleared.session).toBe(complete.session); expect(cleared.sessionId).toBe(complete.sessionId);
   expect(cleared.addedLineIds).toEqual(complete.addedLineIds); expect(cleared.customer).toEqual(complete.customer);
   expect(cleared.feedback).toEqual({ kind: 'COMPLETE' });
+  expect(transition(cleared, { type: 'JOURNAL', entry: null })).toEqual(cleared);
 });
-it('keeps rejected drafts when a storage warning clears on a saved partial visit', () => {
+it('keeps a saved partial visit while its partial journal entry survives a storage warning', () => {
+  const saved = recorded(), entry = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
+  const warned = transition(saved, { type: 'JOURNAL', entry, persistenceWarning: 'NOT_PERSISTED' });
+  const settled = transition(warned, { type: 'JOURNAL', entry });
+  expect(settled.session).toBe(saved.session); expect(settled.rejected).toEqual(saved.rejected); expect(settled.drafts).toBe(saved.drafts);
+  expect(settled.feedback).toEqual({ kind: 'PARTIAL' });
+});
+it.each([false, true])('a null journal clears a saved partial visit the same way when a warning was seen before: %s', (seen) => {
   const saved = recorded();
-  const warned = transition(saved, { type: 'JOURNAL', entry: null, persistenceWarning: 'NOT_PERSISTED' });
-  expect(warned.session).toBe(saved.session); expect(warned.feedback).toEqual({ kind: 'PARTIAL' });
-  const cleared = transition(warned, { type: 'JOURNAL', entry: null });
-  expect(cleared.session).toBe(saved.session); expect(cleared.sessionId).toBe(saved.sessionId);
-  expect(cleared.rejected).toEqual(saved.rejected); expect(cleared.drafts.lines).toEqual(saved.drafts.lines);
-  expect(cleared.customer).toEqual(saved.customer); expect(cleared.feedback).toEqual({ kind: 'PARTIAL' });
+  const start = seen ? transition(saved, { type: 'JOURNAL', entry: null, persistenceWarning: 'NOT_PERSISTED' }) : saved;
+  const cleared = transition(start, { type: 'JOURNAL', entry: null });
+  expect(cleared).toEqual(emptySessionRecordingResult(saved.customer));
+  expect(transition(cleared, { type: 'JOURNAL', entry: null })).toEqual(cleared);
 });
 it.each(['SAVING', 'UNRESOLVED'] as const)('a null journal still clears a pending %s visit that saved nothing', (kind) => {
   const pending = transition(initial, { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt }, inFlight: kind === 'SAVING' });
@@ -205,13 +212,29 @@ it('a recovered complete creation keeps the attempt membership when every draft 
   const complete = transition(pending, { type: 'RECORDED', attempt: frozen, response: completeResponse });
   expect(sessionResultCommand(complete, [inputLine])).toEqual({ kind: 'append', sessionId: id(12), body: { lines: [inputLine], recorder_membership_id: membership } });
 });
-it.each(['journal', 'recorded', 'failed', 'appended'] as const)('recovery via %s without recorder_membership_id clears a stale draft selection', (path) => {
+it.each(['journal', 'recorded', 'failed', 'appended'] as const)('a stale recorder is replaced on %s recovery only while the attempt is unsettled', (path) => {
   const state = path === 'appended' ? { ...initial, sessionId: appendAttempt.sessionId } : initial;
   const error = { status: 422, code: 'SESSION_TIME_TOO_OLD' as const, ...serviceSessionErrors.SESSION_TIME_TOO_OLD };
   const result = path === 'journal' ? transition(state, { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: recordAttempt } })
     : path === 'failed' ? transition(state, { type: 'FAILED', attempt: recordAttempt, error })
     : path === 'recorded' ? transition(state, { type: 'RECORDED', attempt: recordAttempt, response: completeResponse })
     : transition(state, { type: 'APPENDED', attempt: appendAttempt, response: { ...completeResponse, added_lines: [savedLine] } });
-  expect(result.drafts.recorder_membership_id).toBeNull();
-  expect(result.drafts.occurred_at).toBe(path === 'appended' ? instant : undefined);
+  expect(result.drafts.recorder_membership_id).toBe(path === 'journal' ? null : id(8));
+  expect(result.drafts.occurred_at).toBe(path === 'journal' ? undefined : instant);
+});
+it('keeps a recorder chosen after an append when that same append is applied again', () => {
+  const appended = { ...appendAttempt, body: { ...appendAttempt.body, recorder_membership_id: id(28) } };
+  const applied = transition({ ...initial, sessionId: appendAttempt.sessionId, attempt: appended }, { type: 'APPENDED', attempt: appended, response: { ...completeResponse, added_lines: [savedLine] } });
+  expect(applied.drafts.recorder_membership_id).toBe(id(28));
+  const chosen = id(29);
+  const replayed = transition({ ...applied, drafts: { ...applied.drafts, recorder_membership_id: chosen } }, { type: 'APPENDED', attempt: appended, response: { ...completeResponse, added_lines: [savedLine] } });
+  expect(replayed.drafts.recorder_membership_id).toBe(chosen);
+});
+it('keeps a corrected occurred_at when a rejected record attempt is applied again', () => {
+  const occurredAt = '2026-09-01T00:00:00.000Z', frozen = { ...recordAttempt, body: { ...recordAttempt.body, occurred_at: occurredAt } };
+  const rejected = transition({ ...initial, attempt: frozen }, { type: 'FAILED', attempt: frozen, error: discountError });
+  expect(rejected.drafts.occurred_at).toBe(occurredAt);
+  const corrected = '2026-10-01T00:00:00.000Z';
+  const replayed = transition({ ...rejected, drafts: { ...rejected.drafts, occurred_at: corrected } }, { type: 'FAILED', attempt: frozen, error: discountError });
+  expect(replayed.drafts.occurred_at).toBe(corrected);
 });
