@@ -1,9 +1,29 @@
 import { expect, it } from 'vitest';
-import { sessionServiceOption, sessionServiceOptionPage, sessionServiceOptionsQuery } from './service-session-options.js';
+import { sessionServiceOption, sessionServiceOptionPage, sessionServiceOptionsQuery,
+  sessionPerformerOptionsQuery, sessionPerformerOptionPage } from './service-session-options.js';
 import { serviceSessionFormPaths } from './service-session-form-openapi.js';
 
 const id = '00000000-0000-7000-8000-000000000001';
 const option = { id, name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 2 };
+it('documents dated performer search and stable cursor bounds under recording authority', () => {
+  const route = serviceSessionFormPaths['/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options'].get;
+  expect(route.description).toContain('record:service-sessions:branch');
+  expect(route.parameters.find((p) => p.name === 'occurred_at')?.required).toBe(true);
+  expect(route.parameters.find((p) => p.name === 'q')?.schema).toEqual({ type: 'string', minLength: 1, maxLength: 50 });
+  expect(route.responses['200'].content['application/json'].schema.$ref).toBe('#/components/schemas/SessionPerformerOptionPage');
+});
+it('requires occurred time, trims bounded search and rejects private performer fields', () => {
+  const occurred_at = '2026-10-14T08:00:00Z';
+  expect(sessionPerformerOptionsQuery.parse({ occurred_at, q: '  سارة  ' })).toEqual({ occurred_at, q: 'سارة', limit: 20 });
+  expect(sessionPerformerOptionsQuery.parse({ occurred_at, cursor: id, limit: '100' }).limit).toBe(100);
+  for (const query of [{}, { occurred_at: 'bad' }, { occurred_at, q: '' }, { occurred_at, q: ' ' },
+    { occurred_at, q: 'a'.repeat(51) }, { occurred_at, limit: 101 }, { occurred_at, cursor: 'bad' }, { occurred_at, user_id: id }])
+    expect(sessionPerformerOptionsQuery.safeParse(query).success).toBe(false);
+  const item = { id, name_ar: null, name_en: 'Synthetic employee', not_clocked_in_warning: true, approved_leave_warning: false };
+  expect(sessionPerformerOptionPage.parse({ items: [item], next_cursor: null }).items).toEqual([item]);
+  for (const field of ['salary', 'phone', 'leave_reason', 'attendance_history', 'user_id'])
+    expect(sessionPerformerOptionPage.safeParse({ items: [{ ...item, [field]: 'private' }], next_cursor: null }).success).toBe(false);
+});
 it('documents the guarded limited GET, UUID cursor, page bounds and response schema', () => {
   const route = serviceSessionFormPaths['/v1/businesses/{businessId}/branches/{branchId}/service-sessions/service-options'].get;
   expect(route.description).toContain('record:service-sessions:branch');

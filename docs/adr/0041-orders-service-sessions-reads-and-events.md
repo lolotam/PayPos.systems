@@ -336,3 +336,20 @@ This exact symbol/path read reuses the approved orders → catalog edge. Ascendi
 use the existing services_company_business_id_key; equal names do not affect cursor stability. Price remains
 canonical KWD text. No commission fields, catalog read grant, table/grant/migration, performer read or history
 access is added. Both query paths have result-shape and exact SQL EXPLAIN ANALYZE coverage.
+
+## Addendum 2026-10-13 — 35c-4 dated performer options
+
+SS-Q13 authorizes GET /performer-options under record:service-sessions:branch alone with selected company,
+admin authentication, orders feature and active business/branch ownership rechecked on every page.
+Staff's composition-root public readSessionPerformerOptions resolves its branch working day through existing schedulingContext
+and attendanceWorkingDate, then delegates to queries/session-performer-options.query.ts. Eligibility predicates
+precede pagination: hire/contract boundaries inclusive, branch-link end exclusive, deleted employees excluded.
+The composition root injects shared warning SQL into readSessionPerformers and the picker consumes it directly:
+non-void OPEN/CLOSED/MISSED_OUT (including MANUAL)
+and approved FULL_DAY/PARTIAL leave at the occurred day/instant. Warnings do not exclude eligible employees.
+Only id/name_ar/name_en/not_clocked_in_warning/approved_leave_warning leave staff; no private HR or user link.
+Orders binds callbacks through session-performer-options.adapter.ts on the same tenant transaction and declares
+the exact public symbol/path read on its existing staff edge. SS-Q15 (Waleed, 2026-10-13, option 1) adds optional
+trimmed 1–50-character case-insensitive literal name search; ascending UUID pages stay default 20/max 100.
+The UI sorts each loaded page alphabetically. Existing employee/link/attendance/leave indexes are EXPLAIN-tested;
+no new table, grant or migration. POST still refreshes its own facts. Both queries have shape/EXPLAIN coverage.

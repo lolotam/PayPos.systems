@@ -1502,6 +1502,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. SS-Q15: case-insensitive name search, ascending UUID cursor; UI sorts the loaded page alphabetically. No private HR fields or wider staff permission. */
+        get: operations["getServiceSessionPerformerOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/service-options": {
         parameters: {
             query?: never;
@@ -3783,6 +3800,28 @@ export interface components {
         };
         SessionServiceOptionPage: {
             items: components["schemas"]["SessionServiceOption"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+        };
+        SessionPerformerOptionsQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            /** Format: date-time */
+            occurred_at: string;
+            q?: string;
+        };
+        SessionPerformerOption: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            not_clocked_in_warning: boolean;
+            approved_leave_warning: boolean;
+        };
+        SessionPerformerOptionPage: {
+            items: components["schemas"]["SessionPerformerOption"][];
             /** Format: uuid */
             next_cursor: string | null;
         };
@@ -9735,6 +9774,64 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal; all-over-limit 422 includes rejected_lines and saves nothing. SS-20 performer count, duplicate, mixed, zero, fractional, out-of-range or non-10000-sum shares return 422 SESSION_PERFORMER_SHARES_INVALID with details.input_index; the whole request rolls back. Shape/type errors return 400 VALIDATION_FAILED. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceSessionPerformerOptions: {
+        parameters: {
+            query: {
+                occurred_at: string;
+                /** @description Trimmed, literal case-insensitive substring of name_ar or name_en. */
+                q?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Limited dated performer page; warnings never exclude eligible employees. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionPerformerOptionPage"];
+                };
+            };
+            /** @description Invalid strict query. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform scope/permission refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;
