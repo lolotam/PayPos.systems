@@ -13,6 +13,7 @@ export type SessionAttempt = (
   scope: SessionAttemptScope; key: string; createdAt: number; route: string; rowIds: string[];
 };
 export const SESSION_ATTEMPT_RETENTION_MS = 24 * 60 * 60 * 1000;
+export const SESSION_ATTEMPT_SAFETY_MARGIN_MS = 60 * 60 * 1000;
 
 export const freezeSessionAttemptScope = (scope: SessionAttemptScope): SessionAttemptScope => Object.freeze({
   companyId: id.parse(scope.companyId), businessId: id.parse(scope.businessId), branchId: id.parse(scope.branchId), userId: id.parse(scope.userId),
@@ -56,8 +57,8 @@ export function sessionAttemptUnresolved(error: unknown): boolean {
 }
 
 export type SessionJournalEnvelope =
-  | { version: 1; state: 'PENDING'; attempt: SessionAttempt }
-  | { version: 1; state: 'EXPIRED'; scope: SessionAttemptScope; key: string; createdAt: number; sessionId?: string }
+  | { version: 1; state: 'PENDING'; attempt: SessionAttempt; lastSentAt?: number }
+  | { version: 1; state: 'EXPIRED'; scope: SessionAttemptScope; key: string; createdAt: number; lastSentAt?: number; sessionId?: string }
   | { version: 1; state: 'PARTIAL'; scope: SessionAttemptScope; sessionId: string }
   | { version: 1; state: 'SAVED_DISPLAY_FAILED'; scope: SessionAttemptScope; sessionId?: string };
 
@@ -67,26 +68,27 @@ function strictFields(value: unknown, required: string[], optional: string[] = [
 }
 
 /** التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويرفض الحقول الزائدة قبل استعادة أي طلب أو معرف زيارة. */
-export function parseSessionJournalEnvelope(value: unknown, now: number): SessionJournalEnvelope {
-  strictFields(value, ['version', 'state'], ['attempt', 'scope', 'key', 'createdAt', 'sessionId']);
+export function parseSessionJournalEnvelope(value: unknown): SessionJournalEnvelope {
+  strictFields(value, ['version', 'state'], ['attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId']);
   if (value.version !== 1) throw new Error('SESSION_JOURNAL_VERSION_INVALID');
   if (value.state === 'PENDING') {
-    strictFields(value, ['version', 'state', 'attempt']);
+    strictFields(value, ['version', 'state', 'attempt'], ['lastSentAt']);
     strictFields(value.attempt, ['kind', 'body', 'scope', 'key', 'createdAt', 'route', 'rowIds'], ['sessionId']);
     if (value.attempt.kind !== 'record' && value.attempt.kind !== 'append') throw new Error('SESSION_JOURNAL_INVALID');
     strictFields(value.attempt, ['kind', 'body', 'scope', 'key', 'createdAt', 'route', 'rowIds', ...(value.attempt.kind === 'append' ? ['sessionId'] : [])]);
   } else {
     if (typeof value.state !== 'string' || !['PARTIAL', 'EXPIRED', 'SAVED_DISPLAY_FAILED'].includes(value.state)) throw new Error('SESSION_JOURNAL_INVALID');
-    strictFields(value, ['version', 'state', 'scope', ...(value.state === 'EXPIRED' ? ['key', 'createdAt'] : value.state === 'PARTIAL' ? ['sessionId'] : [])], value.state === 'PARTIAL' ? [] : ['sessionId']);
+    strictFields(value, ['version', 'state', 'scope', ...(value.state === 'EXPIRED' ? ['key', 'createdAt'] : value.state === 'PARTIAL' ? ['sessionId'] : [])], value.state === 'PARTIAL' ? [] : value.state === 'EXPIRED' ? ['sessionId', 'lastSentAt'] : ['sessionId']);
     if (Object.hasOwn(value, 'sessionId')) id.parse(value.sessionId);
     if (value.state === 'EXPIRED') id.parse(value.key);
   }
   const entry = value.state === 'PENDING' ? value.attempt as Record<string, unknown> : value;
   strictFields(entry.scope, ['companyId', 'businessId', 'branchId', 'userId']);
   freezeSessionAttemptScope(entry.scope as SessionAttemptScope);
-  if (Object.hasOwn(entry, 'createdAt') && (typeof entry.createdAt !== 'number' || !Number.isSafeInteger(entry.createdAt) || entry.createdAt < 0 || entry.createdAt > now)) throw new Error('SESSION_JOURNAL_TIME_INVALID');
-  if (value.state === 'EXPIRED' && typeof entry.createdAt === 'number' && now - entry.createdAt < SESSION_ATTEMPT_RETENTION_MS) throw new Error('SESSION_JOURNAL_TIME_INVALID');
-  return freeze(value.state === 'PENDING' ? { version: 1, state: 'PENDING', attempt: restoreSessionAttempt(value.attempt as SessionAttempt) } : value as SessionJournalEnvelope);
+  for (const [source, key] of [[entry, 'createdAt'], [value, 'lastSentAt']] as const) {
+    if (Object.hasOwn(source, key) && (typeof source[key] !== 'number' || !Number.isSafeInteger(source[key]) || source[key] < 0)) throw new Error('SESSION_JOURNAL_TIME_INVALID');
+  }
+  return freeze(value.state === 'PENDING' ? { ...value, attempt: restoreSessionAttempt(value.attempt as SessionAttempt) } as SessionJournalEnvelope : value as SessionJournalEnvelope);
 }
 
 export class SessionSavedDisplayFailure extends Error {
