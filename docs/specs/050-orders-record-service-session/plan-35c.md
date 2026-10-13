@@ -203,6 +203,26 @@ Order is the table order; 35c-12 merges only after 35c-1…11 are green. 35c-5�
 form/client capabilities, not unfinished publicly exposed pages; they need no fake data or temporary executable
 TODO. Never bundle the twelve PRs into one 35c PR. No speculative day-list integration in the final PR.
 
+**Owner answers, batch 17 (Waleed 2026-10-13; Abu Salem pending — his pick wins if different):**
+- SS-Q14 = 1: a later service for the same customer is appended to the same visit while it is still open on the
+  reception screen (existing append route); once the screen is closed it is a new visit.
+- SS-Q15 = 1: service and performer pickers are alphabetical in the UI language with a search box. The option
+  GETs take `lang` (`ar`|`en`, the UI language) and an optional `q` (1–50 chars, case-insensitive on name_ar/name_en, folded with ICU:
+  `lower(name COLLATE "und-x-icu") LIKE '%' || lower($q COLLATE "und-x-icu") || '%'` with `%`/`_` escaped, since
+  the C-locale `lower()`/`ILIKE` do not fold non-ASCII letters)
+  and page in **name order**: `ORDER BY coalesce(name_<lang>, name_<other>) COLLATE "und-x-icu", id` (ICU collation: the database
+  default is C/code-point order, so `lower()` alone does not alphabetize Arabic or accented names; the keyset
+  comparison uses the same collation) (the displayed fallback, because name_ar is
+  nullable) with an opaque keyset cursor encoding that same key and id, so the
+  list is globally alphabetical across pages (never a per-page client sort). **35c-3b** (new, S): switch
+  `/service-options` to this ordering and add `lang`/`q` (contract + query + tests, ~150–250 lines), merged before
+  35c-6. 35c-4 ships `/performer-options` with the same ordering from the start. Row 8c extends the
+  performer-options `q` to match the employee number as well (EN-Q9), with its contract/query tests.
+- SS-Q16 = 1: after a COMPLETE save, show the saved summary with «New visit» (clears all) and «New visit, same
+  customer» (keeps the selected customer) — part of 35c-11/35c-12.
+- SS-Q17 = 3: no reception-only "my saves" list; a manager who wants reception to see sessions delegates
+  `read:service-sessions:branch` (SS-Q12). Nothing new to build in 35c.
+
 ## 6. UI, i18n and verification gates
 
 Use existing packages/ui Input, Label, Select/NativeSelect, Button, Card, Badge, PageHeader and EmptyState;
