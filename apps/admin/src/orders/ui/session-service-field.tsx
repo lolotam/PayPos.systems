@@ -25,7 +25,7 @@ export function SessionServiceField({ scope, value, onChange, onCatalogRefresh, 
   const query = useSessionServices(scope, settledSearch, !disabled);
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
   const retained = value && !items.some((item) => item.id === value.id) ? value : null;
-  const catalogSelection = items.find((item) => item.id === value?.id) ?? value;
+  const catalogSelection: SessionServiceSelection | null = items.find((item) => item.id === value?.id) ?? value;
   useEffect(() => {
     if (catalogSelection && value && catalogSelection.revision !== value.revision) onCatalogRefresh?.(catalogSelection);
   }, [catalogSelection, value, onCatalogRefresh]);
@@ -47,7 +47,7 @@ export function SessionServiceField({ scope, value, onChange, onCatalogRefresh, 
       {retained ? <option value={retained.id}>{name(retained)}</option> : null}
       {items.map((item) => <option key={item.id} value={item.id}>{name(item)}</option>)}
     </NativeSelect>
-    {catalogSelection ? <p>{t(locale, 'serviceSessions.listPrice')} <bdi>{catalogSelection.price}</bdi></p> : null}
+    {catalogSelection && catalogSelection.price_source !== 'INPUT' ? <p>{t(locale, 'serviceSessions.listPrice')} <bdi>{catalogSelection.price}</bdi></p> : null}
     {query.isLoading ? <p role="status">{t(locale, 'admin.loading')}</p> : null}
     {query.isSuccess && !items.length ? <p role="status">{t(locale, 'serviceSessions.noServices')}</p> : null}
     {query.isError ? <p role="alert">{envelopeMessage(query.error, locale)}</p> : null}
