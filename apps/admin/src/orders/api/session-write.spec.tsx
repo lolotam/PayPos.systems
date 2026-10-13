@@ -20,6 +20,13 @@ const line = { service_id: id(5), price: '7.125', discount: { kind: 'PERCENT' as
 const body = { customer_id: id(7), recorder_membership_id: id(8), lines: [line, line] };
 const rows = [id(9), id(10)];
 const storageKey = 'pospay:service-session-attempt';
+const storageKeys = [`${storageKey}:a`, `${storageKey}:b`, storageKey] as const;
+function storedRaw() {
+  const entries = storageKeys.slice(0, 2).flatMap((key) => { const raw = sessionStorage.getItem(key); return raw ? [JSON.parse(raw) as { generation: number; envelope: unknown }] : []; });
+  entries.sort((a, b) => b.generation - a.generation);
+  return entries[0] ? JSON.stringify(entries[0].envelope) : sessionStorage.getItem(storageKey);
+}
+function corruptStorage(envelope: unknown) { sessionStorage.clear(); sessionStorage.setItem(storageKeys[0], JSON.stringify({ generation: 1, envelope })); }
 const savedLine: SavedServiceLine = { id: id(11), session_id: id(12), service_id: id(5), input_index: 0, ordinal: 1, name_en: 'Synthetic service', name_ar: null,
   list_price: '7.125', price: '7.125', discount: '0.713', net: '6.412', effective_discount_bps: 1001, limit_bps_applied: null,
   limit_source: 'OWNER', status: 'ACTIVE', revision: 1, rule_snapshot: { kind: 'FOLLOW_PLAN' }, counts_snapshot: true, catalog_revision: 1,
@@ -44,9 +51,9 @@ function hooks(store: ReturnType<typeof journal>) {
 }
 afterEach(() => { journals.splice(0).forEach((store) => { store.changeScope(null); store.dispose(); }); sessionStorage.clear(); post.mockReset(); runtime.newId.mockClear(); now = Date.parse(instant); });
 async function reload(backing?: Parameters<typeof createSessionAttemptJournal>[2]) {
-  const raw = sessionStorage.getItem(storageKey);
+  const snapshot = storageKeys.map((key) => [key, sessionStorage.getItem(key)] as const);
   journals.forEach((store) => { store.changeScope(null); store.dispose(); });
-  if (raw) sessionStorage.setItem(storageKey, raw);
+  snapshot.forEach(([key, raw]) => { if (raw) sessionStorage.setItem(key, raw); });
   vi.resetModules();
   const { createSessionAttemptJournal: create } = await import('../model/session-attempt-journal');
   const store = create(scope, runtime, backing); journals.push(store); return store;
@@ -145,7 +152,7 @@ it.each(['companyId', 'businessId', 'branchId', 'userId', 'logout'] as const)('b
   const store = journal(), attempt = store.begin({ kind: 'record', body }, rows);
   now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS - 1; expect(store.read()).toEqual({ version: 1, state: 'PENDING', attempt }); now += 1;
   const expired = { version: 1, state: 'EXPIRED', scope, key: attempt.key, createdAt: attempt.createdAt };
-  expect(store.read()).toEqual(expired); expect(sessionStorage.getItem(storageKey)).toBe(JSON.stringify(expired));
+  expect(store.read()).toEqual(expired); expect(storedRaw()).toBe(JSON.stringify(expired));
   const recovered = await reload(); expect(recovered.read()).toEqual(expired);
   expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
   await expect(recovered.run(attempt, vi.fn())).rejects.toThrow('UNAVAILABLE');
@@ -162,8 +169,8 @@ it('rejects PII before storing and purges malformed journals', async () => {
   const store = journal(); expect(() => store.begin({ kind: 'record', body: { ...body, phone: 'synthetic raw phone' } } as SessionAttemptCommand, rows)).toThrow();
   expect(sessionStorage.length).toBe(0);
   const attempt = store.begin({ kind: 'record', body }, rows);
-  expect(sessionStorage.getItem(storageKey)).not.toMatch(/phone|name/);
-  sessionStorage.setItem(storageKey, JSON.stringify({ version: 1, state: 'PENDING', attempt: { ...attempt, body: { ...body, phone: 'synthetic raw phone' } } }));
+  expect(storedRaw()).not.toMatch(/phone|name/);
+  corruptStorage({ version: 1, state: 'PENDING', attempt: { ...attempt, body: { ...body, phone: 'synthetic raw phone' } } });
   expect((await reload()).read()).toBeNull(); expect(sessionStorage.length).toBe(0);
 });
 
@@ -238,10 +245,10 @@ it.each(['record', 'append'] as const)('replays persisted %s after response loss
 
 it('shares pending/flight across two instances and remounts without overwriting the tab entry', async () => {
   const first = journal(), second = journal(), attempt = first.begin({ kind: 'record', body }, rows);
-  const raw = sessionStorage.getItem(storageKey);
+  const raw = storedRaw();
   expect(() => second.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
   first.dispose(); expect(() => journal().begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
-  expect(sessionStorage.getItem(storageKey)).toBe(raw); expect(runtime.newId).toHaveBeenCalledTimes(1);
+  expect(storedRaw()).toBe(raw); expect(runtime.newId).toHaveBeenCalledTimes(1);
   let release!: (value: { status: number; data: RecordServiceSessionResponse }) => void;
   const send = vi.fn(() => new Promise<{ status: number; data: RecordServiceSessionResponse }>((resolve) => { release = resolve; }));
   const a = second.run(attempt, send), b = journal().run(attempt, send); await Promise.resolve();
@@ -265,7 +272,6 @@ it.each(['record', 'append'] as const)('blocks %s before sending when persistenc
     const submit = async (current: typeof store) => hooks(current).send(current.begin(command, rows));
     await expect(submit(store)).rejects.toMatchObject({ code: 'SESSION_ATTEMPT_NOT_PERSISTED', ...serviceSessionErrors.SESSION_ATTEMPT_NOT_PERSISTED });
     expect(store.read()).toEqual(before); expect(store.persistenceWarning).toBe('NOT_PERSISTED'); expect(post).not.toHaveBeenCalled();
-    expect(JSON.parse(sessionStorage.getItem(storageKey) ?? 'null')?.state).not.toBe('PENDING');
     const recovered = await reload(backing);
     await expect(submit(recovered)).rejects.toMatchObject({ code: 'SESSION_ATTEMPT_NOT_PERSISTED' }); expect(post).not.toHaveBeenCalled();
     recovered.changeScope(null); blocked = false;
@@ -281,7 +287,7 @@ it('blocks a replay if the last-send timestamp cannot be persisted', async () =>
 });
 
 it('keeps initialized idle memory authoritative over stale storage after a scope reset', () => {
-  const first = journal(), second = journal(), attempt = first.begin({ kind: 'record', body }, rows), raw = sessionStorage.getItem(storageKey);
+  const first = journal(), second = journal(), attempt = first.begin({ kind: 'record', body }, rows), raw = storedRaw();
   first.changeScope(null); second.changeScope(scope);
   if (!raw) throw new Error('Missing persisted attempt'); sessionStorage.setItem(storageKey, raw);
   expect(second.read()).toBeNull();
@@ -307,7 +313,7 @@ it('retains PARTIAL across reload, enforces the append route and preserves the v
   recovered = await reload(); const next = recovered.begin({ kind: 'append', sessionId: id(12), body: { lines: [line] } }, [id(10)]);
   post.mockResolvedValueOnce({ data: { ...response, outcome: 'COMPLETE', rejected_lines: [], added_lines: [savedLine] }, response: { status: 201 } });
   const complete = hooks(recovered); await act(async () => { await complete.send(next); });
-  expect(post.mock.calls.at(-1)?.[0]).toContain('/{sessionId}/lines'); expect(recovered.read()).toBeNull(); expect(sessionStorage.length).toBe(0);
+  expect(post.mock.calls.at(-1)?.[0]).toContain('/{sessionId}/lines'); expect(recovered.read()).toBeNull(); expect(JSON.parse(storedRaw() ?? '{}').state).toBe('IDLE');
 });
 
 it('accepts a definite 201 by key after expiry and permits explicit leave after PARTIAL', async () => {
@@ -327,7 +333,7 @@ it.each(['record', 'append'] as const)('records malformed %s 2xx as saved/displa
   post.mockResolvedValueOnce({ data: { session: { id: id(12), phone: 'synthetic PII' } }, response: { status: 201 } });
   await act(async () => { await expect(hook.send(attempt)).rejects.toMatchObject({ status: 201, code: 'SESSION_SAVED_DISPLAY_FAILED', sessionId: id(12) }); });
   expect(store.read()).toEqual({ version: 1, state: 'SAVED_DISPLAY_FAILED', scope, sessionId: id(12) });
-  expect(sessionStorage.getItem(storageKey)).not.toMatch(/phone|body|key/);
+  expect(storedRaw()).not.toMatch(/phone|body|key/);
   const recovered = await reload(); await expect(recovered.run(attempt, vi.fn())).rejects.toThrow('UNAVAILABLE');
   expect(post).toHaveBeenCalledTimes(1); expect(recovered.read()).toMatchObject({ state: 'SAVED_DISPLAY_FAILED', sessionId: id(12) });
   expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('ALREADY_SAVED');
@@ -340,7 +346,7 @@ it.each(['PARTIAL', 'SAVED_DISPLAY_FAILED'].flatMap((state) => ['quota', 'silent
   let full = false, terminalWritten = false;
   const backing = { getItem(key: string) { if (terminalWritten && failure === 'readBack') throw new Error('Read denied'); return sessionStorage.getItem(key); }, removeItem: (key: string) => sessionStorage.removeItem(key),
     setItem(key: string, value: string) {
-      if (full && JSON.parse(value).state !== 'PENDING') { if (failure === 'quota') throw new DOMException('Quota exceeded', 'QuotaExceededError'); if (failure === 'silent') return; terminalWritten = true; }
+      if (full && JSON.parse(value).envelope.state !== 'PENDING') { if (failure === 'quota') throw new DOMException('Quota exceeded', 'QuotaExceededError'); if (failure === 'silent') return; terminalWritten = true; }
       sessionStorage.setItem(key, value);
     } };
   const store = createSessionAttemptJournal(scope, runtime, backing); journals.push(store);
@@ -351,7 +357,7 @@ it.each(['PARTIAL', 'SAVED_DISPLAY_FAILED'].flatMap((state) => ['quota', 'silent
     if (state === 'PARTIAL') await hook.send(attempt);
     else await expect(hook.send(attempt)).rejects.toMatchObject({ code: 'SESSION_SAVED_DISPLAY_FAILED' });
   });
-  expect(JSON.parse(sessionStorage.getItem(storageKey) ?? 'null').state).toBe(failure === 'readBack' ? state : 'PENDING');
+  expect(JSON.parse(storedRaw() ?? 'null').state).toBe(failure === 'readBack' ? state : 'PENDING');
   const remounted = createSessionAttemptJournal(scope, runtime, backing); journals.push(remounted);
   for (const current of [store, remounted]) {
     expect(current.read()).toEqual({ version: 1, state, scope, sessionId: id(12) });
@@ -361,14 +367,15 @@ it.each(['PARTIAL', 'SAVED_DISPLAY_FAILED'].flatMap((state) => ['quota', 'silent
   expect(post).toHaveBeenCalledTimes(1); expect(runtime.newId).toHaveBeenCalledTimes(1);
 });
 
-it('keeps initialized idle memory after COMPLETE even if removing the stale PENDING entry fails', async () => {
+it('keeps verified idle memory after COMPLETE even if retiring the older slot fails', async () => {
   const backing = { getItem: (key: string) => sessionStorage.getItem(key), setItem: (key: string, value: string) => sessionStorage.setItem(key, value),
     removeItem() { throw new Error('Storage denied'); } };
   const store = createSessionAttemptJournal(scope, runtime, backing); journals.push(store);
   const attempt = store.begin({ kind: 'record', body }, rows);
   await store.run(attempt, async () => ({ status: 201, data: { ...response, outcome: 'COMPLETE', rejected_lines: [] } }));
-  expect(store.read()).toBeNull(); expect(store.persistenceWarning).toBe('NOT_PERSISTED');
+  expect(store.read()).toBeNull(); expect(store.persistenceWarning).toBeNull();
   await expect(store.run(attempt, vi.fn())).rejects.toThrow('UNAVAILABLE');
+  expect((await reload()).read()).toBeNull();
 });
 
 it('marks malformed 2xx saved even without a valid response session id', async () => {
@@ -391,5 +398,5 @@ it.each(['legacy', 'version', 'extra', 'scopePii', 'invalidTime', 'invalidKind',
   if (failure === 'invalidKind') bad.attempt = { ...attempt, kind: 'unknown' };
   if (failure.startsWith('partial')) { delete bad.attempt; bad.state = 'PARTIAL'; bad.scope = scope; bad.sessionId = failure === 'partialId' ? 'invalid' : id(12); if (failure === 'partialPii') bad.phone = 'synthetic PII'; }
   if (failure.startsWith('expired')) { delete bad.attempt; bad.state = 'EXPIRED'; bad.scope = scope; bad.key = attempt.key; bad.createdAt = failure === 'expiredFuture' ? now + 1 : now; if (failure === 'expiredExtra') bad.phone = 'synthetic PII'; }
-  sessionStorage.setItem(storageKey, JSON.stringify(bad)); expect((await reload()).read()).toBeNull(); expect(sessionStorage.length).toBe(0);
+  corruptStorage(bad); expect((await reload()).read()).toBeNull(); expect(sessionStorage.length).toBe(0);
 });

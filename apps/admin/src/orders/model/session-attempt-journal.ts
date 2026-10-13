@@ -1,25 +1,14 @@
 import type { RecordServiceSessionResponse } from '@pospay/contracts';
 import { serviceSessionErrors } from '@pospay/i18n';
 import { listenForIdentityChanges } from '@/shared/browser/load-page';
-import { freezeSessionAttempt, freezeSessionAttemptScope, parseSessionJournalEnvelope, sameSessionScope, sessionAttemptUnresolved,
+import { freezeSessionAttempt, freezeSessionAttemptScope, sameSessionScope, sessionAttemptUnresolved,
   SessionSavedDisplayFailure, SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS, type SessionAttempt, type SessionAttemptCommand,
   type SessionAttemptRuntime, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
+import { createSessionAttemptSlotStore, type JournalStorage } from './session-attempt-slot-store';
 
 const storageKey = 'pospay:service-session-attempt';
-type JournalStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 type WriteResult = { status: number; data: RecordServiceSessionResponse };
 const registry = new Map<string, { core: ReturnType<typeof createCore>; users: number }>();
-
-function readStored(storage: JournalStorage | undefined, scope: SessionAttemptScope | null): SessionJournalEnvelope | null {
-  try {
-    const raw = storage?.getItem(storageKey); if (!raw) return null;
-    const recovered = parseSessionJournalEnvelope(JSON.parse(raw));
-    const place = recovered.state === 'PENDING' ? recovered.attempt.scope : recovered.scope;
-    if (scope && sameSessionScope(scope, place)) return recovered;
-  } catch { /* رفض المخطط أو التخزين لا يبيح استبدال محاولة سليمة موجودة في ذاكرة التبويب. */ }
-  try { storage?.removeItem(storageKey); } catch { /* قد يمنع المتصفح حذف الإدخال المرفوض أيضاً. */ }
-  return null;
-}
 
 function retentionElapsed(entry: Extract<SessionJournalEnvelope, { state: 'PENDING' | 'EXPIRED' }>, now: number) {
   const createdAt = entry.state === 'PENDING' ? entry.attempt.createdAt : entry.createdAt;
@@ -33,71 +22,57 @@ function expired(entry: SessionJournalEnvelope | null, now: number): SessionJour
     ...(attempt.kind === 'append' ? { sessionId: attempt.sessionId } : {}) };
 }
 
-function writeStored(storage: JournalStorage | undefined, value: SessionJournalEnvelope | null): 'NOT_PERSISTED' | null {
-  try {
-    if (!storage) return value ? 'NOT_PERSISTED' : null;
-    if (value) {
-      const raw = JSON.stringify(value); storage.setItem(storageKey, raw);
-      if (storage.getItem(storageKey) !== raw) return 'NOT_PERSISTED';
-    } else storage.removeItem(storageKey);
-    return null;
-  } catch { return 'NOT_PERSISTED'; }
-}
-
 function persistenceError() {
   return Object.assign(new Error('SESSION_ATTEMPT_NOT_PERSISTED'), { code: 'SESSION_ATTEMPT_NOT_PERSISTED', ...serviceSessionErrors.SESSION_ATTEMPT_NOT_PERSISTED });
 }
 
-function rollbackStored(storage: JournalStorage | undefined, previous: SessionJournalEnvelope | null) {
-  try { storage?.removeItem(storageKey); } catch { /* إزالة المحاولة التي لم تُرسل أفضل جهد عند منع التخزين. */ }
-  if (previous) writeStored(storage, previous);
-}
-
 function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRuntime, storage?: JournalStorage) {
+  const slots = createSessionAttemptSlotStore(storage);
   let scope: SessionAttemptScope | null = freezeSessionAttemptScope(initialScope), value: SessionJournalEnvelope | null | undefined;
   let flight: { key: string; promise: Promise<WriteResult> } | undefined, stopIdentity: (() => void) | undefined;
   let persistenceWarning: 'NOT_PERSISTED' | null = null;
-  const persist = () => {
-    if (value) value = Object.freeze(value); persistenceWarning = writeStored(storage, value ?? null);
+  const transition = (next: SessionJournalEnvelope | null, required = false) => {
+    persistenceWarning = slots.write(next) ? null : 'NOT_PERSISTED';
+    if (required && persistenceWarning) throw persistenceError(); value = next ? Object.freeze(next) : null;
   };
   const read = () => {
     // نستعيد التخزين مرة عند تحميل التبويب؛ بعدها تتقدم حالة الذاكرة حتى لو فشل حفظها.
-    if (value === undefined) value = readStored(storage, scope);
-    const next = expired(value ?? null, runtime.now()); if (next !== value) { value = next; persist(); }
+    if (value === undefined) { value = slots.recover(scope); if (slots.blocked) persistenceWarning = 'NOT_PERSISTED'; }
+    const next = expired(value ?? null, runtime.now()); if (next !== value) transition(next);
     return value ?? null;
   };
   const changeScope = (next: SessionAttemptScope | null) => {
-    if (!next || !scope || !sameSessionScope(scope, next)) { scope = next ? freezeSessionAttemptScope(next) : null; value = null; flight = undefined; persist(); }
+    if (!next || !scope || !sameSessionScope(scope, next)) { scope = next ? freezeSessionAttemptScope(next) : null; value = null; flight = undefined; slots.purge(); persistenceWarning = slots.blocked ? 'NOT_PERSISTED' : null; }
     stopIdentity?.(); stopIdentity = next ? listenForIdentityChanges(() => changeScope(null)) : undefined;
   };
   const matches = (attempt: SessionAttempt) => scope && sameSessionScope(scope, attempt.scope) &&
     ((value?.state === 'PENDING' && value.attempt.key === attempt.key) || (value?.state === 'EXPIRED' && value.key === attempt.key));
   const visit = (sessionId: string | undefined, state: 'PARTIAL' | 'SAVED_DISPLAY_FAILED') => {
-    value = scope ? { version: 1, state, scope, ...(sessionId ? { sessionId } : {}) } as SessionJournalEnvelope : null; persist();
+    transition(scope ? { version: 1, state, scope, ...(sessionId ? { sessionId } : {}) } as SessionJournalEnvelope : null);
   };
   const settle = (attempt: SessionAttempt, result: WriteResult) => {
     if (!matches(attempt)) throw new Error('SESSION_ATTEMPT_UNAVAILABLE');
-    if (result.data.outcome === 'PARTIAL') visit(result.data.session.id, 'PARTIAL'); else { value = null; persist(); }
+    if (result.data.outcome === 'PARTIAL') visit(result.data.session.id, 'PARTIAL'); else transition(null);
   };
   const reject = (attempt: SessionAttempt, error: unknown) => {
     if (!matches(attempt)) throw new Error('SESSION_ATTEMPT_UNAVAILABLE');
     if (error instanceof SessionSavedDisplayFailure) visit(attempt.kind === 'append' ? attempt.sessionId : error.sessionId, 'SAVED_DISPLAY_FAILED');
     else if (!sessionAttemptUnresolved(error)) {
-      if (attempt.kind === 'append') visit(attempt.sessionId, 'PARTIAL'); else { value = null; persist(); }
+      if (attempt.kind === 'append') visit(attempt.sessionId, 'PARTIAL'); else transition(null);
     }
     throw error;
   };
   return {
     read, changeScope, get scope() { return scope; }, get persistenceWarning() { return persistenceWarning; },
-    configure(next: SessionAttemptScope, clock: SessionAttemptRuntime, backing?: JournalStorage) { runtime = clock; storage = backing; if (!scope || !sameSessionScope(scope, next)) changeScope(next); read(); if (!stopIdentity) stopIdentity = listenForIdentityChanges(() => changeScope(null)); },
+    configure(next: SessionAttemptScope, clock: SessionAttemptRuntime, backing?: JournalStorage) { runtime = clock; slots.configure(backing); if (!scope || !sameSessionScope(scope, next)) changeScope(next); read(); if (!stopIdentity) stopIdentity = listenForIdentityChanges(() => changeScope(null)); },
     stop() { stopIdentity?.(); stopIdentity = undefined; },
-    leaveVisit() { if (flight || value?.state === 'PENDING' || value?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED'); value = null; persist(); },
+    leaveVisit() { if (flight || value?.state === 'PENDING' || value?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED'); transition(null, true); },
     begin(command: SessionAttemptCommand, rowIds: string[]) {
       const recovered = read();
       if (!scope || flight || recovered?.state === 'PENDING' || recovered?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED');
       if (recovered && (recovered.state !== 'PARTIAL' || command.kind !== 'append' || command.sessionId !== recovered.sessionId)) throw new Error('SESSION_VISIT_ALREADY_SAVED');
-      const attempt = freezeSessionAttempt(scope, command, rowIds, runtime); value = { version: 1, state: 'PENDING', attempt }; persist();
-      if (persistenceWarning) { value = recovered; rollbackStored(storage, recovered); throw persistenceError(); }
+      if (slots.blocked) throw persistenceError();
+      const attempt = freezeSessionAttempt(scope, command, rowIds, runtime); transition({ version: 1, state: 'PENDING', attempt }, true);
       return attempt;
     },
     run<T extends WriteResult>(attempt: SessionAttempt, send: () => Promise<T>): Promise<T> {
@@ -105,8 +80,7 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
       if (read()?.state !== 'PENDING' || !matches(attempt)) return Promise.reject(new Error('SESSION_ATTEMPT_UNAVAILABLE'));
       const promise = Promise.resolve().then(() => {
         const entry = read(); if (entry?.state !== 'PENDING' || !matches(attempt)) throw new Error('SESSION_ATTEMPT_UNAVAILABLE');
-        value = { ...entry, lastSentAt: Math.max(entry.lastSentAt ?? entry.attempt.createdAt, runtime.now()) }; persist();
-        if (persistenceWarning) throw persistenceError(); return send();
+        transition({ ...entry, lastSentAt: Math.max(entry.lastSentAt ?? entry.attempt.createdAt, runtime.now()) }, true); return send();
       }).then((result) => { settle(attempt, result); return result; }, (error: unknown) => reject(attempt, error))
         .finally(() => { if (flight?.promise === promise) flight = undefined; });
       flight = { key: attempt.key, promise }; return promise;
