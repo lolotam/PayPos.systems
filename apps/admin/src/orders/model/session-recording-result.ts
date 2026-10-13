@@ -79,7 +79,8 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
   if (event.type === 'FAILED') return failedResult(state, event.attempt, event.error);
   if (event.type === 'JOURNAL') {
     const entry = event.entry;
-    if (!entry || (entry.state === 'PARTIAL' && entry.sessionId !== state.sessionId)) state = emptySessionRecordingResult(state.customer);
+    const clearedPendingVisit = !entry && ['SAVING', 'UNRESOLVED', 'NOT_PERSISTED', 'PARTIAL'].includes(state.feedback.kind);
+    if (clearedPendingVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId)) state = emptySessionRecordingResult(state.customer);
     state = { ...state, persistenceWarning: event.persistenceWarning ?? null };
     if (entry?.state === 'PARTIAL') state = { ...state, sessionId: entry.sessionId };
     if (entry?.state === 'PENDING') return { ...recoverAttempt(state, entry.attempt, entry.attempt.rowIds, true), attempt: entry.attempt,

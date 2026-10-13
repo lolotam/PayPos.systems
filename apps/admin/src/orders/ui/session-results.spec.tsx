@@ -68,6 +68,13 @@ it('shows new-visit buttons after COMPLETE clears a stale storage warning', () =
   render(<SessionSavedResult result={result} journal={{ leaveVisit: vi.fn() }} onNewVisit={vi.fn()} />);
   expect(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisit') })).toBeTruthy();
 });
+it('keeps the saved card and new-visit actions when COMPLETE settles the journal to null', () => {
+  state.locale = 'en';
+  const complete = transition(initial, { type: 'RECORDED', attempt: recordAttempt, response: { ...response, outcome: 'COMPLETE', rejected_lines: [] } });
+  render(<SessionSavedResult result={transition(complete, { type: 'JOURNAL', entry: null })} journal={{ leaveVisit: vi.fn() }} onNewVisit={vi.fn()} />);
+  expect(screen.getByText(t('en', 'serviceSessions.savedTotal')).textContent).toContain('6.412');
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisit') })).toBeTruthy();
+});
 it('uses authoritative late flags and identifies only newly added lines', () => {
   state.locale = 'en'; const result = partial(), extra = { ...savedLine, id: id(15), ordinal: 2, late: true };
   render(<Harness result={{ ...result, session: { ...response.session, lines: [...response.session.lines, extra], total_net: '12.824' }, addedLineIds: [extra.id] }} />);

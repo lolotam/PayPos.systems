@@ -49,6 +49,8 @@ it.each(['SESSION_RECORDER_MEMBERSHIP_REQUIRED', 'SESSION_TIME_TOO_OLD', 'SESSIO
   const error = { status: code === 'SESSION_PERFORMER_SELF_FORBIDDEN' ? 403 : 422, code, ...serviceSessionErrors[code] };
   const result = transition(initial, { type: 'FAILED', attempt, error });
   expect(result.drafts).toBe(initial.drafts); expect(result.session).toBeNull(); expect(result.feedback).toEqual({ kind: 'ERROR', error, refreshScope: error.status === 403 });
+  const settled = transition(result, { type: 'JOURNAL', entry: null });
+  expect(settled).toEqual(result); expect(settled.drafts).toBe(initial.drafts);
 });
 it.each([new TypeError('Network'), { status: 409, code: 'IDEMPOTENCY_KEY_IN_PROGRESS', message_ar: 'retry', message_en: 'retry' }])('freezes an unresolved attempt for identical replay', (error) => {
   const result = transition(initial, { type: 'FAILED', attempt, error });
@@ -60,7 +62,7 @@ it('idempotency reuse with rejection-looking details remains an atomic error on 
   const result = transition(first, { type: 'FAILED', attempt: { ...appendAttempt, rowIds: [id(10)], body: { lines: [inputLine] } }, error });
   expect(result.feedback.kind).toBe('ERROR'); expect(result.drafts).toBe(first.drafts); expect(result.session).toBe(first.session); expect(result.rejected).toEqual([]);
 });
-it('clears an old visit when the journal is empty or switches to a different saved visit', () => {
+it('clears a PARTIAL visit left elsewhere or switches to a different saved visit', () => {
   const old = recorded(), empty = transition(old, { type: 'JOURNAL', entry: null });
   expect(empty).toEqual(emptySessionRecordingResult(old.customer)); expect(sessionResultCommand(empty, [inputLine]).kind).toBe('record');
   const switched = transition(old, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(99) } });
@@ -70,6 +72,7 @@ it.each(['NOT_PERSISTED', 'SAVING', 'UNRESOLVED'] as const)('a settled journal c
   const stale = { ...recorded(), attempt, feedback: { kind }, persistenceWarning: 'NOT_PERSISTED' as const };
   const result = transition(stale, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(12) } });
   expect(result.feedback.kind).toBe('PARTIAL'); expect(result.attempt).toBeNull(); expect(sessionResultFrozen(result)).toBe(false);
+  expect(transition(stale, { type: 'JOURNAL', entry: null })).toEqual(emptySessionRecordingResult(stale.customer));
 });
 it.each(['record', 'append'] as const)('a %s success clears stale storage warnings and retains only a fresh warning', (kind) => {
   const stale = { ...emptySessionRecordingResult(), persistenceWarning: 'NOT_PERSISTED' as const };
@@ -127,6 +130,8 @@ it('projects journal safety states and saved-display failures without allowing a
 });
 it('COMPLETE clears drafts and new-visit choices leave the journal before clearing all or keeping only the customer', () => {
   const complete = transition(initial, { type: 'RECORDED', attempt: recordAttempt, response: { ...response, outcome: 'COMPLETE', rejected_lines: [] } }), leaveVisit = vi.fn();
+  const settled = transition(complete, { type: 'JOURNAL', entry: null });
+  expect(settled).toEqual(complete); expect(sessionResultCommand(settled, [inputLine])).toMatchObject({ kind: 'append', sessionId: id(12) });
   expect(complete.drafts.lines).toEqual([]); expect(newSessionVisit(complete, { leaveVisit }, false)).toEqual(emptySessionRecordingResult());
   expect(newSessionVisit(complete, { leaveVisit }, true)).toEqual(emptySessionRecordingResult(initial.customer)); expect(leaveVisit).toHaveBeenCalledTimes(2);
   expect(() => newSessionVisit(complete, { leaveVisit: () => { throw new Error('storage'); } }, false)).toThrow('storage');
