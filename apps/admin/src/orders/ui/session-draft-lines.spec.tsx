@@ -11,20 +11,20 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 const service = { id: '01920000-0000-7000-8000-0000000000a2', name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 1 };
 let current: SessionDraftForm['lines'];
-function Harness({ disabled = false }: { disabled?: boolean }) {
-  const form = useForm<SessionDraftForm>({ defaultValues: { lines: [createSessionDraft('initial')] }, mode: 'onBlur' });
+function Harness({ disabled = false, lineCount = 1 }: { disabled?: boolean; lineCount?: number }) {
+  const form = useForm<SessionDraftForm>({ defaultValues: { lines: Array.from({ length: lineCount }, (_, index) => createSessionDraft(index ? String(index) : 'initial')) }, mode: 'onBlur' });
   const watched = useWatch({ control: form.control, name: 'lines' });
   useEffect(() => { current = watched; }, [watched]);
   return <FormProvider {...form}><form><SessionDraftLines scope={{ companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' }} disabled={disabled} /></form></FormProvider>;
 }
-function mount(disabled = false) {
+function mount(disabled = false, lineCount = 1) {
   servicePage([service]); const client = new QueryClient();
-  render(<QueryClientProvider client={client}><Harness disabled={disabled} /></QueryClientProvider>); return client;
+  render(<QueryClientProvider client={client}><Harness disabled={disabled} lineCount={lineCount} /></QueryClientProvider>); return client;
 }
 function servicePage(items: typeof service[]) {
   get.mockImplementation((path) => Promise.resolve({ data: path.endsWith('/recording-context')
     ? { generated_at: '2026-10-13T08:00:00.000Z', business_timezone: 'Asia/Kuwait', recorder_membership_ids: [service.id], recorder_membership_id: service.id, discount_limit: { source: 'PERSON', bps: 1000 } }
-    : { items, next_cursor: null } }));
+    : { items: path.endsWith('/performer-options') ? [] : items, next_cursor: null } }));
 }
 const button = (key: 'addLine' | 'removeLine') => screen.getAllByRole('button', { name: t('en', `serviceSessions.${key}`) });
 function at<T>(items: T[], index: number): T { const value = items[index]; if (value === undefined) throw new Error('Missing fixture row'); return value; }
@@ -56,12 +56,12 @@ it.each([['0', '0.000'], ['99999999999.999', '99999999999.999'], ['25.5', '25.50
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.service')), { target: { value: service.id } });
   expect(current[0]?.price).toBe(expected); expect(input.value).toBe(expected);
   servicePage([]);
-  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'absent' } });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.searchServices')), { target: { value: 'absent' } });
   await screen.findByText(t('en', 'serviceSessions.noServices'));
   expect(screen.getByText('50.000')).toBeTruthy(); expect(current[0]?.price).toBe(expected);
 });
 it('caps draft rows at twenty and leaves invalid monetary text for validation', async () => {
-  mount(); for (let count = 1; count < 20; count++) fireEvent.click(at(button('addLine'), 0));
+  mount(false, 19); const add = screen.getByText(t('en', 'serviceSessions.addLine')); fireEvent.click(add);
   expect(current).toHaveLength(20); expect(new Set(current.map((row) => row.local_id)).size).toBe(20);
   expect((button('addLine')[0] as HTMLButtonElement).disabled).toBe(true);
   const input = at(screen.getAllByLabelText(t('en', 'serviceSessions.price')), 0);

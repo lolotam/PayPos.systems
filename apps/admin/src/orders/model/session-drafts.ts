@@ -1,20 +1,30 @@
-import type { RecordServiceSessionInput, SessionServiceOptionPage } from '@pospay/contracts';
+import { discountPercentage, type RecordServiceSessionInput, type SessionServiceOptionPage, type SessionPerformerOptionPage } from '@pospay/contracts';
 import { moneyToString, parseMoney } from '@pospay/domain';
 
 export type SessionServiceSelection = SessionServiceOptionPage['items'][number];
+export type SessionPerformerSelection = SessionPerformerOptionPage['items'][number];
+export const sessionSharePercentage = discountPercentage.refine((bps) => bps > 0);
 export type SessionDraftLine = Pick<RecordServiceSessionInput['lines'][number], 'service_id' | 'price'> & {
   local_id: string;
   service: SessionServiceSelection | null;
   discount_kind: RecordServiceSessionInput['lines'][number]['discount']['kind'];
   discount_amount: string;
   discount_percentage: string;
+  share_mode: 'EQUAL' | 'CUSTOM';
+  performers: { employee_id: string; share_percentage: string; selection: SessionPerformerSelection | null; facts_key?: string }[];
 };
 export type SessionDraftForm = { lines: SessionDraftLine[]; recorder_membership_id?: string | null };
 export const SESSION_DRAFT_MIN = 1, SESSION_DRAFT_MAX = 20;
 
 export function createSessionDraft(localId: string = crypto.randomUUID()): SessionDraftLine {
   return { local_id: localId, service_id: '', price: '', service: null,
-    discount_kind: 'AMOUNT', discount_amount: '0.000', discount_percentage: '0' };
+    discount_kind: 'AMOUNT', discount_amount: '0.000', discount_percentage: '0', share_mode: 'EQUAL',
+    performers: [{ employee_id: '', share_percentage: '', selection: null }] };
+}
+
+export function sessionPerformerInputs(line: SessionDraftLine): RecordServiceSessionInput['lines'][number]['performers'] {
+  return line.performers.map((row) => ({ employee_id: row.employee_id,
+    ...(line.share_mode === 'CUSTOM' ? { share_bps: sessionSharePercentage.parse(normalizeSessionPercent(row.share_percentage)) } : {}) }));
 }
 
 export function selectSessionService(line: SessionDraftLine, service: SessionServiceSelection): SessionDraftLine {

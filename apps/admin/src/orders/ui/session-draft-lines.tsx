@@ -11,8 +11,9 @@ import { SessionServiceField } from './session-service-field';
 import { SessionDiscountField } from './session-discount-field';
 import { SessionDraftSummary } from './session-draft-summary';
 import { RecorderMembershipField } from './recorder-membership-field';
+import { SessionPerformersField } from './session-performers-field';
 
-export function SessionDraftLines({ scope, disabled = false }: { scope: SessionServiceScope; disabled?: boolean }) {
+export function SessionDraftLines({ scope, occurredAt, disabled = false }: { scope: SessionServiceScope; occurredAt?: string; disabled?: boolean }) {
   const locale = useLocale();
   const [limit, setLimit] = useState<RecordingDiscountLimit | null>(null);
   const { control, register, getValues, setValue } = useFormContext<SessionDraftForm>();
@@ -43,6 +44,7 @@ export function SessionDraftLines({ scope, disabled = false }: { scope: SessionS
           {fieldState.error ? <p id={`${row.local_id}-error`} role="alert">{t(locale, 'serviceSessions.invalidPrice')}</p> : null}
         </>} />
       <SessionDiscountField index={index} disabled={disabled} />
+      <SessionPerformersField scope={scope} index={index} occurredAt={occurredAt} disabled={disabled} />
       <Button type="button" variant="outline" disabled={fields.length <= SESSION_DRAFT_MIN}
         onClick={() => remove(index)}>{t(locale, 'serviceSessions.removeLine')}</Button>
       </fieldset>
