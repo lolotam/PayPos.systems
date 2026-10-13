@@ -29,7 +29,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
 | Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
 | Review layer 2 | a fresh Claude reviewer (new subagent, no prior context); the confirm round uses another fresh one | no |
-| Review layer 3 | the Codex GitHub bot (`@codex review` comment); Codex CLI when the bot is out of quota | no |
+| Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
 | Fixer | the implementer, resuming **its own Grok session** with only the findings (§4); the orchestrator only for one-line fixes | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
@@ -70,7 +70,7 @@ moment it happens, in the owner report. Never switch to a metered provider witho
 | 6 | Database review — **mandatory** when the PR touches `packages/db/**` (schema, migration, RLS, grants, seed) | Codex astra 6 medium | no open P0/P1 (§5 checklist) |
 | 7 | Review layer 1 | Codex astra 6 medium | findings fixed by Grok in its resumed session, or deferred per §2 |
 | 8 | Review layer 2, then a confirm round | two fresh Claude reviewers | every earlier finding confirmed fixed |
-| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | layer 3 answered |
+| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed, and every inline finding is fixed or deferred per §2 |
 | 10 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
 | 11 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
 | 12 | Deploy to staging (§6) | orchestrator | `/ready` answers ready on the new SHA |
@@ -78,7 +78,10 @@ moment it happens, in the owner report. Never switch to a metered provider witho
 | 14 | Journey doc `docs/journey/NN-<name>.md` (Arabic + English) in its own docs PR | orchestrator | merged after Codex review |
 | 15 | Owner report (§7) | orchestrator | sent |
 
-After **every** push, comment `@codex review` again — the bot reviews automatically only when a PR is opened.
+After **every** push, comment `@codex review` again — the Codex bot reviews automatically only when a PR is opened;
+the MergePilot panel reviews each pushed commit by itself. Read every result before merging (owner, 2026-10-14):
+`gh api repos/lolotam/PayPos.systems/pulls/<n>/reviews` (one review per bot run and commit) and
+`gh api repos/lolotam/PayPos.systems/pulls/<n>/comments` (inline findings, "Found by: …" names the MergePilot bots).
 
 ---
 
