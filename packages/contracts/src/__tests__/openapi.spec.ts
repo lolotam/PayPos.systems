@@ -4,6 +4,7 @@ import committed from '../../openapi/openapi.json' with { type: 'json' };
 import { buildOpenApiDocument } from '../openapi.js';
 
 const expectedSchemas = [
+  'SessionPerformerOptionsQuery', 'SessionPerformerOption', 'SessionPerformerOptionPage',
   'SessionServiceOptionsQuery', 'SessionServiceOption', 'SessionServiceOptionPage',
   'RecordingContext', 'RecordingContextQuery', 'RecordingDiscountLimit',
   'SessionMoney', 'SessionPerformerInput', 'SessionLineInput', 'RecordServiceSessionInput',

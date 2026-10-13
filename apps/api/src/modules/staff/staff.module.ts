@@ -95,7 +95,6 @@ import { AttendanceExceptionsReadController } from './http/attendance-exceptions
 import { AttendanceEmployeesController } from './http/attendance-employees.controller.ts';
 import { AttendanceCapabilitiesController } from './http/attendance-capabilities.controller.ts';
 import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';
-
 export const staffControllers = [
   AttendanceCapabilitiesController,
   AttendanceMonthlyReportController,

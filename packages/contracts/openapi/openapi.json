@@ -9484,6 +9484,139 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options": {
+      "get": {
+        "operationId": "getServiceSessionPerformerOptions",
+        "description": "Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE \"und-x-icu\", then id. Opaque base64url cursor contains the exact displayed name, id, lang, hash of normalized q, canonical requested_at, first-page effective_at and hash of company/business/branch scope. Later pages keep the requested instant unchanged and reuse effective_at after rechecking the recording window; malformed or mismatched cursors return 400. Case-insensitive search matches either name. No private HR fields or wider staff permission.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "occurred_at",
+            "required": true,
+            "description": "From the first of the previous month in business timezone through injected server now + 120 seconds. Tolerated future values normalize to server now.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ar",
+                "en"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal; NUL is rejected with 400.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Opaque base64url cursor from the previous page; keep lang, q and requested occurred_at unchanged. The first-page effective instant remains fixed.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Limited dated performer page; warnings never exclude eligible employees.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPerformerOptionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query/cursor binding, SESSION_TIME_IN_FUTURE or SESSION_TIME_TOO_OLD.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform scope/permission refusal or disabled orders feature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication/readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/service-options": {
       "get": {
         "operationId": "getServiceSessionServiceOptions",
@@ -18698,6 +18831,105 @@
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "SessionPerformerOptionsQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "lang": {
+            "type": "string",
+            "enum": [
+              "ar",
+              "en"
+            ]
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "description": "POST window: from the first of the previous month in business timezone through server now + 120 seconds; tolerated future values normalize to server now."
+          },
+          "q": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "required": [
+          "lang",
+          "occurred_at"
+        ],
+        "additionalProperties": false
+      },
+      "SessionPerformerOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "not_clocked_in_warning": {
+            "type": "boolean"
+          },
+          "approved_leave_warning": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name_ar",
+          "name_en",
+          "not_clocked_in_warning",
+          "approved_leave_warning"
+        ],
+        "additionalProperties": false
+      },
+      "SessionPerformerOptionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionPerformerOption"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         },
         "required": [
