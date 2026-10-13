@@ -1,10 +1,13 @@
 'use client';
 import { customer, findOrCreateCustomerInput, type FindOrCreateCustomerInput } from '@pospay/contracts';
+import { useLayoutEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 
 export function useSessionCustomer(companyId: string, branchId: string, userId: string) {
-  return useMutation({
+  const epoch = useRef(0);
+  useLayoutEffect(() => { epoch.current += 1; return () => { epoch.current += 1; }; }, [companyId, branchId, userId]);
+  const mutation = useMutation({
     mutationKey: ['session-customer', companyId, branchId, userId],
     retry: false,
     gcTime: 0,
@@ -17,4 +20,5 @@ export function useSessionCustomer(companyId: string, branchId: string, userId: 
       return customer.parse(result.data);
     },
   });
+  return { ...mutation, captureScope: () => epoch.current, isCurrentScope: (captured: number) => epoch.current === captured };
 }

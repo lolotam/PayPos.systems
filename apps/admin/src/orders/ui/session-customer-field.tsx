@@ -1,9 +1,9 @@
-﻿'use client';
+'use client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { findOrCreateCustomerInput, type Customer, type FindOrCreateCustomerInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Card, Input, Label } from '@pospay/ui';
-import { useId } from 'react';
+import { useId, useLayoutEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -11,12 +11,13 @@ import { useSessionCustomer } from '../api/use-session-customer';
 
 export type SessionCustomerSelection = Pick<Customer, 'id' | 'name' | 'phone'>;
 
-export function SessionCustomerField({ companyId, branchId, userId, value, onChange, onBlur, disabled = false }: {
+type SessionCustomerFieldProps = {
   companyId: string; branchId: string; userId: string;
   value: SessionCustomerSelection | null;
   onChange: (value: SessionCustomerSelection | null) => void;
   onBlur?: () => void; disabled?: boolean;
-}) {
+};
+export function SessionCustomerField({ companyId, branchId, userId, value, onChange, onBlur, disabled = false }: SessionCustomerFieldProps) {
   const locale = useLocale();
   const prefix = useId();
   const mutation = useSessionCustomer(companyId, branchId, userId);
@@ -24,15 +25,25 @@ export function SessionCustomerField({ companyId, branchId, userId, value, onCha
     resolver: zodResolver(findOrCreateCustomerInput),
     defaultValues: { name: value?.name ?? '', phone: { calling_code: '', national_number: '' }, locale },
   });
+  const scope = JSON.stringify([companyId, branchId, userId]);
+  const previousScope = useRef(scope);
+  const { reset: resetEntry } = form; const { reset: resetMutation } = mutation;
+  useLayoutEffect(() => {
+    if (previousScope.current === scope) return;
+    previousScope.current = scope; onChange(null);
+    resetEntry({ name: '', phone: { calling_code: '', national_number: '' }, locale }); resetMutation();
+  }, [scope, locale, onChange, resetEntry, resetMutation]);
   const invalidate = () => { onChange(null); mutation.reset(); };
-  const resolve = form.handleSubmit(async (input) => {
+  const resolve = () => { const captured = mutation.captureScope(); void form.handleSubmit(async (input) => {
+    if (!mutation.isCurrentScope(captured)) return;
     try {
       const saved = await mutation.mutateAsync({ ...input, locale });
+      if (!mutation.isCurrentScope(captured)) return;
       onChange({ id: saved.id, name: saved.name, phone: saved.phone });
       form.reset({ name: saved.name, phone: { calling_code: '', national_number: '' }, locale });
       mutation.reset();
     } catch { return; }
-  });
+  })(); };
   const invalid = Object.keys(form.formState.errors).length > 0;
   return <fieldset disabled={disabled || mutation.isPending || form.formState.isSubmitting} onBlur={onBlur} className="flex flex-col gap-3 text-start">
     <legend>{t(locale, 'serviceSessions.customer')}</legend>
@@ -57,4 +68,3 @@ export function SessionCustomerField({ companyId, branchId, userId, value, onCha
     </Card> : null}
   </fieldset>;
 }
-

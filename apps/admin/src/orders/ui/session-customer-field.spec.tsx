@@ -1,4 +1,4 @@
-﻿import { useEffect } from 'react';
+import { useEffect } from 'react';
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -12,12 +12,12 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale
 const id = '01920000-0000-7000-8000-0000000000a2';
 const saved = { id, name: 'Canonical synthetic customer', locale: 'ar', opted_out: false, phone: '***001' };
 let selection: SessionCustomerSelection | null;
-function Harness({ disabled = false }: { disabled?: boolean }) {
+function Harness({ disabled = false, companyId = 'company', branchId = 'branch', userId = 'actor' }: { disabled?: boolean; companyId?: string; branchId?: string; userId?: string }) {
   const form = useForm<{ customer: SessionCustomerSelection | null }>({ defaultValues: { customer: null } });
   const watched = useWatch({ control: form.control, name: 'customer' });
   useEffect(() => { selection = watched; }, [watched]);
   return <form><Controller control={form.control} name="customer" render={({ field }) =>
-    <SessionCustomerField companyId="company" branchId="branch" userId="actor" value={field.value}
+    <SessionCustomerField companyId={companyId} branchId={branchId} userId={userId} value={field.value}
       onChange={field.onChange} onBlur={field.onBlur} disabled={disabled} />
   } /></form>;
 }
@@ -80,3 +80,37 @@ it('supports the caller disabling find-or-create while offline', () => {
 });
 
 
+
+function scopedMount() {
+  const client = new QueryClient();
+  const host = (scope = {}) => <QueryClientProvider client={client}><Harness {...scope} /></QueryClientProvider>;
+  const view = render(host());
+  return { ...view, changeScope: (scope: object) => view.rerender(host(scope)), client };
+}
+it.each(['branchId', 'companyId', 'userId'] as const)('drops a pending customer response and purges entry when %s changes', async (key) => {
+  let finish!: (response: { data: typeof saved }) => void;
+  state.post.mockImplementationOnce(() => new Promise((done) => { finish = done; }));
+  const view = scopedMount(); fill(); resolve();
+  await waitFor(() => expect(finish).toBeDefined());
+  view.changeScope({ [key]: 'replacement' });
+  for (const field of ['name', 'callingCode', 'phone'] as const) {
+    expect((screen.getByLabelText(t(state.locale, `serviceSessions.${field}`)) as HTMLInputElement).value).toBe('');
+  }
+  await act(async () => { finish({ data: saved }); });
+  expect(selection).toBeNull(); expect(screen.queryByRole('status')).toBeNull();
+  await waitFor(() => expect(view.client.getMutationCache().getAll()).toHaveLength(0));
+});
+it.each(['branchId', 'companyId', 'userId'] as const)('purges an existing customer selection when %s changes', async (key) => {
+  state.post.mockResolvedValueOnce({ data: saved }); const view = scopedMount(); fill(); resolve();
+  await screen.findByRole('status'); view.changeScope({ [key]: 'replacement' });
+  expect(selection).toBeNull(); expect(screen.queryByRole('status')).toBeNull();
+  expect((screen.getByLabelText(t(state.locale, 'serviceSessions.name')) as HTMLInputElement).value).toBe('');
+});
+it('does not select a customer after the field unmounts', async () => {
+  let finish!: (response: { data: typeof saved }) => void;
+  state.post.mockImplementationOnce(() => new Promise((done) => { finish = done; }));
+  const onChange = vi.fn();
+  const view = render(<QueryClientProvider client={new QueryClient()}><SessionCustomerField companyId='company' branchId='branch' userId='actor' value={null} onChange={onChange} /></QueryClientProvider>);
+  fill(); resolve(); await waitFor(() => expect(finish).toBeDefined()); onChange.mockClear();
+  view.unmount(); await act(async () => { finish({ data: saved }); }); expect(onChange).not.toHaveBeenCalled();
+});
