@@ -9542,7 +9542,7 @@
             "in": "query",
             "name": "q",
             "required": false,
-            "description": "Trimmed, literal case-insensitive substring of name_ar or name_en.",
+            "description": "Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal.",
             "schema": {
               "type": "string",
               "minLength": 1,

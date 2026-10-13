@@ -12,7 +12,7 @@ export const serviceSessionFormPaths = {
         ...['businessId', 'branchId'].map((name) => ({ in: 'path', name, required: true, schema: { type: 'string', format: 'uuid' } })),
         { in: 'query', name: 'occurred_at', required: true, description: 'From the first of the previous month in business timezone through injected server now + 120 seconds. Tolerated future values normalize to server now.', schema: { type: 'string', format: 'date-time' } },
         { in: 'query', name: 'lang', required: true, schema: { type: 'string', enum: ['ar', 'en'] } },
-        { in: 'query', name: 'q', required: false, description: 'Trimmed, literal case-insensitive substring of name_ar or name_en.', schema: { type: 'string', minLength: 1, maxLength: 50 } },
+        { in: 'query', name: 'q', required: false, description: 'Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal.', schema: { type: 'string', minLength: 1, maxLength: 50 } },
         { in: 'query', name: 'cursor', required: false, description: 'Opaque base64url sort-key/id cursor from the previous page; keep lang and q unchanged.', schema: { type: 'string', minLength: 1, maxLength: 4096, pattern: '^[A-Za-z0-9_-]+$' } },
         { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
       ],

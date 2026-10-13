@@ -354,7 +354,9 @@ the exact public symbol/path read on its existing staff edge. SS-Q15 (Waleed, 20
 trimmed 1–50-character case-insensitive literal name search. The reviewed ordering decision (PR 187) requires
 lang=ar|en and global displayed-name,id keyset pages, default 20/max 100. The name uses
 coalesce(name_<lang>,name_<other>) COLLATE "und-x-icu" for both sorting and keyset comparison, without lowercasing.
-Canonical base64url JSON carries the exact displayed name, id, lang and SHA-256 of trimmed/lowercased q;
+Search folds both names and trimmed q with PostgreSQL lower(... COLLATE "und-x-icu") and LIKE;
+percent, underscore and backslash are escaped so search remains a literal substring.
+Canonical base64url JSON carries the exact displayed name, id, lang and SHA-256 of the same ICU-folded q;
 strict payload/encoding/binding checks refuse malformed or mismatched cursors with 400.
 Orders injects the POST sessionTime rule into the read handler: the first of the previous month in business
 timezone is inclusive; over 120 seconds ahead refuses with 400 and POST's time code. Tolerated future input

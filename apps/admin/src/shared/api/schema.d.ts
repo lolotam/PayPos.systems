@@ -9793,7 +9793,7 @@ export interface operations {
                 /** @description From the first of the previous month in business timezone through injected server now + 120 seconds. Tolerated future values normalize to server now. */
                 occurred_at: string;
                 lang: "ar" | "en";
-                /** @description Trimmed, literal case-insensitive substring of name_ar or name_en. */
+                /** @description Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal. */
                 q?: string;
                 /** @description Opaque base64url sort-key/id cursor from the previous page; keep lang and q unchanged. */
                 cursor?: string;

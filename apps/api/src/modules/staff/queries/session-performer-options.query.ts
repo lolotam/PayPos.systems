@@ -3,16 +3,23 @@ import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 
-function searchHash(query: SessionPerformerOptionsQuery) {
-  return createHash('sha256').update((query.q ?? '').trim().toLowerCase()).digest('hex');
+function searchHash(normalizedQ: string) {
+  return createHash('sha256').update(normalizedQ).digest('hex');
 }
 
-function decodeCursor(query: SessionPerformerOptionsQuery) {
+async function normalizeSearch(tx: Tx, query: SessionPerformerOptionsQuery) {
+  if (query.q === undefined) return '';
+  const [row] = await tx.execute<{ normalized_q: string }>(sql`SELECT lower(${query.q.trim()}::text COLLATE "und-x-icu") AS normalized_q`);
+  if (row === undefined) throw new Error('Session performer search normalization missing');
+  return row.normalized_q;
+}
+
+function decodeCursor(query: SessionPerformerOptionsQuery, normalizedQ: string) {
   if (query.cursor === undefined) return null;
   try {
     const cursor = sessionPerformerCursorData.parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
     if (Buffer.from(JSON.stringify(cursor)).toString('base64url') !== query.cursor ||
-      cursor.lang !== query.lang || cursor.q_hash !== searchHash(query)) throw new Error();
+      cursor.lang !== query.lang || cursor.q_hash !== searchHash(normalizedQ)) throw new Error();
     return cursor;
   } catch { throw new RangeError('SESSION_PERFORMER_CURSOR_INVALID'); }
 }
@@ -30,11 +37,12 @@ export function sessionPerformerWarningColumns(branchId: string, day: string, oc
 
 // منتقي الموظفات يعرض الأهلية التاريخية والأسماء والتنبيهين فقط؛ فلاتر الأهلية تسبق حد الصفحة.
 export function sessionPerformerOptionsStatement(companyId: string, businessId: string, branchId: string,
-  day: string, query: SessionPerformerOptionsQuery) {
+  day: string, query: SessionPerformerOptionsQuery, normalizedQ: string) {
   const name = query.lang === 'ar'
     ? sql`coalesce(e.name_ar,e.name_en) COLLATE "und-x-icu"`
     : sql`coalesce(e.name_en,e.name_ar) COLLATE "und-x-icu"`;
-  const cursor = decodeCursor(query);
+  const cursor = decodeCursor(query, normalizedQ);
+  const escapedQ = query.q?.trim().replace(/[\\%_]/g, '\\$&');
   const after = cursor === null ? sql``
     : sql`AND (${name},e.id)>(${cursor.key}::text COLLATE "und-x-icu",${cursor.id}::uuid)`;
   return sql`SELECT e.id,e.name_ar,e.name_en,${name} AS sort_key,${sessionPerformerWarningColumns(branchId, day, new Date(query.occurred_at))}
@@ -43,16 +51,18 @@ export function sessionPerformerOptionsStatement(companyId: string, businessId: 
       AND EXISTS(SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.business_id=e.business_id
         AND eb.employee_id=e.id AND eb.branch_id=${branchId} AND eb."from"<=${day}::date AND (eb."to" IS NULL OR eb."to">${day}::date))
       ${after}
-      ${query.q === undefined ? sql`` : sql`AND (strpos(lower(e.name_ar),lower(${query.q}))>0 OR strpos(lower(e.name_en),lower(${query.q}))>0)`}
+      ${escapedQ === undefined ? sql`` : sql`AND (lower(e.name_ar COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'}
+        OR lower(e.name_en COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'})`}
     ORDER BY ${name} ASC,e.id ASC LIMIT ${query.limit + 1}`;
 }
 export async function sessionPerformerOptionsPage(tx: Tx, companyId: string, businessId: string, branchId: string,
   day: string, query: SessionPerformerOptionsQuery) {
+  const normalizedQ = await normalizeSearch(tx, query);
   const rows = await tx.execute<{ id: string; name_ar: string | null; name_en: string; sort_key: string; clocked_in: boolean; approved_leave: boolean }>(
-    sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query));
+    sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query, normalizedQ));
   const items = rows.slice(0, query.limit).map((r) => ({ id: r.id, name_ar: r.name_ar, name_en: r.name_en,
     not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave }));
   const last = rows[items.length - 1];
   return sessionPerformerOptionPage.parse({ items, next_cursor: rows.length > query.limit && last !== undefined
-    ? Buffer.from(JSON.stringify({ key: last.sort_key, id: last.id, lang: query.lang, q_hash: searchHash(query) })).toString('base64url') : null });
+    ? Buffer.from(JSON.stringify({ key: last.sort_key, id: last.id, lang: query.lang, q_hash: searchHash(normalizedQ) })).toString('base64url') : null });
 }

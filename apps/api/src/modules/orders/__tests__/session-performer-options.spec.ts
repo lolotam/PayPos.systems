@@ -77,6 +77,25 @@ it('binds cursors to language and normalized search, refusing changed or removed
   expect(sessionPerformerOptionPage.parse((await get(`lang=en&q=ZULU&cursor=${page.next_cursor}`)).body).items.map((r) => r.id))
     .toEqual([f.employees[1]]);
 });
+it('folds non-ASCII search with ICU and pages literal percent, underscore and backslash matches', async () => {
+  await f.h.owner`UPDATE employees SET name_en=${'ÉLÈNE%_\\'} WHERE company_id=${f.company} AND id=${must(f.employees[0])}`;
+  await f.h.owner`UPDATE employees SET name_ar=${'ÉLÈNE%_\\'} WHERE company_id=${f.company} AND id=${must(f.employees[1])}`;
+  try {
+    for (const lang of ['ar', 'en'] as const) for (const q of ['élè', '%', '_', '\\', '%_\\']) {
+      const order = lang === 'ar' ? [f.employees[1], f.employees[0]] : f.employees.slice(0, 2);
+      const first = await get(`lang=${lang}&limit=1&q=${encodeURIComponent(q)}`); expect(first.status).toBe(200);
+      const page = sessionPerformerOptionPage.parse(first.body); expect(page.items.map((r) => r.id)).toEqual(order.slice(0, 1));
+      const payload = JSON.parse(Buffer.from(must(page.next_cursor), 'base64url').toString('utf8'));
+      const normalized = await f.db.withTenant(f.company, (tx) => tx.execute<{ value: string }>(sql`SELECT lower(${q}::text COLLATE "und-x-icu") AS value`));
+      expect(payload.q_hash).toBe(createHash('sha256').update(must(normalized[0]).value).digest('hex'));
+      const last = await get(`lang=${lang}&limit=1&q=${encodeURIComponent(q.toUpperCase())}&cursor=${page.next_cursor}`); expect(last.status).toBe(200);
+      expect(sessionPerformerOptionPage.parse(last.body)).toMatchObject({ items: [{ id: order[1] }], next_cursor: null });
+    }
+  } finally {
+    await f.h.owner`UPDATE employees SET name_en='ZULU' WHERE company_id=${f.company} AND id=${must(f.employees[0])}`;
+    await f.h.owner`UPDATE employees SET name_ar='باء' WHERE company_id=${f.company} AND id=${must(f.employees[1])}`;
+  }
+});
 it('uses the POST window in business timezone, accepts both edges and normalizes future tolerance', async () => {
   const now = new Date('2026-10-31T21:30:00.000Z');
   const at = (occurredAt: string) => f.h.send('GET', `${f.base}/performer-options?lang=en&occurred_at=${occurredAt}`, { cookie: f.cookie, company: f.company });
