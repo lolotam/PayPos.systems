@@ -208,7 +208,9 @@ TODO. Never bundle the twelve PRs into one 35c PR. No speculative day-list integ
   reception screen (existing append route); once the screen is closed it is a new visit.
 - SS-Q15 = 1: service and performer pickers are alphabetical in the UI language with a search box. The option
   GETs take `lang` (`ar`|`en`, the UI language) and an optional `q` (1–50 chars, case-insensitive on name_ar/name_en)
-  and page in **name order**: `ORDER BY lower(coalesce(name_<lang>, name_<other>)), id` (the displayed fallback, because name_ar is
+  and page in **name order**: `ORDER BY coalesce(name_<lang>, name_<other>) COLLATE "und-x-icu", id` (ICU collation: the database
+  default is C/code-point order, so `lower()` alone does not alphabetize Arabic or accented names; the keyset
+  comparison uses the same collation) (the displayed fallback, because name_ar is
   nullable) with an opaque keyset cursor encoding that same key and id, so the
   list is globally alphabetical across pages (never a per-page client sort). **35c-3b** (new, S): switch
   `/service-options` to this ordering and add `lang`/`q` (contract + query + tests, ~150–250 lines), merged before
