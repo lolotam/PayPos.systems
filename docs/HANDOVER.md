@@ -131,7 +131,8 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
 ### 4.1 Next action
 
 - Row **35** `record-service-session`, reception screen **35c** (15 PRs: 35c-1…13, 35c-3b, 35c-11b): 35c-1…11 and
-  35c-3b are merged (PR #184–#200).
+  35c-3b are merged (PR #184–#200). The 35c PRs are sub-tasks of row 35, so the Phase 1 row counts below stay as
+  they are.
   Next: **35c-11b** (the two correctness findings of issue #202), then **35c-12** (publish the full route +
   Playwright), then **35c-13** (the SS-Q18 exit, below).
 - Then **35d** (edit price/discount after saving; batch 17 answered) after issue #189 declares its bell event.
