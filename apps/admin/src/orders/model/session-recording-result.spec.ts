@@ -266,3 +266,8 @@ it('restores the attempt header when a null journal cleared the pending visit be
   expect(complete.drafts.occurred_at).toBe(occurredAt);
   expect(sessionResultCommand(complete, [inputLine])).toEqual({ kind: 'append', sessionId: id(12), body: { lines: [inputLine], recorder_membership_id: membership } });
 });
+it('a new pending attempt that cannot be persisted on a saved visit reports NOT_PERSISTED, not the old result', () => {
+  const complete = transition(initial, { type: 'RECORDED', attempt: recordAttempt, response: completeResponse });
+  const result = transition(complete, { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: recordAttempt }, persistenceWarning: 'NOT_PERSISTED' });
+  expect(result.feedback).toEqual({ kind: 'NOT_PERSISTED' }); expect(result.session).toBe(complete.session); expect(sessionResultFrozen(result)).toBe(true);
+});

@@ -119,7 +119,7 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
     const entry = event.entry;
     const preserveVisit = !!event.persistenceWarning && !!state.sessionId;
     if (preserveVisit && entry?.state === 'PENDING' && (entry.attempt.kind === 'record' || entry.attempt.sessionId !== state.sessionId))
-      return { ...state, persistenceWarning: event.persistenceWarning ?? null, feedback: warnedFeedback(state) };
+      return { ...state, persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: 'NOT_PERSISTED' } };
     const clearedPendingVisit = !entry && !event.persistenceWarning && journalDependent(state);
     if (!preserveVisit && (clearedPendingVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId))) state = emptySessionRecordingResult(state.customer);
     state = { ...state, persistenceWarning: event.persistenceWarning ?? null };
