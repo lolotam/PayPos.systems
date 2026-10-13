@@ -11,33 +11,36 @@ function searchHash(normalizedQ: string) {
   return createHash('sha256').update(normalizedQ).digest('hex');
 }
 
-function readCursor(query: SessionPerformerOptionsQuery, requestedAt: string) {
+function readCursor(query: SessionPerformerOptionsQuery, requestedAt: string, scopeHash: string) {
   if (query.cursor === undefined) return null;
   try {
     const cursor = sessionPerformerCursorData.parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
     if (Buffer.from(JSON.stringify(cursor)).toString('base64url') !== query.cursor ||
-      cursor.lang !== query.lang || cursor.requested_at !== requestedAt ||
+      cursor.lang !== query.lang || cursor.requested_at !== requestedAt || cursor.scope_hash !== scopeHash ||
       cursor.effective_at !== new Date(cursor.effective_at).toISOString()) throw new Error();
     return cursor;
   } catch { throw new RangeError('SESSION_PERFORMER_CURSOR_INVALID'); }
 }
 
 export const sessionPerformerCursorCodec = {
-  decode(query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string) {
-    const cursor = readCursor(query, requestedAt);
+  scope(companyId: string, businessId: string, branchId: string) {
+    return createHash('sha256').update(JSON.stringify([companyId.toLowerCase(), businessId.toLowerCase(), branchId.toLowerCase()])).digest('hex');
+  },
+  decode(query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string) {
+    const cursor = readCursor(query, requestedAt, scopeHash);
     if (cursor !== null && (cursor.q_hash !== searchHash(normalizedQ) || cursor.effective_at !== query.occurred_at))
       throw new RangeError('SESSION_PERFORMER_CURSOR_INVALID');
     return cursor;
   },
-  encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string) {
+  encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string) {
     return Buffer.from(JSON.stringify({ key, id, lang: query.lang, q_hash: searchHash(normalizedQ),
-      requested_at: requestedAt, effective_at: query.occurred_at })).toString('base64url');
+      requested_at: requestedAt, effective_at: query.occurred_at, scope_hash: scopeHash })).toString('base64url');
   },
 };
 
 export function createSessionReaders(reads: {
   page(tx: Tx, companyId: string, businessId: string, branchId: string, day: string, query: SessionPerformerOptionsQuery,
-    codec: typeof sessionPerformerCursorCodec, requestedAt: string): Promise<SessionPerformerOptionPage>;
+    codec: typeof sessionPerformerCursorCodec, requestedAt: string, scopeHash: string): Promise<SessionPerformerOptionPage>;
   warningColumns(branchId: string, day: string, occurredAt: Date): SQL;
 }) {
   return {
@@ -50,12 +53,13 @@ export function createSessionReaders(reads: {
       const place = await schedulingContext(tx, companyId, businessId, branchId);
       if (place === null || !('timezone' in place)) return { items: [], next_cursor: null };
       const requestedAt = new Date(query.occurred_at).toISOString();
-      const cursor = readCursor(query, requestedAt);
+      const scopeHash = sessionPerformerCursorCodec.scope(companyId, businessId, branchId);
+      const cursor = readCursor(query, requestedAt, scopeHash);
       const effectiveAt = cursor?.effective_at ?? normalizeTime(requestedAt);
       // تثبيت لحظة الصفحة الأولى يمنع تبدّل الإجازة الجزئية؛ نتيجة تطبيع الساعة الجديدة لا تُستخدم بعد فحص النافذة.
       if (cursor !== null) normalizeTime(effectiveAt);
       const day = attendanceWorkingDate(new Date(effectiveAt), place.timezone);
-      return reads.page(tx, companyId, businessId, branchId, day, { ...query, occurred_at: effectiveAt }, sessionPerformerCursorCodec, requestedAt);
+      return reads.page(tx, companyId, businessId, branchId, day, { ...query, occurred_at: effectiveAt }, sessionPerformerCursorCodec, requestedAt, scopeHash);
     },
   };
 }

@@ -25,7 +25,8 @@ it('pages every employee lacking name_ar using the displayed English fallback ke
     const result = await page(next); found.push(...result.items.map((r) => r.id));
     if (i < 3) expect(JSON.parse(Buffer.from(must(result.next_cursor), 'base64url').toString('utf8')))
       .toEqual({ key: `Synthetic employee ${i}`, id: f.employees[i], lang: 'ar', q_hash: createHash('sha256').update('').digest('hex'),
-        requested_at: new Date(occurred_at).toISOString(), effective_at: new Date(occurred_at).toISOString() });
+        requested_at: new Date(occurred_at).toISOString(), effective_at: new Date(occurred_at).toISOString(),
+        scope_hash: sessionPerformerCursorCodec.scope(f.company, f.business, f.branch) });
     else expect(result.next_cursor).toBeNull();
     next = result.next_cursor ?? undefined;
   }
@@ -123,11 +124,12 @@ it('counts OPEN/CLOSED/MISSED_OUT including MANUAL; void, other-day and other-br
 it('EXPLAIN ANALYZE uses existing employee/link/clock/leave indexes for exact searched and cursor SQL', async () => {
   await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    const scopeHash = sessionPerformerCursorCodec.scope(f.company, f.business, f.branch);
     for (const lang of ['ar', 'en'] as const) for (const cursor of [undefined, Buffer.from(JSON.stringify({ key: 'Synthetic employee 0', id: f.employees[0],
       lang, q_hash: createHash('sha256').update('synthetic').digest('hex'),
-      requested_at: new Date(occurred_at).toISOString(), effective_at: new Date(occurred_at).toISOString() })).toString('base64url')]) {
+      requested_at: new Date(occurred_at).toISOString(), effective_at: new Date(occurred_at).toISOString(), scope_hash: scopeHash })).toString('base64url')]) {
       const query = { occurred_at: new Date(occurred_at).toISOString(), lang, q: 'synthetic', limit: 2, ...(cursor === undefined ? {} : { cursor }) };
-      const plan = JSON.stringify(await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sessionPerformerOptionsStatement(f.company, f.business, f.branch, '2026-10-13', query, sessionPerformerCursorCodec.decode(query, 'synthetic', query.occurred_at))}`));
+      const plan = JSON.stringify(await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sessionPerformerOptionsStatement(f.company, f.business, f.branch, '2026-10-13', query, sessionPerformerCursorCodec.decode(query, 'synthetic', query.occurred_at, scopeHash))}`));
       for (const name of ['employees_', 'employee_branches_', 'attendance_sessions_', 'leave_requests_']) expect(plan).toContain(name);
       expect(plan).not.toContain('Seq Scan');
     }

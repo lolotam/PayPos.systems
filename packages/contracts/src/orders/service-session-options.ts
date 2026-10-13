@@ -24,12 +24,13 @@ export const sessionPerformerCursorData = z.strictObject({
   key: z.string().max(1024).refine((value) => !value.includes('\u0000')), id: id.toLowerCase(),
   lang: z.enum(['ar', 'en']), q_hash: z.string().regex(/^[a-f0-9]{64}$/),
   requested_at: timestamp, effective_at: timestamp,
+  scope_hash: z.string().regex(/^[a-f0-9]{64}$/),
 });
 export const sessionPerformerOptionsQuery = sessionServiceOptionsQuery.extend({
   cursor: performerCursor.optional(),
   lang: z.enum(['ar', 'en']),
   occurred_at: timestamp.describe('POST window: from the first of the previous month in business timezone through server now + 120 seconds; tolerated future values normalize to server now.'),
-  q: z.string().trim().min(1).max(50).optional(),
+  q: z.string().trim().min(1).max(50).refine((value) => !value.includes('\u0000')).optional(),
 }).meta({ id: 'SessionPerformerOptionsQuery' });
 export const sessionPerformerOption = z.strictObject({
   id: id.toLowerCase(), name_ar: nameAr.nullable(), name_en: nameEn,

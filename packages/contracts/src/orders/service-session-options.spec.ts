@@ -14,12 +14,13 @@ it('documents dated performer search and stable cursor bounds under recording au
   expect(route.parameters.find((p) => p.name === 'q')?.schema).toEqual({ type: 'string', minLength: 1, maxLength: 50 });
   expect(route.responses['200'].content['application/json'].schema.$ref).toBe('#/components/schemas/SessionPerformerOptionPage');
 });
-it('requires strict cursor language, search-hash and requested/effective instants without carrying search text', () => {
+it('requires strict cursor language, search/scope hashes and requested/effective instants without carrying search text', () => {
   const payload = { key: 'Displayed name', id, lang: 'ar', q_hash: 'a'.repeat(64),
-    requested_at: '2026-10-14T08:00:00.000Z', effective_at: '2026-10-14T08:00:00.000Z' };
+    requested_at: '2026-10-14T08:00:00.000Z', effective_at: '2026-10-14T08:00:00.000Z', scope_hash: 'b'.repeat(64) };
   expect(sessionPerformerCursorData.parse(payload)).toEqual(payload);
   for (const change of [{ lang: undefined }, { lang: 'fr' }, { q_hash: undefined }, { q_hash: 'bad' }, { q: 'private search' },
-    { requested_at: undefined }, { effective_at: undefined }, { requested_at: 'bad' }, { effective_at: '2026-10-14' }, { working_date: '2026-10-14' }])
+    { requested_at: undefined }, { effective_at: undefined }, { requested_at: 'bad' }, { effective_at: '2026-10-14' }, { working_date: '2026-10-14' },
+    { scope_hash: undefined }, { scope_hash: 'bad' }])
     expect(sessionPerformerCursorData.safeParse({ ...payload, ...change }).success).toBe(false);
 });
 it('requires occurred time, trims bounded search and rejects private performer fields', () => {
@@ -28,7 +29,8 @@ it('requires occurred time, trims bounded search and rejects private performer f
   expect(sessionPerformerOptionsQuery.parse({ occurred_at, lang: 'en', limit: '100' }).limit).toBe(100);
   for (const query of [{}, { occurred_at: 'bad', lang: 'en' }, { occurred_at, lang: 'en', q: '' }, { occurred_at, lang: 'en', q: ' ' },
     { occurred_at, lang: 'en', q: 'a'.repeat(51) }, { occurred_at, lang: 'en', limit: 101 }, { occurred_at, lang: 'en', cursor: 'bad=' },
-    { occurred_at, lang: 'en', user_id: id }, { occurred_at }, { occurred_at, lang: 'AR' }])
+    { occurred_at, lang: 'en', user_id: id }, { occurred_at }, { occurred_at, lang: 'AR' },
+    { occurred_at, lang: 'en', q: '\u0000' }, { occurred_at, lang: 'en', q: 'élè\u0000' }])
     expect(sessionPerformerOptionsQuery.safeParse(query).success).toBe(false);
   const item = { id, name_ar: null, name_en: 'Synthetic employee', not_clocked_in_warning: true, approved_leave_warning: false };
   expect(sessionPerformerOptionPage.parse({ items: [item], next_cursor: null }).items).toEqual([item]);

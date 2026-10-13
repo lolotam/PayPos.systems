@@ -357,10 +357,12 @@ coalesce(name_<lang>,name_<other>) COLLATE "und-x-icu" for both sorting and keys
 Search folds both names and trimmed q with PostgreSQL lower(... COLLATE "und-x-icu") and LIKE;
 percent, underscore and backslash are escaped so search remains a literal substring.
 Canonical base64url JSON carries the exact displayed name, id, lang, SHA-256 of the same ICU-folded q,
-requested_at (canonical client instant) and effective_at (the first page's normalized instant).
+requested_at (canonical client instant), effective_at (the first page's normalized instant) and scope_hash
+(SHA-256 of the canonical company/business/branch UUID tuple). Cross-scope replay refuses with 400.
 Later pages require the same requested instant and retain effective_at for eligibility and partial-leave facts;
 the branch civil date derives from effective_at instead of being carried separately.
 strict payload/encoding/binding checks refuse malformed or mismatched cursors with 400.
+The performer q contract rejects NUL before PostgreSQL text normalization, returning 400.
 Persistence owns the SHA-256/base64url cursor codec and injects it into the query; the query imports no Node APIs.
 Orders injects the POST sessionTime rule through the read handler into the staff reader: the first of the previous month in business
 timezone is inclusive; over 120 seconds ahead refuses with 400 and POST's time code. Tolerated future input

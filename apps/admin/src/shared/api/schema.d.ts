@@ -1509,7 +1509,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE "und-x-icu", then id. Opaque base64url cursor contains the exact displayed name, id, lang, hash of normalized q, canonical requested_at and first-page effective_at. Later pages keep the requested instant unchanged and reuse effective_at after rechecking the recording window; malformed or mismatched cursors return 400. Case-insensitive search matches either name. No private HR fields or wider staff permission. */
+        /** @description Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE "und-x-icu", then id. Opaque base64url cursor contains the exact displayed name, id, lang, hash of normalized q, canonical requested_at, first-page effective_at and hash of company/business/branch scope. Later pages keep the requested instant unchanged and reuse effective_at after rechecking the recording window; malformed or mismatched cursors return 400. Case-insensitive search matches either name. No private HR fields or wider staff permission. */
         get: operations["getServiceSessionPerformerOptions"];
         put?: never;
         post?: never;
@@ -9793,7 +9793,7 @@ export interface operations {
                 /** @description From the first of the previous month in business timezone through injected server now + 120 seconds. Tolerated future values normalize to server now. */
                 occurred_at: string;
                 lang: "ar" | "en";
-                /** @description Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal. */
+                /** @description Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal; NUL is rejected with 400. */
                 q?: string;
                 /** @description Opaque base64url cursor from the previous page; keep lang, q and requested occurred_at unchanged. The first-page effective instant remains fixed. */
                 cursor?: string;

@@ -30,7 +30,8 @@ const get = (query = '', cookie = f.cookie, company = f.company, base = f.base) 
 const read = () => ordersPerformerOptionsQuery(f.db, f.clock).execute(f.context(), { occurred_at, lang: 'en', limit: 2 });
 const cursor = (key: string | null, id: string, lang: 'ar' | 'en' = 'en', q = '') => Buffer.from(JSON.stringify({ key, id,
   lang, q_hash: createHash('sha256').update(q.trim().toLowerCase()).digest('hex'),
-  requested_at: new Date(occurred_at).toISOString(), effective_at: new Date(occurred_at).toISOString() })).toString('base64url');
+  requested_at: new Date(occurred_at).toISOString(), effective_at: new Date(occurred_at).toISOString(),
+  scope_hash: createHash('sha256').update(JSON.stringify([f.company, f.business, f.branch])).digest('hex') })).toString('base64url');
 
 it('record-only access yields exact private-field-free pages, stable cursors with name ties, and no writes', async () => {
   f.h.calls.statements.length = 0;
@@ -70,6 +71,27 @@ it('searches either name case-insensitively after trimming before cursor paginat
   for (const value of malformed) expect((await get(`cursor=${encodeURIComponent(value)}`)).status).toBe(400);
   for (const query of ['limit=0', 'limit=101', 'q=', 'q=%20', `q=${'a'.repeat(51)}`, 'user_id=bad', 'lang=', 'lang=AR', 'lang=fr']) expect((await get(query)).status).toBe(400);
   for (const query of ['', 'occurred_at=bad', `occurred_at=${occurred_at}`, 'lang=en']) expect((await f.h.send('GET', `${f.base}/performer-options?${query}`, { cookie: f.cookie, company: f.company })).status).toBe(400);
+});
+it('rejects NUL in search with 400 before PostgreSQL text normalization', async () => {
+  f.h.calls.statements.length = 0;
+  for (const q of ['%00', 'Zulu%00', '%00Zulu']) {
+    const result = await get(`q=${q}`); expect(result.status).toBe(400); expect(result.body['code']).toBe('VALIDATION_FAILED');
+  }
+  expect(f.h.calls.statements.some(({ sql: statement }) => statement.includes('AS normalized_q'))).toBe(false);
+});
+it('binds cursors to the selected company, business and branch even for authorized target scopes', async () => {
+  const page = sessionPerformerOptionPage.parse((await get('limit=1', f.ownerCookie)).body);
+  const next = must(page.next_cursor);
+  expect(JSON.parse(Buffer.from(next, 'base64url').toString('utf8')).scope_hash)
+    .toBe(createHash('sha256').update(JSON.stringify([f.company, f.business, f.branch])).digest('hex'));
+  expect((await get(`limit=1&cursor=${next}`, f.ownerCookie)).status).toBe(200);
+  for (const [cookie, company, business, branch] of [[f.ownerCookie, f.company, f.business, sibling],
+    [f.ownerCookie, f.company, f.secondBusiness, f.secondBranch], [f.cookie, f.otherCompany, f.foreignBusiness, f.foreignBranch]]) {
+    const base = `/v1/businesses/${business}/branches/${branch}/service-sessions`;
+    expect((await get('limit=1', must(cookie), must(company), base)).status).toBe(200);
+    const replay = await get(`limit=1&cursor=${next}`, must(cookie), must(company), base);
+    expect(replay.status).toBe(400); expect(replay.body['code']).toBe('VALIDATION_FAILED');
+  }
 });
 it('binds cursors to language and normalized search, refusing changed or removed search', async () => {
   const page = sessionPerformerOptionPage.parse((await get('lang=en&limit=1&q=%20ZuLu%20')).body);
