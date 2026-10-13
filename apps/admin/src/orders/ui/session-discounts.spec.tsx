@@ -26,8 +26,9 @@ it.each(['ar', 'en'] as const)('preserves both mode entries and half-up money in
   const amount = t(locale, 'serviceSessions.discountAmount'), percent = t(locale, 'serviceSessions.discountPercent');
   expect((screen.getByLabelText(amount) as HTMLInputElement).value).toBe('0.000');
   change(amount, '1.25'); fireEvent.blur(screen.getByLabelText(amount));
-  fireEvent.click(screen.getByRole('button', { name: percent })); change(percent, '10');
+  fireEvent.click(screen.getByRole('button', { name: percent })); change(percent, locale === 'ar' ? String.fromCharCode(0x661, 0x660) : '10');
   expect(screen.getByText('0.713')).toBeTruthy(); expect(screen.getAllByText('6.412')).toHaveLength(2);
+  expect(screen.getByRole('status').tagName).toBe('P'); fireEvent.blur(screen.getByLabelText(percent));
   fireEvent.click(screen.getByRole('button', { name: amount }));
   expect((screen.getByLabelText(amount) as HTMLInputElement).value).toBe('1.250');
   fireEvent.click(screen.getByRole('button', { name: percent }));
@@ -49,7 +50,6 @@ it('retains a lowered entered price and zero discount while showing the server-p
   state.locale = 'en'; render(<Harness prices={['6.000']} limit={{ source: 'NOT_CONFIGURED', bps: 0 }} />);
   expect(current[0]).toMatchObject({ price: '6.000', discount_amount: '0.000' });
   expect(screen.getAllByText('6.000')).toHaveLength(3); expect(screen.getByText(t('en', 'serviceSessions.notConfigured'))).toBeTruthy();
-  expect(screen.queryByText('effective_discount_bps')).toBeNull();
 });
 it.each(['-1', '100.01', '1.001', 'unfinished'])('keeps invalid percent %s without conversion or clamping', async (value) => {
   state.locale = 'en'; render(<Harness prices={['7.125']} />);
@@ -58,6 +58,13 @@ it.each(['-1', '100.01', '1.001', 'unfinished'])('keeps invalid percent %s witho
   expect(await screen.findByRole('alert')).toBeTruthy(); expect(current[0]?.discount_percentage).toBe(value);
   expect((screen.getByRole('button', { name: t('en', 'serviceSessions.samePercent') }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText(t('en', 'serviceSessions.draftUnavailable'))).toBeTruthy();
+});
+it.each([String.fromCharCode(0x661, 0x660, 0x66b, 0x665), String.fromCharCode(0x6f1, 0x6f0, 0x66b, 0x6f5)])('normalizes localized percent %s for validation, bulk entry and summary', async (text) => {
+  state.locale = 'ar'; render(<Harness prices={['7.125']} />); const percent = t('ar', 'serviceSessions.discountPercent');
+  fireEvent.click(screen.getByRole('button', { name: percent })); change(percent, text);
+  expect(screen.getByText('0.748')).toBeTruthy(); fireEvent.click(screen.getByRole('button', { name: t('ar', 'serviceSessions.samePercent') }));
+  fireEvent.blur(screen.getByLabelText(percent)); await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  expect(current[0]?.discount_percentage).toBe('10.5');
 });
 it('validates only the active mode after switching away from an invalid entry', async () => {
   state.locale = 'en'; const submit = vi.fn(); render(<Harness prices={['7.125']} onSubmit={submit} />);

@@ -9,7 +9,7 @@ export type SessionDraftLine = Pick<RecordServiceSessionInput['lines'][number], 
   discount_amount: string;
   discount_percentage: string;
 };
-export type SessionDraftForm = { lines: SessionDraftLine[] };
+export type SessionDraftForm = { lines: SessionDraftLine[]; recorder_membership_id?: string | null };
 export const SESSION_DRAFT_MIN = 1, SESSION_DRAFT_MAX = 20;
 
 export function createSessionDraft(localId: string = crypto.randomUUID()): SessionDraftLine {
@@ -21,4 +21,9 @@ export function selectSessionService(line: SessionDraftLine, service: SessionSer
   // إعادة اختيار نفس الخدمة أو تحديث الكتالوج لا يمسح السعر اللي كتبته الريسبشن.
   if (line.service_id === service.id) return line;
   return { ...line, service_id: service.id, service, price: moneyToString(parseMoney(service.price)) };
+}
+
+export function normalizeSessionPercent(text: string): string {
+  return text.replace(/[\u0660-\u0669]/g, (digit) => '0123456789'.charAt(String.fromCharCode(0x660, 0x661, 0x662, 0x663, 0x664, 0x665, 0x666, 0x667, 0x668, 0x669).indexOf(digit)))
+    .replace(/[\u06f0-\u06f9]/g, (digit) => '0123456789'.charAt(String.fromCharCode(0x6f0, 0x6f1, 0x6f2, 0x6f3, 0x6f4, 0x6f5, 0x6f6, 0x6f7, 0x6f8, 0x6f9).indexOf(digit))).replace(/\u066b/g, '.');
 }
