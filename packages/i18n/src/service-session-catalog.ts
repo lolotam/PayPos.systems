@@ -1,4 +1,10 @@
 export const serviceSessionsEn = {
+  performers: 'Performers', searchPerformers: 'Search performers', choosePerformer: 'Choose a performer',
+  performerNumber: 'Performer {n}', share: 'Share for performer {n} (%)', removePerformer: 'Remove performer {n}', addPerformer: 'Add performer',
+  equalSplit: 'Equal split automatically', customShares: 'Custom shares', shareTotal: 'All shares must total 100%.',
+  invalidShare: 'Enter a percentage greater than 0 and up to 100, with up to two decimal places.',
+  notClockedIn: 'Not clocked in', approvedLeave: 'Approved leave',
+  noPerformers: 'No matching performers', morePerformers: 'More performers', retryPerformers: 'Retry performers',
   discountAmount: 'Discount amount (KWD)', discountPercent: 'Discount (%)', samePercent: 'Same percentage on all unsaved services',
   invalidDiscount: 'Enter a valid amount no greater than the price, or a percentage from 0 to 100 with up to two decimal places.',
   recorderMembership: 'Recorder membership', chooseMembership: 'Choose your membership', retryContext: 'Retry recording context',
@@ -20,6 +26,12 @@ export const serviceSessionsEn = {
   invalidCustomer: 'Enter a customer name, calling code and phone number. Use digits only for the phone.',
 };
 export const serviceSessionsAr: Record<keyof typeof serviceSessionsEn, string> = {
+  performers: 'الموظفات', searchPerformers: 'البحث عن الموظفات', choosePerformer: 'اختاري موظفة',
+  performerNumber: 'الموظفة {n}', share: 'نسبة الموظفة {n} (%)', removePerformer: 'حذف الموظفة {n}', addPerformer: 'إضافة موظفة',
+  equalSplit: 'تقسيم بالتساوي تلقائيًا', customShares: 'نسب مخصصة', shareTotal: 'مجموع كل النسب لازم يكون 100%.',
+  invalidShare: 'اكتبي نسبة أكبر من صفر ولحد 100، بحد أقصى خانتين عشريتين.',
+  notClockedIn: 'لم تسجل حضورها', approvedLeave: 'إجازة مقبولة',
+  noPerformers: 'مفيش موظفات مطابقة', morePerformers: 'موظفات إضافية', retryPerformers: 'حاولي تحميل الموظفات تاني',
   discountAmount: 'مبلغ الخصم (د.ك)', discountPercent: 'الخصم (%)', samePercent: 'نفس النسبة على كل الخدمات غير المحفوظة',
   invalidDiscount: 'اكتب مبلغ صالح لا يتجاوز السعر، أو نسبة من 0 إلى 100 بحد أقصى خانتين عشريتين.',
   recorderMembership: 'عضوية المسجّل', chooseMembership: 'اختار عضويتك', retryContext: 'حاول تحميل سياق التسجيل تاني',
