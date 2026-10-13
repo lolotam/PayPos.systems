@@ -12,17 +12,17 @@ function searchHash(normalizedQ: string) {
 }
 
 export const sessionPerformerCursorCodec = {
-  decode(query: SessionPerformerOptionsQuery, normalizedQ: string) {
+  decode(query: SessionPerformerOptionsQuery, normalizedQ: string, day: string) {
     if (query.cursor === undefined) return null;
     try {
       const cursor = sessionPerformerCursorData.parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
       if (Buffer.from(JSON.stringify(cursor)).toString('base64url') !== query.cursor ||
-        cursor.lang !== query.lang || cursor.q_hash !== searchHash(normalizedQ)) throw new Error();
+        cursor.lang !== query.lang || cursor.q_hash !== searchHash(normalizedQ) || cursor.working_date !== day) throw new Error();
       return cursor;
     } catch { throw new RangeError('SESSION_PERFORMER_CURSOR_INVALID'); }
   },
-  encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string) {
-    return Buffer.from(JSON.stringify({ key, id, lang: query.lang, q_hash: searchHash(normalizedQ) })).toString('base64url');
+  encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, day: string) {
+    return Buffer.from(JSON.stringify({ key, id, lang: query.lang, q_hash: searchHash(normalizedQ), working_date: day })).toString('base64url');
   },
 };
 

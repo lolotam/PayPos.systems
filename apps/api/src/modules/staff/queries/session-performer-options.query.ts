@@ -2,8 +2,8 @@ import { sessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 interface CursorCodec {
-  decode(query: SessionPerformerOptionsQuery, normalizedQ: string): { key: string; id: string } | null;
-  encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string): string;
+  decode(query: SessionPerformerOptionsQuery, normalizedQ: string, day: string): { key: string; id: string } | null;
+  encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, day: string): string;
 }
 
 async function normalizeSearch(tx: Tx, query: SessionPerformerOptionsQuery) {
@@ -47,10 +47,10 @@ export async function sessionPerformerOptionsPage(tx: Tx, companyId: string, bus
   day: string, query: SessionPerformerOptionsQuery, codec: CursorCodec) {
   const normalizedQ = await normalizeSearch(tx, query);
   const rows = await tx.execute<{ id: string; name_ar: string | null; name_en: string; sort_key: string; clocked_in: boolean; approved_leave: boolean }>(
-    sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query, codec.decode(query, normalizedQ)));
+    sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query, codec.decode(query, normalizedQ, day)));
   const items = rows.slice(0, query.limit).map((r) => ({ id: r.id, name_ar: r.name_ar, name_en: r.name_en,
     not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave }));
   const last = rows[items.length - 1];
   return sessionPerformerOptionPage.parse({ items, next_cursor: rows.length > query.limit && last !== undefined
-    ? codec.encode(last.sort_key, last.id, query, normalizedQ) : null });
+    ? codec.encode(last.sort_key, last.id, query, normalizedQ, day) : null });
 }

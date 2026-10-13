@@ -356,7 +356,8 @@ lang=ar|en and global displayed-name,id keyset pages, default 20/max 100. The na
 coalesce(name_<lang>,name_<other>) COLLATE "und-x-icu" for both sorting and keyset comparison, without lowercasing.
 Search folds both names and trimmed q with PostgreSQL lower(... COLLATE "und-x-icu") and LIKE;
 percent, underscore and backslash are escaped so search remains a literal substring.
-Canonical base64url JSON carries the exact displayed name, id, lang and SHA-256 of the same ICU-folded q;
+Canonical base64url JSON carries the exact displayed name, id, lang, SHA-256 of the same ICU-folded q and
+the canonical branch working_date resolved after POST future-tolerance normalization;
 strict payload/encoding/binding checks refuse malformed or mismatched cursors with 400.
 Persistence owns the SHA-256/base64url cursor codec and injects it into the query; the query imports no Node APIs.
 Orders injects the POST sessionTime rule into the read handler: the first of the previous month in business

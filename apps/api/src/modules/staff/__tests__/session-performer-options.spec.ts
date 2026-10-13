@@ -24,7 +24,7 @@ it('pages every employee lacking name_ar using the displayed English fallback ke
   for (let i = 0; i < 4; i++) {
     const result = await page(next); found.push(...result.items.map((r) => r.id));
     if (i < 3) expect(JSON.parse(Buffer.from(must(result.next_cursor), 'base64url').toString('utf8')))
-      .toEqual({ key: `Synthetic employee ${i}`, id: f.employees[i], lang: 'ar', q_hash: createHash('sha256').update('').digest('hex') });
+      .toEqual({ key: `Synthetic employee ${i}`, id: f.employees[i], lang: 'ar', q_hash: createHash('sha256').update('').digest('hex'), working_date: '2026-10-14' });
     else expect(result.next_cursor).toBeNull();
     next = result.next_cursor ?? undefined;
   }
@@ -123,9 +123,9 @@ it('EXPLAIN ANALYZE uses existing employee/link/clock/leave indexes for exact se
   await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     for (const lang of ['ar', 'en'] as const) for (const cursor of [undefined, Buffer.from(JSON.stringify({ key: 'Synthetic employee 0', id: f.employees[0],
-      lang, q_hash: createHash('sha256').update('synthetic').digest('hex') })).toString('base64url')]) {
+      lang, q_hash: createHash('sha256').update('synthetic').digest('hex'), working_date: '2026-10-13' })).toString('base64url')]) {
       const query = { occurred_at, lang, q: 'synthetic', limit: 2, ...(cursor === undefined ? {} : { cursor }) };
-      const plan = JSON.stringify(await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sessionPerformerOptionsStatement(f.company, f.business, f.branch, '2026-10-13', query, sessionPerformerCursorCodec.decode(query, 'synthetic'))}`));
+      const plan = JSON.stringify(await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sessionPerformerOptionsStatement(f.company, f.business, f.branch, '2026-10-13', query, sessionPerformerCursorCodec.decode(query, 'synthetic', '2026-10-13'))}`));
       for (const name of ['employees_', 'employee_branches_', 'attendance_sessions_', 'leave_requests_']) expect(plan).toContain(name);
       expect(plan).not.toContain('Seq Scan');
     }
