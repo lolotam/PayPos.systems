@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { useSessionPerformers } from './use-session-performers';
@@ -8,6 +8,18 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get }) })
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 const scope = { companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' };
 const instant = '2026-10-13T08:00:00.000Z';
+it('pins server-now across focus, recorder changes and new line observers', async () => {
+  const client = new QueryClient(); state.get.mockReset();
+  state.get.mockImplementation((path) => Promise.resolve({ data: path.endsWith('/recording-context') ? {
+    generated_at: instant, business_timezone: 'Asia/Kuwait', recorder_membership_ids: ['01920000-0000-7000-8000-0000000000a1'], recorder_membership_id: '01920000-0000-7000-8000-0000000000a1', discount_limit: { source: 'PERSON', bps: 0 } } : { items: [], next_cursor: null } }));
+  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  const hook = renderHook(() => useSessionPerformers(scope), { wrapper }); await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+  state.get.mockResolvedValue({ data: { items: [], next_cursor: null } });
+  await act(async () => { focusManager.setFocused(false); focusManager.setFocused(true); client.setQueryData(['session-recording-context', 'company', 'business', 'branch', 'actor', 'other'], { generated_at: '2026-10-14T08:00:00.000Z' }); });
+  const next = renderHook(() => useSessionPerformers(scope), { wrapper }); await waitFor(() => expect(next.result.current.isSuccess).toBe(true));
+  expect(hook.result.current.instant).toBe(instant); expect(next.result.current.instant).toBe(instant);
+  expect(state.get.mock.calls.filter(([path]) => path.endsWith('/recording-context'))).toHaveLength(1); focusManager.setFocused(undefined);
+});
 it('binds pages to language/search/scope/instant, aborts obsolete requests and rejects late results', async () => {
   let finish: (value: unknown) => void = () => {}; const client = new QueryClient(); state.get.mockReset();
   state.get.mockImplementation((path, options) => path.endsWith('/recording-context') ? Promise.resolve({ data: {

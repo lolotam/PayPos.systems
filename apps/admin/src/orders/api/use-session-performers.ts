@@ -7,8 +7,8 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { useRecordingContext } from './use-recording-context';
 import type { SessionServiceScope } from './use-session-services';
 
-export function useSessionPerformers(scope: SessionServiceScope, occurredAt?: string, search = '', enabled = true, membershipId: string | null = null) {
-  const lang = useLocale(), context = useRecordingContext(scope, membershipId, enabled);
+export function useSessionPerformers(scope: SessionServiceScope, occurredAt?: string, search = '', enabled = true) {
+  const lang = useLocale(), context = useRecordingContext(scope, null, enabled, !occurredAt || occurredAt === 'now' ? 'now' : occurredAt);
   const instant = !occurredAt || occurredAt === 'now' ? context.data?.generated_at : occurredAt;
   const q = search.trim() || undefined, [settled, setSettled] = useState(q);
   const valid = sessionPerformerOptionsQuery.safeParse({ lang, q, occurred_at: instant }).success;
@@ -33,6 +33,7 @@ export function useSessionPerformers(scope: SessionServiceScope, occurredAt?: st
     getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
   return { ...query, data: enabled && ready ? query.data : undefined, instant, timeZone: context.data?.business_timezone,
+    factsKey: JSON.stringify([scope.companyId, scope.businessId, scope.branchId, scope.userId, instant]),
     invalidSearch: !sessionPerformerOptionsQuery.omit({ occurred_at: true }).safeParse({ lang, q }).success,
     context };
 }

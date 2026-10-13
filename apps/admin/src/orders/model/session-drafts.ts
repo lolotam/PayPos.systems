@@ -11,7 +11,7 @@ export type SessionDraftLine = Pick<RecordServiceSessionInput['lines'][number], 
   discount_amount: string;
   discount_percentage: string;
   share_mode: 'EQUAL' | 'CUSTOM';
-  performers: { employee_id: string; share_percentage: string; selection: SessionPerformerSelection | null }[];
+  performers: { employee_id: string; share_percentage: string; selection: SessionPerformerSelection | null; facts_key?: string }[];
 };
 export type SessionDraftForm = { lines: SessionDraftLine[]; recorder_membership_id?: string | null };
 export const SESSION_DRAFT_MIN = 1, SESSION_DRAFT_MAX = 20;

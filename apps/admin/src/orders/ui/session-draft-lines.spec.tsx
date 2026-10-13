@@ -61,7 +61,7 @@ it.each([['0', '0.000'], ['99999999999.999', '99999999999.999'], ['25.5', '25.50
   expect(screen.getByText('50.000')).toBeTruthy(); expect(current[0]?.price).toBe(expected);
 });
 it('caps draft rows at twenty and leaves invalid monetary text for validation', async () => {
-  mount(); for (let count = 1; count < 20; count++) fireEvent.click(at(button('addLine'), 0));
+  mount(); const add = at(button('addLine'), 0); for (let count = 1; count < 20; count++) fireEvent.click(add);
   expect(current).toHaveLength(20); expect(new Set(current.map((row) => row.local_id)).size).toBe(20);
   expect((button('addLine')[0] as HTMLButtonElement).disabled).toBe(true);
   const input = at(screen.getAllByLabelText(t('en', 'serviceSessions.price')), 0);

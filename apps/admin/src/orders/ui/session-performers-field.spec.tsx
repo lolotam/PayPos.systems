@@ -14,18 +14,18 @@ const instant = '2026-10-13T08:00:00.000Z';
 const items = [1, 2, 3, 4].map((n) => ({ id: `01920000-0000-7000-8000-0000000000a${n}`, name_ar: String.fromCharCode(0x645, 0x648, 0x638, 0x641, 0x629) + ' ' + n, name_en: `Synthetic ${n}`,
   not_clocked_in_warning: n === 1, approved_leave_warning: n === 2 }));
 let form: ReturnType<typeof useForm<SessionDraftForm>>;
-function Harness({ at, disabled = false, submit = vi.fn() }: { at?: string; disabled?: boolean; submit?: (data: unknown) => void }) {
+function Harness({ at, place = scope, disabled = false, submit = vi.fn() }: { at?: string; place?: typeof scope; disabled?: boolean; submit?: (data: unknown) => void }) {
   const methods = useForm<SessionDraftForm>({ defaultValues: { lines: [createSessionDraft('line')] } });
   useEffect(() => { form = methods; }, [methods]);
   return <FormProvider {...methods}><form onSubmit={methods.handleSubmit((data) => submit(sessionPerformerInputs(fixtureAt(data.lines, 0))))}
     onKeyDown={(event) => { if (event.key === 'Enter' && !event.defaultPrevented) event.currentTarget.requestSubmit(); }}>
-    <SessionPerformersField scope={scope} index={0} occurredAt={at} disabled={disabled} /><button type="submit">Submit fixture</button>
+    <SessionPerformersField scope={place} index={0} occurredAt={at} disabled={disabled} /><button type="submit">Submit fixture</button>
   </form></FormProvider>;
 }
 function mount(submit = vi.fn(), disabled = false) {
-  state.get.mockReset(); state.get.mockImplementation((path) => Promise.resolve({ data: path.endsWith('/recording-context')
+  state.get.mockReset(); state.get.mockImplementation((path, options) => Promise.resolve({ data: path.endsWith('/recording-context')
     ? { generated_at: instant, business_timezone: 'Asia/Kuwait', recorder_membership_ids: ['01920000-0000-7000-8000-0000000000a1', '01920000-0000-7000-8000-0000000000a2'], recorder_membership_id: null, discount_limit: null }
-    : { items, next_cursor: null } }));
+    : { items: options.params.query.q ? items.slice(1) : items, next_cursor: null } }));
   const client = new QueryClient(), view = render(<QueryClientProvider client={client}><Harness submit={submit} disabled={disabled} /></QueryClientProvider>);
   return { ...view, client, submit };
 }
@@ -35,9 +35,9 @@ function choose(n: number, item = n) { fireEvent.change(screen.getByLabelText(te
 it.each(['ar', 'en'] as const)('keeps input order, enforces 1/4 bounds and excludes duplicates in %s', async (locale) => {
   state.locale = locale; mount(); await screen.findByRole('option', { name: locale === 'ar' ? fixtureAt(items, 0).name_ar : 'Synthetic 1' }); choose(1, 2);
   expect((screen.getByRole('button', { name: text('removePerformer', 1) }) as HTMLButtonElement).disabled).toBe(true);
-  for (const n of [2, 3, 4]) { fireEvent.click(screen.getByRole('button', { name: t(locale, 'serviceSessions.addPerformer') })); choose(n, n === 2 ? 1 : n); }
-  expect((screen.getByRole('button', { name: t(locale, 'serviceSessions.addPerformer') }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getAllByRole('combobox').map((select) => select.querySelectorAll('option').length)).toEqual([2, 2, 2, 2]);
+  const add = screen.getByText(t(locale, 'serviceSessions.addPerformer')) as HTMLButtonElement;
+  for (const n of [2, 3, 4]) { fireEvent.click(add); choose(n, n === 2 ? 1 : n); }
+  expect(add.disabled).toBe(true); expect(Array.from(document.querySelectorAll('select'), (select) => select.options.length)).toEqual([2, 2, 2, 2]);
   expect(sessionPerformerInputs(form.getValues('lines.0'))).toEqual([2, 1, 3, 4].map((n) => ({ employee_id: fixtureAt(items, n - 1).id })));
   fireEvent.click(screen.getByRole('button', { name: text('removePerformer', 2) }));
   expect(sessionPerformerInputs(form.getValues('lines.0')).map((row) => row.employee_id)).toEqual([2, 3, 4].map((n) => fixtureAt(items, n - 1).id));
@@ -55,6 +55,9 @@ it('converts localized 70/30 with contracts, leaves sum validation to the server
   expect(screen.getByRole('alert').textContent).toBe('Indexed server sum error');
   await act(async () => form.setError('lines.0.performers.1.share_percentage', { type: 'server', message: 'Indexed server share error' }));
   expect(screen.getByLabelText(text('share', 2)).getAttribute('aria-invalid')).toBe('true');
+  fireEvent.change(screen.getByLabelText(text('share', 2)), { target: { value: '30' } });
+  expect(screen.queryByRole('alert')).toBeNull(); fireEvent.click(screen.getByRole('button', { name: 'Submit fixture' }));
+  await waitFor(() => expect(submit).toHaveBeenCalledTimes(3));
 });
 it.each(['', '0', '1.001', '-1', '100.01'])('rejects custom %s without mixed omissions and restores omitted-all equal mode', async (value) => {
   state.locale = 'en'; const { submit } = mount(); await screen.findByRole('option', { name: 'Synthetic 1' }); choose(1);
@@ -72,6 +75,8 @@ it('uses server-now for dated nonblocking warnings, hides stale search choices i
   expect(fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Enter' })).toBe(false); expect(submit).toHaveBeenCalledTimes(1);
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'new' } }); expect(screen.queryByRole('option', { name: 'Synthetic 2' })).toBeNull();
   expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe(fixtureAt(items, 0).id);
+  await waitFor(() => expect(state.get.mock.lastCall?.[1].params.query.q).toBe('new'));
+  expect(screen.getByText(/Not clocked in/).textContent).toContain('Oct 13');
 });
 it('disables fresh reads and reports required performer selection', async () => {
   state.locale = 'en'; const { unmount } = mount(vi.fn(), true); expect(state.get).not.toHaveBeenCalled(); unmount();
@@ -81,13 +86,16 @@ it('disables fresh reads and reports required performer selection', async () => 
 it('refreshes occurred-day leave warnings without replacing chosen performers or shares', async () => {
   state.locale = 'en'; const { rerender, client } = mount(); await screen.findByRole('option', { name: 'Synthetic 1' }); choose(1, 2);
   expect(screen.getByText(/Approved leave/).textContent).toContain('Oct 13');
-  const at = '2026-10-12T08:00:00.000Z';
-  state.get.mockImplementation((path) => Promise.resolve({ data: path.endsWith('/recording-context')
-    ? { generated_at: instant, business_timezone: 'Asia/Kuwait', recorder_membership_ids: ['01920000-0000-7000-8000-0000000000a1', '01920000-0000-7000-8000-0000000000a2'], recorder_membership_id: null, discount_limit: null }
-    : { items: items.map((item) => ({ ...item, approved_leave_warning: false })), next_cursor: null } }));
+  const at = '2026-10-12T08:00:00.000Z', context = client.getQueryData(['session-performer-context', 'company', 'business', 'branch', 'actor', 'now']);
+  state.get.mockImplementation((path, options) => Promise.resolve({ data: path.endsWith('/recording-context') ? context
+    : { items: options.params.query.cursor ? [{ ...fixtureAt(items, 1), not_clocked_in_warning: true, approved_leave_warning: false }] : [fixtureAt(items, 0)], next_cursor: options.params.query.cursor ? null : 'next' } }));
   rerender(<QueryClientProvider client={client}><Harness at={at} /></QueryClientProvider>);
-  expect(screen.queryByText(/Approved leave/)).toBeNull();
+  expect(screen.queryByText(/Approved leave/)).toBeNull(); expect(screen.getByText(/Not checked for this time yet/)).toBeTruthy();
   await waitFor(() => expect(state.get.mock.lastCall?.[1].params.query.occurred_at).toBe(at));
   expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe(fixtureAt(items, 1).id);
   expect(sessionPerformerInputs(form.getValues('lines.0'))).toEqual([{ employee_id: fixtureAt(items, 1).id }]);
+  fireEvent.click(await screen.findByText(t('en', 'serviceSessions.morePerformers')));
+  expect((await screen.findByText(/Not clocked in/)).textContent).toContain('Oct 12'); expect(screen.queryByText(/Approved leave/)).toBeNull();
+  rerender(<QueryClientProvider client={client}><Harness at={at} place={{ ...scope, branchId: 'other' }} /></QueryClientProvider>);
+  expect(screen.queryByText(/Not clocked in/)).toBeNull(); expect(screen.getByText(/Not checked for this time yet/)).toBeTruthy();
 });
