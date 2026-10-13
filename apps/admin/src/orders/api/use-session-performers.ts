@@ -37,8 +37,8 @@ export function useSessionPerformerFacts(scope: SessionServiceScope, instant: st
 }
 
 export function useSessionPerformers(scope: SessionServiceScope, occurredAt?: string, search = '', enabled = true) {
-  const lang = useLocale(), context = useRecordingContext(scope, null, enabled, !occurredAt || occurredAt === 'now' ? 'now' : occurredAt);
-  const instant = !occurredAt || occurredAt === 'now' ? context.data?.generated_at : occurredAt;
+  const lang = useLocale(), context = useRecordingContext(scope, null, enabled, occurredAt === undefined || occurredAt === 'now' ? 'now' : occurredAt);
+  const instant = occurredAt === undefined || occurredAt === 'now' ? context.data?.generated_at : occurredAt;
   const q = search.trim() || undefined, [settled, setSettled] = useState(q);
   const valid = sessionPerformerOptionsQuery.safeParse({ lang, q, occurred_at: instant }).success;
   useEffect(() => {

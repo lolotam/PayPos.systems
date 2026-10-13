@@ -6,6 +6,7 @@ import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { expect, it, vi } from 'vitest';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
 import { SessionDraftLines } from './session-draft-lines';
+import { SessionTimeField } from './session-time-field';
 const get = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
@@ -15,7 +16,11 @@ function Harness({ disabled = false, lineCount = 1 }: { disabled?: boolean; line
   const form = useForm<SessionDraftForm>({ defaultValues: { lines: Array.from({ length: lineCount }, (_, index) => createSessionDraft(index ? String(index) : 'initial')) }, mode: 'onBlur' });
   const watched = useWatch({ control: form.control, name: 'lines' });
   useEffect(() => { current = watched; }, [watched]);
-  return <FormProvider {...form}><form><SessionDraftLines scope={{ companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' }} disabled={disabled} /></form></FormProvider>;
+  return <FormProvider {...form}><form>
+    <SessionTimeField context={{ generated_at: '2026-10-13T08:00:00.000Z', business_timezone: 'Asia/Kuwait',
+      recorder_membership_ids: [service.id], recorder_membership_id: service.id, discount_limit: { source: 'OWNER', bps: null } }} disabled={disabled} />
+    <SessionDraftLines scope={{ companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' }} disabled={disabled} />
+  </form></FormProvider>;
 }
 function mount(disabled = false, lineCount = 1) {
   servicePage([service]); const client = new QueryClient();
@@ -71,6 +76,20 @@ it('caps draft rows at twenty and leaves invalid monetary text for validation', 
 it('supports a disabled editor without fresh reads', () => {
   get.mockClear(); mount(true); expect(get).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: t('en', 'serviceSessions.addLine') }).closest('fieldset')?.disabled).toBe(true);
+});
+it('feeds edited UTC to performer options without replacing the chosen performer', async () => {
+  mount(); const previous = get.getMockImplementation();
+  get.mockImplementation((path, options) => path.endsWith('/performer-options') ? Promise.resolve({ data: {
+    items: [{ id: service.id, name_ar: null, name_en: 'Synthetic performer', not_clocked_in_warning: false, approved_leave_warning: false }], next_cursor: null,
+  } }) : previous?.(path, options));
+  const time = screen.getByLabelText(t('en', 'serviceSessions.occurredAt'));
+  fireEvent.change(time, { target: { value: '2026-10-12T17:00' } });
+  await screen.findByRole('option', { name: 'Synthetic performer' });
+  expect(get.mock.calls.findLast(([path]) => path.endsWith('/performer-options'))?.[1].params.query.occurred_at).toBe('2026-10-12T14:00:00.000Z');
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1')), { target: { value: service.id } });
+  fireEvent.change(time, { target: { value: '2026-10-11T17:00' } });
+  await waitFor(() => expect(get.mock.calls.findLast(([path]) => path.endsWith('/performer-options'))?.[1].params.query.occurred_at).toBe('2026-10-11T14:00:00.000Z'));
+  expect(current[0]?.performers[0]?.employee_id).toBe(service.id);
 });
 it('shows the resolved limit in the draft summary and validates discount again when price changes', async () => {
   mount(); await choose(); await waitFor(() => expect(screen.getAllByText('10.00%')).toHaveLength(2));

@@ -13,7 +13,7 @@ export type SessionDraftLine = Pick<RecordServiceSessionInput['lines'][number], 
   share_mode: 'EQUAL' | 'CUSTOM';
   performers: { employee_id: string; share_percentage: string; selection: SessionPerformerSelection | null; facts_key?: string }[];
 };
-export type SessionDraftForm = { lines: SessionDraftLine[]; recorder_membership_id?: string | null };
+export type SessionDraftForm = Pick<RecordServiceSessionInput, 'occurred_at'> & { lines: SessionDraftLine[]; recorder_membership_id?: string | null };
 export const SESSION_DRAFT_MIN = 1, SESSION_DRAFT_MAX = 20;
 
 export function createSessionDraft(localId: string = crypto.randomUUID()): SessionDraftLine {
