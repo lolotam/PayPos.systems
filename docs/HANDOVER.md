@@ -55,7 +55,8 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 3. The implementer is the **Grok CLI, `grok-4.7-build-fast`, effort high** (owner, 2026-10-14), one resumed session per
    task to keep its cache warm. Claude Code orchestrates, judges the diff and runs `pnpm check`.
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
-   fresh Claude reviewers → the Codex GitHub bot (`@codex review` after every push).
+   fresh Claude reviewers → the four PR bots: the Codex GitHub bot (`@codex review` after every push) and the
+   MergePilot panel (MergePilot, waleed_bot, mohamed_bot). Every bot's result on the head SHA is read before a merge.
 5. Fix every security or correctness finding before merge; P2/P3 left after the cap become linked GitHub issues.
 6. Merge with `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` once `ci-gate` is green on
    that head; deploy to staging; update the decisions page's status tab; journey doc in its own PR.
@@ -130,7 +131,8 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
 ### 4.1 Next action
 
 - Row **35** `record-service-session`, reception screen **35c**: 35c-1…11 and 35c-3b are merged (PR #184–#200).
-  Next: **35c-11b** (the two correctness findings of issue #202), then **35c-12** (publish the full route + Playwright).
+  Next: **35c-11b** (the two correctness findings of issue #202). **35c-12** (publish the full route + Playwright)
+  comes after it, but is blocked until SS-Q18 is answered (below).
 - Then **35d** (edit price/discount after saving; batch 17 answered) after issue #189 declares its bell event.
 - Owner question #199 (leaving an EXPIRED recording without logging out) is **already published** as batch 18
   (SS-Q18, 2026-10-14); only its answer is pending. Until then the merged safe behaviour (#198) stays: logout or a
