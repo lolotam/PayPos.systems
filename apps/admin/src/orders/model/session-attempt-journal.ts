@@ -92,7 +92,6 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
     configure(next: SessionAttemptScope, clock: SessionAttemptRuntime, backing?: JournalStorage) { runtime = clock; storage = backing; if (!scope || !sameSessionScope(scope, next)) changeScope(next); read(); if (!stopIdentity) stopIdentity = listenForIdentityChanges(() => changeScope(null)); },
     stop() { stopIdentity?.(); stopIdentity = undefined; },
     leaveVisit() { if (flight || value?.state === 'PENDING' || value?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED'); value = null; persist(); },
-    acknowledgeExpired() { const entry = read(); if (entry?.state !== 'EXPIRED' || flight || !retentionElapsed(entry, runtime.now())) throw new Error('SESSION_ATTEMPT_UNAVAILABLE'); value = null; persist(); },
     begin(command: SessionAttemptCommand, rowIds: string[]) {
       const recovered = read();
       if (!scope || flight || recovered?.state === 'PENDING' || recovered?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED');
@@ -129,7 +128,6 @@ export function createSessionAttemptJournal(initialScope: SessionAttemptScope, r
     read() { return current() ? entry.core.read() : null; },
     changeScope(next: SessionAttemptScope | null) { if (!disposed) { if (next) binding = freezeSessionAttemptScope(next); entry.core.changeScope(next); } },
     leaveVisit() { requireCurrent(); entry.core.leaveVisit(); },
-    acknowledgeExpired() { requireCurrent(); entry.core.acknowledgeExpired(); },
     begin(command: SessionAttemptCommand, rowIds: string[]) { requireCurrent(); return entry.core.begin(command, rowIds); },
     run<T extends WriteResult>(attempt: SessionAttempt, send: () => Promise<T>): Promise<T> { return current() ? entry.core.run(attempt, send) : Promise.reject(new Error('SESSION_ATTEMPT_UNAVAILABLE')); },
     dispose() { if (!disposed) { disposed = true; entry.users -= 1; if (entry.users === 0 && !entry.core.read()) entry.core.stop(); } },

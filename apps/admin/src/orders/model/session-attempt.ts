@@ -1,4 +1,5 @@
-import { appendServiceSessionLinesInput, id, recordServiceSessionInput, type AppendServiceSessionLinesInput, type RecordServiceSessionInput } from '@pospay/contracts';
+import { appendServiceSessionLinesInput, errorEnvelope, id, recordServiceSessionInput, type AppendServiceSessionLinesInput, type RecordServiceSessionInput } from '@pospay/contracts';
+import { errorMessages, serviceSessionErrors, type ErrorMessageCode } from '@pospay/i18n';
 import type { components } from '@/shared/api/schema';
 
 export type SessionAttemptScope = { companyId: string; businessId: string; branchId: string; userId: string };
@@ -52,8 +53,12 @@ export const sameSessionScope = (a: SessionAttemptScope, b: SessionAttemptScope)
 
 export function sessionAttemptUnresolved(error: unknown): boolean {
   if (!error || typeof error !== 'object' || !('status' in error) || typeof error.status !== 'number') return true;
-  return !(error.status >= 400 && error.status < 500) || (error.status === 409 && 'code' in error &&
-    (error.code === 'IDEMPOTENCY_KEY_IN_PROGRESS' || error.code === 'TRANSACTION_RETRY_REQUIRED'));
+  if (!(error.status >= 400 && error.status < 500) || error.status === 408 || error.status === 429) return true;
+  const parsed = errorEnvelope.safeParse(error); if (!parsed.success) return true;
+  const code = parsed.data.code;
+  if (code === 'IDEMPOTENCY_KEY_IN_PROGRESS' || code === 'TRANSACTION_RETRY_REQUIRED' || code === 'SESSION_ATTEMPT_NOT_PERSISTED') return true;
+  const known = Object.hasOwn(serviceSessionErrors, code) || Object.values(errorMessages(code as ErrorMessageCode)).every((message) => typeof message === 'string' && message.length > 0);
+  return !known;
 }
 
 export type SessionJournalEnvelope =

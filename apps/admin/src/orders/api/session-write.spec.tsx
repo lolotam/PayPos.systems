@@ -86,7 +86,8 @@ it.each(['record', 'append'] as const)('reloads and explicitly replays %s with e
 });
 
 it.each([new TypeError('Network loss'), new DOMException('Timed out', 'TimeoutError'),
-  { status: 409, code: 'IDEMPOTENCY_KEY_IN_PROGRESS' }, { status: 409, code: 'TRANSACTION_RETRY_REQUIRED' }, { status: 503, code: 'UNAVAILABLE' }])('keeps uncertain outcomes frozen without automatic retry: %s', async (error) => {
+  { status: 409, code: 'IDEMPOTENCY_KEY_IN_PROGRESS', message_ar: 'Synthetic AR', message_en: 'Synthetic EN' },
+  { status: 409, code: 'TRANSACTION_RETRY_REQUIRED', message_ar: 'Synthetic AR', message_en: 'Synthetic EN' }, { status: 503, code: 'UNAVAILABLE' }])('keeps uncertain outcomes frozen without automatic retry: %s', async (error) => {
   const store = journal(), attempt = store.begin({ kind: 'record', body: { ...body, occurred_at: instant } }, rows), hook = hooks(store);
   if ('status' in error) post.mockResolvedValueOnce({ error, response: { status: error.status } }); else post.mockRejectedValueOnce(error);
   await act(async () => { await expect(hook.send(attempt)).rejects.toMatchObject(error); });
@@ -98,8 +99,25 @@ it.each([new TypeError('Network loss'), new DOMException('Timed out', 'TimeoutEr
   expect(post.mock.calls[1]).toEqual(post.mock.calls[0]); expect(runtime.newId).toHaveBeenCalledTimes(1);
 });
 
+it.each([
+  { status: 408, error: '<html>Request timed out</html>' }, { status: 422, error: null },
+  { status: 403, error: { code: 'FORBIDDEN', message_en: 'Synthetic EN' } },
+  { status: 400, error: { code: 'VALIDATION_FAILED', message_ar: 'Synthetic AR', message_en: '' } },
+  { status: 409, error: { code: 'OTHER_CONFLICT', message_ar: 'Synthetic AR', message_en: 'Synthetic EN' } },
+  { status: 429, error: { code: 'TOO_MANY_REQUESTS', message_ar: 'Synthetic AR', message_en: 'Synthetic EN' } },
+].flatMap((refusal) => ['record', 'append'].map((kind) => ({ ...refusal, kind }))))('keeps $kind unresolved after untrusted/retryable $status and replays its identical key', async ({ kind, status, error }) => {
+  const command: SessionAttemptCommand = kind === 'record' ? { kind, body } : { kind: 'append', sessionId: id(12), body: { lines: body.lines } };
+  const store = journal(), attempt = store.begin(command, rows), hook = hooks(store);
+  post.mockResolvedValueOnce({ error, response: { status } });
+  await act(async () => { await expect(hook.send(attempt)).rejects.toMatchObject({ status }); });
+  expect(store.read()).toMatchObject({ state: 'PENDING', attempt }); expect(() => store.begin(command, rows)).toThrow('UNRESOLVED');
+  post.mockResolvedValueOnce({ data: kind === 'record' ? response : { ...response, added_lines: [savedLine] }, response: { status: 201 } });
+  await act(async () => { await hook.send(attempt); });
+  expect(post.mock.calls[1]).toEqual(post.mock.calls[0]); expect(runtime.newId).toHaveBeenCalledTimes(1);
+});
+
 it.each([['SESSION_DISCOUNT_ABOVE_LIMIT', 422], ['IDEMPOTENCY_KEY_REUSED', 422], ['SESSION_PERFORMER_SHARES_INVALID', 422],
-  ['FORBIDDEN', 403], ['VALIDATION_FAILED', 400], ['OTHER_CONFLICT', 409]])('preserves bilingual refusal and details as distinct %s; an edited attempt gets a new key', async (code, status) => {
+  ['FORBIDDEN', 403], ['VALIDATION_FAILED', 400], ['PERMISSION_OVERRIDE_ENDED', 409]])('preserves bilingual refusal and details as distinct %s; an edited attempt gets a new key', async (code, status) => {
   const store = journal(), attempt = store.begin({ kind: 'record', body }, rows), hook = hooks(store);
   const error = { code, message_ar: 'Synthetic AR', message_en: 'Synthetic EN', details: { rejected_lines: response.rejected_lines } };
   post.mockResolvedValueOnce({ error, response: { status } });
@@ -123,7 +141,7 @@ it('purges on a cross-tab identity signal, including a scheduled send', async ()
   expect(store.scope).toBeNull(); expect(sessionStorage.length).toBe(0);
 });
 
-it('expires after retention plus safety margin and blocks replay/new-key recovery across reloads', async () => {
+it.each(['companyId', 'businessId', 'branchId', 'userId', 'logout'] as const)('blocks expired recovery across reload until %s changes', async (field) => {
   const store = journal(), attempt = store.begin({ kind: 'record', body }, rows);
   now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS - 1; expect(store.read()).toEqual({ version: 1, state: 'PENDING', attempt }); now += 1;
   const expired = { version: 1, state: 'EXPIRED', scope, key: attempt.key, createdAt: attempt.createdAt };
@@ -131,7 +149,12 @@ it('expires after retention plus safety margin and blocks replay/new-key recover
   const recovered = await reload(); expect(recovered.read()).toEqual(expired);
   expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
   await expect(recovered.run(attempt, vi.fn())).rejects.toThrow('UNAVAILABLE');
-  recovered.acknowledgeExpired(); expect(recovered.read()).toBeNull(); expect(sessionStorage.length).toBe(0);
+  expect(() => recovered.leaveVisit()).toThrow('UNRESOLVED');
+  now += 7 * SESSION_ATTEMPT_RETENTION_MS;
+  expect(() => recovered.begin({ kind: 'append', sessionId: id(12), body: { lines: body.lines } }, rows)).toThrow('UNRESOLVED');
+  expect(recovered.read()).toEqual(expired); expect(runtime.newId).toHaveBeenCalledTimes(1);
+  recovered.changeScope(field === 'logout' ? null : { ...scope, [field]: id(99) });
+  expect(recovered.read()).toBeNull(); expect(sessionStorage.length).toBe(0); if (field === 'logout') recovered.changeScope(scope);
   expect(recovered.begin({ kind: 'record', body }, rows).key).not.toBe(attempt.key);
 });
 
@@ -155,10 +178,10 @@ it.each(['record', 'append'] as const)('extends %s recovery through last replay 
   const recovered = await reload(); expect(recovered.read()).toEqual({ version: 1, state: 'PENDING', attempt, lastSentAt });
   expect(post.mock.calls[1]).toEqual(post.mock.calls[0]); expect(runtime.newId).toHaveBeenCalledTimes(1);
   now = lastSentAt + SESSION_ATTEMPT_RETENTION_MS;
-  expect(recovered.read()?.state).toBe('PENDING'); expect(() => recovered.acknowledgeExpired()).toThrow('UNAVAILABLE');
+  expect(recovered.read()?.state).toBe('PENDING'); expect(() => recovered.begin(command, rows)).toThrow('UNRESOLVED');
   now += SESSION_ATTEMPT_SAFETY_MARGIN_MS - 1; expect(recovered.read()?.state).toBe('PENDING'); now += 1;
   expect(recovered.read()).toMatchObject({ state: 'EXPIRED', key: attempt.key, lastSentAt });
-  recovered.acknowledgeExpired(); expect(recovered.read()).toBeNull();
+  expect(() => recovered.begin(command, rows)).toThrow('UNRESOLVED');
 });
 
 it.each(['PENDING', 'PARTIAL', 'SAVED_DISPLAY_FAILED'] as const)('retains %s across reload after a backward wall-clock correction', async (state) => {
@@ -179,12 +202,13 @@ it.each(['PENDING', 'PARTIAL', 'SAVED_DISPLAY_FAILED'] as const)('retains %s acr
   }
 });
 
-it('retains a future-dated valid EXPIRED marker but blocks acknowledgement until its cutoff', async () => {
+it('retains an EXPIRED marker across backward and forward clock corrections', async () => {
   const store = journal(); store.begin({ kind: 'record', body }, rows);
   now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS; expect(store.read()?.state).toBe('EXPIRED');
   now -= SESSION_ATTEMPT_RETENTION_MS + 2 * SESSION_ATTEMPT_SAFETY_MARGIN_MS;
-  const recovered = await reload(); expect(recovered.read()?.state).toBe('EXPIRED'); expect(() => recovered.acknowledgeExpired()).toThrow('UNAVAILABLE');
-  now += SESSION_ATTEMPT_RETENTION_MS + 2 * SESSION_ATTEMPT_SAFETY_MARGIN_MS; recovered.acknowledgeExpired(); expect(recovered.read()).toBeNull();
+  const recovered = await reload(); expect(recovered.read()?.state).toBe('EXPIRED'); expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
+  now += SESSION_ATTEMPT_RETENTION_MS + 2 * SESSION_ATTEMPT_SAFETY_MARGIN_MS; expect(recovered.read()?.state).toBe('EXPIRED');
+  expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
 });
 
 it.each([false, true])('purges a prior actor on reload and rejects stale results/refusals (%s)', async (refusal) => {
@@ -278,7 +302,7 @@ it('retains PARTIAL across reload, enforces the append route and preserves the v
   let recovered = await reload(); expect(recovered.read()).toMatchObject({ state: 'PARTIAL', sessionId: id(12) });
   expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('ALREADY_SAVED');
   const correction = recovered.begin({ kind: 'append', sessionId: id(12), body: { lines: [line] } }, [id(10)]);
-  const appender = hooks(recovered); post.mockResolvedValueOnce({ error: { code: 'SESSION_DISCOUNT_ABOVE_LIMIT' }, response: { status: 422 } });
+  const appender = hooks(recovered); post.mockResolvedValueOnce({ error: { code: 'SESSION_DISCOUNT_ABOVE_LIMIT', message_ar: 'Synthetic AR', message_en: 'Synthetic EN' }, response: { status: 422 } });
   await act(async () => { await expect(appender.send(correction)).rejects.toMatchObject({ status: 422 }); });
   recovered = await reload(); const next = recovered.begin({ kind: 'append', sessionId: id(12), body: { lines: [line] } }, [id(10)]);
   post.mockResolvedValueOnce({ data: { ...response, outcome: 'COMPLETE', rejected_lines: [], added_lines: [savedLine] }, response: { status: 201 } });
@@ -291,7 +315,7 @@ it('accepts a definite 201 by key after expiry and permits explicit leave after 
   let release!: (value: { status: number; data: RecordServiceSessionResponse }) => void;
   const result = store.run(attempt, () => new Promise<{ status: number; data: RecordServiceSessionResponse }>((resolve) => { release = resolve; }));
   await Promise.resolve(); now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS; expect(store.read()?.state).toBe('EXPIRED');
-  expect(() => store.acknowledgeExpired()).toThrow('UNAVAILABLE');
+  expect(() => store.begin({ kind: 'record', body }, rows)).toThrow('UNRESOLVED');
   release({ status: 201, data: response }); await expect(result).resolves.toMatchObject({ status: 201 });
   expect(store.read()).toMatchObject({ state: 'PARTIAL', sessionId: id(12) }); store.leaveVisit();
   expect(store.read()).toBeNull(); expect((await reload()).read()).toBeNull();
