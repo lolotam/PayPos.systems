@@ -44,7 +44,7 @@ function rejectionSnapshots(drafts: SessionDraftForm, rejected: SessionRecording
       name_ar: error.name_ar, name_en: error.name_en, price: error.list_price, price_source: 'CATALOG' } } : line;
   }) };
 }
-// الرأس يرجع من المحاولة وهي لسه مش محسومة بس: نفس state.attempt، أو استرجاع PENDING، أو سطر ناقص بيتبني.
+// الرأس يرجع من المحاولة وهي لسه مش محسومة: نفس المفتاح، أو استرجاع PENDING، أو سطر ناقص، أو مسودة فاضية مالهاش سطور ولا رأس.
 // غير كده recorder_membership_id و occurred_at يفضلوا زي ما المستخدم سايبهم.
 function withAttemptHeader(drafts: SessionDraftForm, attempt: SessionAttempt, lines: SessionDraftLine[]): SessionDraftForm {
   const recorder_membership_id = attempt.body.recorder_membership_id ?? null;
@@ -59,8 +59,12 @@ function journalDependent(state: SessionRecordingResult) {
   if (kind === 'SAVING' || kind === 'UNRESOLVED' || kind === 'PARTIAL') return true;
   return kind === 'NOT_PERSISTED' && !state.session;
 }
+// تحذير التخزين على زيارة محفوظة من غير محاولة في الدفتر ما يفضلّش SAVING: النتيجة المحفوظة COMPLETE أو PARTIAL.
 function warnedFeedback(state: SessionRecordingResult): SessionFeedback {
-  return state.session ? state.feedback : { kind: 'NOT_PERSISTED' };
+  if (!state.session) return { kind: 'NOT_PERSISTED' };
+  const kind = state.feedback.kind;
+  if (kind === 'SAVING' || kind === 'UNRESOLVED') return { kind: state.rejected.length ? 'PARTIAL' : 'COMPLETE' };
+  return state.feedback;
 }
 function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, wantedIds = attempt.rowIds, replaceVisit = false): SessionRecordingResult {
   const sessionId = attempt.kind === 'append' ? attempt.sessionId : replaceVisit ? null : state.sessionId;
@@ -80,24 +84,29 @@ function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, 
   });
   const customerId = attempt.kind === 'record' ? attempt.body.customer_id : state.customerId;
   const lines = missing.length ? [...state.drafts.lines, ...missing] : state.drafts.lines;
-  const restoreHeader = replaceVisit || sameAttempt || missing.length > 0;
+  const blankDraft = state.drafts.lines.length === 0 && state.drafts.recorder_membership_id == null && state.drafts.occurred_at === undefined;
+  const restoreHeader = replaceVisit || sameAttempt || missing.length > 0 || blankDraft;
   return { ...state, sessionId, customerId, customer: state.customer?.id === customerId ? state.customer : null,
     drafts: restoreHeader ? withAttemptHeader(state.drafts, attempt, lines) : state.drafts };
 }
 function failedResult(state: SessionRecordingResult, attempt: SessionAttempt, error: unknown): SessionRecordingResult {
-  state = recoverAttempt(state, attempt);
-  if (error instanceof SessionSavedDisplayFailure) return { ...state, attempt: null,
-    sessionId: attempt.kind === 'append' ? attempt.sessionId : error.sessionId ?? null, feedback: { kind: 'SAVED_DISPLAY_FAILED' } };
-  if (sessionAttemptUnresolved(error)) return { ...state, attempt, feedback: { kind: 'UNRESOLVED' } };
   const envelope = errorEnvelope.safeParse(error);
   const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined;
   const details = envelope.success ? envelope.data.details : undefined;
-  const errors = rejectedServiceLine.array().min(1).safeParse(details && typeof details === 'object' && 'rejected_lines' in details ? details.rejected_lines : undefined);
-  if (status === 422 && envelope.success && envelope.data.code === 'SESSION_DISCOUNT_ABOVE_LIMIT' && errors.success) {
-    const rejected = indexedRejections(attempt, errors.data);
-    const drafts = rejectionSnapshots(state.drafts, rejected);
-    return { ...state, attempt: null, rejected, addedLineIds: [],
-      drafts: attempt.kind === 'record' ? drafts : retainRejected(drafts, rejected),
+  const parsed = rejectedServiceLine.array().min(1).safeParse(details && typeof details === 'object' && 'rejected_lines' in details ? details.rejected_lines : undefined);
+  const limitRows = !(error instanceof SessionSavedDisplayFailure) && !sessionAttemptUnresolved(error)
+    && status === 422 && envelope.success && envelope.data.code === 'SESSION_DISCOUNT_ABOVE_LIMIT' && parsed.success
+    ? indexedRejections(attempt, parsed.data) : null;
+  // إنشاء مرفوض يحتفظ بكل السطور؛ الإلحاق المرفوض يبني المرفوض بس عشان السطر المقبول اللي اتشال ما يتحسبش ناقص.
+  const wantedIds = limitRows && attempt.kind === 'append' ? limitRows.map((row) => row.localId) : attempt.rowIds;
+  state = recoverAttempt(state, attempt, wantedIds);
+  if (error instanceof SessionSavedDisplayFailure) return { ...state, attempt: null,
+    sessionId: attempt.kind === 'append' ? attempt.sessionId : error.sessionId ?? null, feedback: { kind: 'SAVED_DISPLAY_FAILED' } };
+  if (sessionAttemptUnresolved(error)) return { ...state, attempt, feedback: { kind: 'UNRESOLVED' } };
+  if (limitRows) {
+    const drafts = rejectionSnapshots(state.drafts, limitRows);
+    return { ...state, attempt: null, rejected: limitRows, addedLineIds: [],
+      drafts: attempt.kind === 'record' ? drafts : retainRejected(drafts, limitRows),
       session: attempt.kind === 'record' ? null : state.session,
       sessionId: attempt.kind === 'record' ? null : attempt.sessionId, feedback: { kind: 'ALL_REJECTED' } };
   }

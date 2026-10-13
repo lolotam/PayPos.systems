@@ -63,7 +63,7 @@ it.each([new TypeError('Network'), { status: 409, code: 'IDEMPOTENCY_KEY_IN_PROG
 it('idempotency reuse with rejection-looking details remains an atomic error on the saved visit', () => {
   const first = recorded(), error = { ...discountError, code: 'IDEMPOTENCY_KEY_REUSED', message_ar: 'synthetic', message_en: 'synthetic' };
   const result = transition(first, { type: 'FAILED', attempt: { ...appendAttempt, rowIds: [id(10)], body: { lines: [inputLine] } }, error });
-  expect(result.feedback.kind).toBe('ERROR'); expect(result.drafts.lines).toBe(first.drafts.lines); expect(result.session).toBe(first.session); expect(result.rejected).toEqual([]);
+  expect(result.feedback.kind).toBe('ERROR'); expect(result.drafts).toBe(first.drafts); expect(result.session).toBe(first.session); expect(result.rejected).toEqual([]);
 });
 it('clears a PARTIAL visit left elsewhere or switches to a different saved visit', () => {
   const old = recorded(), empty = transition(old, { type: 'JOURNAL', entry: null });
@@ -237,4 +237,32 @@ it('keeps a corrected occurred_at when a rejected record attempt is applied agai
   const corrected = '2026-10-01T00:00:00.000Z';
   const replayed = transition({ ...rejected, drafts: { ...rejected.drafts, occurred_at: corrected } }, { type: 'FAILED', attempt: frozen, error: discountError });
   expect(replayed.drafts.occurred_at).toBe(corrected);
+});
+it('keeps a recorder chosen after a rejected append is applied again', () => {
+  const appended = { ...appendAttempt, body: { ...appendAttempt.body, recorder_membership_id: id(28) } };
+  const rejected = transition({ ...initial, sessionId: appendAttempt.sessionId, attempt: appended }, { type: 'FAILED', attempt: appended, error: discountError });
+  expect(rejected.drafts.recorder_membership_id).toBe(id(28));
+  const chosen = id(29);
+  const replayed = transition({ ...rejected, drafts: { ...rejected.drafts, recorder_membership_id: chosen } }, { type: 'FAILED', attempt: appended, error: discountError });
+  expect(replayed.drafts.recorder_membership_id).toBe(chosen);
+});
+it.each(['SAVING', 'UNRESOLVED'] as const)('a storage warning settles a saved %s visit onto the server result', (kind) => {
+  const complete = transition(initial, { type: 'RECORDED', attempt: recordAttempt, response: completeResponse });
+  const inFlight = { ...complete, attempt: appendAttempt, feedback: { kind } };
+  const warned = transition(inFlight, { type: 'JOURNAL', entry: null, persistenceWarning: 'NOT_PERSISTED' });
+  expect(warned.feedback).toEqual({ kind: 'COMPLETE' }); expect(warned.attempt).toBeNull(); expect(warned.session).toBe(complete.session);
+  expect(transition(warned, { type: 'JOURNAL', entry: null }).session).toBe(complete.session);
+  const partial = { ...recorded(), attempt: appendAttempt, feedback: { kind } };
+  const warnedPartial = transition(partial, { type: 'JOURNAL', entry: null, persistenceWarning: 'NOT_PERSISTED' });
+  expect(warnedPartial.feedback).toEqual({ kind: 'PARTIAL' }); expect(warnedPartial.attempt).toBeNull(); expect(warnedPartial.session).toBe(partial.session);
+});
+it('restores the attempt header when a null journal cleared the pending visit before the result', () => {
+  const membership = id(28), occurredAt = '2026-09-01T00:00:00.000Z';
+  const frozen = freezeSessionAttempt(scope, { kind: 'record', body: { customer_id: id(7), recorder_membership_id: membership, occurred_at: occurredAt, lines: [inputLine, inputLine] } }, [id(9), id(10)], { now: () => Date.parse(instant), newId: () => id(31) });
+  if (frozen.kind !== 'record') throw new Error('Invalid record fixture');
+  const pending = transition(initial, { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: frozen } });
+  const cleared = transition(pending, { type: 'JOURNAL', entry: null });
+  const complete = transition(cleared, { type: 'RECORDED', attempt: frozen, response: completeResponse });
+  expect(complete.drafts.occurred_at).toBe(occurredAt);
+  expect(sessionResultCommand(complete, [inputLine])).toEqual({ kind: 'append', sessionId: id(12), body: { lines: [inputLine], recorder_membership_id: membership } });
 });
