@@ -6,6 +6,8 @@ import { SelectedCompanyGuard } from '../../shared/selected-company.guard.ts';
 import { ServiceSessionsController } from './http/service-sessions.controller.ts';
 import { ServiceSessionFormController } from './http/service-session-form.controller.ts';
 import { RecordingContextQueryHandler } from './queries/recording-context.query.ts';
+import { SessionServiceOptionsQueryHandler } from './queries/session-service-options.query.ts';
+import { sessionServiceOptions } from './persistence/session-service-options.adapter.ts';
 import { recordingAccess, recordingLimit } from './persistence/recording-context.adapter.ts';
 import { SessionAdminGuard, SessionAppendGuard } from './http/session-access.guard.ts';
 import { SessionErrorsFilter } from './http/session-errors.filter.ts';
@@ -23,6 +25,13 @@ import { AppendServiceSessionLinesUseCase } from './use-cases/append-service-ses
 import type { Clock } from './ports/service-session-transactions.port.ts';
 
 export const ordersControllers = [ServiceSessionsController, ServiceSessionFormController];
+export function ordersServiceOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
+  return new SessionServiceOptionsQueryHandler(database, {
+    place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
+    access: (tx, scope, at) => recordingAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+    options: (tx, scope, query) => sessionServiceOptions(tx, scope.companyId, scope.businessId, query),
+  }, clock);
+}
 export function ordersRecordingContextQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new RecordingContextQueryHandler(database, {
     place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
@@ -48,6 +57,7 @@ export function ordersTransactions(database: TenantWrappers, ids: IdGenerator) {
 export function ordersProviders(database: TenantWrappers | undefined, ids: IdGenerator, clock: Clock = systemClock): Provider[] {
   const transactions = database === undefined ? null : ordersTransactions(database, ids);
   return [SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, SessionErrorsFilter,
+    { provide: SessionServiceOptionsQueryHandler, useValue: database === undefined ? null : ordersServiceOptionsQuery(database, clock) },
     { provide: RecordingContextQueryHandler, useValue: database === undefined ? null : ordersRecordingContextQuery(database, clock) },
     { provide: BranchDayServiceSessionsQuery, useValue: database === undefined ? null : ordersDayQuery(database) },
     { provide: RecordServiceSessionUseCase, useValue: transactions === null ? null : new RecordServiceSessionUseCase(transactions, ids, clock) },
