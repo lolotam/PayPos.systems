@@ -1,11 +1,22 @@
 import { expect, it } from 'vitest';
 import { sessionLocalTime, sessionOldestLocal, sessionUtc } from './session-local-time';
 
-it('omits now and converts civil seconds using the business zone', () => {
-  expect(sessionUtc('', 'Asia/Kuwait')).toEqual({ instant: undefined });
+it('rejects cleared edits and converts civil seconds using the business zone', () => {
+  expect(sessionUtc('', 'Asia/Kuwait')).toEqual({ error: 'invalidTime' });
   expect(sessionUtc('2026-10-15T17:02:03', 'Asia/Kuwait')).toEqual({ instant: '2026-10-15T14:02:03.000Z' });
   expect(sessionLocalTime('2026-10-15T14:02:03.000Z', 'Asia/Kuwait')).toBe('2026-10-15T17:02:03');
   expect(sessionUtc('2026-10-15T17:02', 'Asia/Kuwait')).toEqual({ instant: '2026-10-15T14:02:00.000Z' });
+});
+it.each(['', '2', '20', '202', '0002', '0020', '0202', '2026'])('handles year typing %s without exceptions', (year) => {
+  const local = `${year}-10-15T17:02`, result = sessionUtc(local, 'Asia/Kuwait');
+  if (year.length !== 4) expect(result).toEqual({ error: 'invalidTime' });
+  else {
+    expect(result.error).toBeUndefined();
+    expect(sessionLocalTime(result.instant as string, 'Asia/Kuwait')).toBe(`${local}:00`);
+  }
+});
+it.each(['٢٠٢٦-١٠-١٥T١٧:٠٢:٠٣', '۲۰۲۶-۱۰-۱۵T۱۷:۰۲:۰۳'])('normalizes localized digits in %s', (local) => {
+  expect(sessionUtc(local, 'Asia/Kuwait')).toEqual(sessionUtc('2026-10-15T17:02:03', 'Asia/Kuwait'));
 });
 it.each(['bad', '2026-02-29T12:00', '2026-04-31T12:00', '2026-10-15T24:00', '2026-10-15T12:60'])('rejects invalid civil input %s', (local) => {
   expect(sessionUtc(local, 'Asia/Kuwait')).toEqual({ error: 'invalidTime' });

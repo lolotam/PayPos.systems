@@ -27,12 +27,25 @@ it.each(['ar', 'en'] as const)('keeps now omitted while the server-anchored labe
   const save = vi.fn(); render(<Harness save={save} />);
   expect(input().value).toBe(''); expect(screen.getByText('Asia/Kuwait')).toBeTruthy();
   const frozen = JSON.stringify(form.getValues());
+  vi.setSystemTime(new Date('2030-01-01T00:00:00Z'));
   await act(async () => vi.advanceTimersByTime(3000));
   expect(screen.getByText(formatInstant(new Date('2026-10-15T08:00:03Z'), locale, 'Asia/Kuwait'))).toBeTruthy();
   expect(JSON.stringify(form.getValues())).toBe(frozen); expect(form.formState.isDirty).toBe(false);
   await act(async () => fireEvent.click(screen.getByText('Submit fixture')));
   expect(JSON.parse(save.mock.calls[0]?.[0] ?? '{}')).not.toHaveProperty('occurred_at');
-  expect(screen.getByText(t(locale, 'serviceSessions.windowHelp').replace('{oldest}', '2026-09-01 00:00:00'))).toBeTruthy();
+  expect(input().min).toBe('2026-09-01T00:00:00');
+  expect(screen.getByText(t(locale, 'serviceSessions.windowHelp')
+    .replace('{oldest}', formatInstant(new Date('2026-08-31T21:00:00Z'), locale, 'Asia/Kuwait')))).toBeTruthy();
+});
+it.each(['', '2026-10-'])('blocks cleared/partial edited value %s until Use now is chosen', async (value) => {
+  state.locale = 'en'; const save = vi.fn(); render(<Harness save={save} />);
+  edit('2026-10-12T17:00'); edit(value);
+  expect(form.getValues('occurred_at')).toBe('');
+  expect(screen.getByRole('alert').textContent).toBe(t('en', 'serviceSessions.invalidTime'));
+  await act(async () => fireEvent.click(screen.getByText('Submit fixture'))); expect(save).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText(t('en', 'serviceSessions.useNow')));
+  await act(async () => fireEvent.click(screen.getByText('Submit fixture')));
+  expect(save).toHaveBeenCalledTimes(1); expect(JSON.parse(save.mock.calls[0]?.[0] ?? '{}')).not.toHaveProperty('occurred_at');
 });
 it('sends fixed UTC at the inclusive oldest instant, preserves replay input, and restores omission', async () => {
   state.locale = 'en'; const save = vi.fn(), view = render(<Harness save={save} />);
