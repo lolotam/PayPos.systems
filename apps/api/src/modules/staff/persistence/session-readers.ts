@@ -1,31 +1,23 @@
 import { sessionPerformerCursorData, type SessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import type { SQL } from 'drizzle-orm';
-import { createHash } from 'node:crypto';
-import { Buffer } from 'node:buffer';
+import { searchHash, cursorScope, encodeCursor, decodeCursor } from '../../../shared/persistence/name-options-cursor.ts';
 import { attendanceWorkingDate } from '../domain/clock-attendance.ts';
 import { schedulingContext } from './schedule-context.adapter.ts';
 import { sessionPerformers } from './session-performers.reader.ts';
 
-function searchHash(normalizedQ: string) {
-  return createHash('sha256').update(normalizedQ).digest('hex');
-}
-
 function readCursor(query: SessionPerformerOptionsQuery, requestedAt: string, scopeHash: string) {
   if (query.cursor === undefined) return null;
   try {
-    const cursor = sessionPerformerCursorData.parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
-    if (Buffer.from(JSON.stringify(cursor)).toString('base64url') !== query.cursor ||
-      cursor.lang !== query.lang || cursor.requested_at !== requestedAt || cursor.scope_hash !== scopeHash ||
+    const cursor = decodeCursor(query.cursor, (value) => sessionPerformerCursorData.parse(value));
+    if (cursor.lang !== query.lang || cursor.requested_at !== requestedAt || cursor.scope_hash !== scopeHash ||
       cursor.effective_at !== new Date(cursor.effective_at).toISOString()) throw new Error();
     return cursor;
   } catch { throw new RangeError('SESSION_PERFORMER_CURSOR_INVALID'); }
 }
 
 export const sessionPerformerCursorCodec = {
-  scope(companyId: string, businessId: string, branchId: string) {
-    return createHash('sha256').update(JSON.stringify([companyId.toLowerCase(), businessId.toLowerCase(), branchId.toLowerCase()])).digest('hex');
-  },
+  scope: cursorScope,
   decode(query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string) {
     const cursor = readCursor(query, requestedAt, scopeHash);
     if (cursor !== null && (cursor.q_hash !== searchHash(normalizedQ) || cursor.effective_at !== query.occurred_at))
@@ -33,8 +25,8 @@ export const sessionPerformerCursorCodec = {
     return cursor;
   },
   encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string) {
-    return Buffer.from(JSON.stringify({ key, id, lang: query.lang, q_hash: searchHash(normalizedQ),
-      requested_at: requestedAt, effective_at: query.occurred_at, scope_hash: scopeHash })).toString('base64url');
+    return encodeCursor({ key, id, lang: query.lang, q_hash: searchHash(normalizedQ),
+      requested_at: requestedAt, effective_at: query.occurred_at, scope_hash: scopeHash });
   },
 };
 

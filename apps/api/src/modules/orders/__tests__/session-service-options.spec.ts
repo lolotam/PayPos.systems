@@ -16,27 +16,41 @@ beforeAll(async () => {
 });
 afterAll(async () => { await f?.close(); });
 const get = (query = '', cookie = f.cookie, company = f.company, base = f.base) =>
-  f.h.send('GET', `${base}/service-options${query === '' ? '' : `?${query}`}`, { cookie, company });
-const read = () => ordersServiceOptionsQuery(f.db, f.clock).execute(f.context(), { limit: 2 });
+  f.h.send('GET', `${base}/service-options?lang=en&${query}`, { cookie, company });
+const read = () => ordersServiceOptionsQuery(f.db, f.clock).execute(f.context(), { lang: 'en', limit: 2 });
 
 it('record-only access returns exact picker fields, stable pages despite name ties, and no writes', async () => {
   f.h.calls.statements.length = 0;
   const first = await get('limit=2'); expect(first.status).toBe(200);
   const page = sessionServiceOptionPage.parse(first.body);
   expect(page).toEqual({ items: f.services.slice(0, 2).map((id, i) => ({ id, name_ar: 'خدمة تجريبية',
-    name_en: 'Same name', price: ['25.000', '7.125'][i], revision: 7 })), next_cursor: f.services[1] });
+    name_en: 'Same name', price: ['25.000', '7.125'][i], revision: 7 })), next_cursor: expect.any(String) });
   const last = sessionServiceOptionPage.parse((await get(`limit=2&cursor=${page.next_cursor}`)).body);
   expect(last.items.map((r) => r.id)).toEqual(f.services.slice(2));
   expect(last.items.map((r) => r.price)).toEqual(['0.000', '15.000']); expect(last.next_cursor).toBeNull();
-  expect((await get(`cursor=${must(f.services.at(-1))}`)).body).toEqual({ items: [], next_cursor: null });
   expect((await get('limit=4')).body['next_cursor']).toBeNull();
   expect(f.h.calls.statements.every(({ sql: statement }) => !/\b(INSERT|UPDATE|DELETE)\b/i.test(statement))).toBe(true);
   expect((await f.h.send('GET', `/v1/businesses/${f.business}/services`, { cookie: f.cookie, company: f.company })).status).toBe(403);
   expect((await f.h.send('GET', `${f.base}?date=2026-10-14`, { cookie: f.cookie, company: f.company })).status).toBe(403);
 });
 it('rejects invalid/unknown query fields', async () => {
-  for (const query of ['limit=0', 'limit=101', 'cursor=bad', `recorder_membership_id=${f.membership}`])
+  for (const query of ['limit=0', 'limit=101', 'cursor=bad', 'q=%00', 'q=', `recorder_membership_id=${f.membership}`])
     expect((await get(query)).status).toBe(400);
+  expect((await f.h.send('GET', `${f.base}/service-options`, { cookie: f.cookie, company: f.company })).status).toBe(400);
+});
+it('rejects language/search mismatches, noncanonical cursors and cross-scope replay with 400', async () => {
+  const cursor = must(sessionServiceOptionPage.parse((await get('limit=1')).body).next_cursor);
+  for (const query of [`cursor=${cursor}&q=changed`, `cursor=${cursor.slice(0, -1)}`, `cursor=${cursor}=`])
+    expect((await get(query)).status).toBe(400);
+  expect((await f.h.send('GET', `${f.base}/service-options?lang=ar&cursor=${cursor}`, { cookie: f.cookie, company: f.company })).status).toBe(400);
+  const sibling = ids.newId();
+  await f.h.owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.company},${sibling},${f.business},'Synthetic sibling')`;
+  for (const [company, business, branch] of [[f.company, f.business, sibling], [f.company, f.secondBusiness, f.secondBranch],
+    [f.otherCompany, f.foreignBusiness, f.foreignBranch]])
+    await expect(f.db.withTenant(must(company), (tx) => sessionServiceOptions(tx, must(company), must(business), must(branch),
+      { lang: 'en', limit: 20, cursor }))).rejects.toThrow('SESSION_SERVICE_CURSOR_INVALID');
+  expect((await get(`cursor=${cursor}`, f.ownerCookie, f.company,
+    `/v1/businesses/${f.business}/branches/${sibling}/service-sessions`)).status).toBe(400);
 });
 it('refreshes list price/revision without requiring the broader catalog feature or permission', async () => {
   await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
@@ -51,12 +65,12 @@ it('refreshes list price/revision without requiring the broader catalog feature 
   }
 });
 it('provider projection is exact, business-limited and protected by real RLS', async () => {
-  const page = await f.db.withTenant(f.company, (tx) => sessionServiceOptions(tx, f.company, f.business, { limit: 20 }));
+  const page = await f.db.withTenant(f.company, (tx) => sessionServiceOptions(tx, f.company, f.business, f.branch, { lang: 'en', limit: 20 }));
   expect(page).toEqual(sessionServiceOptionPage.parse((await get()).body));
   for (const [company, business] of [[f.company, f.foreignBusiness], [f.otherCompany, f.foreignBusiness]])
-    expect(await f.db.withTenant(f.company, (tx) => sessionServiceOptions(tx, must(company), must(business), { limit: 20 })))
+    expect(await f.db.withTenant(f.company, (tx) => sessionServiceOptions(tx, must(company), must(business), f.branch, { lang: 'en', limit: 20 })))
       .toEqual({ items: [], next_cursor: null });
-  const outside = await f.db.withTenant(f.company, (tx) => sessionServiceOptions(tx, f.company, f.secondBusiness, { limit: 20 }));
+  const outside = await f.db.withTenant(f.company, (tx) => sessionServiceOptions(tx, f.company, f.secondBusiness, f.secondBranch, { lang: 'en', limit: 20 }));
   expect(outside.items[0]?.price).toBe('99999999999.999');
 });
 it('refuses other tenant/branch, route mismatch and inactive place on each page', async () => {
@@ -105,9 +119,10 @@ it('EXPLAIN ANALYZE runs exact orders callback SQL for first/next pages using ex
       return target.execute(query);
     } : Reflect.get(target, property, receiver) }) as Tx);
   }, options) };
-  for (const cursor of [undefined, must(f.services[0])]) {
+  const first = sessionServiceOptionPage.parse((await get('limit=1&q=same')).body);
+  for (const cursor of [undefined, must(first.next_cursor)]) {
     plans.length = 0;
-    const page = await ordersServiceOptionsQuery(db, f.clock).execute(f.context(), { limit: 2, ...(cursor === undefined ? {} : { cursor }) });
+    const page = await ordersServiceOptionsQuery(db, f.clock).execute(f.context(), { lang: 'en', q: 'same', limit: 2, ...(cursor === undefined ? {} : { cursor }) });
     expect(page.items).toHaveLength(2);
     const plan = plans.join('');
     for (const index of ['services_company_business_id_key', 'memberships_', 'businesses_pkey']) expect(plan).toContain(index);

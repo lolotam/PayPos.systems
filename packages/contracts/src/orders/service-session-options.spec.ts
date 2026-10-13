@@ -37,18 +37,22 @@ it('requires occurred time, trims bounded search and rejects private performer f
   for (const field of ['salary', 'phone', 'leave_reason', 'attendance_history', 'user_id'])
     expect(sessionPerformerOptionPage.safeParse({ items: [{ ...item, [field]: 'private' }], next_cursor: null }).success).toBe(false);
 });
-it('documents the guarded limited GET, UUID cursor, page bounds and response schema', () => {
+it('documents the guarded limited GET, language/search cursor, page bounds and response schema', () => {
   const route = serviceSessionFormPaths['/v1/businesses/{businessId}/branches/{branchId}/service-sessions/service-options'].get;
   expect(route.description).toContain('record:service-sessions:branch');
   expect(route.parameters.find((p) => p.name === 'limit')?.schema).toEqual({ type: 'integer', minimum: 1, maximum: 100, default: 20 });
-  expect(route.parameters.map((p) => p.name)).toEqual(['x-company-id', 'businessId', 'branchId', 'cursor', 'limit']);
+  expect(route.parameters.map((p) => p.name)).toEqual(['x-company-id', 'businessId', 'branchId', 'lang', 'q', 'cursor', 'limit']);
+  expect(route.parameters.find((p) => p.name === 'lang')?.required).toBe(true);
+  expect(route.parameters.find((p) => p.name === 'cursor')?.schema).not.toHaveProperty('format');
   expect(route.responses['200'].content['application/json'].schema.$ref).toBe('#/components/schemas/SessionServiceOptionPage');
 });
-it('accepts only bounded UUID cursor queries with the established defaults', () => {
-  expect(sessionServiceOptionsQuery.parse({})).toEqual({ limit: 20 });
-  expect(sessionServiceOptionsQuery.parse({ cursor: id.toUpperCase(), limit: '100' })).toEqual({ cursor: id, limit: 100 });
-  for (const query of [{ cursor: 'bad' }, { limit: '0' }, { limit: '101' }, { limit: '1.5' }, { business_id: id }])
-    expect(sessionServiceOptionsQuery.safeParse(query).success).toBe(false);
+it('requires language and validates trimmed literal search and opaque cursor bounds', () => {
+  expect(sessionServiceOptionsQuery.parse({ lang: 'ar' })).toEqual({ lang: 'ar', limit: 20 });
+  expect(sessionServiceOptionsQuery.parse({ lang: 'en', q: ' É ', cursor: 'YWJj', limit: '100' })).toEqual({ lang: 'en', q: 'É', cursor: 'YWJj', limit: 100 });
+  expect(sessionServiceOptionsQuery.safeParse({}).success).toBe(false);
+  for (const query of [{ lang: 'fr' }, { cursor: 'bad=' }, { q: '' }, { q: ' ' }, { q: 'a'.repeat(51) }, { q: '\u0000' },
+    { limit: '0' }, { limit: '101' }, { limit: '1.5' }, { business_id: id }])
+    expect(sessionServiceOptionsQuery.safeParse({ lang: 'en', ...query }).success).toBe(false);
 });
 it('keeps exact canonical prices and rejects wider/private fields and malformed pages', () => {
   for (const price of ['0.000', '7.125', '99999999999.999'])
@@ -57,6 +61,6 @@ it('keeps exact canonical prices and rejects wider/private fields and malformed 
     { commission_rule: { kind: 'ZERO' } }, { counts_toward_threshold: true }, { business_id: id }])
     expect(sessionServiceOption.safeParse({ ...option, ...fields }).success).toBe(false);
   expect(sessionServiceOptionPage.parse({ items: [option], next_cursor: null })).toEqual({ items: [option], next_cursor: null });
-  expect(sessionServiceOptionPage.safeParse({ items: [], next_cursor: 'bad' }).success).toBe(false);
+  expect(sessionServiceOptionPage.safeParse({ items: [], next_cursor: 'bad=' }).success).toBe(false);
   expect(sessionServiceOptionPage.safeParse({ items: [], next_cursor: null, total: 0 }).success).toBe(false);
 });

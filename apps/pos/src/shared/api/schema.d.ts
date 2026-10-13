@@ -1526,7 +1526,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Admin recording-form service names, list prices and revisions only (SS-Q13). Requires record:service-sessions:branch and orders feature, confirmed business/branch ownership on every page. Ascending service UUID cursor; no commission data or broader catalog permission. */
+        /** @description Admin recording-form service names, list prices and revisions only (SS-Q13). Requires record:service-sessions:branch and orders feature, confirmed business/branch ownership on every page. Required UI lang orders globally by coalesce(name_<lang>,name_<other>) COLLATE "und-x-icu", then id (SS-Q15). Opaque base64url cursor binds the exact name/id to lang, ICU-folded q hash and company/business/branch scope; mismatches return 400. No commission data or broader catalog permission. */
         get: operations["getServiceSessionServiceOptions"];
         put?: never;
         post?: never;
@@ -3785,8 +3785,10 @@ export interface components {
             discount_limit: null;
         };
         SessionServiceOptionsQuery: {
-            /** Format: uuid */
             cursor?: string;
+            /** @enum {string} */
+            lang: "ar" | "en";
+            q?: string;
             /** @default 20 */
             limit: number;
         };
@@ -3800,21 +3802,20 @@ export interface components {
         };
         SessionServiceOptionPage: {
             items: components["schemas"]["SessionServiceOption"][];
-            /** Format: uuid */
             next_cursor: string | null;
         };
         SessionPerformerOptionsQuery: {
             cursor?: string;
-            /** @default 20 */
-            limit: number;
             /** @enum {string} */
             lang: "ar" | "en";
+            q?: string;
+            /** @default 20 */
+            limit: number;
             /**
              * Format: date-time
              * @description POST window: from the first of the previous month in business timezone through server now + 120 seconds; tolerated future values normalize to server now.
              */
             occurred_at: string;
-            q?: string;
         };
         SessionPerformerOption: {
             /** Format: uuid */
@@ -9850,7 +9851,11 @@ export interface operations {
     };
     getServiceSessionServiceOptions: {
         parameters: {
-            query?: {
+            query: {
+                lang: "ar" | "en";
+                /** @description Trimmed ICU case-folded literal substring of either name; percent, underscore and backslash are literal; NUL returns 400. */
+                q?: string;
+                /** @description Opaque cursor from the previous page; keep lang, q and route scope unchanged. */
                 cursor?: string;
                 limit?: number;
             };
@@ -9874,7 +9879,7 @@ export interface operations {
                     "application/json": components["schemas"]["SessionServiceOptionPage"];
                 };
             };
-            /** @description Invalid strict query. */
+            /** @description Invalid strict query or malformed/mismatched cursor. */
             400: {
                 headers: {
                     [name: string]: unknown;
