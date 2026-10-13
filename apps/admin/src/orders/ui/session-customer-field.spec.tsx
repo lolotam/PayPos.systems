@@ -80,9 +80,6 @@ it('disables entry while pending and does not select on a network failure', asyn
 it('supports the caller disabling find-or-create while offline', () => {
   mount(true); expect(screen.getByRole('button').closest('fieldset')?.disabled).toBe(true);
 });
-
-
-
 function scopedMount() {
   const client = new QueryClient();
   const host = (scope = {}) => <QueryClientProvider client={client}><Harness {...scope} /></QueryClientProvider>;
@@ -116,13 +113,15 @@ it('does not select a customer after the field unmounts', async () => {
   fill(); resolve(); await waitFor(() => expect(finish).toBeDefined()); onChange.mockClear();
   view.unmount(); await act(async () => { finish({ data: saved }); }); expect(onChange).not.toHaveBeenCalled();
 });
-it.each([null, { id: '01920000-0000-7000-8000-0000000000a3', name: 'Replacement synthetic customer', phone: '***002' }])('synchronizes a parent replacement %j after selection', async (next) => {
-  state.post.mockResolvedValueOnce({ data: saved }); const view = scopedMount(); fill(); resolve(); await screen.findByRole('status');
-  view.changeScope({ externalValue: next });
+it.each(['clear', 'replace', 'pending'] as const)('synchronizes a parent %s without restoring an older customer', async (mode) => {
+  const next = mode === 'clear' ? null : { id: '01920000-0000-7000-8000-0000000000a3', name: 'Replacement synthetic customer', phone: '***002' }; let finish!: (response: { data: typeof saved }) => void;
+  state.post.mockImplementationOnce(() => mode === 'pending' ? new Promise((done) => { finish = done; }) : Promise.resolve({ data: saved }));
+  const view = scopedMount(); fill(); resolve(); if (mode === 'pending') await waitFor(() => expect(finish).toBeDefined()); else await screen.findByRole('status');
+  view.changeScope({ externalValue: next }); if (mode === 'pending') await act(async () => { finish({ data: saved }); });
   expect(selection).toEqual(next);
   for (const key of ['name', 'callingCode', 'phone'] as const) {
     expect((screen.getByLabelText(t(state.locale, `serviceSessions.${key}`)) as HTMLInputElement).value).toBe(key === 'name' ? next?.name ?? '' : '');
   }
   expect(screen.queryByRole('status')?.textContent ?? '').toBe(next ? t(state.locale, 'serviceSessions.selected') + next.name + next.phone : '');
-  expect(view.client.getMutationCache().getAll()).toHaveLength(0);
+  await waitFor(() => expect(view.client.getMutationCache().getAll()).toHaveLength(0));
 });
