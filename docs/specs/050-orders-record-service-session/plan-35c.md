@@ -207,9 +207,12 @@ TODO. Never bundle the twelve PRs into one 35c PR. No speculative day-list integ
 - SS-Q14 = 1: a later service for the same customer is appended to the same visit while it is still open on the
   reception screen (existing append route); once the screen is closed it is a new visit.
 - SS-Q15 = 1: service and performer pickers are alphabetical in the UI language with a search box. The option
-  GETs take an optional `q` (1–50 chars, case-insensitive on name_ar/name_en) and keep id-cursor pages; the UI sorts
-  the loaded page. **35c-3b** (new, S): add `q` to `/service-options` (contract + query + tests, ~100–150 lines),
-  merged before 35c-6. 35c-4 ships with `q` from the start.
+  GETs take `lang` (`ar`|`en`, the UI language) and an optional `q` (1–50 chars, case-insensitive on name_ar/name_en)
+  and page in **name order**: `ORDER BY lower(name_<lang>), id` with an opaque keyset cursor encoding both, so the
+  list is globally alphabetical across pages (never a per-page client sort). **35c-3b** (new, S): switch
+  `/service-options` to this ordering and add `lang`/`q` (contract + query + tests, ~150–250 lines), merged before
+  35c-6. 35c-4 ships `/performer-options` with the same ordering from the start. Row 8c extends the
+  performer-options `q` to match the employee number as well (EN-Q9), with its contract/query tests.
 - SS-Q16 = 1: after a COMPLETE save, show the saved summary with «New visit» (clears all) and «New visit, same
   customer» (keeps the selected customer) — part of 35c-11/35c-12.
 - SS-Q17 = 3: no reception-only "my saves" list; a manager who wants reception to see sessions delegates
