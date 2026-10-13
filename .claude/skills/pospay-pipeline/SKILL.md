@@ -95,14 +95,14 @@ what saves tokens is reusing one session and keeping its prefix stable:
    ```powershell
    $sid = [guid]::NewGuid().ToString()
    grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7-build-fast --reasoning-effort high `
-       -s $sid --prompt-file F:DevWorktreesPosPayriefs<task>rief.txt --always-approve --permission-mode bypassPermissions --output-format plain
+       -s $sid --prompt-file F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt --always-approve --permission-mode bypassPermissions --output-format plain
    ```
 
 2. **Every later round resumes that session** instead of starting a new one, so Grok does not re-read the repo:
 
    ```powershell
    grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7-build-fast --reasoning-effort high `
-       --resume $sid --prompt-file F:DevWorktreesPosPayriefs<task>ix-<round>.txt --always-approve --permission-mode bypassPermissions --output-format plain
+       --resume $sid --prompt-file F:\Dev\Worktrees\PosPay\briefs\<task>\fix-<round>.txt --always-approve --permission-mode bypassPermissions --output-format plain
    ```
 
    Pass the brief with `--prompt-file`. `grok "prompt"` without `--prompt-file`/`-p` opens the interactive TUI and

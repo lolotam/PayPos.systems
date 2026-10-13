@@ -134,8 +134,8 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
 - Then **35d** (edit price/discount after saving; batch 17 answered) after issue #189 declares its bell event.
 - Owner question #199 (leaving an EXPIRED recording without logging out) is **already published** as batch 18
   (SS-Q18, 2026-10-14); only its answer is pending. Until then the merged safe behaviour (#198) stays: logout or a
-  scope change is the exit. 35c-12 may be built meanwhile, but it merges only after SS-Q18 is answered or Waleed
-  explicitly approves shipping with the current exit.
+  scope change is the exit. **35c-12 is blocked (`TODO(spec)`) until SS-Q18 is answered**; 35d and other rows can
+  proceed meanwhile.
 
 ### 4.2 Package facts worth knowing
 
