@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { readSessionPerformerOptions, readSessionPerformers } from '../index.ts';
 import { sessionPerformerOptionsStatement } from '../queries/session-performer-options.query.ts';
+import { sessionPerformerCursorCodec } from '../persistence/session-readers.ts';
 import { ids, must, sessionFixture, type SessionFixture } from '../../../../test/service-session.fixture.ts';
 
 let f: SessionFixture;
@@ -35,7 +36,7 @@ it('enforces RLS on exact picker SQL even when explicitly passed another company
     VALUES(${f.otherCompany},${employee},${f.foreignBusiness},${f.foreignBranch},'Foreign employee','foreign employee','staff','2026-01-01')`;
   await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${f.otherCompany},${ids.newId()},${f.foreignBusiness},${employee},${f.foreignBranch},'2026-01-01')`;
-  const statement = sessionPerformerOptionsStatement(f.otherCompany, f.foreignBusiness, f.foreignBranch, '2026-10-14', { occurred_at, lang: 'en', limit: 20 }, '');
+  const statement = sessionPerformerOptionsStatement(f.otherCompany, f.foreignBusiness, f.foreignBranch, '2026-10-14', { occurred_at, lang: 'en', limit: 20 }, null);
   expect(await f.db.withTenant(f.company, (tx) => tx.execute(statement))).toHaveLength(0);
   expect(await f.db.withTenant(f.otherCompany, (tx) => tx.execute(statement))).toHaveLength(1);
 });
@@ -124,7 +125,7 @@ it('EXPLAIN ANALYZE uses existing employee/link/clock/leave indexes for exact se
     for (const lang of ['ar', 'en'] as const) for (const cursor of [undefined, Buffer.from(JSON.stringify({ key: 'Synthetic employee 0', id: f.employees[0],
       lang, q_hash: createHash('sha256').update('synthetic').digest('hex') })).toString('base64url')]) {
       const query = { occurred_at, lang, q: 'synthetic', limit: 2, ...(cursor === undefined ? {} : { cursor }) };
-      const plan = JSON.stringify(await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sessionPerformerOptionsStatement(f.company, f.business, f.branch, '2026-10-13', query, 'synthetic')}`));
+      const plan = JSON.stringify(await tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) ${sessionPerformerOptionsStatement(f.company, f.business, f.branch, '2026-10-13', query, sessionPerformerCursorCodec.decode(query, 'synthetic'))}`));
       for (const name of ['employees_', 'employee_branches_', 'attendance_sessions_', 'leave_requests_']) expect(plan).toContain(name);
       expect(plan).not.toContain('Seq Scan');
     }

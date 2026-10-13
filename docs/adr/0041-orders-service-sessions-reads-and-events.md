@@ -358,6 +358,7 @@ Search folds both names and trimmed q with PostgreSQL lower(... COLLATE "und-x-i
 percent, underscore and backslash are escaped so search remains a literal substring.
 Canonical base64url JSON carries the exact displayed name, id, lang and SHA-256 of the same ICU-folded q;
 strict payload/encoding/binding checks refuse malformed or mismatched cursors with 400.
+Persistence owns the SHA-256/base64url cursor codec and injects it into the query; the query imports no Node APIs.
 Orders injects the POST sessionTime rule into the read handler: the first of the previous month in business
 timezone is inclusive; over 120 seconds ahead refuses with 400 and POST's time code. Tolerated future input
 normalizes to the injected server clock before staff reads warning facts. Existing indexes and the scoped sort are EXPLAIN-tested;
