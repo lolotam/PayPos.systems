@@ -27,16 +27,18 @@ export const serviceSessionFormPaths = {
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/service-options': {
     get: {
       operationId: 'getServiceSessionServiceOptions',
-      description: 'Admin recording-form service names, list prices and revisions only (SS-Q13). Requires record:service-sessions:branch and orders feature, confirmed business/branch ownership on every page. Ascending service UUID cursor; no commission data or broader catalog permission.',
+      description: 'Admin recording-form service names, list prices and revisions only (SS-Q13). Requires record:service-sessions:branch and orders feature, confirmed business/branch ownership on every page. Required UI lang orders globally by coalesce(name_<lang>,name_<other>) COLLATE "und-x-icu", then id (SS-Q15). Opaque base64url cursor binds the exact name/id to lang, ICU-folded q hash and company/business/branch scope; mismatches return 400. No commission data or broader catalog permission.',
       parameters: [
         { in: 'header', name: 'x-company-id', required: true, schema: { type: 'string', format: 'uuid' } },
         ...['businessId', 'branchId'].map((name) => ({ in: 'path', name, required: true, schema: { type: 'string', format: 'uuid' } })),
-        { in: 'query', name: 'cursor', required: false, schema: { type: 'string', format: 'uuid' } },
+        { in: 'query', name: 'lang', required: true, schema: { type: 'string', enum: ['ar', 'en'] } },
+        { in: 'query', name: 'q', required: false, description: 'Trimmed ICU case-folded literal substring of either name; percent, underscore and backslash are literal; NUL returns 400.', schema: { type: 'string', minLength: 1, maxLength: 50 } },
+        { in: 'query', name: 'cursor', required: false, description: 'Opaque cursor from the previous page; keep lang, q and route scope unchanged.', schema: { type: 'string', minLength: 1, maxLength: 4096, pattern: '^[A-Za-z0-9_-]+$' } },
         { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
       ],
       responses: {
         '200': { description: 'Limited service page; null cursor on the last page.', content: json('SessionServiceOptionPage') },
-        '400': { description: 'Invalid strict query.', content: json('ErrorEnvelope') },
+        '400': { description: 'Invalid strict query or malformed/mismatched cursor.', content: json('ErrorEnvelope') },
         '403': { description: 'Uniform scope/permission refusal or disabled orders feature.', content: json('ErrorEnvelope') },
         default: { description: 'Bilingual authentication/readiness refusal.', content: json('ErrorEnvelope') },
       },

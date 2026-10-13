@@ -4,8 +4,16 @@ import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { nameAr, nameEn } from '../bilingual/names.js';
 
+const performerCursor = z.string().min(1).max(4096).regex(/^[A-Za-z0-9_-]+$/);
+export const sessionServiceCursorData = z.strictObject({
+  key: z.string().max(1024).refine((value) => !value.includes('\u0000')), id: id.toLowerCase(),
+  lang: z.enum(['ar', 'en']), q_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  scope_hash: z.string().regex(/^[a-f0-9]{64}$/),
+});
 export const sessionServiceOptionsQuery = z.strictObject({
-  cursor: id.toLowerCase().optional(),
+  cursor: performerCursor.optional(),
+  lang: z.enum(['ar', 'en']),
+  q: z.string().trim().min(1).max(50).refine((value) => !value.includes('\u0000')).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 }).meta({ id: 'SessionServiceOptionsQuery' });
 export const sessionServiceOption = serviceListItem.pick({
@@ -13,24 +21,18 @@ export const sessionServiceOption = serviceListItem.pick({
 }).strict().meta({ id: 'SessionServiceOption' });
 export const sessionServiceOptionPage = z.strictObject({
   items: z.array(sessionServiceOption).max(100),
-  next_cursor: id.toLowerCase().nullable(),
+  next_cursor: performerCursor.nullable(),
 }).meta({ id: 'SessionServiceOptionPage' });
 export type SessionServiceOptionsQuery = z.infer<typeof sessionServiceOptionsQuery>;
 export type SessionServiceOptionPage = z.infer<typeof sessionServiceOptionPage>;
 export const sessionServiceOptionsSchemas = [sessionServiceOptionsQuery, sessionServiceOption, sessionServiceOptionPage];
 
-const performerCursor = z.string().min(1).max(4096).regex(/^[A-Za-z0-9_-]+$/);
-export const sessionPerformerCursorData = z.strictObject({
-  key: z.string().max(1024).refine((value) => !value.includes('\u0000')), id: id.toLowerCase(),
-  lang: z.enum(['ar', 'en']), q_hash: z.string().regex(/^[a-f0-9]{64}$/),
+export const sessionPerformerCursorData = sessionServiceCursorData.omit({ scope_hash: true }).extend({
   requested_at: timestamp, effective_at: timestamp,
-  scope_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  scope_hash: sessionServiceCursorData.shape.scope_hash,
 });
 export const sessionPerformerOptionsQuery = sessionServiceOptionsQuery.extend({
-  cursor: performerCursor.optional(),
-  lang: z.enum(['ar', 'en']),
   occurred_at: timestamp.describe('POST window: from the first of the previous month in business timezone through server now + 120 seconds; tolerated future values normalize to server now.'),
-  q: z.string().trim().min(1).max(50).refine((value) => !value.includes('\u0000')).optional(),
 }).meta({ id: 'SessionPerformerOptionsQuery' });
 export const sessionPerformerOption = z.strictObject({
   id: id.toLowerCase(), name_ar: nameAr.nullable(), name_en: nameEn,

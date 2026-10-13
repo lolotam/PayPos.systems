@@ -1,16 +1,10 @@
 import { sessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import { normalizeSearch } from '../../../shared/name-options-search.ts';
 interface CursorCodec {
   decode(query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string): { key: string; id: string } | null;
   encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string): string;
-}
-
-async function normalizeSearch(tx: Tx, query: SessionPerformerOptionsQuery) {
-  if (query.q === undefined) return '';
-  const [row] = await tx.execute<{ normalized_q: string }>(sql`SELECT lower(${query.q.trim()}::text COLLATE "und-x-icu") AS normalized_q`);
-  if (row === undefined) throw new Error('Session performer search normalization missing');
-  return row.normalized_q;
 }
 
 // نموذج التسجيل ولقطة الحفظ يستهلكان حقائق يوم الأداء نفسها دون اشتراط جلسة حضور مفتوحة الآن.

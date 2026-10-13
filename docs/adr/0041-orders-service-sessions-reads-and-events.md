@@ -332,8 +332,12 @@ SS-Q13 authorizes GET /service-options under record:service-sessions:branch alon
 admin authentication, orders feature and active business/branch ownership rechecked on every page.
 Catalog's public readSessionServiceOptions projects only id/name_ar/name_en/price/revision from services;
 orders' session-service-options.adapter.ts calls it on the same tenant transaction through read-side callbacks.
-This exact symbol/path read reuses the approved orders → catalog edge. Ascending UUID pages (default 20, max 100)
-use the existing services_company_business_id_key; equal names do not affect cursor stability. Price remains
+This exact symbol/path read reuses the approved orders → catalog edge. 35c-3b applies SS-Q15 option 1: required
+lang=ar|en orders by coalesce(name_<lang>,name_<other>) COLLATE "und-x-icu",id with opaque keyset pages (20/100).
+Optional trimmed q (1–50, NUL rejected) uses ICU lower/LIKE on either name with literal percent/underscore/backslash.
+The cursor binds lang, ICU-folded q hash and company/business/branch scope; malformed/mismatched input returns 400.
+Shared persistence hash/codec and SQL normalization helpers from 35c-4 are reused and injected into catalog's query;
+queries import no Node APIs. Existing services_company_business_id_key and scoped sorting remain EXPLAIN-tested. Price remains
 canonical KWD text. No commission fields, catalog read grant, table/grant/migration, performer read or history
 access is added. Both query paths have result-shape and exact SQL EXPLAIN ANALYZE coverage.
 

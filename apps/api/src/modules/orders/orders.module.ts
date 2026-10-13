@@ -40,7 +40,7 @@ export function ordersServiceOptionsQuery(database: TenantWrappers, clock: Clock
   return new SessionServiceOptionsQueryHandler(database, {
     place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
     access: (tx, scope, at) => recordingAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-    options: (tx, scope, query) => sessionServiceOptions(tx, scope.companyId, scope.businessId, query),
+    options: (tx, scope, query) => sessionServiceOptions(tx, scope.companyId, scope.businessId, scope.branchId, query),
   }, clock);
 }
 export function ordersRecordingContextQuery(database: TenantWrappers, clock: Clock = systemClock) {

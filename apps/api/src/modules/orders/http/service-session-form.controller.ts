@@ -46,6 +46,7 @@ export class ServiceSessionFormController {
     if (this.options === null) throw new ApiError('NOT_READY');
     try { return await this.options.execute({ ...actorOf(request), businessId, branchId }, query); }
     catch (error) {
+      if (error instanceof RangeError && error.message === 'SESSION_SERVICE_CURSOR_INVALID') throw new ApiError('VALIDATION_FAILED');
       if (error instanceof RecordingContextReadError) throw new ApiError(error.code);
       throw error;
     }
