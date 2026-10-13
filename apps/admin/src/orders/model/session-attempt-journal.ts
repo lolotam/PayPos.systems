@@ -1,4 +1,5 @@
 import type { RecordServiceSessionResponse } from '@pospay/contracts';
+import { serviceSessionErrors } from '@pospay/i18n';
 import { listenForIdentityChanges } from '@/shared/browser/load-page';
 import { freezeSessionAttempt, freezeSessionAttemptScope, parseSessionJournalEnvelope, sameSessionScope, sessionAttemptUnresolved,
   SessionSavedDisplayFailure, SESSION_ATTEMPT_RETENTION_MS, type SessionAttempt, type SessionAttemptCommand,
@@ -30,7 +31,10 @@ function expired(entry: SessionJournalEnvelope | null, now: number): SessionJour
 function writeStored(storage: JournalStorage | undefined, value: SessionJournalEnvelope | null): 'NOT_PERSISTED' | null {
   try {
     if (!storage) return value ? 'NOT_PERSISTED' : null;
-    if (value) storage.setItem(storageKey, JSON.stringify(value)); else storage.removeItem(storageKey);
+    if (value) {
+      const raw = JSON.stringify(value); storage.setItem(storageKey, raw);
+      if (value.state === 'PENDING' && storage.getItem(storageKey) !== raw) return 'NOT_PERSISTED';
+    } else storage.removeItem(storageKey);
     return null;
   } catch { return 'NOT_PERSISTED'; }
 }
@@ -81,7 +85,9 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
       const recovered = read();
       if (!scope || flight || recovered?.state === 'PENDING' || recovered?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED');
       if (recovered && (recovered.state !== 'PARTIAL' || command.kind !== 'append' || command.sessionId !== recovered.sessionId)) throw new Error('SESSION_VISIT_ALREADY_SAVED');
-      const attempt = freezeSessionAttempt(scope, command, rowIds, runtime); value = { version: 1, state: 'PENDING', attempt }; persist(); return attempt;
+      const attempt = freezeSessionAttempt(scope, command, rowIds, runtime); value = { version: 1, state: 'PENDING', attempt }; persist();
+      if (persistenceWarning) { value = recovered; throw Object.assign(new Error('SESSION_ATTEMPT_NOT_PERSISTED'), { code: 'SESSION_ATTEMPT_NOT_PERSISTED', ...serviceSessionErrors.SESSION_ATTEMPT_NOT_PERSISTED }); }
+      return attempt;
     },
     run<T extends WriteResult>(attempt: SessionAttempt, send: () => Promise<T>): Promise<T> {
       if (flight?.key === attempt.key && matches(attempt)) return flight.promise as Promise<T>;

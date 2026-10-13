@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { RecordServiceSessionResponse, SavedServiceLine } from '@pospay/contracts';
+import { serviceSessionErrors } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -42,13 +43,13 @@ function hooks(store: ReturnType<typeof journal>) {
   return { client, send: (attempt: SessionAttempt) => attempt.kind === 'record' ? hook.result.current.record.mutateAsync(attempt) : hook.result.current.append.mutateAsync(attempt) };
 }
 afterEach(() => { journals.splice(0).forEach((store) => { store.changeScope(null); store.dispose(); }); sessionStorage.clear(); post.mockReset(); runtime.newId.mockClear(); now = Date.parse(instant); });
-async function reload() {
+async function reload(backing?: Parameters<typeof createSessionAttemptJournal>[2]) {
   const raw = sessionStorage.getItem(storageKey);
   journals.forEach((store) => { store.changeScope(null); store.dispose(); });
   if (raw) sessionStorage.setItem(storageKey, raw);
   vi.resetModules();
   const { createSessionAttemptJournal: create } = await import('../model/session-attempt-journal');
-  const store = create(scope, runtime); journals.push(store); return store;
+  const store = create(scope, runtime, backing); journals.push(store); return store;
 }
 
 it.each([undefined, instant])('freezes the validated body, membership, order and row map with occurred_at %s', (occurred_at) => {
@@ -155,14 +156,17 @@ it.each([false, true])('purges a prior actor on reload and rejects stale results
   await expect(result).rejects.toThrow('UNAVAILABLE'); expect(store.read()).toEqual({ version: 1, state: 'PENDING', attempt: next });
 });
 
-it('keeps frozen explicit recovery when browser storage is unavailable', async () => {
-  const denied = () => { throw new Error('Storage denied'); };
-  const store = createSessionAttemptJournal(scope, runtime, { getItem: denied, setItem: denied, removeItem: denied }); journals.push(store);
-  const attempt = store.begin({ kind: 'append', sessionId: id(12), body: { lines: [line] } }, [id(9)]);
-  await expect(store.run(attempt, async () => { throw new TypeError('Network loss'); })).rejects.toThrow();
-  expect(store.read()).toEqual({ version: 1, state: 'PENDING', attempt });
-  expect(await store.run(attempt, async () => ({ status: 201, data: { ...response, outcome: 'COMPLETE', rejected_lines: [] } }))).toMatchObject({ status: 201 });
-  expect(store.read()).toBeNull();
+it.each(['record', 'append'] as const)('replays persisted %s after response loss and a fresh-module reload', async (kind) => {
+  const command: SessionAttemptCommand = kind === 'record' ? { kind, body } : { kind, sessionId: id(12), body: { lines: body.lines } };
+  const store = journal(), attempt = store.begin(command, rows), hook = hooks(store);
+  post.mockRejectedValueOnce(new TypeError('Committed but response lost'));
+  await act(async () => { await expect(hook.send(attempt)).rejects.toThrow('response lost'); });
+  const recovered = await reload(), pending = recovered.read();
+  if (pending?.state !== 'PENDING') throw new Error('Missing recovered attempt');
+  expect(pending.attempt).toEqual(attempt);
+  post.mockResolvedValueOnce({ data: { ...response, outcome: 'COMPLETE', rejected_lines: [], ...(kind === 'append' ? { added_lines: [savedLine] } : {}) }, response: { status: 201 } });
+  const replay = hooks(recovered); await act(async () => { await replay.send(pending.attempt); });
+  expect(post.mock.calls[1]).toEqual(post.mock.calls[0]); expect(runtime.newId).toHaveBeenCalledTimes(1);
 });
 
 it('shares pending/flight across two instances and remounts without overwriting the tab entry', async () => {
@@ -177,43 +181,35 @@ it('shares pending/flight across two instances and remounts without overwriting 
   expect(send).toHaveBeenCalledTimes(1); release({ status: 201, data: response }); await Promise.all([a, b]);
 });
 
-it('keeps an append authoritative over stale PARTIAL storage after quota failure and replays the same key', async () => {
-  let full = false;
-  const backing = { getItem: (key: string) => sessionStorage.getItem(key), removeItem: (key: string) => sessionStorage.removeItem(key),
-    setItem(key: string, value: string) { if (full) throw new DOMException('Quota exceeded', 'QuotaExceededError'); sessionStorage.setItem(key, value); } };
-  const store = createSessionAttemptJournal(scope, runtime, backing); journals.push(store);
-  const first = store.begin({ kind: 'record', body }, rows);
-  await store.run(first, async () => ({ status: 201, data: response }));
-  expect(store.persistenceWarning).toBeNull();
-  const persisted = sessionStorage.getItem(storageKey);
-  full = true;
-  const command: SessionAttemptCommand = { kind: 'append', sessionId: id(12), body: { lines: [line], recorder_membership_id: id(8) } };
-  const attempt = store.begin(command, [id(10)]), hook = hooks(store);
-  expect(sessionStorage.getItem(storageKey)).toBe(persisted);
-  expect(store.persistenceWarning).toBe('NOT_PERSISTED');
-  expect(store.read()).toEqual({ version: 1, state: 'PENDING', attempt });
-  expect(() => store.begin(command, [id(10)])).toThrow('UNRESOLVED');
-  post.mockRejectedValueOnce(new TypeError('Network loss'));
-  await act(async () => { await expect(hook.send(attempt)).rejects.toThrow('Network loss'); });
-  const second = createSessionAttemptJournal(scope, runtime, backing); journals.push(second);
-  expect(second.read()).toEqual({ version: 1, state: 'PENDING', attempt });
-  expect(second.persistenceWarning).toBe('NOT_PERSISTED');
-  expect(() => second.begin(command, [id(10)])).toThrow('UNRESOLVED');
-  let release!: (value: unknown) => void;
-  post.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
-  const replayHook = hooks(second);
-  await act(async () => {
-    const replay = replayHook.send(attempt);
-    await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(2));
-    now += SESSION_ATTEMPT_RETENTION_MS;
-    expect(second.read()?.state).toBe('EXPIRED'); expect(second.read()?.state).toBe('EXPIRED');
-    expect(() => second.begin(command, [id(10)])).toThrow('UNRESOLVED');
-    release({ data: { ...response, outcome: 'COMPLETE', rejected_lines: [], added_lines: [savedLine] }, response: { status: 201 } });
-    await expect(replay).resolves.toMatchObject({ status: 201 });
-  });
-  expect(post.mock.calls[1]).toEqual(post.mock.calls[0]); expect(runtime.newId).toHaveBeenCalledTimes(2);
-  expect(second.read()).toBeNull(); expect(sessionStorage.getItem(storageKey)).toBeNull();
-  expect(second.persistenceWarning).toBeNull();
+it.each(['record', 'append'] as const)('blocks %s before sending when persistence or read-back fails, including a fresh reload', async (kind) => {
+  const command: SessionAttemptCommand = kind === 'record' ? { kind, body } : { kind, sessionId: id(12), body: { lines: body.lines } };
+  for (const failure of ['quota', 'denied', 'silent', 'readBack', 'mismatch']) {
+    let blocked = false;
+    const backing = {
+      getItem(key: string) { if (blocked && failure === 'readBack') throw new Error('Read denied'); return blocked && failure === 'mismatch' ? '{}' : sessionStorage.getItem(key); },
+      setItem(key: string, value: string) {
+        if (blocked && (failure === 'quota' || failure === 'denied')) throw new DOMException('Storage unavailable', failure === 'quota' ? 'QuotaExceededError' : 'SecurityError');
+        if (!blocked || failure !== 'silent') sessionStorage.setItem(key, value);
+      }, removeItem: (key: string) => sessionStorage.removeItem(key),
+    };
+    const store = await reload(backing);
+    if (kind === 'append') await store.run(store.begin({ kind: 'record', body }, rows), async () => ({ status: 201, data: response }));
+    const before = store.read(); blocked = true;
+    const submit = async (current: typeof store) => hooks(current).send(current.begin(command, rows));
+    await expect(submit(store)).rejects.toMatchObject({ code: 'SESSION_ATTEMPT_NOT_PERSISTED', ...serviceSessionErrors.SESSION_ATTEMPT_NOT_PERSISTED });
+    expect(store.read()).toEqual(before); expect(store.persistenceWarning).toBe('NOT_PERSISTED'); expect(post).not.toHaveBeenCalled();
+    const recovered = await reload(backing);
+    await expect(submit(recovered)).rejects.toMatchObject({ code: 'SESSION_ATTEMPT_NOT_PERSISTED' }); expect(post).not.toHaveBeenCalled();
+    recovered.changeScope(null); blocked = false;
+  }
+});
+
+it('allows an already-persisted replay when browser storage later becomes unavailable', async () => {
+  const store = journal(), attempt = store.begin({ kind: 'record', body }, rows);
+  const denied = () => { throw new Error('Storage denied'); };
+  const replay = createSessionAttemptJournal(scope, runtime, { getItem: denied, setItem: denied, removeItem: denied }); journals.push(replay);
+  const send = vi.fn(async () => ({ status: 201, data: response }));
+  await expect(replay.run(attempt, send)).resolves.toMatchObject({ status: 201 }); expect(send).toHaveBeenCalledTimes(1);
 });
 
 it('keeps initialized idle memory authoritative over stale storage after a scope reset', () => {
