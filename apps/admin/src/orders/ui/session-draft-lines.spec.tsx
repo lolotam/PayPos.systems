@@ -1,7 +1,7 @@
 import { t } from '@pospay/i18n';
 import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { expect, it, vi } from 'vitest';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
@@ -29,6 +29,7 @@ async function choose(index = 0) {
 }
 it('allows duplicate services and keeps row identity, picker state and prices after removal', async () => {
   mount(); await choose(); fireEvent.click(at(button('addLine'), 0)); await choose(1);
+  for (const n of [1, 2]) expect(within(screen.getByRole('group', { name: t('en', 'serviceSessions.lineNumber').replace('{n}', String(n)) })).getByLabelText(t('en', 'serviceSessions.price'))).toBeTruthy();
   const survivor = at(current, 1).local_id;
   fireEvent.change(at(screen.getAllByLabelText(t('en', 'serviceSessions.price')), 1), { target: { value: '20.5' } });
   fireEvent.blur(at(screen.getAllByLabelText(t('en', 'serviceSessions.price')), 1));
@@ -45,8 +46,14 @@ it.each([['0', '0.000'], ['99999999999.999', '99999999999.999'], ['25.5', '25.50
   expect(current[0]?.price).toBe(expected);
   get.mockResolvedValue({ data: { items: [{ ...service, price: '50.000', revision: 2 }], next_cursor: null } });
   await act(async () => { await client.invalidateQueries({ queryKey: ['session-services'] }); });
+  expect(await screen.findByText('50.000')).toBeTruthy(); expect(current[0]?.price).toBe(expected);
+  await waitFor(() => expect(current[0]?.service?.price).toBe('50.000'));
   fireEvent.change(screen.getByRole('combobox'), { target: { value: service.id } });
   expect(current[0]?.price).toBe(expected); expect(input.value).toBe(expected);
+  get.mockResolvedValue({ data: { items: [], next_cursor: null } });
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'absent' } });
+  await screen.findByText(t('en', 'serviceSessions.noServices'));
+  expect(screen.getByText('50.000')).toBeTruthy(); expect(current[0]?.price).toBe(expected);
 });
 it('caps draft rows at twenty and leaves invalid monetary text for validation', async () => {
   mount(); for (let count = 1; count < 20; count++) fireEvent.click(at(button('addLine'), 0));
