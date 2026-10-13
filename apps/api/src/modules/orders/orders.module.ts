@@ -33,7 +33,7 @@ export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clo
     time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
     place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
     access: (tx, scope, at) => recordingAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-    options: (tx, scope, query) => sessionPerformerOptions(tx, scope.companyId, scope.businessId, scope.branchId, query),
+    options: (tx, scope, query, normalizeTime) => sessionPerformerOptions(tx, scope.companyId, scope.businessId, scope.branchId, query, normalizeTime),
   }, clock);
 }
 export function ordersServiceOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {

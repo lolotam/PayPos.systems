@@ -356,11 +356,14 @@ lang=ar|en and global displayed-name,id keyset pages, default 20/max 100. The na
 coalesce(name_<lang>,name_<other>) COLLATE "und-x-icu" for both sorting and keyset comparison, without lowercasing.
 Search folds both names and trimmed q with PostgreSQL lower(... COLLATE "und-x-icu") and LIKE;
 percent, underscore and backslash are escaped so search remains a literal substring.
-Canonical base64url JSON carries the exact displayed name, id, lang, SHA-256 of the same ICU-folded q and
-the canonical branch working_date resolved after POST future-tolerance normalization;
+Canonical base64url JSON carries the exact displayed name, id, lang, SHA-256 of the same ICU-folded q,
+requested_at (canonical client instant) and effective_at (the first page's normalized instant).
+Later pages require the same requested instant and retain effective_at for eligibility and partial-leave facts;
+the branch civil date derives from effective_at instead of being carried separately.
 strict payload/encoding/binding checks refuse malformed or mismatched cursors with 400.
 Persistence owns the SHA-256/base64url cursor codec and injects it into the query; the query imports no Node APIs.
-Orders injects the POST sessionTime rule into the read handler: the first of the previous month in business
+Orders injects the POST sessionTime rule through the read handler into the staff reader: the first of the previous month in business
 timezone is inclusive; over 120 seconds ahead refuses with 400 and POST's time code. Tolerated future input
-normalizes to the injected server clock before staff reads warning facts. Existing indexes and the scoped sort are EXPLAIN-tested;
+normalizes once to the injected server clock before staff reads warning facts. Cursor replay rechecks effective_at
+against the current recording window but keeps that instant unchanged. Existing indexes and the scoped sort are EXPLAIN-tested;
 no new table, grant or migration. POST still refreshes its own facts. Both queries have shape/EXPLAIN coverage.

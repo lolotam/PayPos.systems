@@ -29,7 +29,8 @@ const get = (query = '', cookie = f.cookie, company = f.company, base = f.base) 
   f.h.send('GET', `${base}/performer-options?occurred_at=${occurred_at}&${query.includes('lang=') ? query : `lang=en&${query}`}`, { cookie, company });
 const read = () => ordersPerformerOptionsQuery(f.db, f.clock).execute(f.context(), { occurred_at, lang: 'en', limit: 2 });
 const cursor = (key: string | null, id: string, lang: 'ar' | 'en' = 'en', q = '') => Buffer.from(JSON.stringify({ key, id,
-  lang, q_hash: createHash('sha256').update(q.trim().toLowerCase()).digest('hex'), working_date: '2026-10-14' })).toString('base64url');
+  lang, q_hash: createHash('sha256').update(q.trim().toLowerCase()).digest('hex'),
+  requested_at: new Date(occurred_at).toISOString(), effective_at: new Date(occurred_at).toISOString() })).toString('base64url');
 
 it('record-only access yields exact private-field-free pages, stable cursors with name ties, and no writes', async () => {
   f.h.calls.statements.length = 0;
@@ -77,23 +78,52 @@ it('binds cursors to language and normalized search, refusing changed or removed
   expect(sessionPerformerOptionPage.parse((await get(`lang=en&q=ZULU&cursor=${page.next_cursor}`)).body).items.map((r) => r.id))
     .toEqual([f.employees[1]]);
 });
-it('binds cursors to the normalized branch civil date, accepting same-day instants and refusing next-day reuse', async () => {
-  const at = (instant: string, next?: string) => f.h.send('GET', `${f.base}/performer-options?lang=en&limit=1&occurred_at=${instant}${next === undefined ? '' : `&cursor=${next}`}`,
+it('binds cursors to the canonical requested instant, refusing a different instant on the same day', async () => {
+  const at = (instant: string, next?: string) => f.h.send('GET', `${f.base}/performer-options?lang=en&limit=1&occurred_at=${encodeURIComponent(instant)}${next === undefined ? '' : `&cursor=${next}`}`,
     { cookie: f.cookie, company: f.company });
   await f.h.owner`UPDATE branches SET timezone='America/New_York' WHERE company_id=${f.company} AND id=${f.branch}`;
   try {
     const first = await at('2026-10-14T01:30:00Z'); expect(first.status).toBe(200);
     const next = must(sessionPerformerOptionPage.parse(first.body).next_cursor);
-    expect(JSON.parse(Buffer.from(next, 'base64url').toString('utf8')).working_date).toBe('2026-10-13');
-    const sameDay = await at('2026-10-13T23:30:00Z', next); expect(sameDay.status).toBe(200);
-    expect(sessionPerformerOptionPage.parse(sameDay.body).items.map((r) => r.id)).toEqual([f.employees[3]]);
+    expect(JSON.parse(Buffer.from(next, 'base64url').toString('utf8'))).toMatchObject({
+      requested_at: '2026-10-14T01:30:00.000Z', effective_at: '2026-10-14T01:30:00.000Z' });
+    const same = await at('2026-10-13T21:30:00-04:00', next); expect(same.status).toBe(200);
+    expect(sessionPerformerOptionPage.parse(same.body).items.map((r) => r.id)).toEqual([f.employees[3]]);
+    expect((await at('2026-10-14T02:30:00Z', next)).status).toBe(400);
     expect((await at('2026-10-14T04:00:00Z', next)).status).toBe(400);
-    f.setAt(new Date('2026-10-14T03:59:30Z'));
-    const future = await at('2026-10-14T04:00:30Z'); expect(future.status).toBe(200);
-    const futureCursor = must(sessionPerformerOptionPage.parse(future.body).next_cursor);
-    f.setAt(new Date('2026-10-14T04:00:00Z'));
-    expect((await at('2026-10-14T04:00:30Z', futureCursor)).status).toBe(400);
   } finally {
+    f.setAt(AT);
+    await f.h.owner`UPDATE branches SET timezone=NULL WHERE company_id=${f.company} AND id=${f.branch}`;
+  }
+});
+it('pins a tolerated future instant and partial-leave facts across pages, rechecking its effective window', async () => {
+  const leaves = [ids.newId(), ids.newId()];
+  const requested = '2026-10-14T04:00:30Z';
+  const at = (next?: string) => f.h.send('GET', `${f.base}/performer-options?lang=en&limit=1&occurred_at=${requested}${next === undefined ? '' : `&cursor=${next}`}`,
+    { cookie: f.cookie, company: f.company });
+  await f.h.owner`UPDATE branches SET timezone='America/New_York' WHERE company_id=${f.company} AND id=${f.branch}`;
+  try {
+    for (const [i, id] of leaves.entries())
+      await f.h.owner`INSERT INTO leave_requests(company_id,id,business_id,branch_id,employee_id,kind,"from","to",start,"end",timezone,starts_at,ends_at,type,status,requested_by,requested_at,decided_by,decided_at)
+        VALUES(${f.company},${id},${f.business},${f.branch},${must(f.employees[i + 2])},'PARTIAL','2026-10-14','2026-10-14','00:00','01:00','America/New_York',
+          '2026-10-14T04:00:00Z','2026-10-14T05:00:00Z','ANNUAL','APPROVED',${f.userId},now(),${f.ownerId},now())`;
+    f.setAt(new Date('2026-10-14T03:59:30Z'));
+    const first = await at(); expect(first.status).toBe(200);
+    const page = sessionPerformerOptionPage.parse(first.body);
+    expect(page.items[0]).toMatchObject({ id: f.employees[2], approved_leave_warning: false });
+    const next = must(page.next_cursor);
+    const instants = { requested_at: '2026-10-14T04:00:30.000Z', effective_at: '2026-10-14T03:59:30.000Z' };
+    expect(JSON.parse(Buffer.from(next, 'base64url').toString('utf8'))).toMatchObject(instants);
+    f.setAt(new Date('2026-10-14T04:00:00Z'));
+    const later = await at(next); expect(later.status).toBe(200);
+    const continued = sessionPerformerOptionPage.parse(later.body);
+    expect(continued.items[0]).toMatchObject({ id: f.employees[3], approved_leave_warning: false });
+    expect(JSON.parse(Buffer.from(must(continued.next_cursor), 'base64url').toString('utf8'))).toMatchObject(instants);
+    expect(sessionPerformerOptionPage.parse((await at()).body).items[0]?.approved_leave_warning).toBe(true);
+    f.setAt(new Date('2026-12-01T08:00:00Z'));
+    const expired = await at(next); expect(expired.status).toBe(400); expect(expired.body['code']).toBe('SESSION_TIME_TOO_OLD');
+  } finally {
+    for (const id of leaves) await f.h.owner`UPDATE leave_requests SET status='CANCELLED',revoked_by=${f.ownerId},revoked_at=now(),revocation_reason='Synthetic cleanup' WHERE company_id=${f.company} AND id=${id}`;
     f.setAt(AT);
     await f.h.owner`UPDATE branches SET timezone=NULL WHERE company_id=${f.company} AND id=${f.branch}`;
   }
@@ -142,9 +172,9 @@ it('uses the POST window in business timezone, accepts both edges and normalizes
 });
 it('provider respects real RLS, business and dated branch links; cannot enumerate another scope', async () => {
   expect((await f.db.withTenant(f.company, (tx) => sessionPerformerOptions(tx, f.company, f.secondBusiness, f.secondBranch,
-    { occurred_at, lang: 'en', limit: 20 }))).items).toHaveLength(1);
+    { occurred_at, lang: 'en', limit: 20 }, (instant) => instant))).items).toHaveLength(1);
   for (const [company, business, branch] of [[f.company, f.business, sibling], [f.otherCompany, f.foreignBusiness, f.foreignBranch]])
-    expect(await f.db.withTenant(f.company, (tx) => sessionPerformerOptions(tx, must(company), must(business), must(branch), { occurred_at, lang: 'en', limit: 20 })))
+    expect(await f.db.withTenant(f.company, (tx) => sessionPerformerOptions(tx, must(company), must(business), must(branch), { occurred_at, lang: 'en', limit: 20 }, (instant) => instant)))
       .toEqual({ items: [], next_cursor: null });
   const employee = must(f.employees[3]);
   await f.h.owner`UPDATE employee_branches SET "to"='2026-10-14' WHERE company_id=${f.company} AND employee_id=${employee}`;

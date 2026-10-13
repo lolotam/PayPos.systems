@@ -14,11 +14,12 @@ it('documents dated performer search and stable cursor bounds under recording au
   expect(route.parameters.find((p) => p.name === 'q')?.schema).toEqual({ type: 'string', minLength: 1, maxLength: 50 });
   expect(route.responses['200'].content['application/json'].schema.$ref).toBe('#/components/schemas/SessionPerformerOptionPage');
 });
-it('requires strict cursor language, search-hash and civil-date binding without carrying search text', () => {
-  const payload = { key: 'Displayed name', id, lang: 'ar', q_hash: 'a'.repeat(64), working_date: '2026-10-14' };
+it('requires strict cursor language, search-hash and requested/effective instants without carrying search text', () => {
+  const payload = { key: 'Displayed name', id, lang: 'ar', q_hash: 'a'.repeat(64),
+    requested_at: '2026-10-14T08:00:00.000Z', effective_at: '2026-10-14T08:00:00.000Z' };
   expect(sessionPerformerCursorData.parse(payload)).toEqual(payload);
   for (const change of [{ lang: undefined }, { lang: 'fr' }, { q_hash: undefined }, { q_hash: 'bad' }, { q: 'private search' },
-    { working_date: undefined }, { working_date: '2026-02-30' }, { working_date: '2026-10-14T08:00:00Z' }])
+    { requested_at: undefined }, { effective_at: undefined }, { requested_at: 'bad' }, { effective_at: '2026-10-14' }, { working_date: '2026-10-14' }])
     expect(sessionPerformerCursorData.safeParse({ ...payload, ...change }).success).toBe(false);
 });
 it('requires occurred time, trims bounded search and rejects private performer fields', () => {

@@ -7,7 +7,8 @@ export interface SessionPerformerOptionsReads extends Pick<RecordingContextReads
   /** يطبق نافذة POST ويطبع فرق ساعة الجهاز قبل قراءة حقائق الحضور والإجازة. */
   time(occurredAt: string, at: Date, timezone: string): string;
   /** يعيد الموظفات المؤهلات في تاريخ الجلسة وتنبيهين فقط كي لا يكشف نموذج التسجيل ملفات الموارد البشرية. */
-  options(tx: Tx, scope: RecordingScope, query: SessionPerformerOptionsQuery): Promise<SessionPerformerOptionPage>;
+  options(tx: Tx, scope: RecordingScope, query: SessionPerformerOptionsQuery,
+    normalizeTime: (instant: string) => string): Promise<SessionPerformerOptionPage>;
 }
 
 // نموذج التسجيل يستهلك حقائق الموظفات من staff بعد إثبات إذن الفرع في معاملة الشركة نفسها.
@@ -23,8 +24,8 @@ export class SessionPerformerOptionsQueryHandler {
       const access = await this.reads.access(tx, scope, at);
       if (!access.record || access.denied || access.membership_ids.length === 0) throw new RecordingContextReadError('FORBIDDEN');
       if (!access.feature) throw new RecordingContextReadError('FEATURE_DISABLED');
-      const occurred_at = this.reads.time(query.occurred_at, at, place.timezone);
-      return sessionPerformerOptionPage.parse(await this.reads.options(tx, scope, { ...query, occurred_at }));
+      return sessionPerformerOptionPage.parse(await this.reads.options(tx, scope, query,
+        (instant) => this.reads.time(instant, at, place.timezone)));
     }, { userId: scope.userId });
   }
 }

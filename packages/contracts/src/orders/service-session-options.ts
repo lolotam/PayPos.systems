@@ -23,7 +23,7 @@ const performerCursor = z.string().min(1).max(4096).regex(/^[A-Za-z0-9_-]+$/);
 export const sessionPerformerCursorData = z.strictObject({
   key: z.string().max(1024).refine((value) => !value.includes('\u0000')), id: id.toLowerCase(),
   lang: z.enum(['ar', 'en']), q_hash: z.string().regex(/^[a-f0-9]{64}$/),
-  working_date: z.iso.date(),
+  requested_at: timestamp, effective_at: timestamp,
 });
 export const sessionPerformerOptionsQuery = sessionServiceOptionsQuery.extend({
   cursor: performerCursor.optional(),

@@ -2,8 +2,8 @@ import { sessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 interface CursorCodec {
-  decode(query: SessionPerformerOptionsQuery, normalizedQ: string, day: string): { key: string; id: string } | null;
-  encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, day: string): string;
+  decode(query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string): { key: string; id: string } | null;
+  encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string): string;
 }
 
 async function normalizeSearch(tx: Tx, query: SessionPerformerOptionsQuery) {
@@ -44,13 +44,13 @@ export function sessionPerformerOptionsStatement(companyId: string, businessId: 
     ORDER BY ${name} ASC,e.id ASC LIMIT ${query.limit + 1}`;
 }
 export async function sessionPerformerOptionsPage(tx: Tx, companyId: string, businessId: string, branchId: string,
-  day: string, query: SessionPerformerOptionsQuery, codec: CursorCodec) {
+  day: string, query: SessionPerformerOptionsQuery, codec: CursorCodec, requestedAt: string) {
   const normalizedQ = await normalizeSearch(tx, query);
   const rows = await tx.execute<{ id: string; name_ar: string | null; name_en: string; sort_key: string; clocked_in: boolean; approved_leave: boolean }>(
-    sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query, codec.decode(query, normalizedQ, day)));
+    sessionPerformerOptionsStatement(companyId, businessId, branchId, day, query, codec.decode(query, normalizedQ, requestedAt)));
   const items = rows.slice(0, query.limit).map((r) => ({ id: r.id, name_ar: r.name_ar, name_en: r.name_en,
     not_clocked_in_warning: !r.clocked_in, approved_leave_warning: r.approved_leave }));
   const last = rows[items.length - 1];
   return sessionPerformerOptionPage.parse({ items, next_cursor: rows.length > query.limit && last !== undefined
-    ? codec.encode(last.sort_key, last.id, query, normalizedQ, day) : null });
+    ? codec.encode(last.sort_key, last.id, query, normalizedQ, requestedAt) : null });
 }
