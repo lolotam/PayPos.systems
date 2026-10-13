@@ -177,6 +177,45 @@ it('shares pending/flight across two instances and remounts without overwriting 
   expect(send).toHaveBeenCalledTimes(1); release({ status: 201, data: response }); await Promise.all([a, b]);
 });
 
+it('keeps an append authoritative over stale PARTIAL storage after quota failure and replays the same key', async () => {
+  let full = false;
+  const backing = { getItem: (key: string) => sessionStorage.getItem(key), removeItem: (key: string) => sessionStorage.removeItem(key),
+    setItem(key: string, value: string) { if (full) throw new DOMException('Quota exceeded', 'QuotaExceededError'); sessionStorage.setItem(key, value); } };
+  const store = createSessionAttemptJournal(scope, runtime, backing); journals.push(store);
+  const first = store.begin({ kind: 'record', body }, rows);
+  await store.run(first, async () => ({ status: 201, data: response }));
+  expect(store.persistenceWarning).toBeNull();
+  const persisted = sessionStorage.getItem(storageKey);
+  full = true;
+  const command: SessionAttemptCommand = { kind: 'append', sessionId: id(12), body: { lines: [line], recorder_membership_id: id(8) } };
+  const attempt = store.begin(command, [id(10)]), hook = hooks(store);
+  expect(sessionStorage.getItem(storageKey)).toBe(persisted);
+  expect(store.persistenceWarning).toBe('NOT_PERSISTED');
+  expect(store.read()).toEqual({ version: 1, state: 'PENDING', attempt });
+  expect(() => store.begin(command, [id(10)])).toThrow('UNRESOLVED');
+  post.mockRejectedValueOnce(new TypeError('Network loss'));
+  await act(async () => { await expect(hook.send(attempt)).rejects.toThrow('Network loss'); });
+  const second = createSessionAttemptJournal(scope, runtime, backing); journals.push(second);
+  expect(second.read()).toEqual({ version: 1, state: 'PENDING', attempt });
+  expect(second.persistenceWarning).toBe('NOT_PERSISTED');
+  expect(() => second.begin(command, [id(10)])).toThrow('UNRESOLVED');
+  let release!: (value: unknown) => void;
+  post.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }));
+  const replayHook = hooks(second);
+  await act(async () => {
+    const replay = replayHook.send(attempt);
+    await vi.waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    now += SESSION_ATTEMPT_RETENTION_MS;
+    expect(second.read()?.state).toBe('EXPIRED'); expect(second.read()?.state).toBe('EXPIRED');
+    expect(() => second.begin(command, [id(10)])).toThrow('UNRESOLVED');
+    release({ data: { ...response, outcome: 'COMPLETE', rejected_lines: [], added_lines: [savedLine] }, response: { status: 201 } });
+    await expect(replay).resolves.toMatchObject({ status: 201 });
+  });
+  expect(post.mock.calls[1]).toEqual(post.mock.calls[0]); expect(runtime.newId).toHaveBeenCalledTimes(2);
+  expect(second.read()).toBeNull(); expect(sessionStorage.getItem(storageKey)).toBeNull();
+  expect(second.persistenceWarning).toBeNull();
+});
+
 it('begin re-reads storage even after an instance was initialized idle', () => {
   const first = journal(), second = journal(), attempt = first.begin({ kind: 'record', body }, rows), raw = sessionStorage.getItem(storageKey);
   first.changeScope(null); second.changeScope(scope);
