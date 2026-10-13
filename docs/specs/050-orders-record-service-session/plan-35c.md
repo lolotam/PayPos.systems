@@ -17,8 +17,12 @@ OpenAPI/client changes are reported separately. If an estimate exceeds its upper
 
 **SS-Q13 answered (Waleed, 2026-10-12, option 1):** `record:service-sessions:branch` alone authorizes the limited
 recording-form reads below (service names/prices, eligible performers on the session date with the attendance/leave
-warning, and the recorder's own memberships/limit) and nothing wider. 35c-2…4 are unblocked. **35c-12 is blocked (`TODO(spec)`) until SS-Q18 (issue #199, batch 18) is
-answered** — how reception leaves a recording left unresolved past the 24 h key retention.
+warning, and the recorder's own memberships/limit) and nothing wider. 35c-2…4 and 35c-12 are unblocked.
+
+**SS-Q18 answered (Waleed, 2026-10-14, option 3, against the recommendation; partner pending):** the recorder
+leaves an EXPIRED recording (unresolved past the 24 h key retention) **without a manager**, from the reception screen,
+with «اتأكدت — اتسجلت» or «اتأكدت — متسجلتش»; logout or a scope change still clear it (#198). Built as **35c-13**,
+after 35c-12; its exact effects on the recovered drafts are specified when that row starts.
 
 ## 1. Host, entry point and connectivity
 
@@ -200,7 +204,7 @@ Every frontend PR adds component/hook tests beside its files and just its ar/en 
 | **35c-11** | Complete/PARTIAL/all-rejected response handling | 1. Typed result state transitions. 2. Saved/read-only and rejected-draft feedback panels. 3. Transition/component tests and keys. | A/model/session-recording-result.ts; A/ui/session-saved-result.tsx, session-rejected-lines.tsx, session-write-feedback.tsx; tests; L/service-session-catalog.ts | Component/model: request indices with duplicate services, 201 mixed/repeated append/replay, 422 create vs append, distinct error codes, saved vs draft totals, line late OR header, both warnings. **300–450 lines** |
 | **35c-12** | Publish the fully working reception route | 1. Compose form/page and thin route/navigation. 2. Connectivity/identity/scope lifecycle integration. 3. Critical-flow Playwright tests and runner wiring. | A/pages/record-service-session-page.tsx, ui/record-service-session-form.tsx, model/use-session-recording.ts and tests; apps/admin/app/(dashboard)/orders/service-sessions/new/page.tsx, _frame/service-session-route.tsx, _frame/session-nav-item.tsx, dashboard-navigation.tsx; L keys; apps/admin/playwright.config.ts, tsconfig.e2e.json, e2e/service-session*.pw.ts, e2e/session-fixture.ts; package/config CI wiring only as needed | Component: permission denial, branch required, identity reset, offline/interrupted-save. E2E matrix below, both locales. **300–500 lines** |
 
-Order is the table order; 35c-12 merges only after 35c-1…11 and 35c-11b are green **and** SS-Q18 is answered. 35c-5…11 are complete tested
+Order is the table order; 35c-12 merges only after 35c-1…11 and 35c-11b are green; 35c-13 (SS-Q18 exit) follows it. 35c-5…11 are complete tested
 form/client capabilities, not unfinished publicly exposed pages; they need no fake data or temporary executable
 TODO. Never bundle the twelve PRs into one 35c PR. No speculative day-list integration in the final PR.
 
