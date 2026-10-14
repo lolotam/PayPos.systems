@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { ApiError } from '../../../shared/errors.ts';
+import { activeBusinessTimeZone } from '../../tenancy/index.ts';
 import { resolveSessionRecorder } from '../domain/session-authority.ts';
 import { SessionError } from '../domain/session-error.ts';
 import { sessionTime, validateAppendWindow } from '../domain/session-time.ts';
@@ -35,19 +36,8 @@ async function loadProof(tx: Tx, input: SessionRecoveryIssue, hash: string): Pro
   return row === undefined ? undefined : { businessDate: row.business_date, timezone: row.business_timezone, sessionId: row.session_id };
 }
 
-/** نفس نتيجة sessionPlace لنطاق النشاط: فرع نشط وتوقيت النشاط، من غير شجرة شاشة الاختيار. */
-async function activePlace(tx: Tx, companyId: string, businessId: string, branchId: string): Promise<string | null> {
-  const [row] = await tx.execute<{ timezone: string | null }>(sql`
-    SELECT bu.timezone FROM branches b
-    JOIN businesses bu ON bu.company_id = b.company_id AND bu.id = b.business_id
-    JOIN companies c ON c.id = b.company_id AND c.deleted_at IS NULL
-    WHERE b.company_id = app_company_id() AND b.company_id = ${companyId}
-      AND b.business_id = ${businessId} AND b.id = ${branchId} AND b.is_active`);
-  return row?.timezone ?? null;
-}
-
 async function prepareIssue(tx: Tx, input: SessionRecoveryIssue, at: Date): Promise<ProofDates> {
-  const timezone = await activePlace(tx, input.companyId, input.businessId, input.branchId);
+  const timezone = await activeBusinessTimeZone(tx, input.companyId, input.businessId, input.branchId);
   if (timezone === null) throw new SessionError('FORBIDDEN');
   const access = await sessionRecordAccess(tx, input.companyId, input.userId, input.businessId, input.branchId).read(at);
   const existing = await loadProof(tx, input, recoveryKeyHash(input.key));
@@ -55,6 +45,8 @@ async function prepareIssue(tx: Tx, input: SessionRecoveryIssue, at: Date): Prom
     const record = await loadSession(tx, input.companyId, input.businessId, input.branchId, input.sessionId ?? '');
     if (record === null) throw new SessionError('FORBIDDEN');
     resolveSessionRecorder(access, input.recorderMembershipId, record.recorded_by, input.userId);
+    // نفس المفتاح على جلسة أخرى يبقي الإثبات مربوطاً بالأولى بعد تراجع الكتابة.
+    if (existing !== undefined && existing.sessionId !== input.sessionId) throw new SessionError('IDEMPOTENCY_KEY_REUSED');
     if (existing === undefined) validateAppendWindow(record.business_date, at, record.business_timezone);
     return existing ?? { businessDate: record.business_date, timezone: record.business_timezone, sessionId: record.id };
   }

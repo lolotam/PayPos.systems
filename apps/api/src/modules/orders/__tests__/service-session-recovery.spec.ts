@@ -234,6 +234,76 @@ it('links nothing when the stored response has no session', async () => {
   expect(row['committed_at']).toBeNull();
 });
 
+it('refuses an append key reused on another session after rollback and writes nothing', async () => {
+  const sessionA = await f.create.execute({ ...f.context(), input: f.body() });
+  const sessionB = await f.create.execute({ ...f.context(), input: f.body() });
+  const key = ids.newId();
+  await expect(f.append.execute({
+    ...f.context(key), sessionId: sessionA.session.id, input: { lines: [f.line(ids.newId())] },
+  })).rejects.toThrow('SESSION_SERVICE_NOT_FOUND');
+  const issued = must(await proof(key, f.branch, 'append-service-session-lines'));
+  expect(issued['session_id']).toBe(sessionA.session.id);
+  expect(issued['committed_at']).toBeNull();
+  const linesBefore = await f.h.owner`SELECT id FROM service_lines WHERE company_id=${f.company} AND session_id=${sessionB.session.id}`;
+  await expect(f.append.execute({
+    ...f.context(key), sessionId: sessionB.session.id, input: { lines: [f.line()] },
+  })).rejects.toThrow('IDEMPOTENCY_KEY_REUSED');
+  const after = must(await proof(key, f.branch, 'append-service-session-lines'));
+  expect(after['session_id']).toBe(sessionA.session.id);
+  expect(after['committed_at']).toBeNull();
+  expect(iso(after['issued_at'])).toBe(iso(issued['issued_at']));
+  expect(iso(after['last_seen_at'])).toBe(iso(issued['last_seen_at']));
+  expect(iso(after['expires_at'])).toBe(iso(issued['expires_at']));
+  expect(await f.h.owner`SELECT id FROM service_lines WHERE company_id=${f.company} AND session_id=${sessionB.session.id}`).toHaveLength(linesBefore.length);
+  expect(await f.h.owner`SELECT key FROM idempotency_keys WHERE company_id=${f.company} AND key=${key}`).toHaveLength(0);
+  expect(await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company} AND key_hash=${hash(key)}`).toHaveLength(1);
+});
+
+it('replays an append on the same session without an idempotency conflict', async () => {
+  const created = await f.create.execute({ ...f.context(), input: f.body() });
+  const key = ids.newId();
+  const input = { lines: [f.line()] };
+  const added = await f.append.execute({ ...f.context(key), sessionId: created.session.id, input });
+  const replay = await f.append.execute({ ...f.context(key), sessionId: created.session.id, input });
+  expect(replay.session.id).toBe(added.session.id);
+  expect(must(await proof(key, f.branch, 'append-service-session-lines'))?.['session_id']).toBe(created.session.id);
+});
+
+it('retries a create against an existing unlinked proof without an idempotency conflict', async () => {
+  const key = ids.newId();
+  await expect(f.create.execute({
+    ...f.context(key), input: { ...f.body(), customer_id: ids.newId() },
+  })).rejects.toThrow('SESSION_CUSTOMER_NOT_FOUND');
+  expect(must(await proof(key))?.['session_id']).toBeNull();
+  const saved = await f.create.execute({ ...f.context(key), input: f.body() });
+  const row = must(await proof(key));
+  expect(row['session_id']).toBe(saved.session.id);
+  expect(row['committed_at']).not.toBeNull();
+});
+
+it('a same-key replay after the idempotency row is swept does not relink the proof', async () => {
+  const key = ids.newId();
+  const input = f.body();
+  const first = await f.create.execute({ ...f.context(key), input });
+  const linked = must(await proof(key));
+  await f.h.owner`DELETE FROM idempotency_keys WHERE company_id=${f.company} AND key=${key}`;
+  await f.create.execute({ ...f.context(key), input });
+  const row = must(await proof(key));
+  expect(row['session_id']).toBe(first.session.id);
+  expect(iso(row['committed_at'])).toBe(iso(linked['committed_at']));
+});
+
+it('two concurrent first sends of one key both succeed and leave one proof', async () => {
+  const key = ids.newId();
+  const input = f.body();
+  const [left, right] = await Promise.all([
+    f.create.execute({ ...f.context(key), input }),
+    f.create.execute({ ...f.context(key), input }),
+  ]);
+  expect(left.session.id).toBe(right.session.id);
+  expect(await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company} AND key_hash=${hash(key)}`).toHaveLength(1);
+});
+
 it('authorize writes no proof', async () => {
   const created = await f.create.execute({ ...f.context(), input: f.body() });
   const before = await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company}`;

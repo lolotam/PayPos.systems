@@ -49,7 +49,8 @@ reads:
   - { from: orders, to: settings, symbol: readEffectiveDiscountLimit, file: apps/api/src/modules/orders/persistence/discount-limit.adapter.ts }
   - { from: orders, to: identity, symbol: lockServiceSessionAccess, file: apps/api/src/modules/orders/persistence/session-record-access.adapter.ts }
   - { from: orders, to: identity, symbol: readServiceSessionAccess, file: apps/api/src/modules/orders/persistence/session-record-access.adapter.ts }
-  - { from: orders, to: tenancy, symbol: businessTimeZone, file: apps/api/src/modules/orders/persistence/session-place.adapter.ts }
+  - { from: orders, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/orders/persistence/session-place.adapter.ts }
+  - { from: orders, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/orders/persistence/session-recovery.adapter.ts }
   - { from: orders, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/orders/persistence/session-place.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/attendance-board-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: attendanceBranch, file: apps/api/src/modules/staff/persistence/manual-session-context.adapter.ts }

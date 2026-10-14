@@ -159,10 +159,12 @@ lines of that date until the deadline.
 - A recorder can make a proof for a date by sending a deliberate write with no UI, then 24 h later list her own
   lines for that date. The read is bounded to her own lines, to dates the issue's window checks accept (create and
   append alike), behind the gate, capped at 168 h, and audited on confirm. Accepted.
-- Availability: the proof issue is a hard prerequisite of every service-session write, so a failing proof path
-  (database error, lock timeout on the same key) refuses recording with `SESSION_RECOVERY_UNAVAILABLE`. The client
-  treats it like a transient network failure and retries the same key. Accepted: it only fails when the database
-  itself is failing the write anyway.
+- Availability: the proof issue is a hard prerequisite of every service-session write. The upsert waits on the
+  same-key row lock through `ON CONFLICT … DO UPDATE`. This transaction sets neither `NOWAIT` nor `lock_timeout`,
+  so two first sends of one key on a healthy database both finish and leave one proof row.
+  `SESSION_RECOVERY_UNAVAILABLE` is returned only when that issue fails in the database. The client treats that
+  like a transient network failure and retries the same key. A same-key lock wait on a healthy database is not
+  that failure.
 - Rows are kept, with no retention sweep (§2). A sweep needs a decision on the dispatcher grant and is a follow-up,
   not part of this row.
 - SS-Q20 (Waleed, 2026-10-14, option 1; Abu Salem pending): for an attempt that reached the server after
