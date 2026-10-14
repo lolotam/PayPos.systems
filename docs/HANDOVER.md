@@ -143,7 +143,7 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
   recorded** in that branch on the attempt date, inside the recording screen — a narrow exception, not a general
   "my saves" list (SS-Q17 stands). Its server side is 35c-13a-1 and 35c-13a-2 (ADR-0042).
 - SS-Q20 (batch 20, pending): the server now knows whether an EXPIRED attempt committed; should the screen say so
-  and pick the button? Until answered, that fact only selects the date and is never returned.
+  and pick the button? Until answered, that fact is stored but never shown.
 
 ### 4.2 Package facts worth knowing
 

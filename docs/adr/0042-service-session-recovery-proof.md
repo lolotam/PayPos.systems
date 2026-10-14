@@ -34,7 +34,7 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
 (`RECORDED_ELSEWHERE` | `NOT_RECORDED`, nullable).
 
 - Primary key `(company_id, id)` (ADR-0007). Unique `(company_id, user_id, operation, key_hash)`. Tenant-qualified
-  foreign keys to the branch and to `service_sessions`. CHECKs: `expires_at > issued_at`;
+  foreign keys to the branch and to `service_sessions`. CHECKs: `expires_at > issued_at` and `expires_at <= issued_at + 168 h`;
   `revoked_at` and `revoked_outcome` are both null or both set.
 - `ENABLE` + `FORCE` RLS with split policies on `company_id = app_company_id()`; a negative isolation test in the
   same PR. `pospay_app` gets `SELECT`, `INSERT` and a column `UPDATE` on `session_id`, `committed_at`,
@@ -42,23 +42,35 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
   immutable. No `DELETE`, and no grant for any other role.
 
 **Issue.** Both write use cases call a new orders port before the business transaction. Its adapter runs its own
-`withTenant(companyId)` that re-checks place and record access, then
+`withTenant(companyId)` that re-checks the place and applies **the same authority rule as that write** — `record`
+access for a create; for an append, `resolveSessionRecorder` (domain/session-authority.ts), which also lets the
+original recorder append — then
 `INSERT … ON CONFLICT (company_id, user_id, operation, key_hash) DO UPDATE SET last_seen_at = now,
-expires_at = greatest(expires_at, now + 72 h) WHERE revoked_at IS NULL AND expires_at > now`, and commits. A proof
-that is already expired or revoked is never reopened: the conflict leaves it as it is. If the issue fails, the request fails with a 503 and the
-business write never starts — so "no proof" always means "no write".
+expires_at = least(greatest(expires_at, now + 72 h), issued_at + 168 h) WHERE revoked_at IS NULL AND
+expires_at > now`, and commits. A proof that is already expired or revoked is never reopened: the conflict leaves it
+as it is, and the write then proceeds exactly as it does today (the proof gates only the recovery read, never the
+write). If the issue itself fails (database error), the request fails with a 503 and the business write never
+starts — so "no proof" always means "no write".
 
 **Date.** Create: the business date the server already computes for the request (`occurred_at` when given,
 otherwise the injected clock — FR-012), in the business timezone. For a **new** proof the issue applies the
 same window and future-time checks as the write, so a refused new request leaves no proof. When the proof already
 exists (a same-key replay) the issue only touches it and applies no date check, so a replay after branch midnight or
-after a month boundary still reaches the stored response, as today. Append: the target session's persisted
-`business_date`, with `session_id` set at issue.
+after a month boundary still reaches the stored response, as today. Append: for a new proof the issue loads the
+target session scoped to the URL business and branch, applies the append authority rule above and
+`validateAppendWindow` (domain/session-time.ts), and only then stores the session's persisted `business_date`, with
+`session_id` set at issue; a session outside that scope or window gets no proof.
+
+Only the issue's own checks prevent a proof. A request the issue accepts but the business transaction then refuses
+(customer not found, recorder membership required, performer count, a reused key with another body) keeps an
+unlinked proof dated as above — that is the point of writing it first.
 
 **Link.** Inside the existing business transaction, after the session row exists, the write sets `session_id` and
-`committed_at` on the proof row. A rollback drops only the link and keeps the proof. The recording, its outbox event
-and its stored idempotent response stay in one transaction (ADR-0041 §4); only the proof sits outside it. This is
-the recorded exception to "one request, one transaction".
+`committed_at` on the proof row, guarded by `revoked_at IS NULL AND expires_at > now`. A rollback drops only the
+link and keeps the proof. The recording, its outbox event
+and its stored idempotent response stay in one transaction (ADR-0041 §4); only the proof sits outside it.
+`CLAUDE.md` §6 still holds: the money effect and its outbox event are one transaction; the proof carries no money,
+stock or event and is not part of that effect.
 
 **Client.** Nothing new is stored. The EXPIRED envelope already holds the key and scope. The key travels in a new
 `x-recovery-key` header (never a query string), added to the CORS `allowedHeaders` in `apps/api/src/app.ts` and to
@@ -66,8 +78,10 @@ the observability redaction list.
 
 ### 2. Lifetime and gates (engineering constants)
 
-- `expires_at` = last server receipt + 72 h. The client shows EXPIRED at last send + 25 h, so a proof whose last
-  send reached the server stays readable at least 47 h after the panel appears (#209).
+- `expires_at` = last server receipt + 72 h, never later than `issued_at + 168 h` (a CHECK enforces the cap), so
+  resending the same key cannot keep a proof alive. The client shows EXPIRED at last send + 25 h, so a proof whose
+  last send reached the server within 96 h of the first stays readable at least 47 h after the panel appears (#209);
+  later than that, the panel shows WINDOW_ENDED.
 - Not-before gate: `last_seen_at + 24 h`. Before it, the right path is a same-key replay, so the read answers
   `SESSION_RECOVERY_NOT_YET`.
 - After `expires_at` or after a revoke the read answers `SESSION_RECOVERY_CLOSED` (`EXPIRED` | `REVOKED`).
@@ -90,8 +104,9 @@ usual `FORBIDDEN`. A caller who passes them but has no proof for this key, opera
 recorder's key, another branch or tenant — gets one `SESSION_RECOVERY_NOT_FOUND`, which does not reveal which part
 failed. The key is a random client value, so the answer tells the caller nothing about anyone else. The contract does not expose `committed_at` or whether the attempt committed (§5).
 
-`POST …/service-sessions/recovery/confirm` with `x-recovery-key` and `{ operation, outcome }` sets `revoked_at` and
-`revoked_outcome`, writes an `audit_log` entry, and answers 204, idempotently, also when the proof is already
+`POST …/service-sessions/recovery/confirm` with `x-recovery-key` and `{ operation, outcome }`, under the same guards
+as the read, sets `revoked_at` and `revoked_outcome` on the proof of `app_user_id()` for this company, business,
+branch, operation and key hash only, writes an `audit_log` entry, and answers 204, idempotently, also when the proof is already
 expired or unknown.
 
 ### 4. Client states (row 35c-13)
@@ -118,11 +133,11 @@ lines of that date until the deadline.
 ### 5. Accepted residuals and open owner input
 
 - A recorder can make a proof for a date by sending a deliberate write with no UI, then 24 h later list her own
-  lines for that date. The read is bounded to her own lines, to dates the write path accepts, behind the gate, and
-  audited on confirm. Accepted.
+  lines for that date. The read is bounded to her own lines, to dates the issue's window checks accept (create and
+  append alike), behind the gate, capped at 168 h, and audited on confirm. Accepted.
 - The server now knows whether the attempt committed. Showing that would make the two buttons automatic, which
-  changes SS-Q19 option 1. It is owner question SS-Q20 (pending). Until it is answered, `committed_at` only selects
-  the date and is never returned.
+  changes SS-Q19 option 1. It is owner question SS-Q20 (pending). Until it is answered, `committed_at` is
+  stored but never read or returned; the date comes from the linked `session_id`.
 - A pre-existing gap, not changed here: the server keeps a committed key for 24 h from its claim, while the client may
   retry until 25 h after its last send (#221).
 
