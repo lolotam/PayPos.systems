@@ -268,3 +268,27 @@ it('shows only the active locale for save, title and offline', async () => {
   expect(screen.getByText(t('ar', 'serviceSessions.offline'))).toBeTruthy();
   for (const key of copyKeys) expect(document.body.textContent ?? '').not.toContain(t('en', key));
 });
+
+it('starts no read when the page opens while the browser is already offline', async () => {
+  installReads();
+  setOnline(false);
+  renderPage();
+  expect(await screen.findByText(t('en', 'serviceSessions.offline'))).toBeTruthy();
+  await act(async () => { await Promise.resolve(); });
+  expect(state.get).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.save') })).toBeNull();
+});
+
+it('drops the cached reads of its scope when it unmounts and keeps other scopes', async () => {
+  installReads();
+  const fresh = { ...scope, userId: id(77) };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000 }, mutations: { retry: false } } });
+  const other = ['session-services', 'other-company', fresh.businessId, fresh.branchId, fresh.userId, 'en', ''];
+  client.setQueryData(other, { items: [], next_cursor: null });
+  const view = renderPage(fresh, client);
+  const own = () => client.getQueryCache().findAll({ predicate: ({ queryKey }) => queryKey[1] === fresh.companyId });
+  await waitFor(() => expect(own().length).toBeGreaterThan(0));
+  view.unmount();
+  expect(own()).toHaveLength(0);
+  expect(client.getQueryData(other)).toBeTruthy();
+});

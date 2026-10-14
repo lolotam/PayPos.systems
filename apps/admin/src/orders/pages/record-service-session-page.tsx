@@ -1,30 +1,16 @@
 'use client';
 import { t } from '@pospay/i18n';
 import { Button, PageHeader } from '@pospay/ui';
-import { useEffect, useState } from 'react';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { useRecordingContext } from '../api/use-recording-context';
 import { sessionResultFrozen } from '../model/session-recording-result';
+import { useBrowserConnectivity } from '../model/use-browser-connectivity';
+import { useSessionQueryPurge } from '../model/use-session-query-purge';
 import { useSessionRecording } from '../model/use-session-recording';
 import { RecordServiceSessionForm } from '../ui/record-service-session-form';
 import { SessionWriteFeedback } from '../ui/session-write-feedback';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
-
-function useBrowserOnline() {
-  const [online, setOnline] = useState(true);
-  useEffect(() => {
-    const sync = () => setOnline(navigator.onLine);
-    sync();
-    window.addEventListener('online', sync);
-    window.addEventListener('offline', sync);
-    return () => {
-      window.removeEventListener('online', sync);
-      window.removeEventListener('offline', sync);
-    };
-  }, []);
-  return online;
-}
 
 function isForbidden(error: unknown) {
   return !!error && typeof error === 'object' && 'status' in error && error.status === 403;
@@ -32,7 +18,9 @@ function isForbidden(error: unknown) {
 
 export function RecordServiceSessionPage({ scope }: { scope: SessionServiceScope }) {
   const locale = useLocale();
-  const online = useBrowserOnline();
+  const connectivity = useBrowserConnectivity();
+  const online = connectivity === true;
+  useSessionQueryPurge(scope);
   const recording = useSessionRecording(scope);
   const context = useRecordingContext(scope, null, online && !sessionResultFrozen(recording.result));
   const forbidden = isForbidden(context.error);
@@ -42,7 +30,7 @@ export function RecordServiceSessionPage({ scope }: { scope: SessionServiceScope
     && (context.isError || (sessionResultFrozen(recording.result) && !context.isFetching));
   return <section className="grid gap-4 text-start">
     <PageHeader title={t(locale, 'serviceSessions.title')} />
-    {online ? null : <p role="status">{t(locale, 'serviceSessions.offline')}</p>}
+    {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
     {context.error ? <p role="alert">{envelopeMessage(context.error, locale)}</p> : null}
     {contextRetry ? <Button type="button" variant="outline" onClick={() => { void context.refetch(); }}>{t(locale, 'serviceSessions.retryContext')}</Button> : null}
     {editor ? <RecordServiceSessionForm scope={scope} context={editor} online={online} recording={recording}
