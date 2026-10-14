@@ -136,3 +136,56 @@ commit; await it before checking inbox coverage. Rerun recovery and verify ledge
 If an expected retained input is absent, or saved late visits have no recoverable event, stop and record missing
 coverage and IDs. Do not claim recovery complete, fabricate events, query outbox through orders, broaden grants,
 reset dedupe or regenerate requests. This procedure does not replay commissions/ratings or grant day-list access.
+
+## Admin service-session browser tests
+
+The Playwright config has no `webServer`. Postgres, Redis, the API and the admin must already be running.
+`apps/admin/playwright.config.ts` throws `e2e needs ADMIN_E2E_URL` when that variable is unset or empty,
+including the RFC 6238 vector test, because the config loads before any test. `ADMIN_E2E_URL` and the API
+base must share a host, and that admin origin must be in `AUTH_TRUSTED_ORIGINS`, because the session cookie
+is host-only. The local pair is `http://localhost:3001` and `http://localhost:3010` (both `localhost`,
+different ports). Do not mix `localhost` with `127.0.0.1`.
+
+The seed refuses to run unless `NODE_ENV=development`. It also requires `BETTER_AUTH_URL` (the API base;
+the hostname must be `localhost`, `127.0.0.1`, `::1`, or `[::1]`), `DATABASE_URL`, `AUTH_DATABASE_URL`, and
+`MIGRATION_DATABASE_URL` (one database on this machine), `BETTER_AUTH_SECRET`, and `AUTH_TRUSTED_ORIGINS`
+including the admin origin. The seed sends `Origin` from the trusted entry that contains
+`://localhost:3001`, or from the first trusted origin when that entry is absent. A non-local API hostname
+is refused before any user is created and before any request is sent.
+
+Build the admin against the local API and serve it on port 3001 (the `@pospay/i18n` build comes first, because
+the admin reads the built catalog). Stop any earlier admin on that port before rebuilding: a server left
+running over a rebuilt `.next` serves mismatched chunks and the suite fails.
+
+```sh
+pnpm --filter @pospay/i18n build
+NEXT_PUBLIC_API_URL=http://localhost:3010 pnpm --filter @pospay/admin build
+cd apps/admin && NEXT_PUBLIC_API_URL=http://localhost:3010 pnpm exec next start --port 3001
+```
+
+`next start` prints a warning about `output: standalone`; it still serves the build and the suite passes
+against it.
+
+From the worktree root, against that stack:
+
+```sh
+pnpm --filter @pospay/api e2e:seed
+```
+
+```powershell
+$env:ADMIN_E2E_URL = 'http://localhost:3001'
+pnpm --filter @pospay/admin e2e
+```
+
+`e2e:seed` (`apps/api/package.json`: `node --env-file-if-exists=../../.env scripts/seed-e2e-session.ts`)
+talks to the running API and writes `apps/admin/e2e/.state/session.env`, already ignored by `*.env`. It
+prints only that path. Passwords and the TOTP secret stay in the state file. Companies, users, the catalog,
+and the approved leave are created through the API. Through `grantPlatformPermission` (the migration owner,
+as `demo:seed` does) the seed writes two platform grants (`create:companies:platform`, operator `e2e-seed`).
+No API creates a non-owner membership, so it writes three membership rows as the application role inside
+`withTenant`, one transaction per tenant, as onboarding does: cashier on the home branch at 1000 bps, cashier
+on the home branch at 500 bps, and viewer on the foreign branch.
+Each run leaves two tenants, three users, two grants, three memberships, and one approved leave, with no
+cleanup. The leave covers the seed's business date from the day before through the day after. Reseed
+before every suite run, and again when that business date has changed, because a suite started on a later
+day no longer matches the performer who was on leave. Also reseed when the state file is missing.
