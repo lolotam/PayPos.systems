@@ -5,24 +5,32 @@ import { fileURLToPath } from 'node:url';
 
 import { grantPlatformPermission } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import { totpCode } from '../../admin/e2e/totp.ts';
 
-import { assertDevelopmentTarget } from './demo-guard.ts';
+import { createTenant, type SeedTenant } from './seed-e2e-catalog.ts';
+import { approveLeave } from './seed-e2e-leave.ts';
+import { insertMemberships } from './seed-e2e-membership.ts';
 import {
-  createTenant,
   enrolTotp,
-  insertBranchMembership,
   openAuth,
   provisionUser,
   readSeedTarget,
   type SeedTarget,
-  type SeedTenant,
   type SeedUser,
-} from './seed-e2e-tenant.ts';
+} from './seed-e2e-http.ts';
 
 const statePath = join(dirname(fileURLToPath(import.meta.url)), '../../admin/e2e/.state/session.env');
+const VECTOR_SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 
 function suffix(): string {
   return `${Date.now().toString(36)}${randomBytes(2).toString('hex')}`;
+}
+
+function assertTotpVector(): void {
+  const at = new Date(59_000);
+  if (totpCode(VECTOR_SECRET, at, 8) !== '94287082' || totpCode(VECTOR_SECRET, at) !== '287082') {
+    throw new Error('e2e:seed totp vector mismatch');
+  }
 }
 
 function grantOwner(target: SeedTarget, email: string): Promise<unknown> {
@@ -36,7 +44,8 @@ function grantOwner(target: SeedTarget, email: string): Promise<unknown> {
 function catalogEntries(home: SeedTenant): Record<string, string> {
   const standard = home.services[0];
   const odd = home.services[1];
-  if (standard === undefined || odd === undefined || home.employees.length !== 4) {
+  const onLeave = home.employees[0];
+  if (standard === undefined || odd === undefined || onLeave === undefined || home.employees.length !== 4) {
     throw new Error('e2e:seed catalog missing');
   }
   const entries: Record<string, string> = {
@@ -60,7 +69,11 @@ function stateText(
   other: SeedUser,
   home: SeedTenant,
   foreign: SeedTenant,
+  memberships: readonly string[],
 ): string {
+  const primary = memberships[0];
+  const narrow = memberships[1];
+  if (primary === undefined || narrow === undefined) throw new Error('e2e:seed membership missing');
   const entries: Record<string, string> = {
     API_BASE: target.apiBase,
     ORIGIN: target.origin,
@@ -76,6 +89,8 @@ function stateText(
     BUSINESS_ID: home.businessId,
     BRANCH_ID: home.branchId,
     BRANCH_NAME: home.branchName,
+    RECORDER_MEMBERSHIP_ID: primary,
+    NARROW_MEMBERSHIP_ID: narrow,
     OTHER_COMPANY_ID: foreign.companyId,
     OTHER_COMPANY_NAME: foreign.companyName,
     OTHER_BUSINESS_ID: foreign.businessId,
@@ -93,41 +108,39 @@ async function writeState(text: string): Promise<void> {
   await writeFile(statePath, text, { mode: 0o600 });
 }
 
+async function provision(target: SeedTarget, auth: Awaited<ReturnType<typeof openAuth>>): Promise<string> {
+  const tag = suffix();
+  const owner = await provisionUser(auth, target, `e2e-owner-${tag}@example.test`, `E2E Owner ${tag}`);
+  await grantOwner(target, owner.email);
+  const home = await createTenant(target, owner.cookie, `${tag} Home`, true);
+  const recorder = await provisionUser(auth, target, `e2e-recorder-${tag}@example.test`, `E2E Recorder ${tag}`);
+  const secret = await enrolTotp(target, recorder);
+  const other = await provisionUser(auth, target, `e2e-other-${tag}@example.test`, `E2E Other ${tag}`);
+  await grantOwner(target, other.email);
+  const foreign = await createTenant(target, other.cookie, `${tag} Other`, false);
+  const memberships = await insertMemberships(target.migrationUrl, [
+    { companyId: home.companyId, userId: recorder.userId, roleCode: 'cashier', branchId: home.branchId, limitBps: 1000 },
+    { companyId: home.companyId, userId: recorder.userId, roleCode: 'cashier', branchId: home.branchId, limitBps: 500 },
+    { companyId: foreign.companyId, userId: recorder.userId, roleCode: 'viewer', branchId: foreign.branchId, limitBps: null },
+  ]);
+  const onLeave = home.employees[0];
+  if (onLeave === undefined) throw new Error('e2e:seed catalog missing');
+  await approveLeave(target, owner.cookie, {
+    companyId: home.companyId,
+    businessId: home.businessId,
+    branchId: home.branchId,
+    employeeId: onLeave.id,
+    timeZone: home.timeZone,
+  });
+  return stateText(target, owner, recorder, secret, other, home, foreign, memberships);
+}
+
 async function seed(): Promise<void> {
-  assertDevelopmentTarget(process.env);
+  assertTotpVector();
   const target = readSeedTarget(process.env);
   const auth = await openAuth(target);
   try {
-    const tag = suffix();
-    const owner = await provisionUser(auth, target, `e2e-owner-${tag}@example.test`, `E2E Owner ${tag}`);
-    await grantOwner(target, owner.email);
-    const home = await createTenant(target, owner.cookie, `${tag} Home`, true);
-    const recorder = await provisionUser(
-      auth,
-      target,
-      `e2e-recorder-${tag}@example.test`,
-      `E2E Recorder ${tag}`,
-    );
-    const secret = await enrolTotp(target, recorder);
-    const other = await provisionUser(auth, target, `e2e-other-${tag}@example.test`, `E2E Other ${tag}`);
-    await grantOwner(target, other.email);
-    const foreign = await createTenant(target, other.cookie, `${tag} Other`, false);
-    await insertBranchMembership(target.migrationUrl, {
-      companyId: home.companyId,
-      userId: recorder.userId,
-      roleCode: 'cashier',
-      branchId: home.branchId,
-      limitBps: 1000,
-    });
-    // A viewer membership makes the foreign branch selectable. Viewer cannot record, so the context is 403.
-    await insertBranchMembership(target.migrationUrl, {
-      companyId: foreign.companyId,
-      userId: recorder.userId,
-      roleCode: 'viewer',
-      branchId: foreign.branchId,
-      limitBps: null,
-    });
-    await writeState(stateText(target, owner, recorder, secret, other, home, foreign));
+    await writeState(await provision(target, auth));
   } finally {
     await auth.close();
   }

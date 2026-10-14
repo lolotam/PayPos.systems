@@ -2,14 +2,15 @@ import { expect, test, type Page } from '@playwright/test';
 import { t, type Locale } from '@pospay/i18n';
 
 import {
+  civilDate,
   findOrCreateCustomer,
   fillLine,
-  kuwaitDate,
   label,
   loadState,
   nationalNumber,
   openRecorder,
   performerAt,
+  readRecorded,
   savedVisit,
   setOccurredAt,
   submitVisit,
@@ -39,15 +40,17 @@ function expectShares(line: DayLine | undefined, money: Partial<DayLine>, shares
 
 async function saveAmount(page: Page, locale: Locale): Promise<void> {
   const customer = label('Amount');
-  await openRecorder(page, state, locale);
+  const zone = await openRecorder(page, state, locale);
   await findOrCreateCustomer(page, locale, customer, nationalNumber());
   await fillLine(page, locale, 0, amountSpec());
-  const response = await submitVisit(page, locale, 'create');
-  expect(response.status()).toBe(201);
-  expect((await response.json()) as { outcome: string }).toMatchObject({ outcome: 'COMPLETE' });
+  const body = await readRecorded(await submitVisit(page, locale, 'create'));
+  expect(body.outcome).toBe('COMPLETE');
+  expect(body.session.business_timezone).toBe(zone);
+  expect(body.session.lines).toHaveLength(1);
   await expect(page.getByRole('status').filter({ hasText: t(locale, 'serviceSessions.saved') }).first()).toBeVisible();
-  const visit = await savedVisit(state, customer, kuwaitDate(0));
+  const visit = await savedVisit(state, customer, body.session.business_date);
   expect(visit.late).toBe(false);
+  expect(visit.lines).toHaveLength(1);
   expectShares(visit.lines[0], {
     service_id: state.standardServiceId,
     price: '25.000',
@@ -58,11 +61,12 @@ async function saveAmount(page: Page, locale: Locale): Promise<void> {
   }, [10_000]);
 }
 
-async function recordLate(page: Page): Promise<{ customer: string; visit: DayVisit }> {
+async function recordLate(page: Page): Promise<{ customer: string; visit: DayVisit; date: string }> {
   const customer = label('Late');
-  await openRecorder(page, state, 'en');
+  const zone = await openRecorder(page, state, 'en');
+  const yesterday = civilDate(zone, -1);
   await findOrCreateCustomer(page, 'en', customer, nationalNumber());
-  await setOccurredAt(page, 'en', `${kuwaitDate(-1)}T15:00`);
+  await setOccurredAt(page, 'en', `${yesterday}T15:00`);
   await fillLine(page, 'en', 0, {
     serviceName: state.standardServiceName,
     catalogPrice: '25.000',
@@ -70,22 +74,24 @@ async function recordLate(page: Page): Promise<{ customer: string; visit: DayVis
     performers: [0, 1, 2, 3].map((index) => performerAt(state, index).name),
   });
   await expect(page.getByText(t('en', 'serviceSessions.notClockedIn')).first()).toBeVisible();
-  const response = await submitVisit(page, 'en', 'create');
-  expect(response.status()).toBe(201);
+  const body = await readRecorded(await submitVisit(page, 'en', 'create'));
+  expect(body.session.business_date).toBe(yesterday);
+  expect(body.session.business_timezone).toBe(zone);
   await expect(page.getByText(t('en', 'serviceSessions.late')).first()).toBeVisible();
-  const visit = await savedVisit(state, customer, kuwaitDate(-1));
+  const visit = await savedVisit(state, customer, body.session.business_date);
   expect(visit.late).toBe(true);
+  expect(visit.lines).toHaveLength(1);
   expectShares(visit.lines[0], { price: '25.000', list_price: '25.000', discount: '1.250', net: '23.750', late: true }, [
     2500, 2500, 2500, 2500,
   ]);
-  return { customer, visit };
+  return { customer, visit, date: body.session.business_date };
 }
 
-async function appendLate(page: Page, customer: string, before: DayVisit): Promise<void> {
+async function appendLate(page: Page, customer: string, before: DayVisit, date: string): Promise<void> {
   await fillLine(page, 'en', 0, amountSpec());
-  const response = await submitVisit(page, 'en', 'append');
-  expect(response.status()).toBe(201);
-  const after = await savedVisit(state, customer, kuwaitDate(-1));
+  const body = await readRecorded(await submitVisit(page, 'en', 'append'));
+  expect(body.session.business_date).toBe(date);
+  const after = await savedVisit(state, customer, date);
   expect(after.occurred_at).toBe(before.occurred_at);
   expect(after.lines[0]?.id).toBe(before.lines[0]?.id);
   expect(after.lines).toHaveLength(2);
@@ -104,15 +110,15 @@ async function recordOverride(page: Page): Promise<void> {
     price: '24.000',
     discount: { kind: 'AMOUNT', value: '1.000' },
     performers: [0, 1, 2, 3].map((index) => performerAt(state, index).name),
-    shares: ['25', '25', '25', '25'],
+    shares: ['10', '20', '30', '40'],
   });
-  const response = await submitVisit(page, 'ar', 'create');
-  expect(response.status()).toBe(201);
-  const visit = await savedVisit(state, customer, kuwaitDate(0));
+  const body = await readRecorded(await submitVisit(page, 'ar', 'create'));
+  const visit = await savedVisit(state, customer, body.session.business_date);
+  expect(visit.lines).toHaveLength(1);
   expectShares(
     visit.lines[0],
     { price: '24.000', list_price: '25.000', discount: '1.000', net: '23.000', late: false },
-    [2500, 2500, 2500, 2500],
+    [1000, 2000, 3000, 4000],
   );
 }
 
@@ -124,11 +130,44 @@ for (const locale of ['ar', 'en'] as const) {
 
 test('saves a late equal split and appends without moving the header', async ({ page }) => {
   const saved = await recordLate(page);
-  await appendLate(page, saved.customer, saved.visit);
+  await appendLate(page, saved.customer, saved.visit, saved.date);
 });
 
 test('saves a price override with four custom shares in Arabic', async ({ page }) => {
   await recordOverride(page);
+});
+
+test('saves under the membership the recorder chooses', async ({ page }) => {
+  const customer = label('Member');
+  await openRecorder(page, state, 'en');
+  const membership = page.getByLabel(t('en', 'serviceSessions.recorderMembership'), { exact: true });
+  await expect(membership.locator(`option[value="${state.recorderMembershipId}"]`)).toHaveCount(1);
+  await expect(membership.locator(`option[value="${state.narrowMembershipId}"]`)).toHaveCount(1);
+  await membership.selectOption(state.narrowMembershipId);
+  await expect(page.getByText('5.00%').first()).toBeVisible();
+  await expect(page.getByText('10.00%')).toHaveCount(0);
+  await findOrCreateCustomer(page, 'en', customer, nationalNumber());
+  await fillLine(page, 'en', 0, amountSpec());
+  const body = await readRecorded(await submitVisit(page, 'en', 'create'));
+  expect(body.session.recorded_by_membership_id).toBe(state.narrowMembershipId);
+  expect(body.session.lines).toHaveLength(1);
+  expect(body.session.lines[0]?.recorded_by_membership_id).toBe(state.narrowMembershipId);
+  expect(body.session.lines[0]).toMatchObject({ limit_bps_applied: 500, limit_source: 'PERSON' });
+});
+
+test('saves while the performer is on approved leave', async ({ page }) => {
+  const customer = label('Leave');
+  const zone = await openRecorder(page, state, 'en');
+  await findOrCreateCustomer(page, 'en', customer, nationalNumber());
+  await fillLine(page, 'en', 0, amountSpec());
+  await expect(page.getByText(t('en', 'serviceSessions.approvedLeave')).first()).toBeVisible();
+  const body = await readRecorded(await submitVisit(page, 'en', 'create'));
+  expect(body.outcome).toBe('COMPLETE');
+  expect(body.session.business_timezone).toBe(zone);
+  expect(body.session.lines[0]?.performers[0]?.approved_leave_warning).toBe(true);
+  const visit = await savedVisit(state, customer, body.session.business_date);
+  expect(visit.lines).toHaveLength(1);
+  expect(visit.lines[0]?.performers[0]?.approved_leave_warning).toBe(true);
 });
 
 test.describe('narrow Arabic keyboard', () => {
@@ -140,8 +179,8 @@ test.describe('narrow Arabic keyboard', () => {
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await findOrCreateCustomer(page, 'ar', customer, nationalNumber());
     await fillLine(page, 'ar', 0, amountSpec());
-    const response = await submitVisit(page, 'ar', 'create', true);
-    expect(response.status()).toBe(201);
-    expect((await savedVisit(state, customer, kuwaitDate(0))).lines).toHaveLength(1);
+    const body = await readRecorded(await submitVisit(page, 'ar', 'create', true));
+    const visit = await savedVisit(state, customer, body.session.business_date);
+    expect(visit.lines).toHaveLength(1);
   });
 });

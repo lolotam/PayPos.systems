@@ -140,9 +140,18 @@ reset dedupe or regenerate requests. This procedure does not replay commissions/
 ## Admin service-session browser tests
 
 The Playwright config has no `webServer`. Postgres, Redis, the API and the admin must already be running.
-`ADMIN_E2E_URL` and the API base must share a host, and that admin origin must be in `AUTH_TRUSTED_ORIGINS`,
-because the session cookie is host-only. The local pair is `http://localhost:3001` and `http://localhost:3010`
-(both `localhost`, different ports). Do not mix `localhost` with `127.0.0.1`.
+`apps/admin/playwright.config.ts` throws `e2e needs ADMIN_E2E_URL` when that variable is unset or empty,
+including the RFC 6238 vector test, because the config loads before any test. `ADMIN_E2E_URL` and the API
+base must share a host, and that admin origin must be in `AUTH_TRUSTED_ORIGINS`, because the session cookie
+is host-only. The local pair is `http://localhost:3001` and `http://localhost:3010` (both `localhost`,
+different ports). Do not mix `localhost` with `127.0.0.1`.
+
+The seed refuses to run unless `NODE_ENV=development`. It also requires `BETTER_AUTH_URL` (the API base;
+the hostname must be `localhost`, `127.0.0.1`, `::1`, or `[::1]`), `DATABASE_URL`, `AUTH_DATABASE_URL`, and
+`MIGRATION_DATABASE_URL` (one database on this machine), `BETTER_AUTH_SECRET`, and `AUTH_TRUSTED_ORIGINS`
+including the admin origin. The seed sends `Origin` from the trusted entry that contains
+`://localhost:3001`, or from the first trusted origin when that entry is absent. A non-local API hostname
+is refused before any user is created and before any request is sent.
 
 From the worktree root, against that stack:
 
@@ -155,7 +164,11 @@ $env:ADMIN_E2E_URL = 'http://localhost:3001'
 pnpm --filter @pospay/admin e2e
 ```
 
-`e2e:seed` talks to the running API (`node --env-file-if-exists=../../.env scripts/seed-e2e-session.ts`) and
-writes `apps/admin/e2e/.state/session.env` (mode `0600`, already ignored by `*.env`). It prints only that path.
-Passwords and the TOTP secret stay in the state file. Each run creates a new tenant; rerun the seed before the
-suite when the file is missing.
+`e2e:seed` (`apps/api/package.json`: `node --env-file-if-exists=../../.env scripts/seed-e2e-session.ts`)
+talks to the running API and writes `apps/admin/e2e/.state/session.env`, already ignored by `*.env`. It
+prints only that path. Passwords and the TOTP secret stay in the state file. Companies, users, the catalog,
+and the approved leave are created through the API. As the migration owner the seed also writes two
+platform grants (`create:companies:platform`, operator `e2e-seed`) and three membership rows: cashier on
+the home branch at 1000 bps, cashier on the home branch at 500 bps, and viewer on the foreign branch.
+Each run leaves two tenants, three users, two grants, three memberships, and one approved leave, with no
+cleanup. Rerun the seed before the suite when the state file is missing.

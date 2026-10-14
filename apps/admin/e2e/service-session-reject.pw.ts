@@ -3,15 +3,16 @@ import { t, type Locale } from '@pospay/i18n';
 
 import {
   addDraftLine,
+  civilDate,
   dayVisits,
   findOrCreateCustomer,
   fillLine,
-  kuwaitDate,
   label,
   loadState,
   nationalNumber,
   openRecorder,
   performerAt,
+  readRecorded,
   savedVisit,
   submitVisit,
   type DayVisit,
@@ -47,14 +48,15 @@ async function readRefusal(response: Response): Promise<RefusalBody> {
   return (await response.json()) as RefusalBody;
 }
 
-async function absent(customer: string): Promise<void> {
-  const visits = await dayVisits(state, 'owner', kuwaitDate(0));
-  expect(visits.some((visit) => visit.customer.name === customer)).toBe(false);
+async function absent(customer: string, date: string): Promise<void> {
+  const visits = await dayVisits(state, 'owner', date);
+  expect(visits.filter((visit) => visit.customer.name === customer)).toHaveLength(0);
 }
 
 async function refuseOdd(page: Page, locale: Locale): Promise<void> {
   const customer = label('Odd');
-  await openRecorder(page, state, locale);
+  const zone = await openRecorder(page, state, locale);
+  const date = civilDate(zone, 0);
   await findOrCreateCustomer(page, locale, customer, nationalNumber());
   await fillLine(page, locale, 0, oddPercent('10'));
   const body = await readRefusal(await submitVisit(page, locale, 'create'));
@@ -66,12 +68,13 @@ async function refuseOdd(page: Page, locale: Locale): Promise<void> {
     max_discount_amount: '0.712',
     limit_bps: 1000,
   });
-  await absent(customer);
+  await absent(customer, date);
 }
 
 async function refuseAmount(page: Page): Promise<void> {
   const customer = label('Over');
-  await openRecorder(page, state, 'en');
+  const zone = await openRecorder(page, state, 'en');
+  const date = civilDate(zone, 0);
   await findOrCreateCustomer(page, 'en', customer, nationalNumber());
   await fillLine(page, 'en', 0, {
     serviceName: state.standardServiceName,
@@ -81,10 +84,10 @@ async function refuseAmount(page: Page): Promise<void> {
   });
   const body = await readRefusal(await submitVisit(page, 'en', 'create'));
   expect(body.code).toBe('SESSION_DISCOUNT_ABOVE_LIMIT');
-  await absent(customer);
+  await absent(customer, date);
 }
 
-async function openPartial(page: Page, locale: Locale): Promise<string> {
+async function openPartial(page: Page, locale: Locale): Promise<{ customer: string; date: string }> {
   const customer = label('Partial');
   await openRecorder(page, state, locale);
   await findOrCreateCustomer(page, locale, customer, nationalNumber());
@@ -96,24 +99,29 @@ async function openPartial(page: Page, locale: Locale): Promise<string> {
   });
   await addDraftLine(page, locale);
   await fillLine(page, locale, 1, oddPercent('10'));
-  const response = await submitVisit(page, locale, 'create');
-  expect(response.status()).toBe(201);
-  expect((await response.json()) as { outcome: string }).toMatchObject({ outcome: 'PARTIAL' });
+  const recorded = await readRecorded(await submitVisit(page, locale, 'create'));
+  expect(recorded.outcome).toBe('PARTIAL');
   await expect(page.getByRole('status').filter({ hasText: t(locale, 'serviceSessions.partial') })).toBeVisible();
-  return customer;
+  return { customer, date: recorded.session.business_date };
 }
 
-async function keepRejected(page: Page, locale: Locale, customer: string): Promise<DayVisit> {
-  const before = await savedVisit(state, customer, kuwaitDate(0));
+async function keepRejected(page: Page, locale: Locale, customer: string, date: string): Promise<DayVisit> {
+  const before = await savedVisit(state, customer, date);
   const body = await readRefusal(await submitVisit(page, locale, 'append'));
   expect(body.code).toBe('SESSION_DISCOUNT_ABOVE_LIMIT');
-  const after = await savedVisit(state, customer, kuwaitDate(0));
+  const after = await savedVisit(state, customer, date);
   expect(after.occurred_at).toBe(before.occurred_at);
   expect(after.lines.map((line) => line.id)).toEqual(before.lines.map((line) => line.id));
   return before;
 }
 
-async function correctPercent(page: Page, locale: Locale, before: DayVisit, customer: string): Promise<void> {
+async function correctPercent(
+  page: Page,
+  locale: Locale,
+  before: DayVisit,
+  customer: string,
+  date: string,
+): Promise<void> {
   await page.getByRole('button', { name: t(locale, 'serviceSessions.editRejected') }).click();
   const group = page.getByRole('group', {
     name: t(locale, 'serviceSessions.lineNumber').replace('{n}', '1'),
@@ -121,9 +129,9 @@ async function correctPercent(page: Page, locale: Locale, before: DayVisit, cust
   const field = group.getByLabel(t(locale, 'serviceSessions.discountPercent'), { exact: true });
   await field.fill('5');
   await field.blur();
-  const response = await submitVisit(page, locale, 'append');
-  expect(response.status()).toBe(201);
-  const after = await savedVisit(state, customer, kuwaitDate(0));
+  const recorded = await readRecorded(await submitVisit(page, locale, 'append'));
+  expect(recorded.session.business_date).toBe(date);
+  const after = await savedVisit(state, customer, date);
   expect(after.occurred_at).toBe(before.occurred_at);
   expect(after.lines[0]?.id).toBe(before.lines[0]?.id);
   expect(after.lines).toHaveLength(2);
@@ -142,9 +150,9 @@ for (const locale of ['ar', 'en'] as const) {
   });
 
   test(`keeps a partial visit and appends the correction in ${locale}`, async ({ page }) => {
-    const customer = await openPartial(page, locale);
-    const before = await keepRejected(page, locale, customer);
-    await correctPercent(page, locale, before, customer);
+    const opened = await openPartial(page, locale);
+    const before = await keepRejected(page, locale, opened.customer, opened.date);
+    await correctPercent(page, locale, before, opened.customer, opened.date);
   });
 }
 

@@ -2,23 +2,28 @@ import { expect, test, type Page, type Request } from '@playwright/test';
 import { t } from '@pospay/i18n';
 
 import {
+  civilDate,
   dayVisits,
-  findOrCreateCustomer,
+  dropFirstCreate,
   fillLine,
+  findOrCreateCustomer,
+  holdFirstCreate,
   isCreatePost,
-  kuwaitDate,
   label,
   loadState,
   nationalNumber,
   openRecorder,
   performerAt,
+  readRecorded,
+  staysQuiet,
+  type DayVisit,
 } from './session-fixture';
 
 const state = loadState();
 
-async function readyVisit(page: Page, prefix: string): Promise<string> {
+async function readyVisit(page: Page, prefix: string): Promise<{ customer: string; date: string }> {
   const customer = label(prefix);
-  await openRecorder(page, state, 'ar');
+  const zone = await openRecorder(page, state, 'ar');
   await findOrCreateCustomer(page, 'ar', customer, nationalNumber());
   await fillLine(page, 'ar', 0, {
     serviceName: state.standardServiceName,
@@ -26,7 +31,7 @@ async function readyVisit(page: Page, prefix: string): Promise<string> {
     discount: { kind: 'AMOUNT', value: '1.000' },
     performers: [performerAt(state, 0).name],
   });
-  return customer;
+  return { customer, date: civilDate(zone, 0) };
 }
 
 function watchCreates(page: Page): string[] {
@@ -40,47 +45,47 @@ function watchCreates(page: Page): string[] {
   return keys;
 }
 
-async function dropFirstCreate(page: Page): Promise<void> {
-  let dropped = false;
-  await page.route(
-    (url) => /\/service-sessions$/u.test(url.pathname),
-    async (route) => {
-      const request = route.request();
-      if (dropped || !isCreatePost(request.url(), request.method())) {
-        await route.continue();
-        return;
-      }
-      dropped = true;
-      await route.fetch();
-      await route.abort('failed');
-    },
-  );
+async function visitsFor(customer: string, date: string): Promise<DayVisit[]> {
+  return (await dayVisits(state, 'owner', date)).filter((visit) => visit.customer.name === customer);
 }
 
-async function oneVisit(customer: string): Promise<void> {
-  const visits = (await dayVisits(state, 'owner', kuwaitDate(0))).filter((visit) => visit.customer.name === customer);
+async function oneLine(customer: string, date: string, sessionId: string): Promise<void> {
+  const visits = await visitsFor(customer, date);
   expect(visits).toHaveLength(1);
+  expect(visits[0]?.id).toBe(sessionId);
   expect(visits[0]?.lines).toHaveLength(1);
+  expect(visits[0]?.lines[0]).toMatchObject({
+    service_id: state.standardServiceId,
+    price: '25.000',
+    list_price: '25.000',
+    discount: '1.000',
+    net: '24.000',
+  });
 }
 
 test('replays a dropped 201 with the same key and one line', async ({ page }) => {
-  const customer = await readyVisit(page, 'Lost');
+  const { customer, date } = await readyVisit(page, 'Lost');
   const keys = watchCreates(page);
-  await dropFirstCreate(page);
+  const dropped = await dropFirstCreate(page);
   await page.getByRole('button', { name: t('ar', 'serviceSessions.save') }).click();
+  const fetched = await dropped();
+  expect(fetched.status()).toBe(201);
+  const created = (await fetched.json()) as { session: { id: string; business_date: string } };
+  expect(created.session.business_date).toBe(date);
   await expect(page.getByRole('alert').filter({ hasText: t('ar', 'serviceSessions.unresolved') })).toBeVisible();
   const replay = page.waitForResponse((response) => isCreatePost(response.url(), response.request().method()), {
     timeout: 20_000,
   });
   await page.getByRole('button', { name: t('ar', 'serviceSessions.retryOriginal') }).click();
-  expect((await replay).status()).toBe(201);
+  const body = await readRecorded(await replay);
+  expect(body.session.id).toBe(created.session.id);
   expect(keys).toHaveLength(2);
   expect(keys[0]).toBe(keys[1]);
-  await oneVisit(customer);
+  await oneLine(customer, body.session.business_date, body.session.id);
 });
 
 test('one double-click writes one visit', async ({ page }) => {
-  const customer = await readyVisit(page, 'Click');
+  const { customer, date } = await readyVisit(page, 'Click');
   const keys = watchCreates(page);
   const done = page.waitForResponse((response) => isCreatePost(response.url(), response.request().method()), {
     timeout: 20_000,
@@ -90,19 +95,30 @@ test('one double-click writes one visit', async ({ page }) => {
     element.click();
     element.click();
   });
-  expect((await done).status()).toBe(201);
-  await page.waitForTimeout(750);
-  expect(keys).toHaveLength(1);
-  await oneVisit(customer);
+  const body = await readRecorded(await done);
+  await staysQuiet(async () => keys.length === 1 && (await visitsFor(customer, date)).length === 1);
+  await oneLine(customer, body.session.business_date, body.session.id);
 });
 
 test('stays quiet when the browser reconnects', async ({ page }) => {
-  await readyVisit(page, 'Offline');
-  const keys = watchCreates(page);
+  const { customer, date } = await readyVisit(page, 'Offline');
+  await holdFirstCreate(page);
+  const save = page.getByRole('button', { name: t('ar', 'serviceSessions.save') });
+  const retry = page.getByRole('button', { name: t('ar', 'serviceSessions.retryOriginal') });
+  await save.click();
+  await expect(page.getByRole('alert').filter({ hasText: t('ar', 'serviceSessions.unresolved') })).toBeVisible();
   await page.context().setOffline(true);
   await expect(page.getByRole('status').filter({ hasText: t('ar', 'serviceSessions.offline') })).toBeVisible();
-  await expect(page.getByRole('button', { name: t('ar', 'serviceSessions.save') })).toBeDisabled();
+  await expect(save).toBeDisabled();
+  await expect(retry).toHaveCount(0);
   await page.context().setOffline(false);
-  await page.waitForTimeout(750);
-  expect(keys).toHaveLength(0);
+  await staysQuiet(async () => (await visitsFor(customer, date)).length === 0);
+  await expect(retry).toBeEnabled();
+  const replay = page.waitForResponse((response) => isCreatePost(response.url(), response.request().method()), {
+    timeout: 20_000,
+  });
+  await retry.click();
+  const body = await readRecorded(await replay);
+  expect(body.outcome).toBe('COMPLETE');
+  await oneLine(customer, body.session.business_date, body.session.id);
 });
