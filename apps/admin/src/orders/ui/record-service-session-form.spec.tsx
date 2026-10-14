@@ -42,19 +42,20 @@ function installReads(performers: typeof performer[] = []) {
     return Promise.resolve({ data: { items: String(path).endsWith('/performer-options') ? performers : [service], next_cursor: null } });
   });
 }
-function Harness({ online, store, initial, submit = async () => undefined }: {
-  online: boolean; store: SessionAttemptJournal | null; initial: SessionRecordingResult; submit?: SessionRecordingController['submit'];
+function Harness({ online, store, initial, submit = async () => undefined, retry = async () => undefined }: {
+  online: boolean; store: SessionAttemptJournal | null; initial: SessionRecordingResult;
+  submit?: SessionRecordingController['submit']; retry?: SessionRecordingController['retry'];
 }) {
   const [result, setResult] = useState(initial);
   const recording: SessionRecordingController = {
-    result, journal: store, submit, retry: async () => undefined, selectCustomer: () => undefined, replaceResult: setResult,
+    result, journal: store, submit, retry, selectCustomer: () => undefined, replaceResult: setResult,
   };
   return <RecordServiceSessionForm scope={scope} context={context} online={online} recording={recording} onRefreshScope={() => undefined} />;
 }
-function renderForm(online: boolean, initial: SessionRecordingResult, store: SessionAttemptJournal | null, submit?: SessionRecordingController['submit']) {
+function renderForm(online: boolean, initial: SessionRecordingResult, store: SessionAttemptJournal | null, submit?: SessionRecordingController['submit'], retry?: SessionRecordingController['retry']) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui = (nextOnline: boolean) => (
-    <QueryClientProvider client={client}><Harness online={nextOnline} store={store} initial={initial} {...(submit ? { submit } : {})} /></QueryClientProvider>
+    <QueryClientProvider client={client}><Harness online={nextOnline} store={store} initial={initial} {...(submit ? { submit } : {})} {...(retry ? { retry } : {})} /></QueryClientProvider>
   );
   return { ...render(ui(online)), ui };
 }
@@ -90,9 +91,14 @@ it('shows only the unresolved expiry message', () => {
 });
 
 it.each(['ar', 'en'] as const)('renders the save action from the catalog in %s', (locale) => {
+  const other = locale === 'ar' ? 'en' : 'ar';
+  expect(t('ar', 'serviceSessions.save').length).toBeGreaterThan(0);
+  expect(t('en', 'serviceSessions.save').length).toBeGreaterThan(0);
+  expect(t('ar', 'serviceSessions.save')).not.toBe(t('en', 'serviceSessions.save'));
   state.locale = locale;
   renderForm(true, emptySessionRecordingResult(), null);
   expect(screen.getByRole('button', { name: t(locale, 'serviceSessions.save') }).textContent).toBe(t(locale, 'serviceSessions.save'));
+  expect(document.body.textContent ?? '').not.toContain(t(other, 'serviceSessions.save'));
 });
 
 async function chooseService() {
@@ -154,7 +160,7 @@ it('hides the original-attempt retry while offline and shows it when the connect
   expect(screen.getByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeTruthy();
 });
 
-it('disables find-or-create, fresh reads and submit while offline without resubmitting', async () => {
+it('disables find-or-create, fresh reads and submit while offline and keeps the draft', async () => {
   const view = renderForm(true, emptySessionRecordingResult(), openJournal());
   await screen.findByRole('option', { name: 'Synthetic service' });
   const price = () => screen.getByLabelText(t('en', 'serviceSessions.price')) as HTMLInputElement;
@@ -166,8 +172,15 @@ it('disables find-or-create, fresh reads and submit while offline without resubm
   expect(state.get.mock.calls.length).toBe(reads);
   expect((screen.getByRole('button', { name: t('en', 'serviceSessions.save') }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByRole('button', { name: t('en', 'serviceSessions.findOrCreate') }).closest('fieldset')?.disabled).toBe(true);
+});
+
+it('does not replay an unresolved attempt when the connection returns', async () => {
+  const retry = vi.fn(async () => undefined);
+  const unresolved: SessionRecordingResult = { ...emptySessionRecordingResult(), feedback: { kind: 'UNRESOLVED' }, attempt: savedAttempt };
+  const view = renderForm(false, unresolved, openJournal(), undefined, retry);
+  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeNull();
   view.rerender(view.ui(true));
   await act(async () => { await Promise.resolve(); });
-  expect(state.post).not.toHaveBeenCalled();
-  expect(price().value).toBe('20.5');
+  expect(retry).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeTruthy();
 });

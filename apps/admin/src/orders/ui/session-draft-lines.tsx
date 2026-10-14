@@ -14,7 +14,7 @@ export function SessionDraftLines({ scope, occurredAt, disabled = false }: {
   scope: SessionServiceScope; occurredAt?: string; disabled?: boolean;
 }) {
   const locale = useLocale();
-  const { control, register, getValues, setValue } = useFormContext<SessionDraftForm>();
+  const { control, register, getValues, setValue, formState: { errors } } = useFormContext<SessionDraftForm>();
   const selectedTime = useWatch({ control, name: 'occurred_at' });
   const { fields, append, remove } = useFieldArray({ control, name: 'lines',
     rules: { minLength: SESSION_DRAFT_MIN, maxLength: SESSION_DRAFT_MAX } });
@@ -33,6 +33,7 @@ export function SessionDraftLines({ scope, occurredAt, disabled = false }: {
             setValue(`lines.${index}.price`, next.price, { shouldDirty: true, shouldValidate: true });
           }} /> } />
       <input type="hidden" {...register(`lines.${index}.service_id`)} />
+      {errors.lines?.[index]?.service_id?.message ? <p role="alert">{errors.lines[index]?.service_id?.message}</p> : null}
       <Label htmlFor={`${row.local_id}-price`}>{t(locale, 'serviceSessions.price')}</Label>
       <Controller control={control} name={`lines.${index}.price`}
         rules={{ validate: (text) => sessionMoney.safeParse(normalizeKwdInput(text)).success || t(locale, 'serviceSessions.invalidPrice') }}

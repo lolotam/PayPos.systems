@@ -65,6 +65,14 @@ function patchCustomer(mirror: Mirror, setState: (next: SessionRecordingResult) 
   setState(next);
 }
 
+// الرفض بيرجّع سطور الحالة مش جسم الطلب؛ المسودة اللي اتبعتت تتثبّت قبل PENDING عشان التصحيح ما يرجعش للقيمة القديمة.
+function adoptSubmittedDrafts(mirror: Mirror, setState: (next: SessionRecordingResult) => void, drafts: SessionDraftForm) {
+  if (mirror.current.drafts === drafts) return;
+  const next = { ...mirror.current, drafts };
+  mirror.current = next;
+  setState(next);
+}
+
 function noteBeginFailure(journal: SessionAttemptJournal, dispatch: Dispatch, error: unknown) {
   const feedback = sessionLeaveFeedback(error);
   if (feedback.kind === 'NOT_PERSISTED') {
@@ -96,10 +104,12 @@ async function runAttempt(journal: SessionAttemptJournal, attempt: SessionAttemp
   dispatch({ type: 'JOURNAL', entry: journal.read(), persistenceWarning: journal.persistenceWarning });
 }
 
-async function submitRecording(journal: SessionAttemptJournal, mirror: Mirror, drafts: SessionDraftForm, dispatch: Dispatch, record: RecordMutation, append: AppendMutation) {
+async function submitRecording(journal: SessionAttemptJournal, mirror: Mirror, drafts: SessionDraftForm, dispatch: Dispatch, record: RecordMutation, append: AppendMutation, setState: (next: SessionRecordingResult) => void) {
   try {
     const command = sessionResultCommand({ ...mirror.current, drafts }, sessionCommandLines(drafts.lines));
-    await runAttempt(journal, journal.begin(command, drafts.lines.map((line) => line.local_id)), dispatch, record, append);
+    const attempt = journal.begin(command, drafts.lines.map((line) => line.local_id));
+    adoptSubmittedDrafts(mirror, setState, drafts);
+    await runAttempt(journal, attempt, dispatch, record, append);
   } catch (error) {
     noteBeginFailure(journal, dispatch, error);
   }
@@ -128,7 +138,7 @@ export function useSessionRecording(scope: SessionServiceScope): SessionRecordin
   const selectCustomer = useCallback((customer: SessionRecordingResult['customer']) => patchCustomer(mirror, setState, customer), []);
   const replaceResult = useCallback((next: SessionRecordingResult) => { mirror.current = next; setState(next); }, []);
   const submit = useCallback((drafts: SessionDraftForm) => (
-    journal ? submitRecording(journal, mirror, drafts, dispatch, record, append) : Promise.resolve()
+    journal ? submitRecording(journal, mirror, drafts, dispatch, record, append, setState) : Promise.resolve()
   ), [append, dispatch, journal, record]);
   const retry = useCallback(() => {
     const attempt = mirror.current.attempt;

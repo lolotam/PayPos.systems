@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { createSessionAttemptJournal } from './session-attempt-journal';
 import { createSessionDraft } from './session-drafts';
 import * as SessionRecordingModule from './session-recording-result';
-import { id, instant, response, scope } from './session-recording-result.fixture';
+import { discountError, id, instant, rejection, response, scope } from './session-recording-result.fixture';
 import { useSessionRecording, type SessionRecordingController } from './use-session-recording';
 
 const post = vi.hoisted(() => vi.fn());
@@ -181,4 +181,23 @@ it('reloads the same unresolved attempt after the page unmounts', async () => {
   const second = mount();
   await waitFor(() => expect(second.result.current.result.feedback.kind).toBe('UNRESOLVED'));
   expect(second.result.current.result.attempt?.key).toBe(key);
+});
+
+it('keeps the last submitted correction when a later append is rejected', async () => {
+  const refused = { ...discountError, details: { rejected_lines: [{ ...rejection, input_index: 0 }] } };
+  post.mockResolvedValueOnce({ data: complete, response: { status: 201 } });
+  post.mockResolvedValue({ error: refused, response: { status: 422 } });
+  const view = mount();
+  await ready(view);
+  chooseCustomer(view);
+  await act(async () => { await view.result.current.submit(draft()); });
+  const line = { ...createSessionDraft(id(30)), service_id: id(5), price: '7.125', discount_kind: 'PERCENT' as const, discount_percentage: '10',
+    performers: [{ employee_id: id(6), share_percentage: '', selection: null }] };
+  const header = view.result.current.result.drafts;
+  await act(async () => { await view.result.current.submit({ ...header, lines: [line] }); });
+  expect(view.result.current.result.drafts.lines[0]?.discount_percentage).toBe('10');
+  await act(async () => { await view.result.current.submit({ ...view.result.current.result.drafts, lines: [{ ...line, discount_percentage: '11' }] }); });
+  expect(view.result.current.result.feedback.kind).toBe('ALL_REJECTED');
+  expect(view.result.current.result.drafts.lines).toHaveLength(1);
+  expect(view.result.current.result.drafts.lines[0]?.discount_percentage).toBe('11');
 });

@@ -17,7 +17,7 @@ OpenAPI/client changes are reported separately. If an estimate exceeds its upper
 
 **SS-Q13 answered (Waleed, 2026-10-12, option 1):** `record:service-sessions:branch` alone authorizes the limited
 recording-form reads below (service names/prices, eligible performers on the session date with the attendance/leave
-warning, and the recorder's own memberships/limit) and nothing wider. 35c-2…4 and 35c-12 are unblocked.
+warning, and the recorder's own memberships/limit) and nothing wider. 35c-2…4, 35c-12a and 35c-12b are unblocked.
 
 **SS-Q18 answered (Waleed, 2026-10-14, option 3, against the recommendation; partner pending):** the recorder
 leaves an EXPIRED recording (unresolved past the 24 h key retention) **without a manager**, from the reception screen,
