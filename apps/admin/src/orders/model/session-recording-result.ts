@@ -44,8 +44,31 @@ function rejectionSnapshots(drafts: SessionDraftForm, rejected: SessionRecording
       name_ar: error.name_ar, name_en: error.name_en, price: error.list_price, price_source: 'CATALOG' } } : line;
   }) };
 }
+// الرأس يرجع من المحاولة وهي لسه مش محسومة: نفس المفتاح، أو استرجاع PENDING، أو سطر ناقص، أو مسودة فاضية مالهاش سطور ولا رأس.
+// غير كده recorder_membership_id و occurred_at يفضلوا زي ما المستخدم سايبهم.
+function withAttemptHeader(drafts: SessionDraftForm, attempt: SessionAttempt, lines: SessionDraftLine[]): SessionDraftForm {
+  const recorder_membership_id = attempt.body.recorder_membership_id ?? null;
+  const occurred_at = attempt.kind === 'record' ? attempt.body.occurred_at : drafts.occurred_at;
+  if (lines === drafts.lines && drafts.recorder_membership_id === recorder_membership_id && drafts.occurred_at === occurred_at) return drafts;
+  return { ...drafts, lines, recorder_membership_id, ...(attempt.kind === 'record' ? { occurred_at } : {}) };
+}
+// دفتر اليومية بيفضل حافظ مدخل PARTIAL في الذاكرة حتى لو الكتابة فشلت، فـ null هنا معناها الزيارة اتسابت فعلًا.
+// SAVING و UNRESOLVED و PARTIAL تابعة للمدخل؛ NOT_PERSISTED تابعة له بس لو مفيش زيارة محفوظة؛ COMPLETE لأ.
+function journalDependent(state: SessionRecordingResult) {
+  const kind = state.feedback.kind;
+  if (kind === 'SAVING' || kind === 'UNRESOLVED' || kind === 'PARTIAL') return true;
+  return kind === 'NOT_PERSISTED' && !state.session;
+}
+// تحذير التخزين على زيارة محفوظة من غير محاولة في الدفتر ما يفضلّش SAVING: النتيجة المحفوظة COMPLETE أو PARTIAL.
+function warnedFeedback(state: SessionRecordingResult): SessionFeedback {
+  if (!state.session) return { kind: 'NOT_PERSISTED' };
+  const kind = state.feedback.kind;
+  if (kind === 'SAVING' || kind === 'UNRESOLVED') return { kind: state.rejected.length ? 'PARTIAL' : 'COMPLETE' };
+  return state.feedback;
+}
 function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, wantedIds = attempt.rowIds, replaceVisit = false): SessionRecordingResult {
   const sessionId = attempt.kind === 'append' ? attempt.sessionId : replaceVisit ? null : state.sessionId;
+  const sameAttempt = state.attempt?.key === attempt.key;
   if (state.sessionId !== sessionId) state = emptySessionRecordingResult(state.customer);
   const missing = attempt.body.lines.flatMap((line, index): SessionDraftLine[] => {
     const localId = attempt.rowIds[index];
@@ -60,25 +83,30 @@ function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, 
         share_percentage: row.share_bps === undefined ? '' : sessionBpsText(row.share_bps) })) }];
   });
   const customerId = attempt.kind === 'record' ? attempt.body.customer_id : state.customerId;
+  const lines = missing.length ? [...state.drafts.lines, ...missing] : state.drafts.lines;
+  const blankDraft = state.drafts.lines.length === 0 && state.drafts.recorder_membership_id == null && state.drafts.occurred_at === undefined;
+  const restoreHeader = replaceVisit || sameAttempt || missing.length > 0 || blankDraft;
   return { ...state, sessionId, customerId, customer: state.customer?.id === customerId ? state.customer : null,
-    drafts: missing.length ? { ...state.drafts, lines: [...state.drafts.lines, ...missing],
-    recorder_membership_id: attempt.body.recorder_membership_id ?? null,
-    ...(attempt.kind === 'record' ? { occurred_at: attempt.body.occurred_at } : {}) } : state.drafts };
+    drafts: restoreHeader ? withAttemptHeader(state.drafts, attempt, lines) : state.drafts };
 }
 function failedResult(state: SessionRecordingResult, attempt: SessionAttempt, error: unknown): SessionRecordingResult {
-  state = recoverAttempt(state, attempt);
-  if (error instanceof SessionSavedDisplayFailure) return { ...state, attempt: null,
-    sessionId: attempt.kind === 'append' ? attempt.sessionId : error.sessionId ?? null, feedback: { kind: 'SAVED_DISPLAY_FAILED' } };
-  if (sessionAttemptUnresolved(error)) return { ...state, attempt, feedback: { kind: 'UNRESOLVED' } };
   const envelope = errorEnvelope.safeParse(error);
   const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined;
   const details = envelope.success ? envelope.data.details : undefined;
-  const errors = rejectedServiceLine.array().min(1).safeParse(details && typeof details === 'object' && 'rejected_lines' in details ? details.rejected_lines : undefined);
-  if (status === 422 && envelope.success && envelope.data.code === 'SESSION_DISCOUNT_ABOVE_LIMIT' && errors.success) {
-    const rejected = indexedRejections(attempt, errors.data);
-    const drafts = rejectionSnapshots(state.drafts, rejected);
-    return { ...state, attempt: null, rejected, addedLineIds: [],
-      drafts: attempt.kind === 'record' ? drafts : retainRejected(drafts, rejected),
+  const parsed = rejectedServiceLine.array().min(1).safeParse(details && typeof details === 'object' && 'rejected_lines' in details ? details.rejected_lines : undefined);
+  const limitRows = !(error instanceof SessionSavedDisplayFailure) && !sessionAttemptUnresolved(error)
+    && status === 422 && envelope.success && envelope.data.code === 'SESSION_DISCOUNT_ABOVE_LIMIT' && parsed.success
+    ? indexedRejections(attempt, parsed.data) : null;
+  // إنشاء مرفوض يحتفظ بكل السطور؛ الإلحاق المرفوض يبني المرفوض بس عشان السطر المقبول اللي اتشال ما يتحسبش ناقص.
+  const wantedIds = limitRows && attempt.kind === 'append' ? limitRows.map((row) => row.localId) : attempt.rowIds;
+  state = recoverAttempt(state, attempt, wantedIds);
+  if (error instanceof SessionSavedDisplayFailure) return { ...state, attempt: null,
+    sessionId: attempt.kind === 'append' ? attempt.sessionId : error.sessionId ?? null, feedback: { kind: 'SAVED_DISPLAY_FAILED' } };
+  if (sessionAttemptUnresolved(error)) return { ...state, attempt, feedback: { kind: 'UNRESOLVED' } };
+  if (limitRows) {
+    const drafts = rejectionSnapshots(state.drafts, limitRows);
+    return { ...state, attempt: null, rejected: limitRows, addedLineIds: [],
+      drafts: attempt.kind === 'record' ? drafts : retainRejected(drafts, limitRows),
       session: attempt.kind === 'record' ? null : state.session,
       sessionId: attempt.kind === 'record' ? null : attempt.sessionId, feedback: { kind: 'ALL_REJECTED' } };
   }
@@ -92,7 +120,7 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
     const preserveVisit = !!event.persistenceWarning && !!state.sessionId;
     if (preserveVisit && entry?.state === 'PENDING' && (entry.attempt.kind === 'record' || entry.attempt.sessionId !== state.sessionId))
       return { ...state, persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: 'NOT_PERSISTED' } };
-    const clearedPendingVisit = !entry && !event.persistenceWarning && ['SAVING', 'UNRESOLVED', 'NOT_PERSISTED', 'PARTIAL'].includes(state.feedback.kind);
+    const clearedPendingVisit = !entry && !event.persistenceWarning && journalDependent(state);
     if (!preserveVisit && (clearedPendingVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId))) state = emptySessionRecordingResult(state.customer);
     state = { ...state, persistenceWarning: event.persistenceWarning ?? null };
     if (entry?.state === 'PARTIAL' && !preserveVisit) state = { ...state, sessionId: entry.sessionId };
@@ -100,7 +128,7 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
       persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: event.inFlight ? 'SAVING' : 'UNRESOLVED' } };
     if (entry?.state === 'EXPIRED' || entry?.state === 'SAVED_DISPLAY_FAILED') return { ...state, attempt: null,
       sessionId: preserveVisit ? state.sessionId : entry.sessionId ?? state.sessionId, feedback: { kind: entry.state } };
-    if (event.persistenceWarning) return { ...state, attempt: null, feedback: { kind: 'NOT_PERSISTED' } };
+    if (event.persistenceWarning) return { ...state, attempt: null, feedback: warnedFeedback(state) };
     const feedback = ['NOT_PERSISTED', 'SAVING', 'UNRESOLVED'].includes(state.feedback.kind)
       ? { kind: state.session ? state.rejected.length ? 'PARTIAL' as const : 'COMPLETE' as const : 'IDLE' as const } : state.feedback;
     return { ...state, attempt: null, feedback };
