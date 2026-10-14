@@ -21,6 +21,8 @@ export {
   findOrCreateCustomer,
   holdFirstCreate,
   isCreatePost,
+  limitPercent,
+  membershipLimit,
   openRecorder,
   readRecorded,
   setOccurredAt,

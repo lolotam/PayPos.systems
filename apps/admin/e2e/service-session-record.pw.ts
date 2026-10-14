@@ -6,7 +6,9 @@ import {
   findOrCreateCustomer,
   fillLine,
   label,
+  limitPercent,
   loadState,
+  membershipLimit,
   nationalNumber,
   openRecorder,
   performerAt,
@@ -77,10 +79,12 @@ async function recordLate(page: Page): Promise<{ customer: string; visit: DayVis
   const body = await readRecorded(await submitVisit(page, 'en', 'create'));
   expect(body.session.business_date).toBe(yesterday);
   expect(body.session.business_timezone).toBe(zone);
+  expect(body.session.lines[0]?.performers.map((person) => person.not_clocked_in_warning)).toEqual([true, true, true, true]);
   await expect(page.getByText(t('en', 'serviceSessions.late')).first()).toBeVisible();
   const visit = await savedVisit(state, customer, body.session.business_date);
   expect(visit.late).toBe(true);
   expect(visit.lines).toHaveLength(1);
+  expect(visit.lines[0]?.performers.map((person) => person.not_clocked_in_warning)).toEqual([true, true, true, true]);
   expectShares(visit.lines[0], { price: '25.000', list_price: '25.000', discount: '1.250', net: '23.750', late: true }, [
     2500, 2500, 2500, 2500,
   ]);
@@ -144,8 +148,8 @@ test('saves under the membership the recorder chooses', async ({ page }) => {
   await expect(membership.locator(`option[value="${state.recorderMembershipId}"]`)).toHaveCount(1);
   await expect(membership.locator(`option[value="${state.narrowMembershipId}"]`)).toHaveCount(1);
   await membership.selectOption(state.narrowMembershipId);
-  await expect(page.getByText('5.00%').first()).toBeVisible();
-  await expect(page.getByText('10.00%')).toHaveCount(0);
+  await expect(membershipLimit(page, 'en')).toContainText(limitPercent('en', '5.00'));
+  await expect(membershipLimit(page, 'en')).not.toContainText(limitPercent('en', '10.00'));
   await findOrCreateCustomer(page, 'en', customer, nationalNumber());
   await fillLine(page, 'en', 0, amountSpec());
   const body = await readRecorded(await submitVisit(page, 'en', 'create'));

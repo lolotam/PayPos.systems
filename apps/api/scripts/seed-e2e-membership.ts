@@ -10,7 +10,7 @@ export interface MembershipRow {
   readonly limitBps: number | null;
 }
 
-async function insertOne(sql: postgres.Sql, row: MembershipRow): Promise<string> {
+async function insertOne(sql: postgres.TransactionSql, row: MembershipRow): Promise<string> {
   const role = SYSTEM_ROLES.find((item) => item.code === row.roleCode);
   if (role === undefined) throw new Error('e2e:seed role missing');
   const rows = await sql<{ id: string }[]>`INSERT INTO memberships
@@ -25,9 +25,12 @@ async function insertOne(sql: postgres.Sql, row: MembershipRow): Promise<string>
 export async function insertMemberships(migrationUrl: string, rows: readonly MembershipRow[]): Promise<string[]> {
   const sql = postgres(migrationUrl, { max: 1, onnotice: () => undefined });
   try {
-    const ids: string[] = [];
-    for (const row of rows) ids.push(await insertOne(sql, row));
-    return ids;
+    // الصفوف التلاتة يا تتكتب كلها يا ولا واحد، عشان تشغيل فاشل ما يسيبش عضوية ناقصة للمستأجر الجديد.
+    return await sql.begin(async (tx) => {
+      const ids: string[] = [];
+      for (const row of rows) ids.push(await insertOne(tx, row));
+      return ids;
+    });
   } finally {
     await sql.end();
   }

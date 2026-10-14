@@ -32,6 +32,7 @@ export interface RecordedVisit {
       readonly performers: readonly {
         readonly employee_id: string;
         readonly share_bps: number;
+        readonly not_clocked_in_warning: boolean;
         readonly approved_leave_warning: boolean;
       }[];
     }[];
@@ -100,11 +101,19 @@ function timeZoneOf(body: unknown): string {
   return zone;
 }
 
+export function membershipLimit(page: Page, locale: Locale): Locator {
+  return byLabel(page, t(locale, 'serviceSessions.recorderMembership')).locator('xpath=ancestor::fieldset[1]').getByRole('status');
+}
+
+export function limitPercent(locale: Locale, value: string): string {
+  return t(locale, 'serviceSessions.percentValue').replace('{value}', value);
+}
+
 async function chooseMembership(page: Page, locale: Locale, membershipId: string): Promise<void> {
   const field = byLabel(page, t(locale, 'serviceSessions.recorderMembership'));
   await expect(field.locator(`option[value="${membershipId}"]`)).toHaveCount(1);
   await field.selectOption(membershipId);
-  await expect(page.getByText('10.00%').first()).toBeVisible();
+  await expect(membershipLimit(page, locale)).toContainText(limitPercent(locale, '10.00'));
 }
 
 export async function openRecorder(page: Page, state: E2eState, locale: Locale): Promise<string> {

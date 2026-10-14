@@ -139,9 +139,9 @@ async function signInApi(state: E2eState, email: string, password: string): Prom
     headers: { origin: state.origin, 'content-type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  if (!response.ok) throw new Error(`owner sign-in ${response.status}`);
+  if (!response.ok) throw new Error(`e2e API sign-in ${response.status}`);
   const cookie = joinCookies(response.headers);
-  if (cookie === '') throw new Error('owner sign-in cookie missing');
+  if (cookie === '') throw new Error('e2e API sign-in cookie missing');
   return cookie;
 }
 
@@ -152,6 +152,8 @@ export function apiCookie(state: E2eState, who: 'owner' | 'other'): Promise<stri
   if (cached !== undefined) return cached;
   const pending = signInApi(state, email, password);
   cookies.set(email, pending);
+  // فشل عابر ما يتخزنش: الطلب اللي بعده يحاول يدخل تاني بدل ما كل الاختبارات الباقية تقع بنفس الخطأ.
+  pending.catch(() => { cookies.delete(email); });
   return pending;
 }
 
