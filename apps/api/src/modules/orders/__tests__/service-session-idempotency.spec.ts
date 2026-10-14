@@ -5,6 +5,7 @@ import type { Tx, TenantWrappers } from '@pospay/db';
 import { requestFingerprint } from '../../../shared/idempotency.ts';
 import { sessionFixture, ids, must, AT, type SessionFixture } from './session.fixture.ts';
 import { ordersTransactions } from '../orders.module.ts';
+import { createSessionRecovery } from '../persistence/session-recovery.adapter.ts';
 import { RecordServiceSessionUseCase } from '../use-cases/record-service-session/record-service-session.usecase.ts';
 
 let f: SessionFixture;
@@ -51,7 +52,7 @@ it('a duplicate claim waits and rechecks expiry before releasing replay; the ori
   }) as Tx), options) };
   await f.h.owner`UPDATE memberships SET ends_at='2026-10-15T08:00:01Z' WHERE company_id=${f.company} AND id=${f.membership}`;
   const key = ids.newId(), context = { ...f.context(key), input: f.body() };
-  const create = new RecordServiceSessionUseCase(ordersTransactions(wrapped, ids), ids, f.clock);
+  const create = new RecordServiceSessionUseCase(ordersTransactions(wrapped, ids, f.clock), createSessionRecovery(f.db, ids, f.clock), ids, f.clock);
   const original = create.execute(context); await claimed;
   let observed: () => void = () => undefined;
   const replayClaim = new Promise<void>((resolve) => { observed = resolve; });
@@ -61,7 +62,7 @@ it('a duplicate claim waits and rechecks expiry before releasing replay; the ori
       return target.execute(query);
     } : Reflect.get(target, property, receiver),
   }) as Tx), options) };
-  const replay = new RecordServiceSessionUseCase(ordersTransactions(replayDb,ids),ids,f.clock).execute(context).then(() => null,(error: unknown) => error);
+  const replay = new RecordServiceSessionUseCase(ordersTransactions(replayDb, ids, f.clock), createSessionRecovery(f.db, ids, f.clock), ids, f.clock).execute(context).then(() => null,(error: unknown) => error);
   await replayClaim; f.setAt(new Date('2026-10-15T08:00:02Z')); release();
   const result = await original; expect((await replay) as Error).toMatchObject({ code: 'FORBIDDEN' });
   expect(await f.h.owner`SELECT 1 FROM outbox WHERE aggregate_id=${result.session.id}`).toHaveLength(1);

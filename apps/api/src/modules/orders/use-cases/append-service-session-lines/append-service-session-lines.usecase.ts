@@ -6,14 +6,20 @@ import { validatePerformerCardinality } from '../../domain/session-performers.ts
 import { sessionTime, validateAppendWindow } from '../../domain/session-time.ts';
 import { planSessionWrite, recordedSessionLine } from '../../domain/session-write.ts';
 import { sessionLineSnapshot, sessionSnapshot } from '../../domain/session-snapshot.ts';
+import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { sessionDrafts } from '../../domain/session-drafts.ts';
 
 type AppendContext = SessionWriteContext & { sessionId: string; input: AppendServiceSessionLinesInput };
 /** يضيف المصحح أو الخدمة الجديدة لنفس الزيارة دون تغيير أي بند محفوظ. */
 export class AppendServiceSessionLinesUseCase {
-  constructor(private readonly transactions: ServiceSessionTransactions, private readonly ids: IdGenerator, private readonly clock: Clock) {}
-  execute(context: AppendContext): Promise<AppendServiceSessionLinesResponse> {
+  constructor(private readonly transactions: ServiceSessionTransactions, private readonly recovery: SessionRecoveryPort, private readonly ids: IdGenerator, private readonly clock: Clock) {}
+  async execute(context: AppendContext): Promise<AppendServiceSessionLinesResponse> {
+    await this.recovery.issue({
+      companyId: context.companyId, userId: context.userId, businessId: context.businessId, branchId: context.branchId,
+      operation: 'append-service-session-lines', key: context.key, sessionId: context.sessionId,
+      recorderMembershipId: context.input.recorder_membership_id,
+    });
     return this.transactions.run(context, async (tx) => {
       if (await tx.place.read() === null) throw new SessionError('FORBIDDEN');
       const record = await tx.repository.load(context.sessionId);

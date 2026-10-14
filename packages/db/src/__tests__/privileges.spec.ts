@@ -122,6 +122,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'roles:UPDATE',
     'service_lines:INSERT',
     'service_lines:SELECT',
+    'service_session_recoveries:INSERT',
+    'service_session_recoveries:SELECT',
     'service_sessions:INSERT',
     'service_sessions:SELECT',
     'services:INSERT',
@@ -173,6 +175,14 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
   pospay_dispatcher: ['outbox:SELECT'],
 };
 // The dispatcher may change delivery metadata only — id, company_id and payload stay immutable to it.
+const RECOVERY_COLUMN_GRANTS = [
+  'service_session_recoveries.committed_at:pospay_app:UPDATE',
+  'service_session_recoveries.expires_at:pospay_app:UPDATE',
+  'service_session_recoveries.last_seen_at:pospay_app:UPDATE',
+  'service_session_recoveries.revoked_at:pospay_app:UPDATE',
+  'service_session_recoveries.revoked_outcome:pospay_app:UPDATE',
+  'service_session_recoveries.session_id:pospay_app:UPDATE',
+];
 const OUTBOX_COLUMN_GRANTS = [
   'outbox.attempts:pospay_dispatcher:UPDATE',
   'outbox.last_error:pospay_dispatcher:UPDATE',
@@ -248,6 +258,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...LEAVE_COLUMN_GRANTS,
         ...FILE_COLUMN_GRANTS,
         ...OUTBOX_COLUMN_GRANTS,
+        ...RECOVERY_COLUMN_GRANTS,
         ...EMPLOYEE_COLUMN_GRANTS,
         'employees.name_en_key:pospay_app:UPDATE',
         'employees.name_ar_key:pospay_app:UPDATE',

@@ -32,6 +32,38 @@ export const serviceSessions = pgTable('service_sessions', {
   index('service_sessions_recorded_by_fk_idx').on(t.recordedBy),
 ]);
 
+export const serviceSessionRecoveries = pgTable('service_session_recoveries', {
+  companyId: uuid('company_id').notNull().references(() => companies.id),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  branchId: uuid('branch_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  operation: text('operation').notNull(),
+  // هاش المفتاح فقط؛ المفتاح الخام لا يُخزَّن حتى لا يبقى سرّ العميل في صف الاسترجاع.
+  keyHash: text('key_hash').notNull(),
+  // يوم المحاسبة يُثبَّت عند الإصدار ولا يتبع لحظة الالتزام لو عدّت منتصف الليل.
+  businessDate: date('business_date').notNull(),
+  businessTimezone: text('business_timezone').notNull(),
+  sessionId: uuid('session_id'),
+  committedAt: timestamp('committed_at', { withTimezone: true }),
+  issuedAt: timestamp('issued_at', { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  revokedOutcome: text('revoked_outcome'),
+}, (t) => [
+  primaryKey({ columns: [t.companyId, t.id] }),
+  unique('service_session_recoveries_attempt_key').on(t.companyId, t.userId, t.businessId, t.branchId, t.operation, t.keyHash),
+  foreignKey({ name: 'service_session_recoveries_branch_fk', columns: [t.companyId, t.businessId, t.branchId], foreignColumns: [branches.companyId, branches.businessId, branches.id] }),
+  foreignKey({ name: 'service_session_recoveries_session_fk', columns: [t.companyId, t.businessId, t.sessionId], foreignColumns: [serviceSessions.companyId, serviceSessions.businessId, serviceSessions.id] }),
+  index('service_session_recoveries_branch_fk_idx').on(t.companyId, t.businessId, t.branchId),
+  index('service_session_recoveries_session_fk_idx').on(t.companyId, t.businessId, t.sessionId),
+  check('service_session_recoveries_operation', sql`${t.operation} IN ('record-service-session','append-service-session-lines')`),
+  check('service_session_recoveries_lifetime', sql`${t.expiresAt} > ${t.issuedAt} AND ${t.expiresAt} <= ${t.issuedAt} + interval '168 hours'`),
+  check('service_session_recoveries_revoke_pair', sql`(${t.revokedAt} IS NULL) = (${t.revokedOutcome} IS NULL)`),
+  check('service_session_recoveries_outcome', sql`${t.revokedOutcome} IS NULL OR ${t.revokedOutcome} IN ('RECORDED_ELSEWHERE','NOT_RECORDED')`),
+]);
+
 export const lateServiceSessionNotices = pgTable('late_service_session_notices', {
   ...scope(), sessionId: uuid('session_id').notNull(),
   // المصدر محفوظ دون FK للأوتبوكس حتى لا تتوقف الحماية عند حذف الحدث القديم.

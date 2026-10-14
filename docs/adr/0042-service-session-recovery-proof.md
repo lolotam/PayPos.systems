@@ -174,7 +174,7 @@ lines of that date until the deadline.
 
 ## Consequences
 
-Rows 35c-13a-1 (proof table, migration pair, issue and link in both write use cases) and 35c-13a-2 (read, confirm,
+Rows 35c-13a-1 (proof table, one migration, issue and link in both write use cases) and 35c-13a-2 (read, confirm,
 contracts) replace the single 35c-13a row; 35c-13 builds the client states above. No new module-map arrow: the
 adapter reuses the identity and tenancy readers already declared for orders, and its exact path entries are added
 in 35c-13a-1. The migration and this ADR are renumbered at merge time if another lands first.

@@ -73,4 +73,9 @@ export const FUNCTION_INVENTORY = [
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp'],
   },
+  {
+    proname: 'service_session_recoveries_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
 ].sort((a, b) => a.proname.localeCompare(b.proname));

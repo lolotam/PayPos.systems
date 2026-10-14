@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import { RecordServiceSessionUseCase } from '../use-cases/record-service-session/record-service-session.usecase.ts';
 import { AppendServiceSessionLinesUseCase } from '../use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
 import { ordersTransactions } from '../orders.module.ts';
+import { createSessionRecovery } from '../persistence/session-recovery.adapter.ts';
 import { sessionFixture, ids, must, AT, interceptDatabase, type SessionFixture } from './session.fixture.ts';
 
 let f: SessionFixture;
@@ -77,7 +78,7 @@ it.each(['service_sessions','service_lines','line_performers','audit_log','outbo
     if (table === 'idempotency_keys' ? /UPDATE idempotency_keys/.test(statement) : statement.includes(`INSERT INTO ${table}`))
       throw new Error('Synthetic driver statement and params must not escape');
   });
-  const create = new RecordServiceSessionUseCase(ordersTransactions(wrapped, ids), ids, f.clock);
+  const create = new RecordServiceSessionUseCase(ordersTransactions(wrapped, ids, f.clock), createSessionRecovery(f.db, ids, f.clock), ids, f.clock);
   await expect(create.execute({ ...f.context(key), input: f.body() })).rejects.toThrow('SESSION_PERSISTENCE_FAILED');
   expect(await snapshot()).toEqual(before);
   const result = await f.create.execute({ ...f.context(key), input: f.body() });
@@ -116,7 +117,7 @@ it('append response-store failure rolls back its delta without changing old rows
   const first = await f.create.execute({ ...f.context(), input: f.body() });
   const key = ids.newId();
   const wrapped = interceptDatabase(f.db, async (statement) => { if (/UPDATE idempotency_keys/.test(statement)) throw new Error('Synthetic failure'); });
-  const append = new AppendServiceSessionLinesUseCase(ordersTransactions(wrapped, ids), ids, f.clock);
+  const append = new AppendServiceSessionLinesUseCase(ordersTransactions(wrapped, ids, f.clock), createSessionRecovery(f.db, ids, f.clock), ids, f.clock);
   const request = { ...f.context(key), sessionId: first.session.id, input: { lines: [f.line()] } };
   await expect(append.execute(request)).rejects.toThrow('SESSION_PERSISTENCE_FAILED');
   expect(await f.h.owner`SELECT 1 FROM service_lines WHERE session_id=${first.session.id}`).toHaveLength(1);

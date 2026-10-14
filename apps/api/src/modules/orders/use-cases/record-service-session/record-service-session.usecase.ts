@@ -8,13 +8,19 @@ import { sessionTime } from '../../domain/session-time.ts';
 import { planSessionWrite, recordedSessionLine } from '../../domain/session-write.ts';
 import { sessionSnapshot } from '../../domain/session-snapshot.ts';
 import type { SessionRecord } from '../../domain/session-types.ts';
+import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 export { SessionError } from '../../domain/session-error.ts';
 
 /** يسجل زيارة واحدة؛ كل المقبول وأثره والرد المحفوظ يلتزمون معاً. */
 export class RecordServiceSessionUseCase {
-  constructor(private readonly transactions: ServiceSessionTransactions, private readonly ids: IdGenerator, private readonly clock: Clock) {}
-  execute(context: SessionWriteContext & { input: RecordServiceSessionInput }): Promise<RecordServiceSessionResponse> {
+  constructor(private readonly transactions: ServiceSessionTransactions, private readonly recovery: SessionRecoveryPort, private readonly ids: IdGenerator, private readonly clock: Clock) {}
+  async execute(context: SessionWriteContext & { input: RecordServiceSessionInput }): Promise<RecordServiceSessionResponse> {
+    await this.recovery.issue({
+      companyId: context.companyId, userId: context.userId, businessId: context.businessId, branchId: context.branchId,
+      operation: 'record-service-session', key: context.key, recorderMembershipId: context.input.recorder_membership_id,
+      occurredAt: context.input.occurred_at === undefined ? undefined : new Date(context.input.occurred_at),
+    });
     return this.transactions.run(context, async (tx) => {
       const place = await tx.place.read();
       if (place === null) throw new SessionError('FORBIDDEN');
