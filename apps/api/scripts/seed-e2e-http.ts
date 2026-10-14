@@ -13,6 +13,7 @@ export interface SeedTarget {
   readonly secret: string;
   readonly trusted: readonly string[];
   readonly migrationUrl: string;
+  readonly appUrl: string;
 }
 
 export interface SeedUser {
@@ -43,6 +44,7 @@ export function readSeedTarget(env: NodeJS.ProcessEnv): SeedTarget {
     secret: required(env, 'BETTER_AUTH_SECRET'),
     trusted,
     migrationUrl: required(env, 'MIGRATION_DATABASE_URL'),
+    appUrl: required(env, 'DATABASE_URL'),
   };
 }
 

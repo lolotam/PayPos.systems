@@ -119,7 +119,7 @@ async function provision(target: SeedTarget, auth: Awaited<ReturnType<typeof ope
   const other = await provisionUser(auth, target, `e2e-other-${tag}@example.test`, `E2E Other ${tag}`);
   await grantOwner(target, other.email);
   const foreign = await createTenant(target, other.cookie, `${tag} Other`, false);
-  const memberships = await insertMemberships(target.migrationUrl, [
+  const memberships = await insertMemberships(target.appUrl, [
     { companyId: home.companyId, userId: recorder.userId, roleCode: 'cashier', branchId: home.branchId, limitBps: 1000 },
     { companyId: home.companyId, userId: recorder.userId, roleCode: 'cashier', branchId: home.branchId, limitBps: 500 },
     { companyId: foreign.companyId, userId: recorder.userId, roleCode: 'viewer', branchId: foreign.branchId, limitBps: null },

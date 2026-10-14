@@ -1,6 +1,6 @@
-import { SYSTEM_ROLES } from '@pospay/db';
+import { createDatabase, SYSTEM_ROLES } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
-import postgres from 'postgres';
+import { sql } from 'drizzle-orm';
 
 export interface MembershipRow {
   readonly companyId: string;
@@ -10,28 +10,33 @@ export interface MembershipRow {
   readonly limitBps: number | null;
 }
 
-async function insertOne(sql: postgres.TransactionSql, row: MembershipRow): Promise<string> {
-  const role = SYSTEM_ROLES.find((item) => item.code === row.roleCode);
+function roleId(code: string): string {
+  const role = SYSTEM_ROLES.find((item) => item.code === code);
   if (role === undefined) throw new Error('e2e:seed role missing');
-  const rows = await sql<{ id: string }[]>`INSERT INTO memberships
-    (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, limit_bps)
-    VALUES (${row.companyId}, ${systemUuidV7().newId()}, ${row.userId}, ${role.id}, 'global', 'BRANCH', ${row.branchId}, ${row.limitBps})
-    RETURNING id`;
-  const id = rows[0]?.id;
-  if (id === undefined) throw new Error('e2e:seed membership missing');
-  return id;
+  return role.id;
 }
 
-export async function insertMemberships(migrationUrl: string, rows: readonly MembershipRow[]): Promise<string[]> {
-  const sql = postgres(migrationUrl, { max: 1, onnotice: () => undefined });
+// مفيش API بيعمل عضوية غير المالك، فالـ seed بيكتبها بدور التطبيق جوه withTenant زي ما onboarding بيعمل،
+// عشان الـ RLS والصلاحيات اللي الـ API بيشتغل بيها هي اللي تحكم الصف، مش صاحب الـ migration.
+// كل مستأجر في transaction واحدة: يا الصفوف بتاعته كلها تتكتب يا ولا واحد.
+export async function insertMemberships(appUrl: string, rows: readonly MembershipRow[]): Promise<string[]> {
+  const ids = systemUuidV7();
+  const database = createDatabase({ url: appUrl, ids });
   try {
-    // الصفوف التلاتة يا تتكتب كلها يا ولا واحد، عشان تشغيل فاشل ما يسيبش عضوية ناقصة للمستأجر الجديد.
-    return await sql.begin(async (tx) => {
-      const ids: string[] = [];
-      for (const row of rows) ids.push(await insertOne(tx, row));
-      return ids;
-    });
+    const written = new Map<MembershipRow, string>();
+    for (const companyId of new Set(rows.map((row) => row.companyId))) {
+      await database.withTenant(companyId, async (tx) => {
+        for (const row of rows.filter((item) => item.companyId === companyId)) {
+          const id = ids.newId();
+          await tx.execute(sql`INSERT INTO memberships
+            (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, limit_bps)
+            VALUES (${row.companyId}, ${id}, ${row.userId}, ${roleId(row.roleCode)}, 'global', 'BRANCH', ${row.branchId}, ${row.limitBps})`);
+          written.set(row, id);
+        }
+      });
+    }
+    return rows.map((row) => written.get(row) ?? '');
   } finally {
-    await sql.end();
+    await database.close();
   }
 }

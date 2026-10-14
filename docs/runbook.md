@@ -180,9 +180,11 @@ pnpm --filter @pospay/admin e2e
 `e2e:seed` (`apps/api/package.json`: `node --env-file-if-exists=../../.env scripts/seed-e2e-session.ts`)
 talks to the running API and writes `apps/admin/e2e/.state/session.env`, already ignored by `*.env`. It
 prints only that path. Passwords and the TOTP secret stay in the state file. Companies, users, the catalog,
-and the approved leave are created through the API. As the migration owner the seed also writes two
-platform grants (`create:companies:platform`, operator `e2e-seed`) and three membership rows: cashier on
-the home branch at 1000 bps, cashier on the home branch at 500 bps, and viewer on the foreign branch.
+and the approved leave are created through the API. Through `grantPlatformPermission` (the migration owner,
+as `demo:seed` does) the seed writes two platform grants (`create:companies:platform`, operator `e2e-seed`).
+No API creates a non-owner membership, so it writes three membership rows as the application role inside
+`withTenant`, one transaction per tenant, as onboarding does: cashier on the home branch at 1000 bps, cashier
+on the home branch at 500 bps, and viewer on the foreign branch.
 Each run leaves two tenants, three users, two grants, three memberships, and one approved leave, with no
 cleanup. The leave covers the seed's business date from the day before through the day after. Reseed
 before every suite run, and again when that business date has changed, because a suite started on a later

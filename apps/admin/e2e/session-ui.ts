@@ -102,7 +102,7 @@ function timeZoneOf(body: unknown): string {
 }
 
 export function membershipLimit(page: Page, locale: Locale): Locator {
-  return byLabel(page, t(locale, 'serviceSessions.recorderMembership')).locator('xpath=ancestor::fieldset[1]').getByRole('status');
+  return byLabel(page, t(locale, 'serviceSessions.recorderMembership')).locator('xpath=ancestor::fieldset[1]').getByRole('status').locator('bdi');
 }
 
 export function limitPercent(locale: Locale, value: string): string {
@@ -113,7 +113,7 @@ async function chooseMembership(page: Page, locale: Locale, membershipId: string
   const field = byLabel(page, t(locale, 'serviceSessions.recorderMembership'));
   await expect(field.locator(`option[value="${membershipId}"]`)).toHaveCount(1);
   await field.selectOption(membershipId);
-  await expect(membershipLimit(page, locale)).toContainText(limitPercent(locale, '10.00'));
+  await expect(membershipLimit(page, locale)).toHaveText(limitPercent(locale, '10.00'));
 }
 
 export async function openRecorder(page: Page, state: E2eState, locale: Locale): Promise<string> {

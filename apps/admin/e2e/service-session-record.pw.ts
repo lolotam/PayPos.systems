@@ -148,8 +148,7 @@ test('saves under the membership the recorder chooses', async ({ page }) => {
   await expect(membership.locator(`option[value="${state.recorderMembershipId}"]`)).toHaveCount(1);
   await expect(membership.locator(`option[value="${state.narrowMembershipId}"]`)).toHaveCount(1);
   await membership.selectOption(state.narrowMembershipId);
-  await expect(membershipLimit(page, 'en')).toContainText(limitPercent('en', '5.00'));
-  await expect(membershipLimit(page, 'en')).not.toContainText(limitPercent('en', '10.00'));
+  await expect(membershipLimit(page, 'en')).toHaveText(limitPercent('en', '5.00'));
   await findOrCreateCustomer(page, 'en', customer, nationalNumber());
   await fillLine(page, 'en', 0, amountSpec());
   const body = await readRecorded(await submitVisit(page, 'en', 'create'));
