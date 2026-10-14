@@ -11,7 +11,8 @@
     "test": "vitest run",
     "start": "node --env-file-if-exists=../../.env dist/main.js",
     "demo:seed": "tsc -p tsconfig.scripts.json && node --env-file-if-exists=../../.env dist/tools/scripts/seed-demo.js",
-    "platform:bind-phone": "node --env-file-if-exists=../../.env scripts/bind-phone.ts"
+    "platform:bind-phone": "node --env-file-if-exists=../../.env scripts/bind-phone.ts",
+    "e2e:seed": "node --env-file-if-exists=../../.env scripts/seed-e2e-session.ts"
   },
   "dependencies": {
     "@nestjs/common": "12.0.3",

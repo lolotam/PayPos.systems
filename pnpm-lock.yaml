@@ -234,6 +234,9 @@ importers:
         specifier: 7.89.0
         version: 7.89.0(@types/react@19.3.0)(react@19.3.0)
     devDependencies:
+      '@playwright/test':
+        specifier: 1.63.0
+        version: 1.63.0
       '@pospay/config':
         specifier: workspace:*
         version: link:../../packages/config

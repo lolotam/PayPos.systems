@@ -136,3 +136,26 @@ commit; await it before checking inbox coverage. Rerun recovery and verify ledge
 If an expected retained input is absent, or saved late visits have no recoverable event, stop and record missing
 coverage and IDs. Do not claim recovery complete, fabricate events, query outbox through orders, broaden grants,
 reset dedupe or regenerate requests. This procedure does not replay commissions/ratings or grant day-list access.
+
+## Admin service-session browser tests
+
+The Playwright config has no `webServer`. Postgres, Redis, the API and the admin must already be running.
+`ADMIN_E2E_URL` and the API base must share a host, and that admin origin must be in `AUTH_TRUSTED_ORIGINS`,
+because the session cookie is host-only. The local pair is `http://localhost:3001` and `http://localhost:3010`
+(both `localhost`, different ports). Do not mix `localhost` with `127.0.0.1`.
+
+From the worktree root, against that stack:
+
+```sh
+pnpm --filter @pospay/api e2e:seed
+```
+
+```powershell
+$env:ADMIN_E2E_URL = 'http://localhost:3001'
+pnpm --filter @pospay/admin e2e
+```
+
+`e2e:seed` talks to the running API (`node --env-file-if-exists=../../.env scripts/seed-e2e-session.ts`) and
+writes `apps/admin/e2e/.state/session.env` (mode `0600`, already ignored by `*.env`). It prints only that path.
+Passwords and the TOTP secret stay in the state file. Each run creates a new tenant; rerun the seed before the
+suite when the file is missing.
