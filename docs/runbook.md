@@ -185,6 +185,8 @@ as `demo:seed` does) the seed writes two platform grants (`create:companies:plat
 No API creates a non-owner membership, so it writes three membership rows as the application role inside
 `withTenant`, one transaction per tenant, as onboarding does: cashier on the home branch at 1000 bps, cashier
 on the home branch at 500 bps, and viewer on the foreign branch.
+A failed seed can leave partial tenants, because each tenant is its own transaction. Rerun the seed: every
+run creates fresh tenants, so the partial rows are not reused.
 Each run leaves two tenants, three users, two grants, three memberships, and one approved leave, with no
 cleanup. The leave covers the seed's business date from the day before through the day after. Reseed
 before every suite run, and again when that business date has changed, because a suite started on a later
