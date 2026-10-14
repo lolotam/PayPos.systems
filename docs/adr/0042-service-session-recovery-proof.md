@@ -120,7 +120,9 @@ failed. The key is a random client value, so the answer tells the caller nothing
 proof inside the same transaction, and a replay of a stored committed response links it too (§1). One rollout-only
 gap stays: a send that committed before 35c-13a-1 was deployed, whose idempotency row was already swept when the
 next send arrived, and whose new write was then refused, leaves an unlinked proof — the list still shows the
-original visit, which is why the list stays visible next to the pre-selected button. A closed, early or missing
+original visit, which is why the list stays visible next to the pre-selected button. The pre-selection is a
+suggestion, never a decision: for `NOT_COMMITTED` the panel says "the server did not see this attempt saved — find
+this customer in the list before confirming", and the recorder's own check of the list wins. A closed, early or missing
 proof returns no outcome.
 
 `POST …/service-sessions/recovery/confirm` with `x-recovery-key` and `{ operation, outcome }`, under the same guards
