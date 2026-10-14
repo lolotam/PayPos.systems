@@ -130,15 +130,15 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
 
 ### 4.1 Next action
 
-- Row **35** `record-service-session`, reception screen **35c** (15 PRs: 35c-1…13, 35c-3b, 35c-11b): 35c-1…11 and
+- Row **35** `record-service-session`, reception screen **35c** (16 PRs: 35c-1…11, 35c-12a, 35c-12b, 35c-13, 35c-3b, 35c-11b): 35c-1…11 and
   35c-3b are merged (PR #184–#200). The 35c PRs are sub-tasks of row 35, so the Phase 1 row counts below stay as
   they are.
-  Next: **35c-11b** (the two correctness findings of issue #202), then **35c-12** (publish the full route +
-  Playwright), then **35c-13** (the SS-Q18 exit, below).
+  Next: **35c-11b** (the two correctness findings of issue #202), then **35c-12a** (publish the reception route),
+  then **35c-12b** (Playwright, run manually, no CI), then **35c-13** (the SS-Q18 exit, below).
 - Then **35d** (edit price/discount after saving; batch 17 answered) after issue #189 declares its bell event.
 - Owner question #199 (leaving an EXPIRED recording without logging out) was batch 18 (SS-Q18). **Waleed answered
   2026-10-14: the recorder confirms «checked — recorded / not recorded» herself, without a manager** (against the
-  recommendation; Abu Salem has not answered — his pick would replace it). Built as 35c-13 after 35c-12.
+  recommendation; Abu Salem has not answered — his pick would replace it). Built as 35c-13 after 35c-12b.
 
 ### 4.2 Package facts worth knowing
 

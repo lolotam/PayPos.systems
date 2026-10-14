@@ -38,6 +38,11 @@ export const serviceSessionsEn = {
   findOrCreate: 'Find or create customer',
   selected: 'Customer selected',
   invalidCustomer: 'Enter a customer name, calling code and phone number. Use digits only for the phone.',
+  title: 'Record a visit',
+  save: 'Save visit',
+  correctAndAppend: 'Save corrections on this visit',
+  offline: 'No connection. Find or create, fresh reads and saving are paused. What you typed stays on this screen.',
+  chooseBranch: 'Choose a branch before recording a visit.',
 };
 export const serviceSessionsAr: Record<keyof typeof serviceSessionsEn, string> = {
   saved: 'اتحفظت الزيارة', saving: 'جاري حفظ الزيارة…', partial: 'اتحفظت الخدمات الصحيحة. عدّلي المسودات المرفوضة بس.',
@@ -79,4 +84,9 @@ export const serviceSessionsAr: Record<keyof typeof serviceSessionsEn, string> =
   findOrCreate: 'إيجاد أو إنشاء الزبونة',
   selected: 'تم اختيار الزبونة',
   invalidCustomer: 'اكتب اسم الزبونة ورمز الاتصال ورقم التليفون. استخدم أرقام بس للتليفون.',
+  title: 'تسجيل زيارة',
+  save: 'حفظ الزيارة',
+  correctAndAppend: 'حفظ التصحيح على نفس الزيارة',
+  offline: 'الاتصال مش متاح. إيجاد الزبونة والقراءات الجديدة والحفظ متوقفين، واللي كتبتيه فاضل على الشاشة.',
+  chooseBranch: 'اختار فرع قبل تسجيل الزيارة.',
 };
