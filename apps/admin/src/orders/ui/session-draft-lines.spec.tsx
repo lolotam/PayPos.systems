@@ -1,5 +1,5 @@
 import { t } from '@pospay/i18n';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
@@ -12,19 +12,26 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 const service = { id: '01920000-0000-7000-8000-0000000000a2', name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 1 };
 let current: SessionDraftForm['lines'];
-function Harness({ disabled = false, lineCount = 1 }: { disabled?: boolean; lineCount?: number }) {
+function Harness({ disabled = false, lineCount = 1, markService = false }: { disabled?: boolean; lineCount?: number; markService?: boolean }) {
   const form = useForm<SessionDraftForm>({ defaultValues: { lines: Array.from({ length: lineCount }, (_, index) => createSessionDraft(index ? String(index) : 'initial')) }, mode: 'onBlur' });
   const watched = useWatch({ control: form.control, name: 'lines' });
+  const seeded = useRef(false);
+  const { setError } = form;
   useEffect(() => { current = watched; }, [watched]);
+  useEffect(() => {
+    if (!markService || seeded.current) return;
+    seeded.current = true;
+    setError('lines.0.service_id', { message: t('en', 'serviceSessions.chooseService') });
+  }, [markService, setError]);
   return <FormProvider {...form}><form>
     <SessionTimeField context={{ generated_at: '2026-10-13T08:00:00.000Z', business_timezone: 'Asia/Kuwait',
       recorder_membership_ids: [service.id], recorder_membership_id: service.id, discount_limit: { source: 'OWNER', bps: null } }} disabled={disabled} />
     <SessionDraftLines scope={{ companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' }} disabled={disabled} />
   </form></FormProvider>;
 }
-function mount(disabled = false, lineCount = 1) {
+function mount(disabled = false, lineCount = 1, markService = false) {
   servicePage([service]); const client = new QueryClient();
-  render(<QueryClientProvider client={client}><Harness disabled={disabled} lineCount={lineCount} /></QueryClientProvider>); return client;
+  render(<QueryClientProvider client={client}><Harness disabled={disabled} lineCount={lineCount} markService={markService} /></QueryClientProvider>); return client;
 }
 function servicePage(items: typeof service[]) {
   get.mockImplementation((path) => Promise.resolve({ data: path.endsWith('/recording-context')
@@ -91,8 +98,8 @@ it('feeds edited UTC to performer options without replacing the chosen performer
   await waitFor(() => expect(get.mock.calls.findLast(([path]) => path.endsWith('/performer-options'))?.[1].params.query.occurred_at).toBe('2026-10-11T14:00:00.000Z'));
   expect(current[0]?.performers[0]?.employee_id).toBe(service.id);
 });
-it('shows the resolved limit in the draft summary and validates discount again when price changes', async () => {
-  mount(); await choose(); await waitFor(() => expect(screen.getAllByText('10.00%')).toHaveLength(2));
+it('validates the discount again when the price changes', async () => {
+  mount(); await choose();
   const price = screen.getByLabelText(t('en', 'serviceSessions.price')), discount = screen.getByLabelText(t('en', 'serviceSessions.discountAmount'));
   fireEvent.change(discount, { target: { value: '5.000' } }); fireEvent.blur(discount);
   fireEvent.change(price, { target: { value: '4.000' } }); await screen.findByRole('alert'); expect(discount.getAttribute('aria-invalid')).toBe('true');
@@ -100,4 +107,10 @@ it('shows the resolved limit in the draft summary and validates discount again w
   fireEvent.change(price, { target: { value: 'unfinished' } }); fireEvent.blur(price);
   await waitFor(() => expect(screen.getByRole('alert').textContent).toBe(t('en', 'serviceSessions.invalidPrice')));
   expect(discount.getAttribute('aria-invalid')).toBe('false');
+});
+it('clears the service choice error when a service is chosen', async () => {
+  mount(false, 1, true);
+  expect((await screen.findByRole('alert')).textContent).toBe(t('en', 'serviceSessions.chooseService'));
+  await choose();
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
 });

@@ -271,3 +271,11 @@ it('a new pending attempt that cannot be persisted on a saved visit reports NOT_
   const result = transition(complete, { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: recordAttempt }, persistenceWarning: 'NOT_PERSISTED' });
   expect(result.feedback).toEqual({ kind: 'NOT_PERSISTED' }); expect(result.session).toBe(complete.session); expect(sessionResultFrozen(result)).toBe(true);
 });
+it('a PARTIAL restored after a reload carries the saved visit time into the drafts, not the append body', () => {
+  const restored = transition(emptySessionRecordingResult(null), { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: instant } });
+  expect(restored.sessionId).toBe(id(12));
+  expect(restored.drafts.occurred_at).toBe(instant);
+  expect(sessionResultCommand(restored, []).body).not.toHaveProperty('occurred_at');
+  const live = transition(recorded(), { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: '2026-01-01T00:00:00.000Z' } });
+  expect(live.drafts.occurred_at).toBe(recorded().drafts.occurred_at);
+});

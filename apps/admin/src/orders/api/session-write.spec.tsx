@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createSessionAttemptJournal } from '../model/session-attempt-journal';
-import { SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS, type SessionAttempt, type SessionAttemptCommand } from '../model/session-attempt';
+import { parseSessionJournalEnvelope, SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS, type SessionAttempt, type SessionAttemptCommand } from '../model/session-attempt';
 import { useRecordServiceSession } from './use-record-service-session';
 import { useAppendServiceSessionLines } from './use-append-service-session-lines';
 
@@ -89,7 +89,7 @@ it.each(['record', 'append'] as const)('reloads and explicitly replays %s with e
   });
   const options = hook.client.getMutationCache().getAll()[0]?.options;
   expect(options).toMatchObject({ retry: false, gcTime: 0, networkMode: 'always' });
-  expect(store.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12) });
+  expect(store.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: response.session.occurred_at });
 });
 
 it.each([new TypeError('Network loss'), new DOMException('Timed out', 'TimeoutError'),
@@ -305,12 +305,13 @@ it.each(['companyId', 'businessId', 'branchId', 'userId'] as const)('invalidates
 it('retains PARTIAL across reload, enforces the append route and preserves the visit through a refusal', async () => {
   const store = journal(), hook = hooks(store), attempt = store.begin({ kind: 'record', body }, rows);
   post.mockResolvedValueOnce({ data: response, response: { status: 201 } }); await act(async () => { await hook.send(attempt); });
-  let recovered = await reload(); expect(recovered.read()).toMatchObject({ state: 'PARTIAL', sessionId: id(12) });
+  let recovered = await reload(); expect(recovered.read()).toMatchObject({ state: 'PARTIAL', sessionId: id(12), occurredAt: response.session.occurred_at });
   expect(() => recovered.begin({ kind: 'record', body }, rows)).toThrow('ALREADY_SAVED');
   const correction = recovered.begin({ kind: 'append', sessionId: id(12), body: { lines: [line] } }, [id(10)]);
   const appender = hooks(recovered); post.mockResolvedValueOnce({ error: { code: 'SESSION_DISCOUNT_ABOVE_LIMIT', message_ar: 'Synthetic AR', message_en: 'Synthetic EN' }, response: { status: 422 } });
   await act(async () => { await expect(appender.send(correction)).rejects.toMatchObject({ status: 422 }); });
-  recovered = await reload(); const next = recovered.begin({ kind: 'append', sessionId: id(12), body: { lines: [line] } }, [id(10)]);
+  recovered = await reload(); expect(recovered.read()).toMatchObject({ state: 'PARTIAL', sessionId: id(12), occurredAt: response.session.occurred_at });
+  const next = recovered.begin({ kind: 'append', sessionId: id(12), body: { lines: [line] } }, [id(10)]);
   post.mockResolvedValueOnce({ data: { ...response, outcome: 'COMPLETE', rejected_lines: [], added_lines: [savedLine] }, response: { status: 201 } });
   const complete = hooks(recovered); await act(async () => { await complete.send(next); });
   expect(post.mock.calls.at(-1)?.[0]).toContain('/{sessionId}/lines'); expect(recovered.read()).toBeNull(); expect(JSON.parse(storedRaw() ?? '{}').state).toBe('IDLE');
@@ -360,7 +361,7 @@ it.each(['PARTIAL', 'SAVED_DISPLAY_FAILED'].flatMap((state) => ['quota', 'silent
   expect(JSON.parse(storedRaw() ?? 'null').state).toBe(failure === 'readBack' ? state : 'PENDING');
   const remounted = createSessionAttemptJournal(scope, runtime, backing); journals.push(remounted);
   for (const current of [store, remounted]) {
-    expect(current.read()).toEqual({ version: 1, state, scope, sessionId: id(12) });
+    expect(current.read()).toEqual({ version: 1, state, scope, sessionId: id(12), ...(state === 'PARTIAL' ? { occurredAt: response.session.occurred_at } : {}) });
     expect(current.persistenceWarning).toBe('NOT_PERSISTED');
     const send = vi.fn(); await expect(current.run(attempt, send)).rejects.toThrow('UNAVAILABLE'); expect(send).not.toHaveBeenCalled();
   }
@@ -399,4 +400,17 @@ it.each(['legacy', 'version', 'extra', 'scopePii', 'invalidTime', 'invalidKind',
   if (failure.startsWith('partial')) { delete bad.attempt; bad.state = 'PARTIAL'; bad.scope = scope; bad.sessionId = failure === 'partialId' ? 'invalid' : id(12); if (failure === 'partialPii') bad.phone = 'synthetic PII'; }
   if (failure.startsWith('expired')) { delete bad.attempt; bad.state = 'EXPIRED'; bad.scope = scope; bad.key = attempt.key; bad.createdAt = failure === 'expiredFuture' ? now + 1 : now; if (failure === 'expiredExtra') bad.phone = 'synthetic PII'; }
   corruptStorage(bad); expect((await reload()).read()).toBeNull(); expect(sessionStorage.length).toBe(0);
+});
+
+it('keeps the saved visit time when an append after a COMPLETE save is refused, and rejects a malformed stored time', async () => {
+  const store = journal(), hook = hooks(store), attempt = store.begin({ kind: 'record', body }, rows);
+  post.mockResolvedValueOnce({ data: { ...response, outcome: 'COMPLETE', rejected_lines: [] }, response: { status: 201 } });
+  await act(async () => { await hook.send(attempt); });
+  expect(store.read()).toBeNull();
+  const correction = store.begin({ kind: 'append', sessionId: id(12), body: { lines: [line] } }, [id(10)]);
+  post.mockResolvedValueOnce({ error: { code: 'SESSION_DISCOUNT_ABOVE_LIMIT', message_ar: 'Synthetic AR', message_en: 'Synthetic EN' }, response: { status: 422 } });
+  await act(async () => { await expect(hook.send(correction)).rejects.toMatchObject({ status: 422 }); });
+  const recovered = await reload();
+  expect(recovered.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: response.session.occurred_at });
+  expect(() => parseSessionJournalEnvelope({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: 'not a time' })).toThrow('SESSION_JOURNAL_TIME_INVALID');
 });

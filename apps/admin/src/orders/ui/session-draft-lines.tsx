@@ -1,22 +1,20 @@
 'use client';
-import { sessionMoney, type RecordingDiscountLimit } from '@pospay/contracts';
+import { sessionMoney } from '@pospay/contracts';
 import { normalizeKwdInput, t } from '@pospay/i18n';
 import { Button, Card, Input, Label } from '@pospay/ui';
 import { Controller, useFieldArray, useFormContext, useWatch } from 'react-hook-form';
-import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { createSessionDraft, selectSessionService, SESSION_DRAFT_MAX, SESSION_DRAFT_MIN, type SessionDraftForm } from '../model/session-drafts';
 import { SessionServiceField } from './session-service-field';
 import { SessionDiscountField } from './session-discount-field';
-import { SessionDraftSummary } from './session-draft-summary';
-import { RecorderMembershipField } from './recorder-membership-field';
 import { SessionPerformersField } from './session-performers-field';
 
-export function SessionDraftLines({ scope, occurredAt, disabled = false }: { scope: SessionServiceScope; occurredAt?: string; disabled?: boolean }) {
+export function SessionDraftLines({ scope, occurredAt, disabled = false }: {
+  scope: SessionServiceScope; occurredAt?: string; disabled?: boolean;
+}) {
   const locale = useLocale();
-  const [limit, setLimit] = useState<RecordingDiscountLimit | null>(null);
-  const { control, register, getValues, setValue } = useFormContext<SessionDraftForm>();
+  const { control, register, getValues, setValue, clearErrors, formState: { errors } } = useFormContext<SessionDraftForm>();
   const selectedTime = useWatch({ control, name: 'occurred_at' });
   const { fields, append, remove } = useFieldArray({ control, name: 'lines',
     rules: { minLength: SESSION_DRAFT_MIN, maxLength: SESSION_DRAFT_MAX } });
@@ -30,11 +28,14 @@ export function SessionDraftLines({ scope, occurredAt, disabled = false }: { sco
           onChange={(service) => {
             const previous = getValues(`lines.${index}`), next = selectSessionService(previous, service);
             if (next === previous) return;
+            // service_id مش ظاهر في الاختيار؛ رسالة العقد بتفضل لحد ما الخدمة تتحدد.
+            clearErrors(`lines.${index}.service_id`);
             field.onChange(next.service);
             setValue(`lines.${index}.service_id`, next.service_id, { shouldDirty: true });
             setValue(`lines.${index}.price`, next.price, { shouldDirty: true, shouldValidate: true });
           }} /> } />
       <input type="hidden" {...register(`lines.${index}.service_id`)} />
+      {errors.lines?.[index]?.service_id?.message ? <p role="alert">{errors.lines[index]?.service_id?.message}</p> : null}
       <Label htmlFor={`${row.local_id}-price`}>{t(locale, 'serviceSessions.price')}</Label>
       <Controller control={control} name={`lines.${index}.price`}
         rules={{ validate: (text) => sessionMoney.safeParse(normalizeKwdInput(text)).success || t(locale, 'serviceSessions.invalidPrice') }}
@@ -52,8 +53,5 @@ export function SessionDraftLines({ scope, occurredAt, disabled = false }: { sco
     </Card>)}
     <Button type="button" variant="outline" disabled={fields.length >= SESSION_DRAFT_MAX}
       onClick={() => append(createSessionDraft())}>{t(locale, 'serviceSessions.addLine')}</Button>
-    <Controller control={control} name="recorder_membership_id" render={({ field }) =>
-      <RecorderMembershipField scope={scope} value={field.value ?? null} onChange={field.onChange} onLimitChange={setLimit} disabled={disabled} />} />
-    <SessionDraftSummary limit={limit} />
   </fieldset>;
 }
