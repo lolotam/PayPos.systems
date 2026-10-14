@@ -141,7 +141,8 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
   recommendation; Abu Salem has not answered — his pick would replace it). Built as 35c-13 after 35c-12.
 - SS-Q19 (batch 19) answered by Waleed 2026-10-14: before confirming, the recorder sees **only the visits she
   recorded** in that branch on the attempt date, inside the recording screen — a narrow exception, not a general
-  "my saves" list (SS-Q17 stands). New read row 35c-13a precedes 35c-13; 35c-13 is no longer blocked.
+  "my saves" list (SS-Q17 stands). 35c-13 no longer waits on an owner answer, but it follows the new read row
+  35c-13a, which is `TODO(design)` until the design advice (pipeline step 2, auth) lands.
 
 ### 4.2 Package facts worth knowing
 
