@@ -123,7 +123,7 @@ it('sends the chosen recorder membership and locks it after the visit is saved',
   if (!drafts) throw new Error('Missing submission');
   expect(sessionResultCommand({ ...emptySessionRecordingResult(customer), drafts }, []).body.recorder_membership_id).toBe(id(9));
   view.unmount();
-  renderForm(true, saved, openJournal());
+  renderForm(true, { ...saved, drafts: { lines: [], recorder_membership_id: id(9) } }, openJournal());
   expect(membership().disabled).toBe(true);
   expect(membership().closest('fieldset')?.disabled).toBe(false);
 });
@@ -183,4 +183,14 @@ it('does not replay an unresolved attempt when the connection returns', async ()
   await act(async () => { await Promise.resolve(); });
   expect(retry).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeTruthy();
+});
+
+it('keeps the membership selectable for a restored partial visit whose membership is unknown', async () => {
+  const restored: SessionRecordingResult = { ...saved, session: null, feedback: { kind: 'PARTIAL' }, drafts: { lines: [] } };
+  const submitted: SessionDraftForm[] = [];
+  renderForm(true, restored, openJournal(), async (drafts) => { submitted.push(drafts); });
+  await screen.findByRole('option', { name: id(9) });
+  await waitFor(() => expect(membership().disabled).toBe(false));
+  fireEvent.change(membership(), { target: { value: id(9) } });
+  await waitFor(() => expect(membership().value).toBe(id(9)));
 });

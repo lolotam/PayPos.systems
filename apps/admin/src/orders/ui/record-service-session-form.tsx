@@ -51,6 +51,9 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const frozen = sessionResultFrozen(result);
   // أول حفظ بيثبّت رأس الزيارة (الزبونة والوقت والعضوية)؛ سطور التصحيح بس اللي تفضل مفتوحة.
   const locked = frozen || result.sessionId !== null;
+  // زيارة PARTIAL مسترجعة بعد reload مش شايلة العضوية؛ القائمة تفضل مفتوحة لحد ما العضوية تتعرف، وإلا التصحيح يترفض
+  // بـ SESSION_RECORDER_MEMBERSHIP_REQUIRED لمسجّلة عندها أكتر من عضوية.
+  const membershipFixed = result.sessionId !== null && result.drafts.recorder_membership_id != null;
   const savedAt = result.session?.occurred_at;
   const [seed] = useState(() => shownVisitTime(result.drafts, savedAt));
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
@@ -65,7 +68,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
       <SessionCustomerField companyId={scope.companyId} branchId={scope.branchId} userId={scope.userId}
         value={result.customer} onChange={recording.selectCustomer} disabled={!online || locked} />
       <SessionTimeField context={context} disabled={locked} />
-      <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={result.sessionId !== null} />
+      <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} />
       <SessionDraftLines scope={scope} {...(occurredAt !== undefined ? { occurredAt } : {})} disabled={!online || frozen} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} />
       {rootError ? <p role="alert">{rootError}</p> : null}
