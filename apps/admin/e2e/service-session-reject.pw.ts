@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Response } from '@playwright/test';
-import { t, type Locale } from '@pospay/i18n';
+import { serviceSessionErrors, t, type Locale } from '@pospay/i18n';
 
 import {
   addDraftLine,
@@ -158,4 +158,33 @@ for (const locale of ['ar', 'en'] as const) {
 
 test('refuses a create when every line is over the limit', async ({ page }) => {
   await refuseAmount(page);
+});
+
+async function refusePriceFloor(page: Page): Promise<void> {
+  const customer = label('Floor');
+  const zone = await openRecorder(page, state, 'en');
+  const date = civilDate(zone, 0);
+  await findOrCreateCustomer(page, 'en', customer, nationalNumber());
+  await fillLine(page, 'en', 0, {
+    serviceName: state.standardServiceName,
+    catalogPrice: '25.000',
+    price: '22.000',
+    discount: { kind: 'AMOUNT', value: '0.000' },
+    performers: [performerAt(state, 0).name],
+  });
+  const body = await readRefusal(await submitVisit(page, 'en', 'create'));
+  expect(body.code).toBe('SESSION_DISCOUNT_ABOVE_LIMIT');
+  expect(body.details.rejected_lines[0]).toMatchObject({
+    code: 'SESSION_DISCOUNT_ABOVE_LIMIT',
+    price: '22.000',
+    discount: '0.000',
+    limit_bps: 1000,
+  });
+  const message = serviceSessionErrors.SESSION_DISCOUNT_ABOVE_LIMIT.message_en;
+  await expect(page.getByRole('alert').filter({ hasText: message })).toBeVisible();
+  await absent(customer, date);
+}
+
+test('refuses a 22.000 override on the 25.000 service', async ({ page }) => {
+  await refusePriceFloor(page);
 });

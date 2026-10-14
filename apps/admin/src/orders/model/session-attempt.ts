@@ -1,4 +1,4 @@
-import { appendServiceSessionLinesInput, errorEnvelope, id, recordServiceSessionInput, type AppendServiceSessionLinesInput, type RecordServiceSessionInput } from '@pospay/contracts';
+import { appendServiceSessionLinesInput, errorEnvelope, id, recordServiceSessionInput, timestamp, type AppendServiceSessionLinesInput, type RecordServiceSessionInput } from '@pospay/contracts';
 import { errorMessages, serviceSessionErrors, type ErrorMessageCode } from '@pospay/i18n';
 import type { components } from '@/shared/api/schema';
 
@@ -86,7 +86,8 @@ export function parseSessionJournalEnvelope(value: unknown): SessionJournalEnvel
     strictFields(value, ['version', 'state', 'scope', ...(value.state === 'EXPIRED' ? ['key', 'createdAt'] : value.state === 'PARTIAL' ? ['sessionId'] : [])], value.state === 'PARTIAL' ? ['occurredAt'] : value.state === 'EXPIRED' ? ['sessionId', 'lastSentAt'] : ['sessionId']);
     if (Object.hasOwn(value, 'sessionId')) id.parse(value.sessionId);
     if (value.state === 'EXPIRED') id.parse(value.key);
-    if (Object.hasOwn(value, 'occurredAt') && (typeof value.occurredAt !== 'string' || !Number.isFinite(Date.parse(value.occurredAt)))) throw new Error('SESSION_JOURNAL_TIME_INVALID');
+    // Date.parse بيقبل وقت من غير إزاحة، والعقد بيرفضه؛ وإلا التصحيح يتبعت بوقت الخادم ما يقدرش يفسّره.
+    if (Object.hasOwn(value, 'occurredAt') && !timestamp.safeParse(value.occurredAt).success) throw new Error('SESSION_JOURNAL_TIME_INVALID');
   }
   const entry = value.state === 'PENDING' ? value.attempt as Record<string, unknown> : value;
   strictFields(entry.scope, ['companyId', 'businessId', 'branchId', 'userId']);

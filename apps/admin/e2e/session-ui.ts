@@ -116,7 +116,12 @@ async function chooseMembership(page: Page, locale: Locale, membershipId: string
   await expect(membershipLimit(page, locale)).toHaveText(limitPercent(locale, '10.00'));
 }
 
-export async function openRecorder(page: Page, state: E2eState, locale: Locale): Promise<string> {
+export async function openRecorder(
+  page: Page,
+  state: E2eState,
+  locale: Locale,
+  membership?: { readonly membershipId: string | null },
+): Promise<string> {
   await page.goto('/login');
   await useLocale(page, locale);
   await signInThroughUi(page, state.recorderEmail, state.recorderPassword, state.recorderTotpSecret);
@@ -125,7 +130,9 @@ export async function openRecorder(page: Page, state: E2eState, locale: Locale):
   await chooseCompany(page, state.companyName);
   const zone = timeZoneOf(await (await pending).json());
   await expect(page.getByRole('heading', { name: t(locale, 'serviceSessions.title') })).toBeVisible();
-  await chooseMembership(page, locale, state.recorderMembershipId);
+  // رحلة العضوية الملتبسة لازم تشوف القائمة فاضية الأول؛ باقي الرحلات تختار حد الـ 1000 من البداية.
+  const membershipId = membership === undefined ? state.recorderMembershipId : membership.membershipId;
+  if (membershipId !== null) await chooseMembership(page, locale, membershipId);
   return zone;
 }
 
