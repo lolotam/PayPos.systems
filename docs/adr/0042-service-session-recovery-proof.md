@@ -3,7 +3,7 @@
 Date: 2026-10-14. Status: Accepted technical design for spec 050, rows 35c-13a-1, 35c-13a-2 and 35c-13.
 Owner decisions: SS-Q17 (no general "my recordings" list), SS-Q18 option 3 (the recorder confirms an EXPIRED
 recording herself), SS-Q19 option 1 (before confirming she sees only her own visits of the attempt date inside the
-recording screen) — Waleed, 2026-10-13/14. Abu Salem's picks on SS-Q18/SS-Q19 replace this ADR if they differ.
+recording screen) — Waleed, 2026-10-13/14. Abu Salem chose the same on SS-Q18 and SS-Q19 (2026-10-14). SS-Q20 option 1 (Waleed, 2026-10-14; Abu Salem pending — his pick replaces the outcome part of §3–§4 if it differs).
 Related: ADR-0003, ADR-0007, ADR-0041; plan v4 T7 (idempotency); design inputs #209, #210, #211.
 Design advice: Codex astra 6 and Claude Fable 5.1 (pipeline step 2), both proposing the same shape.
 
@@ -73,7 +73,10 @@ missing membership refuses at the issue and leaves no proof. A same key with ano
 committed meets the first body's proof, already linked — that is the point of writing it first.
 
 **Link.** Inside the existing business transaction, after the session row exists, the write sets `session_id` and
-`committed_at` on the proof row, guarded by `revoked_at IS NULL AND expires_at > now`. A rollback drops only the
+`committed_at` on the proof row, guarded by `revoked_at IS NULL AND expires_at > now`. A same-key **replay** that
+returns a stored committed response links the proof the same way, to the session id in that stored response, so a
+send that committed before 35c-13a-1 was deployed (or before this proof existed) is still recorded as committed once
+any later send of the same key reaches the server while the idempotency row is kept. A rollback drops only the
 link and keeps the proof. The recording, its outbox event
 and its stored idempotent response stay in one transaction (ADR-0041 §4); only the proof sits outside it.
 `CLAUDE.md` §6 still holds: the money effect and its outbox event are one transaction; the proof carries no money,
@@ -112,7 +115,15 @@ so every visit of the day is reachable (the panel loads more on demand). The pro
 Two refusals stay distinct. The guards refuse a caller without record access, feature or selected company with the
 usual `FORBIDDEN`. A caller who passes them but has no proof for this key, operation and place — unknown key, another
 recorder's key, another branch or tenant — gets one `SESSION_RECOVERY_NOT_FOUND`, which does not reveal which part
-failed. The key is a random client value, so the answer tells the caller nothing about anyone else. The contract does not expose `committed_at` or whether the attempt committed (§5).
+failed. The key is a random client value, so the answer tells the caller nothing about anyone else. On an open proof the read also returns `attempt.outcome`: `COMMITTED` when `committed_at` is set, otherwise
+`NOT_COMMITTED` (SS-Q20). After the gate an unlinked proof can only mean no commit, because every commit links its
+proof inside the same transaction, and a replay of a stored committed response links it too (§1). One rollout-only
+gap stays: a send that committed before 35c-13a-1 was deployed, whose idempotency row was already swept when the
+next send arrived, and whose new write was then refused, leaves an unlinked proof — the list still shows the
+original visit, which is why the list stays visible next to the pre-selected button. The pre-selection is a
+suggestion, never a decision: for `NOT_COMMITTED` the panel says "the server did not see this attempt saved — find
+this customer in the list before confirming", and the recorder's own check of the list wins. A closed, early or missing
+proof returns no outcome.
 
 `POST …/service-sessions/recovery/confirm` with `x-recovery-key` and `{ operation, outcome }`, under the same guards
 as the read, sets `revoked_at` and `revoked_outcome` on the proof of `app_user_id()` for this company, business,
@@ -129,7 +140,9 @@ expired or unknown.
   cannot check it; ask the manager", with no claim about whether the attempt arrived.
 - **WINDOW_ENDED** (#209): `SESSION_RECOVERY_CLOSED` → "the check window has ended — ask the manager".
 - **NOT_YET**: shows when the check opens.
-- **LIST**: the visits (empty, one or several).
+- **LIST**: the visits (empty, one or several) with the outcome (SS-Q20): "this visit was saved" with «اتأكدت —
+  اتسجلت» pre-selected for `COMMITTED`, "it was not saved" with «اتأكدت — متسجلتش» pre-selected for `NOT_COMMITTED`. Nothing is pre-selected in any
+  other state.
 
 In every state both confirmation buttons stay enabled (SS-Q18).
 
@@ -152,9 +165,10 @@ lines of that date until the deadline.
   itself is failing the write anyway.
 - Rows are kept, with no retention sweep (§2). A sweep needs a decision on the dispatcher grant and is a follow-up,
   not part of this row.
-- For an attempt that reached the server after 35c-13a-1 is deployed, the server knows whether it committed. Showing that would make the two buttons automatic, which
-  changes SS-Q19 option 1. It is owner question SS-Q20 (pending). Until it is answered, `committed_at` is
-  stored but never read or returned; the date comes from the linked `session_id`.
+- SS-Q20 (Waleed, 2026-10-14, option 1; Abu Salem pending): for an attempt that reached the server after
+  35c-13a-1 is deployed, the read returns the outcome; the panel states it and pre-selects the matching button,
+  the list stays visible, and the recorder still presses confirm herself (SS-Q18). The date still comes from the
+  linked `session_id`.
 - A pre-existing gap, not changed here: the server keeps a committed key for 24 h from its claim, while the client may
   retry until 25 h after its last send (#221).
 
