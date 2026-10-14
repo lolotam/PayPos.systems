@@ -193,7 +193,8 @@ it('writes no proof when issue refuses the time, and keeps an unlinked proof whe
   expect(row['committed_at']).toBeNull();
 });
 
-it('gives the same key in another branch its own proof', async () => {
+// البصمة في المتحكم تضم branchId فالاختلاف يرفض 422؛ البصمة الثابتة هنا تمرّر شرط EXISTS كخط دفاع ثان.
+it('leaves the other branch proof unlinked when the same fingerprint replays', async () => {
   const key = ids.newId();
   const first = await f.create.execute({ ...f.context(key), input: f.body() });
   const membership = await cashierOn(f.secondBranch);
@@ -223,15 +224,15 @@ it('links a proof issued after the commit when the stored response is replayed',
   expect(await f.h.owner`SELECT id FROM service_sessions WHERE company_id=${f.company}`).toHaveLength(before.length);
 });
 
-it('links nothing when the stored response has no session', async () => {
+it('leaves the proof unlinked when every create line is over the discount limit', async () => {
   const key = ids.newId();
-  await f.h.owner`INSERT INTO idempotency_keys(scope_type,scope_id,company_id,user_id,operation,key,request_fingerprint,response_status,response_body,expires_at)
-    VALUES('COMPANY',${f.company},${f.company},${f.userId},'record-service-session',${key},${'a'.repeat(64)},201,
-      ${f.h.owner.json({ outcome: 'PARTIAL', rejected_lines: [] })}, now() + interval '24 hours')`;
-  await f.create.execute({ ...f.context(key), input: f.body() });
+  const service = must(f.services[1]);
+  const over = f.line(service, '7.125', '0.713');
+  await expect(f.create.execute({ ...f.context(key), input: { customer_id: f.customer, lines: [over, f.line(service, '7.125', '0.713')] } })).rejects.toThrow('SESSION_DISCOUNT_ABOVE_LIMIT');
   const row = must(await proof(key));
   expect(row['session_id']).toBeNull();
   expect(row['committed_at']).toBeNull();
+  expect(await f.h.owner`SELECT key FROM idempotency_keys WHERE company_id=${f.company} AND key=${key}`).toHaveLength(0);
 });
 
 it('refuses an append key reused on another session after rollback and writes nothing', async () => {
@@ -302,6 +303,29 @@ it('two concurrent first sends of one key both succeed and leave one proof', asy
   ]);
   expect(left.session.id).toBe(right.session.id);
   expect(await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company} AND key_hash=${hash(key)}`).toHaveLength(1);
+});
+
+it('refuses a create at issue when the recorder has two memberships and names neither', async () => {
+  const second = await cashierOn(f.branch);
+  const key = ids.newId();
+  try {
+    await expect(f.create.execute({ ...f.context(key), input: f.body() })).rejects.toThrow('SESSION_RECORDER_MEMBERSHIP_REQUIRED');
+    expect(await proof(key)).toBeUndefined();
+  } finally {
+    await f.h.owner`DELETE FROM memberships WHERE company_id=${f.company} AND id=${second}`;
+  }
+});
+
+it('refuses an append at issue when the recorder has two memberships and names neither', async () => {
+  const created = await f.create.execute({ ...f.context(), input: f.body() });
+  const second = await cashierOn(f.branch);
+  const key = ids.newId();
+  try {
+    await expect(f.append.execute({ ...f.context(key), sessionId: created.session.id, input: { lines: [f.line()] } })).rejects.toThrow('SESSION_RECORDER_MEMBERSHIP_REQUIRED');
+    expect(await proof(key, f.branch, 'append-service-session-lines')).toBeUndefined();
+  } finally {
+    await f.h.owner`DELETE FROM memberships WHERE company_id=${f.company} AND id=${second}`;
+  }
 });
 
 it('authorize writes no proof', async () => {

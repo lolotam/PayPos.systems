@@ -67,13 +67,14 @@ export function ordersTransactions(database: TenantWrappers, ids: IdGenerator, c
   }), clock);
 }
 export function ordersProviders(database: TenantWrappers | undefined, ids: IdGenerator, clock: Clock = systemClock): Provider[] {
-  const transactions = database === undefined ? null : ordersTransactions(database, ids, clock);
-  const recovery = database === undefined ? null : createSessionRecovery(database, ids, clock);
+  const writes = database === undefined ? null : {
+    transactions: ordersTransactions(database, ids, clock), recovery: createSessionRecovery(database, ids, clock),
+  };
   return [SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, { provide: SessionErrorsFilter, useValue: new SessionErrorsFilter() },
     { provide: SessionPerformerOptionsQueryHandler, useValue: database === undefined ? null : ordersPerformerOptionsQuery(database, clock) },
     { provide: SessionServiceOptionsQueryHandler, useValue: database === undefined ? null : ordersServiceOptionsQuery(database, clock) },
     { provide: RecordingContextQueryHandler, useValue: database === undefined ? null : ordersRecordingContextQuery(database, clock) },
     { provide: BranchDayServiceSessionsQuery, useValue: database === undefined ? null : ordersDayQuery(database) },
-    { provide: RecordServiceSessionUseCase, useValue: transactions === null || recovery === null ? null : new RecordServiceSessionUseCase(transactions, recovery, ids, clock) },
-    { provide: AppendServiceSessionLinesUseCase, useValue: transactions === null || recovery === null ? null : new AppendServiceSessionLinesUseCase(transactions, recovery, ids, clock) }];
+    { provide: RecordServiceSessionUseCase, useValue: writes === null ? null : new RecordServiceSessionUseCase(writes.transactions, writes.recovery, ids, clock) },
+    { provide: AppendServiceSessionLinesUseCase, useValue: writes === null ? null : new AppendServiceSessionLinesUseCase(writes.transactions, writes.recovery, ids, clock) }];
 }

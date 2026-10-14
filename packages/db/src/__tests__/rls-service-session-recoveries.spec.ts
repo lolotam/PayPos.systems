@@ -28,6 +28,15 @@ beforeAll(async () => {
 });
 afterAll(async () => { await db?.close(); await owner?.end(); await testDb?.drop(); });
 const asA = (query: ReturnType<typeof sql>) => db.withTenant(A.company, (tx) => tx.execute(query), { userId: USER });
+const LINK = '01920000-0000-7000-8000-000000004022';
+const RELINK = '01920000-0000-7000-8000-000000004023';
+const REVOKE = '01920000-0000-7000-8000-000000004024';
+function proofRow(id: string, hash: string) {
+  return sql`INSERT INTO service_session_recoveries(company_id,id,business_id,branch_id,user_id,operation,key_hash,
+    business_date,business_timezone,issued_at,last_seen_at,expires_at)
+    VALUES(${A.company},${id},${A.business},${A.branch},${USER},'record-service-session',${hash},
+      '2026-10-15','Asia/Kuwait',${ISSUED},${ISSUED},${ISSUED} + interval '72 hours')`;
+}
 async function rejected(work: Promise<unknown>, match: RegExp) {
   const error = await work.then(() => null, (e: unknown) => e);
   expect(error).toBeInstanceOf(Error);
@@ -48,7 +57,7 @@ describe('service_session_recoveries', () => {
   });
   it('returns no cross-tenant rows and refuses a cross-tenant insert', async () => {
     expect(await db.withTenant(B.company, (tx) => tx.execute(sql`SELECT id FROM service_session_recoveries`), { userId: USER })).toEqual([]);
-    expect(await asA(sql`SELECT id FROM service_session_recoveries`)).toEqual([{ id: PROOF }]);
+    expect(await asA(sql`SELECT id FROM service_session_recoveries WHERE id=${PROOF}`)).toEqual([{ id: PROOF }]);
     await rejected(asA(sql`INSERT INTO service_session_recoveries(company_id,id,business_id,branch_id,user_id,operation,key_hash,
       business_date,business_timezone,issued_at,last_seen_at,expires_at)
       VALUES(${B.company},'01920000-0000-7000-8000-000000004021',${B.business},${B.branch},${USER},'record-service-session','def',
@@ -59,18 +68,28 @@ describe('service_session_recoveries', () => {
     await rejected(asA(sql`UPDATE service_session_recoveries SET business_date='2026-10-01' WHERE id=${PROOF}`), /permission denied/);
     await rejected(asA(sql`DELETE FROM service_session_recoveries WHERE id=${PROOF}`), /permission denied/);
   });
+  it('a cross-tenant update matches no row', async () => {
+    const [before] = await asA(sql`SELECT last_seen_at FROM service_session_recoveries WHERE id=${PROOF}`);
+    expect(await db.withTenant(B.company, (tx) => tx.execute(sql`
+      UPDATE service_session_recoveries SET last_seen_at=${LATER} WHERE id=${PROOF} RETURNING id`), { userId: USER })).toEqual([]);
+    expect(await asA(sql`SELECT last_seen_at FROM service_session_recoveries WHERE id=${PROOF}`)).toEqual([before]);
+  });
   it('links a session from null and keeps an identical link', async () => {
-    await asA(sql`UPDATE service_session_recoveries SET session_id=${ids.session}, committed_at=${ISSUED} WHERE id=${PROOF}`);
-    await asA(sql`UPDATE service_session_recoveries SET session_id=${ids.session}, committed_at=${ISSUED} WHERE id=${PROOF}`);
-    expect(await asA(sql`SELECT session_id FROM service_session_recoveries WHERE id=${PROOF}`)).toEqual([{ session_id: ids.session }]);
+    await asA(proofRow(LINK, 'link'));
+    await asA(sql`UPDATE service_session_recoveries SET session_id=${ids.session}, committed_at=${ISSUED} WHERE id=${LINK}`);
+    await asA(sql`UPDATE service_session_recoveries SET session_id=${ids.session}, committed_at=${ISSUED} WHERE id=${LINK}`);
+    expect(await asA(sql`SELECT session_id FROM service_session_recoveries WHERE id=${LINK}`)).toEqual([{ session_id: ids.session }]);
   });
   it('refuses relinking or rewriting the commit time once set', async () => {
-    await rejected(asA(sql`UPDATE service_session_recoveries SET session_id=${OTHER} WHERE id=${PROOF}`), /recovery session link is immutable once set/);
-    await rejected(asA(sql`UPDATE service_session_recoveries SET committed_at=${LATER} WHERE id=${PROOF}`), /recovery commit time is immutable once set/);
+    await asA(proofRow(RELINK, 'relink'));
+    await asA(sql`UPDATE service_session_recoveries SET session_id=${ids.session}, committed_at=${ISSUED} WHERE id=${RELINK}`);
+    await rejected(asA(sql`UPDATE service_session_recoveries SET session_id=${OTHER} WHERE id=${RELINK}`), /recovery session link is immutable once set/);
+    await rejected(asA(sql`UPDATE service_session_recoveries SET committed_at=${LATER} WHERE id=${RELINK}`), /recovery commit time is immutable once set/);
   });
   it('refuses clearing a revoke once set', async () => {
-    await asA(sql`UPDATE service_session_recoveries SET revoked_at=${LATER}, revoked_outcome='NOT_RECORDED' WHERE id=${PROOF}`);
-    await rejected(asA(sql`UPDATE service_session_recoveries SET revoked_at=NULL, revoked_outcome=NULL WHERE id=${PROOF}`), /recovery revoke is immutable once set/);
+    await asA(proofRow(REVOKE, 'revoke'));
+    await asA(sql`UPDATE service_session_recoveries SET revoked_at=${LATER}, revoked_outcome='NOT_RECORDED' WHERE id=${REVOKE}`);
+    await rejected(asA(sql`UPDATE service_session_recoveries SET revoked_at=NULL, revoked_outcome=NULL WHERE id=${REVOKE}`), /recovery revoke is immutable once set/);
   });
   it('refuses an expiry past the 168 hour cap', async () => {
     await rejected(asA(sql`UPDATE service_session_recoveries SET expires_at=issued_at + interval '169 hours' WHERE id=${PROOF}`), /recovery expiry exceeds the 168 hour cap/);

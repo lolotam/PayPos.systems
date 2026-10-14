@@ -44,14 +44,17 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
   revoke or relink a proof. No `DELETE`, and no grant for any other role.
 
 **Issue.** Both write use cases call a new orders port before the business transaction. Its adapter runs its own
-`withTenant(companyId)` that re-checks the place and applies **the same authority rule as that write** — `record`
-access for a create; for an append, `resolveSessionRecorder` (domain/session-authority.ts), which also lets the
-original recorder append — then
+`withTenant(companyId)` that re-checks the place and applies **the same authority rule as that write**: a create and
+an append both call `resolveSessionRecorder` (domain/session-authority.ts) and pass `recorder_membership_id`. An
+append also lets the original recorder append. A missing or ambiguous membership
+(`SESSION_RECORDER_MEMBERSHIP_REQUIRED` or `FORBIDDEN`) is refused at issue and leaves no proof. The adapter then
 `INSERT … ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash) DO UPDATE SET last_seen_at = now,
 expires_at = least(greatest(expires_at, now + 72 h), issued_at + 168 h) WHERE revoked_at IS NULL AND
-expires_at > now`, and commits. A proof that is already expired or revoked is never reopened: the conflict leaves it
-as it is, and the write then proceeds exactly as it does today (the proof gates only the recovery read, never the
-write). If the issue itself fails (database error, lock timeout), the request fails with
+expires_at > now`, and commits. An append whose stored proof has a different `session_id` is refused before that
+upsert with `IDEMPOTENCY_KEY_REUSED` (422), including when that proof is expired or revoked; the issue transaction
+rolls back and writes nothing. A proof that is already expired or revoked is never reopened: the conflict leaves it
+as it is. A same-session append, and a create, then proceed exactly as they do today (the proof gates only the
+recovery read, never the write). If the issue itself fails (database error, lock timeout), the request fails with
 `SESSION_RECOVERY_UNAVAILABLE` (503, ar/en message) and the business write never
 starts — so, for attempts made after 35c-13a-1 is deployed, "no proof" always means "no write". An attempt that
 committed before that deploy has no proof; the NEVER_REACHED copy therefore says only that the server cannot check
@@ -67,17 +70,20 @@ target session scoped to the URL business and branch, applies the append authori
 `session_id` set at issue; a session outside that scope or window gets no proof.
 
 Only the issue's own checks prevent a proof. A request the issue accepts but the business transaction then refuses
-(customer not found, a missing recorder membership on a create, performer count) keeps an unlinked proof dated as
-above. For an append the issue passes `recorder_membership_id` as the selection to `resolveSessionRecorder`, so a
-missing membership refuses at the issue and leaves no proof. A same key with another body after the first body
-committed meets the first body's proof, already linked — that is the point of writing it first.
+(customer not found, performer count) keeps an unlinked proof dated as above. A missing or ambiguous recorder
+membership is an issue check on both create and append, so it leaves no proof. A same key with another body after
+the first body committed meets the first body's proof, already linked — that is the point of writing it first.
 
 **Link.** Inside the existing business transaction, after the session row exists, the write sets `session_id` and
-`committed_at` on the proof row, guarded by `revoked_at IS NULL AND expires_at > now`. A same-key **replay** that
-returns a stored committed response links the proof the same way, to the session id in that stored response, so a
-send that committed before 35c-13a-1 was deployed (or before this proof existed) is still recorded as committed once
-any later send of the same key reaches the server while the idempotency row is kept. A rollback drops only the
-link and keeps the proof. The recording, its outbox event
+`committed_at` on the proof row, guarded by `revoked_at IS NULL AND expires_at > now AND committed_at IS NULL`, and
+by an `EXISTS` on `service_sessions` for the same company, business and branch. `committed_at IS NULL` is why a
+same-key replay after the 24 h idempotency sweep never relinks: the sweep makes the handler run again, a second
+session may be created, and the update matches no row because the original proof is already linked. The trigger
+would also refuse restamping `session_id` or `committed_at`. A same-key **replay** that returns a stored committed
+response links the proof the same way, to the session id in that stored response, so a send that committed before
+35c-13a-1 was deployed (or before this proof existed) is still recorded as committed once any later send of the same
+key reaches the server while the idempotency row is kept. A rollback drops only the link and keeps the proof. The
+recording, its outbox event
 and its stored idempotent response stay in one transaction (ADR-0041 §4); only the proof sits outside it.
 `CLAUDE.md` §6 still holds: the money effect and its outbox event are one transaction; the proof carries no money,
 stock or event and is not part of that effect.
@@ -177,6 +183,7 @@ lines of that date until the deadline.
 ## Consequences
 
 Rows 35c-13a-1 (proof table, one migration, issue and link in both write use cases) and 35c-13a-2 (read, confirm,
-contracts) replace the single 35c-13a row; 35c-13 builds the client states above. No new module-map arrow: the
-adapter reuses the identity and tenancy readers already declared for orders, and its exact path entries are added
-in 35c-13a-1. The migration and this ADR are renumbered at merge time if another lands first.
+contracts) replace the single 35c-13a row; 35c-13 builds the client states above. A new tenancy export
+`activeBusinessTimeZone` is added. No new module-map arrow: the adapter reuses the identity readers already
+declared for orders, and the exact path entries for that export are added in 35c-13a-1. The migration and this ADR
+are renumbered at merge time if another lands first.

@@ -28,11 +28,13 @@ function refuse(error: unknown): never {
 }
 
 async function loadProof(tx: Tx, input: SessionRecoveryIssue, hash: string): Promise<ProofDates | undefined> {
+  // قفل الصف حتى ينتظر الإلحاق المتزامن وينتهي بـ 422 بدل ما يغيّر الربط فيصطدم بالقادح 23514.
   const [row] = await tx.execute<{ business_date: string; business_timezone: string; session_id: string | null }>(sql`
     SELECT to_char(business_date,'YYYY-MM-DD') AS business_date, business_timezone, session_id
     FROM service_session_recoveries
     WHERE company_id = app_company_id() AND user_id = ${input.userId} AND business_id = ${input.businessId}
-      AND branch_id = ${input.branchId} AND operation = ${input.operation} AND key_hash = ${hash}`);
+      AND branch_id = ${input.branchId} AND operation = ${input.operation} AND key_hash = ${hash}
+    FOR UPDATE`);
   return row === undefined ? undefined : { businessDate: row.business_date, timezone: row.business_timezone, sessionId: row.session_id };
 }
 
@@ -42,7 +44,7 @@ async function prepareIssue(tx: Tx, input: SessionRecoveryIssue, at: Date): Prom
   const access = await sessionRecordAccess(tx, input.companyId, input.userId, input.businessId, input.branchId).read(at);
   const existing = await loadProof(tx, input, recoveryKeyHash(input.key));
   if (input.operation === 'append-service-session-lines') {
-    const record = await loadSession(tx, input.companyId, input.businessId, input.branchId, input.sessionId ?? '');
+    const record = await loadSession(tx, input.companyId, input.businessId, input.branchId, input.sessionId);
     if (record === null) throw new SessionError('FORBIDDEN');
     resolveSessionRecorder(access, input.recorderMembershipId, record.recorded_by, input.userId);
     // نفس المفتاح على جلسة أخرى يبقي الإثبات مربوطاً بالأولى بعد تراجع الكتابة.

@@ -20,17 +20,15 @@ function cleanError(error: unknown): never {
   throw new Error('SESSION_PERSISTENCE_FAILED');
 }
 
-function committedSessionId(body: unknown): string | undefined {
-  if (typeof body !== 'object' || body === null) return undefined;
-  const session = (body as { session?: unknown }).session;
-  if (typeof session !== 'object' || session === null) return undefined;
-  const id = (session as { id?: unknown }).id;
-  return typeof id === 'string' && id !== '' ? id : undefined;
+function committedSessionId(body: unknown): string {
+  const session = typeof body === 'object' && body !== null ? (body as { session?: unknown }).session : null;
+  const id = typeof session === 'object' && session !== null ? (session as { id?: unknown }).id : null;
+  if (typeof id !== 'string' || id === '') throw new Error('SESSION_PERSISTENCE_FAILED');
+  return id;
 }
 
 async function linkCommittedProof(tx: Tx, context: SessionWriteContext, operation: 'record-service-session' | 'append-service-session-lines', body: unknown, at: Date): Promise<void> {
   const sessionId = committedSessionId(body);
-  if (sessionId === undefined) return;
   const stamp = at.toISOString();
   await tx.execute(sql`
     UPDATE service_session_recoveries SET session_id = ${sessionId}, committed_at = ${stamp}::timestamptz

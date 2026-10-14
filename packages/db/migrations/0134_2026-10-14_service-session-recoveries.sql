@@ -68,7 +68,5 @@ END $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION service_session_recoveries_guard() FROM PUBLIC;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION service_session_recoveries_guard() TO pospay_app;
---> statement-breakpoint
 CREATE TRIGGER service_session_recoveries_guard BEFORE UPDATE ON service_session_recoveries
   FOR EACH ROW EXECUTE FUNCTION service_session_recoveries_guard();
