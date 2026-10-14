@@ -130,20 +130,20 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
 
 ### 4.1 Next action
 
-- Row **35** `record-service-session`, reception screen **35c** (17 PRs: 35c-1…11, 35c-3b, 35c-11b, 35c-12a, 35c-12b,
-  35c-13a, 35c-13): 35c-1…11, 35c-3b and 35c-11b are merged (PR #184–#205). The 35c PRs are sub-tasks of row 35, so
-  the Phase 1 row counts below stay as they are.
-  Next: **35c-12a** (publish the reception route), then **35c-12b** (admin Playwright, run manually against a local
-  stack, no CI), then **35c-13a** (own-recordings read, `TODO(design)`; design inputs #209–#211) and **35c-13** (the
-  SS-Q18 exit, below).
+- Row **35** `record-service-session`, reception screen **35c** (18 PRs: 35c-1…11, 35c-3b, 35c-11b, 35c-12a, 35c-12b,
+  35c-13a-1, 35c-13a-2, 35c-13): 35c-1…11, 35c-3b, 35c-11b, 35c-12a and 35c-12b are merged (PR #184–#215). The 35c PRs
+  are sub-tasks of row 35, so the Phase 1 row counts below stay as they are.
+  Next: **35c-13a-1** (recovery proof issued before every write), **35c-13a-2** (recovery read and confirm), then
+  **35c-13** (the SS-Q18 exit, below). The design is ADR-0042 (design advice 2026-10-14; answers #209–#211).
 - Then **35d** (edit price/discount after saving; batch 17 answered) after issue #189 declares its bell event.
 - Owner question #199 (leaving an EXPIRED recording without logging out) was batch 18 (SS-Q18). **Waleed answered
   2026-10-14: the recorder confirms «checked — recorded / not recorded» herself, without a manager** (against the
-  recommendation; Abu Salem has not answered — his pick would replace it). Built as 35c-13 after 35c-13a.
+  recommendation; Abu Salem has not answered — his pick would replace it). Built as 35c-13 after 35c-13a-1 and 35c-13a-2.
 - SS-Q19 (batch 19) answered by Waleed 2026-10-14: before confirming, the recorder sees **only the visits she
   recorded** in that branch on the attempt date, inside the recording screen — a narrow exception, not a general
-  "my saves" list (SS-Q17 stands). 35c-13 no longer waits on an owner answer, but it follows the new read row
-  35c-13a, which is `TODO(design)` until the design advice (pipeline step 2, auth) lands.
+  "my saves" list (SS-Q17 stands). Its server side is 35c-13a-1 and 35c-13a-2 (ADR-0042).
+- SS-Q20 (batch 20, pending): the server now knows whether an EXPIRED attempt committed; should the screen say so
+  and pick the button? Until answered, that fact is stored but never shown.
 
 ### 4.2 Package facts worth knowing
 
