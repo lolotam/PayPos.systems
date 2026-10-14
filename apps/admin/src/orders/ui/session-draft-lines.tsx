@@ -14,7 +14,7 @@ export function SessionDraftLines({ scope, occurredAt, disabled = false }: {
   scope: SessionServiceScope; occurredAt?: string; disabled?: boolean;
 }) {
   const locale = useLocale();
-  const { control, register, getValues, setValue, formState: { errors } } = useFormContext<SessionDraftForm>();
+  const { control, register, getValues, setValue, clearErrors, formState: { errors } } = useFormContext<SessionDraftForm>();
   const selectedTime = useWatch({ control, name: 'occurred_at' });
   const { fields, append, remove } = useFieldArray({ control, name: 'lines',
     rules: { minLength: SESSION_DRAFT_MIN, maxLength: SESSION_DRAFT_MAX } });
@@ -28,6 +28,8 @@ export function SessionDraftLines({ scope, occurredAt, disabled = false }: {
           onChange={(service) => {
             const previous = getValues(`lines.${index}`), next = selectSessionService(previous, service);
             if (next === previous) return;
+            // service_id مش ظاهر في الاختيار؛ رسالة العقد بتفضل لحد ما الخدمة تتحدد.
+            clearErrors(`lines.${index}.service_id`);
             field.onChange(next.service);
             setValue(`lines.${index}.service_id`, next.service_id, { shouldDirty: true });
             setValue(`lines.${index}.price`, next.price, { shouldDirty: true, shouldValidate: true });

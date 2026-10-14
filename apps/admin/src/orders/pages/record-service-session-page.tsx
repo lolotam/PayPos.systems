@@ -36,15 +36,17 @@ export function RecordServiceSessionPage({ scope }: { scope: SessionServiceScope
   const recording = useSessionRecording(scope);
   const context = useRecordingContext(scope, null, online && !sessionResultFrozen(recording.result));
   const forbidden = isForbidden(context.error);
-  // سياق التسجيل ممكن يفشل أو يتقفل والمحاولة لسه غير محسومة؛ الاسترجاع وإعادة القراءة مش مربوطين بنجاح السياق.
+  // 403 بيقفل الشاشة لأن إعادة المحاولة هترجع نفس الرفض. إعادة قراءة السياق قراءة جديدة: بتتقفل أوفلاين، وبتظهر بعد فشل القراءة أو والمحاولة متجمدة من غير بيانات ومن غير طلب شغال.
   const editor = context.data && !forbidden ? context.data : null;
-  const contextWaiting = !editor && !forbidden && (context.isError || sessionResultFrozen(recording.result));
+  const contextRetry = online && !editor && !forbidden
+    && (context.isError || (sessionResultFrozen(recording.result) && !context.isFetching));
   return <section className="grid gap-4 text-start">
     <PageHeader title={t(locale, 'serviceSessions.title')} />
     {online ? null : <p role="status">{t(locale, 'serviceSessions.offline')}</p>}
     {context.error ? <p role="alert">{envelopeMessage(context.error, locale)}</p> : null}
-    {contextWaiting ? <Button type="button" variant="outline" onClick={() => { void context.refetch(); }}>{t(locale, 'serviceSessions.retryContext')}</Button> : null}
+    {contextRetry ? <Button type="button" variant="outline" onClick={() => { void context.refetch(); }}>{t(locale, 'serviceSessions.retryContext')}</Button> : null}
     {editor ? <RecordServiceSessionForm scope={scope} context={editor} online={online} recording={recording}
-      onRefreshScope={() => { void context.refetch(); }} /> : <SessionWriteFeedback result={recording.result} {...(online ? { onReplay: () => { void recording.retry(); } } : {})} />}
+      onRefreshScope={() => { void context.refetch(); }} /> : null}
+    {editor || forbidden ? null : <SessionWriteFeedback result={recording.result} {...(online ? { onReplay: () => { void recording.retry(); } } : {})} />}
   </section>;
 }

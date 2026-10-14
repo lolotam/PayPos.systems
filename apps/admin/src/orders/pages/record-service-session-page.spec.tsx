@@ -30,10 +30,10 @@ function setOnline(online: boolean) {
   Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => online });
   window.dispatchEvent(new Event(online ? 'online' : 'offline'));
 }
-function renderPage(user: SessionServiceScope = scope) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+function renderPage(user: SessionServiceScope = scope, client?: QueryClient) {
+  const owner = client ?? new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   const ui = (next: SessionServiceScope = user) => (
-    <QueryClientProvider client={client}><RecordServiceSessionPage key={next.userId} scope={next} /></QueryClientProvider>
+    <QueryClientProvider client={owner}><RecordServiceSessionPage key={next.userId} scope={next} /></QueryClientProvider>
   );
   return { ...render(ui()), ui };
 }
@@ -173,12 +173,39 @@ it('shows a recovered attempt when the context read fails and the form after it 
   expect(await screen.findByText(t('en', 'serviceSessions.unresolved'))).toBeTruthy();
   expect(screen.getByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeTruthy();
   expect(await screen.findByRole('button', { name: t('en', 'serviceSessions.retryContext') })).toBeTruthy();
+  setOnline(false);
+  await waitFor(() => expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryContext') })).toBeNull());
+  setOnline(true);
+  expect(await screen.findByRole('button', { name: t('en', 'serviceSessions.retryContext') })).toBeTruthy();
   expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.save') })).toBeNull();
   const posts = state.post.mock.calls.length;
   installReads();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.retryContext') }));
   expect(await screen.findByRole('button', { name: t('en', 'serviceSessions.save') })).toBeTruthy();
   expect(state.post.mock.calls.length).toBe(posts);
+});
+
+it('shows only the forbidden message when an unresolved attempt meets a refused context', async () => {
+  installReads();
+  state.post.mockImplementation((path: string) => String(path).endsWith('/find-or-create')
+    ? Promise.resolve({ data: savedCustomer }) : Promise.reject(new TypeError('Network loss')));
+  const first = renderPage();
+  await fillVisit();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.save') }));
+  expect(await screen.findByText(t('en', 'serviceSessions.unresolved'))).toBeTruthy();
+  first.unmount();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const refused = Object.assign(new Error('Refusal EN'), { message_ar: 'Refusal AR', message_en: 'Refusal EN', status: 403 });
+  state.get.mockResolvedValue({ error: refused, response: { status: 403 } });
+  renderPage(scope, client);
+  expect(await screen.findByText(t('en', 'serviceSessions.unresolved'))).toBeTruthy();
+  const query = client.getQueryCache().find({ queryKey: ['session-recording-context', scope.companyId, scope.businessId, scope.branchId, scope.userId, null] });
+  if (!query) throw new Error('Missing context query');
+  await act(async () => { query.setState({ status: 'error', fetchStatus: 'idle', error: refused, data: undefined }); });
+  expect(screen.getAllByRole('alert').map((node) => node.textContent)).toEqual(['Refusal EN']);
+  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeNull();
+  expect(screen.queryByText(t('en', 'serviceSessions.unresolved'))).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryContext') })).toBeNull();
 });
 
 it('shows a service choice error and does not record a priced line without a service', async () => {
