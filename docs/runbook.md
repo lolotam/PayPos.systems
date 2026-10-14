@@ -171,4 +171,6 @@ and the approved leave are created through the API. As the migration owner the s
 platform grants (`create:companies:platform`, operator `e2e-seed`) and three membership rows: cashier on
 the home branch at 1000 bps, cashier on the home branch at 500 bps, and viewer on the foreign branch.
 Each run leaves two tenants, three users, two grants, three memberships, and one approved leave, with no
-cleanup. Rerun the seed before the suite when the state file is missing.
+cleanup. The leave covers the seed's business date from the day before through the day after. Reseed
+before every suite run, and again when that business date has changed, because a suite started on a later
+day no longer matches the performer who was on leave. Also reseed when the state file is missing.

@@ -64,14 +64,13 @@ async function oneLine(customer: string, date: string, sessionId: string): Promi
 }
 
 test('replays a dropped 201 with the same key and one line', async ({ page }) => {
-  const { customer, date } = await readyVisit(page, 'Lost');
+  const { customer } = await readyVisit(page, 'Lost');
   const keys = watchCreates(page);
   const dropped = await dropFirstCreate(page);
   await page.getByRole('button', { name: t('ar', 'serviceSessions.save') }).click();
   const fetched = await dropped();
   expect(fetched.status()).toBe(201);
   const created = (await fetched.json()) as { session: { id: string; business_date: string } };
-  expect(created.session.business_date).toBe(date);
   await expect(page.getByRole('alert').filter({ hasText: t('ar', 'serviceSessions.unresolved') })).toBeVisible();
   const replay = page.waitForResponse((response) => isCreatePost(response.url(), response.request().method()), {
     timeout: 20_000,
@@ -79,13 +78,14 @@ test('replays a dropped 201 with the same key and one line', async ({ page }) =>
   await page.getByRole('button', { name: t('ar', 'serviceSessions.retryOriginal') }).click();
   const body = await readRecorded(await replay);
   expect(body.session.id).toBe(created.session.id);
+  expect(body.session.business_date).toBe(created.session.business_date);
   expect(keys).toHaveLength(2);
   expect(keys[0]).toBe(keys[1]);
-  await oneLine(customer, body.session.business_date, body.session.id);
+  await oneLine(customer, created.session.business_date, body.session.id);
 });
 
 test('one double-click writes one visit', async ({ page }) => {
-  const { customer, date } = await readyVisit(page, 'Click');
+  const { customer } = await readyVisit(page, 'Click');
   const keys = watchCreates(page);
   const done = page.waitForResponse((response) => isCreatePost(response.url(), response.request().method()), {
     timeout: 20_000,
@@ -96,12 +96,13 @@ test('one double-click writes one visit', async ({ page }) => {
     element.click();
   });
   const body = await readRecorded(await done);
-  await staysQuiet(async () => keys.length === 1 && (await visitsFor(customer, date)).length === 1);
+  await staysQuiet(async () => keys.length === 1 && (await visitsFor(customer, body.session.business_date)).length === 1);
   await oneLine(customer, body.session.business_date, body.session.id);
 });
 
 test('stays quiet when the browser reconnects', async ({ page }) => {
   const { customer, date } = await readyVisit(page, 'Offline');
+  const keys = watchCreates(page);
   await holdFirstCreate(page);
   const save = page.getByRole('button', { name: t('ar', 'serviceSessions.save') });
   const retry = page.getByRole('button', { name: t('ar', 'serviceSessions.retryOriginal') });
@@ -112,7 +113,7 @@ test('stays quiet when the browser reconnects', async ({ page }) => {
   await expect(save).toBeDisabled();
   await expect(retry).toHaveCount(0);
   await page.context().setOffline(false);
-  await staysQuiet(async () => (await visitsFor(customer, date)).length === 0);
+  await staysQuiet(async () => keys.length === 1 && (await visitsFor(customer, date)).length === 0);
   await expect(retry).toBeEnabled();
   const replay = page.waitForResponse((response) => isCreatePost(response.url(), response.request().method()), {
     timeout: 20_000,
@@ -120,5 +121,6 @@ test('stays quiet when the browser reconnects', async ({ page }) => {
   await retry.click();
   const body = await readRecorded(await replay);
   expect(body.outcome).toBe('COMPLETE');
+  expect(keys).toHaveLength(2);
   await oneLine(customer, body.session.business_date, body.session.id);
 });

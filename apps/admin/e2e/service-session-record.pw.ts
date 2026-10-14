@@ -157,17 +157,25 @@ test('saves under the membership the recorder chooses', async ({ page }) => {
 
 test('saves while the performer is on approved leave', async ({ page }) => {
   const customer = label('Leave');
+  const onLeave = performerAt(state, 0);
+  const working = performerAt(state, 1);
   const zone = await openRecorder(page, state, 'en');
   await findOrCreateCustomer(page, 'en', customer, nationalNumber());
-  await fillLine(page, 'en', 0, amountSpec());
+  await fillLine(page, 'en', 0, {
+    ...amountSpec(),
+    performers: [onLeave.name, working.name],
+  });
   await expect(page.getByText(t('en', 'serviceSessions.approvedLeave')).first()).toBeVisible();
   const body = await readRecorded(await submitVisit(page, 'en', 'create'));
   expect(body.outcome).toBe('COMPLETE');
   expect(body.session.business_timezone).toBe(zone);
-  expect(body.session.lines[0]?.performers[0]?.approved_leave_warning).toBe(true);
+  const performers = body.session.lines[0]?.performers;
+  expect(performers?.find((person) => person.employee_id === onLeave.id)?.approved_leave_warning).toBe(true);
+  expect(performers?.find((person) => person.employee_id === working.id)?.approved_leave_warning).toBe(false);
   const visit = await savedVisit(state, customer, body.session.business_date);
   expect(visit.lines).toHaveLength(1);
-  expect(visit.lines[0]?.performers[0]?.approved_leave_warning).toBe(true);
+  expect(visit.lines[0]?.performers.find((person) => person.employee_id === onLeave.id)?.approved_leave_warning).toBe(true);
+  expect(visit.lines[0]?.performers.find((person) => person.employee_id === working.id)?.approved_leave_warning).toBe(false);
 });
 
 test.describe('narrow Arabic keyboard', () => {
