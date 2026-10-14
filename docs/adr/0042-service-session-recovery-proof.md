@@ -114,7 +114,12 @@ usual `FORBIDDEN`. A caller who passes them but has no proof for this key, opera
 recorder's key, another branch or tenant — gets one `SESSION_RECOVERY_NOT_FOUND`, which does not reveal which part
 failed. The key is a random client value, so the answer tells the caller nothing about anyone else. On an open proof the read also returns `attempt.outcome`: `COMMITTED` when `committed_at` is set, otherwise
 `NOT_COMMITTED` (SS-Q20). After the gate an unlinked proof can only mean no commit, because every commit links its
-proof inside the same transaction. A closed, early or missing proof returns no outcome.
+proof inside the same transaction — but only for sends made after the proof existed. A send that reached the
+server before 35c-13a-1 was deployed (or any send the proof cannot see) may have committed without a proof, so the
+read also returns `issued_at`, and the client trusts `NOT_COMMITTED` only when the proof was issued within 10
+minutes of the attempt's `createdAt` (its first send reached the server and created the proof). Otherwise it shows
+"not saved since <issued_at>; earlier sends cannot be checked" and pre-selects nothing. A closed, early or missing
+proof returns no outcome.
 
 `POST …/service-sessions/recovery/confirm` with `x-recovery-key` and `{ operation, outcome }`, under the same guards
 as the read, sets `revoked_at` and `revoked_outcome` on the proof of `app_user_id()` for this company, business,
@@ -132,8 +137,9 @@ expired or unknown.
 - **WINDOW_ENDED** (#209): `SESSION_RECOVERY_CLOSED` → "the check window has ended — ask the manager".
 - **NOT_YET**: shows when the check opens.
 - **LIST**: the visits (empty, one or several) with the outcome (SS-Q20): "this visit was saved" with «اتأكدت —
-  اتسجلت» pre-selected for `COMMITTED`, "it was not saved" with «اتأكدت — متسجلتش» pre-selected for `NOT_COMMITTED`.
-  Nothing is pre-selected in any other state.
+  اتسجلت» pre-selected for `COMMITTED`, "it was not saved" with «اتأكدت — متسجلتش» pre-selected for `NOT_COMMITTED` only when `issued_at` is within 10
+  minutes of `createdAt` (§3); otherwise the uncertain text and no pre-selection. Nothing is pre-selected in any
+  other state.
 
 In every state both confirmation buttons stay enabled (SS-Q18).
 
