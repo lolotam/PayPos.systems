@@ -308,6 +308,12 @@ it('blocks corrections for a legacy partial envelope until the visit with no tim
   const left = transition(restored, { type: 'JOURNAL', entry: null });
   expect(left).toEqual(emptySessionRecordingResult(null));
 });
+it('treats a typed draft time as unknown when the partial envelope for the open visit has no time', () => {
+  const typed = { ...emptySessionRecordingResult(null), sessionId: id(12), drafts: { lines: [], occurred_at: '2026-10-14T08:00:00.000Z' } };
+  const restored = transition(typed, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(12) } });
+  expect(restored.visitTimeUnknown).toBe(true);
+  expect(() => sessionResultCommand(restored, [inputLine])).toThrow('SESSION_VISIT_TIME_UNKNOWN');
+});
 it('leaves an unknown-time visit, clears that journal entry, and keeps the same customer', async () => {
   const customer = initial.customer;
   let next = 40;
