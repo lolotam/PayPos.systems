@@ -13,7 +13,9 @@ import { SessionDraftSummary } from './session-draft-summary';
 import { RecorderMembershipField } from './recorder-membership-field';
 import { SessionPerformersField } from './session-performers-field';
 
-export function SessionDraftLines({ scope, occurredAt, disabled = false }: { scope: SessionServiceScope; occurredAt?: string; disabled?: boolean }) {
+export function SessionDraftLines({ scope, occurredAt, disabled = false, includeHeader = true }: {
+  scope: SessionServiceScope; occurredAt?: string; disabled?: boolean; includeHeader?: boolean;
+}) {
   const locale = useLocale();
   const [limit, setLimit] = useState<RecordingDiscountLimit | null>(null);
   const { control, register, getValues, setValue } = useFormContext<SessionDraftForm>();
@@ -52,8 +54,8 @@ export function SessionDraftLines({ scope, occurredAt, disabled = false }: { sco
     </Card>)}
     <Button type="button" variant="outline" disabled={fields.length >= SESSION_DRAFT_MAX}
       onClick={() => append(createSessionDraft())}>{t(locale, 'serviceSessions.addLine')}</Button>
-    <Controller control={control} name="recorder_membership_id" render={({ field }) =>
-      <RecorderMembershipField scope={scope} value={field.value ?? null} onChange={field.onChange} onLimitChange={setLimit} disabled={disabled} />} />
-    <SessionDraftSummary limit={limit} />
+    {includeHeader ? <Controller control={control} name="recorder_membership_id" render={({ field }) =>
+      <RecorderMembershipField scope={scope} value={field.value ?? null} onChange={field.onChange} onLimitChange={setLimit} disabled={disabled} />} /> : null}
+    {includeHeader ? <SessionDraftSummary limit={limit} /> : null}
   </fieldset>;
 }

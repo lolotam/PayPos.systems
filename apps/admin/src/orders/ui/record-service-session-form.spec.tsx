@@ -1,12 +1,13 @@
 import type { RecordingContext } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from '../model/session-attempt-journal';
-import { emptySessionRecordingResult, type SessionRecordingResult } from '../model/session-recording-result';
-import { id, instant, response, scope } from '../model/session-recording-result.fixture';
+import type { SessionDraftForm } from '../model/session-drafts';
+import { emptySessionRecordingResult, sessionResultCommand, type SessionRecordingResult } from '../model/session-recording-result';
+import { attempt as savedAttempt, id, instant, response, scope } from '../model/session-recording-result.fixture';
 import type { SessionRecordingController } from '../model/use-session-recording';
 import { RecordServiceSessionForm } from './record-service-session-form';
 
@@ -15,6 +16,8 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, POST
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 
 const service = { id: id(5), name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 1 };
+const performer = { id: id(6), name_ar: null, name_en: 'Synthetic performer', not_clocked_in_warning: false, approved_leave_warning: false };
+const customer = { id: id(7), name: 'Synthetic customer', phone: '***001' };
 const context = {
   generated_at: instant, business_timezone: 'Asia/Kuwait', recorder_membership_ids: [id(8)],
   recorder_membership_id: id(8), discount_limit: { source: 'PERSON', bps: 1000 },
@@ -30,21 +33,28 @@ function openJournal() {
   journals.push(created);
   return created;
 }
-function installReads() {
-  state.get.mockImplementation((path: string) => Promise.resolve({ data: String(path).endsWith('/recording-context') ? context
-    : { items: String(path).endsWith('/performer-options') ? [] : [service], next_cursor: null } }));
+function installReads(performers: typeof performer[] = []) {
+  state.get.mockImplementation((path: string, init?: { params?: { query?: { recorder_membership_id?: string } } }) => {
+    if (String(path).endsWith('/recording-context')) {
+      const chosen = init?.params?.query?.recorder_membership_id ?? id(8);
+      return Promise.resolve({ data: { ...context, recorder_membership_ids: [id(8), id(9)], recorder_membership_id: chosen } });
+    }
+    return Promise.resolve({ data: { items: String(path).endsWith('/performer-options') ? performers : [service], next_cursor: null } });
+  });
 }
-function Harness({ online, store, initial }: { online: boolean; store: SessionAttemptJournal | null; initial: SessionRecordingResult }) {
+function Harness({ online, store, initial, submit = async () => undefined }: {
+  online: boolean; store: SessionAttemptJournal | null; initial: SessionRecordingResult; submit?: SessionRecordingController['submit'];
+}) {
   const [result, setResult] = useState(initial);
   const recording: SessionRecordingController = {
-    result, journal: store, submit: async () => undefined, retry: async () => undefined, selectCustomer: () => undefined, replaceResult: setResult,
+    result, journal: store, submit, retry: async () => undefined, selectCustomer: () => undefined, replaceResult: setResult,
   };
-  return <RecordServiceSessionForm scope={scope} context={context} online={online} recording={recording} />;
+  return <RecordServiceSessionForm scope={scope} context={context} online={online} recording={recording} onRefreshScope={() => undefined} />;
 }
-function renderForm(online: boolean, initial: SessionRecordingResult, store: SessionAttemptJournal | null) {
+function renderForm(online: boolean, initial: SessionRecordingResult, store: SessionAttemptJournal | null, submit?: SessionRecordingController['submit']) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const ui = (nextOnline: boolean) => (
-    <QueryClientProvider client={client}><Harness online={nextOnline} store={store} initial={initial} /></QueryClientProvider>
+    <QueryClientProvider client={client}><Harness online={nextOnline} store={store} initial={initial} {...(submit ? { submit } : {})} /></QueryClientProvider>
   );
   return { ...render(ui(online)), ui };
 }
@@ -83,6 +93,49 @@ it.each(['ar', 'en'] as const)('renders the save action from the catalog in %s',
   state.locale = locale;
   renderForm(true, emptySessionRecordingResult(), null);
   expect(screen.getByRole('button', { name: t(locale, 'serviceSessions.save') }).textContent).toBe(t(locale, 'serviceSessions.save'));
+});
+
+async function chooseService() {
+  await screen.findByRole('option', { name: 'Synthetic service' });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.service')), { target: { value: id(5) } });
+}
+function membership() { return screen.getByLabelText(t('en', 'serviceSessions.recorderMembership')) as HTMLSelectElement; }
+
+it('sends the chosen recorder membership and locks it after the visit is saved', async () => {
+  installReads([performer]);
+  const submitted: SessionDraftForm[] = [];
+  const view = renderForm(true, emptySessionRecordingResult(customer), openJournal(), async (drafts) => { submitted.push(drafts); });
+  await chooseService();
+  await screen.findByRole('option', { name: 'Synthetic performer' });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1')), { target: { value: id(6) } });
+  await screen.findByRole('option', { name: id(9) });
+  fireEvent.change(membership(), { target: { value: id(9) } });
+  await waitFor(() => expect(membership().value).toBe(id(9)));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.save') }));
+  await waitFor(() => expect(submitted).toHaveLength(1));
+  const drafts = submitted[0];
+  if (!drafts) throw new Error('Missing submission');
+  expect(sessionResultCommand({ ...emptySessionRecordingResult(customer), drafts }, []).body.recorder_membership_id).toBe(id(9));
+  view.unmount();
+  renderForm(true, saved, openJournal());
+  expect(membership().closest('fieldset')?.disabled).toBe(true);
+});
+
+it('shows the discount limit and the draft total in the summary', async () => {
+  renderForm(true, emptySessionRecordingResult(), openJournal());
+  await chooseService();
+  const summary = screen.getByText(t('en', 'serviceSessions.draftTotal'), { exact: false }).parentElement;
+  expect(summary?.textContent).toContain('7.125');
+  expect(summary?.textContent).toContain('10.00%');
+  expect(summary?.textContent).toContain(t('en', 'serviceSessions.limitPerson'));
+});
+
+it('hides the original-attempt retry while offline and shows it when the connection returns', () => {
+  const unresolved: SessionRecordingResult = { ...emptySessionRecordingResult(), feedback: { kind: 'UNRESOLVED' }, attempt: savedAttempt };
+  const view = renderForm(false, unresolved, null);
+  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeNull();
+  view.rerender(view.ui(true));
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeTruthy();
 });
 
 it('disables find-or-create, fresh reads and submit while offline without resubmitting', async () => {

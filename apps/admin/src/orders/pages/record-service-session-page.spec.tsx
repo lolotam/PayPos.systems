@@ -46,6 +46,20 @@ async function choosePerformer() {
   await screen.findByRole('option', { name: 'Synthetic performer' });
   fireEvent.change(screen.getByLabelText(label), { target: { value: id(6) } });
 }
+function contextReads() {
+  return state.get.mock.calls.filter((call) => String(call[0]).endsWith('/recording-context')).length;
+}
+async function fillVisit() {
+  await screen.findByLabelText(t('en', 'serviceSessions.name'));
+  for (const [key, value] of [['name', 'Synthetic customer'], ['callingCode', '999'], ['phone', '00000001']] as const) {
+    fireEvent.change(screen.getByLabelText(t('en', `serviceSessions.${key}`)), { target: { value } });
+  }
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.findOrCreate') }));
+  expect(await screen.findByText('***001')).toBeTruthy();
+  await chooseService();
+  await choosePerformer();
+  await waitFor(() => expect((screen.getByLabelText(t('en', 'serviceSessions.recorderMembership')) as HTMLSelectElement).value).toBe(id(8)));
+}
 function recordKeys() {
   return state.post.mock.calls.flatMap((call) => String(call[0]).endsWith('/service-sessions')
     ? [(call[1] as { params: { header: Record<string, string> } }).params.header['Idempotency-Key']] : []);
@@ -100,6 +114,20 @@ it('clears a typed draft when the page scope key changes', async () => {
   fireEvent.change(price(), { target: { value: '20.5' } });
   view.rerender(view.ui({ ...scope, userId: id(40) }));
   await waitFor(() => expect(price().value).toBe(''));
+});
+
+it('refetches the recording context once when an authority error asks for a new scope', async () => {
+  installReads();
+  state.post.mockImplementation((path: string) => String(path).endsWith('/find-or-create')
+    ? Promise.resolve({ data: savedCustomer })
+    : Promise.resolve({ error: { code: 'FORBIDDEN', message_ar: 'Refusal AR', message_en: 'Refusal EN' }, response: { status: 403 } }));
+  renderPage();
+  await fillVisit();
+  const reads = contextReads();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.save') }));
+  expect((await screen.findByRole('alert')).textContent).toBe('Refusal EN');
+  await waitFor(() => expect(contextReads()).toBe(reads + 1));
+  expect(contextReads()).toBe(reads + 1);
 });
 
 it('keeps an interrupted save unresolved and replays the same attempt while online', async () => {

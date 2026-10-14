@@ -39,6 +39,7 @@ export function RecordServiceSessionPage({ scope }: { scope: SessionServiceScope
     <PageHeader title={t(locale, 'serviceSessions.title')} />
     {online ? null : <p role="status">{t(locale, 'serviceSessions.offline')}</p>}
     {context.error ? <p role="alert">{envelopeMessage(context.error, locale)}</p> : null}
-    {context.data && !forbidden ? <RecordServiceSessionForm scope={scope} context={context.data} online={online} recording={recording} /> : null}
+    {context.data && !forbidden ? <RecordServiceSessionForm scope={scope} context={context.data} online={online} recording={recording}
+      onRefreshScope={() => { void context.refetch(); }} /> : null}
   </section>;
 }
