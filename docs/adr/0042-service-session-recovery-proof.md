@@ -16,7 +16,7 @@ still unknown 25 h after the last send (`SESSION_ATTEMPT_RETENTION_MS` 24 h + `S
 
 `idempotency_keys` (packages/db/src/idempotency.ts) is written only when the business write commits: the claim, the
 effect and the stored response share one transaction, and a rollback leaves nothing. Its `expires_at` is fixed at
-commit + 24 h and a replay does not extend it. So an attempt that never committed leaves no server trace, and even a
+the claim (`now()` of that transaction) + 24 h, and a replay does not extend it. So an attempt that never committed leaves no server trace, and even a
 committed one cannot be found by key after the sweep.
 
 SS-Q19 needs a read that shows the recorder her own visits on the attempt's business date. Recording permission
@@ -44,12 +44,15 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
 **Issue.** Both write use cases call a new orders port before the business transaction. Its adapter runs its own
 `withTenant(companyId)` that re-checks place and record access, then
 `INSERT … ON CONFLICT (company_id, user_id, operation, key_hash) DO UPDATE SET last_seen_at = now,
-expires_at = greatest(expires_at, now + 72 h)`, and commits. If the issue fails, the request fails with a 503 and the
+expires_at = greatest(expires_at, now + 72 h) WHERE revoked_at IS NULL AND expires_at > now`, and commits. A proof
+that is already expired or revoked is never reopened: the conflict leaves it as it is. If the issue fails, the request fails with a 503 and the
 business write never starts — so "no proof" always means "no write".
 
 **Date.** Create: the business date the server already computes for the request (`occurred_at` when given,
-otherwise the injected clock — FR-012), in the business timezone. Validation that refuses the request (window,
-future time) runs before the issue, so a refused request leaves no proof. Append: the target session's persisted
+otherwise the injected clock — FR-012), in the business timezone. For a **new** proof the issue applies the
+same window and future-time checks as the write, so a refused new request leaves no proof. When the proof already
+exists (a same-key replay) the issue only touches it and applies no date check, so a replay after branch midnight or
+after a month boundary still reaches the stored response, as today. Append: the target session's persisted
 `business_date`, with `session_id` set at issue.
 
 **Link.** Inside the existing business transaction, after the session row exists, the write sets `session_id` and
@@ -82,8 +85,10 @@ date through `service_sessions_day_idx` that have an active line with `recorded_
 only those lines: `occurred_at`, `customer_name`, `customer_phone_masked`, line `name_ar`/`name_en`.
 `ORDER BY occurred_at, id`, at most 50 visits plus a `truncated` flag. `Cache-Control: no-store`.
 
-Any mismatch — unknown key, another recorder, branch or tenant — is one `FORBIDDEN`, so the answer does not reveal
-which part failed. The contract does not expose `committed_at` or whether the attempt committed (§5).
+Two refusals stay distinct. The guards refuse a caller without record access, feature or selected company with the
+usual `FORBIDDEN`. A caller who passes them but has no proof for this key, operation and place — unknown key, another
+recorder's key, another branch or tenant — gets one `SESSION_RECOVERY_NOT_FOUND`, which does not reveal which part
+failed. The key is a random client value, so the answer tells the caller nothing about anyone else. The contract does not expose `committed_at` or whether the attempt committed (§5).
 
 `POST …/service-sessions/recovery/confirm` with `x-recovery-key` and `{ operation, outcome }` sets `revoked_at` and
 `revoked_outcome`, writes an `audit_log` entry, and answers 204, idempotently, also when the proof is already
@@ -91,9 +96,11 @@ expired or unknown.
 
 ### 4. Client states (row 35c-13)
 
-- **NEVER_REACHED** (#210): the envelope has no `lastSentAt`, or the read answers `FORBIDDEN` → "the attempt did not
-  reach the server — we cannot check it; ask the manager". No call is made without `lastSentAt`. This is distinct
-  from a 200 with an empty list.
+- **NEVER_REACHED** (#210): the envelope has no `lastSentAt`, or the read answers `SESSION_RECOVERY_NOT_FOUND` →
+  "the attempt did not reach the server — we cannot check it; ask the manager". No call is made without
+  `lastSentAt`. This is distinct from a 200 with an empty list.
+- **CANNOT_VERIFY**: the read answers `FORBIDDEN` (for example the recorder lost record access after saving) → "we
+  cannot check it; ask the manager", with no claim about whether the attempt arrived.
 - **WINDOW_ENDED** (#209): `SESSION_RECOVERY_CLOSED` → "the check window has ended — ask the manager".
 - **NOT_YET**: shows when the check opens.
 - **LIST**: the visits (empty, one or several).
@@ -102,7 +109,11 @@ In every state both confirmation buttons stay enabled (SS-Q18).
 
 **Revoke failure** (#211): confirming clears the EXPIRED marker locally first, then sends one best-effort revoke
 with a short timeout and no retry queue. A failure blocks nothing. The 72 h deadline bounds a proof that was not
-revoked.
+revoked. Property (6) of the earlier row ("revoked server-side when the recorder confirms") therefore holds when the
+revoke reaches the server; when it does not, only the deadline closes the proof. Waiting for the revoke before
+clearing would block the self-service confirmation SS-Q18 chose exactly when the connection is bad. The residual is
+small: the client drops the key on confirm, so only a deliberate request by the same recorder could read her own
+lines of that date until the deadline.
 
 ### 5. Accepted residuals and open owner input
 
@@ -112,7 +123,7 @@ revoked.
 - The server now knows whether the attempt committed. Showing that would make the two buttons automatic, which
   changes SS-Q19 option 1. It is owner question SS-Q20 (pending). Until it is answered, `committed_at` only selects
   the date and is never returned.
-- A pre-existing gap, not changed here: the server keeps a committed key for 24 h from commit, while the client may
+- A pre-existing gap, not changed here: the server keeps a committed key for 24 h from its claim, while the client may
   retry until 25 h after its last send (#221).
 
 ## Consequences
