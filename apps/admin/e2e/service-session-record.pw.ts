@@ -151,12 +151,13 @@ async function assertAmbiguousMembership(page: Page): Promise<void> {
   await expect(membership.locator(`option[value="${state.recorderMembershipId}"]`)).toHaveCount(1);
   await expect(membership.locator(`option[value="${state.narrowMembershipId}"]`)).toHaveCount(1);
   await expect(membership).toHaveValue('');
+  // الحفظ مقفول هنا عشان لسه مفيش زبونة، مش عشان العضوية؛ رفض العضوية بيثبته رد السيرفر بعدين.
   await expect(page.getByRole('button', { name: t('en', 'serviceSessions.save') })).toBeDisabled();
 }
 
 async function refuseMissingMembership(page: Page, customer: string, date: string): Promise<void> {
   await expect(membershipField(page)).toHaveValue('');
-  // الحفظ بيتفتح بعد الزبونة من غير ما يتقفل على العضوية، فالرفض المحلي هو اللي بيثبت إن مفيش اختيار.
+  // الحفظ بيفضل مفتوح بعد اختيار الزبونة حتى من غير عضوية، فرد السيرفر 400 هو اللي بيثبت إن مفيش عضوية اتختارت.
   const response = await submitVisit(page, 'en', 'create');
   expect(response.status()).toBe(400);
   const body = (await response.json()) as { code: string; message_en: string };
