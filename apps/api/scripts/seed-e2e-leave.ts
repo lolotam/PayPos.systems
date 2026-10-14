@@ -1,4 +1,4 @@
-import { civilDate } from '../../admin/e2e/civil-date.ts';
+import { civilDate } from './seed-e2e-support.ts';
 
 import { idOf, postJson, type SeedTarget } from './seed-e2e-http.ts';
 

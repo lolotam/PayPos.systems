@@ -2,8 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import { createAuth, createPlatformUser, type AuthService } from '@pospay/auth';
 import { systemUuidV7 } from '@pospay/ids';
-import { joinCookies } from '../../admin/e2e/http-cookie.ts';
-import { freshTotp } from '../../admin/e2e/totp.ts';
+import { freshTotp, joinCookies } from './seed-e2e-support.ts';
 
 import { assertE2eTarget } from './seed-e2e-guard.ts';
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { grantPlatformPermission } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
-import { totpCode } from '../../admin/e2e/totp.ts';
+import { totpCode } from './seed-e2e-support.ts';
 
 import { createTenant, type SeedTenant } from './seed-e2e-catalog.ts';
 import { approveLeave } from './seed-e2e-leave.ts';
@@ -20,6 +20,7 @@ import {
 } from './seed-e2e-http.ts';
 
 const statePath = join(dirname(fileURLToPath(import.meta.url)), '../../admin/e2e/.state/session.env');
+// RFC 6238 Appendix B: المفتاح العام المنشور للاختبار ("12345678901234567890" بـ base32)، مش سر.
 const VECTOR_SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
 
 function suffix(): string {
