@@ -21,12 +21,20 @@ Not here yet:
   - four employees linked to the branch: سارة / Sara, هبة / Heba, منى / Mona, ريم / Reem ([13](13-create-employee.md)).
 - A **recorder**: a user with a cashier membership on the branch (`record:service-sessions:branch`) and a personal discount limit of **10%**
   ([15](15-discount-limit.md)).
-  - The browser-test seed creates exactly this, plus a second membership at 5% for the same recorder:
-    `pnpm --filter @pospay/api e2e:seed`. See the runbook section "Admin service-session browser tests".
+- **Or let the browser-test seed make it all:** `pnpm --filter @pospay/api e2e:seed` (see the runbook section "Admin service-session browser
+  tests"). Its names are generated per run, so read them from `apps/admin/e2e/.state/session.env`:
+  - services `E2E <tag> Home Standard` at `25.000` (`STANDARD_SERVICE_NAME`) and `E2E <tag> Home Odd` at `7.125` (`ODD_SERVICE_NAME`) — use them
+    in place of "Haircut" and "Facial" below;
+  - employees `E2E <tag> Home Ada`, `… Bea`, `… Cleo`, `… Dina` — use them in place of Sara, Heba, Mona, Reem;
+  - the recorder (`RECORDER_EMAIL`) has two cashier memberships, at 10% and 5%, and signs in with password and TOTP (`RECORDER_TOTP_SECRET`
+    is the authenticator secret);
+  - the owner (`OWNER_EMAIL`) signs in with password only and records with **no** limit (**Limit source:** **Owner**), so step 8's refusal
+    needs the recorder.
 - A synthetic customer phone: calling code `999`, number `00000001`.
 
 ## العربي
 
+0. **لو استخدمت الـ seed:** أسماء الخدمات والموظفات في الملف `apps/admin/e2e/.state/session.env` (شوف «قبل ما تبدأ»): «Standard» بدل «قص شعر»، و«Odd» بدل «تنظيف بشرة»، وAda/Bea/Cleo/Dina بدل سارة وهبة ومنى وريم. ورفض الخطوة 8 محتاج المسجّلة، لأن المالك مالوش حد.
 1. **افتح الشاشة:** من القائمة الجانبية دوس **تسجيل زيارة** ← `/orders/service-sessions/new` ← العنوان **تسجيل زيارة**.
    - لو مفيش نشاط مختار بيظهر **اختر النشاط**.
    - لو مفيش فرع مختار بيظهر **اختار فرع قبل تسجيل الزيارة.** والشاشة ما بتختارش أول فرع لوحدها.
@@ -73,6 +81,7 @@ Not here yet:
 
 ## English
 
+0. **If you used the seed:** read the service and employee names from `apps/admin/e2e/.state/session.env` (see Before you start): "Standard" for "Haircut", "Odd" for "Facial", Ada/Bea/Cleo/Dina for Sara, Heba, Mona and Reem. Step 8's refusal needs the recorder, because the owner has no limit.
 1. **Open the screen:** in the sidebar press **Record a visit** → `/orders/service-sessions/new` → heading **Record a visit**.
    - With no business selected it shows **Choose a business**.
    - With no branch selected it shows **Choose a branch before recording a visit.** It never picks the first branch for you.
