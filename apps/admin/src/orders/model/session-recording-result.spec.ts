@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { serviceSessionErrors } from '@pospay/i18n';
 import { freezeSessionAttempt, SessionSavedDisplayFailure, type SessionJournalEnvelope } from './session-attempt';
 import { createSessionAttemptJournal } from './session-attempt-journal';
-import { emptySessionRecordingResult, newSessionVisit, sessionResultCommand, sessionResultFrozen, sessionResultLate, transitionSessionRecordingResult as transition } from './session-recording-result';
+import { emptySessionRecordingResult, leaveUnknownVisit, newSessionVisit, sessionResultCommand, sessionResultFrozen, sessionResultLate, transitionSessionRecordingResult as transition } from './session-recording-result';
 import { appendAttempt, attempt, discountError, id, initial, inputLine, instant, recordAttempt, rejection, response, savedLine, scope } from './session-recording-result.fixture';
 import { sessionPerformerInputs } from './session-drafts';
 
@@ -69,7 +69,7 @@ it('clears a PARTIAL visit left elsewhere or switches to a different saved visit
   const old = recorded(), empty = transition(old, { type: 'JOURNAL', entry: null });
   expect(empty).toEqual(emptySessionRecordingResult(old.customer)); expect(sessionResultCommand(empty, [inputLine]).kind).toBe('record');
   const switched = transition(old, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(99) } });
-  expect(switched).toEqual({ ...emptySessionRecordingResult(old.customer), sessionId: id(99) });
+  expect(switched).toEqual({ ...emptySessionRecordingResult(old.customer), sessionId: id(99), visitTimeUnknown: true });
 });
 it.each(['NOT_PERSISTED', 'SAVING', 'UNRESOLVED'] as const)('a matching partial journal restores stale %s feedback', (kind) => {
   const stale = { ...recorded(), attempt, feedback: { kind }, persistenceWarning: 'NOT_PERSISTED' as const };
@@ -275,7 +275,59 @@ it('a PARTIAL restored after a reload carries the saved visit time into the draf
   const restored = transition(emptySessionRecordingResult(null), { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: instant } });
   expect(restored.sessionId).toBe(id(12));
   expect(restored.drafts.occurred_at).toBe(instant);
+  expect(restored.visitTimeUnknown).toBe(false);
   expect(sessionResultCommand(restored, []).body).not.toHaveProperty('occurred_at');
   const live = transition(recorded(), { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: '2026-01-01T00:00:00.000Z' } });
   expect(live.drafts.occurred_at).toBe(recorded().drafts.occurred_at);
+  expect(live.visitTimeUnknown).toBe(false);
+});
+it('drops a stale recorder after a forbidden append so the correction names another membership', () => {
+  const saved = recorded();
+  const appended = { ...appendAttempt, body: { ...appendAttempt.body, recorder_membership_id: id(8) } };
+  const error = { status: 403, code: 'FORBIDDEN', message_ar: 'Refusal AR', message_en: 'Refusal EN' };
+  const failed = transition(saved, { type: 'FAILED', attempt: appended, error });
+  const followed = transition(failed, { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: instant } });
+  expect(followed.sessionId).toBe(id(12));
+  expect(followed.drafts.recorder_membership_id).toBeNull();
+  expect(sessionResultFrozen(followed)).toBe(false);
+  expect(sessionResultCommand({ ...followed, drafts: { ...followed.drafts, recorder_membership_id: id(9) } }, [inputLine])).toEqual({
+    kind: 'append', sessionId: id(12), body: { lines: [inputLine], recorder_membership_id: id(9) },
+  });
+});
+it('keeps the recorder when an append is forbidden for the performer rather than authority', () => {
+  const appended = { ...appendAttempt, body: { ...appendAttempt.body, recorder_membership_id: id(8) } };
+  const error = { status: 403, code: 'SESSION_PERFORMER_SELF_FORBIDDEN' as const, ...serviceSessionErrors.SESSION_PERFORMER_SELF_FORBIDDEN };
+  const failed = transition(recorded(), { type: 'FAILED', attempt: appended, error });
+  expect(failed.drafts.recorder_membership_id).toBe(id(8));
+});
+it('blocks corrections for a legacy partial envelope until the visit with no time is left', () => {
+  const restored = transition(emptySessionRecordingResult(null), { type: 'JOURNAL', entry: { version: 1, state: 'PARTIAL', scope, sessionId: id(12) } });
+  expect(restored.visitTimeUnknown).toBe(true);
+  expect(restored.drafts.occurred_at).toBeUndefined();
+  expect(() => sessionResultCommand(restored, [inputLine])).toThrow('SESSION_VISIT_TIME_UNKNOWN');
+  const left = transition(restored, { type: 'JOURNAL', entry: null });
+  expect(left).toEqual(emptySessionRecordingResult(null));
+});
+it('leaves an unknown-time visit, clears that journal entry, and keeps the same customer', async () => {
+  const customer = initial.customer;
+  let next = 40;
+  const journal = createSessionAttemptJournal(scope, { now: () => Date.parse(instant), newId: () => id(next++) });
+  const refusal = { status: 422, code: 'SESSION_DISCOUNT_ABOVE_LIMIT' as const, message_ar: 'Synthetic AR', message_en: 'Synthetic EN' };
+  try {
+    const saved = journal.begin({ kind: 'record', body: { customer_id: id(7), lines: [inputLine, inputLine] } }, [id(9), id(10)]);
+    await journal.run(saved, async () => ({ status: 201, data: { ...response, outcome: 'COMPLETE', rejected_lines: [] } }));
+    journal.leaveVisit();
+    const refused = journal.begin({ kind: 'append', sessionId: id(12), body: { lines: [inputLine] } }, [id(10)]);
+    await expect(journal.run(refused, () => Promise.reject(refusal))).rejects.toBe(refusal);
+    const restored = transition(emptySessionRecordingResult(customer), { type: 'JOURNAL', entry: journal.read() });
+    expect(restored.visitTimeUnknown).toBe(true);
+    expect(restored.session).toBeNull();
+    expect(leaveUnknownVisit(restored, journal)).toEqual(emptySessionRecordingResult(customer));
+    expect(journal.read()).toBeNull();
+  } finally { journal.changeScope(null); journal.dispose(); }
+});
+it('refuses to leave a visit whose time is already known', () => {
+  const leaveVisit = vi.fn();
+  expect(() => leaveUnknownVisit(recorded(), { leaveVisit })).toThrow('SESSION_VISIT_TIME_KNOWN');
+  expect(leaveVisit).not.toHaveBeenCalled();
 });

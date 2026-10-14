@@ -12,6 +12,7 @@ export type SessionRecordingResult = {
   session: ServiceSession | null; sessionId: string | null; addedLineIds: string[];
   rejected: { localId: string; error: RejectedServiceLine }[];
   feedback: SessionFeedback; attempt: SessionAttempt | null; persistenceWarning: 'NOT_PERSISTED' | null;
+  visitTimeUnknown: boolean;
 };
 export type SessionResultEvent =
   | { type: 'RECORDED'; attempt: Extract<SessionAttempt, { kind: 'record' }>; response: RecordServiceSessionResponse; persistenceWarning?: 'NOT_PERSISTED' | null }
@@ -20,7 +21,7 @@ export type SessionResultEvent =
   | { type: 'JOURNAL'; entry: SessionJournalEnvelope | null; persistenceWarning?: 'NOT_PERSISTED' | null; inFlight?: boolean };
 
 export function emptySessionRecordingResult(customer: SessionRecordingResult['customer'] = null): SessionRecordingResult {
-  return { customer, customerId: customer?.id ?? null, drafts: { lines: [] }, session: null, sessionId: null, addedLineIds: [], rejected: [], feedback: { kind: 'IDLE' }, attempt: null, persistenceWarning: null };
+  return { customer, customerId: customer?.id ?? null, drafts: { lines: [] }, session: null, sessionId: null, addedLineIds: [], rejected: [], feedback: { kind: 'IDLE' }, attempt: null, persistenceWarning: null, visitTimeUnknown: false };
 }
 export const sessionResultFrozen = (state: SessionRecordingResult) =>
   !!state.persistenceWarning || ['SAVING', 'UNRESOLVED', 'EXPIRED', 'SAVED_DISPLAY_FAILED', 'NOT_PERSISTED'].includes(state.feedback.kind);
@@ -89,6 +90,18 @@ function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, 
   return { ...state, sessionId, customerId, customer: state.customer?.id === customerId ? state.customer : null,
     drafts: restoreHeader ? withAttemptHeader(state.drafts, attempt, lines) : state.drafts };
 }
+// 403 FORBIDDEN على زيارة محفوظة يعني العضوية القديمة ما عدتش صالحة؛ نسيبها عشان الاختيار يفتح على عضوية تانية.
+function releaseForbiddenRecorder(state: SessionRecordingResult, error: unknown, status: unknown): SessionRecordingResult {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+  if (status !== 403 || code !== 'FORBIDDEN' || state.sessionId === null || state.drafts.recorder_membership_id == null) return state;
+  return { ...state, drafts: { ...state.drafts, recorder_membership_id: null } };
+}
+// مظروف PARTIAL قديم من غير occurredAt ما يتفسّرش «دلوقتي»؛ التصحيح يتقفل لحد ما الزيارة تتنساب.
+function applyPartialEntry(state: SessionRecordingResult, entry: Extract<SessionJournalEnvelope, { state: 'PARTIAL' }>): SessionRecordingResult {
+  const seeded = entry.occurredAt && !state.session ? entry.occurredAt : undefined;
+  const drafts = seeded !== undefined && seeded !== state.drafts.occurred_at ? { ...state.drafts, occurred_at: seeded } : state.drafts;
+  return { ...state, sessionId: entry.sessionId, drafts, visitTimeUnknown: (state.session?.occurred_at ?? drafts.occurred_at) === undefined };
+}
 function failedResult(state: SessionRecordingResult, attempt: SessionAttempt, error: unknown): SessionRecordingResult {
   const envelope = errorEnvelope.safeParse(error);
   const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined;
@@ -110,7 +123,7 @@ function failedResult(state: SessionRecordingResult, attempt: SessionAttempt, er
       session: attempt.kind === 'record' ? null : state.session,
       sessionId: attempt.kind === 'record' ? null : attempt.sessionId, feedback: { kind: 'ALL_REJECTED' } };
   }
-  return { ...state, attempt: null, rejected: [], addedLineIds: [], feedback: { kind: 'ERROR', error, refreshScope: status === 401 || status === 403 } };
+  return releaseForbiddenRecorder({ ...state, attempt: null, rejected: [], addedLineIds: [], feedback: { kind: 'ERROR', error, refreshScope: status === 401 || status === 403 } }, error, status);
 }
 
 export function transitionSessionRecordingResult(state: SessionRecordingResult, event: SessionResultEvent): SessionRecordingResult {
@@ -121,10 +134,10 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
     if (preserveVisit && entry?.state === 'PENDING' && (entry.attempt.kind === 'record' || entry.attempt.sessionId !== state.sessionId))
       return { ...state, persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: 'NOT_PERSISTED' } };
     const clearedPendingVisit = !entry && !event.persistenceWarning && journalDependent(state);
-    if (!preserveVisit && (clearedPendingVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId))) state = emptySessionRecordingResult(state.customer);
+    const clearUnknownVisit = !entry && !event.persistenceWarning && state.visitTimeUnknown && !state.session;
+    if (!preserveVisit && (clearedPendingVisit || clearUnknownVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId))) state = emptySessionRecordingResult(state.customer);
     state = { ...state, persistenceWarning: event.persistenceWarning ?? null };
-    if (entry?.state === 'PARTIAL' && !preserveVisit) state = { ...state, sessionId: entry.sessionId,
-      ...(entry.occurredAt && !state.session ? { drafts: { ...state.drafts, occurred_at: entry.occurredAt } } : {}) };
+    if (entry?.state === 'PARTIAL' && !preserveVisit) state = applyPartialEntry(state, entry);
     if (entry?.state === 'PENDING') return { ...recoverAttempt(state, entry.attempt, entry.attempt.rowIds, true), attempt: entry.attempt,
       persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: event.inFlight ? 'SAVING' : 'UNRESOLVED' } };
     if (entry?.state === 'EXPIRED' || entry?.state === 'SAVED_DISPLAY_FAILED') return { ...state, attempt: null,
@@ -138,7 +151,7 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
   state = recoverAttempt(state, event.attempt, rejected.map((row) => row.localId));
   return { ...state, session: response.session, sessionId: response.session.id, attempt: null, rejected,
     customerId: response.session.customer.id, customer: state.customer?.id === response.session.customer.id ? state.customer : { id: response.session.customer.id, name: response.session.customer.name, phone: response.session.customer.phone_masked },
-    persistenceWarning: event.persistenceWarning ?? null,
+    persistenceWarning: event.persistenceWarning ?? null, visitTimeUnknown: false,
     addedLineIds: (event.type === 'APPENDED' ? event.response.added_lines : response.session.lines).map((line) => line.id),
     drafts: retainRejected(rejectionSnapshots(state.drafts, rejected), rejected), feedback: { kind: response.outcome } };
 }
@@ -151,6 +164,7 @@ export function sessionLeaveFeedback(error: unknown): SessionFeedback {
 }
 
 export function sessionResultCommand(state: SessionRecordingResult, lines: SessionAttemptCommand['body']['lines']): SessionAttemptCommand {
+  if (state.visitTimeUnknown) throw new Error('SESSION_VISIT_TIME_UNKNOWN');
   if (sessionResultFrozen(state)) throw new Error('SESSION_ATTEMPT_UNRESOLVED');
   const body = { lines, ...(state.drafts.recorder_membership_id ? { recorder_membership_id: state.drafts.recorder_membership_id } : {}) };
   if (state.sessionId) return { kind: 'append', sessionId: state.sessionId, body };
@@ -164,4 +178,11 @@ export function newSessionVisit(state: SessionRecordingResult, journal: Pick<Ses
   if (sessionResultFrozen(state) || state.feedback.kind !== 'COMPLETE' || state.drafts.lines.length) throw new Error('SESSION_VISIT_NOT_COMPLETE');
   journal.leaveVisit();
   return emptySessionRecordingResult(sameCustomer ? state.customer : null);
+}
+
+// مظروف PARTIAL قديم من غير وقت مالوش زر في النتيجة المحفوظة؛ الخروج يمسح الزيارة ويسيب الزبونة.
+export function leaveUnknownVisit(state: SessionRecordingResult, journal: Pick<SessionAttemptJournal, 'leaveVisit'>): SessionRecordingResult {
+  if (!state.visitTimeUnknown) throw new Error('SESSION_VISIT_TIME_KNOWN');
+  journal.leaveVisit();
+  return emptySessionRecordingResult(state.customer);
 }

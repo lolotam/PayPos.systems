@@ -185,6 +185,60 @@ it('does not replay an unresolved attempt when the connection returns', async ()
   expect(screen.getByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeTruthy();
 });
 
+it('reopens the recorder picker after the saved membership is forbidden and submits the replacement', async () => {
+  state.get.mockImplementation((path: string, init?: { params?: { query?: { recorder_membership_id?: string } } }) => {
+    const membershipId = init?.params?.query?.recorder_membership_id;
+    if (String(path).endsWith('/recording-context') && membershipId === id(8)) {
+      return Promise.resolve({ error: { code: 'FORBIDDEN', message_ar: 'Refusal AR', message_en: 'Refusal EN' }, response: { status: 403 } });
+    }
+    if (String(path).endsWith('/recording-context')) {
+      return Promise.resolve({ data: { ...context, recorder_membership_ids: [id(9), id(10)], recorder_membership_id: null, discount_limit: null } });
+    }
+    return Promise.resolve({ data: { items: String(path).endsWith('/performer-options') ? [performer] : [service], next_cursor: null } });
+  });
+  const submitted: SessionDraftForm[] = [];
+  const savedVisit: SessionRecordingResult = { ...saved, drafts: { lines: [], recorder_membership_id: id(8) } };
+  renderForm(true, savedVisit, openJournal(), async (drafts) => { submitted.push(drafts); });
+  await chooseService();
+  await screen.findByRole('option', { name: 'Synthetic performer' });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1')), { target: { value: id(6) } });
+  await screen.findByRole('option', { name: id(9) });
+  await waitFor(() => expect(membership().disabled).toBe(false));
+  fireEvent.change(membership(), { target: { value: id(9) } });
+  await waitFor(() => expect(membership().value).toBe(id(9)));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.correctAndAppend') }));
+  await waitFor(() => expect(submitted).toHaveLength(1));
+  const drafts = submitted[0];
+  if (!drafts) throw new Error('Missing submission');
+  const command = sessionResultCommand({ ...savedVisit, drafts }, []);
+  expect(command.kind).toBe('append');
+  expect(command.body.recorder_membership_id).toBe(id(9));
+});
+
+it.each(['ar', 'en'] as const)('warns and keeps corrections off when the restored visit time is unknown in %s', async (locale) => {
+  state.locale = locale;
+  const restored: SessionRecordingResult = {
+    ...emptySessionRecordingResult(customer), sessionId: id(12), feedback: { kind: 'PARTIAL' }, drafts: { lines: [] }, visitTimeUnknown: true,
+  };
+  renderForm(true, restored, openJournal());
+  expect(screen.getByRole('alert').textContent).toBe(t(locale, 'serviceSessions.unknownVisitTime'));
+  expect(screen.queryByText(t(locale, 'serviceSessions.now'))).toBeNull();
+  expect((screen.getByRole('button', { name: t(locale, 'serviceSessions.correctAndAppend') }) as HTMLButtonElement).disabled).toBe(true);
+  await act(async () => { await Promise.resolve(); });
+  expect(state.get.mock.calls.some((call) => String(call[0]).endsWith('/performer-options'))).toBe(false);
+});
+
+it.each(['ar', 'en'] as const)('leaves the unknown-time visit and re-enables the time field in %s', (locale) => {
+  state.locale = locale;
+  const restored: SessionRecordingResult = {
+    ...emptySessionRecordingResult(customer), sessionId: id(12), feedback: { kind: 'PARTIAL' }, drafts: { lines: [] }, visitTimeUnknown: true,
+  };
+  renderForm(true, restored, openJournal());
+  fireEvent.click(screen.getByRole('button', { name: t(locale, 'serviceSessions.newVisitSameCustomer') }));
+  expect(screen.queryByText(t(locale, 'serviceSessions.unknownVisitTime'))).toBeNull();
+  expect((screen.getByLabelText(t(locale, 'serviceSessions.occurredAt')) as HTMLInputElement).disabled).toBe(false);
+});
+
 it('keeps the membership selectable for a restored partial visit whose membership is unknown', async () => {
   const restored: SessionRecordingResult = { ...saved, session: null, feedback: { kind: 'PARTIAL' }, drafts: { lines: [] } };
   const submitted: SessionDraftForm[] = [];

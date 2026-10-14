@@ -27,6 +27,11 @@ function persistenceError() {
 }
 
 // visitTimes: وقت الزيارة من السيرفر؛ الإلحاق المرفوض ما بيرجّعش جسم، وبعد reload التصحيح لازم يتقرا على وقت الزيارة مش «دلوقتي».
+// الخريطة تحتفظ بوقت الزيارة الحالية فقط؛ وقت أقدم كان بيتلزق في إلحاق مرفوض، ومغادرة الزيارة أو تغيير النطاق بيمسح الوقت.
+function rememberVisitTime(times: Map<string, string>, sessionId: string, occurredAt: string) {
+  times.clear();
+  times.set(sessionId, occurredAt);
+}
 function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRuntime, storage?: JournalStorage) {
   const slots = createSessionAttemptSlotStore(storage);
   let scope: SessionAttemptScope | null = freezeSessionAttemptScope(initialScope), value: SessionJournalEnvelope | null | undefined;
@@ -38,12 +43,12 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
   };
   const read = () => {
     // نستعيد التخزين مرة عند تحميل التبويب؛ بعدها تتقدم حالة الذاكرة حتى لو فشل حفظها.
-    if (value === undefined) { value = slots.recover(scope); if (slots.blocked) persistenceWarning = 'NOT_PERSISTED'; if (value?.state === 'PARTIAL' && value.occurredAt) visitTimes.set(value.sessionId, value.occurredAt); }
+    if (value === undefined) { value = slots.recover(scope); if (slots.blocked) persistenceWarning = 'NOT_PERSISTED'; if (value?.state === 'PARTIAL' && value.occurredAt) rememberVisitTime(visitTimes, value.sessionId, value.occurredAt); }
     const next = expired(value ?? null, runtime.now()); if (next !== value) transition(next);
     return value ?? null;
   };
   const changeScope = (next: SessionAttemptScope | null) => {
-    if (!next || !scope || !sameSessionScope(scope, next)) { scope = next ? freezeSessionAttemptScope(next) : null; value = null; flight = undefined; slots.purge(); persistenceWarning = slots.blocked ? 'NOT_PERSISTED' : null; }
+    if (!next || !scope || !sameSessionScope(scope, next)) { scope = next ? freezeSessionAttemptScope(next) : null; value = null; flight = undefined; visitTimes.clear(); slots.purge(); persistenceWarning = slots.blocked ? 'NOT_PERSISTED' : null; }
     stopIdentity?.(); stopIdentity = next ? listenForIdentityChanges(() => changeScope(null)) : undefined;
   };
   const matches = (attempt: SessionAttempt) => scope && sameSessionScope(scope, attempt.scope) &&
@@ -52,8 +57,8 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
     const occurredAt = state === 'PARTIAL' && sessionId ? visitTimes.get(sessionId) : undefined; transition(scope ? { version: 1, state, scope, ...(sessionId ? { sessionId } : {}), ...(occurredAt ? { occurredAt } : {}) } as SessionJournalEnvelope : null);
   };
   const settle = (attempt: SessionAttempt, result: WriteResult) => {
-    if (!matches(attempt)) throw new Error('SESSION_ATTEMPT_UNAVAILABLE'); visitTimes.set(result.data.session.id, result.data.session.occurred_at);
-    if (result.data.outcome === 'PARTIAL') visit(result.data.session.id, 'PARTIAL'); else transition(null);
+    if (!matches(attempt)) throw new Error('SESSION_ATTEMPT_UNAVAILABLE'); const session = result.data.session, partial = result.data.outcome === 'PARTIAL';
+    if (partial) { rememberVisitTime(visitTimes, session.id, session.occurred_at); visit(session.id, 'PARTIAL'); } else { transition(null); rememberVisitTime(visitTimes, session.id, session.occurred_at); }
   };
   const reject = (attempt: SessionAttempt, error: unknown) => {
     if (!matches(attempt)) throw new Error('SESSION_ATTEMPT_UNAVAILABLE');
@@ -67,7 +72,7 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
     read, changeScope, get scope() { return scope; }, get persistenceWarning() { return persistenceWarning; },
     configure(next: SessionAttemptScope, clock: SessionAttemptRuntime, backing?: JournalStorage) { runtime = clock; slots.configure(backing); if (!scope || !sameSessionScope(scope, next)) changeScope(next); read(); if (!stopIdentity) stopIdentity = listenForIdentityChanges(() => changeScope(null)); },
     stop() { stopIdentity?.(); stopIdentity = undefined; },
-    leaveVisit() { if (flight || value?.state === 'PENDING' || value?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED'); transition(null, true); },
+    leaveVisit() { if (flight || value?.state === 'PENDING' || value?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED'); visitTimes.clear(); transition(null, true); },
     begin(command: SessionAttemptCommand, rowIds: string[]) {
       const recovered = read();
       if (!scope || flight || recovered?.state === 'PENDING' || recovered?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED');
