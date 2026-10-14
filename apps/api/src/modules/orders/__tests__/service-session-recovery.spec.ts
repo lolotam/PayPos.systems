@@ -1,6 +1,9 @@
+import { setTimeout as delay } from 'node:timers/promises';
 import { SYSTEM_ROLES, type TenantWrappers } from '@pospay/db';
+import postgres from 'postgres';
 import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 import { ApiError } from '../../../shared/errors.ts';
+import { SessionError } from '../domain/session-error.ts';
 import { ordersTransactions } from '../orders.module.ts';
 import { createSessionRecovery, recoveryKeyHash } from '../persistence/session-recovery.adapter.ts';
 import { AppendServiceSessionLinesUseCase } from '../use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
@@ -28,6 +31,29 @@ function writer(database: TenantWrappers) {
     record: new RecordServiceSessionUseCase(transactions, recovery, ids, f.clock),
     append: new AppendServiceSessionLinesUseCase(transactions, recovery, ids, f.clock),
   };
+}
+async function waitFor(check: () => Promise<boolean>): Promise<void> {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    if (await check()) return;
+    await delay(10);
+  }
+  throw new Error('Expected database wait did not occur');
+}
+async function holdRecoveryInsert() {
+  const gate = postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
+  await f.h.owner.unsafe('DROP TRIGGER IF EXISTS test_recovery_issue_hold ON service_session_recoveries');
+  await f.h.owner.unsafe(`CREATE OR REPLACE FUNCTION test_recovery_issue_hold() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN PERFORM pg_advisory_xact_lock(hashtext('test:orders:recovery-first-append')); RETURN NEW; END $$`);
+  await f.h.owner.unsafe(`CREATE TRIGGER test_recovery_issue_hold BEFORE INSERT ON service_session_recoveries
+    FOR EACH ROW EXECUTE FUNCTION test_recovery_issue_hold()`);
+  await gate`SELECT pg_advisory_lock(hashtext('test:orders:recovery-first-append'))`;
+  const release = () => gate`SELECT pg_advisory_unlock(hashtext('test:orders:recovery-first-append'))`;
+  return { release, close: async () => {
+    await release();
+    await gate.end();
+    await f.h.owner.unsafe('DROP TRIGGER IF EXISTS test_recovery_issue_hold ON service_session_recoveries');
+    await f.h.owner.unsafe('DROP FUNCTION IF EXISTS test_recovery_issue_hold()');
+  } };
 }
 async function cashierOn(branchId: string) {
   const membership = ids.newId();
@@ -292,6 +318,46 @@ it('a same-key replay after the idempotency row is swept does not relink the pro
   const row = must(await proof(key));
   expect(row['session_id']).toBe(first.session.id);
   expect(iso(row['committed_at'])).toBe(iso(linked['committed_at']));
+});
+
+it('overlapping first appends of one key on two sessions refuse the loser with IDEMPOTENCY_KEY_REUSED', async () => {
+  const earlier = await f.create.execute({ ...f.context(), input: f.body() });
+  const later = await f.create.execute({ ...f.context(), input: f.body() });
+  const key = ids.newId();
+  const recovery = createSessionRecovery(f.db, ids, f.clock);
+  const issue = (sessionId: string) => recovery.issue({
+    companyId: f.company, userId: f.userId, businessId: f.business, branchId: f.branch, key,
+    operation: 'append-service-session-lines', sessionId,
+  }).then(() => sessionId);
+  const waiting = async (atLeast: number) =>
+    (await f.h.owner`SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted`).length >= atLeast;
+  const gate = await holdRecoveryInsert();
+  const pending: Promise<unknown>[] = [];
+  try {
+    const first = issue(earlier.session.id);
+    pending.push(first);
+    await waitFor(() => waiting(1));
+    const second = issue(later.session.id);
+    pending.push(second);
+    await waitFor(() => waiting(2));
+    await gate.release();
+    const settled = await Promise.allSettled([first, second]);
+    const won = settled.find((item) => item.status === 'fulfilled');
+    const lost = settled.find((item) => item.status === 'rejected');
+    expect(won?.status).toBe('fulfilled');
+    expect(lost?.status).toBe('rejected');
+    if (won?.status !== 'fulfilled' || lost?.status !== 'rejected') throw new Error('overlap outcome missing');
+    expect(lost.reason).toBeInstanceOf(SessionError);
+    expect(lost.reason).toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' });
+    const rows = await f.h.owner`SELECT session_id FROM service_session_recoveries
+      WHERE company_id=${f.company} AND operation='append-service-session-lines' AND key_hash=${hash(key)}`;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.['session_id']).toBe(won.value);
+  } finally {
+    await gate.release();
+    await Promise.allSettled(pending);
+    await gate.close();
+  }
 });
 
 it('two concurrent first sends of one key both succeed and leave one proof', async () => {

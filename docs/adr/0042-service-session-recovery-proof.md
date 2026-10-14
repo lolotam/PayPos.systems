@@ -52,7 +52,10 @@ append also lets the original recorder append. A missing or ambiguous membership
 expires_at = least(greatest(expires_at, now + 72 h), issued_at + 168 h) WHERE revoked_at IS NULL AND
 expires_at > now`, and commits. An append whose stored proof has a different `session_id` is refused before that
 upsert with `IDEMPOTENCY_KEY_REUSED` (422), including when that proof is expired or revoked; the issue transaction
-rolls back and writes nothing. A proof that is already expired or revoked is never reopened: the conflict leaves it
+rolls back and writes nothing. Before that read, issuance takes
+`pg_advisory_xact_lock(hashtextextended(app_company_id()::text || ':recovery:' || user_id::uuid::text || ':' || business_id::uuid::text || ':' || branch_id::uuid::text || ':' || operation || ':' || key_hash, 0))`
+for the transaction, so two first appends of one key on different sessions serialize and the waiter is refused with
+`IDEMPOTENCY_KEY_REUSED` once the winner commits. A proof that is already expired or revoked is never reopened: the conflict leaves it
 as it is. A same-session append, and a create, then proceed exactly as they do today (the proof gates only the
 recovery read, never the write). If the issue itself fails (database error, lock timeout), the request fails with
 `SESSION_RECOVERY_UNAVAILABLE` (503, ar/en message) and the business write never
