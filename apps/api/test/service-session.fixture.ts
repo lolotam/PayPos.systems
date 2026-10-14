@@ -32,6 +32,9 @@ export async function sessionFixture(options: Parameters<typeof startHarness>[0]
   const cashier = must(SYSTEM_ROLES.find((r) => r.code === 'cashier')).id;
   await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps)
     VALUES(${company},${membership},${userId},${cashier},'global','BRANCH',${branch},1000)`;
+  // ساعة الاختبارات ثابتة على أكتوبر 2026 (AT وأوقات الإجازات)، والعضويات بتبدأ بالوقت الحقيقي؛ لو الوقت الحقيقي عدّى
+  // الساعة الثابتة، العضوية تبان لسه ما بدأتش والإذن يرجع 403. فبتبدأ قبل أي لحظة في الاختبارات.
+  await h.owner`UPDATE memberships SET starts_at='2026-01-01T00:00:00Z' WHERE company_id IN (${company}, ${otherCompany})`;
   const customer = ids.newId();
   await h.owner`INSERT INTO customers(company_id,id,name,phone,locale,created_at,updated_at) VALUES(${company},${customer},'Synthetic customer','+999999998123','en',now(),now())`;
   const services: string[] = [];
