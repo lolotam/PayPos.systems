@@ -41,6 +41,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const locale = useLocale();
   const { result, journal } = recording;
   const frozen = sessionResultFrozen(result);
+  // أول حفظ بيثبّت رأس الزيارة (الزبونة والوقت والعضوية)؛ سطور التصحيح بس اللي تفضل مفتوحة.
   const locked = frozen || result.sessionId !== null;
   const [seed] = useState(() => editorDrafts(result.drafts));
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
@@ -51,9 +52,8 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
       <SessionCustomerField companyId={scope.companyId} branchId={scope.branchId} userId={scope.userId}
         value={result.customer} onChange={recording.selectCustomer} disabled={!online || locked} />
       <SessionTimeField context={context} disabled={locked} />
-      <SessionRecordingHeader scope={scope} disabled={!online || locked} />
-      {/* العضوية تتقفل مع أول زيارة محفوظة؛ سطور التصحيح تفضل مفتوحة. */}
-      <SessionDraftLines scope={scope} {...(occurredAt !== undefined ? { occurredAt } : {})} disabled={!online || frozen} includeHeader={false} />
+      <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={result.sessionId !== null} />
+      <SessionDraftLines scope={scope} {...(occurredAt !== undefined ? { occurredAt } : {})} disabled={!online || frozen} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} />
       <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online ? { onReplay: () => { void recording.retry(); } } : {})} />
       <Button type="submit" disabled={!online || frozen || !journal || (!result.sessionId && !result.customer)}>

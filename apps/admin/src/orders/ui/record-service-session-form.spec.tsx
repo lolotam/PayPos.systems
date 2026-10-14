@@ -5,7 +5,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from '../model/session-attempt-journal';
-import type { SessionDraftForm } from '../model/session-drafts';
+import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
 import { emptySessionRecordingResult, sessionResultCommand, type SessionRecordingResult } from '../model/session-recording-result';
 import { attempt as savedAttempt, id, instant, response, scope } from '../model/session-recording-result.fixture';
 import type { SessionRecordingController } from '../model/use-session-recording';
@@ -118,7 +118,23 @@ it('sends the chosen recorder membership and locks it after the visit is saved',
   expect(sessionResultCommand({ ...emptySessionRecordingResult(customer), drafts }, []).body.recorder_membership_id).toBe(id(9));
   view.unmount();
   renderForm(true, saved, openJournal());
-  expect(membership().closest('fieldset')?.disabled).toBe(true);
+  expect(membership().disabled).toBe(true);
+  expect(membership().closest('fieldset')?.disabled).toBe(false);
+});
+
+it('keeps the discount limit and the draft total after the membership is read-only', async () => {
+  const correcting: SessionRecordingResult = {
+    ...saved,
+    drafts: { lines: [{ ...createSessionDraft('kept'), price: '7.125' }], recorder_membership_id: id(8) },
+  };
+  renderForm(true, correcting, openJournal());
+  await waitFor(() => expect(screen.getAllByText('10.00%')).toHaveLength(2));
+  expect(membership().disabled).toBe(true);
+  expect(membership().closest('fieldset')?.disabled).toBe(false);
+  const summary = screen.getByText(t('en', 'serviceSessions.draftTotal'), { exact: false }).parentElement;
+  expect(summary?.textContent).toContain('7.125');
+  expect(summary?.textContent).toContain('10.00%');
+  expect(summary?.textContent).toContain(t('en', 'serviceSessions.limitPerson'));
 });
 
 it('shows the discount limit and the draft total in the summary', async () => {

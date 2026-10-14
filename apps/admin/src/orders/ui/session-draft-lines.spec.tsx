@@ -91,8 +91,8 @@ it('feeds edited UTC to performer options without replacing the chosen performer
   await waitFor(() => expect(get.mock.calls.findLast(([path]) => path.endsWith('/performer-options'))?.[1].params.query.occurred_at).toBe('2026-10-11T14:00:00.000Z'));
   expect(current[0]?.performers[0]?.employee_id).toBe(service.id);
 });
-it('shows the resolved limit in the draft summary and validates discount again when price changes', async () => {
-  mount(); await choose(); await waitFor(() => expect(screen.getAllByText('10.00%')).toHaveLength(2));
+it('validates the discount again when the price changes', async () => {
+  mount(); await choose();
   const price = screen.getByLabelText(t('en', 'serviceSessions.price')), discount = screen.getByLabelText(t('en', 'serviceSessions.discountAmount'));
   fireEvent.change(discount, { target: { value: '5.000' } }); fireEvent.blur(discount);
   fireEvent.change(price, { target: { value: '4.000' } }); await screen.findByRole('alert'); expect(discount.getAttribute('aria-invalid')).toBe('true');
