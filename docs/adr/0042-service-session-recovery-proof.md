@@ -50,7 +50,9 @@ expires_at = least(greatest(expires_at, now + 72 h), issued_at + 168 h) WHERE re
 expires_at > now`, and commits. A proof that is already expired or revoked is never reopened: the conflict leaves it
 as it is, and the write then proceeds exactly as it does today (the proof gates only the recovery read, never the
 write). If the issue itself fails (database error), the request fails with a 503 and the business write never
-starts — so "no proof" always means "no write".
+starts — so, for attempts made after 35c-13a-1 is deployed, "no proof" always means "no write". An attempt that
+committed before that deploy has no proof; the NEVER_REACHED copy therefore says only that the server cannot check
+it, never that it was not saved (§4).
 
 **Date.** Create: the business date the server already computes for the request (`occurred_at` when given,
 otherwise the injected clock — FR-012), in the business timezone. For a **new** proof the issue applies the
@@ -62,8 +64,10 @@ target session scoped to the URL business and branch, applies the append authori
 `session_id` set at issue; a session outside that scope or window gets no proof.
 
 Only the issue's own checks prevent a proof. A request the issue accepts but the business transaction then refuses
-(customer not found, recorder membership required, performer count, a reused key with another body) keeps an
-unlinked proof dated as above — that is the point of writing it first.
+(customer not found, a missing recorder membership on a create, performer count) keeps an unlinked proof dated as
+above. For an append the issue passes `recorder_membership_id` as the selection to `resolveSessionRecorder`, so a
+missing membership refuses at the issue and leaves no proof. A same key with another body after the first body
+committed meets the first body's proof, already linked — that is the point of writing it first.
 
 **Link.** Inside the existing business transaction, after the session row exists, the write sets `session_id` and
 `committed_at` on the proof row, guarded by `revoked_at IS NULL AND expires_at > now`. A rollback drops only the
@@ -93,8 +97,9 @@ the observability redaction list.
 `GET /v1/businesses/:businessId/branches/:branchId/service-sessions/recovery?operation=…` with `x-recovery-key`,
 guarded by `@Require('record:service-sessions:branch')`, the orders feature, the selected company and an admin
 session; access is re-checked inside the transaction. The query (`queries/session-recovery.query.ts`) finds the
-proof by the unique index for `app_user_id()`, this company, business and branch, unrevoked, unexpired and past the
-gate. Its date is `coalesce(linked session.business_date, proof.business_date)`. It lists sessions of that branch and
+proof by the unique index alone — `app_user_id()`, this company, business, branch, operation and key hash — and then
+answers from the proof's state: revoked or expired → `SESSION_RECOVERY_CLOSED`, before the gate →
+`SESSION_RECOVERY_NOT_YET`, open → the list. A closed or early proof is never reported as missing. Its date is `coalesce(linked session.business_date, proof.business_date)`. It lists sessions of that branch and
 date through `service_sessions_day_idx` that have an active line with `recorded_by = app_user_id()`, and returns
 only those lines: `occurred_at`, `customer_name`, `customer_phone_masked`, line `name_ar`/`name_en`.
 `ORDER BY occurred_at, id`, at most 50 visits plus a `truncated` flag. `Cache-Control: no-store`.
@@ -106,13 +111,14 @@ failed. The key is a random client value, so the answer tells the caller nothing
 
 `POST …/service-sessions/recovery/confirm` with `x-recovery-key` and `{ operation, outcome }`, under the same guards
 as the read, sets `revoked_at` and `revoked_outcome` on the proof of `app_user_id()` for this company, business,
-branch, operation and key hash only, writes an `audit_log` entry, and answers 204, idempotently, also when the proof is already
+branch, operation and key hash only, `WHERE revoked_at IS NULL` so a second confirm never replaces the first outcome, writes an `audit_log` entry, and answers 204, idempotently, also when the proof is already
 expired or unknown.
 
 ### 4. Client states (row 35c-13)
 
 - **NEVER_REACHED** (#210): the envelope has no `lastSentAt`, or the read answers `SESSION_RECOVERY_NOT_FOUND` →
-  "the attempt did not reach the server — we cannot check it; ask the manager". No call is made without
+  "the server has no record of this attempt — we cannot check it; ask the manager" (never "it was not saved": an
+  attempt made before 35c-13a-1 was deployed has no proof either). No call is made without
   `lastSentAt`. This is distinct from a 200 with an empty list.
 - **CANNOT_VERIFY**: the read answers `FORBIDDEN` (for example the recorder lost record access after saving) → "we
   cannot check it; ask the manager", with no claim about whether the attempt arrived.
