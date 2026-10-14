@@ -33,23 +33,26 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
 `committed_at` (nullable), `issued_at`, `last_seen_at`, `expires_at`, `revoked_at` (nullable), `revoked_outcome`
 (`RECORDED_ELSEWHERE` | `NOT_RECORDED`, nullable).
 
-- Primary key `(company_id, id)` (ADR-0007). Unique `(company_id, user_id, operation, key_hash)`. Tenant-qualified
+- Primary key `(company_id, id)` (ADR-0007). Unique `(company_id, user_id, business_id, branch_id, operation, key_hash)`: the place is part of the proof's identity, so the same key sent to another branch gets its own proof and never refreshes or links the first branch's. Tenant-qualified
   foreign keys to the branch and to `service_sessions`. CHECKs: `expires_at > issued_at` and `expires_at <= issued_at + 168 h`;
   `revoked_at` and `revoked_outcome` are both null or both set.
 - `ENABLE` + `FORCE` RLS with split policies on `company_id = app_company_id()`; a negative isolation test in the
   same PR. `pospay_app` gets `SELECT`, `INSERT` and a column `UPDATE` on `session_id`, `committed_at`,
   `last_seen_at`, `expires_at`, `revoked_at`, `revoked_outcome` only — actor, scope, key hash and date are
-  immutable. No `DELETE`, and no grant for any other role.
+  immutable. A `BEFORE UPDATE` trigger refuses any change to `revoked_at`/`revoked_outcome` once set, any change to
+  `session_id`/`committed_at` once set, and any `expires_at` beyond the cap, so the column grant cannot undo a
+  revoke or relink a proof. No `DELETE`, and no grant for any other role.
 
 **Issue.** Both write use cases call a new orders port before the business transaction. Its adapter runs its own
 `withTenant(companyId)` that re-checks the place and applies **the same authority rule as that write** — `record`
 access for a create; for an append, `resolveSessionRecorder` (domain/session-authority.ts), which also lets the
 original recorder append — then
-`INSERT … ON CONFLICT (company_id, user_id, operation, key_hash) DO UPDATE SET last_seen_at = now,
+`INSERT … ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash) DO UPDATE SET last_seen_at = now,
 expires_at = least(greatest(expires_at, now + 72 h), issued_at + 168 h) WHERE revoked_at IS NULL AND
 expires_at > now`, and commits. A proof that is already expired or revoked is never reopened: the conflict leaves it
 as it is, and the write then proceeds exactly as it does today (the proof gates only the recovery read, never the
-write). If the issue itself fails (database error), the request fails with a 503 and the business write never
+write). If the issue itself fails (database error, lock timeout), the request fails with
+`SESSION_RECOVERY_UNAVAILABLE` (503, ar/en message) and the business write never
 starts — so, for attempts made after 35c-13a-1 is deployed, "no proof" always means "no write". An attempt that
 committed before that deploy has no proof; the NEVER_REACHED copy therefore says only that the server cannot check
 it, never that it was not saved (§4).
@@ -102,7 +105,9 @@ answers from the proof's state: revoked or expired → `SESSION_RECOVERY_CLOSED`
 `SESSION_RECOVERY_NOT_YET`, open → the list. A closed or early proof is never reported as missing. Its date is `coalesce(linked session.business_date, proof.business_date)`. It lists sessions of that branch and
 date through `service_sessions_day_idx` that have an active line with `recorded_by = app_user_id()`, and returns
 only those lines: `occurred_at`, `customer_name`, `customer_phone_masked`, line `name_ar`/`name_en`.
-`ORDER BY occurred_at, id`, at most 50 visits plus a `truncated` flag. `Cache-Control: no-store`.
+`ORDER BY occurred_at, id`, 50 visits per page with an opaque keyset cursor `(occurred_at, id)` and `next_cursor`,
+so every visit of the day is reachable (the panel loads more on demand). The proof is checked again on every page.
+`Cache-Control: no-store`.
 
 Two refusals stay distinct. The guards refuse a caller without record access, feature or selected company with the
 usual `FORBIDDEN`. A caller who passes them but has no proof for this key, operation and place — unknown key, another
@@ -141,7 +146,13 @@ lines of that date until the deadline.
 - A recorder can make a proof for a date by sending a deliberate write with no UI, then 24 h later list her own
   lines for that date. The read is bounded to her own lines, to dates the issue's window checks accept (create and
   append alike), behind the gate, capped at 168 h, and audited on confirm. Accepted.
-- The server now knows whether the attempt committed. Showing that would make the two buttons automatic, which
+- Availability: the proof issue is a hard prerequisite of every service-session write, so a failing proof path
+  (database error, lock timeout on the same key) refuses recording with `SESSION_RECOVERY_UNAVAILABLE`. The client
+  treats it like a transient network failure and retries the same key. Accepted: it only fails when the database
+  itself is failing the write anyway.
+- Rows are kept, with no retention sweep (§2). A sweep needs a decision on the dispatcher grant and is a follow-up,
+  not part of this row.
+- For an attempt that reached the server after 35c-13a-1 is deployed, the server knows whether it committed. Showing that would make the two buttons automatic, which
   changes SS-Q19 option 1. It is owner question SS-Q20 (pending). Until it is answered, `committed_at` is
   stored but never read or returned; the date comes from the linked `session_id`.
 - A pre-existing gap, not changed here: the server keeps a committed key for 24 h from its claim, while the client may
