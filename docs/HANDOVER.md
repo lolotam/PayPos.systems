@@ -138,12 +138,12 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
 - Then **35d** (edit price/discount after saving; batch 17 answered) after issue #189 declares its bell event.
 - Owner question #199 (leaving an EXPIRED recording without logging out) was batch 18 (SS-Q18). **Waleed answered
   2026-10-14: the recorder confirms «checked — recorded / not recorded» herself, without a manager** (against the
-  recommendation; Abu Salem has not answered — his pick would replace it). Built as 35c-13 after 35c-13a-1 and 35c-13a-2.
-- SS-Q19 (batch 19) answered by Waleed 2026-10-14: before confirming, the recorder sees **only the visits she
+  recommendation; Abu Salem chose the same on 2026-10-14). Built as 35c-13 after 35c-13a-1 and 35c-13a-2.
+- SS-Q19 (batch 19) answered by Waleed 2026-10-14, Abu Salem the same: before confirming, the recorder sees **only the visits she
   recorded** in that branch on the attempt date, inside the recording screen — a narrow exception, not a general
   "my saves" list (SS-Q17 stands). Its server side is 35c-13a-1 and 35c-13a-2 (ADR-0042).
-- SS-Q20 (batch 20, pending): the server now knows whether an EXPIRED attempt committed; should the screen say so
-  and pick the button? Until answered, that fact is stored but never shown.
+- SS-Q20 (batch 20) answered by Waleed 2026-10-14, option 1 (Abu Salem pending): the recovery read returns whether
+  the attempt committed; the panel states it and pre-selects the matching button, the list stays, she confirms.
 
 ### 4.2 Package facts worth knowing
 
