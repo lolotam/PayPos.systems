@@ -31,6 +31,9 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
   let scope: SessionAttemptScope | null = freezeSessionAttemptScope(initialScope), value: SessionJournalEnvelope | null | undefined;
   let flight: { key: string; promise: Promise<WriteResult> } | undefined, stopIdentity: (() => void) | undefined;
   let persistenceWarning: 'NOT_PERSISTED' | null = null;
+  // وقت الزيارة اللي رجّعه السيرفر، في الذاكرة بس: إلحاق اترفض بعد حفظ COMPLETE أو بعد استرجاع ما بيرجعش جسم زيارة،
+  // والمدخل PARTIAL لازم يشيل الوقت ده عشان بعد reload التصحيح يتقرا على وقت الزيارة مش «دلوقتي».
+  const visitTimes = new Map<string, string>();
   const transition = (next: SessionJournalEnvelope | null, required = false) => {
     persistenceWarning = slots.write(next) ? null : 'NOT_PERSISTED';
     if (required && persistenceWarning) throw persistenceError(); value = next ? Object.freeze(next) : null;
@@ -38,6 +41,7 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
   const read = () => {
     // نستعيد التخزين مرة عند تحميل التبويب؛ بعدها تتقدم حالة الذاكرة حتى لو فشل حفظها.
     if (value === undefined) { value = slots.recover(scope); if (slots.blocked) persistenceWarning = 'NOT_PERSISTED'; }
+    if (value?.state === 'PARTIAL' && value.occurredAt) visitTimes.set(value.sessionId, value.occurredAt);
     const next = expired(value ?? null, runtime.now()); if (next !== value) transition(next);
     return value ?? null;
   };
@@ -48,10 +52,12 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
   const matches = (attempt: SessionAttempt) => scope && sameSessionScope(scope, attempt.scope) &&
     ((value?.state === 'PENDING' && value.attempt.key === attempt.key) || (value?.state === 'EXPIRED' && value.key === attempt.key));
   const visit = (sessionId: string | undefined, state: 'PARTIAL' | 'SAVED_DISPLAY_FAILED') => {
-    transition(scope ? { version: 1, state, scope, ...(sessionId ? { sessionId } : {}) } as SessionJournalEnvelope : null);
+    const occurredAt = state === 'PARTIAL' && sessionId ? visitTimes.get(sessionId) : undefined;
+    transition(scope ? { version: 1, state, scope, ...(sessionId ? { sessionId } : {}), ...(occurredAt ? { occurredAt } : {}) } as SessionJournalEnvelope : null);
   };
   const settle = (attempt: SessionAttempt, result: WriteResult) => {
     if (!matches(attempt)) throw new Error('SESSION_ATTEMPT_UNAVAILABLE');
+    visitTimes.set(result.data.session.id, result.data.session.occurred_at);
     if (result.data.outcome === 'PARTIAL') visit(result.data.session.id, 'PARTIAL'); else transition(null);
   };
   const reject = (attempt: SessionAttempt, error: unknown) => {

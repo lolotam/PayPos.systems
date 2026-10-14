@@ -1,5 +1,5 @@
 import { t } from '@pospay/i18n';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSessionAttemptJournal } from '../model/session-attempt-journal';
@@ -76,6 +76,8 @@ afterEach(() => {
   state.get.mockReset();
   state.post.mockReset();
   Reflect.deleteProperty(navigator, 'onLine');
+  // TanStack بيسمع حدث الاتصال بس وهو عنده مشتركين؛ اختبار انتهى أوفلاين ممكن يسيبه فاكر إنه مقطوع للاختبار اللي بعده.
+  onlineManager.setOnline(true);
 });
 
 it('shows a permission refusal in both locales and hides the editor', async () => {
@@ -291,4 +293,18 @@ it('drops the cached reads of its scope when it unmounts and keeps other scopes'
   view.unmount();
   expect(own()).toHaveLength(0);
   expect(client.getQueryData(other)).toBeTruthy();
+});
+
+it('reads the scope again after a real reconnect and writes nothing', async () => {
+  installReads();
+  const fresh = { ...scope, userId: id(78) };
+  renderPage(fresh, new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000 }, mutations: { retry: false } } }));
+  await screen.findByLabelText(t('en', 'serviceSessions.recorderMembership'));
+  await waitFor(() => expect(contextReads()).toBeGreaterThan(0));
+  const reads = contextReads();
+  setOnline(false);
+  expect(await screen.findByText(t('en', 'serviceSessions.offline'))).toBeTruthy();
+  setOnline(true);
+  await waitFor(() => expect(contextReads()).toBeGreaterThan(reads));
+  expect(state.post).not.toHaveBeenCalled();
 });

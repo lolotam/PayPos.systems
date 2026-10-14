@@ -123,7 +123,8 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
     const clearedPendingVisit = !entry && !event.persistenceWarning && journalDependent(state);
     if (!preserveVisit && (clearedPendingVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId))) state = emptySessionRecordingResult(state.customer);
     state = { ...state, persistenceWarning: event.persistenceWarning ?? null };
-    if (entry?.state === 'PARTIAL' && !preserveVisit) state = { ...state, sessionId: entry.sessionId };
+    if (entry?.state === 'PARTIAL' && !preserveVisit) state = { ...state, sessionId: entry.sessionId,
+      ...(entry.occurredAt && !state.session ? { drafts: { ...state.drafts, occurred_at: entry.occurredAt } } : {}) };
     if (entry?.state === 'PENDING') return { ...recoverAttempt(state, entry.attempt, entry.attempt.rowIds, true), attempt: entry.attempt,
       persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: event.inFlight ? 'SAVING' : 'UNRESOLVED' } };
     if (entry?.state === 'EXPIRED' || entry?.state === 'SAVED_DISPLAY_FAILED') return { ...state, attempt: null,

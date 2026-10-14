@@ -5,7 +5,7 @@ import type { SessionServiceScope } from '../api/use-session-services';
 import { useRecordingContext } from '../api/use-recording-context';
 import { sessionResultFrozen } from '../model/session-recording-result';
 import { useBrowserConnectivity } from '../model/use-browser-connectivity';
-import { useSessionQueryPurge } from '../model/use-session-query-purge';
+import { useSessionQueryLifecycle } from '../model/use-session-query-lifecycle';
 import { useSessionRecording } from '../model/use-session-recording';
 import { RecordServiceSessionForm } from '../ui/record-service-session-form';
 import { SessionWriteFeedback } from '../ui/session-write-feedback';
@@ -20,7 +20,7 @@ export function RecordServiceSessionPage({ scope }: { scope: SessionServiceScope
   const locale = useLocale();
   const connectivity = useBrowserConnectivity();
   const online = connectivity === true;
-  useSessionQueryPurge(scope);
+  useSessionQueryLifecycle(scope, connectivity);
   const recording = useSessionRecording(scope);
   const context = useRecordingContext(scope, null, online && !sessionResultFrozen(recording.result));
   const forbidden = isForbidden(context.error);
