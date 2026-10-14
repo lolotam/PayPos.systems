@@ -35,7 +35,12 @@ export async function insertMemberships(appUrl: string, rows: readonly Membershi
         }
       });
     }
-    return rows.map((row) => written.get(row) ?? '');
+    // معرّف فاضي في ملف الحالة كان هيفشل في المتصفح متأخراً، فالغائب لازم يوقف الـ seed هنا.
+    return rows.map((row) => {
+      const id = written.get(row);
+      if (id === undefined || id === '') throw new Error('e2e:seed membership missing');
+      return id;
+    });
   } finally {
     await database.close();
   }

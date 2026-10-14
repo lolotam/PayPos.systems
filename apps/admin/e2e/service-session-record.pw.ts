@@ -1,8 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
-import { t, type Locale } from '@pospay/i18n';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { serviceSessionErrors, t, type Locale } from '@pospay/i18n';
 
 import {
   civilDate,
+  dayVisits,
   findOrCreateCustomer,
   fillLine,
   label,
@@ -141,21 +142,51 @@ test('saves a price override with four custom shares in Arabic', async ({ page }
   await recordOverride(page);
 });
 
-test('saves under the membership the recorder chooses', async ({ page }) => {
-  const customer = label('Member');
-  await openRecorder(page, state, 'en');
-  const membership = page.getByLabel(t('en', 'serviceSessions.recorderMembership'), { exact: true });
+function membershipField(page: Page): Locator {
+  return page.getByLabel(t('en', 'serviceSessions.recorderMembership'), { exact: true });
+}
+
+async function assertAmbiguousMembership(page: Page): Promise<void> {
+  const membership = membershipField(page);
   await expect(membership.locator(`option[value="${state.recorderMembershipId}"]`)).toHaveCount(1);
   await expect(membership.locator(`option[value="${state.narrowMembershipId}"]`)).toHaveCount(1);
+  await expect(membership).toHaveValue('');
+  // الحفظ مقفول هنا عشان لسه مفيش زبونة، مش عشان العضوية؛ رفض العضوية بيثبته رد السيرفر بعدين.
+  await expect(page.getByRole('button', { name: t('en', 'serviceSessions.save') })).toBeDisabled();
+}
+
+async function refuseMissingMembership(page: Page, customer: string, date: string): Promise<void> {
+  await expect(membershipField(page)).toHaveValue('');
+  // الحفظ بيفضل مفتوح بعد اختيار الزبونة حتى من غير عضوية، فرد السيرفر 400 هو اللي بيثبت إن مفيش عضوية اتختارت.
+  const response = await submitVisit(page, 'en', 'create');
+  expect(response.status()).toBe(400);
+  const body = (await response.json()) as { code: string; message_en: string };
+  expect(body.code).toBe('SESSION_RECORDER_MEMBERSHIP_REQUIRED');
+  expect(body.message_en).toBe(serviceSessionErrors.SESSION_RECORDER_MEMBERSHIP_REQUIRED.message_en);
+  await expect(page.getByRole('alert').filter({ hasText: body.message_en })).toBeVisible();
+  const stored = (await dayVisits(state, 'owner', date)).filter((visit) => visit.customer.name === customer);
+  expect(stored).toHaveLength(0);
+}
+
+async function saveNarrowMembership(page: Page): Promise<void> {
+  const membership = membershipField(page);
   await membership.selectOption(state.narrowMembershipId);
   await expect(membershipLimit(page, 'en')).toHaveText(limitPercent('en', '5.00'));
-  await findOrCreateCustomer(page, 'en', customer, nationalNumber());
-  await fillLine(page, 'en', 0, amountSpec());
   const body = await readRecorded(await submitVisit(page, 'en', 'create'));
   expect(body.session.recorded_by_membership_id).toBe(state.narrowMembershipId);
   expect(body.session.lines).toHaveLength(1);
   expect(body.session.lines[0]?.recorded_by_membership_id).toBe(state.narrowMembershipId);
   expect(body.session.lines[0]).toMatchObject({ limit_bps_applied: 500, limit_source: 'PERSON' });
+}
+
+test('refuses an unresolved membership, then saves the one the recorder chooses', async ({ page }) => {
+  const customer = label('Member');
+  const zone = await openRecorder(page, state, 'en', { membershipId: null });
+  await assertAmbiguousMembership(page);
+  await findOrCreateCustomer(page, 'en', customer, nationalNumber());
+  await fillLine(page, 'en', 0, amountSpec());
+  await refuseMissingMembership(page, customer, civilDate(zone, 0));
+  await saveNarrowMembership(page);
 });
 
 test('saves while the performer is on approved leave', async ({ page }) => {
