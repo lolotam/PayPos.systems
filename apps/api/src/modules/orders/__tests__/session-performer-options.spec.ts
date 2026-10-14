@@ -145,7 +145,7 @@ it('pins a tolerated future instant and partial-leave facts across pages, rechec
     f.setAt(new Date('2026-12-01T08:00:00Z'));
     const expired = await at(next); expect(expired.status).toBe(400); expect(expired.body['code']).toBe('SESSION_TIME_TOO_OLD');
   } finally {
-    for (const id of leaves) await f.h.owner`UPDATE leave_requests SET status='CANCELLED',revoked_by=${f.ownerId},revoked_at=now(),revocation_reason='Synthetic cleanup' WHERE company_id=${f.company} AND id=${id}`;
+    for (const id of leaves) await f.h.owner`UPDATE leave_requests SET status='CANCELLED',revoked_by=${f.ownerId},revoked_at='2026-10-14T03:00:00Z',revocation_reason='Synthetic cleanup' WHERE company_id=${f.company} AND id=${id}`;
     f.setAt(AT);
     await f.h.owner`UPDATE branches SET timezone=NULL WHERE company_id=${f.company} AND id=${f.branch}`;
   }
