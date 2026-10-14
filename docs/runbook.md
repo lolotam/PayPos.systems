@@ -153,6 +153,19 @@ including the admin origin. The seed sends `Origin` from the trusted entry that 
 `://localhost:3001`, or from the first trusted origin when that entry is absent. A non-local API hostname
 is refused before any user is created and before any request is sent.
 
+Build the admin against the local API and serve it on port 3001 (the `@pospay/i18n` build comes first, because
+the admin reads the built catalog). Stop any earlier admin on that port before rebuilding: a server left
+running over a rebuilt `.next` serves mismatched chunks and the suite fails.
+
+```sh
+pnpm --filter @pospay/i18n build
+NEXT_PUBLIC_API_URL=http://localhost:3010 pnpm --filter @pospay/admin build
+cd apps/admin && NEXT_PUBLIC_API_URL=http://localhost:3010 pnpm exec next start --port 3001
+```
+
+`next start` prints a warning about `output: standalone`; it still serves the build and the suite passes
+against it.
+
 From the worktree root, against that stack:
 
 ```sh
