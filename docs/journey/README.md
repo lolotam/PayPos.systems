@@ -74,5 +74,6 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 | 44 | [Return from break: lateness and the "not returned" alert](44-return-from-break-lateness.md) — الرجوع من البريك والتنبيه لو ما رجعتش | #147 | API + worker alert job live on staging (6c220e4); bell/clock screens not yet (issue #54) |
 | 45 | [Maximum shifts per day, per branch](45-max-shifts-per-branch.md) — أقصى عدد ورديات في اليوم لكل فرع | #151 | API live on staging (6c220e4); settings panel not yet (issue #54) |
 | 46 | [Default working hours per employee](46-employee-default-hours.md) — الدوام الافتراضي للموظفة | #154 | API live on staging (6c220e4); admin profile section and schedule pre-fill not yet (issue #54) |
+| 47 | [Record a visit at reception](47-record-visit-reception.md) — تسجيل زيارة من الريسبشن | #212, #215 | recording API on staging (#178); admin not deployed (issue #54); browser tests run manually on a local stack (#215); no EXPIRED exit until 35c-13 |
 
 New journeys are added after every merge.
