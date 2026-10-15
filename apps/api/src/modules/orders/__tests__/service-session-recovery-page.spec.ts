@@ -114,6 +114,39 @@ it('links COMMITTED after a stored committed replay and rejects another proof cu
   expect(mismatch.body['code']).toBe('VALIDATION_FAILED');
 });
 
+it('orders a tied timestamp by visit id, not by insert order', async () => {
+  const key = ids.newId();
+  const at = '2026-10-02T08:00:00.000Z';
+  const saved = await f.create.execute({ ...f.context(key), input: { ...f.body(), occurred_at: at } });
+  const own = must(saved.session.lines[0]).id;
+  const extra = [
+    { id: '01900000-0000-7000-8000-0000000000b2', line: ids.newId(), at },
+    { id: '01900000-0000-7000-8000-0000000000b3', line: ids.newId(), at: '2026-10-02T10:00:00.000Z' },
+    { id: '01900000-0000-7000-8000-0000000000b1', line: ids.newId(), at },
+  ];
+  const data = JSON.stringify(extra);
+  await f.h.owner`INSERT INTO service_sessions(company_id,id,business_id,branch_id,customer_id,customer_name,customer_phone_masked,
+      occurred_at,recorded_at,business_date,business_timezone,recorded_by,recorded_by_membership_id,late)
+    SELECT s.company_id,r.id,s.business_id,s.branch_id,s.customer_id,s.customer_name,s.customer_phone_masked,r.at::timestamptz,
+      s.recorded_at,s.business_date,s.business_timezone,s.recorded_by,s.recorded_by_membership_id,s.late
+    FROM jsonb_to_recordset(${data}::text::jsonb) r(id uuid,at text) CROSS JOIN service_sessions s WHERE s.company_id=${f.company} AND s.id=${saved.session.id}`;
+  await f.h.owner.begin(async (tx) => {
+    await tx`INSERT INTO service_lines(company_id,id,business_id,session_id,service_id,ordinal,input_index,status,revision,
+        list_price,price,discount,net,effective_discount_bps,limit_bps_applied,limit_source,name_en,name_ar,catalog_revision,
+        rule_kind,rule_pct_bps,rule_fixed_amount,counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late)
+      SELECT l.company_id,r.line,l.business_id,r.id,l.service_id,l.ordinal,l.input_index,l.status,l.revision,
+        l.list_price,l.price,l.discount,l.net,l.effective_discount_bps,l.limit_bps_applied,l.limit_source,l.name_en,l.name_ar,l.catalog_revision,
+        l.rule_kind,l.rule_pct_bps,l.rule_fixed_amount,l.counts_toward_threshold,l.has_performer_warning,l.recorded_by,l.recorded_by_membership_id,l.recorded_at,l.late
+      FROM jsonb_to_recordset(${data}::text::jsonb) r(id uuid,line uuid) CROSS JOIN service_lines l WHERE l.company_id=${f.company} AND l.id=${own}`;
+    await tx`INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,name_ar,not_clocked_in_warning,approved_leave_warning)
+      SELECT p.company_id,gen_random_uuid(),p.business_id,r.line,p.employee_id,p.performer_ordinal,p.share_bps,p.name_en,p.name_ar,p.not_clocked_in_warning,p.approved_leave_warning
+      FROM jsonb_to_recordset(${data}::text::jsonb) r(line uuid) CROSS JOIN line_performers p WHERE p.company_id=${f.company} AND p.line_id=${own}`;
+  });
+  await openProof(key);
+  const expected = [{ id: saved.session.id, at }, ...extra].sort((left, right) => left.at < right.at ? -1 : left.at > right.at ? 1 : left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+  expect((await page(key)).items.map((item) => item.id)).toEqual(expected.map((row) => row.id));
+});
+
 it('reaches the 51st visit and re-checks the proof on the next page', async () => {
   const key = ids.newId();
   const saved = await f.create.execute({ ...f.context(key), input: { ...f.body(), occurred_at: '2026-10-06T08:00:00.000Z' } });

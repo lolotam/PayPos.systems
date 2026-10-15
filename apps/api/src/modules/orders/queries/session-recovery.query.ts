@@ -59,7 +59,7 @@ function recoveryVisits(input: SessionRecoveryLookup): SQL {
   const cursor = input.cursor;
   const after = cursor === null ? sql`TRUE` : sql`(s.occurred_at, s.id) > (${cursor.at}::text::timestamptz, ${cursor.id}::uuid)`;
   // التاريخ والبوابة initplan ثابتان؛ المقارنة بعمود الـ CTE لا تفتح فهرس اليوم.
-  return sql`SELECT ${utc(sql`page.occurred_at`)} AS cursor_at, page.id AS cursor_id, jsonb_build_object(
+  return sql`SELECT ${utc(sql`page.occurred_at`)} AS cursor_at, page.id AS cursor_id, page.occurred_at, jsonb_build_object(
       'id', page.id, 'occurred_at', ${utc(sql`page.occurred_at`)}, 'customer_name', page.customer_name,
       'customer_phone_masked', page.customer_phone_masked, 'lines', lines.items) AS item
     FROM (
@@ -78,11 +78,13 @@ function recoveryVisits(input: SessionRecoveryLookup): SQL {
 // شاشة استرجاع المحاولة تقرأ إثبات المستدعية وزيارات يومها دون هاتف خام.
 export function sessionRecoveryStatement(input: SessionRecoveryLookup): SQL {
   // القيمة المربوطة تطابق الفهرس الفريد؛ app_* يرفض غلافاً ضبط مستخدماً آخر.
+  // ترتيب الـ CTE لا يبقى بعد الربط؛ الصفحة والمؤشر يُقطعان من ترتيب الصفوف الراجع.
   return sql`WITH feature AS (${recoveryFeature()}), proof AS (${recoveryProof(input)}),
       visits AS MATERIALIZED (${recoveryVisits(input)})
     SELECT proof.proof_id, proof.issued_at, proof.expires_at, proof.opens_at, proof.business_timezone, proof.business_date,
       proof.gate, proof.outcome, visits.cursor_at, visits.cursor_id, visits.item
-    FROM proof LEFT JOIN visits ON true`;
+    FROM proof LEFT JOIN visits ON true
+    ORDER BY visits.occurred_at ASC, visits.cursor_id ASC`;
 }
 function decode(scope: SessionRecoveryScope, operation: ServiceSessionRecoveryOperation, raw: string | undefined): ServiceSessionRecoveryCursor | null {
   if (raw === undefined) return null;

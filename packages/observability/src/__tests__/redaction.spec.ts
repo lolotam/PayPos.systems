@@ -51,12 +51,12 @@ describe('secrets are removed at any depth (CLAUDE.md §8)', () => {
   });
 
   it('redacts the recovery key header at any depth and casing', () => {
-    const secret = 'recovery-key-credential-value';
+    const probe = 'redaction-probe-value';
     const line = logLine({
-      headers: { 'x-recovery-key': secret },
-      nested: { 'X-Recovery-Key': secret },
+      headers: { 'x-recovery-key': probe },
+      nested: { 'X-Recovery-Key': probe },
     });
-    expect(line).not.toContain(secret);
+    expect(line).not.toContain(probe);
     expect(line).toContain('[REDACTED]');
   });
 

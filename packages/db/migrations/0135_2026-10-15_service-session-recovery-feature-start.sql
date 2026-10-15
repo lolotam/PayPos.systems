@@ -1,4 +1,5 @@
 -- Apply time of the recovery proof feature. The journal timestamp is the folder clock, not this moment.
+-- Do not COMMENT ON this table without keeping the recovery_feature_started_at marker.
 DO $$
 BEGIN
   EXECUTE format(
