@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS } from './session-attempt';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from './session-attempt-journal';
-import { confirmExpiredRecording, emptySessionRecordingResult, sessionResultFrozen, transitionSessionRecordingResult as transition } from './session-recording-result';
+import { confirmExpiredRecording, emptySessionRecordingResult, sessionResultCommand, sessionResultFrozen, transitionSessionRecordingResult as transition } from './session-recording-result';
 import { attempt, id, initial, inputLine, instant, recordAttempt, response, scope } from './session-recording-result.fixture';
 
 const journals: SessionAttemptJournal[] = [];
@@ -57,6 +57,25 @@ it('returns an append to the saved visit without drafts when she confirms it was
   const next = confirmExpiredRecording(transition(saved, { type: 'JOURNAL', entry }), journal, 'RECORDED_ELSEWHERE', vi.fn(async () => undefined));
   expect(next.session).toBe(saved.session); expect(next.sessionId).toBe(id(12)); expect(next.drafts.lines).toEqual([]);
   expect(next.feedback.kind).toBe('COMPLETE'); expect(journal.read()).toBeNull();
+});
+
+it.each(['RECORDED_ELSEWHERE', 'NOT_RECORDED'] as const)('keeps a reloaded expired append in the unknown-time visit after %s', async (outcome) => {
+  const { journal, entry } = await expire('append');
+  const cold = transition(emptySessionRecordingResult(), { type: 'JOURNAL', entry });
+  expect(cold.session).toBeNull(); expect(cold.drafts.occurred_at).toBeUndefined();
+  const next = confirmExpiredRecording(cold, journal, outcome, vi.fn(async () => undefined));
+  expect(next.visitTimeUnknown).toBe(true); expect(next.session).toBeNull(); expect(next.sessionId).toBe(id(12));
+  expect(next.drafts.occurred_at).toBeUndefined(); expect(next.expiredAttempt).toBeNull(); expect(next.feedback.kind).toBe('IDLE');
+  expect(() => sessionResultCommand(next, [inputLine])).toThrow('SESSION_VISIT_TIME_UNKNOWN');
+});
+
+it.each(['RECORDED_ELSEWHERE', 'NOT_RECORDED'] as const)('keeps a same-tab append on the saved visit time after %s', async (outcome) => {
+  const { journal, entry } = await expire('append');
+  const saved = transition(initial, { type: 'RECORDED', attempt: recordAttempt, response: { ...response, outcome: 'COMPLETE', rejected_lines: [] } });
+  const next = confirmExpiredRecording(transition(saved, { type: 'JOURNAL', entry }), journal, outcome, vi.fn(async () => undefined));
+  expect(next.visitTimeUnknown).toBe(false); expect(next.session?.occurred_at).toBe(instant); expect(next.sessionId).toBe(id(12));
+  expect(next.feedback.kind).toBe(outcome === 'RECORDED_ELSEWHERE' ? 'COMPLETE' : 'IDLE');
+  expect(sessionResultCommand(next, [inputLine])).toMatchObject({ kind: 'append', sessionId: id(12) });
 });
 
 it('keeps the append session id when the saved visit is not loaded in this tab', async () => {

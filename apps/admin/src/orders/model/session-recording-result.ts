@@ -179,11 +179,16 @@ export function confirmExpiredRecording(state: SessionRecordingResult, journal: 
   void Promise.resolve().then(() => revoke(proof)).catch(() => undefined);
   return applyExpiredConfirmation(state, proof);
 }
+// مظروف الإلحاق بعد إعادة التحميل شايل sessionId من غير وقت الزيارة؛ فتح الفورم هنا هيسأل عن المؤديات بوقت السيرفر.
+function appendConfirmedWithoutVisitTime(state: SessionRecordingResult, proof: ExpiredRecoveryProof): boolean {
+  return proof.sessionId !== undefined && state.session === null && state.drafts.occurred_at === undefined;
+}
 function applyExpiredConfirmation(state: SessionRecordingResult, proof: ExpiredRecoveryProof): SessionRecordingResult {
   const shared = { attempt: null, expiredAttempt: null, persistenceWarning: null };
-  if (proof.outcome === 'NOT_RECORDED') return { ...state, ...shared, feedback: { kind: 'IDLE' }, sessionId: proof.sessionId ?? state.sessionId };
+  const visitTimeUnknown = state.visitTimeUnknown || appendConfirmedWithoutVisitTime(state, proof);
+  if (proof.outcome === 'NOT_RECORDED') return { ...state, ...shared, visitTimeUnknown, feedback: { kind: 'IDLE' }, sessionId: proof.sessionId ?? state.sessionId };
   if (!proof.sessionId) return emptySessionRecordingResult();
-  return { ...state, ...shared, drafts: { lines: [] }, rejected: [], sessionId: proof.sessionId, feedback: { kind: state.session ? 'COMPLETE' : 'IDLE' } };
+  return { ...state, ...shared, visitTimeUnknown, drafts: { lines: [] }, rejected: [], sessionId: proof.sessionId, feedback: { kind: state.session ? 'COMPLETE' : 'IDLE' } };
 }
 
 export function sessionLeaveFeedback(error: unknown): SessionFeedback {

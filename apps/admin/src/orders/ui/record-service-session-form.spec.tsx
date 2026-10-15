@@ -301,6 +301,29 @@ it.each(['ar', 'en'] as const)('shows the not-persisted message and keeps the ma
   expect((screen.getByRole('button', { name: t(locale, 'serviceSessions.recoveryNotRecorded') }) as HTMLButtonElement).disabled).toBe(false);
 });
 
+async function expireReloadedAppend() {
+  let now = Date.parse(instant);
+  const journal = createSessionAttemptJournal(scope, { now: () => now, newId: () => id(82) });
+  journals.push(journal);
+  const started = journal.begin({ kind: 'append', sessionId: id(12), body: { lines: [inputLine] } }, [id(9)]);
+  await expect(journal.run(started, () => Promise.reject(new Error('offline')))).rejects.toThrow('offline');
+  now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+  const entry = journal.read();
+  if (entry?.state !== 'EXPIRED') throw new Error('expected EXPIRED');
+  return { journal, entry };
+}
+
+it.each(['RECORDED_ELSEWHERE', 'NOT_RECORDED'] as const)('shows the unknown-visit exit and skips performer facts after a reloaded append is confirmed %s', async (outcome) => {
+  const { journal, entry } = await expireReloadedAppend();
+  renderForm(true, transitionSessionRecordingResult(emptySessionRecordingResult(customer), { type: 'JOURNAL', entry }), journal);
+  state.get.mockClear();
+  fireEvent.click(screen.getByRole('button', { name: t('en', outcome === 'RECORDED_ELSEWHERE' ? 'serviceSessions.recoveryRecorded' : 'serviceSessions.recoveryNotRecorded') }));
+  expect(screen.getByText(t('en', 'serviceSessions.unknownVisitTime'))).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.newVisitSameCustomer') })).toBeTruthy();
+  await act(async () => { await Promise.resolve(); });
+  expect(state.get.mock.calls.some(([path]) => String(path).endsWith('/performer-options'))).toBe(false);
+});
+
 it('keeps the membership selectable for a restored partial visit whose membership is unknown', async () => {
   const restored: SessionRecordingResult = { ...saved, session: null, feedback: { kind: 'PARTIAL' }, drafts: { lines: [] } };
   const submitted: SessionDraftForm[] = [];
