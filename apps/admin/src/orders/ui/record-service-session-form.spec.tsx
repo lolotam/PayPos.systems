@@ -1,5 +1,5 @@
 import type { RecordingContext } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import { serviceSessionErrors, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
@@ -262,6 +262,43 @@ it('confirms an expired attempt from the panel and revokes once through the head
   expect(init.params.query).toBeUndefined(); expect(path).not.toContain(entry.key);
   expect(init.body).toEqual({ operation: 'record-service-session', outcome: 'NOT_RECORDED' });
   expect(screen.queryByRole('alert')).toBeNull(); expect(journal.read()).toBeNull();
+});
+
+function storageThatRejectsClear() {
+  const memory = new Map<string, string>();
+  return {
+    getItem: (key: string) => memory.get(key) ?? null,
+    setItem(key: string, value: string) {
+      const parsed = JSON.parse(value) as { envelope?: { state?: string } };
+      if (parsed.envelope?.state === 'IDLE') throw new Error('full');
+      memory.set(key, value);
+    },
+    removeItem: (key: string) => { memory.delete(key); },
+  };
+}
+async function expireUntilClearFails() {
+  let now = Date.parse(instant);
+  const journal = createSessionAttemptJournal(scope, { now: () => now, newId: () => id(81) }, storageThatRejectsClear());
+  journals.push(journal);
+  const started = journal.begin({ kind: 'record', body: { customer_id: id(7), lines: [inputLine] } }, [id(9)]);
+  await expect(journal.run(started, () => Promise.reject(new Error('offline')))).rejects.toThrow('offline');
+  now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+  if (journal.read()?.state !== 'EXPIRED') throw new Error('expected EXPIRED');
+  return journal;
+}
+
+it.each(['ar', 'en'] as const)('shows the not-persisted message and keeps the marker when confirm cannot clear storage in %s', async (locale) => {
+  state.locale = locale;
+  const journal = await expireUntilClearFails();
+  const entry = journal.read();
+  renderForm(true, transitionSessionRecordingResult(emptySessionRecordingResult(customer), { type: 'JOURNAL', entry }), journal);
+  fireEvent.click(screen.getByRole('button', { name: t(locale, 'serviceSessions.recoveryNotRecorded') }));
+  const message = serviceSessionErrors.SESSION_ATTEMPT_NOT_PERSISTED[locale === 'ar' ? 'message_ar' : 'message_en'];
+  expect(screen.getByText(message)).toBeTruthy();
+  expect(journal.read()?.state).toBe('EXPIRED');
+  expect(state.post).not.toHaveBeenCalled();
+  expect((screen.getByRole('button', { name: t(locale, 'serviceSessions.recoveryRecorded') }) as HTMLButtonElement).disabled).toBe(false);
+  expect((screen.getByRole('button', { name: t(locale, 'serviceSessions.recoveryNotRecorded') }) as HTMLButtonElement).disabled).toBe(false);
 });
 
 it('keeps the membership selectable for a restored partial visit whose membership is unknown', async () => {

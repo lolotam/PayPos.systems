@@ -44,14 +44,20 @@ function focusDraftPrice(localId: string) {
   document.getElementById(`${localId}-price`)?.focus();
 }
 
-// النتيجة المحفوظة بتختفي لما session تكون null، فالزر هنا هو طريق الخروج الوحيد من زيارة وقتها مش معروف.
+// فشل مسح العلامة يرمي قبل الإلغاء، فالرسالة تظهر واللوحة تفضل لأن التخزين لسه شايل المحاولة.
 export function bindExpiredConfirm(recording: SessionRecordingController, revoke: (proof: ExpiredRecoveryProof) => Promise<unknown>) {
   return (outcome: RecoveryConfirmOutcome) => {
     if (!recording.journal || recording.result.feedback.kind !== 'EXPIRED') return;
-    recording.replaceResult(confirmExpiredRecording(recording.result, recording.journal, outcome, revoke));
+    try {
+      recording.replaceResult(confirmExpiredRecording(recording.result, recording.journal, outcome, revoke));
+    } catch (error) {
+      if (sessionLeaveFeedback(error).kind !== 'NOT_PERSISTED') throw error;
+      recording.replaceResult({ ...recording.result, persistenceWarning: 'NOT_PERSISTED' });
+    }
   };
 }
 
+// النتيجة المحفوظة بتختفي لما session تكون null، فالزر هنا هو طريق الخروج الوحيد من زيارة وقتها مش معروف.
 function leaveUnknownTimeVisit(result: SessionRecordingResult, journal: Pick<SessionAttemptJournal, 'leaveVisit'> | null, replace: (next: SessionRecordingResult) => void, report: (feedback: SessionFeedback) => void) {
   if (!journal) return;
   try { replace(leaveUnknownVisit(result, journal)); }
