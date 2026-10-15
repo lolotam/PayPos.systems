@@ -32,7 +32,7 @@ Never type a real IBAN while testing.
 3. **الحفظ:** رجّع IBAN A الصح، **اسم صاحب الحساب بالإنجليزية** = `SARA AHMED ALI`، **السبب** = `new employee`
    (إلزامي، من 1 لـ 500 حرف) ← **حفظ الحساب البنكي** ← **تم حفظ الحساب البنكي.** القسم دلوقتي بيعرض الآيبان كامل
    مقسوم أربعات (`KW81 CBKU 0000 0000 0000 1234 5601 01`)، واسم البنك، واسم صاحب الحساب، وجدول **تاريخ الحساب البنكي**
-   فيه صف واحد: **النسخة** 1، الآيبان، البنك، الاسم، **السبب**، **تاريخ التعيين**، **عيّنه**. من غير سبب، أو اسم عربي في
+   فيه صف واحد: **النسخة** 1، الآيبان، البنك، الاسم، **السبب**، **تاريخ التعيين**. من غير سبب، أو اسم عربي في
    خانة الاسم، أو بنك غير بنك بلد الآيبان ← **راجع بيانات الحساب وأدخل سببًا من ١ إلى ٥٠٠ حرف.** ومفيش حفظ.
 4. **التغيير:** غيّر لـ IBAN B (البنك بيتغير لـ **بنك الكويت الوطني**) والسبب `changed bank` ← **حفظ الحساب البنكي** ←
    النسخة 2، والصف القديم يفضل في التاريخ (الأحدث فوق). حفظ نفس القيم بالظبط ما بيعملش نسخة ولا سطر تدقيق.
@@ -72,7 +72,7 @@ Never type a real IBAN while testing.
 3. **Save:** restore IBAN A, **Account holder name in English** = `SARA AHMED ALI`, **Reason** = `new employee`
    (required, 1–500 characters) → **Save bank account** → "Bank account saved." The section now shows the full IBAN in
    groups of four (`KW81 CBKU 0000 0000 0000 1234 5601 01`), the bank, the holder name and a **Bank account history**
-   table with one row: **Revision** 1, IBAN, **Bank**, holder, **Reason**, **Set at**, **Set by**. With no reason, an Arabic
+   table with one row: **Revision** 1, IBAN, **Bank**, holder, **Reason**, **Set at**. With no reason, an Arabic
    name in the holder field or a bank that is not the IBAN's country's → "Check the bank account fields and enter a reason
    (1–500 characters)." and nothing is saved.
 4. **Change:** switch to IBAN B (the bank becomes "National Bank of Kuwait") and reason `changed bank` → **Save bank
