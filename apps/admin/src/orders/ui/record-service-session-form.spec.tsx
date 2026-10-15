@@ -4,10 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS } from '../model/session-attempt';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from '../model/session-attempt-journal';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
-import { emptySessionRecordingResult, sessionResultCommand, type SessionRecordingResult } from '../model/session-recording-result';
-import { attempt as savedAttempt, id, instant, response, scope } from '../model/session-recording-result.fixture';
+import { emptySessionRecordingResult, sessionResultCommand, transitionSessionRecordingResult, type SessionRecordingResult } from '../model/session-recording-result';
+import { attempt as savedAttempt, id, inputLine, instant, response, scope } from '../model/session-recording-result.fixture';
 import type { SessionRecordingController } from '../model/use-session-recording';
 import { RecordServiceSessionForm } from './record-service-session-form';
 
@@ -237,6 +238,30 @@ it.each(['ar', 'en'] as const)('leaves the unknown-time visit and re-enables the
   fireEvent.click(screen.getByRole('button', { name: t(locale, 'serviceSessions.newVisitSameCustomer') }));
   expect(screen.queryByText(t(locale, 'serviceSessions.unknownVisitTime'))).toBeNull();
   expect((screen.getByLabelText(t(locale, 'serviceSessions.occurredAt')) as HTMLInputElement).disabled).toBe(false);
+});
+
+it('confirms an expired attempt from the panel and revokes once through the header', async () => {
+  let now = Date.parse(instant);
+  const journal = createSessionAttemptJournal(scope, { now: () => now, newId: () => id(80) });
+  journals.push(journal);
+  const started = journal.begin({ kind: 'record', body: { customer_id: id(7), lines: [inputLine] } }, [id(9)]);
+  await expect(journal.run(started, () => Promise.reject(new Error('offline')))).rejects.toThrow('offline');
+  now += SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+  const entry = journal.read();
+  if (entry?.state !== 'EXPIRED') throw new Error('expected EXPIRED');
+  state.post.mockResolvedValue({ response: { status: 204 } });
+  renderForm(true, transitionSessionRecordingResult(emptySessionRecordingResult(customer), { type: 'JOURNAL', entry }), journal);
+  const missed = screen.getByRole('button', { name: t('en', 'serviceSessions.recoveryNotRecorded') }) as HTMLButtonElement;
+  const recorded = screen.getByRole('button', { name: t('en', 'serviceSessions.recoveryRecorded') }) as HTMLButtonElement;
+  expect(missed.disabled).toBe(false); expect(recorded.disabled).toBe(false);
+  fireEvent.click(missed);
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
+  const [path, init] = state.post.mock.calls[0] as [string, { params: { header: Record<string, string>; query?: unknown }; body: unknown }];
+  expect(path).toBe('/v1/businesses/{businessId}/branches/{branchId}/service-sessions/recovery/confirm');
+  expect(init.params.header['x-recovery-key']).toBe(entry.key);
+  expect(init.params.query).toBeUndefined(); expect(path).not.toContain(entry.key);
+  expect(init.body).toEqual({ operation: 'record-service-session', outcome: 'NOT_RECORDED' });
+  expect(screen.queryByRole('alert')).toBeNull(); expect(journal.read()).toBeNull();
 });
 
 it('keeps the membership selectable for a restored partial visit whose membership is unknown', async () => {
