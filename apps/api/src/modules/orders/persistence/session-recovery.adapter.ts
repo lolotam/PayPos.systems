@@ -67,7 +67,7 @@ async function prepareIssue(tx: Tx, input: SessionRecoveryIssue, at: Date): Prom
 async function upsertProof(tx: Tx, input: SessionRecoveryIssue, id: string, at: Date, dates: ProofDates): Promise<void> {
   const hash = recoveryKeyHash(input.key);
   const stamp = at.toISOString();
-  // الشرط يمدّ الإثبات الحي فقط؛ المنتهي أو الملغى لا يُعاد فتحه بإعادة الإرسال.
+  // ختم أقدم لا يرجّع last_seen_at لأن نافذة القراءة تُفتح منه؛ الحي فقط يُمدَّد والمنتهي أو الملغى يبقى مغلقاً.
   await tx.execute(sql`
     INSERT INTO service_session_recoveries (
       company_id, id, business_id, branch_id, user_id, operation, key_hash,
@@ -76,7 +76,7 @@ async function upsertProof(tx: Tx, input: SessionRecoveryIssue, id: string, at: 
       ${dates.businessDate}, ${dates.timezone}, ${dates.sessionId}, ${stamp}::timestamptz, ${stamp}::timestamptz,
       ${stamp}::timestamptz + interval '72 hours')
     ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash)
-    DO UPDATE SET last_seen_at = ${stamp}::timestamptz,
+    DO UPDATE SET last_seen_at = greatest(service_session_recoveries.last_seen_at, ${stamp}::timestamptz),
       expires_at = least(greatest(service_session_recoveries.expires_at, ${stamp}::timestamptz + interval '72 hours'),
         service_session_recoveries.issued_at + interval '168 hours')
     WHERE service_session_recoveries.revoked_at IS NULL AND service_session_recoveries.expires_at > ${stamp}::timestamptz`);

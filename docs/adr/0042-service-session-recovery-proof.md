@@ -49,7 +49,7 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
 an append both call `resolveSessionRecorder` (domain/session-authority.ts) and pass `recorder_membership_id`. An
 append also lets the original recorder append. A missing or ambiguous membership
 (`SESSION_RECORDER_MEMBERSHIP_REQUIRED` or `FORBIDDEN`) is refused at issue and leaves no proof. The adapter then
-`INSERT … ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash) DO UPDATE SET last_seen_at = now,
+`INSERT … ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash) DO UPDATE SET last_seen_at = greatest(last_seen_at, now),
 expires_at = least(greatest(expires_at, now + 72 h), issued_at + 168 h) WHERE revoked_at IS NULL AND
 expires_at > now`, and commits. An append whose stored proof has a different `session_id` is refused before that
 upsert with `IDEMPOTENCY_KEY_REUSED` (422), including when that proof is expired or revoked; the issue transaction

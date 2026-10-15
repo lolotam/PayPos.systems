@@ -75,19 +75,6 @@ describe('service_session_recoveries', () => {
     await rejected(asA(sql`UPDATE service_session_recoveries SET business_date='2026-10-01' WHERE id=${PROOF}`), /permission denied/);
     await rejected(asA(sql`DELETE FROM service_session_recoveries WHERE id=${PROOF}`), /permission denied/);
   });
-  it('hides a proof from another user of the same company', async () => {
-    expect(await asStranger(sql`SELECT id FROM service_session_recoveries WHERE id=${PROOF}`)).toEqual([]);
-    await rejected(asStranger(sql`INSERT INTO service_session_recoveries(company_id,id,business_id,branch_id,user_id,operation,key_hash,
-      business_date,business_timezone,issued_at,last_seen_at,expires_at)
-      VALUES(${A.company},'01920000-0000-7000-8000-000000004025',${A.business},${A.branch},${USER},'record-service-session','other-user',
-        '2026-10-15','Asia/Kuwait',${ISSUED},${ISSUED},${ISSUED} + interval '72 hours')`), /row-level security/);
-    const [before] = await asA(sql`SELECT last_seen_at FROM service_session_recoveries WHERE id=${PROOF}`);
-    expect(await asStranger(sql`UPDATE service_session_recoveries SET last_seen_at=${LATER} WHERE id=${PROOF} RETURNING id`)).toEqual([]);
-    expect(await asA(sql`SELECT last_seen_at FROM service_session_recoveries WHERE id=${PROOF}`)).toEqual([before]);
-  });
-  it('a transaction with no app user sees no proof rows', async () => {
-    expect(await db.withTenant(A.company, (tx) => tx.execute(sql`SELECT id FROM service_session_recoveries WHERE id=${PROOF}`))).toEqual([]);
-  });
   it('a cross-tenant update matches no row', async () => {
     const [before] = await asA(sql`SELECT last_seen_at FROM service_session_recoveries WHERE id=${PROOF}`);
     expect(await db.withTenant(B.company, (tx) => tx.execute(sql`
@@ -113,5 +100,21 @@ describe('service_session_recoveries', () => {
   });
   it('refuses an expiry past the 168 hour cap', async () => {
     await rejected(asA(sql`UPDATE service_session_recoveries SET expires_at=issued_at + interval '169 hours' WHERE id=${PROOF}`), /recovery expiry exceeds the 168 hour cap/);
+  });
+});
+
+describe('service_session_recoveries user scope', () => {
+  it('hides a proof from another user of the same company', async () => {
+    expect(await asStranger(sql`SELECT id FROM service_session_recoveries WHERE id=${PROOF}`)).toEqual([]);
+    await rejected(asStranger(sql`INSERT INTO service_session_recoveries(company_id,id,business_id,branch_id,user_id,operation,key_hash,
+      business_date,business_timezone,issued_at,last_seen_at,expires_at)
+      VALUES(${A.company},'01920000-0000-7000-8000-000000004025',${A.business},${A.branch},${USER},'record-service-session','other-user',
+        '2026-10-15','Asia/Kuwait',${ISSUED},${ISSUED},${ISSUED} + interval '72 hours')`), /row-level security/);
+    const [before] = await asA(sql`SELECT last_seen_at FROM service_session_recoveries WHERE id=${PROOF}`);
+    expect(await asStranger(sql`UPDATE service_session_recoveries SET last_seen_at=${LATER} WHERE id=${PROOF} RETURNING id`)).toEqual([]);
+    expect(await asA(sql`SELECT last_seen_at FROM service_session_recoveries WHERE id=${PROOF}`)).toEqual([before]);
+  });
+  it('a transaction with no app user sees no proof rows', async () => {
+    expect(await db.withTenant(A.company, (tx) => tx.execute(sql`SELECT id FROM service_session_recoveries WHERE id=${PROOF}`))).toEqual([]);
   });
 });

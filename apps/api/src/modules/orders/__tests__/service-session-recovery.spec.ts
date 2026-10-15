@@ -103,6 +103,20 @@ it('extends a live proof on replay and holds the 168 hour cap', async () => {
   }
 });
 
+it('keeps last_seen_at and expires_at when a replay carries an earlier stamp', async () => {
+  const key = ids.newId();
+  const input = f.body();
+  const later = plus(2);
+  f.setAt(later);
+  await f.create.execute({ ...f.context(key), input });
+  const issued = must(await proof(key));
+  f.setAt(plus(1));
+  await f.create.execute({ ...f.context(key), input });
+  const row = must(await proof(key));
+  expect(iso(row['last_seen_at'])).toBe(later.toISOString());
+  expect(iso(row['expires_at'])).toBe(iso(issued['expires_at']));
+});
+
 it('leaves an expired or revoked proof unchanged while the write still replays', async () => {
   const expiredKey = ids.newId();
   const expiredVisit = await f.create.execute({ ...f.context(expiredKey), input: f.body() });
