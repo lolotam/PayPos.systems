@@ -212,16 +212,7 @@ it('aborts before statements and journaling when a data step replaces the locked
           const [original] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
           if (original === undefined) throw new Error('Missing migration session');
           await killer`SELECT pg_terminate_backend(${original.pid}, 5000)`;
-          await expect
-            .poll(async () => {
-              try {
-                const [current] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
-                return current?.pid !== undefined && current.pid !== original.pid;
-              } catch {
-                return false;
-              }
-            })
-            .toBe(true);
+          await client`SELECT 1`;
         },
       }),
     ).rejects.toThrow('Migration session lost its advisory lock; aborting');
@@ -232,6 +223,96 @@ it('aborts before statements and journaling when a data step replaces the locked
     expect(
       await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
     ).toHaveLength(0);
+  } finally {
+    await killer.end();
+  }
+});
+
+it('aborts a terminated migration session before later statements or the journal, then a second run applies it once', async () => {
+  await owner`CREATE TABLE IF NOT EXISTS session_terminated_test (id int)`;
+  await owner`DROP INDEX IF EXISTS session_terminated_idx`;
+  await owner`DELETE FROM session_terminated_test`;
+  files.sql = [
+    '-- pospay:data-step cut\nCREATE INDEX CONCURRENTLY session_terminated_idx ON session_terminated_test(id)',
+    'INSERT INTO session_terminated_test VALUES (1)',
+  ];
+  const killer = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    await expect(
+      applyMigrations(owner, 'unused', {
+        cut: async (client) => {
+          const [original] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+          if (original === undefined) throw new Error('Missing migration session');
+          await killer`SELECT pg_terminate_backend(${original.pid}, 5000)`;
+          await client`INSERT INTO session_terminated_test VALUES (7)`;
+        },
+      }),
+    ).rejects.toThrow('Migration session lost its advisory lock; aborting');
+    expect(await owner`SELECT id FROM session_terminated_test`).toHaveLength(0);
+    expect(
+      await owner`SELECT 1 FROM pg_indexes WHERE indexname = 'session_terminated_idx'`,
+    ).toHaveLength(0);
+    expect(
+      await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
+    ).toHaveLength(0);
+    const finished = async () => {
+      await applyMigrations(owner, 'unused', { cut: async () => undefined });
+    };
+    await finished();
+    await finished();
+    expect(await owner`SELECT id FROM session_terminated_test`).toEqual([{ id: 1 }]);
+    expect(
+      await owner`SELECT 1 FROM pg_indexes WHERE indexname = 'session_terminated_idx'`,
+    ).toHaveLength(1);
+    expect(
+      await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
+    ).toHaveLength(1);
+  } finally {
+    await killer.end();
+  }
+});
+
+it('aborts when the migration session dies between concurrent prefix statements, then a fresh run applies it once', async () => {
+  await owner`CREATE TABLE IF NOT EXISTS prefix_gap_test (id int)`;
+  await owner`DROP INDEX IF EXISTS prefix_gap_a`;
+  await owner`DROP INDEX IF EXISTS prefix_gap_b`;
+  await owner`DELETE FROM prefix_gap_test`;
+  const first = 'CREATE INDEX CONCURRENTLY prefix_gap_a ON prefix_gap_test(id)';
+  const second = 'CREATE INDEX CONCURRENTLY prefix_gap_b ON prefix_gap_test(id)';
+  files.sql = [first, second, 'INSERT INTO prefix_gap_test VALUES (1)'];
+  const killer = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  const client = new Proxy(owner, {
+    get(target, property, receiver) {
+      if (property !== 'unsafe') return Reflect.get(target, property, receiver);
+      return (statement: string) => {
+        const query = target.unsafe(statement);
+        if (statement !== first) return query;
+        return Promise.resolve(query).then(async (rows) => {
+          const [backend] = await target<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+          if (backend === undefined) throw new Error('Missing migration session');
+          await killer`SELECT pg_terminate_backend(${backend.pid}, 5000)`;
+          return rows;
+        });
+      };
+    },
+  });
+  try {
+    await expect(applyMigrations(client, 'unused')).rejects.toThrow(
+      'Migration session lost its advisory lock; aborting',
+    );
+    expect(await owner`SELECT 1 FROM pg_indexes WHERE indexname = 'prefix_gap_a'`).toHaveLength(1);
+    expect(await owner`SELECT 1 FROM pg_indexes WHERE indexname = 'prefix_gap_b'`).toHaveLength(0);
+    expect(await owner`SELECT id FROM prefix_gap_test`).toHaveLength(0);
+    expect(
+      await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
+    ).toHaveLength(0);
+    await applyMigrations(owner, 'unused');
+    await applyMigrations(owner, 'unused');
+    expect(await owner`SELECT 1 FROM pg_indexes WHERE indexname = 'prefix_gap_b'`).toHaveLength(1);
+    expect(await owner`SELECT id FROM prefix_gap_test`).toEqual([{ id: 1 }]);
+    expect(
+      await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
+    ).toHaveLength(1);
   } finally {
     await killer.end();
   }

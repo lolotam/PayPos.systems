@@ -14,6 +14,30 @@ const MARKER = /^-- pospay:data-step ([a-z0-9-]+)$/;
 // `pospay:` inside a SQL comment is reserved for markers, so a misspelt one (data-stpe, datastep…) fails closed too.
 const RESERVED = /pospay\s*:\s*data|(--|\/\*).*pospay\s*:|^\s*\*.*pospay\s*:/i;
 
+const SESSION_LOST = 'Migration session lost its advisory lock; aborting';
+
+// SQLSTATE for a backend that is gone, plus the codes postgres.js puts on a dead socket.
+const CONNECTION_LOSS: ReadonlySet<string> = new Set([
+  '57P01',
+  '57P02',
+  '08003',
+  '08006',
+  '08000',
+  'CONNECTION_CLOSED',
+  'CONNECTION_DESTROYED',
+  'ECONNRESET',
+]);
+
+interface MigrationSession {
+  lost: boolean;
+}
+
+interface PendingMigration {
+  readonly sql: readonly string[];
+  readonly hash: string;
+  readonly folderMillis: number;
+}
+
 function migrationSteps(statements: readonly string[], dataSteps: DataSteps) {
   const names = [
     ...new Set(
@@ -38,57 +62,172 @@ function migrationSteps(statements: readonly string[], dataSteps: DataSteps) {
   });
 }
 
-// The connection is held (max:1) until the session advisory lock is released. Only a concurrent-index prefix
-// may run outside a transaction. The remaining DDL and journal entry commit together, as Drizzle normally does.
+function sessionLost(): Error {
+  return new Error(SESSION_LOST);
+}
+
+function isConnectionLoss(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return false;
+  return typeof error.code === 'string' && CONNECTION_LOSS.has(error.code);
+}
+
+function rejectIfLost<T>(session: MigrationSession, start: () => PromiseLike<T>): Promise<T> {
+  // A follow-up write on a socket postgres.js already closed throws outside the promise.
+  if (session.lost) return Promise.reject(sessionLost());
+  return Promise.resolve()
+    .then(start)
+    .then(
+      (outcome) => outcome,
+      (error: unknown) => {
+        if (!isConnectionLoss(error)) throw error;
+        session.lost = true;
+        throw sessionLost();
+      },
+    );
+}
+
+// parseOptions stores undefined when the caller omitted onclose; the published type marks it required.
+function armLossWatch(client: postgres.Sql, session: MigrationSession): () => void {
+  const previous = client.options.onclose;
+  client.options.onclose = (connectionId) => {
+    session.lost = true;
+    previous?.(connectionId);
+  };
+  return () => {
+    client.options.onclose = previous;
+  };
+}
+
+function guardedUnsafe(client: postgres.Sql, session: MigrationSession): postgres.Sql['unsafe'] {
+  // Callers only await the query. PendingQuery's extra handles are unused on this path.
+  return ((statement, parameters, queryOptions) =>
+    rejectIfLost(session, () =>
+      client.unsafe(statement, parameters, queryOptions),
+    )) as postgres.Sql['unsafe'];
+}
+
+function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres.Sql['begin'] {
+  return ((
+    optionsOrCallback: string | ((tx: postgres.TransactionSql) => unknown),
+    maybeCallback?: (tx: postgres.TransactionSql) => unknown,
+  ) =>
+    rejectIfLost(session, () => {
+      if (typeof optionsOrCallback === 'function') return client.begin(optionsOrCallback);
+      if (maybeCallback === undefined) throw new Error('Missing migration transaction callback');
+      return client.begin(optionsOrCallback, maybeCallback);
+    })) as postgres.Sql['begin'];
+}
+
+// Refuses the next call after the socket closes, and still invokes the client the caller passed in.
+function guardedSql(client: postgres.Sql, session: MigrationSession): postgres.Sql {
+  const begin = guardedBegin(client, session);
+  const unsafe = guardedUnsafe(client, session);
+  return new Proxy(client, {
+    apply(target, _thisArg, args) {
+      return rejectIfLost(session, () => Reflect.apply(target, target, args));
+    },
+    get(target, property, receiver) {
+      if (property === 'begin') return begin;
+      if (property === 'unsafe') return unsafe;
+      return Reflect.get(target, property, receiver);
+    },
+  });
+}
+
+async function holdMigrationLock(sql: postgres.Sql, session: MigrationSession): Promise<void> {
+  await rejectIfLost(session, () => sql`SELECT pg_advisory_lock(hashtext('pospay:migrations'))`);
+}
+
+async function unlockMigration(sql: postgres.Sql, session: MigrationSession): Promise<void> {
+  if (session.lost) return;
+  try {
+    await sql`SELECT pg_advisory_unlock(hashtext('pospay:migrations'))`;
+  } catch (error) {
+    if (session.lost || isConnectionLoss(error)) {
+      session.lost = true;
+      return;
+    }
+    throw error;
+  }
+}
+
+async function finishSession(
+  sql: postgres.Sql,
+  session: MigrationSession,
+  restoreClose: () => void,
+): Promise<void> {
+  try {
+    await unlockMigration(sql, session);
+  } finally {
+    restoreClose();
+  }
+}
+
+async function applyPrefix(sql: postgres.Sql, statements: readonly string[]): Promise<void> {
+  for (const statement of statements) {
+    if (/^\s*(?:--[^\r\n]*[\r\n]\s*)*CREATE\b/i.test(statement)) {
+      await runConcurrentIndex(sql, statement);
+    } else {
+      await sql.unsafe(statement);
+    }
+  }
+}
+
+async function applyOne(
+  sql: postgres.Sql,
+  migration: PendingMigration,
+  steps: readonly ((owner: postgres.Sql) => Promise<void>)[],
+): Promise<void> {
+  for (const step of steps) await step(sql);
+  const statements = migration.sql.filter((statement) => statement.trim() !== '');
+  const firstTransactional = statements.findIndex((statement) => !CONCURRENT.test(statement));
+  const prefixLength = firstTransactional === -1 ? statements.length : firstTransactional;
+  if (statements.slice(prefixLength).some((statement) => CONCURRENT.test(statement))) {
+    throw new Error('Concurrent indexes must precede transactional migration statements');
+  }
+  await applyPrefix(sql, statements.slice(0, prefixLength));
+  await sql.begin(async (tx) => {
+    for (const statement of statements.slice(prefixLength)) await tx.unsafe(statement);
+    await tx`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${migration.hash}, ${migration.folderMillis})`;
+  });
+}
+
+async function applyPending(
+  sql: postgres.Sql,
+  migrations: readonly PendingMigration[],
+  dataSteps: DataSteps,
+): Promise<void> {
+  await sql`CREATE SCHEMA IF NOT EXISTS drizzle`;
+  await sql`CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)`;
+  const [last] = await sql<
+    { created_at: string }[]
+  >`SELECT created_at FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 1`;
+  const after = Number(last?.created_at ?? 0);
+  // Every pending marker resolves before the first statement of the run, so an unknown or malformed marker in a
+  // later migration cannot leave the earlier ones applied.
+  const pending = migrations
+    .filter((migration) => migration.folderMillis > after)
+    .map((migration) => ({ migration, steps: migrationSteps(migration.sql, dataSteps) }));
+  for (const { migration, steps } of pending) await applyOne(sql, migration, steps);
+}
+
+// The run stays on the caller's one connection: every caller passes max:1, and the advisory lock is
+// taken on that client. A closed socket aborts before the next statement, so the pool cannot reconnect
+// and continue without the lock. Only a concurrent-index prefix runs outside a transaction. The
+// remaining DDL and the journal row commit together, as Drizzle normally does.
 export async function applyMigrations(
   client: postgres.Sql,
   folder: string,
   dataSteps: DataSteps = {},
 ): Promise<void> {
   const migrations = readMigrationFiles({ migrationsFolder: folder });
-  await client`SELECT pg_advisory_lock(hashtext('pospay:migrations'))`;
-  const [session] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
-  const pid = session?.pid;
-  // The advisory lock belongs to this session: if the connection was replaced, another runner may hold it now.
-  const sameSession = async (): Promise<void> => {
-    const [now] = await client<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
-    if (now?.pid !== pid) throw new Error('Migration session lost its advisory lock; aborting');
-  };
+  const session: MigrationSession = { lost: false };
+  const restoreClose = armLossWatch(client, session);
+  const sql = guardedSql(client, session);
   try {
-    await client`CREATE SCHEMA IF NOT EXISTS drizzle`;
-    await client`CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)`;
-    const [last] = await client<
-      { created_at: string }[]
-    >`SELECT created_at FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 1`;
-    const after = Number(last?.created_at ?? 0);
-    // Every pending marker resolves before the first statement of the run, so an unknown or malformed marker in a
-    // later migration cannot leave the earlier ones applied.
-    const pending = migrations
-      .filter((migration) => migration.folderMillis > after)
-      .map((migration) => ({ migration, steps: migrationSteps(migration.sql, dataSteps) }));
-    for (const { migration, steps } of pending) {
-      await sameSession();
-      for (const step of steps) await step(client);
-      await sameSession();
-      const statements = migration.sql.filter((statement) => statement.trim() !== '');
-      const firstTransactional = statements.findIndex((statement) => !CONCURRENT.test(statement));
-      const prefixLength = firstTransactional === -1 ? statements.length : firstTransactional;
-      if (statements.slice(prefixLength).some((statement) => CONCURRENT.test(statement))) {
-        throw new Error('Concurrent indexes must precede transactional migration statements');
-      }
-      for (const statement of statements.slice(0, prefixLength)) {
-        if (/^\s*(?:--[^\r\n]*[\r\n]\s*)*CREATE\b/i.test(statement)) {
-          await runConcurrentIndex(client, statement);
-        } else {
-          await client.unsafe(statement);
-        }
-      }
-      await client.begin(async (tx) => {
-        for (const statement of statements.slice(prefixLength)) await tx.unsafe(statement);
-        await tx`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES (${migration.hash}, ${migration.folderMillis})`;
-      });
-    }
+    await holdMigrationLock(sql, session);
+    await applyPending(sql, migrations, dataSteps);
   } finally {
-    await client`SELECT pg_advisory_unlock(hashtext('pospay:migrations'))`;
+    await finishSession(client, session, restoreClose);
   }
 }
