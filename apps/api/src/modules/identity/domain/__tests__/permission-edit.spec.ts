@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest';
 import {
+  OWNER_GRANTED_PERMISSIONS,
+  OWNER_ONLY_EDIT_PERMISSIONS,
   permissionEditFailure,
   permissionHolderIsOwner,
   type PermissionEditContext,
@@ -223,18 +225,16 @@ it('allows future expiry', () => {
   ).toBeNull();
 });
 
-const ownerGranted = [
-  'manage:employee-hours:business',
-  'read:files:business',
-  'manage:files:business',
-  'manage:document-types:company',
-];
-for (const permission_code of ownerGranted) {
+it('owner-granted permissions stay listed so an empty catalog cannot pass unseen', () => {
+  expect(OWNER_GRANTED_PERMISSIONS.length).toBeGreaterThan(0);
+});
+
+for (const permission_code of OWNER_GRANTED_PERMISSIONS) {
   const documentTerms = { ...terms, permission_code };
   const documentContext = {
     ...context,
     editorIsCompanyOwner: false,
-    catalog: ownerGranted,
+    catalog: OWNER_GRANTED_PERMISSIONS,
     grants: [manage, grant(permission_code)],
   };
   it(`${permission_code}: only the owner can save ALLOW`, () => {
@@ -246,31 +246,54 @@ for (const permission_code of ownerGranted) {
       }),
     ).toBeNull();
   });
-  it(`${permission_code}: DENY, revoke and check retain possession rules`, () => {
-    expect(permissionEditFailure({ ...documentTerms, effect: 'DENY' }, documentContext)).toBeNull();
-    for (const operation of ['REVOKE', 'CHECK'] as const) {
-      expect(permissionEditFailure(documentTerms, documentContext, operation)).toBeNull();
+  if (OWNER_ONLY_EDIT_PERMISSIONS.includes(permission_code)) {
+    it(`${permission_code}: DENY and revoke stay owner-only while check keeps possession`, () => {
+      expect(permissionEditFailure({ ...documentTerms, effect: 'DENY' }, documentContext)).toBe(
+        'PERMISSION_OWNER_ONLY',
+      );
+      expect(permissionEditFailure(documentTerms, documentContext, 'REVOKE')).toBe(
+        'PERMISSION_OWNER_ONLY',
+      );
+      expect(permissionEditFailure(documentTerms, documentContext, 'CHECK')).toBeNull();
+      expect(
+        permissionEditFailure(documentTerms, { ...documentContext, grants: [manage] }, 'CHECK'),
+      ).toBe('PERMISSION_NOT_HELD');
       expect(
         permissionEditFailure(
-          documentTerms,
+          { ...documentTerms, effect: 'DENY' },
+          { ...documentContext, grants: [manage] },
+        ),
+      ).toBe('PERMISSION_OWNER_ONLY');
+    });
+  } else {
+    it(`${permission_code}: DENY, revoke and check retain possession rules`, () => {
+      expect(
+        permissionEditFailure({ ...documentTerms, effect: 'DENY' }, documentContext),
+      ).toBeNull();
+      for (const operation of ['REVOKE', 'CHECK'] as const) {
+        expect(permissionEditFailure(documentTerms, documentContext, operation)).toBeNull();
+        expect(
+          permissionEditFailure(
+            documentTerms,
+            {
+              ...documentContext,
+              grants: [manage],
+            },
+            operation,
+          ),
+        ).toBe('PERMISSION_NOT_HELD');
+      }
+      expect(
+        permissionEditFailure(
+          { ...documentTerms, effect: 'DENY' },
           {
             ...documentContext,
             grants: [manage],
           },
-          operation,
         ),
       ).toBe('PERMISSION_NOT_HELD');
-    }
-    expect(
-      permissionEditFailure(
-        { ...documentTerms, effect: 'DENY' },
-        {
-          ...documentContext,
-          grants: [manage],
-        },
-      ),
-    ).toBe('PERMISSION_NOT_HELD');
-  });
+    });
+  }
   it(`${permission_code}: authorization, self-edit and catalog checks precede owner-only`, () => {
     expect(permissionEditFailure(documentTerms, { ...documentContext, grants: [] })).toBe(
       'FORBIDDEN',
