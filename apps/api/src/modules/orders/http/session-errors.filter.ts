@@ -13,7 +13,11 @@ export class SessionErrorsFilter implements ExceptionFilter {
       new EnvelopeExceptionFilter().catch(new ApiError(error.code, error.details), host);
       return;
     }
-    const status = error.code === 'SESSION_PERFORMER_SELF_FORBIDDEN' ? 403 : error.code === 'SESSION_RECORDER_MEMBERSHIP_REQUIRED' ? 400 : this.invalidStatus;
+    const status = error.code === 'SESSION_PERFORMER_SELF_FORBIDDEN' ? 403
+      : error.code === 'SESSION_RECORDER_MEMBERSHIP_REQUIRED' ? 400
+      : error.code === 'SESSION_RECOVERY_NOT_FOUND' ? 404
+      : error.code === 'SESSION_RECOVERY_NOT_YET' || error.code === 'SESSION_RECOVERY_CLOSED' ? 409
+      : this.invalidStatus;
     const envelope = { code: error.code, ...serviceSessionErrors[error.code], ...(error.details === undefined ? {} : { details: error.details }) };
     void host.switchToHttp().getResponse<FastifyReply>().status(status).send(envelope);
   }

@@ -268,9 +268,6 @@ export const en = {
     IDEMPOTENCY_KEY_REUSED: 'This Idempotency-Key was already used with a different request',
     NOT_READY: 'The service is not ready',
     SESSION_RECOVERY_UNAVAILABLE: 'Saving is temporarily unavailable. Retry the same attempt.',
-    SESSION_RECOVERY_NOT_FOUND: 'There is no record of this attempt.',
-    SESSION_RECOVERY_NOT_YET: 'This check is not open yet. It opens 24 hours after the last send.',
-    SESSION_RECOVERY_CLOSED: 'The check window has ended.',
     INTERNAL_ERROR: 'An unexpected error occurred',
   },
   staff: {

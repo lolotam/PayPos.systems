@@ -259,9 +259,6 @@ export const ar: Catalog = {
     IDEMPOTENCY_KEY_REUSED: 'تم استخدام مفتاح Idempotency-Key مع طلب مختلف',
     NOT_READY: 'الخدمة غير جاهزة حالياً',
     SESSION_RECOVERY_UNAVAILABLE: 'الحفظ غير متاح مؤقتاً. أعد نفس المحاولة.',
-    SESSION_RECOVERY_NOT_FOUND: 'لا يوجد أثر لهذه المحاولة.',
-    SESSION_RECOVERY_NOT_YET: 'الفحص لسه مقفول. هيبقى متاح بعد 24 ساعة من آخر إرسال.',
-    SESSION_RECOVERY_CLOSED: 'نافذة الفحص خلصت.',
     INTERNAL_ERROR: 'حدث خطأ غير متوقع',
   },
   staff: {

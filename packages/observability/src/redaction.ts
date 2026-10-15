@@ -42,8 +42,6 @@ const SECRET_SUFFIXES = [
   // any key ending in "key" is a credential (secret_key, hmac_key, merchant_key, a bare key) unless it is
   // one of the structural names below — enumerating credential prefixes always misses the next one
   'key',
-  // x-recovery-key is the attempt credential (ADR-0042). The normalized name is xrecoverykey.
-  'recoverykey',
   'passphrase',
   // a connection string carries its password inline
   'dsn',

@@ -40,3 +40,4 @@ export const serviceSessionRecoveryPaths = {
     },
   },
 };
+export { serviceSessionRecoverySchemas } from './service-session-recovery.js';
