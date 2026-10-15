@@ -45,7 +45,7 @@ function focusDraftPrice(localId: string) {
 }
 
 // النتيجة المحفوظة بتختفي لما session تكون null، فالزر هنا هو طريق الخروج الوحيد من زيارة وقتها مش معروف.
-function bindExpiredConfirm(recording: SessionRecordingController, revoke: (proof: ExpiredRecoveryProof) => Promise<unknown>) {
+export function bindExpiredConfirm(recording: SessionRecordingController, revoke: (proof: ExpiredRecoveryProof) => Promise<unknown>) {
   return (outcome: RecoveryConfirmOutcome) => {
     if (!recording.journal || recording.result.feedback.kind !== 'EXPIRED') return;
     recording.replaceResult(confirmExpiredRecording(recording.result, recording.journal, outcome, revoke));

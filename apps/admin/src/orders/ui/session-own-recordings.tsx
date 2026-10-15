@@ -41,21 +41,26 @@ function lineName(line: ServiceSessionRecoveryLine, locale: Locale) {
 function visitBlock(visit: ServiceSessionRecoveryVisit, locale: Locale, timeZone: string) {
   return { name: visit.customer_name, phone: visit.customer_phone_masked, when: shownInstant(visit.occurred_at, locale, timeZone), lines: visit.lines.map((line) => ({ id: line.id, name: lineName(line, locale) })) };
 }
+// صفحة القراءة مصدر business_timezone. من غيرها UTC صريح: منطقة الفرع من السياق مش متاحة، وتوقيت الجهاز هيتعرض غلط من غير ما يتقال.
+function displayZone(panel: RecoveryPanel | null, timeZone?: string) {
+  const fromPage = panel?.kind === 'LIST' ? panel.businessTimezone : '';
+  return fromPage || timeZone || 'UTC';
+}
 
 export function SessionOwnRecordings({ scope, attempt, timeZone, onConfirm }: {
-  scope: SessionServiceScope; attempt: ExpiredAttemptView; timeZone: string; onConfirm: (outcome: RecoveryConfirmOutcome) => void;
+  scope: SessionServiceScope; attempt: ExpiredAttemptView; timeZone?: string; onConfirm: (outcome: RecoveryConfirmOutcome) => void;
 }) {
   const locale = useLocale();
   const recordings = useOwnRecordings(scope, attempt);
   const panel = recordings.panel;
   const suggested = suggestedRecoveryConfirmation(panel);
-  const zone = panel?.kind === 'LIST' ? panel.businessTimezone : timeZone;
+  const zone = displayZone(panel, timeZone);
   const list = panel?.kind === 'LIST' ? panel : null;
   const notice = list ? noticeText(list, locale, zone) : null;
   const recorded = suggested === 'RECORDED_ELSEWHERE';
   const missed = suggested === 'NOT_RECORDED';
   return <div className="grid gap-2 text-start">
-    <p><bdi>{fill(locale, 'serviceSessions.recoveryAttemptAt', shownInstant(new Date(attempt.createdAt).toISOString(), locale, timeZone))}</bdi></p>
+    <p><bdi>{fill(locale, 'serviceSessions.recoveryAttemptAt', shownInstant(new Date(attempt.createdAt).toISOString(), locale, zone))}</bdi></p>
     <p role="status">{panel ? leadText(panel, locale, zone) : t(locale, 'serviceSessions.recoveryCheckFirst')}</p>
     {list?.outcome ? <p>{t(locale, 'serviceSessions.recoveryCheckFirst')}</p> : null}
     {list && list.visits.length === 0 && list.outcome ? <p>{t(locale, 'serviceSessions.recoveryEmpty')}</p> : null}

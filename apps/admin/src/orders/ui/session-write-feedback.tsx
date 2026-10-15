@@ -29,6 +29,6 @@ export function SessionWriteFeedback({ result, onReplay, onRefreshScope, scope, 
     <p role={status ? 'status' : 'alert'}>{message}</p>
     {result.persistenceWarning && feedback.kind !== 'NOT_PERSISTED' ? <p role="alert">{envelopeMessage(serviceSessionErrors.SESSION_ATTEMPT_NOT_PERSISTED, locale)}</p> : null}
     {feedback.kind === 'UNRESOLVED' && result.attempt && onReplay ? <Button type="button" variant="outline" onClick={onReplay}>{t(locale, 'serviceSessions.retryOriginal')}</Button> : null}
-    {expiredAttempt && scope && timeZone && onConfirm ? <SessionOwnRecordings scope={scope} attempt={expiredAttempt} timeZone={timeZone} onConfirm={onConfirm} /> : null}
+    {expiredAttempt && scope && onConfirm ? <SessionOwnRecordings scope={scope} attempt={expiredAttempt} {...(timeZone ? { timeZone } : {})} onConfirm={onConfirm} /> : null}
   </div>;
 }
