@@ -23,6 +23,7 @@ import { sessionRecordAccess } from './persistence/session-record-access.adapter
 import { sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
 import { createServiceSessionTransactions } from './persistence/service-session-transactions.ts';
+import { createSessionRecovery } from './persistence/session-recovery.adapter.ts';
 import { RecordServiceSessionUseCase } from './use-cases/record-service-session/record-service-session.usecase.ts';
 import { AppendServiceSessionLinesUseCase } from './use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
 import type { Clock } from './ports/service-session-transactions.port.ts';
@@ -56,22 +57,24 @@ export function ordersDayQuery(database: TenantWrappers) {
     read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
   });
 }
-export function ordersTransactions(database: TenantWrappers, ids: IdGenerator) {
+export function ordersTransactions(database: TenantWrappers, ids: IdGenerator, clock: Clock = systemClock) {
   return createServiceSessionTransactions(database, ids, (tx, context) => ({
     catalog: catalogReader(tx, context.companyId, context.businessId), customer: customerLookup(tx, context.companyId),
     performers: performerCheck(tx, context.companyId, context.businessId, context.branchId), discount: discountLimit(tx, context.companyId, context.businessId),
     place: sessionPlace(tx, context.companyId, context.businessId, context.branchId),
     access: sessionRecordAccess(tx, context.companyId, context.userId, context.businessId, context.branchId),
     discountMessages: serviceSessionErrors.SESSION_DISCOUNT_ABOVE_LIMIT,
-  }));
+  }), clock);
 }
 export function ordersProviders(database: TenantWrappers | undefined, ids: IdGenerator, clock: Clock = systemClock): Provider[] {
-  const transactions = database === undefined ? null : ordersTransactions(database, ids);
+  const writes = database === undefined ? null : {
+    transactions: ordersTransactions(database, ids, clock), recovery: createSessionRecovery(database, ids, clock),
+  };
   return [SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, { provide: SessionErrorsFilter, useValue: new SessionErrorsFilter() },
     { provide: SessionPerformerOptionsQueryHandler, useValue: database === undefined ? null : ordersPerformerOptionsQuery(database, clock) },
     { provide: SessionServiceOptionsQueryHandler, useValue: database === undefined ? null : ordersServiceOptionsQuery(database, clock) },
     { provide: RecordingContextQueryHandler, useValue: database === undefined ? null : ordersRecordingContextQuery(database, clock) },
     { provide: BranchDayServiceSessionsQuery, useValue: database === undefined ? null : ordersDayQuery(database) },
-    { provide: RecordServiceSessionUseCase, useValue: transactions === null ? null : new RecordServiceSessionUseCase(transactions, ids, clock) },
-    { provide: AppendServiceSessionLinesUseCase, useValue: transactions === null ? null : new AppendServiceSessionLinesUseCase(transactions, ids, clock) }];
+    { provide: RecordServiceSessionUseCase, useValue: writes === null ? null : new RecordServiceSessionUseCase(writes.transactions, writes.recovery, ids, clock) },
+    { provide: AppendServiceSessionLinesUseCase, useValue: writes === null ? null : new AppendServiceSessionLinesUseCase(writes.transactions, writes.recovery, ids, clock) }];
 }

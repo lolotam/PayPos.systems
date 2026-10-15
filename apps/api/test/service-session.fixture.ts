@@ -4,6 +4,7 @@ import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { startHarness } from './harness.ts';
 import { ordersTransactions } from '../src/modules/orders/orders.module.ts';
+import { createSessionRecovery } from '../src/modules/orders/persistence/session-recovery.adapter.ts';
 import { RecordServiceSessionUseCase } from '../src/modules/orders/use-cases/record-service-session/record-service-session.usecase.ts';
 import { AppendServiceSessionLinesUseCase } from '../src/modules/orders/use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
 
@@ -53,9 +54,10 @@ export async function sessionFixture(options: Parameters<typeof startHarness>[0]
   const db = createDatabase({ url: h.urls.app, ids });
   let at = AT;
   const clock = { now: () => at };
-  const transactions = ordersTransactions(db, ids);
-  const create = new RecordServiceSessionUseCase(transactions, ids, clock);
-  const append = new AppendServiceSessionLinesUseCase(transactions, ids, clock);
+  const transactions = ordersTransactions(db, ids, clock);
+  const recovery = createSessionRecovery(db, ids, clock);
+  const create = new RecordServiceSessionUseCase(transactions, recovery, ids, clock);
+  const append = new AppendServiceSessionLinesUseCase(transactions, recovery, ids, clock);
   const context = (key = ids.newId(), actor = userId) => ({ companyId: company, userId: actor, businessId: business, branchId: branch, key, fingerprint: 'a'.repeat(64) });
   const line = (service = must(services[0]), price = '25.000', discount = '0.000') => ({ service_id: service, price,
     discount: { kind: 'AMOUNT' as const, amount: discount }, performers: [{ employee_id: must(employees[0]) }] });

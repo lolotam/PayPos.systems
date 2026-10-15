@@ -37,21 +37,28 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
   foreign keys to the branch and to `service_sessions`. CHECKs: `expires_at > issued_at` and `expires_at <= issued_at + 168 h`;
   `revoked_at` and `revoked_outcome` are both null or both set.
 - `ENABLE` + `FORCE` RLS with split policies on `company_id = app_company_id()`; a negative isolation test in the
-  same PR. `pospay_app` gets `SELECT`, `INSERT` and a column `UPDATE` on `session_id`, `committed_at`,
+  same PR. SELECT, INSERT (`WITH CHECK`) and UPDATE (`USING` and `WITH CHECK`) also require `user_id = app_user_id()`,
+  so one company session cannot read, insert or change another user's proof. `pospay_app` gets `SELECT`, `INSERT` and a column `UPDATE` on `session_id`, `committed_at`,
   `last_seen_at`, `expires_at`, `revoked_at`, `revoked_outcome` only — actor, scope, key hash and date are
   immutable. A `BEFORE UPDATE` trigger refuses any change to `revoked_at`/`revoked_outcome` once set, any change to
   `session_id`/`committed_at` once set, and any `expires_at` beyond the cap, so the column grant cannot undo a
   revoke or relink a proof. No `DELETE`, and no grant for any other role.
 
 **Issue.** Both write use cases call a new orders port before the business transaction. Its adapter runs its own
-`withTenant(companyId)` that re-checks the place and applies **the same authority rule as that write** — `record`
-access for a create; for an append, `resolveSessionRecorder` (domain/session-authority.ts), which also lets the
-original recorder append — then
-`INSERT … ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash) DO UPDATE SET last_seen_at = now,
+`withTenant(companyId)` that re-checks the place and applies **the same authority rule as that write**: a create and
+an append both call `resolveSessionRecorder` (domain/session-authority.ts) and pass `recorder_membership_id`. An
+append also lets the original recorder append. A missing or ambiguous membership
+(`SESSION_RECORDER_MEMBERSHIP_REQUIRED` or `FORBIDDEN`) is refused at issue and leaves no proof. The adapter then
+`INSERT … ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash) DO UPDATE SET last_seen_at = greatest(last_seen_at, now),
 expires_at = least(greatest(expires_at, now + 72 h), issued_at + 168 h) WHERE revoked_at IS NULL AND
-expires_at > now`, and commits. A proof that is already expired or revoked is never reopened: the conflict leaves it
-as it is, and the write then proceeds exactly as it does today (the proof gates only the recovery read, never the
-write). If the issue itself fails (database error, lock timeout), the request fails with
+expires_at > now`, and commits. An append whose stored proof has a different `session_id` is refused before that
+upsert with `IDEMPOTENCY_KEY_REUSED` (422), including when that proof is expired or revoked; the issue transaction
+rolls back and writes nothing. Before that read, issuance takes
+`pg_advisory_xact_lock(hashtextextended(app_company_id()::text || ':recovery:' || user_id::uuid::text || ':' || business_id::uuid::text || ':' || branch_id::uuid::text || ':' || operation || ':' || key_hash, 0))`
+for the transaction, so two first appends of one key on different sessions serialize and the waiter is refused with
+`IDEMPOTENCY_KEY_REUSED` once the winner commits. A proof that is already expired or revoked is never reopened: the conflict leaves it
+as it is. A same-session append, and a create, then proceed exactly as they do today (the proof gates only the
+recovery read, never the write). If the issue itself fails (database error, lock timeout), the request fails with
 `SESSION_RECOVERY_UNAVAILABLE` (503, ar/en message) and the business write never
 starts — so, for attempts made after 35c-13a-1 is deployed, "no proof" always means "no write". An attempt that
 committed before that deploy has no proof; the NEVER_REACHED copy therefore says only that the server cannot check
@@ -67,17 +74,20 @@ target session scoped to the URL business and branch, applies the append authori
 `session_id` set at issue; a session outside that scope or window gets no proof.
 
 Only the issue's own checks prevent a proof. A request the issue accepts but the business transaction then refuses
-(customer not found, a missing recorder membership on a create, performer count) keeps an unlinked proof dated as
-above. For an append the issue passes `recorder_membership_id` as the selection to `resolveSessionRecorder`, so a
-missing membership refuses at the issue and leaves no proof. A same key with another body after the first body
-committed meets the first body's proof, already linked — that is the point of writing it first.
+(customer not found, performer count) keeps an unlinked proof dated as above. A missing or ambiguous recorder
+membership is an issue check on both create and append, so it leaves no proof. A same key with another body after
+the first body committed meets the first body's proof, already linked — that is the point of writing it first.
 
 **Link.** Inside the existing business transaction, after the session row exists, the write sets `session_id` and
-`committed_at` on the proof row, guarded by `revoked_at IS NULL AND expires_at > now`. A same-key **replay** that
-returns a stored committed response links the proof the same way, to the session id in that stored response, so a
-send that committed before 35c-13a-1 was deployed (or before this proof existed) is still recorded as committed once
-any later send of the same key reaches the server while the idempotency row is kept. A rollback drops only the
-link and keeps the proof. The recording, its outbox event
+`committed_at` on the proof row, guarded by `revoked_at IS NULL AND expires_at > now AND committed_at IS NULL`, and
+by an `EXISTS` on `service_sessions` for the same company, business and branch. `committed_at IS NULL` is why a
+same-key replay after the 24 h idempotency sweep never relinks: the sweep makes the handler run again, a second
+session may be created, and the update matches no row because the original proof is already linked. The trigger
+would also refuse restamping `session_id` or `committed_at`. A same-key **replay** that returns a stored committed
+response links the proof the same way, to the session id in that stored response, so a send that committed before
+35c-13a-1 was deployed (or before this proof existed) is still recorded as committed once any later send of the same
+key reaches the server while the idempotency row is kept. A rollback drops only the link and keeps the proof. The
+recording, its outbox event
 and its stored idempotent response stay in one transaction (ADR-0041 §4); only the proof sits outside it.
 `CLAUDE.md` §6 still holds: the money effect and its outbox event are one transaction; the proof carries no money,
 stock or event and is not part of that effect.
@@ -159,10 +169,12 @@ lines of that date until the deadline.
 - A recorder can make a proof for a date by sending a deliberate write with no UI, then 24 h later list her own
   lines for that date. The read is bounded to her own lines, to dates the issue's window checks accept (create and
   append alike), behind the gate, capped at 168 h, and audited on confirm. Accepted.
-- Availability: the proof issue is a hard prerequisite of every service-session write, so a failing proof path
-  (database error, lock timeout on the same key) refuses recording with `SESSION_RECOVERY_UNAVAILABLE`. The client
-  treats it like a transient network failure and retries the same key. Accepted: it only fails when the database
-  itself is failing the write anyway.
+- Availability: the proof issue is a hard prerequisite of every service-session write. The upsert waits on the
+  same-key row lock through `ON CONFLICT … DO UPDATE`. This transaction sets neither `NOWAIT` nor `lock_timeout`,
+  so two first sends of one key on a healthy database both finish and leave one proof row.
+  `SESSION_RECOVERY_UNAVAILABLE` is returned only when that issue fails in the database. The client treats that
+  like a transient network failure and retries the same key. A same-key lock wait on a healthy database is not
+  that failure.
 - Rows are kept, with no retention sweep (§2). A sweep needs a decision on the dispatcher grant and is a follow-up,
   not part of this row.
 - SS-Q20 (Waleed, 2026-10-14, option 1; Abu Salem pending): for an attempt that reached the server after
@@ -174,7 +186,8 @@ lines of that date until the deadline.
 
 ## Consequences
 
-Rows 35c-13a-1 (proof table, migration pair, issue and link in both write use cases) and 35c-13a-2 (read, confirm,
-contracts) replace the single 35c-13a row; 35c-13 builds the client states above. No new module-map arrow: the
-adapter reuses the identity and tenancy readers already declared for orders, and its exact path entries are added
-in 35c-13a-1. The migration and this ADR are renumbered at merge time if another lands first.
+Rows 35c-13a-1 (proof table, one migration, issue and link in both write use cases) and 35c-13a-2 (read, confirm,
+contracts) replace the single 35c-13a row; 35c-13 builds the client states above. A new tenancy export
+`activeBusinessTimeZone` is added. No new module-map arrow: the adapter reuses the identity readers already
+declared for orders, and the exact path entries for that export are added in 35c-13a-1. The migration and this ADR
+are renumbered at merge time if another lands first.

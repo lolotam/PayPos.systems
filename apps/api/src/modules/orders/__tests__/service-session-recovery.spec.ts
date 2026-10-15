@@ -1,0 +1,416 @@
+import { setTimeout as delay } from 'node:timers/promises';
+import { SYSTEM_ROLES, type TenantWrappers } from '@pospay/db';
+import postgres from 'postgres';
+import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
+import { ApiError } from '../../../shared/errors.ts';
+import { SessionError } from '../domain/session-error.ts';
+import { ordersTransactions } from '../orders.module.ts';
+import { createSessionRecovery, recoveryKeyHash } from '../persistence/session-recovery.adapter.ts';
+import { AppendServiceSessionLinesUseCase } from '../use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
+import { RecordServiceSessionUseCase } from '../use-cases/record-service-session/record-service-session.usecase.ts';
+import { AT, ids, interceptDatabase, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+
+let f: SessionFixture;
+beforeAll(async () => { f = await sessionFixture(); });
+afterEach(() => { f?.setAt(AT); });
+afterAll(async () => { await f?.close(); });
+
+const hash = recoveryKeyHash;
+const plus = (hours: number) => new Date(AT.getTime() + hours * 3_600_000);
+const iso = (value: unknown) => value instanceof Date ? value.toISOString() : value;
+async function proof(key: string, branchId = f.branch, operation = 'record-service-session') {
+  const [row] = await f.h.owner`SELECT to_char(business_date,'YYYY-MM-DD') AS business_date, session_id, committed_at,
+    issued_at, last_seen_at, expires_at, revoked_at, revoked_outcome
+    FROM service_session_recoveries WHERE company_id=${f.company} AND branch_id=${branchId} AND operation=${operation} AND key_hash=${hash(key)}`;
+  return row;
+}
+function writer(database: TenantWrappers) {
+  const recovery = createSessionRecovery(database, ids, f.clock);
+  const transactions = ordersTransactions(database, ids, f.clock);
+  return {
+    record: new RecordServiceSessionUseCase(transactions, recovery, ids, f.clock),
+    append: new AppendServiceSessionLinesUseCase(transactions, recovery, ids, f.clock),
+  };
+}
+async function waitFor(check: () => Promise<boolean>): Promise<void> {
+  for (let attempt = 0; attempt < 300; attempt += 1) {
+    if (await check()) return;
+    await delay(10);
+  }
+  throw new Error('Expected database wait did not occur');
+}
+async function holdRecoveryInsert() {
+  const gate = postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
+  await f.h.owner.unsafe('DROP TRIGGER IF EXISTS test_recovery_issue_hold ON service_session_recoveries');
+  await f.h.owner.unsafe(`CREATE OR REPLACE FUNCTION test_recovery_issue_hold() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN PERFORM pg_advisory_xact_lock(hashtext('test:orders:recovery-first-append')); RETURN NEW; END $$`);
+  await f.h.owner.unsafe(`CREATE TRIGGER test_recovery_issue_hold BEFORE INSERT ON service_session_recoveries
+    FOR EACH ROW EXECUTE FUNCTION test_recovery_issue_hold()`);
+  await gate`SELECT pg_advisory_lock(hashtext('test:orders:recovery-first-append'))`;
+  const release = () => gate`SELECT pg_advisory_unlock(hashtext('test:orders:recovery-first-append'))`;
+  return { release, close: async () => {
+    await release();
+    await gate.end();
+    await f.h.owner.unsafe('DROP TRIGGER IF EXISTS test_recovery_issue_hold ON service_session_recoveries');
+    await f.h.owner.unsafe('DROP FUNCTION IF EXISTS test_recovery_issue_hold()');
+  } };
+}
+async function cashierOn(branchId: string) {
+  const membership = ids.newId();
+  const cashier = must(SYSTEM_ROLES.find((role) => role.code === 'cashier')).id;
+  await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps)
+    VALUES(${f.company},${membership},${f.userId},${cashier},'global','BRANCH',${branchId},1000)`;
+  await f.h.owner`UPDATE memberships SET starts_at='2026-01-01T00:00:00Z' WHERE company_id=${f.company} AND id=${membership}`;
+  return membership;
+}
+
+it('issues the proof insert before the business session insert', async () => {
+  const seen: string[] = [];
+  const wrapped = interceptDatabase(f.db, async (statement) => { seen.push(statement); });
+  await writer(wrapped).record.execute({ ...f.context(), input: f.body() });
+  const proofAt = seen.findIndex((statement) => statement.includes('INSERT INTO service_session_recoveries'));
+  const sessionAt = seen.findIndex((statement) => statement.includes('INSERT INTO service_sessions('));
+  expect(proofAt).toBeGreaterThanOrEqual(0);
+  expect(sessionAt).toBeGreaterThan(proofAt);
+});
+
+it('writes nothing and returns 503 when the proof insert is refused', async () => {
+  const key = ids.newId();
+  await f.h.owner`REVOKE INSERT ON service_session_recoveries FROM pospay_app`;
+  try {
+    const error = await f.create.execute({ ...f.context(key), input: f.body() }).then(() => null, (caught: unknown) => caught);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ code: 'SESSION_RECOVERY_UNAVAILABLE' });
+    expect((error as ApiError).status).toBe(503);
+    expect(await proof(key)).toBeUndefined();
+    expect(await f.h.owner`SELECT 1 FROM idempotency_keys WHERE company_id=${f.company} AND key=${key}`).toHaveLength(0);
+  } finally {
+    await f.h.owner`GRANT INSERT ON service_session_recoveries TO pospay_app`;
+  }
+});
+
+it('extends a live proof on replay and holds the 168 hour cap', async () => {
+  const key = ids.newId();
+  const input = f.body();
+  await f.create.execute({ ...f.context(key), input });
+  expect(iso(must(await proof(key))?.['expires_at'])).toBe(plus(72).toISOString());
+  for (const [hours, expiry, seen] of [[50, 122, 50], [100, 168, 100], [120, 168, 120], [169, 168, 120]] as const) {
+    f.setAt(plus(hours));
+    await f.create.execute({ ...f.context(key), input });
+    const row = must(await proof(key));
+    expect(iso(row['expires_at'])).toBe(plus(expiry).toISOString());
+    expect(iso(row['last_seen_at'])).toBe(plus(seen).toISOString());
+  }
+});
+
+it('keeps last_seen_at and expires_at when a replay carries an earlier stamp', async () => {
+  const key = ids.newId();
+  const input = f.body();
+  const later = plus(2);
+  f.setAt(later);
+  await f.create.execute({ ...f.context(key), input });
+  const issued = must(await proof(key));
+  f.setAt(plus(1));
+  await f.create.execute({ ...f.context(key), input });
+  const row = must(await proof(key));
+  expect(iso(row['last_seen_at'])).toBe(later.toISOString());
+  expect(iso(row['expires_at'])).toBe(iso(issued['expires_at']));
+});
+
+it('leaves an expired or revoked proof unchanged while the write still replays', async () => {
+  const expiredKey = ids.newId();
+  const expiredVisit = await f.create.execute({ ...f.context(expiredKey), input: f.body() });
+  await f.h.owner`UPDATE service_session_recoveries SET expires_at=issued_at + interval '1 hour' WHERE key_hash=${hash(expiredKey)}`;
+  f.setAt(plus(2));
+  expect((await f.create.execute({ ...f.context(expiredKey), input: f.body() })).session.id).toBe(expiredVisit.session.id);
+  expect(iso(must(await proof(expiredKey))?.['expires_at'])).toBe(plus(1).toISOString());
+  expect(iso(must(await proof(expiredKey))?.['last_seen_at'])).toBe(AT.toISOString());
+  f.setAt(AT);
+  const revokedKey = ids.newId();
+  await f.create.execute({ ...f.context(revokedKey), input: f.body() });
+  await f.h.owner`UPDATE service_session_recoveries SET revoked_at=${plus(1)}, revoked_outcome='NOT_RECORDED' WHERE key_hash=${hash(revokedKey)}`;
+  f.setAt(plus(2));
+  await f.create.execute({ ...f.context(revokedKey), input: f.body() });
+  const revoked = must(await proof(revokedKey));
+  expect(iso(revoked['revoked_at'])).toBe(plus(1).toISOString());
+  expect(revoked['revoked_outcome']).toBe('NOT_RECORDED');
+  expect(iso(revoked['last_seen_at'])).toBe(AT.toISOString());
+});
+
+it('returns the stored session after the month boundary without reopening the proof', async () => {
+  const key = ids.newId();
+  const first = await f.create.execute({ ...f.context(key), input: f.body() });
+  const issued = iso(must(await proof(key))?.['expires_at']);
+  f.setAt(new Date('2026-12-01T00:00:00.000Z'));
+  expect((await f.create.execute({ ...f.context(key), input: f.body() })).session.id).toBe(first.session.id);
+  expect(iso(must(await proof(key))?.['expires_at'])).toBe(issued);
+});
+
+it('keeps proof date D when the commit crosses branch midnight onto a D+1 session', async () => {
+  let calls = 0;
+  const wrapped: TenantWrappers = { ...f.db, withTenant: (company, work, options) => {
+    calls += 1;
+    if (calls === 2) f.setAt(new Date('2026-10-14T21:30:00.000Z'));
+    return f.db.withTenant(company, work, options);
+  } };
+  f.setAt(new Date('2026-10-14T20:30:00.000Z'));
+  const key = ids.newId();
+  const result = await writer(wrapped).record.execute({ ...f.context(key), input: { customer_id: f.customer, lines: [f.line()] } });
+  expect(result.session.business_date).toBe('2026-10-15');
+  const row = must(await proof(key));
+  expect(row['business_date']).toBe('2026-10-14');
+  expect(row['session_id']).toBe(result.session.id);
+  expect(row['committed_at']).not.toBeNull();
+});
+
+it('dates a new proof from a hand-set occurred_at', async () => {
+  const key = ids.newId();
+  const result = await f.create.execute({ ...f.context(key), input: { ...f.body(), occurred_at: '2026-10-10T08:00:00.000Z' } });
+  expect(result.session.business_date).toBe('2026-10-10');
+  expect(must(await proof(key))?.['business_date']).toBe('2026-10-10');
+});
+
+it('stores the target session date on an append and leaves committed_at empty when the handler refuses', async () => {
+  const created = await f.create.execute({ ...f.context(), input: { ...f.body(), occurred_at: '2026-10-10T08:00:00.000Z' } });
+  const key = ids.newId();
+  const added = await f.append.execute({ ...f.context(key), sessionId: created.session.id, input: { lines: [f.line()] } });
+  const linked = must(await proof(key, f.branch, 'append-service-session-lines'));
+  expect(linked['business_date']).toBe('2026-10-10');
+  expect(linked['session_id']).toBe(added.session.id);
+  expect(linked['committed_at']).not.toBeNull();
+  const refused = ids.newId();
+  await expect(f.append.execute({ ...f.context(refused), sessionId: created.session.id, input: { lines: [f.line(ids.newId())] } })).rejects.toThrow('SESSION_SERVICE_NOT_FOUND');
+  const row = must(await proof(refused, f.branch, 'append-service-session-lines'));
+  expect(row['session_id']).toBe(created.session.id);
+  expect(row['committed_at']).toBeNull();
+});
+
+it('writes no append proof outside the branch or the window', async () => {
+  const created = await f.create.execute({ ...f.context(), input: f.body() });
+  const membership = await cashierOn(f.secondBranch);
+  const outside = ids.newId();
+  try {
+    await expect(f.append.execute({ ...f.context(outside), businessId: f.secondBusiness, branchId: f.secondBranch, sessionId: created.session.id,
+      input: { lines: [f.line()], recorder_membership_id: membership } })).rejects.toThrow('FORBIDDEN');
+    expect(await proof(outside, f.secondBranch, 'append-service-session-lines')).toBeUndefined();
+  } finally {
+    await f.h.owner`DELETE FROM memberships WHERE company_id=${f.company} AND id=${membership}`;
+  }
+  await f.h.owner`UPDATE service_sessions SET business_date='2026-08-01' WHERE company_id=${f.company} AND id=${created.session.id}`;
+  const stale = ids.newId();
+  await expect(f.append.execute({ ...f.context(stale), sessionId: created.session.id, input: { lines: [f.line()] } })).rejects.toThrow('SESSION_TIME_TOO_OLD');
+  expect(await proof(stale, f.branch, 'append-service-session-lines')).toBeUndefined();
+});
+
+it('lets the original recorder append after losing record, and refuses their create with no proof', async () => {
+  const created = await f.create.execute({ ...f.context(), input: f.body() });
+  const staff = must(SYSTEM_ROLES.find((role) => role.code === 'staff')).id;
+  const cashier = must(SYSTEM_ROLES.find((role) => role.code === 'cashier')).id;
+  await f.h.owner`UPDATE memberships SET role_id=${staff} WHERE company_id=${f.company} AND id=${f.membership}`;
+  try {
+    const denied = ids.newId();
+    await expect(f.create.execute({ ...f.context(denied), input: f.body() })).rejects.toThrow('FORBIDDEN');
+    expect(await proof(denied)).toBeUndefined();
+    const key = ids.newId();
+    await f.append.execute({ ...f.context(key), sessionId: created.session.id, input: { lines: [f.line()] } });
+    expect(must(await proof(key, f.branch, 'append-service-session-lines'))?.['session_id']).toBe(created.session.id);
+  } finally {
+    await f.h.owner`UPDATE memberships SET role_id=${cashier}, role_owner_key='global' WHERE company_id=${f.company} AND id=${f.membership}`;
+  }
+});
+
+it('writes no proof when issue refuses the time, and keeps an unlinked proof when the business write refuses', async () => {
+  const future = ids.newId();
+  await expect(f.create.execute({ ...f.context(future), input: { ...f.body(), occurred_at: '2026-10-15T08:03:00.000Z' } })).rejects.toThrow('SESSION_TIME_IN_FUTURE');
+  expect(await proof(future)).toBeUndefined();
+  const old = ids.newId();
+  await expect(f.create.execute({ ...f.context(old), input: { ...f.body(), occurred_at: '2026-08-01T08:00:00.000Z' } })).rejects.toThrow('SESSION_TIME_TOO_OLD');
+  expect(await proof(old)).toBeUndefined();
+  const missing = ids.newId();
+  await expect(f.create.execute({ ...f.context(missing), input: { ...f.body(), customer_id: ids.newId() } })).rejects.toThrow('SESSION_CUSTOMER_NOT_FOUND');
+  const row = must(await proof(missing));
+  expect(row['session_id']).toBeNull();
+  expect(row['committed_at']).toBeNull();
+});
+
+// البصمة في المتحكم تضم branchId فالاختلاف يرفض 422؛ البصمة الثابتة هنا تمرّر شرط EXISTS كخط دفاع ثان.
+it('leaves the other branch proof unlinked when the same fingerprint replays', async () => {
+  const key = ids.newId();
+  const first = await f.create.execute({ ...f.context(key), input: f.body() });
+  const membership = await cashierOn(f.secondBranch);
+  try {
+    const replay = await f.create.execute({ ...f.context(key), businessId: f.secondBusiness, branchId: f.secondBranch,
+      input: { ...f.body(), recorder_membership_id: membership } });
+    expect(replay.session.id).toBe(first.session.id);
+    const other = must(await proof(key, f.secondBranch));
+    expect(other['session_id']).toBeNull();
+    expect(other['committed_at']).toBeNull();
+    expect(must(await proof(key))?.['session_id']).toBe(first.session.id);
+  } finally {
+    await f.h.owner`DELETE FROM memberships WHERE company_id=${f.company} AND id=${membership}`;
+  }
+});
+
+it('links a proof issued after the commit when the stored response is replayed', async () => {
+  const key = ids.newId();
+  const first = await f.create.execute({ ...f.context(key), input: f.body() });
+  const before = await f.h.owner`SELECT id FROM service_sessions WHERE company_id=${f.company}`;
+  await f.h.owner`DELETE FROM service_session_recoveries WHERE company_id=${f.company} AND key_hash=${hash(key)}`;
+  const replay = await f.create.execute({ ...f.context(key), input: f.body() });
+  expect(replay.session.id).toBe(first.session.id);
+  const row = must(await proof(key));
+  expect(row['session_id']).toBe(first.session.id);
+  expect(row['committed_at']).not.toBeNull();
+  expect(await f.h.owner`SELECT id FROM service_sessions WHERE company_id=${f.company}`).toHaveLength(before.length);
+});
+
+it('leaves the proof unlinked when every create line is over the discount limit', async () => {
+  const key = ids.newId();
+  const service = must(f.services[1]);
+  const over = f.line(service, '7.125', '0.713');
+  await expect(f.create.execute({ ...f.context(key), input: { customer_id: f.customer, lines: [over, f.line(service, '7.125', '0.713')] } })).rejects.toThrow('SESSION_DISCOUNT_ABOVE_LIMIT');
+  const row = must(await proof(key));
+  expect(row['session_id']).toBeNull();
+  expect(row['committed_at']).toBeNull();
+  expect(await f.h.owner`SELECT key FROM idempotency_keys WHERE company_id=${f.company} AND key=${key}`).toHaveLength(0);
+});
+
+it('refuses an append key reused on another session after rollback and writes nothing', async () => {
+  const sessionA = await f.create.execute({ ...f.context(), input: f.body() });
+  const sessionB = await f.create.execute({ ...f.context(), input: f.body() });
+  const key = ids.newId();
+  await expect(f.append.execute({
+    ...f.context(key), sessionId: sessionA.session.id, input: { lines: [f.line(ids.newId())] },
+  })).rejects.toThrow('SESSION_SERVICE_NOT_FOUND');
+  const issued = must(await proof(key, f.branch, 'append-service-session-lines'));
+  expect(issued['session_id']).toBe(sessionA.session.id);
+  expect(issued['committed_at']).toBeNull();
+  const linesBefore = await f.h.owner`SELECT id FROM service_lines WHERE company_id=${f.company} AND session_id=${sessionB.session.id}`;
+  await expect(f.append.execute({
+    ...f.context(key), sessionId: sessionB.session.id, input: { lines: [f.line()] },
+  })).rejects.toThrow('IDEMPOTENCY_KEY_REUSED');
+  const after = must(await proof(key, f.branch, 'append-service-session-lines'));
+  expect(after['session_id']).toBe(sessionA.session.id);
+  expect(after['committed_at']).toBeNull();
+  expect(iso(after['issued_at'])).toBe(iso(issued['issued_at']));
+  expect(iso(after['last_seen_at'])).toBe(iso(issued['last_seen_at']));
+  expect(iso(after['expires_at'])).toBe(iso(issued['expires_at']));
+  expect(await f.h.owner`SELECT id FROM service_lines WHERE company_id=${f.company} AND session_id=${sessionB.session.id}`).toHaveLength(linesBefore.length);
+  expect(await f.h.owner`SELECT key FROM idempotency_keys WHERE company_id=${f.company} AND key=${key}`).toHaveLength(0);
+  expect(await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company} AND key_hash=${hash(key)}`).toHaveLength(1);
+});
+
+it('replays an append on the same session without an idempotency conflict', async () => {
+  const created = await f.create.execute({ ...f.context(), input: f.body() });
+  const key = ids.newId();
+  const input = { lines: [f.line()] };
+  const added = await f.append.execute({ ...f.context(key), sessionId: created.session.id, input });
+  const replay = await f.append.execute({ ...f.context(key), sessionId: created.session.id, input });
+  expect(replay.session.id).toBe(added.session.id);
+  expect(must(await proof(key, f.branch, 'append-service-session-lines'))?.['session_id']).toBe(created.session.id);
+});
+
+it('retries a create against an existing unlinked proof without an idempotency conflict', async () => {
+  const key = ids.newId();
+  await expect(f.create.execute({
+    ...f.context(key), input: { ...f.body(), customer_id: ids.newId() },
+  })).rejects.toThrow('SESSION_CUSTOMER_NOT_FOUND');
+  expect(must(await proof(key))?.['session_id']).toBeNull();
+  const saved = await f.create.execute({ ...f.context(key), input: f.body() });
+  const row = must(await proof(key));
+  expect(row['session_id']).toBe(saved.session.id);
+  expect(row['committed_at']).not.toBeNull();
+});
+
+it('a same-key replay after the idempotency row is swept does not relink the proof', async () => {
+  const key = ids.newId();
+  const input = f.body();
+  const first = await f.create.execute({ ...f.context(key), input });
+  const linked = must(await proof(key));
+  await f.h.owner`DELETE FROM idempotency_keys WHERE company_id=${f.company} AND key=${key}`;
+  await f.create.execute({ ...f.context(key), input });
+  const row = must(await proof(key));
+  expect(row['session_id']).toBe(first.session.id);
+  expect(iso(row['committed_at'])).toBe(iso(linked['committed_at']));
+});
+
+it('overlapping first appends of one key on two sessions refuse the loser with IDEMPOTENCY_KEY_REUSED', async () => {
+  const earlier = await f.create.execute({ ...f.context(), input: f.body() });
+  const later = await f.create.execute({ ...f.context(), input: f.body() });
+  const key = ids.newId();
+  const recovery = createSessionRecovery(f.db, ids, f.clock);
+  const issue = (sessionId: string) => recovery.issue({
+    companyId: f.company, userId: f.userId, businessId: f.business, branchId: f.branch, key,
+    operation: 'append-service-session-lines', sessionId,
+  }).then(() => sessionId);
+  const waiting = async (atLeast: number) =>
+    (await f.h.owner`SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted`).length >= atLeast;
+  const gate = await holdRecoveryInsert();
+  const pending: Promise<unknown>[] = [];
+  try {
+    const first = issue(earlier.session.id);
+    pending.push(first);
+    await waitFor(() => waiting(1));
+    const second = issue(later.session.id);
+    pending.push(second);
+    await waitFor(() => waiting(2));
+    await gate.release();
+    const settled = await Promise.allSettled([first, second]);
+    const won = settled.find((item) => item.status === 'fulfilled');
+    const lost = settled.find((item) => item.status === 'rejected');
+    expect(won?.status).toBe('fulfilled');
+    expect(lost?.status).toBe('rejected');
+    if (won?.status !== 'fulfilled' || lost?.status !== 'rejected') throw new Error('overlap outcome missing');
+    expect(lost.reason).toBeInstanceOf(SessionError);
+    expect(lost.reason).toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' });
+    const rows = await f.h.owner`SELECT session_id FROM service_session_recoveries
+      WHERE company_id=${f.company} AND operation='append-service-session-lines' AND key_hash=${hash(key)}`;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.['session_id']).toBe(won.value);
+  } finally {
+    await gate.release();
+    await Promise.allSettled(pending);
+    await gate.close();
+  }
+});
+
+it('two concurrent first sends of one key both succeed and leave one proof', async () => {
+  const key = ids.newId();
+  const input = f.body();
+  const [left, right] = await Promise.all([
+    f.create.execute({ ...f.context(key), input }),
+    f.create.execute({ ...f.context(key), input }),
+  ]);
+  expect(left.session.id).toBe(right.session.id);
+  expect(await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company} AND key_hash=${hash(key)}`).toHaveLength(1);
+});
+
+it('refuses a create at issue when the recorder has two memberships and names neither', async () => {
+  const second = await cashierOn(f.branch);
+  const key = ids.newId();
+  try {
+    await expect(f.create.execute({ ...f.context(key), input: f.body() })).rejects.toThrow('SESSION_RECORDER_MEMBERSHIP_REQUIRED');
+    expect(await proof(key)).toBeUndefined();
+  } finally {
+    await f.h.owner`DELETE FROM memberships WHERE company_id=${f.company} AND id=${second}`;
+  }
+});
+
+it('refuses an append at issue when the recorder has two memberships and names neither', async () => {
+  const created = await f.create.execute({ ...f.context(), input: f.body() });
+  const second = await cashierOn(f.branch);
+  const key = ids.newId();
+  try {
+    await expect(f.append.execute({ ...f.context(key), sessionId: created.session.id, input: { lines: [f.line()] } })).rejects.toThrow('SESSION_RECORDER_MEMBERSHIP_REQUIRED');
+    expect(await proof(key, f.branch, 'append-service-session-lines')).toBeUndefined();
+  } finally {
+    await f.h.owner`DELETE FROM memberships WHERE company_id=${f.company} AND id=${second}`;
+  }
+});
+
+it('authorize writes no proof', async () => {
+  const created = await f.create.execute({ ...f.context(), input: f.body() });
+  const before = await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company}`;
+  await f.append.authorize({ ...f.context(), sessionId: created.session.id });
+  expect(await f.h.owner`SELECT id FROM service_session_recoveries WHERE company_id=${f.company}`).toHaveLength(before.length);
+});

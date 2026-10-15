@@ -9,7 +9,7 @@ import { SessionError } from '../use-cases/record-service-session/record-service
 export class SessionErrorsFilter implements ExceptionFilter {
   constructor(private readonly invalidStatus = 422) {}
   catch(error: SessionError, host: ArgumentsHost) {
-    if (error.code === 'FORBIDDEN' || error.code === 'FEATURE_DISABLED' || error.code === 'TRANSACTION_RETRY_REQUIRED') {
+    if (error.code === 'FORBIDDEN' || error.code === 'FEATURE_DISABLED' || error.code === 'TRANSACTION_RETRY_REQUIRED' || error.code === 'IDEMPOTENCY_KEY_REUSED') {
       new EnvelopeExceptionFilter().catch(new ApiError(error.code, error.details), host);
       return;
     }

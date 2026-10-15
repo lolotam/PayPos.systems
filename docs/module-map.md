@@ -294,7 +294,8 @@ reads:
   - orders -> settings.readEffectiveDiscountLimit @ apps/api/src/modules/orders/persistence/discount-limit.adapter.ts
   - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
-  - orders -> tenancy.businessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
+  - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
+  - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-recovery.adapter.ts
   - orders -> tenancy.describeWorkspaces @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/attendance-board-context.adapter.ts
   - staff -> tenancy.attendanceBranch @ apps/api/src/modules/staff/persistence/manual-session-context.adapter.ts
