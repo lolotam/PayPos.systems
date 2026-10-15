@@ -27,7 +27,10 @@ beforeAll(async () => {
       '2026-10-15','Asia/Kuwait',${ISSUED},${ISSUED},${ISSUED} + interval '72 hours')`);
 });
 afterAll(async () => { await db?.close(); await owner?.end(); await testDb?.drop(); });
+const STRANGER = '01920000-0000-7000-8000-0000000000f2';
 const asA = (query: ReturnType<typeof sql>) => db.withTenant(A.company, (tx) => tx.execute(query), { userId: USER });
+const asStranger = (query: ReturnType<typeof sql>) =>
+  db.withTenant(A.company, (tx) => tx.execute(query), { userId: STRANGER });
 const LINK = '01920000-0000-7000-8000-000000004022';
 const RELINK = '01920000-0000-7000-8000-000000004023';
 const REVOKE = '01920000-0000-7000-8000-000000004024';
@@ -51,7 +54,11 @@ describe('service_session_recoveries', () => {
     expect(row?.['rolname']).not.toBe('pospay_app');
     const policies = await owner`SELECT cmd,qual,with_check FROM pg_policies WHERE tablename='service_session_recoveries' ORDER BY cmd`;
     expect(policies.map((policy) => policy['cmd'])).toEqual(['INSERT', 'SELECT', 'UPDATE']);
-    for (const policy of policies) expect(`${policy['qual'] ?? ''} ${policy['with_check'] ?? ''}`).toContain('app_company_id()');
+    for (const policy of policies) {
+      const text = `${policy['qual'] ?? ''} ${policy['with_check'] ?? ''}`;
+      expect(text).toContain('app_company_id()');
+      expect(text).toContain('app_user_id()');
+    }
     const [role] = await owner`SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname='pospay_app'`;
     expect(role).toEqual({ rolsuper: false, rolbypassrls: false });
   });
@@ -93,5 +100,21 @@ describe('service_session_recoveries', () => {
   });
   it('refuses an expiry past the 168 hour cap', async () => {
     await rejected(asA(sql`UPDATE service_session_recoveries SET expires_at=issued_at + interval '169 hours' WHERE id=${PROOF}`), /recovery expiry exceeds the 168 hour cap/);
+  });
+});
+
+describe('service_session_recoveries user scope', () => {
+  it('hides a proof from another user of the same company', async () => {
+    expect(await asStranger(sql`SELECT id FROM service_session_recoveries WHERE id=${PROOF}`)).toEqual([]);
+    await rejected(asStranger(sql`INSERT INTO service_session_recoveries(company_id,id,business_id,branch_id,user_id,operation,key_hash,
+      business_date,business_timezone,issued_at,last_seen_at,expires_at)
+      VALUES(${A.company},'01920000-0000-7000-8000-000000004025',${A.business},${A.branch},${USER},'record-service-session','other-user',
+        '2026-10-15','Asia/Kuwait',${ISSUED},${ISSUED},${ISSUED} + interval '72 hours')`), /row-level security/);
+    const [before] = await asA(sql`SELECT last_seen_at FROM service_session_recoveries WHERE id=${PROOF}`);
+    expect(await asStranger(sql`UPDATE service_session_recoveries SET last_seen_at=${LATER} WHERE id=${PROOF} RETURNING id`)).toEqual([]);
+    expect(await asA(sql`SELECT last_seen_at FROM service_session_recoveries WHERE id=${PROOF}`)).toEqual([before]);
+  });
+  it('a transaction with no app user sees no proof rows', async () => {
+    expect(await db.withTenant(A.company, (tx) => tx.execute(sql`SELECT id FROM service_session_recoveries WHERE id=${PROOF}`))).toEqual([]);
   });
 });

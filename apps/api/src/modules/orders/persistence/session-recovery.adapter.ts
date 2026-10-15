@@ -27,14 +27,20 @@ function refuse(error: unknown): never {
   throw new ApiError('SESSION_RECOVERY_UNAVAILABLE');
 }
 
+async function lockIssuedProof(tx: Tx, input: SessionRecoveryIssue): Promise<void> {
+  // SELECT لا يقفل صفاً غير موجود، فيمرّ إلحاقان أولان معاً ويمدّ الثاني إثبات جلسة أخرى. القفل على الهوية يسلسل الإصدار قبل القراءة.
+  const hash = recoveryKeyHash(input.key);
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(
+    app_company_id()::text || ':recovery:' || ${input.userId}::uuid::text || ':' || ${input.businessId}::uuid::text
+    || ':' || ${input.branchId}::uuid::text || ':' || ${input.operation} || ':' || ${hash}, 0))`);
+}
+
 async function loadProof(tx: Tx, input: SessionRecoveryIssue, hash: string): Promise<ProofDates | undefined> {
-  // قفل الصف حتى ينتظر الإلحاق المتزامن وينتهي بـ 422 بدل ما يغيّر الربط فيصطدم بالقادح 23514.
   const [row] = await tx.execute<{ business_date: string; business_timezone: string; session_id: string | null }>(sql`
     SELECT to_char(business_date,'YYYY-MM-DD') AS business_date, business_timezone, session_id
     FROM service_session_recoveries
     WHERE company_id = app_company_id() AND user_id = ${input.userId} AND business_id = ${input.businessId}
-      AND branch_id = ${input.branchId} AND operation = ${input.operation} AND key_hash = ${hash}
-    FOR UPDATE`);
+      AND branch_id = ${input.branchId} AND operation = ${input.operation} AND key_hash = ${hash}`);
   return row === undefined ? undefined : { businessDate: row.business_date, timezone: row.business_timezone, sessionId: row.session_id };
 }
 
@@ -61,7 +67,7 @@ async function prepareIssue(tx: Tx, input: SessionRecoveryIssue, at: Date): Prom
 async function upsertProof(tx: Tx, input: SessionRecoveryIssue, id: string, at: Date, dates: ProofDates): Promise<void> {
   const hash = recoveryKeyHash(input.key);
   const stamp = at.toISOString();
-  // الشرط يمدّ الإثبات الحي فقط؛ المنتهي أو الملغى لا يُعاد فتحه بإعادة الإرسال.
+  // ختم أقدم لا يرجّع last_seen_at لأن نافذة القراءة تُفتح منه؛ الحي فقط يُمدَّد والمنتهي أو الملغى يبقى مغلقاً.
   await tx.execute(sql`
     INSERT INTO service_session_recoveries (
       company_id, id, business_id, branch_id, user_id, operation, key_hash,
@@ -70,7 +76,7 @@ async function upsertProof(tx: Tx, input: SessionRecoveryIssue, id: string, at: 
       ${dates.businessDate}, ${dates.timezone}, ${dates.sessionId}, ${stamp}::timestamptz, ${stamp}::timestamptz,
       ${stamp}::timestamptz + interval '72 hours')
     ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash)
-    DO UPDATE SET last_seen_at = ${stamp}::timestamptz,
+    DO UPDATE SET last_seen_at = greatest(service_session_recoveries.last_seen_at, ${stamp}::timestamptz),
       expires_at = least(greatest(service_session_recoveries.expires_at, ${stamp}::timestamptz + interval '72 hours'),
         service_session_recoveries.issued_at + interval '168 hours')
     WHERE service_session_recoveries.revoked_at IS NULL AND service_session_recoveries.expires_at > ${stamp}::timestamptz`);
@@ -82,6 +88,7 @@ export function createSessionRecovery(database: TenantWrappers, ids: IdGenerator
     const at = clock.now();
     try {
       await database.withTenant(input.companyId, async (tx) => {
+        await lockIssuedProof(tx, input);
         await upsertProof(tx, input, ids.newId(), at, await prepareIssue(tx, input, at));
       }, { userId: input.userId });
     } catch (error) { refuse(error); }

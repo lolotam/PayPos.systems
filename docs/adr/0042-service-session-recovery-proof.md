@@ -37,7 +37,8 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
   foreign keys to the branch and to `service_sessions`. CHECKs: `expires_at > issued_at` and `expires_at <= issued_at + 168 h`;
   `revoked_at` and `revoked_outcome` are both null or both set.
 - `ENABLE` + `FORCE` RLS with split policies on `company_id = app_company_id()`; a negative isolation test in the
-  same PR. `pospay_app` gets `SELECT`, `INSERT` and a column `UPDATE` on `session_id`, `committed_at`,
+  same PR. SELECT, INSERT (`WITH CHECK`) and UPDATE (`USING` and `WITH CHECK`) also require `user_id = app_user_id()`,
+  so one company session cannot read, insert or change another user's proof. `pospay_app` gets `SELECT`, `INSERT` and a column `UPDATE` on `session_id`, `committed_at`,
   `last_seen_at`, `expires_at`, `revoked_at`, `revoked_outcome` only — actor, scope, key hash and date are
   immutable. A `BEFORE UPDATE` trigger refuses any change to `revoked_at`/`revoked_outcome` once set, any change to
   `session_id`/`committed_at` once set, and any `expires_at` beyond the cap, so the column grant cannot undo a
@@ -48,11 +49,14 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
 an append both call `resolveSessionRecorder` (domain/session-authority.ts) and pass `recorder_membership_id`. An
 append also lets the original recorder append. A missing or ambiguous membership
 (`SESSION_RECORDER_MEMBERSHIP_REQUIRED` or `FORBIDDEN`) is refused at issue and leaves no proof. The adapter then
-`INSERT … ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash) DO UPDATE SET last_seen_at = now,
+`INSERT … ON CONFLICT (company_id, user_id, business_id, branch_id, operation, key_hash) DO UPDATE SET last_seen_at = greatest(last_seen_at, now),
 expires_at = least(greatest(expires_at, now + 72 h), issued_at + 168 h) WHERE revoked_at IS NULL AND
 expires_at > now`, and commits. An append whose stored proof has a different `session_id` is refused before that
 upsert with `IDEMPOTENCY_KEY_REUSED` (422), including when that proof is expired or revoked; the issue transaction
-rolls back and writes nothing. A proof that is already expired or revoked is never reopened: the conflict leaves it
+rolls back and writes nothing. Before that read, issuance takes
+`pg_advisory_xact_lock(hashtextextended(app_company_id()::text || ':recovery:' || user_id::uuid::text || ':' || business_id::uuid::text || ':' || branch_id::uuid::text || ':' || operation || ':' || key_hash, 0))`
+for the transaction, so two first appends of one key on different sessions serialize and the waiter is refused with
+`IDEMPOTENCY_KEY_REUSED` once the winner commits. A proof that is already expired or revoked is never reopened: the conflict leaves it
 as it is. A same-session append, and a create, then proceed exactly as they do today (the proof gates only the
 recovery read, never the write). If the issue itself fails (database error, lock timeout), the request fails with
 `SESSION_RECOVERY_UNAVAILABLE` (503, ar/en message) and the business write never
