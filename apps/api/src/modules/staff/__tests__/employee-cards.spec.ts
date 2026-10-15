@@ -228,11 +228,11 @@ it('refuses a code held in another business with the same envelope as one held h
   const local = 'WmLocal!7jNm';
   expect((await issue(colleagueId, local)).status).toBe(200);
   const [before] = await f.h.owner`SELECT count(*)::int AS n FROM audit_log
-    WHERE company_id=${f.company} AND entity='employee_card'`;
+    WHERE company_id=${f.company}`;
   const elsewhere = await issue(employeeId, foreign);
   const here = await issue(employeeId, local);
   const [after] = await f.h.owner`SELECT count(*)::int AS n FROM audit_log
-    WHERE company_id=${f.company} AND entity='employee_card'`;
+    WHERE company_id=${f.company}`;
   expect(elsewhere.status).toBe(409);
   expect(elsewhere.body).toEqual(here.body);
   expect(elsewhere.body).toEqual({

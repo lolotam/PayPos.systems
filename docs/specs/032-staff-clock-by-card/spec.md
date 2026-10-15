@@ -1,6 +1,6 @@
 # Staff clock by card — Phase 1 PR 23
 
-Created: 2026-10-05. Status: owner questions decided 2026-10-07; CARD-Q1 decided 2026-10-16. Shipped in two PRs (CB-Q4): **PR 23a** —
+Created: 2026-10-05. Status: owner questions decided 2026-10-07; CARD-Q1 answered by Waleed 2026-10-16 (provisional until Abu Salem answers). Shipped in two PRs (CB-Q4): **PR 23a** —
 employee cards (issue / revoke, the admin section, the `employee_cards` table); **PR 23b** — clock-by-card on the
 paired device, on top of 23a.
 
@@ -150,7 +150,7 @@ all optional settings empty if startup wiring changes.
 - D5 — deferred to the orchestrator issue: expose Cashier staff-login DENY through the permissions screen.
 - D6 — card issue is limited to 30 attempts per hour per company and user (ADR-0036, decided Waleed 2026-10-07). A validation failure in the use case counts; a request rejected by the contract schema before the use case does not reach the database, cannot reveal a live code, and is not counted. The 429 `Retry-After` is the seconds left in that hour. A completion-marker failure after the card is stored still returns the card. Clock-by-card failed scans are limited to 10 per 10 minutes per company and device (decided Waleed 2026-10-07): only the not-accepted card family and a use-case validation failure count; successes and completed-key replays do not. The scan completion marker is the `scan-attempt` HMAC, not an unkeyed digest. A completion-marker failure after the movement is stored still returns the result and logs one warning with company and device only. A later retry of that same key and bound fingerprint returns the stored movement and writes nothing, even when the marker is missing and the device is at the limit. Past that limit a new key or a different body returns 429 `TOO_MANY_REQUESTS` with `Retry-After` equal to the seconds left in the fixed 600-second window, before any card lookup or database write, and logs without the card code. If Redis is unavailable before the movement is stored the scan fails closed with `NOT_READY`; QR and passkey clocking are unaffected.
 - CB-Q5 — resolved: keep `clock:attendance:branch` at the verified device branch; explicit Device plus operator session, no CHECK change. PR 19 uses explicit Device checks, not a stored `:device` scope (ADR-0036).
-- CARD-Q1 — company-wide uniqueness stays, and a taken code is the same generic 409 whether the holder is in this business or another ([owner-questions.ar.md](owner-questions.ar.md)). **Decided (Waleed, 2026-10-16): «شركة + رسالة عامة».**
+- CARD-Q1 — company-wide uniqueness stays, and a taken code is the same generic 409 whether the holder is in this business or another ([owner-questions.ar.md](owner-questions.ar.md)). **Answered (Waleed, 2026-10-16; provisional — Abu Salem has not answered, and his pick binds if it differs): «شركة + رسالة عامة».**
 
 ## Success criteria
 
