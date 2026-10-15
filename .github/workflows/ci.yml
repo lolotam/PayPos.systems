@@ -109,8 +109,12 @@ jobs:
           node --test "scripts/module-map/*.test.mjs"
           pnpm module-map:check
 
+      # API domain specs run here via vitest.unit.config.ts with no Postgres, so a domain failure
+      # stops CI before the integration shards. The default config still runs them inside the shards.
       - name: unit (domain)
-        run: pnpm turbo run test --filter=@pospay/domain
+        run: |
+          pnpm turbo run test --filter=@pospay/domain
+          pnpm --filter @pospay/api test:unit
 
       # apps/api, the slow suite, runs in the four `api-tests` shards below; every other package stays here.
       # turbo.json chains worker#test → api#test, so selecting the worker through turbo would run the whole api
