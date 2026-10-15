@@ -386,3 +386,32 @@ it('refuses a pool larger than one connection before any statement, lock or jour
     await pooled.end();
   }
 });
+
+it('forwards unsafe_options when a data step calls unsafe with a query options object', async () => {
+  files.sql = ['-- pospay:data-step read\nSELECT 1'];
+  await applyMigrations(owner, 'unused', {
+    read: async (client) =>
+      // @ts-expect-error postgres.js reads a non-array second argument as query options
+      expect(await client.unsafe('SELECT 1 AS one', { prepare: false })).toEqual([{ one: 1 }]),
+  });
+});
+
+it('aborts a deferred_query built before the session dies when that query is awaited', async () => {
+  await owner`CREATE TABLE deferred_query_test (id int)`;
+  files.sql = ['-- pospay:data-step hold\nSELECT 1'];
+  const killer = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    await expect(
+      applyMigrations(owner, 'unused', {
+        hold: async (client) => {
+          const pending = client`INSERT INTO deferred_query_test VALUES (9)`;
+          const [{ pid }] = await client<[{ pid: number }]>`SELECT pg_backend_pid() AS pid`;
+          await killer`SELECT pg_terminate_backend(${pid}, 5000)`.then(() => pending);
+        },
+      }),
+    ).rejects.toThrow('Migration session lost its advisory lock; aborting');
+    expect(await owner`SELECT id FROM deferred_query_test`).toHaveLength(0);
+  } finally {
+    await killer.end();
+  }
+});

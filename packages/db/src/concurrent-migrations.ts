@@ -71,11 +71,47 @@ function isConnectionLoss(error: unknown): boolean {
   return typeof error.code === 'string' && CONNECTION_LOSS.has(error.code);
 }
 
+interface DeferredQuery {
+  then: (...args: unknown[]) => unknown;
+  execute: (...args: unknown[]) => unknown;
+  catch: (...args: unknown[]) => unknown;
+  finally: (...args: unknown[]) => unknown;
+}
+
+function isDeferredQuery(returned: object): returned is DeferredQuery {
+  return (
+    'execute' in returned &&
+    typeof returned.execute === 'function' &&
+    'then' in returned &&
+    typeof returned.then === 'function' &&
+    'catch' in returned &&
+    typeof returned.catch === 'function' &&
+    'finally' in returned &&
+    typeof returned.finally === 'function'
+  );
+}
+
+// postgres.js sends a query only when then, execute, catch or finally runs. One built before the
+// socket died would otherwise run on the reconnected backend without the lock. Interpolation never
+// calls then, and a helper has no execute, so the same object is returned.
+function guardDeferredQuery<T>(session: MigrationSession, returned: T): T {
+  if (typeof returned !== 'object' || returned === null || !isDeferredQuery(returned))
+    return returned;
+  for (const method of ['then', 'execute', 'catch', 'finally'] as const) {
+    const run = returned[method];
+    returned[method] = (...args: unknown[]) => {
+      if (session.lost) throw sessionLost();
+      return run.apply(returned, args);
+    };
+  }
+  return returned;
+}
+
 // Throw before the call: a follow-up write on a socket postgres.js already closed throws outside the
 // promise. Return the client's own value; a helper, a nested fragment and PendingQuery are not Promises.
 function throwIfLost<T>(session: MigrationSession, call: () => T): T {
   if (session.lost) throw sessionLost();
-  return call();
+  return guardDeferredQuery(session, call());
 }
 
 // An in-flight statement rejects with the driver's code. Map that once for the whole run and keep the
@@ -107,20 +143,15 @@ function armLossWatch(client: postgres.Sql, session: MigrationSession): () => vo
 }
 
 function guardedUnsafe(client: postgres.Sql, session: MigrationSession): postgres.Sql['unsafe'] {
-  return (statement, parameters, queryOptions) =>
-    throwIfLost(session, () => client.unsafe(statement, parameters, queryOptions));
+  return ((...args: Parameters<postgres.Sql['unsafe']>) =>
+    throwIfLost(session, () =>
+      Reflect.apply(client.unsafe, client, args),
+    )) as postgres.Sql['unsafe'];
 }
 
 function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres.Sql['begin'] {
-  return ((
-    optionsOrCallback: string | ((tx: postgres.TransactionSql) => unknown),
-    maybeCallback?: (tx: postgres.TransactionSql) => unknown,
-  ) =>
-    throwIfLost(session, () => {
-      if (typeof optionsOrCallback === 'function') return client.begin(optionsOrCallback);
-      if (maybeCallback === undefined) throw new Error('Missing migration transaction callback');
-      return client.begin(optionsOrCallback, maybeCallback);
-    })) as postgres.Sql['begin'];
+  return ((...args: Parameters<postgres.Sql['begin']>) =>
+    throwIfLost(session, () => Reflect.apply(client.begin, client, args))) as postgres.Sql['begin'];
 }
 
 // Refuses the next call after the socket closes, and still invokes the client the caller passed in.
