@@ -34,13 +34,14 @@ ALTER TABLE service_session_recoveries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE service_session_recoveries FORCE ROW LEVEL SECURITY;
 --> statement-breakpoint
 CREATE POLICY service_session_recoveries_select ON service_session_recoveries FOR SELECT TO pospay_app
-  USING (company_id = app_company_id());
+  USING (company_id = app_company_id() AND user_id = app_user_id());
 --> statement-breakpoint
 CREATE POLICY service_session_recoveries_insert ON service_session_recoveries FOR INSERT TO pospay_app
-  WITH CHECK (company_id = app_company_id());
+  WITH CHECK (company_id = app_company_id() AND user_id = app_user_id());
 --> statement-breakpoint
 CREATE POLICY service_session_recoveries_update ON service_session_recoveries FOR UPDATE TO pospay_app
-  USING (company_id = app_company_id()) WITH CHECK (company_id = app_company_id());
+  USING (company_id = app_company_id() AND user_id = app_user_id())
+  WITH CHECK (company_id = app_company_id() AND user_id = app_user_id());
 --> statement-breakpoint
 REVOKE ALL ON service_session_recoveries FROM PUBLIC, pospay_app, pospay_auth, pospay_dispatcher;
 --> statement-breakpoint

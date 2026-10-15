@@ -37,7 +37,8 @@ key itself is never stored here), `business_date`, `business_timezone`, `session
   foreign keys to the branch and to `service_sessions`. CHECKs: `expires_at > issued_at` and `expires_at <= issued_at + 168 h`;
   `revoked_at` and `revoked_outcome` are both null or both set.
 - `ENABLE` + `FORCE` RLS with split policies on `company_id = app_company_id()`; a negative isolation test in the
-  same PR. `pospay_app` gets `SELECT`, `INSERT` and a column `UPDATE` on `session_id`, `committed_at`,
+  same PR. SELECT, INSERT (`WITH CHECK`) and UPDATE (`USING` and `WITH CHECK`) also require `user_id = app_user_id()`,
+  so one company session cannot read, insert or change another user's proof. `pospay_app` gets `SELECT`, `INSERT` and a column `UPDATE` on `session_id`, `committed_at`,
   `last_seen_at`, `expires_at`, `revoked_at`, `revoked_outcome` only — actor, scope, key hash and date are
   immutable. A `BEFORE UPDATE` trigger refuses any change to `revoked_at`/`revoked_outcome` once set, any change to
   `session_id`/`committed_at` once set, and any `expires_at` beyond the cap, so the column grant cannot undo a
