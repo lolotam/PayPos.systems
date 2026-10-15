@@ -4,10 +4,11 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useEffect, useRef, useState } from 'react';
 import { FormProvider, useForm, useWatch, type UseFormReset } from 'react-hook-form';
+import { useRevokeOwnRecording } from '../api/use-own-recordings';
 import type { SessionServiceScope } from '../api/use-session-services';
-import type { SessionAttemptJournal } from '../model/session-attempt-journal';
+import type { ExpiredRecoveryProof, SessionAttemptJournal } from '../model/session-attempt-journal';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
-import { leaveUnknownVisit, sessionLeaveFeedback, sessionResultFrozen, type SessionFeedback, type SessionRecordingResult } from '../model/session-recording-result';
+import { confirmExpiredRecording, leaveUnknownVisit, sessionLeaveFeedback, sessionResultFrozen, type RecoveryConfirmOutcome, type SessionFeedback, type SessionRecordingResult } from '../model/session-recording-result';
 import { reportSessionSubmitError } from '../model/session-submit-error';
 import type { SessionRecordingController } from '../model/use-session-recording';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -43,6 +44,19 @@ function focusDraftPrice(localId: string) {
   document.getElementById(`${localId}-price`)?.focus();
 }
 
+// فشل مسح العلامة يرمي قبل الإلغاء، فالرسالة تظهر واللوحة تفضل لأن التخزين لسه شايل المحاولة.
+export function bindExpiredConfirm(recording: SessionRecordingController, revoke: (proof: ExpiredRecoveryProof) => Promise<unknown>) {
+  return (outcome: RecoveryConfirmOutcome) => {
+    if (!recording.journal || recording.result.feedback.kind !== 'EXPIRED') return;
+    try {
+      recording.replaceResult(confirmExpiredRecording(recording.result, recording.journal, outcome, revoke));
+    } catch (error) {
+      if (sessionLeaveFeedback(error).kind !== 'NOT_PERSISTED') throw error;
+      recording.replaceResult({ ...recording.result, persistenceWarning: 'NOT_PERSISTED' });
+    }
+  };
+}
+
 // النتيجة المحفوظة بتختفي لما session تكون null، فالزر هنا هو طريق الخروج الوحيد من زيارة وقتها مش معروف.
 function leaveUnknownTimeVisit(result: SessionRecordingResult, journal: Pick<SessionAttemptJournal, 'leaveVisit'> | null, replace: (next: SessionRecordingResult) => void, report: (feedback: SessionFeedback) => void) {
   if (!journal) return;
@@ -55,6 +69,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   onRefreshScope: () => void;
 }) {
   const locale = useLocale();
+  const revoke = useRevokeOwnRecording();
   const { result, journal } = recording;
   const frozen = sessionResultFrozen(result);
   // أول حفظ بيثبّت رأس الزيارة (الزبونة والوقت والعضوية)؛ سطور التصحيح بس اللي تفضل مفتوحة.
@@ -87,7 +102,8 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
       <SessionDraftLines scope={scope} {...(occurredAt !== undefined ? { occurredAt } : {})} disabled={!online || frozen || timeUnknown} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} />
       {rootError ? <p role="alert">{rootError}</p> : null}
-      <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online ? { onReplay: () => { void recording.retry(); } } : {})} />
+      <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online ? { onReplay: () => { void recording.retry(); } } : {})}
+        {...(journal && result.expiredAttempt ? { scope, timeZone: context.business_timezone, onConfirm: bindExpiredConfirm(recording, (proof) => revoke.mutateAsync(proof)) } : {})} />
       <Button type="submit" disabled={!online || frozen || timeUnknown || !journal || (!result.sessionId && !result.customer)}>
         {t(locale, result.sessionId ? 'serviceSessions.correctAndAppend' : 'serviceSessions.save')}
       </Button>

@@ -4,7 +4,7 @@ import { SYSTEM_ROLES, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 import { sessionServiceOptions } from '../persistence/session-service-options.adapter.ts';
 import { ordersServiceOptionsQuery } from '../orders.module.ts';
-import { ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import { ids, AT, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
 
 let f: SessionFixture;
 beforeAll(async () => {
@@ -95,7 +95,7 @@ it('rechecks missing/delegated authority, DENY, membership expiry and orders fea
   await f.h.owner`UPDATE permission_overrides SET expires_at=NULL,effect='DENY' WHERE company_id=${f.company} AND id=${grant}`;
   expect((await get()).status).toBe(403); await expect(read()).rejects.toMatchObject({ code: 'FORBIDDEN' });
   await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${grant}`;
-  await f.h.owner`UPDATE memberships SET role_id=${must(SYSTEM_ROLES.find((r) => r.code === 'cashier')).id},ends_at=now() WHERE company_id=${f.company} AND id=${f.membership}`;
+  await f.h.owner`UPDATE memberships SET role_id=${must(SYSTEM_ROLES.find((r) => r.code === 'cashier')).id},ends_at=${AT.toISOString()} WHERE company_id=${f.company} AND id=${f.membership}`;
   expect((await get()).status).toBe(403); await expect(read()).rejects.toMatchObject({ code: 'FORBIDDEN' });
   await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membership}`;
   await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by) VALUES(${f.company},'orders',false,'Synthetic feature refusal',${f.ownerId})`;

@@ -170,11 +170,23 @@ lines of that date until the deadline.
   lines for that date. The read is bounded to her own lines, to dates the issue's window checks accept (create and
   append alike), behind the gate, capped at 168 h, and audited on confirm. Accepted.
 - Availability: the proof issue is a hard prerequisite of every service-session write. The upsert waits on the
-  same-key row lock through `ON CONFLICT … DO UPDATE`. This transaction sets neither `NOWAIT` nor `lock_timeout`,
-  so two first sends of one key on a healthy database both finish and leave one proof row.
+  same-key row lock through `ON CONFLICT … DO UPDATE`, and the issue takes its advisory lock without `NOWAIT`.
+  The issue calls `withTenant` with `timeoutMs` of 10000. That deadline starts when the call begins, including
+  the wait for a pool connection, and the promise rejects when it passes; `refuseRecoveryIssue` turns that
+  rejection into `SESSION_RECOVERY_UNAVAILABLE`. The same call sets `statement_timeout` and
+  `idle_in_transaction_session_timeout` to 10000 ms for each statement after the first, not for their sum.
+  PostgreSQL 16 has no `transaction_timeout` and the issue does not set one; the compose images are
+  `postgres:16`. A statement that has already started can keep running until its own `statement_timeout`; the
+  backend is not cancelled from outside. A `COMMIT` already sent before the deadline returns its own result,
+  and a missing reply for another 10000 ms rejects with `CommitOutcomeUnknownError`, which the same mapping
+  returns as `SESSION_RECOVERY_UNAVAILABLE`. The bound does not depend on `deploy/docker-compose.staging-shared.yml`, which
+  sets no `lock_timeout`. Two first sends of one key on a healthy database both finish inside the deadline and
+  leave one proof row. The business transaction does not pass `timeoutMs`; the idempotency claim still changes
+  `lock_timeout` only around its insert and then restores the previous value. Postgres started from
+  `deploy/docker-compose.dev.yml` and `deploy/docker-compose.staging.yml` still defaults that value to `10s`.
   `SESSION_RECOVERY_UNAVAILABLE` is returned only when that issue fails in the database. The client treats that
-  like a transient network failure and retries the same key. A same-key lock wait on a healthy database is not
-  that failure.
+  like a transient network failure and retries the same key. A same-key lock wait on a healthy database that
+  finishes inside the deadline is not that failure.
 - Rows are kept, with no retention sweep (§2). A sweep needs a decision on the dispatcher grant and is a follow-up,
   not part of this row.
 - SS-Q20 (Waleed, 2026-10-14, option 1; Abu Salem pending): for an attempt that reached the server after

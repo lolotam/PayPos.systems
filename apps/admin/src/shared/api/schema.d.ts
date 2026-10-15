@@ -1553,6 +1553,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Own active lines for the attempt day (ADR-0042 §3, SS-Q20). Requires record:service-sessions:branch, the orders feature, the selected company and an admin session; access is re-checked inside the transaction. The proof is found by the unique index of app_user_id(), company, business, branch, operation and the sha256 of x-recovery-key. Unknown key, another recorder, branch or tenant is SESSION_RECOVERY_NOT_FOUND. Revoked or expired is SESSION_RECOVERY_CLOSED (REVOKED wins). Before last_seen_at + 24h is SESSION_RECOVERY_NOT_YET with opens_at. Otherwise visits of coalesce(linked session business_date, proof business_date) that have an ACTIVE line recorded by the caller, 50 per page, keyset cursor (occurred_at, id) bound to the proof. attempt.outcome is COMMITTED or NOT_COMMITTED, omitted for a proof issued in the first 48h after the feature started and absent on every error. Cache-Control: no-store. */
+        get: operations["readServiceSessionRecovery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/recovery/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Revokes the caller's own proof (ADR-0042 §3). Same guards as the read. Sets revoked_at and revoked_outcome where revoked_at is null, so the first outcome wins, and writes one audit_log row. 204 when the proof is unknown, expired or already revoked. Lost record access is 403, not 204. The raw key is not stored. */
+        post: operations["confirmServiceSessionRecovery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices/me/attendance-qr": {
         parameters: {
             query?: never;
@@ -3828,6 +3862,48 @@ export interface components {
         SessionPerformerOptionPage: {
             items: components["schemas"]["SessionPerformerOption"][];
             next_cursor: string | null;
+        };
+        /** @enum {string} */
+        ServiceSessionRecoveryOperation: "record-service-session" | "append-service-session-lines";
+        ServiceSessionRecoveryQuery: {
+            operation: components["schemas"]["ServiceSessionRecoveryOperation"];
+            cursor?: string;
+        };
+        ServiceSessionRecoveryLine: {
+            /** Format: uuid */
+            id: string;
+            ordinal: number;
+            name_ar: string | null;
+            name_en: string;
+        };
+        ServiceSessionRecoveryVisit: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            customer_name: string;
+            customer_phone_masked: string;
+            lines: components["schemas"]["ServiceSessionRecoveryLine"][];
+        };
+        ServiceSessionRecoveryAttempt: {
+            business_date: string & (string);
+            business_timezone: string;
+            /** Format: date-time */
+            issued_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /** @enum {string} */
+            outcome?: "COMMITTED" | "NOT_COMMITTED";
+        };
+        ServiceSessionRecoveryPage: {
+            items: components["schemas"]["ServiceSessionRecoveryVisit"][];
+            next_cursor: string | null;
+            attempt: components["schemas"]["ServiceSessionRecoveryAttempt"];
+        };
+        ConfirmSessionRecoveryBody: {
+            operation: components["schemas"]["ServiceSessionRecoveryOperation"];
+            /** @enum {string} */
+            outcome: "RECORDED_ELSEWHERE" | "NOT_RECORDED";
         };
         AttendanceQrToken: {
             /** Format: uuid */
@@ -9952,6 +10028,139 @@ export interface operations {
                 };
             };
             /** @description Bilingual authentication/readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    readServiceSessionRecovery: {
+        parameters: {
+            query: {
+                operation: "record-service-session" | "append-service-session-lines";
+                /** @description Opaque base64url cursor from the previous page, bound to this proof and route. A mismatched cursor is 400. */
+                cursor?: string;
+            };
+            header: {
+                "x-company-id": string;
+                /** @description Credential-like attempt key. Same visible-ASCII shape as Idempotency-Key. Never logged and never placed in a URL. */
+                "x-recovery-key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own visits and the attempt. No raw phone and no recovery key. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceSessionRecoveryPage"];
+                };
+            };
+            /** @description Malformed key or a cursor that does not belong to this proof. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No record access or the orders feature is off. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description SESSION_RECOVERY_NOT_FOUND. One code for every mismatch. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description SESSION_RECOVERY_NOT_YET (opens_at) or SESSION_RECOVERY_CLOSED (reason EXPIRED or REVOKED). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirmServiceSessionRecovery: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                /** @description Credential-like attempt key. Same visible-ASCII shape as Idempotency-Key. Never logged and never placed in a URL. */
+                "x-recovery-key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmSessionRecoveryBody"];
+            };
+        };
+        responses: {
+            /** @description Revoked, or nothing to revoke. Idempotent. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Malformed key or body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No record access or the orders feature is off. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;
