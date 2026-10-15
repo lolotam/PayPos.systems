@@ -159,7 +159,7 @@ and showing a Cashier staff-login DENY on the permissions screen (D5).
   offline notice replaces the form and no request is sent.
 - API, admin (session cookie + `x-company-id`; feature `staff`):
   - `GET /v1/businesses/<BUSINESS_ID>/employees/<EMPLOYEE_ID>/cards` → `{ active: { id, employee_id, card_code_suffix, issued_at, revoked_at } | null, can_manage: true }`, or 404 `NOT_FOUND` for a missing employee or a caller without management on every employee branch.
-  - `POST .../cards` with `Idempotency-Key` and `{ "card_code": "CARD-TEST-0001" }` → 200 card; 409 `EMPLOYEE_CARD_CODE_IN_USE`; 429 `TOO_MANY_REQUESTS` + `Retry-After`; 503 `NOT_READY` without Redis; same key with another code → 422 `IDEMPOTENCY_KEY_REUSED` while the limiter admits it (a changed body counts as an attempt, so at the limit it is 429).
+  - `POST .../cards` with `Idempotency-Key` and `{ "card_code": "CARD-TEST-0001" }` → 200 card; 409 `EMPLOYEE_CARD_CODE_UNAVAILABLE` (the same generic refusal whether the code is held in this business or another); 429 `TOO_MANY_REQUESTS` + `Retry-After`; 503 `NOT_READY` without Redis; same key with another code → 422 `IDEMPOTENCY_KEY_REUSED` while the limiter admits it (a changed body counts as an attempt, so at the limit it is 429).
   - `POST .../cards/<CARD_ID>/revoke` with `Idempotency-Key`, no body → 200 with `revoked_at`; a fresh key on a card already revoked → 404.
 - API, device: `POST /v1/devices/me/clock-by-card` with `Authorization: Device <DEVICE_TOKEN>`, the operator cookie
   `pospay-staff.session_token`, `Origin` equal to the configured POS origin, `Idempotency-Key` and `{ "card_code": "..." }` →

@@ -205,6 +205,44 @@ it('reissue revokes the previous active card and writes one revoked audit row', 
   expect(active?.['id']).toBe(second.body['id']);
 });
 
+it('refuses a code held in another business with the same envelope as one held here', async () => {
+  await grants([
+    ['ALLOW', 'BUSINESS', f.business],
+    ['ALLOW', 'BUSINESS', f.secondBusiness],
+  ]);
+  const holder = await f.useCase.execute({
+    companyId: f.company,
+    userId: f.userId,
+    businessId: f.secondBusiness,
+    input: { ...termsFor(f, 'Other business holder'), primary_branch_id: f.otherBranch },
+  });
+  const foreign = 'WmForeign!8kQp';
+  const seeded = await send(
+    'POST',
+    `/v1/businesses/${f.secondBusiness}/employees/${holder.id}/cards`,
+    { card_code: foreign },
+    ids.newId(),
+  );
+  expect(seeded.status).toBe(200);
+  await grants([['ALLOW', 'BUSINESS', f.business]]);
+  const local = 'WmLocal!7jNm';
+  expect((await issue(colleagueId, local)).status).toBe(200);
+  const [before] = await f.h.owner`SELECT count(*)::int AS n FROM audit_log
+    WHERE company_id=${f.company} AND entity='employee_card'`;
+  const elsewhere = await issue(employeeId, foreign);
+  const here = await issue(employeeId, local);
+  const [after] = await f.h.owner`SELECT count(*)::int AS n FROM audit_log
+    WHERE company_id=${f.company} AND entity='employee_card'`;
+  expect(elsewhere.status).toBe(409);
+  expect(elsewhere.body).toEqual(here.body);
+  expect(elsewhere.body).toEqual({
+    code: 'EMPLOYEE_CARD_CODE_UNAVAILABLE',
+    message_ar: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
+    message_en: "This card code can't be used. Choose another code.",
+  });
+  expect(after?.['n']).toBe(before?.['n']);
+});
+
 it('returns 409 for a code active on another employee and 404 for that employee card', async () => {
   await grants([['ALLOW', 'BRANCH', f.branch]]);
   const code = 'WmShared!4tWx';
@@ -212,7 +250,7 @@ it('returns 409 for a code active on another employee and 404 for that employee 
   expect(issued.status).toBe(200);
   const conflict = await issue(colleagueId, code);
   expect(conflict.status).toBe(409);
-  expect(conflict.body['code']).toBe('EMPLOYEE_CARD_CODE_IN_USE');
+  expect(conflict.body['code']).toBe('EMPLOYEE_CARD_CODE_UNAVAILABLE');
   const stolen = await revoke(colleagueId, String(issued.body['id']));
   expect(stolen.status).toBe(404);
   expect(stolen.body['code']).toBe('NOT_FOUND');

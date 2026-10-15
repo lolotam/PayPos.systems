@@ -30,7 +30,7 @@ export class EmployeeCardError extends Error {
    */
   constructor(
     readonly code:
-      'BAD_REQUEST' | 'FORBIDDEN' | 'NOT_FOUND' | 'FEATURE_DISABLED' | 'EMPLOYEE_CARD_CODE_IN_USE',
+      'BAD_REQUEST' | 'FORBIDDEN' | 'NOT_FOUND' | 'FEATURE_DISABLED' | 'EMPLOYEE_CARD_CODE_UNAVAILABLE',
   ) {
     super(code);
   }
