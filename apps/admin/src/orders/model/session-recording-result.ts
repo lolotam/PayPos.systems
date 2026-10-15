@@ -1,9 +1,14 @@
 import { errorEnvelope, rejectedServiceLine, type AppendServiceSessionLinesResponse, type Customer,
-  type RecordServiceSessionResponse, type RejectedServiceLine, type ServiceSession } from '@pospay/contracts';
+  type RecordServiceSessionResponse, type RejectedServiceLine, type ServiceSession, type ServiceSessionRecoveryOperation } from '@pospay/contracts';
 import { SessionSavedDisplayFailure, sessionAttemptUnresolved, type SessionAttempt, type SessionAttemptCommand,
   type SessionJournalEnvelope } from './session-attempt';
-import type { SessionAttemptJournal } from './session-attempt-journal';
+import type { ExpiredRecoveryProof, SessionAttemptJournal } from './session-attempt-journal';
 import { createSessionDraft, type SessionDraftForm, type SessionDraftLine } from './session-drafts';
+
+export type ExpiredAttemptView = {
+  key: string; createdAt: number; lastSentAt?: number; sessionId?: string; operation: ServiceSessionRecoveryOperation;
+};
+export type RecoveryConfirmOutcome = ExpiredRecoveryProof['outcome'];
 
 export type SessionFeedback = { kind: 'IDLE' | 'SAVING' | 'COMPLETE' | 'PARTIAL' | 'ALL_REJECTED' | 'UNRESOLVED' | 'EXPIRED' | 'SAVED_DISPLAY_FAILED' | 'NOT_PERSISTED' }
   | { kind: 'ERROR'; error: unknown; refreshScope: boolean };
@@ -11,7 +16,7 @@ export type SessionRecordingResult = {
   customer: Pick<Customer, 'id' | 'name' | 'phone'> | null; customerId: string | null; drafts: SessionDraftForm;
   session: ServiceSession | null; sessionId: string | null; addedLineIds: string[];
   rejected: { localId: string; error: RejectedServiceLine }[];
-  feedback: SessionFeedback; attempt: SessionAttempt | null; persistenceWarning: 'NOT_PERSISTED' | null;
+  feedback: SessionFeedback; attempt: SessionAttempt | null; expiredAttempt: ExpiredAttemptView | null; persistenceWarning: 'NOT_PERSISTED' | null;
   visitTimeUnknown: boolean;
 };
 export type SessionResultEvent =
@@ -21,7 +26,7 @@ export type SessionResultEvent =
   | { type: 'JOURNAL'; entry: SessionJournalEnvelope | null; persistenceWarning?: 'NOT_PERSISTED' | null; inFlight?: boolean };
 
 export function emptySessionRecordingResult(customer: SessionRecordingResult['customer'] = null): SessionRecordingResult {
-  return { customer, customerId: customer?.id ?? null, drafts: { lines: [] }, session: null, sessionId: null, addedLineIds: [], rejected: [], feedback: { kind: 'IDLE' }, attempt: null, persistenceWarning: null, visitTimeUnknown: false };
+  return { customer, customerId: customer?.id ?? null, drafts: { lines: [] }, session: null, sessionId: null, addedLineIds: [], rejected: [], feedback: { kind: 'IDLE' }, attempt: null, expiredAttempt: null, persistenceWarning: null, visitTimeUnknown: false };
 }
 export const sessionResultFrozen = (state: SessionRecordingResult) =>
   !!state.persistenceWarning || ['SAVING', 'UNRESOLVED', 'EXPIRED', 'SAVED_DISPLAY_FAILED', 'NOT_PERSISTED'].includes(state.feedback.kind);
@@ -54,10 +59,10 @@ function withAttemptHeader(drafts: SessionDraftForm, attempt: SessionAttempt, li
   return { ...drafts, lines, recorder_membership_id, ...(attempt.kind === 'record' ? { occurred_at } : {}) };
 }
 // دفتر اليومية بيفضل حافظ مدخل PARTIAL في الذاكرة حتى لو الكتابة فشلت، فـ null هنا معناها الزيارة اتسابت فعلًا.
-// SAVING و UNRESOLVED و PARTIAL تابعة للمدخل؛ NOT_PERSISTED تابعة له بس لو مفيش زيارة محفوظة؛ COMPLETE لأ.
+// SAVING و UNRESOLVED و PARTIAL و EXPIRED تابعة للمدخل؛ null من غير تحذير تخزين يفك الشاشة بعد مسح العلامة. NOT_PERSISTED تابعة له بس لو مفيش زيارة محفوظة؛ COMPLETE لأ.
 function journalDependent(state: SessionRecordingResult) {
   const kind = state.feedback.kind;
-  if (kind === 'SAVING' || kind === 'UNRESOLVED' || kind === 'PARTIAL') return true;
+  if (kind === 'SAVING' || kind === 'UNRESOLVED' || kind === 'PARTIAL' || kind === 'EXPIRED') return true;
   return kind === 'NOT_PERSISTED' && !state.session;
 }
 // تحذير التخزين على زيارة محفوظة من غير محاولة في الدفتر ما يفضلّش SAVING: النتيجة المحفوظة COMPLETE أو PARTIAL.
@@ -127,7 +132,11 @@ function failedResult(state: SessionRecordingResult, attempt: SessionAttempt, er
   return releaseForbiddenRecorder({ ...state, attempt: null, rejected: [], addedLineIds: [], feedback: { kind: 'ERROR', error, refreshScope: status === 401 || status === 403 } }, error, status);
 }
 
-export function transitionSessionRecordingResult(state: SessionRecordingResult, event: SessionResultEvent): SessionRecordingResult {
+function expiredAttemptView(entry: Extract<SessionJournalEnvelope, { state: 'EXPIRED' }>): ExpiredAttemptView {
+  return { key: entry.key, createdAt: entry.createdAt, operation: entry.sessionId ? 'append-service-session-lines' : 'record-service-session',
+    ...(entry.lastSentAt !== undefined ? { lastSentAt: entry.lastSentAt } : {}), ...(entry.sessionId ? { sessionId: entry.sessionId } : {}) };
+}
+function applySessionResultEvent(state: SessionRecordingResult, event: SessionResultEvent): SessionRecordingResult {
   if (event.type === 'FAILED') return failedResult(state, event.attempt, event.error);
   if (event.type === 'JOURNAL') {
     const entry = event.entry;
@@ -155,6 +164,31 @@ export function transitionSessionRecordingResult(state: SessionRecordingResult, 
     persistenceWarning: event.persistenceWarning ?? null, visitTimeUnknown: false,
     addedLineIds: (event.type === 'APPENDED' ? event.response.added_lines : response.session.lines).map((line) => line.id),
     drafts: retainRejected(rejectionSnapshots(state.drafts, rejected), rejected), feedback: { kind: response.outcome } };
+}
+
+export function transitionSessionRecordingResult(state: SessionRecordingResult, event: SessionResultEvent): SessionRecordingResult {
+  const next = applySessionResultEvent(state, event);
+  if (event.type === 'JOURNAL' && event.entry?.state === 'EXPIRED') return { ...next, expiredAttempt: expiredAttemptView(event.entry) };
+  if (next.feedback.kind === 'EXPIRED') return next;
+  return next.expiredAttempt === null ? next : { ...next, expiredAttempt: null };
+}
+
+// العلامة بتتمسح محليًا الأول. فشل إلغاء الإثبات ما يرجّعش الشاشة. NOT_RECORDED يسيب مسودات التبويب والحفظ الجاي بمفتاح جديد من begin.
+export function confirmExpiredRecording(state: SessionRecordingResult, journal: Pick<SessionAttemptJournal, 'confirm'>, outcome: RecoveryConfirmOutcome, revoke: (proof: ExpiredRecoveryProof) => Promise<unknown>): SessionRecordingResult {
+  const proof = journal.confirm(outcome);
+  void Promise.resolve().then(() => revoke(proof)).catch(() => undefined);
+  return applyExpiredConfirmation(state, proof);
+}
+// مظروف الإلحاق بعد إعادة التحميل شايل sessionId من غير وقت الزيارة؛ فتح الفورم هنا هيسأل عن المؤديات بوقت السيرفر.
+function appendConfirmedWithoutVisitTime(state: SessionRecordingResult, proof: ExpiredRecoveryProof): boolean {
+  return proof.sessionId !== undefined && state.session === null && state.drafts.occurred_at === undefined;
+}
+function applyExpiredConfirmation(state: SessionRecordingResult, proof: ExpiredRecoveryProof): SessionRecordingResult {
+  const shared = { attempt: null, expiredAttempt: null, persistenceWarning: null };
+  const visitTimeUnknown = state.visitTimeUnknown || appendConfirmedWithoutVisitTime(state, proof);
+  if (proof.outcome === 'NOT_RECORDED') return { ...state, ...shared, visitTimeUnknown, feedback: { kind: 'IDLE' }, sessionId: proof.sessionId ?? state.sessionId };
+  if (!proof.sessionId) return emptySessionRecordingResult();
+  return { ...state, ...shared, visitTimeUnknown, drafts: { lines: [] }, rejected: [], sessionId: proof.sessionId, feedback: { kind: state.session ? 'COMPLETE' : 'IDLE' } };
 }
 
 export function sessionLeaveFeedback(error: unknown): SessionFeedback {

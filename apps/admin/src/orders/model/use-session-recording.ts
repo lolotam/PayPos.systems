@@ -35,6 +35,7 @@ const pendingJournal: SessionAttemptJournal = {
   leaveVisit() { throw new Error('SESSION_ATTEMPT_UNAVAILABLE'); },
   begin() { throw new Error('SESSION_ATTEMPT_UNAVAILABLE'); },
   run: () => Promise.reject(new Error('SESSION_ATTEMPT_UNAVAILABLE')),
+  confirm() { throw new Error('SESSION_ATTEMPT_UNAVAILABLE'); },
   dispose() {},
 };
 

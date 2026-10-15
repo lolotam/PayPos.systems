@@ -1,4 +1,4 @@
-import type { RecordServiceSessionResponse } from '@pospay/contracts';
+import type { ConfirmSessionRecoveryBody, RecordServiceSessionResponse, ServiceSessionRecoveryOperation } from '@pospay/contracts';
 import { serviceSessionErrors } from '@pospay/i18n';
 import { listenForIdentityChanges } from '@/shared/browser/load-page';
 import { freezeSessionAttempt, freezeSessionAttemptScope, sameSessionScope, sessionAttemptUnresolved,
@@ -8,6 +8,21 @@ import { createSessionAttemptSlotStore, type JournalStorage } from './session-at
 
 const storageKey = 'pospay:service-session-attempt';
 type WriteResult = { status: number; data: RecordServiceSessionResponse };
+export type ExpiredRecoveryProof = {
+  scope: SessionAttemptScope; key: string; createdAt: number; lastSentAt?: number; sessionId?: string;
+  operation: ServiceSessionRecoveryOperation; outcome: ConfirmSessionRecoveryBody['outcome'];
+};
+// التأكيد من EXPIRED لنفس الشخص والنطاق فقط. طلب لسه طالع يتساب لحد ما يخلص. فشل الكتابة يرمي قبل مسح العلامة.
+function confirmExpiredEntry(scope: SessionAttemptScope | null, read: () => SessionJournalEnvelope | null, flight: () => { key: string } | undefined, outcome: ExpiredRecoveryProof['outcome'], clear: () => void): ExpiredRecoveryProof {
+  if (flight()) throw new Error('SESSION_ATTEMPT_UNAVAILABLE');
+  const entry = read();
+  if (!scope || entry?.state !== 'EXPIRED' || !sameSessionScope(scope, entry.scope)) throw new Error('SESSION_ATTEMPT_UNAVAILABLE');
+  const proof: ExpiredRecoveryProof = { scope: entry.scope, key: entry.key, createdAt: entry.createdAt,
+    operation: entry.sessionId ? 'append-service-session-lines' : 'record-service-session', outcome,
+    ...(entry.lastSentAt !== undefined ? { lastSentAt: entry.lastSentAt } : {}), ...(entry.sessionId ? { sessionId: entry.sessionId } : {}) };
+  clear();
+  return proof;
+}
 const registry = new Map<string, { core: ReturnType<typeof createCore>; users: number }>();
 
 function retentionElapsed(entry: Extract<SessionJournalEnvelope, { state: 'PENDING' | 'EXPIRED' }>, now: number) {
@@ -51,8 +66,7 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
     if (!next || !scope || !sameSessionScope(scope, next)) { scope = next ? freezeSessionAttemptScope(next) : null; value = null; flight = undefined; visitTimes.clear(); slots.purge(); persistenceWarning = slots.blocked ? 'NOT_PERSISTED' : null; }
     stopIdentity?.(); stopIdentity = next ? listenForIdentityChanges(() => changeScope(null)) : undefined;
   };
-  const matches = (attempt: SessionAttempt) => scope && sameSessionScope(scope, attempt.scope) &&
-    ((value?.state === 'PENDING' && value.attempt.key === attempt.key) || (value?.state === 'EXPIRED' && value.key === attempt.key));
+  const matches = (attempt: SessionAttempt) => scope && sameSessionScope(scope, attempt.scope) && ((value?.state === 'PENDING' && value.attempt.key === attempt.key) || (value?.state === 'EXPIRED' && value.key === attempt.key));
   const visit = (sessionId: string | undefined, state: 'PARTIAL' | 'SAVED_DISPLAY_FAILED') => {
     const occurredAt = state === 'PARTIAL' && sessionId ? visitTimes.get(sessionId) : undefined; transition(scope ? { version: 1, state, scope, ...(sessionId ? { sessionId } : {}), ...(occurredAt ? { occurredAt } : {}) } as SessionJournalEnvelope : null);
   };
@@ -73,6 +87,7 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
     configure(next: SessionAttemptScope, clock: SessionAttemptRuntime, backing?: JournalStorage) { runtime = clock; slots.configure(backing); if (!scope || !sameSessionScope(scope, next)) changeScope(next); read(); if (!stopIdentity) stopIdentity = listenForIdentityChanges(() => changeScope(null)); },
     stop() { stopIdentity?.(); stopIdentity = undefined; },
     leaveVisit() { if (flight || value?.state === 'PENDING' || value?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED'); visitTimes.clear(); transition(null, true); },
+    confirm(outcome: ExpiredRecoveryProof['outcome']) { return confirmExpiredEntry(scope, read, () => flight, outcome, () => transition(null, true)); },
     begin(command: SessionAttemptCommand, rowIds: string[]) {
       const recovered = read();
       if (!scope || flight || recovered?.state === 'PENDING' || recovered?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED');
@@ -110,6 +125,7 @@ export function createSessionAttemptJournal(initialScope: SessionAttemptScope, r
     leaveVisit() { requireCurrent(); entry.core.leaveVisit(); },
     begin(command: SessionAttemptCommand, rowIds: string[]) { requireCurrent(); return entry.core.begin(command, rowIds); },
     run<T extends WriteResult>(attempt: SessionAttempt, send: () => Promise<T>): Promise<T> { return current() ? entry.core.run(attempt, send) : Promise.reject(new Error('SESSION_ATTEMPT_UNAVAILABLE')); },
+    confirm(outcome: ExpiredRecoveryProof['outcome']) { requireCurrent(); return entry.core.confirm(outcome); },
     dispose() { if (!disposed) { disposed = true; entry.users -= 1; if (entry.users === 0 && !entry.core.read()) entry.core.stop(); } },
   };
 }

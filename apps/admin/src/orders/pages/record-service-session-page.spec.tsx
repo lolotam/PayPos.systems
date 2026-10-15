@@ -1,10 +1,11 @@
-import { t } from '@pospay/i18n';
+import { formatInstant, t } from '@pospay/i18n';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS } from '../model/session-attempt';
 import { createSessionAttemptJournal } from '../model/session-attempt-journal';
 import { sessionLocalTime } from '../model/session-local-time';
-import { id, instant, response, scope } from '../model/session-recording-result.fixture';
+import { id, inputLine, instant, response, scope } from '../model/session-recording-result.fixture';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { RecordServiceSessionPage } from './record-service-session-page';
 
@@ -204,10 +205,84 @@ it('shows only the forbidden message when an unresolved attempt meets a refused 
   const query = client.getQueryCache().find({ queryKey: ['session-recording-context', scope.companyId, scope.businessId, scope.branchId, scope.userId, null] });
   if (!query) throw new Error('Missing context query');
   await act(async () => { query.setState({ status: 'error', fetchStatus: 'idle', error: refused, data: undefined }); });
-  expect(screen.getAllByRole('alert').map((node) => node.textContent)).toEqual(['Refusal EN']);
-  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeNull();
-  expect(screen.queryByText(t('en', 'serviceSessions.unresolved'))).toBeNull();
-  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryContext') })).toBeNull();
+  await waitFor(() => {
+    expect(screen.getAllByRole('alert').map((node) => node.textContent)).toEqual(['Refusal EN']);
+    expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeNull();
+    expect(screen.queryByText(t('en', 'serviceSessions.unresolved'))).toBeNull();
+    expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryContext') })).toBeNull();
+  });
+});
+
+const retention = SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;
+const recoveryPage = { items: [], next_cursor: null, attempt: { business_date: '2026-10-13', business_timezone: 'Pacific/Auckland', issued_at: instant, expires_at: '2026-10-14T08:00:00.000Z' } };
+
+async function seedExpired(sent: boolean) {
+  let now = Date.parse(instant);
+  const journal = createSessionAttemptJournal(scope, { now: () => now, newId: () => id(91) });
+  const started = journal.begin({ kind: 'record', body: { customer_id: id(7), lines: [inputLine] } }, [id(9)]);
+  if (sent) await expect(journal.run(started, () => Promise.reject(new Error('offline')))).rejects.toThrow('offline');
+  now += retention;
+  const entry = journal.read();
+  journal.dispose();
+  if (entry?.state !== 'EXPIRED' || (sent ? entry.lastSentAt === undefined : entry.lastSentAt !== undefined)) throw new Error('expected EXPIRED');
+  return entry;
+}
+function recoveryButtons(locale: 'ar' | 'en') {
+  const recorded = screen.getByRole('button', { name: t(locale, 'serviceSessions.recoveryRecorded') }) as HTMLButtonElement;
+  const missed = screen.getByRole('button', { name: t(locale, 'serviceSessions.recoveryNotRecorded') }) as HTMLButtonElement;
+  expect(recorded.disabled).toBe(false);
+  expect(missed.disabled).toBe(false);
+  return missed;
+}
+async function clearExpiredMarker(locale: 'ar' | 'en') {
+  fireEvent.click(recoveryButtons(locale));
+  await waitFor(() => expect(screen.queryByText(t(locale, 'serviceSessions.expired'))).toBeNull());
+  const journal = createSessionAttemptJournal(scope, { now: () => Date.now(), newId: () => id(92) });
+  expect(journal.read()).toBeNull();
+  journal.dispose();
+}
+
+it.each(['ar', 'en'] as const)('keeps the recovery panel when an expired attempt meets a failed context in %s', async (locale) => {
+  state.locale = locale;
+  const entry = await seedExpired(true);
+  state.get.mockImplementation((path: string) => String(path).endsWith('/recovery')
+    ? Promise.resolve({ data: recoveryPage })
+    : Promise.resolve({ error: { message_ar: 'Context AR', message_en: 'Context EN' }, response: { status: 500 } }));
+  renderPage();
+  expect(await screen.findByText(locale === 'ar' ? 'Context AR' : 'Context EN')).toBeTruthy();
+  expect(await screen.findByText(t(locale, 'serviceSessions.recoveryAttemptAt').replace('{when}', formatInstant(new Date(entry.createdAt), locale, 'Pacific/Auckland')))).toBeTruthy();
+  expect(screen.queryByRole('button', { name: t(locale, 'serviceSessions.save') })).toBeNull();
+  await clearExpiredMarker(locale);
+});
+
+it.each(['ar', 'en'] as const)('keeps both recovery buttons when an expired attempt meets a refused context in %s', async (locale) => {
+  state.locale = locale;
+  await seedExpired(true);
+  const refused = Object.assign(new Error('Refusal EN'), { message_ar: 'Refusal AR', message_en: 'Refusal EN', status: 403 });
+  state.get.mockResolvedValue({ error: refused, response: { status: 403 } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  renderPage(scope, client);
+  expect(await screen.findByText(t(locale, 'serviceSessions.expired'))).toBeTruthy();
+  const query = client.getQueryCache().find({ queryKey: ['session-recording-context', scope.companyId, scope.businessId, scope.branchId, scope.userId, null] });
+  if (!query) throw new Error('Missing context query');
+  await act(async () => { query.setState({ status: 'error', fetchStatus: 'idle', error: refused, data: undefined }); });
+  expect(await screen.findByText(locale === 'ar' ? 'Refusal AR' : 'Refusal EN')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: t(locale, 'serviceSessions.save') })).toBeNull();
+  expect(screen.queryByRole('button', { name: t(locale, 'serviceSessions.retryContext') })).toBeNull();
+  await clearExpiredMarker(locale);
+});
+
+it.each(['ar', 'en'] as const)('shows never reached with both buttons when an expired attempt never left the browser in %s', async (locale) => {
+  state.locale = locale;
+  const entry = await seedExpired(false);
+  setOnline(false);
+  renderPage();
+  expect(await screen.findByText(t(locale, 'serviceSessions.recoveryNeverReached'))).toBeTruthy();
+  expect(screen.getByText(t(locale, 'serviceSessions.offline'))).toBeTruthy();
+  expect(screen.getByText(t(locale, 'serviceSessions.recoveryAttemptAt').replace('{when}', formatInstant(new Date(entry.createdAt), locale, 'UTC')))).toBeTruthy();
+  recoveryButtons(locale);
+  expect(screen.queryByRole('button', { name: t(locale, 'serviceSessions.save') })).toBeNull();
+  expect(state.get).not.toHaveBeenCalled();
 });
 
 it('shows a service choice error and does not record a priced line without a service', async () => {
