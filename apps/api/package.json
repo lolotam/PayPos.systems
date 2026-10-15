@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:unit": "vitest run -c vitest.unit.config.ts",
     "start": "node --env-file-if-exists=../../.env dist/main.js",
     "demo:seed": "tsc -p tsconfig.scripts.json && node --env-file-if-exists=../../.env dist/tools/scripts/seed-demo.js",
     "platform:bind-phone": "node --env-file-if-exists=../../.env scripts/bind-phone.ts",
