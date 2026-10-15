@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { SessionServiceScope } from '../api/use-session-services';
 
 const SESSION_QUERY_PREFIXES = new Set([
-  'session-recording-context', 'session-performer-context', 'session-performer-facts', 'session-performers', 'session-services',
+  'session-recording-context', 'session-performer-context', 'session-performer-facts', 'session-performers', 'session-services', 'own-recordings',
 ]);
 
 function sessionQueriesOf({ companyId, businessId, branchId, userId }: SessionServiceScope) {
