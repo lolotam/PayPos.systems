@@ -81,6 +81,5 @@ function ibanColumns(
       header: t(locale, 'employeeIban.date'),
       cell: ({ row }) => formatInstant(new Date(row.original.set_at), locale, timeZone),
     },
-    { accessorKey: 'set_by', header: t(locale, 'employeeIban.actor') },
   ];
 }
