@@ -330,3 +330,59 @@ it('never runs or resolves data steps for an already journaled migration', async
     await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
   ).toHaveLength(1);
 });
+
+it('runs a data step that uses a postgres.js helper and a nested fragment', async () => {
+  await owner`CREATE TABLE helper_fragment_test (id int)`;
+  await owner`INSERT INTO helper_fragment_test VALUES (1)`;
+  files.sql = ['-- pospay:data-step read\nSELECT 1'];
+  await applyMigrations(owner, 'unused', {
+    read: async (client) => {
+      expect(
+        await client`SELECT ${client(['id'])} FROM helper_fragment_test WHERE ${client`true`}`,
+      ).toEqual([{ id: 1 }]);
+    },
+  });
+  expect(
+    await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
+  ).toHaveLength(1);
+});
+
+it('refuses a pool larger than one connection before any statement, lock or journal row', async () => {
+  const onclose = () => undefined;
+  let statements = 0;
+  const pooled = postgres(testDb.ownerUrl, {
+    max: 2,
+    onnotice: () => undefined,
+    onclose,
+    connection: { application_name: 'pospay-migrations-max-probe' },
+  });
+  const watched = new Proxy(pooled, {
+    apply() {
+      statements += 1;
+      return undefined;
+    },
+    get(target, property, receiver) {
+      if (property === 'begin' || property === 'unsafe') statements += 1;
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  files.sql = ['CREATE TABLE max_pool_refused_test (id int)'];
+  try {
+    await expect(applyMigrations(watched, 'unused')).rejects.toThrow(
+      'applyMigrations requires a postgres.js client with max: 1',
+    );
+    expect(statements).toBe(0);
+    expect(pooled.options.onclose).toBe(onclose);
+    expect(await owner`SELECT to_regclass('max_pool_refused_test') AS relation`).toEqual([
+      { relation: null },
+    ]);
+    expect(
+      await owner`SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash = 'test-migration'`,
+    ).toHaveLength(0);
+    expect(
+      await owner`SELECT 1 FROM pg_locks AS held_lock JOIN pg_stat_activity AS activity ON activity.pid = held_lock.pid WHERE held_lock.locktype = 'advisory' AND activity.application_name = 'pospay-migrations-max-probe'`,
+    ).toHaveLength(0);
+  } finally {
+    await pooled.end();
+  }
+});

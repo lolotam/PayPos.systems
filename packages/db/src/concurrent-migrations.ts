@@ -62,8 +62,8 @@ function migrationSteps(statements: readonly string[], dataSteps: DataSteps) {
   });
 }
 
-function sessionLost(): Error {
-  return new Error(SESSION_LOST);
+function sessionLost(cause?: unknown): Error {
+  return cause === undefined ? new Error(SESSION_LOST) : new Error(SESSION_LOST, { cause });
 }
 
 function isConnectionLoss(error: unknown): boolean {
@@ -71,19 +71,27 @@ function isConnectionLoss(error: unknown): boolean {
   return typeof error.code === 'string' && CONNECTION_LOSS.has(error.code);
 }
 
-function rejectIfLost<T>(session: MigrationSession, start: () => PromiseLike<T>): Promise<T> {
-  // A follow-up write on a socket postgres.js already closed throws outside the promise.
-  if (session.lost) return Promise.reject(sessionLost());
-  return Promise.resolve()
-    .then(start)
-    .then(
-      (outcome) => outcome,
-      (error: unknown) => {
-        if (!isConnectionLoss(error)) throw error;
-        session.lost = true;
-        throw sessionLost();
-      },
+// Throw before the call: a follow-up write on a socket postgres.js already closed throws outside the
+// promise. Return the client's own value; a helper, a nested fragment and PendingQuery are not Promises.
+function throwIfLost<T>(session: MigrationSession, call: () => T): T {
+  if (session.lost) throw sessionLost();
+  return call();
+}
+
+// An in-flight statement rejects with the driver's code. Map that once for the whole run and keep the
+// original error. The next call is refused before it writes, and unlock skips a dead socket.
+function abortIfConnectionLost(session: MigrationSession, error: unknown): never {
+  if (!isConnectionLoss(error)) throw error;
+  session.lost = true;
+  throw sessionLost(error);
+}
+
+function requireSingleConnection(client: postgres.Sql): void {
+  if (client.options.max !== 1) {
+    throw new Error(
+      'applyMigrations requires a postgres.js client with max: 1 so the advisory lock and every statement share one connection',
     );
+  }
 }
 
 // parseOptions stores undefined when the caller omitted onclose; the published type marks it required.
@@ -99,11 +107,8 @@ function armLossWatch(client: postgres.Sql, session: MigrationSession): () => vo
 }
 
 function guardedUnsafe(client: postgres.Sql, session: MigrationSession): postgres.Sql['unsafe'] {
-  // Callers only await the query. PendingQuery's extra handles are unused on this path.
-  return ((statement, parameters, queryOptions) =>
-    rejectIfLost(session, () =>
-      client.unsafe(statement, parameters, queryOptions),
-    )) as postgres.Sql['unsafe'];
+  return (statement, parameters, queryOptions) =>
+    throwIfLost(session, () => client.unsafe(statement, parameters, queryOptions));
 }
 
 function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres.Sql['begin'] {
@@ -111,7 +116,7 @@ function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres
     optionsOrCallback: string | ((tx: postgres.TransactionSql) => unknown),
     maybeCallback?: (tx: postgres.TransactionSql) => unknown,
   ) =>
-    rejectIfLost(session, () => {
+    throwIfLost(session, () => {
       if (typeof optionsOrCallback === 'function') return client.begin(optionsOrCallback);
       if (maybeCallback === undefined) throw new Error('Missing migration transaction callback');
       return client.begin(optionsOrCallback, maybeCallback);
@@ -124,7 +129,7 @@ function guardedSql(client: postgres.Sql, session: MigrationSession): postgres.S
   const unsafe = guardedUnsafe(client, session);
   return new Proxy(client, {
     apply(target, _thisArg, args) {
-      return rejectIfLost(session, () => Reflect.apply(target, target, args));
+      return throwIfLost(session, () => Reflect.apply(target, target, args));
     },
     get(target, property, receiver) {
       if (property === 'begin') return begin;
@@ -134,8 +139,8 @@ function guardedSql(client: postgres.Sql, session: MigrationSession): postgres.S
   });
 }
 
-async function holdMigrationLock(sql: postgres.Sql, session: MigrationSession): Promise<void> {
-  await rejectIfLost(session, () => sql`SELECT pg_advisory_lock(hashtext('pospay:migrations'))`);
+async function holdMigrationLock(sql: postgres.Sql): Promise<void> {
+  await sql`SELECT pg_advisory_lock(hashtext('pospay:migrations'))`;
 }
 
 async function unlockMigration(sql: postgres.Sql, session: MigrationSession): Promise<void> {
@@ -211,22 +216,26 @@ async function applyPending(
   for (const { migration, steps } of pending) await applyOne(sql, migration, steps);
 }
 
-// The run stays on the caller's one connection: every caller passes max:1, and the advisory lock is
-// taken on that client. A closed socket aborts before the next statement, so the pool cannot reconnect
-// and continue without the lock. Only a concurrent-index prefix runs outside a transaction. The
-// remaining DDL and the journal row commit together, as Drizzle normally does.
+// Loss detection holds only for one connection: the advisory lock and every statement share it, and a
+// closed socket is that same connection. applyMigrations rejects any other max before it queries or arms
+// the close watcher. A closed socket aborts before the next statement, so the pool cannot reconnect and
+// continue without the lock. Only a concurrent-index prefix runs outside a transaction. The remaining
+// DDL and the journal row commit together, as Drizzle normally does.
 export async function applyMigrations(
   client: postgres.Sql,
   folder: string,
   dataSteps: DataSteps = {},
 ): Promise<void> {
+  requireSingleConnection(client);
   const migrations = readMigrationFiles({ migrationsFolder: folder });
   const session: MigrationSession = { lost: false };
   const restoreClose = armLossWatch(client, session);
   const sql = guardedSql(client, session);
   try {
-    await holdMigrationLock(sql, session);
+    await holdMigrationLock(sql);
     await applyPending(sql, migrations, dataSteps);
+  } catch (error) {
+    abortIfConnectionLost(session, error);
   } finally {
     await finishSession(client, session, restoreClose);
   }
