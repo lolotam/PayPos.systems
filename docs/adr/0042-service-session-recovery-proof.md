@@ -170,10 +170,14 @@ lines of that date until the deadline.
   lines for that date. The read is bounded to her own lines, to dates the issue's window checks accept (create and
   append alike), behind the gate, capped at 168 h, and audited on confirm. Accepted.
 - Availability: the proof issue is a hard prerequisite of every service-session write. The upsert waits on the
-  same-key row lock through `ON CONFLICT … DO UPDATE`. This transaction sets neither `NOWAIT` nor `lock_timeout`,
-  so two first sends of one key on a healthy database both finish and leave one proof row. The server still bounds
-  that wait with `lock_timeout=10s` on the Postgres service in `deploy/docker-compose.dev.yml` and
-  `deploy/docker-compose.staging.yml`. `SESSION_RECOVERY_UNAVAILABLE` is returned only when that issue fails in
+  same-key row lock through `ON CONFLICT … DO UPDATE`, and the issue takes its advisory lock without `NOWAIT`.
+  Before that lock the issue transaction runs `SET LOCAL lock_timeout = '10s'`, so a blocked issue stops after
+  10s on every database, including the shared staging Postgres that `deploy/staging-deploy.sh` uses through
+  `deploy/docker-compose.staging-shared.yml` (that file does not set `lock_timeout`). Two first sends of one key
+  on a healthy database both finish inside that bound and leave one proof row. The business transaction does not
+  set `lock_timeout` for its own waits; the idempotency claim changes it only around its insert and then restores
+  the previous value. Postgres started from `deploy/docker-compose.dev.yml` and `deploy/docker-compose.staging.yml`
+  still defaults that value to `10s`. `SESSION_RECOVERY_UNAVAILABLE` is returned only when that issue fails in
   the database. The client treats that like a transient network failure and retries the same key. A same-key
   lock wait on a healthy database is not that failure.
 - Rows are kept, with no retention sweep (§2). A sweep needs a decision on the dispatcher grant and is a follow-up,

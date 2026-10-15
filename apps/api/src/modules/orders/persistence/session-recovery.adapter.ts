@@ -12,6 +12,13 @@ import { loadProof, recoveryKeyHash, refuseRecoveryIssue, type RecoveryProofDate
 
 export { recoveryKeyHash };
 
+// قاعدة staging المشتركة لا تورّث lock_timeout من compose، وSET لا يقبل معاملًا جاهزًا فالقيمة ثابتة هنا.
+const RECOVERY_ISSUE_LOCK_TIMEOUT = '10s';
+
+async function limitIssueLockWait(tx: Tx): Promise<void> {
+  await tx.execute(sql.raw(`SET LOCAL lock_timeout = '${RECOVERY_ISSUE_LOCK_TIMEOUT}'`));
+}
+
 async function lockIssuedProof(tx: Tx, input: SessionRecoveryIssue): Promise<void> {
   // SELECT لا يقفل صفاً غير موجود، فيمرّ إلحاقان أولان معاً ويمدّ الثاني إثبات جلسة أخرى. القفل على الهوية يسلسل الإصدار قبل القراءة.
   const hash = recoveryKeyHash(input.key);
@@ -64,6 +71,7 @@ export function createSessionRecovery(database: TenantWrappers, ids: IdGenerator
     const at = clock.now();
     try {
       await database.withTenant(input.companyId, async (tx) => {
+        await limitIssueLockWait(tx);
         await lockIssuedProof(tx, input);
         await upsertProof(tx, input, ids.newId(), at, await prepareIssue(tx, input, at));
       }, { userId: input.userId });
