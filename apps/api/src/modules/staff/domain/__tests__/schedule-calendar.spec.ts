@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
-import { scheduleInstant, scheduleToday } from '../schedule-calendar.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { addScheduleDays, scheduleInstant, scheduleToday } from '../schedule-calendar.ts';
+import type { WeeklyShiftInput } from '../schedule-types.ts';
+import { materializeSchedule } from '../schedules.ts';
 
 const WALL_CLOCK: Intl.DateTimeFormatOptions = {
   year: 'numeric',
@@ -95,4 +97,50 @@ describe('cached zone formatting matches a fresh formatter', () => {
       'SCHEDULE_LOCAL_TIME_INVALID',
     );
   });
+});
+
+const WORST_CASE_SHIFTS: WeeklyShiftInput[] = [0, 1, 2, 3, 4, 5, 6].flatMap((day) => [
+  { day, start: '00:00', end: '04:00', break_start: '01:00', break_end: '02:00' },
+  { day, start: '06:00', end: '10:00', break_start: '07:00', break_end: '08:00' },
+  { day, start: '12:00', end: '16:00', break_start: '13:00', break_end: '14:00' },
+  { day, start: '18:00', end: '22:00', break_start: '19:00', break_end: '20:00' },
+]);
+
+function materializeTenWeeks(zone: string): number {
+  let count = 0;
+  for (let week = 0; week < 10; week += 1) {
+    count += materializeSchedule(
+      addScheduleDays('2028-01-01', week * 7),
+      WORST_CASE_SHIFTS,
+      zone,
+      4,
+    ).length;
+  }
+  return count;
+}
+
+function constructionsForZone(calls: readonly unknown[][], zone: string): number {
+  return calls.filter((args) => {
+    const options = args[1];
+    return (
+      typeof options === 'object' &&
+      options !== null &&
+      'timeZone' in options &&
+      options.timeZone === zone
+    );
+  }).length;
+}
+
+it('constructs at most one DateTimeFormat per zone for 28 shifts across 10 weeks', () => {
+  const zone = 'Asia/Riyadh';
+  const spy = vi.spyOn(Intl, 'DateTimeFormat');
+  try {
+    expect(materializeTenWeeks(zone)).toBe(280);
+    expect(constructionsForZone(spy.mock.calls, zone)).toBeLessThanOrEqual(1);
+    spy.mockClear();
+    expect(materializeTenWeeks(zone)).toBe(280);
+    expect(constructionsForZone(spy.mock.calls, zone)).toBe(0);
+  } finally {
+    spy.mockRestore();
+  }
 });
