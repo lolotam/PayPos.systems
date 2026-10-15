@@ -1,7 +1,5 @@
-import { createHash } from 'node:crypto';
 import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { ApiError } from '../../../shared/errors.ts';
 import { activeBusinessTimeZone } from '../../tenancy/index.ts';
 import { resolveSessionRecorder } from '../domain/session-authority.ts';
 import { SessionError } from '../domain/session-error.ts';
@@ -10,22 +8,13 @@ import type { SessionRecoveryIssue, SessionRecoveryPort } from '../ports/session
 import type { Clock } from '../ports/service-session-transactions.port.ts';
 import { loadSession } from './session-records.ts';
 import { sessionRecordAccess } from './session-record-access.adapter.ts';
+import { loadProof, recoveryKeyHash, refuseRecoveryIssue, type RecoveryProofDates } from './session-recovery-proof.ts';
 
-interface ProofDates { businessDate: string; timezone: string; sessionId: string | null }
+export { recoveryKeyHash };
 
-/** هاش المفتاح فقط؛ الصف لا يحتفظ بـ Idempotency-Key الخام. */
-export function recoveryKeyHash(key: string): string {
-  return createHash('sha256').update(key).digest('hex');
-}
-
-function refuse(error: unknown): never {
-  const seen = new Set<unknown>();
-  for (let current = error; typeof current === 'object' && current !== null && !seen.has(current); current = (current as { cause?: unknown }).cause) {
-    seen.add(current);
-    if (current instanceof SessionError) throw current;
-  }
-  throw new ApiError('SESSION_RECOVERY_UNAVAILABLE');
-}
+// lock_timeout بيتعاد مع كل قفل، فالقفل الاستشاري ثم قفل الصف ممكن يطولوا أكتر من الحد.
+// timeoutMs موعد واحد من انتظار الاتصال لحد الـ commit.
+const RECOVERY_ISSUE_DEADLINE_MS = 10_000;
 
 async function lockIssuedProof(tx: Tx, input: SessionRecoveryIssue): Promise<void> {
   // SELECT لا يقفل صفاً غير موجود، فيمرّ إلحاقان أولان معاً ويمدّ الثاني إثبات جلسة أخرى. القفل على الهوية يسلسل الإصدار قبل القراءة.
@@ -35,20 +24,11 @@ async function lockIssuedProof(tx: Tx, input: SessionRecoveryIssue): Promise<voi
     || ':' || ${input.branchId}::uuid::text || ':' || ${input.operation} || ':' || ${hash}, 0))`);
 }
 
-async function loadProof(tx: Tx, input: SessionRecoveryIssue, hash: string): Promise<ProofDates | undefined> {
-  const [row] = await tx.execute<{ business_date: string; business_timezone: string; session_id: string | null }>(sql`
-    SELECT to_char(business_date,'YYYY-MM-DD') AS business_date, business_timezone, session_id
-    FROM service_session_recoveries
-    WHERE company_id = app_company_id() AND user_id = ${input.userId} AND business_id = ${input.businessId}
-      AND branch_id = ${input.branchId} AND operation = ${input.operation} AND key_hash = ${hash}`);
-  return row === undefined ? undefined : { businessDate: row.business_date, timezone: row.business_timezone, sessionId: row.session_id };
-}
-
-async function prepareIssue(tx: Tx, input: SessionRecoveryIssue, at: Date): Promise<ProofDates> {
+async function prepareIssue(tx: Tx, input: SessionRecoveryIssue, at: Date): Promise<RecoveryProofDates> {
   const timezone = await activeBusinessTimeZone(tx, input.companyId, input.businessId, input.branchId);
   if (timezone === null) throw new SessionError('FORBIDDEN');
   const access = await sessionRecordAccess(tx, input.companyId, input.userId, input.businessId, input.branchId).read(at);
-  const existing = await loadProof(tx, input, recoveryKeyHash(input.key));
+  const existing = await loadProof(tx, input);
   if (input.operation === 'append-service-session-lines') {
     const record = await loadSession(tx, input.companyId, input.businessId, input.branchId, input.sessionId);
     if (record === null) throw new SessionError('FORBIDDEN');
@@ -64,7 +44,7 @@ async function prepareIssue(tx: Tx, input: SessionRecoveryIssue, at: Date): Prom
   return { businessDate: time.business_date, timezone, sessionId: null };
 }
 
-async function upsertProof(tx: Tx, input: SessionRecoveryIssue, id: string, at: Date, dates: ProofDates): Promise<void> {
+async function upsertProof(tx: Tx, input: SessionRecoveryIssue, id: string, at: Date, dates: RecoveryProofDates): Promise<void> {
   const hash = recoveryKeyHash(input.key);
   const stamp = at.toISOString();
   // ختم أقدم لا يرجّع last_seen_at لأن نافذة القراءة تُفتح منه؛ الحي فقط يُمدَّد والمنتهي أو الملغى يبقى مغلقاً.
@@ -83,14 +63,20 @@ async function upsertProof(tx: Tx, input: SessionRecoveryIssue, id: string, at: 
 }
 
 /** يصدر الإثبات في معاملة تخصه قبل أي أثر مالي. */
-export function createSessionRecovery(database: TenantWrappers, ids: IdGenerator, clock: Clock): SessionRecoveryPort {
+export function createSessionRecovery(
+  database: TenantWrappers,
+  ids: IdGenerator,
+  clock: Clock,
+  options?: { readonly issueTimeoutMs?: number },
+): SessionRecoveryPort {
+  const issueTimeoutMs = options?.issueTimeoutMs ?? RECOVERY_ISSUE_DEADLINE_MS;
   return { issue: async (input) => {
     const at = clock.now();
     try {
       await database.withTenant(input.companyId, async (tx) => {
         await lockIssuedProof(tx, input);
         await upsertProof(tx, input, ids.newId(), at, await prepareIssue(tx, input, at));
-      }, { userId: input.userId });
-    } catch (error) { refuse(error); }
+      }, { userId: input.userId, timeoutMs: issueTimeoutMs });
+    } catch (error) { refuseRecoveryIssue(error); }
   } };
 }
