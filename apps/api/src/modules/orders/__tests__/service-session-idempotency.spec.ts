@@ -50,7 +50,8 @@ it('a duplicate claim waits and rechecks expiry before releasing replay; the ori
       return target.execute(query);
     } : Reflect.get(target, property, receiver),
   }) as Tx), options) };
-  await f.h.owner`UPDATE memberships SET ends_at='2026-10-15T08:00:01Z' WHERE company_id=${f.company} AND id=${f.membership}`;
+  // حد الخصم يقارن بـ clock_timestamp() الحقيقي، فالنهاية تبقى بعده وساعة الاختبار تتجاوزها قبل فك الانتظار.
+  await f.h.owner`UPDATE memberships SET ends_at='2099-01-01T00:00:00.000Z' WHERE company_id=${f.company} AND id=${f.membership}`;
   const key = ids.newId(), context = { ...f.context(key), input: f.body() };
   const create = new RecordServiceSessionUseCase(ordersTransactions(wrapped, ids, f.clock), createSessionRecovery(f.db, ids, f.clock), ids, f.clock);
   const original = create.execute(context); await claimed;
@@ -63,7 +64,7 @@ it('a duplicate claim waits and rechecks expiry before releasing replay; the ori
     } : Reflect.get(target, property, receiver),
   }) as Tx), options) };
   const replay = new RecordServiceSessionUseCase(ordersTransactions(replayDb, ids, f.clock), createSessionRecovery(f.db, ids, f.clock), ids, f.clock).execute(context).then(() => null,(error: unknown) => error);
-  await replayClaim; f.setAt(new Date('2026-10-15T08:00:02Z')); release();
+  await replayClaim; f.setAt(new Date('2099-01-01T00:00:01.000Z')); release();
   const result = await original; expect((await replay) as Error).toMatchObject({ code: 'FORBIDDEN' });
   expect(await f.h.owner`SELECT 1 FROM outbox WHERE aggregate_id=${result.session.id}`).toHaveLength(1);
   await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membership}`; f.setAt(AT);
