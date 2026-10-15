@@ -3,6 +3,8 @@ import { serviceSessionSchemas } from './orders/service-session.js';
 import { serviceSessionFormPaths, serviceSessionFormSchemas } from './orders/service-session-form-openapi.js';
 import { serviceSessionDaySchemas } from './orders/service-session-day.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
+import { serviceSessionRecoverySchemas } from './orders/service-session-recovery.js';
+import { serviceSessionRecoveryPaths } from './orders/service-session-recovery-openapi.js';
 import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
 import { employeeIbanSchemas } from './staff/employee-iban.js';
 import { employeeIbanPaths } from './staff/employee-iban-openapi.js';
@@ -161,7 +163,7 @@ const SCHEMAS = [
   customer,
   findOrCreateCustomerInput,
   ...catalogSchemas,
-  ...serviceSessionSchemas, ...serviceSessionDaySchemas, ...serviceSessionFormSchemas,
+  ...serviceSessionSchemas, ...serviceSessionDaySchemas, ...serviceSessionFormSchemas, ...serviceSessionRecoverySchemas,
   attendanceQrToken,
   attendanceQrBranch,
   attendanceQrIssue,
@@ -260,6 +262,7 @@ const PATHS = {
   ...catalogPaths,
   ...serviceSessionPaths,
   ...serviceSessionFormPaths,
+  ...serviceSessionRecoveryPaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(

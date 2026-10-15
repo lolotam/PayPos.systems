@@ -932,6 +932,13 @@
       "when": 1792002219447,
       "tag": "0134_2026-10-14_service-session-recoveries",
       "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1792088619448,
+      "tag": "0135_2026-10-15_service-session-recovery-feature-start",
+      "breakpoints": true
     }
   ]
 }

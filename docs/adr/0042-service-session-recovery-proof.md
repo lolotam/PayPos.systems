@@ -122,7 +122,7 @@ Two refusals stay distinct. The guards refuse a caller without record access, fe
 usual `FORBIDDEN`. A caller who passes them but has no proof for this key, operation and place — unknown key, another
 recorder's key, another branch or tenant — gets one `SESSION_RECOVERY_NOT_FOUND`, which does not reveal which part
 failed. The key is a random client value, so the answer tells the caller nothing about anyone else. On an open proof the read also returns `attempt.outcome`: `COMMITTED` when `committed_at` is set, otherwise
-`NOT_COMMITTED` (SS-Q20). After the gate an unlinked proof can only mean no commit, because every commit links its
+`NOT_COMMITTED` (SS-Q20). Issue #226: an open proof issued strictly less than 48 hours after migration 0135 was applied omits `attempt.outcome` (at exactly 48 hours it is present). The apply time is the `recovery_feature_started_at` table comment, because `drizzle.__drizzle_migrations.created_at` is the journal folder timestamp and `pospay_app` cannot read that schema; a missing comment does not hide the outcome. After the gate an unlinked proof can only mean no commit, because every commit links its
 proof inside the same transaction, and a replay of a stored committed response links it too (§1). One rollout-only
 gap stays: a send that committed before 35c-13a-1 was deployed, whose idempotency row was already swept when the
 next send arrived, and whose new write was then refused, leaves an unlinked proof — the list still shows the
