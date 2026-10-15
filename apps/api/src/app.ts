@@ -169,6 +169,7 @@ function enableCors(app: NestFastifyApplication, corsOrigins: readonly string[])
       'idempotency-key',
       'x-request-id',
       'authorization',
+      'x-recovery-key',
       COMPANY_HEADER,
     ],
     // The admin app reads the id back to quote it in a support request.

@@ -9826,6 +9826,241 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/recovery": {
+      "get": {
+        "operationId": "readServiceSessionRecovery",
+        "description": "Own active lines for the attempt day (ADR-0042 §3, SS-Q20). Requires record:service-sessions:branch, the orders feature, the selected company and an admin session; access is re-checked inside the transaction. The proof is found by the unique index of app_user_id(), company, business, branch, operation and the sha256 of x-recovery-key. Unknown key, another recorder, branch or tenant is SESSION_RECOVERY_NOT_FOUND. Revoked or expired is SESSION_RECOVERY_CLOSED (REVOKED wins). Before last_seen_at + 24h is SESSION_RECOVERY_NOT_YET with opens_at. Otherwise visits of coalesce(linked session business_date, proof business_date) that have an ACTIVE line recorded by the caller, 50 per page, keyset cursor (occurred_at, id) bound to the proof. attempt.outcome is COMMITTED or NOT_COMMITTED, omitted for a proof issued in the first 48h after the feature started and absent on every error. Cache-Control: no-store.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-recovery-key",
+            "required": true,
+            "description": "Credential-like attempt key. Same visible-ASCII shape as Idempotency-Key. Never logged and never placed in a URL.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operation",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "record-service-session",
+                "append-service-session-lines"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Opaque base64url cursor from the previous page, bound to this proof and route. A mismatched cursor is 400.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own visits and the attempt. No raw phone and no recovery key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceSessionRecoveryPage"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed key or a cursor that does not belong to this proof.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No record access or the orders feature is off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SESSION_RECOVERY_NOT_FOUND. One code for every mismatch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SESSION_RECOVERY_NOT_YET (opens_at) or SESSION_RECOVERY_CLOSED (reason EXPIRED or REVOKED).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication or readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/recovery/confirm": {
+      "post": {
+        "operationId": "confirmServiceSessionRecovery",
+        "description": "Revokes the caller's own proof (ADR-0042 §3). Same guards as the read. Sets revoked_at and revoked_outcome where revoked_at is null, so the first outcome wins, and writes one audit_log row. 204 when the proof is unknown, expired or already revoked. Lost record access is 403, not 204. The raw key is not stored.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-recovery-key",
+            "required": true,
+            "description": "Credential-like attempt key. Same visible-ASCII shape as Idempotency-Key. Never logged and never placed in a URL.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmSessionRecoveryBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Revoked, or nothing to revoke. Idempotent."
+          },
+          "400": {
+            "description": "Malformed key or body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No record access or the orders feature is off.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication or readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/devices/me/attendance-qr": {
       "post": {
         "operationId": "issueAttendanceQr",
@@ -18978,6 +19213,188 @@
         "required": [
           "items",
           "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceSessionRecoveryOperation": {
+        "type": "string",
+        "enum": [
+          "record-service-session",
+          "append-service-session-lines"
+        ]
+      },
+      "ServiceSessionRecoveryQuery": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "$ref": "#/components/schemas/ServiceSessionRecoveryOperation"
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "required": [
+          "operation"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceSessionRecoveryLine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "ordinal": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "name_en": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ordinal",
+          "name_ar",
+          "name_en"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceSessionRecoveryVisit": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "customer_name": {
+            "type": "string"
+          },
+          "customer_phone_masked": {
+            "type": "string"
+          },
+          "lines": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceSessionRecoveryLine"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "customer_name",
+          "customer_phone_masked",
+          "lines"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceSessionRecoveryAttempt": {
+        "type": "object",
+        "properties": {
+          "business_date": {
+            "type": "string",
+            "allOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!0000-)"
+              }
+            ]
+          },
+          "business_timezone": {
+            "type": "string"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "COMMITTED",
+              "NOT_COMMITTED"
+            ]
+          }
+        },
+        "required": [
+          "business_date",
+          "business_timezone",
+          "issued_at",
+          "expires_at"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceSessionRecoveryPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceSessionRecoveryVisit"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 512
+          },
+          "attempt": {
+            "$ref": "#/components/schemas/ServiceSessionRecoveryAttempt"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "attempt"
+        ],
+        "additionalProperties": false
+      },
+      "ConfirmSessionRecoveryBody": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "$ref": "#/components/schemas/ServiceSessionRecoveryOperation"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "RECORDED_ELSEWHERE",
+              "NOT_RECORDED"
+            ]
+          }
+        },
+        "required": [
+          "operation",
+          "outcome"
         ],
         "additionalProperties": false
       },

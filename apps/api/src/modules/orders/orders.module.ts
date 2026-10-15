@@ -23,12 +23,17 @@ import { sessionRecordAccess } from './persistence/session-record-access.adapter
 import { sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
 import { createServiceSessionTransactions } from './persistence/service-session-transactions.ts';
-import { createSessionRecovery } from './persistence/session-recovery.adapter.ts';
+import { createSessionRecovery, recoveryKeyHash } from './persistence/session-recovery.adapter.ts';
+import { sessionRecoveryPlace, sessionRecoveryRecord } from './persistence/session-recovery-read.adapter.ts';
+import { createSessionRecoveryConfirm } from './persistence/session-recovery-confirm.adapter.ts';
+import { SessionRecoveryQuery } from './queries/session-recovery.query.ts';
 import { RecordServiceSessionUseCase } from './use-cases/record-service-session/record-service-session.usecase.ts';
 import { AppendServiceSessionLinesUseCase } from './use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
+import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recovery/confirm-session-recovery.usecase.ts';
+import { SessionRecoveryController } from './http/session-recovery.controller.ts';
 import type { Clock } from './ports/service-session-transactions.port.ts';
 
-export const ordersControllers = [ServiceSessionsController, ServiceSessionFormController];
+export const ordersControllers = [SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new SessionPerformerOptionsQueryHandler(database, {
     time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
@@ -50,6 +55,15 @@ export function ordersRecordingContextQuery(database: TenantWrappers, clock: Clo
     access: (tx, scope, at) => recordingAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
     limit: (tx, scope, membershipId) => recordingLimit(tx, scope.companyId, scope.businessId, membershipId),
   }, clock);
+}
+export function ordersRecoveryQuery(database: TenantWrappers, clock: Clock = systemClock) {
+  return new SessionRecoveryQuery(database, {
+    place: (tx, scope) => sessionRecoveryPlace(tx, scope.companyId, scope.businessId, scope.branchId),
+    record: (tx, scope, at) => sessionRecoveryRecord(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+  }, clock, recoveryKeyHash);
+}
+export function ordersRecoveryConfirm(database: TenantWrappers, ids: IdGenerator, clock: Clock = systemClock) {
+  return new ConfirmSessionRecoveryUseCase(createSessionRecoveryConfirm(database), ids, clock);
 }
 export function ordersDayQuery(database: TenantWrappers) {
   return new BranchDayServiceSessionsQuery(database, {
@@ -75,6 +89,8 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: SessionServiceOptionsQueryHandler, useValue: database === undefined ? null : ordersServiceOptionsQuery(database, clock) },
     { provide: RecordingContextQueryHandler, useValue: database === undefined ? null : ordersRecordingContextQuery(database, clock) },
     { provide: BranchDayServiceSessionsQuery, useValue: database === undefined ? null : ordersDayQuery(database) },
+    { provide: SessionRecoveryQuery, useValue: database === undefined ? null : ordersRecoveryQuery(database, clock) },
+    { provide: ConfirmSessionRecoveryUseCase, useValue: database === undefined ? null : ordersRecoveryConfirm(database, ids, clock) },
     { provide: RecordServiceSessionUseCase, useValue: writes === null ? null : new RecordServiceSessionUseCase(writes.transactions, writes.recovery, ids, clock) },
     { provide: AppendServiceSessionLinesUseCase, useValue: writes === null ? null : new AppendServiceSessionLinesUseCase(writes.transactions, writes.recovery, ids, clock) }];
 }

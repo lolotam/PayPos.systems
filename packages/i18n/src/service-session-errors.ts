@@ -13,5 +13,8 @@ export const serviceSessionErrors = {
   SESSION_TOTAL_TOO_LARGE: { message_ar: 'إجمالي الزيارة أكبر من الحد المالي المسموح.', message_en: 'Visit total exceeds the supported monetary range.' },
   SESSION_LINE_CAPACITY_EXCEEDED: { message_ar: 'الزيارة لا تقبل أكثر من عشرين بنداً.', message_en: 'A visit cannot contain more than twenty persisted lines.' },
   SESSION_RECORDER_MEMBERSHIP_REQUIRED: { message_ar: 'اختاري عضويتك التي تسجلين الجلسة بها.', message_en: 'Select your recorder membership.' },
+  SESSION_RECOVERY_NOT_FOUND: { message_ar: 'لا يوجد سجل لهذه المحاولة.', message_en: 'There is no record of this attempt.' },
+  SESSION_RECOVERY_NOT_YET: { message_ar: 'هذا الفحص غير مفتوح بعد. يفتح بعد 24 ساعة من آخر إرسال.', message_en: 'This check is not open yet. It opens 24 hours after the last send.' },
+  SESSION_RECOVERY_CLOSED: { message_ar: 'انتهت نافذة الفحص.', message_en: 'The check window has ended.' },
 } as const;
 export type ServiceSessionErrorCode = keyof typeof serviceSessionErrors;
