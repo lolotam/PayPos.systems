@@ -145,3 +145,35 @@ it('returns the same named 422 over HTTP for employee-count and combined limits,
       .owner`SELECT id FROM audit_log WHERE entity='staff_schedule' AND "after"->>'week_start' >= '2030-01-05'`,
   ).toHaveLength(0);
 });
+// نفس معيار 35a: تسخين مرتين ثم وسيط عشر عينات. أسوأ حالة issue #145 هي 28 وردية × موظفين × 10 أسابيع.
+// الأسابيع بعد 2032 حتى لا يكتب الاختبار فوق تأكيد 2030-01-05 الذي يسبقُه.
+it('keeps a warmed median under 200ms for 28 shifts across 2 employees and 10 weeks', async () => {
+  const origin = '2032-01-03';
+  const samples: number[] = [];
+  for (let index = 0; index < 12; index++) {
+    const weeks = Array.from({ length: 10 }, (_, week) =>
+      addScheduleDays(origin, index * 70 + week * 7),
+    );
+    const start = performance.now();
+    const result = await f.applyTemplate.execute({
+      ...scheduleActor(f),
+      templateId,
+      input: {
+        branch_id: f.branch,
+        employee_ids: employeeIds.slice(0, 2),
+        weeks,
+        replace: false,
+      },
+    });
+    const elapsed = performance.now() - start;
+    expect(result.schedules).toHaveLength(20);
+    if (index >= 2) samples.push(elapsed);
+  }
+  expect(samples).toHaveLength(10);
+  const sorted = samples.toSorted((a, b) => a - b);
+  const median = ((sorted[4] ?? 0) + (sorted[5] ?? 0)) / 2;
+  process.stdout.write(
+    `schedule apply 2x10x28: median ${median.toFixed(1)}ms, range ${Math.min(...samples).toFixed(1)}–${Math.max(...samples).toFixed(1)}ms, 10 samples (target 200ms)\n`,
+  );
+  expect(median).toBeLessThan(200);
+});
