@@ -171,10 +171,11 @@ lines of that date until the deadline.
   append alike), behind the gate, capped at 168 h, and audited on confirm. Accepted.
 - Availability: the proof issue is a hard prerequisite of every service-session write. The upsert waits on the
   same-key row lock through `ON CONFLICT … DO UPDATE`. This transaction sets neither `NOWAIT` nor `lock_timeout`,
-  so two first sends of one key on a healthy database both finish and leave one proof row.
-  `SESSION_RECOVERY_UNAVAILABLE` is returned only when that issue fails in the database. The client treats that
-  like a transient network failure and retries the same key. A same-key lock wait on a healthy database is not
-  that failure.
+  so two first sends of one key on a healthy database both finish and leave one proof row. The server still bounds
+  that wait with `lock_timeout=10s` on the Postgres service in `deploy/docker-compose.dev.yml` and
+  `deploy/docker-compose.staging.yml`. `SESSION_RECOVERY_UNAVAILABLE` is returned only when that issue fails in
+  the database. The client treats that like a transient network failure and retries the same key. A same-key
+  lock wait on a healthy database is not that failure.
 - Rows are kept, with no retention sweep (§2). A sweep needs a decision on the dispatcher grant and is a follow-up,
   not part of this row.
 - SS-Q20 (Waleed, 2026-10-14, option 1; Abu Salem pending): for an attempt that reached the server after

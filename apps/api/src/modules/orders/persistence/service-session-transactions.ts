@@ -1,44 +1,13 @@
-import { appendOutboxEvent, runIdempotent, IdempotencyKeyBusyError, IdempotencyKeyReusedError, type TenantWrappers, type Tx, type IdGenerator } from '@pospay/db';
+import { appendOutboxEvent, runIdempotent, type TenantWrappers, type Tx, type IdGenerator } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { SessionError } from '../domain/session-error.ts';
 import { sessionBatchEvent } from '../domain/session-write.ts';
 import type { Clock, ServiceSessionTransactions, SessionTransaction, SessionWriteContext } from '../ports/service-session-transactions.port.ts';
 import { insertLines, insertSession } from './session-writes.ts';
 import { loadSession } from './session-records.ts';
 import { auditSession } from './session-audit.ts';
-import { recoveryKeyHash } from './session-recovery.adapter.ts';
+import { cleanSessionWrite, linkCommittedProof } from './session-recovery-proof.ts';
 
 export type SessionReaders = Pick<SessionTransaction, 'place' | 'access' | 'catalog' | 'customer' | 'performers' | 'discount' | 'discountMessages'>;
-
-function cleanError(error: unknown): never {
-  if (error instanceof SessionError || error instanceof IdempotencyKeyBusyError || error instanceof IdempotencyKeyReusedError) throw error;
-  const seen = new Set<unknown>();
-  for (let cause = error; typeof cause === 'object' && cause !== null && !seen.has(cause); cause = (cause as { cause?: unknown }).cause) {
-    seen.add(cause);
-    if (['40P01', '40001', '55P03'].includes(String((cause as { code?: unknown }).code))) throw new SessionError('TRANSACTION_RETRY_REQUIRED');
-  }
-  throw new Error('SESSION_PERSISTENCE_FAILED');
-}
-
-function committedSessionId(body: unknown): string {
-  const session = typeof body === 'object' && body !== null ? (body as { session?: unknown }).session : null;
-  const id = typeof session === 'object' && session !== null ? (session as { id?: unknown }).id : null;
-  if (typeof id !== 'string' || id === '') throw new Error('SESSION_PERSISTENCE_FAILED');
-  return id;
-}
-
-async function linkCommittedProof(tx: Tx, context: SessionWriteContext, operation: 'record-service-session' | 'append-service-session-lines', body: unknown, at: Date): Promise<void> {
-  const sessionId = committedSessionId(body);
-  const stamp = at.toISOString();
-  await tx.execute(sql`
-    UPDATE service_session_recoveries SET session_id = ${sessionId}, committed_at = ${stamp}::timestamptz
-    WHERE company_id = app_company_id() AND user_id = ${context.userId} AND business_id = ${context.businessId}
-      AND branch_id = ${context.branchId} AND operation = ${operation} AND key_hash = ${recoveryKeyHash(context.key)}
-      AND revoked_at IS NULL AND expires_at > ${stamp}::timestamptz AND committed_at IS NULL
-      AND EXISTS (SELECT 1 FROM service_sessions s WHERE s.company_id = app_company_id()
-        AND s.business_id = service_session_recoveries.business_id AND s.branch_id = service_session_recoveries.branch_id
-        AND s.id = ${sessionId})`);
-}
 
 export function createServiceSessionTransactions(database: TenantWrappers, ids: IdGenerator,
   bind: (tx: Tx, context: SessionWriteContext) => SessionReaders, clock: Clock): ServiceSessionTransactions {
@@ -62,6 +31,6 @@ export function createServiceSessionTransactions(database: TenantWrappers, ids: 
         emit: (record, lines, append) => appendOutboxEvent(tx, ids.newId(), { aggregateType: 'service_session', aggregateId: record.id,
           eventType: append ? 'ServiceSessionLinesAdded' : 'ServiceSessionRecorded', payload: sessionBatchEvent(record, lines) }),
       }), { userId: context.userId });
-    } catch (error) { cleanError(error); }
+    } catch (error) { cleanSessionWrite(error); }
   } };
 }
