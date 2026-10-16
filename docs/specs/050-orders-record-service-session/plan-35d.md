@@ -60,7 +60,8 @@ Rules the 35d-1 contract PR must keep:
 
 - `change` is **optional**, never required or nullable-required. Every payload already published (`ServiceSessionRecorded`
   and `ServiceSessionLinesAdded` embed `recordedServiceLine = serviceLineChanged.extend(…)`) has no such key, and the
-  schemas are strict. `recordedServiceLine` pins it absent.
+  schemas are strict. 35d-1 must pin `change` absent on `recordedServiceLine` (it is built with `.extend` and would
+  otherwise inherit the optional member), for example `change: z.undefined()`.
 - A cross-field refinement: `change` present ⇒ `revision = change.previous.revision + 1` and `status = ACTIVE`.
 - Arabic doc comment on the contract and in `events/published.ts`: «يصدر مرة لكل سطر عند حفظ تعديل سعر أو خصم، في نفس
   معاملة التعديل».
@@ -114,8 +115,9 @@ again.
 existing `notificationRequestConsumer` → `StoreInAppNotification` → admin inbox/bell. No provider send, no new bell
 infrastructure, no realtime in Phase 1, no `packages/notifications` import from orders.
 
-**Safe parameters.** `displayName` in `in-app-notifications.ts` refuses any run of seven or more digits, so «125.000»
-would be rejected. The template therefore gets a dedicated strict money parameter
+**Safe parameters.** `displayName` in `in-app-notifications.ts` is a name filter: it rejects any seven digits even when
+separators sit between them (`1250.000` fails, `125.000` passes), so it would refuse ordinary KWD amounts and is not a
+money type. The template therefore gets a dedicated strict money parameter
 (`/^\d{1,11}\.\d{3}$/`, canonical KWD) next to `business_date`'s `z.iso.date()`; names keep the existing display-name
 filter with the generic fallback label used by the late bell. Which parameters appear (service name, previous → new net,
 editor name, branch, date) is fixed by ED-Q11. If the owner wants the editor's name, 35d-2 adds one narrow
@@ -188,7 +190,7 @@ Consume side (35d-2; fixtures insert `ServiceLineChanged` rows directly, like `l
 7. **Groups.** More than 100 recipients ⇒ stable groups of at most 100, all committed with the ledger row.
 8. **Ignored events.** `ServiceLineChanged` with `change` absent (or another kind) ⇒ consumed, no ledger row, no bell.
    A closed company ⇒ skip. A malformed payload or a line that does not match ⇒ `PRICE_EDIT_EVENT_INVALID`.
-9. **Notification side.** The template renders in ar and en; money parameters accept `"2.500"` and `"125.000"` and reject
+9. **Notification side.** The template renders in ar and en; money parameters accept `"2.500"` and `"1250.000"` and reject
    `"2.5"`, a phone-like string and a URL; the in-app row is visible only to its recipient through the admin inbox API.
 10. **End to end through the dispatcher.** edit → outbox → dispatcher → consumer → notice event → in-app row, for a
     branch manager, with no provider call.

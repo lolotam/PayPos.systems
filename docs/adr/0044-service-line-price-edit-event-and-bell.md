@@ -66,8 +66,8 @@ itself never waits for, or fails because of, the bell. Future extraction cost: n
 
 ### 4. Money in the bell
 
-The in-app display-name filter rejects seven or more consecutive digits, so amounts need their own strict parameter
-(`/^\d{1,11}\.\d{3}$/`) beside the existing ISO-date parameter. If ED-Q11 puts the editor's name in the bell, 35d-2 adds
+The in-app display-name filter rejects any seven digits even with separators between them (`1250.000` fails, `125.000`
+passes) and is a name filter, not a money type, so amounts need their own strict parameter (`/^\d{1,11}\.\d{3}$/`) beside the existing ISO-date parameter. If ED-Q11 puts the editor's name in the bell, 35d-2 adds
 one narrow worker-`identity` display-name read with its exact §6 entry, as an addendum to this ADR.
 
 ## Consequences
