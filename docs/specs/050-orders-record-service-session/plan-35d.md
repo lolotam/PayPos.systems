@@ -4,7 +4,7 @@ Date: 2026-10-16. DESIGN only: no code, migration or contract file in this PR.
 Worktree: `F:\Dev\Worktrees\PosPay\docs-189-edit-bell-plan`; branch `docs/189-edit-bell-plan`.
 Baseline: main `29dab827` (35a, 35b-1/2, 35c and the 35c-13 recovery rows merged; staging runs it).
 Sources: [spec](spec.md) (FR-016, SS-Q10), [35a plan](plan.md), [35b plan](plan-35b.md), [35c plan](plan-35c.md),
-[owner answers](owner-questions.ar.md) (batch 17 = ED-Q1…ED-Q8; batch 21 = ED-Q9…ED-Q11, **PENDING**),
+[owner answers](owner-questions.ar.md) (batch 17 = ED-Q1…ED-Q8; batch 22 = ED-Q9…ED-Q11, **PENDING**),
 [ADR-0041](../../adr/0041-orders-service-sessions-reads-and-events.md) (§4 events, §5 late bell, §6 later consumers),
 [ADR-0044](../../adr/0044-service-line-price-edit-event-and-bell.md) (this plan's event and consumer decision),
 [ADR-0037](../../adr/0037-not-clocked-in-alert-discovery-and-recipients.md) (interim in-app manager rule),
@@ -20,7 +20,7 @@ them; it does not implement 35d.
 **Status.** The mechanics below (event shape, same-transaction emit, consumer, ledger, no-manager behaviour, tests,
 split) depend on no open owner answer. Three business details are PENDING owner answers and are marked
 `TODO(spec)`: who exactly receives the bell (ED-Q9), whether the editor's own edit rings them (ED-Q10), and the bell
-wording (ED-Q11). Their questions are in [owner-questions.ar.md](owner-questions.ar.md), batch 21.
+wording (ED-Q11). Their questions are in [owner-questions.ar.md](owner-questions.ar.md), batch 22.
 
 ## 1. What 35d is, in one table
 
@@ -213,7 +213,7 @@ Order: 35d-1 → 35d-2 (consumer, no writer yet) and 35d-3 can run in parallel (
 numbers are assigned at merge) → 35d-4 → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
 before 35d-4 and carries the `TODO(spec)` items above.
 
-## 9. Open owner questions (batch 21, numbered 29–31 in the file)
+## 9. Open owner questions (batch 22, numbered 29–31 in the file)
 
 | Id | Question | Recommended |
 |---|---|---|
