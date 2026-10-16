@@ -3,5 +3,5 @@ import type { ServiceSessionRecorded as Recorded, ServiceSessionLinesAdded as Ad
 export type ServiceSessionRecorded = Recorded;
 /** يصدر مرة لكل إضافة ناجحة ويحمل البنود الجديدة فقط دون إعادة إصدار الزيارة أو بنودها القديمة. */
 export type ServiceSessionLinesAdded = Added;
-/** يصدر لاحقاً عند تغيير بند محفوظ في 35d أو 37 أو 37b مع كامل حالته ونسخة أعلى؛ لا يصدر عند التسجيل الأول. */
+/** يصدر مرة لكل سطر عند حفظ تعديل سعر أو خصم، في نفس معاملة التعديل، ويحمل change الاختياري؛ 37 و37b تضيف أنواع لاحقة على نفس الحدث. */
 export type ServiceLineChanged = Changed;
