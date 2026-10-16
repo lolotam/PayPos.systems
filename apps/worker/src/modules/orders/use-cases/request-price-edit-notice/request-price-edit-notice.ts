@@ -1,4 +1,5 @@
 import {
+  assertPriceEditEventValues,
   interimPriceEditNoticeRule,
   priceEditEditorLabel,
   priceEditNoticeParameters,
@@ -24,6 +25,7 @@ export class RequestPriceEditNotice {
   ) {}
 
   async execute(input: PriceEditNoticeInput): Promise<void> {
+    assertPriceEditEventValues(input);
     if (!(await this.ports.repository.matchesLine(input)))
       throw new Error('PRICE_EDIT_EVENT_INVALID');
     if (!(await this.ports.recipients.companyOpen(input.companyId))) return;

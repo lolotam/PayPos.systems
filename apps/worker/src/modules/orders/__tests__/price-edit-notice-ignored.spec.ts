@@ -57,10 +57,19 @@ it('test 8: a malformed payload, a foreign company, a mismatched line, a missing
   await expectInvalid(await f.edit({ history: false }));
   await expectInvalid(await f.edit({ eventPreviousNet: '3.500' }));
   await expectInvalid(await f.edit({ eventNewNet: '9.000' }));
-  const brokenKind = await f.edit({ change: 'other' });
-  const payload = brokenKind.event.payload as { change: { previous: { revision: number } } };
-  payload.change.previous.revision = 50;
-  await expectInvalid(brokenKind);
+  const badDate = await f.edit();
+  (badDate.event.payload as { business_date: string }).business_date = '2026-02-30';
+  await expectInvalid(badDate);
+});
+
+it('test 8: a future change kind with its own shape is consumed with no effect', async () => {
+  const future = await f.edit();
+  const payload = future.event.payload as { status: string; change: Record<string, unknown> };
+  payload.status = 'CANCELLED';
+  payload.change = { kind: 'LINE_CANCELLED' };
+  expect(await f.deliver(future.event)).toEqual({ delivered: true });
+  expect(await f.notices(future.lineId)).toHaveLength(0);
+  expect(await f.consumed(future.event.id)).toHaveLength(1);
 });
 
 it('test 8: a non-matching line stays invalid while the company is closed', async () => {

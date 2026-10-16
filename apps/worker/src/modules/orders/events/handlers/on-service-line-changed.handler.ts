@@ -6,12 +6,9 @@ export async function onServiceLineChanged(
   useCase: RequestPriceEditNotice,
   event: ClaimedEvent,
 ): Promise<void> {
+  if (otherChangeKind(event.payload)) return;
   const parsed = serviceLineChanged.safeParse(event.payload);
-  if (!parsed.success) {
-    // المخطط لا يقبل إلا PRICE_DISCOUNT_EDIT؛ نوع آخر سليم الشكل يُتجاهل بدل رفضه كحدث تالف.
-    if (otherPriceKind(event.payload)) return;
-    throw new Error('PRICE_EDIT_EVENT_INVALID');
-  }
+  if (!parsed.success) throw new Error('PRICE_EDIT_EVENT_INVALID');
   const line = parsed.data;
   if (event.aggregateType !== 'service_session' || line.session_id !== event.aggregateId)
     throw new Error('PRICE_EDIT_EVENT_INVALID');
@@ -30,14 +27,11 @@ export async function onServiceLineChanged(
     newNet: line.net,
   });
 }
-function otherPriceKind(payload: unknown): boolean {
+// نوع تغيير آخر قد يحمل شكلًا مختلفًا (كالإلغاء)، فلا نمرره على مخطط تعديل السعر ولا نعدّه حدثًا تالفًا.
+function otherChangeKind(payload: unknown): boolean {
   if (typeof payload !== 'object' || payload === null || !('change' in payload)) return false;
   const change = (payload as { change?: unknown }).change;
   if (typeof change !== 'object' || change === null || !('kind' in change)) return false;
   const kind = (change as { kind?: unknown }).kind;
-  if (typeof kind !== 'string' || kind === 'PRICE_DISCOUNT_EDIT') return false;
-  return serviceLineChanged.safeParse({
-    ...payload,
-    change: { ...change, kind: 'PRICE_DISCOUNT_EDIT' },
-  }).success;
+  return typeof kind === 'string' && kind !== 'PRICE_DISCOUNT_EDIT';
 }

@@ -79,9 +79,7 @@ export function priceEditRecipientGroups(userIds: readonly string[]): {
  * @returns المعاملات التسعة بالترتيب الذي يقبله قالب service_line_price_edited
  */
 export function priceEditNoticeParameters(input: PriceEditParameterInput): PriceEditParameters {
-  assertCalendarDate(input.businessDate);
-  assertCanonicalMoney(input.previousNet);
-  assertCanonicalMoney(input.newNet);
+  assertPriceEditEventValues(input);
   const service = bilingual(input.service.nameAr, input.service.nameEn, input.fallback.service);
   const branch = bilingual(input.branch.nameAr, input.branch.nameEn, input.fallback.branch);
   return [
@@ -126,6 +124,23 @@ export function priceEditEditorLabel(
   const ar = safeName(editor.nameAr) ?? safeName(editor.nameEn) ?? role?.ar ?? generic?.ar ?? null;
   if (ar === null || en === null) throw new Error('PRICE_EDIT_EVENT_INVALID');
   return { ar, en };
+}
+/**
+ * يرفض تاريخًا غير تقويمي أو مبلغًا غير قانوني قبل حجز دفتر الجرس، حتى لا يُحجز صف لحدث فاسد.
+ *
+ * @param values القيم الثلاث كنصوص
+ * @param values.businessDate تاريخ العمل
+ * @param values.previousNet صافي ما قبل التعديل
+ * @param values.newNet صافي ما بعد التعديل
+ */
+export function assertPriceEditEventValues(values: {
+  readonly businessDate: string;
+  readonly previousNet: string;
+  readonly newNet: string;
+}): void {
+  assertCalendarDate(values.businessDate);
+  assertCanonicalMoney(values.previousNet);
+  assertCanonicalMoney(values.newNet);
 }
 function assertCanonicalMoney(value: string): void {
   if (!CANONICAL_MONEY.test(value)) throw new Error('PRICE_EDIT_EVENT_INVALID');
