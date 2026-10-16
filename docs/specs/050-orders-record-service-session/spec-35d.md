@@ -228,7 +228,7 @@ the outbox.
   total. Without it: **no figures at all** (ED-Q14, option 2): the response says only that the edit was saved and carries the `edited`
   mark, with no price, discount, net, previous value, editor, time or visit total, and no number at all (the owner's wording of
   ED-Q14). How such a caller learns the new revision for a second correction of the same line is a technical question for 35d-4,
-  tracked in issue #271; it is not decided here and no field is added without the owner's agreement; the screen shows figures only to a caller who holds
+  tracked in issue #272; it is not decided here and no field is added without the owner's agreement; the screen shows figures only to a caller who holds
   the read permission. The response can never carry the history fields of LE-14.
 - **FR-015** (D-6) The edit does not issue or consume a session-recovery proof (ADR-0042). A client in doubt re-sends the
   same key (replay) or re-reads the line; a re-send under a new key is made safe by FR-017.
