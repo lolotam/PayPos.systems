@@ -25,6 +25,7 @@ type Edit = {
   company?: string;
   business?: string;
   line?: string;
+  changedBy?: string;
   revision?: number;
   previousRevision?: number;
   newPrice?: string;
@@ -79,7 +80,7 @@ function edit(input: Edit = {}) {
       ${input.line ?? ORDER_IDS.line},${revision},${previous},1.000,0.000,1.000,
       ${input.newPrice ?? '2.000'},${input.newDiscount ?? '0.500'},${input.newNet ?? '1.500'},
       0,NULL,'OWNER',${input.newBps ?? 2500},${newLimit},${input.newSource ?? 'PERSON'},
-      ${input.reason ?? 'Corrected price'},clock_timestamp(),${USER},${ORDER_IDS.membership},
+      ${input.reason ?? 'Corrected price'},clock_timestamp(),${input.changedBy ?? USER},${ORDER_IDS.membership},
       ${input.editorNameAr ?? null},${input.editorNameEn ?? null},${role})`;
 }
 
@@ -183,6 +184,17 @@ it('rejects a line that belongs to another business in the same company', async 
     asA(edit({ business: A.business, line: OTHER.line, revision: 2 })),
     '23503',
     'service_line_edits_line_fk',
+  );
+});
+
+it('rejects a user that does not own the recorded membership', async () => {
+  const stranger = ids.newId();
+  await owner`INSERT INTO "user"(id,name,email,email_verified,created_at,updated_at)
+    VALUES(${stranger},'Synthetic other editor','other-editor@example.test',true,now(),now())`;
+  await rejected(
+    asA(edit({ changedBy: stranger, revision: 50 })),
+    '23503',
+    'service_line_edits_membership_fk',
   );
 });
 

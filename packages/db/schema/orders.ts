@@ -148,7 +148,7 @@ export const serviceLineEdits = pgTable('service_line_edits', {
   primaryKey({ columns: [t.companyId, t.id] }),
   unique('service_line_edits_line_revision_key').on(t.companyId, t.lineId, t.revision),
   foreignKey({ name: 'service_line_edits_line_fk', columns: [t.companyId, t.businessId, t.lineId], foreignColumns: [serviceLines.companyId, serviceLines.businessId, serviceLines.id] }),
-  foreignKey({ name: 'service_line_edits_membership_fk', columns: [t.companyId, t.changedByMembershipId], foreignColumns: [memberships.companyId, memberships.id] }),
+  foreignKey({ name: 'service_line_edits_membership_fk', columns: [t.companyId, t.changedByMembershipId, t.changedBy], foreignColumns: [memberships.companyId, memberships.id, memberships.userId] }),
   index('service_line_edits_line_fk_idx').on(t.companyId, t.businessId, t.lineId),
   index('service_line_edits_membership_idx').on(t.companyId, t.changedByMembershipId),
   index('service_line_edits_changed_by_fk_idx').on(t.changedBy),
