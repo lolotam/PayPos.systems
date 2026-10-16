@@ -181,7 +181,7 @@ it('counts a code already in use', async () => {
   await burn(f.userId, CARD_ISSUE_ATTEMPTS_PER_HOUR - 2);
   const conflict = await issueHttp(code, ids.newId(), f.cookie, colleagueId);
   expect(conflict.status).toBe(409);
-  expect(conflict.body['code']).toBe('EMPLOYEE_CARD_CODE_IN_USE');
+  expect(conflict.body['code']).toBe('EMPLOYEE_CARD_CODE_UNAVAILABLE');
   await expectLimited('WmPast!2sVw');
 });
 

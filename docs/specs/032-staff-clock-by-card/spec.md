@@ -1,6 +1,6 @@
 # Staff clock by card — Phase 1 PR 23
 
-Created: 2026-10-05. Status: owner questions decided 2026-10-07. Shipped in two PRs (CB-Q4): **PR 23a** —
+Created: 2026-10-05. Status: owner questions decided 2026-10-07; CARD-Q1 answered by Waleed 2026-10-16 (provisional until Abu Salem answers). Shipped in two PRs (CB-Q4): **PR 23a** —
 employee cards (issue / revoke, the admin section, the `employee_cards` table); **PR 23b** — clock-by-card on the
 paired device, on top of 23a.
 
@@ -85,7 +85,7 @@ Card issue is limited to 30 attempts per hour for each company and user (ADR-003
 
 `employee_cards` is a tenant table: `(company_id, id)` primary key, `business_id`,
 `employee_id`, `card_code_hash`, `card_code_suffix`, `issued_at`, `issued_by`, `revoked_at`, `revoked_by`. Two
-partial unique indexes hold one active card per employee and one active company-scoped HMAC per company. The composition root calls `packages/auth`'s `deriveEmployeeCardKey` (HKDF-SHA256 with salt `pospay:employee-card:hkdf-salt:v1` and info `pospay:employee-card:key:v1`). Staff receives only the derived 32-byte Buffer, never BETTER_AUTH_SECRET; rotating that root requires reissuing cards (ADR-0036). Daily QR secrets are unsuitable because they expire. `issued_by`/`revoked_by` reference the operator user and the revocation pair is
+partial unique indexes hold one active card per employee and one active company-scoped HMAC per company. A code that is already active anywhere in the company is refused with the same HTTP 409 `EMPLOYEE_CARD_CODE_UNAVAILABLE` and the same generic bilingual message whether the holder works in the issuing business or in another business of the company (CARD-Q1, Waleed 2026-10-16: «شركة + رسالة عامة»). The envelope has no `details`, the refusal writes no audit row, and neither the code nor the message says the code is held by someone. The composition root calls `packages/auth`'s `deriveEmployeeCardKey` (HKDF-SHA256 with salt `pospay:employee-card:hkdf-salt:v1` and info `pospay:employee-card:key:v1`). Staff receives only the derived 32-byte Buffer, never BETTER_AUTH_SECRET; rotating that root requires reissuing cards (ADR-0036). Daily QR secrets are unsuitable because they expire. `issued_by`/`revoked_by` reference the operator user and the revocation pair is
 CHECKed together. RLS is FORCE + command-specific tenant policies for `pospay_app` with
 SELECT/INSERT and column-limited UPDATE. The card code is card-like secret material:
 never logged, never in audit/events, and never returned in full. Only normalized codes of length >= 8 expose their last four characters; shorter codes store/return an empty suffix. The allowed 4–64 range remains unchanged. Lookup, issue, revoke, clock, issue-attempt and scan-attempt fingerprints each use a distinct HMAC payload label (ADR-0036).
@@ -111,8 +111,9 @@ the 16 h rule through the card, revoked and unknown cards answering identically,
 company's card, a branch the employee is not attached to, issue/revoke idempotency and
 audit (replay of the same body, 422 on a changed card code, the card id inside the revoke
 fingerprint, one audit row per issue and per revoke, a revoked row when reissue replaces the
-active card, and no card-code fragment beyond the stored suffix), HTTP 409 when another
-employee holds the active code, HTTP 404 for an already-revoked or another employee's card,
+active card, and no card-code fragment beyond the stored suffix), the same HTTP 409
+`EMPLOYEE_CARD_CODE_UNAVAILABLE` envelope (status, code, both messages, no `details`) when the
+active code is held in this business or in another business of the company, HTTP 404 for an already-revoked or another employee's card,
 the 31st issue attempt in an hour as HTTP 429 with `Retry-After` equal to the seconds left
 in the window and no card, audit, or idempotency write,
 separate counters per user, a completed-key replay that is not counted, a completion-marker
@@ -149,6 +150,7 @@ all optional settings empty if startup wiring changes.
 - D5 — deferred to the orchestrator issue: expose Cashier staff-login DENY through the permissions screen.
 - D6 — card issue is limited to 30 attempts per hour per company and user (ADR-0036, decided Waleed 2026-10-07). A validation failure in the use case counts; a request rejected by the contract schema before the use case does not reach the database, cannot reveal a live code, and is not counted. The 429 `Retry-After` is the seconds left in that hour. A completion-marker failure after the card is stored still returns the card. Clock-by-card failed scans are limited to 10 per 10 minutes per company and device (decided Waleed 2026-10-07): only the not-accepted card family and a use-case validation failure count; successes and completed-key replays do not. The scan completion marker is the `scan-attempt` HMAC, not an unkeyed digest. A completion-marker failure after the movement is stored still returns the result and logs one warning with company and device only. A later retry of that same key and bound fingerprint returns the stored movement and writes nothing, even when the marker is missing and the device is at the limit. Past that limit a new key or a different body returns 429 `TOO_MANY_REQUESTS` with `Retry-After` equal to the seconds left in the fixed 600-second window, before any card lookup or database write, and logs without the card code. If Redis is unavailable before the movement is stored the scan fails closed with `NOT_READY`; QR and passkey clocking are unaffected.
 - CB-Q5 — resolved: keep `clock:attendance:branch` at the verified device branch; explicit Device plus operator session, no CHECK change. PR 19 uses explicit Device checks, not a stored `:device` scope (ADR-0036).
+- CARD-Q1 — company-wide uniqueness stays, and a taken code is the same generic 409 whether the holder is in this business or another ([owner-questions.ar.md](owner-questions.ar.md)). **Answered (Waleed, 2026-10-16; provisional — Abu Salem has not answered, and his pick binds if it differs): «شركة + رسالة عامة».**
 
 ## Success criteria
 

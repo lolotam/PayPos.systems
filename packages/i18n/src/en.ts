@@ -220,8 +220,7 @@ export const en = {
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:
       'This user already has an active employee record in this business.',
-    EMPLOYEE_CARD_CODE_IN_USE:
-      'This card code is already active for another employee in the company.',
+    EMPLOYEE_CARD_CODE_UNAVAILABLE: "This card code can't be used. Choose another code.",
     ...employeeImportErrorsEn,
     ...serviceErrorsEn,
     ...packageTypeErrorsEn,

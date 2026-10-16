@@ -182,10 +182,11 @@ async function issueCard(
       AND revoked_at IS NULL FOR UPDATE`);
   const codeHash = hash(scope.companyId, cardCode);
   const suffix = cardDisplaySuffix(cardCode);
+  // نفس الرفض لو الكود في النشاط أو في نشاط تاني؛ الرد ما يقولش إن الكود عند موظفة المدير مش شايفها.
   const [duplicate] = await tx.execute<{ id: string }>(sql`
     SELECT id FROM employee_cards WHERE company_id=${scope.companyId} AND card_code_hash=${codeHash}
       AND revoked_at IS NULL AND employee_id<>${scope.employeeId} LIMIT 1`);
-  if (duplicate !== undefined) throw new EmployeeCardError('EMPLOYEE_CARD_CODE_IN_USE');
+  if (duplicate !== undefined) throw new EmployeeCardError('EMPLOYEE_CARD_CODE_UNAVAILABLE');
   for (const card of active) await revokeRow(tx, scope, card.id, at, ids);
   const id = ids.newId();
   try {
@@ -193,7 +194,7 @@ async function issueCard(
       VALUES(${scope.companyId},${id},${scope.businessId},${scope.employeeId},${codeHash},${suffix},${at.toISOString()},${scope.operatorId})`);
   } catch (error) {
     // الفهرس الجزئي هو الحرس النهائي في سباق إصدار بنفس الكود.
-    if (uniqueViolation(error)) throw new EmployeeCardError('EMPLOYEE_CARD_CODE_IN_USE');
+    if (uniqueViolation(error)) throw new EmployeeCardError('EMPLOYEE_CARD_CODE_UNAVAILABLE');
     throw error;
   }
   await appendAuditLog(tx, ids.newId(), {
