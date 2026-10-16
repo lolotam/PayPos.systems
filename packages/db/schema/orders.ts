@@ -166,6 +166,26 @@ export const serviceLineEdits = pgTable('service_line_edits', {
   check('service_line_edits_editor_role', sql`${t.editorRole} IN ('owner','manager')`),
 ]);
 
+export const serviceLineEditNotices = pgTable('service_line_edit_notices', {
+  ...scope(), sessionId: uuid('session_id').notNull(), lineId: uuid('line_id').notNull(),
+  // الجرس مرة لكل (سطر، مراجعة) لا لكل زيارة؛ تعديل ثانٍ أو سطر آخر يقرع من جديد.
+  revision: integer('revision').notNull(),
+  // المصدر محفوظ دون FK للأوتبوكس حتى لا تتوقف الحماية عند حذف الحدث القديم.
+  sourceEventId: uuid('source_event_id').notNull(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+  recipientCount: integer('recipient_count').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.companyId, t.id] }),
+  unique('service_line_edit_notices_line_revision_key').on(t.companyId, t.lineId, t.revision),
+  foreignKey({ name: 'service_line_edit_notices_session_fk', columns: [t.companyId, t.businessId, t.sessionId],
+    foreignColumns: [serviceSessions.companyId, serviceSessions.businessId, serviceSessions.id] }),
+  foreignKey({ name: 'service_line_edit_notices_line_fk', columns: [t.companyId, t.businessId, t.lineId],
+    foreignColumns: [serviceLines.companyId, serviceLines.businessId, serviceLines.id] }),
+  index('service_line_edit_notices_session_fk_idx').on(t.companyId, t.businessId, t.sessionId),
+  index('service_line_edit_notices_line_fk_idx').on(t.companyId, t.businessId, t.lineId),
+  check('service_line_edit_notices_recipient_count', sql`${t.recipientCount} >= 0`),
+]);
+
 export const linePerformers = pgTable('line_performers', {
   ...scope(), lineId: uuid('line_id').notNull(), employeeId: uuid('employee_id').notNull(), performerOrdinal: integer('performer_ordinal').notNull(),
   shareBps: integer('share_bps').notNull(), nameEn: text('name_en').notNull(), nameAr: text('name_ar'),
