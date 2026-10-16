@@ -5,7 +5,7 @@
 **Created**: 2026-10-16
 
 **Status**: Draft for review. Every owner question for 35d is answered (ED-Q1…ED-Q13, Waleed, 2026-10-13/16; Abu Salem has
-not answered, his pick binds if it differs). **No owner question is PENDING.** The three technical gates (#250, #252,
+not answered, his pick binds if it differs). **One owner question is PENDING: ED-Q14** (what the edit response shows a caller without the branch-read permission; `TODO(spec)` in FR-014, a conservative default applies meanwhile and it does not block 35d-3b, 35d-2b or the start of 35d-4). The three technical gates (#250, #252,
 #255) are decided here and in [ADR-0045](../../adr/0045-performer-identity-snapshot-and-editor-role-label.md).
 
 **Input**: "35d: audited edit of price/discount of a saved service line, extending spec 050."
@@ -118,8 +118,8 @@ the outbox.
 
 **Acceptance Scenarios**:
 
-- **LE-14** The edit response and every receptionist-visible payload carry the current line and the boolean
-  `edited` (optional, default `false`, on record/append) (true when at least one price/discount edit exists for the line), and **none** of: previous price/discount/net, the editor's identity (user, membership, name,
+- **LE-14** The edit response and every receptionist-visible payload carry the boolean
+  `edited` (optional, default `false`, on record/append; true when at least one price/discount edit exists for the line), and **none** of: previous price/discount/net, the editor's identity (user, membership, name,
   role), the edit time, the reason. A caller holding the edit permission but not `read:service-sessions:branch` gets
   none of those fields (acceptance test of plan-35d §8).
 - **LE-15** A caller with `read:service-sessions:branch` (35d-5) reads, newest first, for one line: revision, previous and
@@ -218,8 +218,12 @@ the outbox.
   display-name filter falls back to the generic label (Assumptions).
 - **FR-013** Authority is rechecked inside the locked transaction through `SessionEditAccessPort` (`lock()` then `read()`),
   before an idempotency replay returns, after every line and performer wait (plan-35d §8).
-- **FR-014** The idempotent response (and a replay) contains the current saved line plus `edited`, and the visit total. It
-  never contains the history fields of LE-14.
+- **FR-014** `TODO(spec)` ED-Q14 (PENDING, [owner-questions.ar.md](owner-questions.ar.md) item 34). The response is stored in full
+  and **projected on every return, including a replay**, by the caller's `read:service-sessions:branch` at that moment (read in the
+  same locked transaction through `SessionEditAccessPort`). With the permission: the current saved line plus `edited` and the visit
+  total. Without it, until ED-Q14 is answered: only `{ line: { id, session_id, ordinal, status, revision, edited } }` — **no price,
+  discount, net or total**, as the written ED-Q12 effect says ("neither the old nor the new price"). ED-Q14 may widen the second
+  shape by adding the line's current money; it can never add the history fields of LE-14.
 - **FR-015** (D-6) The edit does not issue or consume a session-recovery proof (ADR-0042). A client in doubt re-sends the
   same key (replay) or re-reads the line; a re-send under a new key is made safe by FR-017.
 - **FR-016** Audit entry `service_line.price_discount_edited` on entity `service_line`: session, line, edit id, revision
@@ -283,7 +287,8 @@ so no deployment window can create an editable line without a snapshot.
   `@Require('edit:service-line-prices:branch', { branch: 'branchId' })` · `@RequiresFeature('orders')` · `SessionAdminGuard`.
   Zod in `packages/contracts/src/orders/service-session.ts` (strict):
   `{ price: Money, discount: {kind:'AMOUNT', amount} | {kind:'PERCENT', bps}, reason: string, expected_revision: int ≥ 1,
-  editor_membership_id?: uuid }` → `200 { line: <saved line snapshot> & { edited: boolean }, session: { id, total } }`.
+  editor_membership_id?: uuid }` → `200`: with the branch-read permission `{ line: <saved line snapshot> & { edited: boolean }, session: { id, total } }`; without it the
+  narrow shape of FR-014.
 - **Idempotency-Key**: required; COMPANY scope, operation `edit-service-line-price`; fingerprint over
   `{method, route, query, body, params:{businessId, branchId, companyId, actorUserId, sessionId, lineId}}` using the shared helper.
 - **History** (35d-5) — `GET .../service-sessions/:sessionId/lines/:lineId/edits?cursor&limit` · `@Require('read:service-sessions:branch', { branch: 'branchId' })` · `@RequiresFeature('orders')` · `SessionAdminGuard`

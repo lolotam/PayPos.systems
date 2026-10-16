@@ -232,7 +232,7 @@ reported separately. If an estimate is exceeded, split again before code.
 
 **35d-6 and ED-Q12 (Waleed, 2026-10-16, against the recommendation).** The receptionist sees only the «edited» mark; the
 full history («was X, now Y», who, when) belongs to the manager through the branch-sessions read permission of 35d-5
-(SS-Q12). The edit response returns the current saved line plus the boolean mark and **never** the history fields (previous
+(SS-Q12). The edit response returns the boolean mark and, to a caller without that read permission, **no** money at all until ED-Q14 (owner-questions item 34, PENDING) widens it ([spec-35d](spec-35d.md) FR-014), and **never** the history fields (previous
 price or discount, new values as history, the editor's identity, the edit time) to a caller who lacks that read
 permission. Acceptance test: a caller holding only the recording and edit permissions receives none of those fields from
 the edit response or from any receptionist-visible payload, while a caller with the read permission receives the full
