@@ -83,10 +83,10 @@ You **MUST** consider the user input before proceeding (if not empty).
      - **FAIL**: One or more checklists have unchecked items
 
    - **If any business-rule checklist item is unchecked — this gate cannot be overridden**:
-     - A business-rule item is any unchecked item in `checklists/requirements.md` (the built-in checklist), and any unchecked item in another checklist that concerns money, permissions or authorization, tenant scope (`company_id`, RLS) or any other business rule. `CLAUDE.md` §11: a business rule is never guessed, so an open item means the spec is not ready.
+     - A business-rule item is any unchecked item in `checklists/requirements.md` (the built-in checklist), and any unchecked item in another checklist that concerns money, permissions or authorization, tenant scope (`company_id`, RLS) or any other business rule. When it is unclear whether an item is a business rule, treat it as one and stop. `CLAUDE.md` §11: a business rule is never guessed, so an open item means the spec is not ready.
      - Display the table and list every blocking item
      - **STOP**. Do NOT ask whether to proceed anyway, and do not treat "yes", "proceed" or "continue" from the user as an override
-     - Tell the user to close the item first by fixing the spec (`/speckit-clarify` or `/speckit-specify`; an unknown business rule is asked to the owner, never guessed), which re-validates the checklist. This command never edits checklist files
+     - Tell the user how to close the item first. An unknown business rule is asked to the owner, never guessed. For an item in `checklists/requirements.md`, fix the spec with `/speckit-clarify` or `/speckit-specify`, which re-validates it. For an item in a reviewer-owned checklist, fix the spec, then have that checklist's reviewer re-evaluate and tick the item (or re-run `/speckit-checklist`). This command never edits checklist files
      - Continue only after a fresh scan finds no unchecked business-rule item
 
    - **If any other checklist has unchecked items** (reviewer-owned checklists from `/speckit-checklist` with no business-rule item):
@@ -188,7 +188,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Confirm the implementation follows the technical plan
    - **Mandatory final gate — `pnpm check`**: run `pnpm check` from the repo root. `CLAUDE.md` §1: a slice is not done until it passes. Never report completion, or call the work done, while it has not run or has failed:
      - If it fails, fix the cause within the slice's tasks and run it again. Do not skip, weaken or comment out a check, and do not narrow its scope to get a pass
-     - If it cannot run (missing dependencies, services down), report the slice as NOT complete, name the blocker and stop
+     - If it cannot run (missing dependencies, services down), or it fails for a cause outside this slice's tasks (for example another module's failing tests), report the slice as NOT complete, name the blocker or the failing check, and stop. Do not edit code outside the slice to get a pass
      - Record the command, its exit status and the date for the Completion Report
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit-tasks` first to regenerate the task list.

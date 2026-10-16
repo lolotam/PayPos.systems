@@ -25,7 +25,7 @@ install PowerShell 7 (`pwsh`) there or re-initialise spec-kit with `--script sh`
 - The script and the `speckit-*` skills in `.claude/`, `.github/` and `.agents/` **are** regenerated.
   Re-apply the rows above, then run:
   `Select-String -Path .specify\scripts\powershell\*.ps1, .claude\skills\speckit-*\SKILL.md -Pattern "'specs'|Tests are OPTIONAL"` — it must return nothing.
-  `Select-String -Path .claude\skills\speckit-implement\SKILL.md, .github\skills\speckit-implement\SKILL.md, .agents\skills\speckit-implement\SKILL.md -Pattern "pnpm check"` — it must match in all three files.
+  `Select-String -Path .claude\skills\speckit-implement\SKILL.md, .github\skills\speckit-implement\SKILL.md, .agents\skills\speckit-implement\SKILL.md -Pattern "pnpm check", "this gate cannot be overridden"` — each pattern must match in all three files. `-Pattern "If any checklist has unchecked items\*\*:"` on the same paths must return nothing (it is the old overridable prompt).
 
 ## Naming a feature
 
