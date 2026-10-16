@@ -119,12 +119,13 @@ the outbox.
 **Acceptance Scenarios**:
 
 - **LE-14** The edit response and every receptionist-visible payload carry the current line and the boolean
-  `edited` (true when at least one price/discount edit exists for the line), and **none** of: previous price/discount/net, the editor's identity (user, membership, name,
+  `edited` (optional, default `false`, on record/append) (true when at least one price/discount edit exists for the line), and **none** of: previous price/discount/net, the editor's identity (user, membership, name,
   role), the edit time, the reason. A caller holding the edit permission but not `read:service-sessions:branch` gets
   none of those fields (acceptance test of plan-35d §8).
 - **LE-15** A caller with `read:service-sessions:branch` (35d-5) reads, newest first, for one line: revision, previous and
   new price/discount/net, `changed_at`, who (name, or role label) and the reason. The reason appears **only** here.
-- **LE-16** The day list and every saved-line payload (record, append, edit responses) carry the boolean `edited`, derived
+- **LE-16** The day list and the edit response always carry the boolean `edited`; the record and append responses carry it
+  as an optional field that parses as `false` when absent (a replayed pre-35d-4 response, FR-019). It is derived
   server-side from the existence of a `service_line_edits` row for the line — **not** from `revision`, which cancel (37) and
   performer changes (37b) also bump (a performer reassignment must not show the badge with an empty history). It is `false` in
   the recording and append responses.
