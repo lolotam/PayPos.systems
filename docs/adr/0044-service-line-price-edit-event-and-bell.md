@@ -80,5 +80,5 @@ one narrow worker-`identity` display-name read with its exact §6 entry, as an a
   must for `late_service_session` (ADR-0041 §5).
 - One new tenant table (`service_line_edit_notices`) with FORCE RLS, SELECT/INSERT-only grants, an allowlist entry, an
   inventory entry and a negative isolation test in 35d-2; pipeline §5 database review applies.
-- The bell is not a control by itself: the edit-history row (ED-Q8) is the permanent record, and an edit in a branch with
-  no other eligible manager produces no bell.
+- The bell is not a control by itself: the edit-history row (ED-Q8) is the permanent record, and an edit with no eligible
+  recipient produces no bell.

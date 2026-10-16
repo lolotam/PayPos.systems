@@ -60,9 +60,10 @@ Rules the 35d-1 contract PR must keep:
 
 - `change` is **optional**, never required or nullable-required. Every payload already published (`ServiceSessionRecorded`
   and `ServiceSessionLinesAdded` embed `recordedServiceLine = serviceLineChanged.extend(…)`) has no such key, and the
-  schemas are strict. 35d-1 must pin `change` absent on `recordedServiceLine` (it is built with `.extend` and would
-  otherwise inherit the optional member), for example `change: z.undefined()`.
-- A cross-field refinement: `change` present ⇒ `revision = change.previous.revision + 1` and `status = ACTIVE`.
+  schemas are strict. A cross-field refinement: `change` present ⇒ `revision = change.previous.revision + 1` and `status = ACTIVE`.
+- 35d-1 must pin `change` absent on `recordedServiceLine` (for example `change: z.undefined()`; it would otherwise inherit
+  the optional member). Because `serviceLineChanged` becomes a refined schema, and Zod 4 refuses `.extend()` on a refined
+  schema, that construction must change to `.safeExtend()` (already used in `packages/contracts/src/staff/schedules.ts`).
 - Arabic doc comment on the contract and in `events/published.ts`: «يصدر مرة لكل سطر عند حفظ تعديل سعر أو خصم، في نفس
   معاملة التعديل».
 
@@ -95,9 +96,8 @@ all inside the consumer transaction under `withTenant(event.company_id)`:
    when ED-Q10 says so. `TODO(spec)` ED-Q9 (the exact set) and ED-Q10 (editor excluded) — the recommended answers are
    the same four roles and editor excluded.
 5. Claim the ledger row `service_line_edit_notices` (§4). Lost claim ⇒ stop; the other delivery already produced the bell.
-6. Zero recipients: the ledger row records `recipient_count = 0`, **no** notice event, no error, no escalation. An owner
-   or manager editing in a branch with no other eligible manager simply produces no bell; the edit-history row (ED-Q8)
-   is the permanent record.
+6. Zero recipients: the ledger row records `recipient_count = 0`, **no** notice event, no error, no escalation. The edit-history
+   row (ED-Q8) is the permanent record.
 7. Otherwise read the branch names (`tenancy.branchPlace`) and, from orders' own tables through the repository, the line's
    service-name snapshot and the session's saved `business_timezone` (the event carries `business_date` but no
    timezone, and the date is never re-derived), build the template parameters, split recipients into groups of at most 100, and append one
@@ -182,8 +182,11 @@ Consume side (35d-2; fixtures insert `ServiceLineChanged` rows directly, like `l
 4. **Consume once.** Deliver the same event twice (and once with the consumed mark removed): one ledger row, one set of
    notice events, one in-app row per recipient. Two edits of one line (revisions 2 and 3) ring twice; edits of two lines
    of one visit ring twice.
-5. **Tenant and scope isolation.** Another tenant's manager, a manager scoped to a different branch, a manager with an
-   expired grant or an explicit DENY, a membership of another business and a deactivated user never receive the bell.
+5. **Tenant and scope isolation.** Another tenant's manager, a manager scoped to a different branch, a membership outside
+   its validity dates, a membership of another business, a non-manager role and a deactivated user never receive the bell.
+   Eligibility is role membership alone (ADR-0037 interim rule): `branchManagerRecipients` does not read permission
+   overrides, so no DENY case is specified; if ED-Q9 selects holders of the edit permission, the recipient reader and
+   this test change with that answer.
    Ledger RLS negative tests (cross-tenant read = 0 rows, cross-tenant write = error), privilege-allowlist and
    tenant-table-inventory entries.
 6. **No manager.** Zero eligible recipients ⇒ ledger row with count 0, no `ServiceLineEditNoticeRequested`, consumed mark
