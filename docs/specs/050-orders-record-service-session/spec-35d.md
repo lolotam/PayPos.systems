@@ -121,7 +121,9 @@ the outbox.
 - **LE-14** The edit response and every receptionist-visible payload carry the boolean
   `edited` (optional, default `false`, on record/append; true when at least one price/discount edit exists for the line), and **none** of: previous price/discount/net, the editor's identity (user, membership, name,
   role), the edit time, the reason. A caller holding the edit permission but not `read:service-sessions:branch` gets
-  none of those fields (acceptance test of plan-35d §8).
+  none of those fields (acceptance test of plan-35d §8) and, in the **edit response** itself (ED-Q14, FR-014), also none of the
+  line's current price, discount, net or the visit total: only that the edit was saved and `edited`. The integration test asserts
+  the absence of every one of these fields, history and current figures alike, and the same projection on a replay.
 - **LE-15** A caller with `read:service-sessions:branch` (35d-5) reads, newest first, for one line: revision, previous and
   new price/discount/net, `changed_at`, who (name, or role label) and the reason. The reason appears **only** here.
 - **LE-16** The day list and the edit response always carry the boolean `edited`; the record and append responses carry it
@@ -375,7 +377,7 @@ start before both are merged, so the writer never produces a row the consumer ca
   performer identity was never recorded cannot be edited at all.
 - **SC-004** 0 edits are saved above the editor's discount limit; the refusal always says the largest allowed discount.
 - **SC-005** A receptionist without the branch-read permission never sees a previous price, an editor or an edit time, on any
-  screen or response.
+  screen or response, and the edit response gives her no price, discount, net or visit total at all (ED-Q14).
 - **SC-006** Sending the same edit twice, or from two screens, changes the line once and rings the bell once per revision.
 
 ## 7. Assumptions
