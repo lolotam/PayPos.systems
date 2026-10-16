@@ -22,10 +22,11 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
 3. **`files` gains two small rules**: `validateStoredPermission` pins `settings` files to `read:settings:business`, and
    `request-upload` applies a per-owner-module size cap (the logo cap, BI-Q3). The generic policy and the DB checks stay.
 4. **Replacement and removal** emit `BusinessLogoChanged` through the outbox in the binding transaction. A `files`-owned
-   worker consumer retires the previous file: it re-checks the current reference through a port wired at the composition
-   root, takes the same business lock as binding, sets `purge_started_at` (so a later bind is refused), then deletes the
-   object outside any DB transaction and writes the tombstone and a system audit. Storage IO never runs in a request or a
-   transaction. The consumer ships **before** the producer (27h-3 before 27h-4), so an emitted event always has a registered consumer and is never parked or acknowledged unhandled.
+   outbox consumer (database only, as ADR-0018 requires) re-checks the current reference through a port wired at the
+   composition root, takes the same business lock as binding and sets `purge_started_at`; that commit is the durable
+   handoff (a later bind is refused). The existing hourly retention worker then gets a third kind, `retired`, and deletes
+   the object outside any DB transaction with the tombstone and a system audit. Storage IO never runs in a request, a
+   consumer or a transaction. The consumer ships **before** the producer (27h-3 before 27h-4), so an emitted event always has a registered consumer and is never parked or acknowledged unhandled.
 5. **Reading for the statement** is two exports in `settings/index.ts`: `readBusinessIdentity` (ids and names only) and the
    pure `statementIdentity` fallback. The logo **bytes** are read by a `files`-owned export built with 27i, resolving the
    currently bound logo of the authorised statement's business and writing one access-audit row for the requester. The

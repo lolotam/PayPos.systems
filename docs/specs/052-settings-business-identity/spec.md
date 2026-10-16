@@ -29,11 +29,11 @@ the name text.
 | **27h-0** | This spec + ADR-0046 + owner questions (docs-only PR) | spec, ADR, plan row | — |
 | **27h-1** | `update-business-identity-names` | (a) migration: 3 columns + CHECKs + composite FK + partial unique index, `privileges.spec.ts` check, RLS negative test; (b) contract + use case + audit + cache-guard fix; (c) integration + query-shape tests | 27h-0 answered |
 | **27h-2** | files side (no new endpoint) | (a) `validateStoredPermission`: `settings` ⇒ `read:settings:business`; (b) per-owner-module upload cap at `request-upload`; (c) `purge_started` added to the file facts read + tests | 27h-0 answered |
-| **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with an idempotent consumer, and the module-map event arrow; (b) re-check through a port + `purge_started_at` + storage delete + tombstone + system audit; (c) race and replay tests with synthetic events | 27h-2 |
+| **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with a database-only idempotent consumer, and the module-map event arrow; (b) re-check through a port + `purge_started_at` handoff + the `retired` kind in the retention worker (storage delete outside transactions, tombstone, system audit); (c) race, crash-between-steps and replay tests with synthetic events | 27h-1, 27h-2 |
 | **27h-4** | `set-business-logo` (bind or remove; the event producer) | (a) domain `validateLogoFile` + port + adapter (`settings → files` read) + module-map line; (b) use case + `PUT /v1/businesses/:businessId/settings/logo` + audit + `BusinessLogoChanged` emit; (c) `readBusinessIdentity` + pure `statementIdentity` exports + tests | 27h-1, 27h-2, 27h-3 |
 | **27h-5** | Admin screen (names, upload with status, preview, replace, remove) | (a) names form; (b) logo upload flow (files endpoints, poll status); (c) preview through the audited download + i18n | 27h-1, 27h-4 |
 
-Row 27i's logo-bytes reader depends on 27h-4 (the schema and binding surface); the plan row 27i lists it. Not here: the statement itself (27g), the PDF renderer (27i), the files-side bytes reader for the renderer (27i), the
+Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, and the binding surface); plan row 27i lists `27, 27h-4`. Not here: the statement itself (27g), the PDF renderer (27i), the files-side bytes reader for the renderer (27i), the
 `staff → settings` import arrow (27g's ADR). Other documents (receipts, invoices) may reuse the identity later; out of scope.
 
 ## 3. Owner rules (final) and pending
@@ -101,7 +101,7 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
    Binding happens in a **separate settings call** that receives only the file id (ADR-0031 pattern): settings never
    handles bytes, keys, or storage.
 3. **Bind check** inside the settings tenant transaction, after the business settings row lock, through the existing
-   `files` read export (`documentFileFacts`, extended additively with `purge_started`): READY, purge not started or done,
+   `files` read export (`documentFileFacts`, extended additively with `purge_started`): READY, purge neither started nor completed,
    `content_type` in PNG/JPEG, `owner_module='settings'`, `owner_entity_id` and `business_id` both equal the route's business id, no branch,
    `required_permission='read:settings:business'`, `created_by` = the actor, `size_bytes` within the logo cap (BI-Q3).
    PENDING/VERIFYING answers `FILE_NOT_READY`; every other mismatch answers `FILE_NOT_FOUND`.
@@ -110,9 +110,14 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
    No new pixel rule: sharp's existing 16 M-pixel input cap bounds memory.
 5. **Replace and remove.** The bind use case writes `BusinessLogoChanged { business_id, previous_file_id,
    file_id | null }` to the outbox in the same transaction. The **`files`-owned worker consumer** (27h-3, shipped before this producer so no event is ever emitted without a consumer) retires the
-   previous file: it re-checks, through a port wired at the composition root (no `files → settings` import), that the file
-   is no longer referenced, sets `purge_started_at` under the same business lock that binding takes (so a later bind of
-   that file is refused), then deletes the object outside any DB transaction and writes the tombstone and system audit.
+   previous file in **two durable steps**, because an outbox consumer runs inside one tenant transaction together with its
+   dedupe write and may do database work only (ADR-0018). Step 1, the consumer (database only): re-check, through a port
+   wired at the composition root (no `files → settings` import), that the file is no longer referenced, then set
+   `purge_started_at` under the same business lock that binding takes (so a later bind of that file is refused); this
+   commit is the durable handoff and is idempotent on replay. Step 2, the existing hourly retention worker
+   (ADR-0022: bounded batches, recoverable leases, fencing) gains a third eligibility kind, `retired` (`purge_started_at`
+   set, `purged_at` null, not bound), deletes the object outside any DB transaction and writes the tombstone and system
+   audit. A crash between the steps loses nothing: the next retention run picks the row up.
    Rejected: an in-transaction retire export (a cross-module write plus storage IO in a transaction), and keeping files
    forever (contradicts BR-06). Because 27h-3 merges first, the event type is known and handled before 27h-4 can emit it; no emitted event is parked or silently acknowledged.
 6. **Seam for 27g/27i.** `settings/index.ts` exports `readBusinessIdentity(tx, companyId, businessId)` returning
@@ -133,8 +138,9 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
 
 Primary key stays `(company_id, business_id)` (ADR-0007). Additive, expand-only migration: no backfill, no default; null means
 "not set". The negative isolation test adds: another company's `file_objects.id` cannot be referenced (FK) and cannot be
-read through the bind path (RLS). Index only needed in the same migration; no `CONCURRENTLY` (new column on a small table
-per ADR-0033, confirm in the plan).
+read through the bind path (RLS). The unique index is created `CONCURRENTLY` in its own migration file through the
+recoverable runner of ADR-0033 (`CLAUDE.md` §5: indexes on existing tables are concurrent); the columns and the FK come in the
+preceding migration.
 
 ### 5.3 API contract
 
