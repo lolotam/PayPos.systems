@@ -273,7 +273,7 @@ the numbers back.
 
 | ID  | Rule                                                                                                                                                                  |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-1 | Every hand change and the one-time start write an audit row (entity `employees`, action `employee_number.changed` / `employee_number.start_set`, before/after, actor). |
+| D-1 | Every hand change and the one-time start write an audit row in the same transaction. A hand change: entity `employees`, entity id = the employee id, action `employee_number.changed`, before/after number, actor. The start: entity `employee_number_sequences`, entity id = the **company id** (the sequence row's key, so it exists even when the company has no employees), action `employee_number.start_set`, before/after `{ start_number, next_number }`, actor. |
 | D-2 | The number is shown as plain digits, no separators, in Arabic and English screens, and printed the same way.                                                            |
 | D-3 | The list filter is an **exact** match; the picker matches a digit-only text exactly **or** the name as today.                                                          |
 | D-5 | A deleted employee's number cannot be edited (the employee reads as `NOT_FOUND`) and stays reserved.                                                                    |
