@@ -1,6 +1,6 @@
 # HANDOVER — PosPay (for Claude Code in the IDE)
 
-> **Written:** 2026-09-23, at the end of a Claude (Cowork) session. **Refreshed:** 2026-10-14 (status, paths, pipeline).
+> **Written:** 2026-09-23, at the end of a Claude (Cowork) session. **Refreshed:** 2026-10-16 (status, open issues, environment facts).
 > **Read this first, then `CLAUDE.md`, then `CLAUDE.architecture.md`.** This file is a snapshot of *where
 > the work stands*; the rules themselves live in the files listed in §2 and win on any conflict.
 > Update §4–§6 of this file at the end of every session, in the same PR as the work. The live, row-by-row
@@ -38,7 +38,7 @@ Solo developer (Waleed) building entirely with AI agents.
 | `.specify/PROJECT-OVERRIDES.md` | local changes to spec-kit defaults | — |
 | `AGENTS.md` | index for Codex and other agents; review guidelines | — |
 
-ADRs `0001`–`0041` exist in `docs/adr/` (2026-10-14); the earliest foundational ones are: `0001` domain/subdomain topology · `0002` workspace tooling baseline · `0003` auth ↔ RLS boundary ·
+ADRs `0001`–`0043` exist in `docs/adr/` (2026-10-16); the earliest foundational ones are: `0001` domain/subdomain topology · `0002` workspace tooling baseline · `0003` auth ↔ RLS boundary ·
 `0004` test runner (Vitest) · `0005` money rounding (half away from zero) and percentage precision (4 dp) ·
 `0006` database tests on the compose Postgres, postgres.js driver, migration naming · `0007` tenant tables key on `(company_id, id)` · `0008` API stack pins, explicit `@Inject`.
 
@@ -96,6 +96,17 @@ pnpm db:generate <kebab-name> [--custom]   # new migration: NNNN_<UTC date>_<nam
 `MIGRATION_DATABASE_URL` is `pospay_owner` (migrations only); `DATABASE_URL` is `pospay_app`. `pnpm check` needs Docker
 running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-0006).
 
+**Two facts that cost time before:**
+
+- **DB-backed vitest runs share one Postgres and one advisory lock.** Every spec that touches the cluster roles takes
+  the advisory lock `pospay:test-cluster-roles` (`packages/db/test/role-lock.ts`), so two DB test runs started at once
+  — two worktrees, or two shells — block or fail each other. Run **one DB-backed run at a time** on the machine.
+- **Deleting a merged worktree on Windows** fails on long `node_modules` paths. Empty it with
+  `robocopy <empty-dir> <worktree-dir> /MIR`, then `Remove-Item` the folder, then `git worktree prune`, then
+  `git branch -D <branch>`. `/MIR` deletes without asking, so first run `git status --porcelain` in that worktree and
+  stop if it prints anything (uncommitted or untracked work would be lost). Git-ignored files are not listed there and
+  are deleted too — the copied `.env` is expected to go, anything else you care about must be copied out first.
+
 ### 3.4 Things that bite
 
 - **`.claude/` and `.github/` are write-protected for remote/agent file tools** in Waleed's setup. If you cannot write there, prepare the file elsewhere and ask Waleed to copy it.
@@ -104,7 +115,7 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 - CI (`.github/workflows/ci.yml`) runs on every PR. A `changes` job skips the heavy `check` job when only `docs/**` or `*.md` changed; the small `ci-gate` job always reports, and **`ci-gate` is the check branch protection requires** on `main` (plan v4 T12a).
 - `lint:docs` fails on closing JSX comments, `FIXME`/`HACK`/`XXX`, commented-out code, and on any JSDoc in `domain/**`, `ports/**`, `events/published.ts` that has no Arabic **letter**.
 
-## 4. Status — 2026-10-14
+## 4. Status — 2026-10-16
 
 **Source of truth:** the «المشروع أول بأول» tab of the decisions page
 https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF (published file `roadmap.json`), updated after every merge.
@@ -112,7 +123,7 @@ https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF (published file `roadmap.json`
 | Phase | Name | Status |
 |---|---|---|
 | P0 | Foundation | ✅ done — 10/10 acceptance gates |
-| P1 | Staff, attendance, commissions | 🟡 in progress — 6/6 gates; 52 of 96 rows done, 1 in progress |
+| P1 | Staff, attendance, commissions | 🟡 in progress — 6/6 gates; 65 of 106 rows done, 1 in progress |
 | P2 | Catalog, orders, payments, cash, POS | ⬜ not started |
 | P3 | Inventory, recipes, production, kitchen | ⬜ not started |
 | P4 | Appointments, e-menu, loyalty, channels, notifications | ⬜ not started |
@@ -121,29 +132,34 @@ https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF (published file `roadmap.json`
 
 Phase 1 by group (done / in progress / not started): M1 shells and access 13/0/0 · M2 staff 18/0/0 ·
 M3 attendance 15/0/2 · M4 commission engine 3/0/0 · M5 catalog, customers, sessions 3/1/10 · M6 packages 0/0/6 ·
-M7 commissions 0/0/15 · M8 ratings and alerts 0/0/6 · M9 pilot 0/0/1 · follow-up issues 0/0/3.
+M7 commissions 0/0/15 · M8 ratings and alerts 0/0/6 · M9 pilot 0/0/1 · follow-up issues 13/0/0. Row 35 (`record-service-session`) is still the one row in progress: 35a, 35b
+and all of 35c are merged, 35d is not started.
 
 Phase 0 leftovers, deferred on purpose: optional local Garage container, OpenTelemetry sampling, Sentry hook, and —
 waiting on the new server (D-11) — the PITR restore drill and the production sizing ADR.
 
-161 PRs merged, none open, on 2026-10-14. Staging runs `migrate`, `api` and `worker` (`CLAUDE.md` §10).
+186 PRs merged, none open, on 2026-10-16 (`main` at `27f635ad`). Staging runs `migrate`, `api` and `worker` (`CLAUDE.md` §10).
 
 ### 4.1 Next action
 
-- Row **35** `record-service-session`, reception screen **35c** (18 PRs: 35c-1…11, 35c-3b, 35c-11b, 35c-12a, 35c-12b,
-  35c-13a-1, 35c-13a-2, 35c-13): 35c-1…11, 35c-3b, 35c-11b, 35c-12a and 35c-12b are merged (PR #184–#215). The 35c PRs
-  are sub-tasks of row 35, so the Phase 1 row counts below stay as they are.
-  Next: **35c-13a-1** (recovery proof issued before every write), **35c-13a-2** (recovery read and confirm), then
-  **35c-13** (the SS-Q18 exit, below). The design is ADR-0042 (design advice 2026-10-14; answers #209–#211).
-- Then **35d** (edit price/discount after saving; batch 17 answered) after issue #189 declares its bell event.
-- Owner question #199 (leaving an EXPIRED recording without logging out) was batch 18 (SS-Q18). **Waleed answered
-  2026-10-14: the recorder confirms «checked — recorded / not recorded» herself, without a manager** (against the
-  recommendation; Abu Salem chose the same on 2026-10-14). Built as 35c-13 after 35c-13a-1 and 35c-13a-2.
-- SS-Q19 (batch 19) answered by Waleed 2026-10-14, Abu Salem the same: before confirming, the recorder sees **only the visits she
-  recorded** in that branch on the attempt date, inside the recording screen — a narrow exception, not a general
-  "my saves" list (SS-Q17 stands). Its server side is 35c-13a-1 and 35c-13a-2 (ADR-0042).
-- SS-Q20 (batch 20) answered by Waleed 2026-10-14, option 1 (Abu Salem pending): the recovery read returns whether
-  the attempt committed; the panel states it and pre-selects the matching button, the list stays, she confirms.
+- **35c (the reception screen of row 35) is complete.** All 18 PRs are merged (PR #184–#233): 35c-1…11, 35c-3b,
+  35c-11b, 35c-12a, 35c-12b, 35c-13a-1 (#230), 35c-13a-2 (#231) and 35c-13 (#233, the recorder clears an EXPIRED
+  recording with the own-recordings panel). The 35c PRs are sub-tasks of row 35, so row 35 stays «in progress» until 35d.
+  The design is ADR-0042 (recovery proof, answers #209–#211, #223, #224, #226) — all closed.
+- Since 2026-10-14 the other merged PRs were hardening, not features: #232 (IBAN history no longer shows the raw actor
+  id), #235 (owner-granted parity unit spec), #237 (one time-zone formatter per schedule materialization), #239 and #240
+  (clock-dependent order specs; api domain specs added to the unit gate), #243 (one generic refusal for a taken card
+  code), and three database-runner fixes: #244 (postgres.js closed-socket patch, ADR-0043), #242 (the migration runner
+  holds a dedicated connection for its advisory lock and aborts when it is lost) and #246 (data-step client runs one
+  statement at a time).
+- **Next action: row 35d** — edit the price/discount of a saved service line (batch 17 answered: ED-Q1…ED-Q8, spec 050,
+  plan row 35d). It is **blocked on issue #189**: the 35d plan must declare the edit-bell event and its consumer
+  (ED-Q6, a bell to the branch manager on every edit) before any code is written. Resolve #189 first, then spec and brief 35d.
+- Owner questions SS-Q18 and SS-Q19 are answered by Waleed and Abu Salem and built: the recorder confirms «checked —
+  recorded / not recorded» herself without a manager (SS-Q18, #199 closed), and before confirming she sees only the visits
+  she recorded in that branch on the attempt date (SS-Q19). SS-Q20 is answered by Waleed (option 1) and built: the
+  recovery read states whether the attempt committed and pre-selects the matching button. **Abu Salem has not answered
+  SS-Q20 yet** (`docs/specs/050-orders-record-service-session/owner-questions.ar.md`); his pick binds if it differs.
 
 ### 4.2 Package facts worth knowing
 
@@ -176,10 +192,22 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
 
 ### 5.1 GitHub issues
 
-The list is `gh issue list --state open` (27 open on 2026-10-14). The ones that touch the current row:
-#199 (owner question), #201, #202, #193 (picker indexes — measure first), #189 (35d bell event). Still open from
-Phase 0: #9 (D-34, platform-only company creation), #10 🔒 (`Grant` constraints, P2-T7), #11 🔒 (offline operator
-credential, P2-T9) and the spec-kit items #6, #7, #8.
+The list is `gh issue list --state open` (20 open on 2026-10-16). Those that touch the current row or the pipeline:
+
+- #189 — 35d plan: declare the edit-bell event and consumer (ED-Q6) before implementing; **blocks 35d**.
+- #221 — service-session same-key retention (24 h from commit) is shorter than the client retry window (25 h from last send).
+- #201 — 35c reception: polish the recovered-draft display after reload (deferred).
+- #193 — picker name-order indexes: measure, then add ICU expression indexes in their own migration PR (deferred).
+- #161 — all-branches attendance report as a worker job, before large customers (deferred).
+- #204 — pipeline: define the Codex CLI evidence that satisfies the four-bot gate when the bot is out of quota.
+
+Older and not on the current row: #125 (PR 48 plan builder, owner decision), #123 (clock-by-card UX text), #113 (deny staff
+login to one Cashier), #78 and #54 (admin public API origin), #69 and #67 (worker startup follow-ups), #19 (company
+membership invitations). From Phase 0: #9 (D-34, platform-only company creation), #10 🔒 (`Grant` constraints, P2-T7),
+#11 🔒 (offline operator credential, P2-T9) and the spec-kit items #6, #7, #8.
+
+Closed since 2026-10-14 (25): #57, #112, #115, #138, #141, #145, #199, #202, #207, #209, #210, #211, #213, #214, #216, #217,
+#219, #223, #224, #226, #229, #236, #238, #241, #245.
 
 ### 5.2 Open product decisions
 
