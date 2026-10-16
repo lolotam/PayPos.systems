@@ -72,38 +72,31 @@ function isConnectionLoss(error: unknown): boolean {
 }
 
 interface DeferredQuery {
+  handler: (query: DeferredQuery) => unknown;
+  reject: (error: Error) => void;
   then: (...args: unknown[]) => unknown;
-  execute: (...args: unknown[]) => unknown;
-  catch: (...args: unknown[]) => unknown;
-  finally: (...args: unknown[]) => unknown;
 }
 
 function isDeferredQuery(returned: object): returned is DeferredQuery {
   return (
-    'execute' in returned &&
-    typeof returned.execute === 'function' &&
+    'handler' in returned &&
+    typeof returned.handler === 'function' &&
+    'reject' in returned &&
+    typeof returned.reject === 'function' &&
     'then' in returned &&
-    typeof returned.then === 'function' &&
-    'catch' in returned &&
-    typeof returned.catch === 'function' &&
-    'finally' in returned &&
-    typeof returned.finally === 'function'
+    typeof returned.then === 'function'
   );
 }
 
-// postgres.js sends a query only when then, execute, catch or finally runs. One built before the
-// socket died would otherwise run on the reconnected backend without the lock. Interpolation never
-// calls then, and a helper has no execute, so the same object is returned.
+// postgres.js sends a query only when it is first consumed (then, catch, finally, execute, forEach or
+// cursor), and every one of those goes through query.handler. One built before the socket died would
+// otherwise run on the reconnected backend without the lock, so that single hook rejects the query
+// instead. Interpolation never consumes it, and a helper has no handler, so the same object is returned.
 function guardDeferredQuery<T>(session: MigrationSession, returned: T): T {
   if (typeof returned !== 'object' || returned === null || !isDeferredQuery(returned))
     return returned;
-  for (const method of ['then', 'execute', 'catch', 'finally'] as const) {
-    const run = returned[method];
-    returned[method] = (...args: unknown[]) => {
-      if (session.lost) throw sessionLost();
-      return run.apply(returned, args);
-    };
-  }
+  const handler = returned.handler;
+  returned.handler = (query) => (session.lost ? query.reject(sessionLost()) : handler(query));
   return returned;
 }
 
@@ -158,16 +151,17 @@ function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres
     })) as postgres.Sql['begin'];
 }
 
-// file() builds a deferred query and reserve() takes a pooled connection: both can reach a reconnected
-// backend that does not hold the lock, so they get the same loss check as unsafe.
-function guardedMethod(
-  client: postgres.Sql,
-  session: MigrationSession,
-  name: 'file' | 'reserve',
-): postgres.Sql[typeof name] {
-  const method = client[name] as (...args: unknown[]) => unknown;
-  return ((...args: unknown[]) =>
-    throwIfLost(session, () => Reflect.apply(method, client, args))) as postgres.Sql[typeof name];
+// file() builds a deferred query, so it gets the same loss check as unsafe. reserve() would wait for the
+// only connection (the one holding the lock) and hand out a handle this guard cannot see, so it is refused.
+function guardedFile(client: postgres.Sql, session: MigrationSession): postgres.Sql['file'] {
+  return ((...args: Parameters<postgres.Sql['file']>) =>
+    throwIfLost(session, () =>
+      Reflect.apply(client.file, client, args),
+    )) as postgres.Sql['file'];
+}
+
+function refuseReserve(): never {
+  throw new Error('reserve() is not available in a migration data step');
 }
 
 // Refuses the next call after the socket closes, and still invokes the client the caller passed in.
@@ -175,8 +169,8 @@ function guardedSql(client: postgres.Sql, session: MigrationSession): postgres.S
   const guarded = {
     begin: guardedBegin(client, session),
     unsafe: guardedUnsafe(client, session),
-    file: guardedMethod(client, session, 'file'),
-    reserve: guardedMethod(client, session, 'reserve'),
+    file: guardedFile(client, session),
+    reserve: refuseReserve,
   };
   return new Proxy(client, {
     apply(target, _thisArg, args) {

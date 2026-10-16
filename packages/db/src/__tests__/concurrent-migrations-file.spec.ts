@@ -26,8 +26,9 @@ afterAll(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-// file() and reserve() build a deferred query or take a pooled connection, so the loss check must cover them.
-it('aborts a file() query awaited after the session died and a reserve() taken after it', async () => {
+// A deferred query is dispatched by its first consumer (await, execute, forEach, cursor), so the loss check
+// lives in query.handler and covers file() and every other way to consume one.
+it('aborts a file() query awaited after the session died', async () => {
   await owner`CREATE TABLE file_guard_test (id int)`;
   const sqlFile = join(dir, 'insert.sql');
   writeFileSync(sqlFile, 'INSERT INTO file_guard_test VALUES (9)');
@@ -40,12 +41,33 @@ it('aborts a file() query awaited after the session died and a reserve() taken a
           const pending = client.file(sqlFile);
           const [{ pid }] = await client<[{ pid: number }]>`SELECT pg_backend_pid() AS pid`;
           await killer`SELECT pg_terminate_backend(${pid}, 5000)`;
-          expect(() => client.reserve()).toThrow('Migration session lost');
           await pending;
         },
       }),
     ).rejects.toThrow('Migration session lost its advisory lock; aborting');
     expect(await owner`SELECT id FROM file_guard_test`).toHaveLength(0);
+  } finally {
+    await killer.end();
+  }
+});
+
+it('aborts a query consumed with forEach after the session died and refuses reserve()', async () => {
+  await owner`CREATE TABLE for_each_guard_test (id int)`;
+  files.sql = ['-- pospay:data-step hold\nSELECT 1'];
+  const killer = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    await expect(
+      applyMigrations(owner, 'unused', {
+        hold: async (client) => {
+          expect(() => client.reserve()).toThrow('reserve() is not available');
+          const pending = client`INSERT INTO for_each_guard_test VALUES (9)`;
+          const [{ pid }] = await client<[{ pid: number }]>`SELECT pg_backend_pid() AS pid`;
+          await killer`SELECT pg_terminate_backend(${pid}, 5000)`;
+          await pending.forEach(() => undefined);
+        },
+      }),
+    ).rejects.toThrow('Migration session lost its advisory lock; aborting');
+    expect(await owner`SELECT id FROM for_each_guard_test`).toHaveLength(0);
   } finally {
     await killer.end();
   }
