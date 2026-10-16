@@ -175,8 +175,9 @@ the numbers back.
 - **FR-004**: The migration MUST number all existing employees, deleted included, per company, ordered by hire date,
   then creation time, then id (EN-Q1, EN-Q7), and set each company's counter to the highest number plus one. It MUST
   be idempotent.
-- **FR-005**: A number MUST NEVER be given to another employee after it was used, even if its employee was deleted
-  (EN-Q4).
+- **FR-005**: A number MUST NEVER be given to another employee after its employee was **deleted** (EN-Q4). A number
+  freed because the owner edited its employee to another number is free again: the system never hands it out by itself
+  (BR-3), but the owner may type it by hand for anyone. EN-Q4 only covers deletion; nothing else is decided here.
 - **FR-006** (`TODO(spec)` EN-Q11): typing a number when adding an employee, changing a number, and setting the
   starting number MUST require `manage:employee-number:company`; the owner holds it by default and can grant it to any
   human role, never a device (pattern of DH-Q5, spec 048).
@@ -217,9 +218,14 @@ the numbers back.
   `FOR UPDATE` first; the unique index `(company_id, employee_number)` is the backstop. Where it sits in the existing
   create-employee lock order is decided with the design advisors at the start of 8c-2 (skill §3 step 2: the slice
   changes RLS and a locking path).
-- **TD-5 Backfill is plain SQL in the migration**, not an ADR-0038 data step: it needs no TypeScript rule. Window
-  `row_number() OVER (PARTITION BY company_id ORDER BY hire_date, created_at, id)` (UUID v7 ids are time-ordered, the
-  last tie-break for rows created in one transaction). It runs as the migration owner, like 0097.
+- **TD-5 Backfill is an ADR-0038 data step** (`CLAUDE.md` §5: a migration never touches tenant rows as the bypassing
+  owner). A registered, idempotent step `employee-numbers` is announced by a `-- pospay:data-step employee-numbers`
+  marker on a **second** migration, after the one that adds the column, index and sequence table (the 0101/0102
+  pattern). The migration owner reads only `companies.id`; for each company the step runs `withTenant(companyId, …)` on
+  `pospay_app`, locks the company's sequence row, numbers the rows that still have `NULL` ordered by
+  `hire_date, created_at, id` (UUID v7 ids are time-ordered, the last tie-break for rows created in one
+  transaction), deleted included, and sets `next_number` to the highest number plus one. No runtime role gains
+  `BYPASSRLS` and no new grant is added. The step is registered in the migration runner per ADR-0038 §1; no new ADR.
 - **TD-6 The open technical point of the plan row is closed like this.** The backfill always starts from 1, because
   the starting-number screen does not exist yet when it runs and EN-Q5 says "default 1". What the starting number does
   afterwards to employees that already hold numbers is an owner decision, not a technical one — **EN-Q10**.
@@ -238,8 +244,8 @@ the numbers back.
   (not 1051); when the counter reaches 1050 it jumps to 1051.
 - **BR-3** (EN-Q6): a hand number never moves the counter, and a number freed by a hand edit is not reused
   automatically.
-- **BR-4** (EN-Q4): a number is never reassigned, even after its employee is deleted; deleted employees keep theirs and
-  nobody may edit it (D-5).
+- **BR-4** (EN-Q4): a number is never reassigned after its employee is deleted; deleted employees keep theirs and
+  nobody may edit it (D-5). A number freed by a hand edit is not covered by this rule (FR-005, BR-3).
 - **BR-5** (EN-Q1, EN-Q7): the migration orders by hire date, then creation time, then id, deleted included; later
   employees are numbered by creation order, not hire date (D-7).
 - **BR-6** (`TODO(spec)` EN-Q10, recommended A): the starting number is set once; the counter becomes
@@ -274,7 +280,7 @@ the numbers back.
   confirms this at 8c-1.
 - Grants: `employees.employee_number` gets `INSERT` and `UPDATE (employee_number)` for `pospay_app`; the sequence table
   as above. Both are added to the reviewed allowlist in `packages/db/src/__tests__/privileges.spec.ts`.
-- Backfill and the counter seed are in the same migration (TD-5). Migration number: next free on `origin/main` at
+- The backfill and the counter seed are the `employee-numbers` data step on the second migration (TD-5). Migration numbers: next free on `origin/main` at
   implementation, renumbered at merge. No destructive statement.
 - Permission migration (8c-6): `INSERT` `manage:employee-number:company` into `permissions` and into the owner role
   default (pattern of migration 0128) — `TODO(spec)` EN-Q11.
@@ -378,7 +384,7 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 
 | PR    | What                                                                                                       | Subtasks                                                                                                                                | Needs            | State                  |
 | ----- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------------- |
-| 8c-1  | Database foundation                                                                                        | (1) migration: column, unique index, sequence table with RLS and grants, SQL backfill, counter seed (2) Drizzle schema and privileges allowlist (3) RLS negative and backfill tests (`EN-01`, `EN-02`) | —                | ready                  |
+| 8c-1  | Database foundation                                                                                        | (1) first migration: column, unique index, sequence table with RLS and grants (2) Drizzle schema, privileges allowlist, and the second migration with the `employee-numbers` data step (3) RLS negative and backfill tests (`EN-01`, `EN-02`) | —                | ready                  |
 | 8c-2  | `create-employee` gives the next number                                                                    | (1) `firstFreeEmployeeNumber` + unit tests (2) assign port and Drizzle adapter, counter lock (3) use case, `Employee` contract field, `EN-03`…`EN-05`, `EN-12` | 8c-1             | ready; advisors first (TD-4) |
 | 8c-3  | `commit-employee-import` gives numbers in file order                                                       | (1) import commit uses the assign port (2) `EN-13`                                                                                      | 8c-2             | blocked on EN-Q12      |
 | 8c-4  | Reads: employee detail, staff list, performer picker                                                       | (1) contracts and queries add the field (2) exact-number filter and digit match (3) result-shape and `EXPLAIN` tests, `EN-14`          | 8c-1             | ready                  |
