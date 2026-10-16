@@ -86,7 +86,7 @@ You **MUST** consider the user input before proceeding (if not empty).
      - A business-rule item is any unchecked item in `checklists/requirements.md` (the built-in checklist), and any unchecked item in another checklist that concerns money, permissions or authorization, tenant scope (`company_id`, RLS) or any other business rule. When it is unclear whether an item is a business rule, treat it as one and stop. `CLAUDE.md` §11: a business rule is never guessed, so an open item means the spec is not ready.
      - Display the table and list every blocking item
      - **STOP**. Do NOT ask whether to proceed anyway, and do not treat "yes", "proceed" or "continue" from the user as an override
-     - Tell the user how to close the item first. An unknown business rule is asked to the owner, never guessed. For an item in `checklists/requirements.md`, fix the spec with `/speckit-clarify` or `/speckit-specify`, which re-validates it. For an item in a reviewer-owned checklist, fix the spec, then have that checklist's reviewer re-evaluate and tick the item (or re-run `/speckit-checklist`). This command never edits checklist files
+     - Tell the user how to close the item first. An unknown business rule is asked to the owner, never guessed. For an item in `checklists/requirements.md`, fix the spec and run `/speckit-clarify`, which re-validates it. For an item in a reviewer-owned checklist, fix the spec, then have that checklist's reviewer re-evaluate and tick the item. This command never edits checklist files
      - Continue only after a fresh scan finds no unchecked business-rule item
 
    - **If any other checklist has unchecked items** (reviewer-owned checklists from `/speckit-checklist` with no business-rule item):
