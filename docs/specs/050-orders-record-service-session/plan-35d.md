@@ -211,22 +211,23 @@ reported separately. If an estimate is exceeded, split again before code.
 | **35d-3** | Permission and storage for edits | 1. «Edit session price/discount» permission and its four default roles (ED-Q1). 2. Edit-history table + RLS (ED-Q8 storage). 3. A narrow **column-level `UPDATE`** grant for `pospay_app` on `service_lines` (migration 0131 grants `SELECT, INSERT` only): `price`, `discount`, `net`, `effective_discount_bps`, `limit_bps_applied`, `limit_source` and `revision`, nothing else (the three limit columns change together with the editor's limit per ED-Q2, so `service_lines_limit` and `service_lines_limit_presence` keep holding; the recorder's original values stay in the history row), plus the grant allowlist, inventory and negative tests | — | 300–450 |
 | **35d-4** | `PATCH` one line's price/discount, audited | 1. Pure domain functions: editor limit (ED-Q2), window (ED-Q3), self-line rule (ED-Q4), reason (ED-Q5). 2. Use case + HTTP adapter + `Idempotency-Key`, outbox emit in the same transaction; the self-edit rule (ED-Q4) calls `PerformerCheckPort.lock(employeeIds)` (`FOR SHARE` on the employee rows) and then re-reads the line's performers' persisted user links inside the locked edit transaction, so a concurrent link change cannot slip between check and commit (a concurrency test is required) (saved `line_performers` hold employee IDs only), never from the request. 3. Delivery tests 1–3 and the edge cases | the 35d spec; 35d-1, 35d-2 (the consumer must be merged first), 35d-3 | 450–600 |
 | **35d-5** | Edit from the branch day list (ED-Q7) | 1. Guarded history read: contract, query under `read:service-sessions:branch`, route and EXPLAIN test (ED-Q8 data; the day-list line contract carries only current money). 2. Admin form and hook. 3. ar/en keys, component tests | 35d-4 | 250–380 |
-| **35d-6** | Edit on the reception screen + «changed» badge and history (ED-Q7, ED-Q8) | 1. Edit for just-saved lines. 2. Badge + before/after/who/when panel. 3. Tests and keys | 35d-4, 35d-5 | 300–450 |
+| **35d-6** | Edit on the reception screen + «changed» badge and history (ED-Q7, ED-Q8) | 1. Edit for just-saved lines. 2. Badge + before/after/who/when panel. 3. Tests and keys | 35d-4, 35d-5, ED-Q12 | 300–450 |
 
-`TODO(spec)` for 35d-6: the history read of 35d-5 needs `read:service-sessions:branch`, which a receptionist with only the recording and edit permissions lacks (SS-Q17). How the reception screen gets the history of lines she just saved or edited (the edit response carrying it, or a narrow read limited to her own just-saved lines) is an authorization rule for the 35d spec, not decided here.
+`TODO(spec)` for 35d-6: the history read of 35d-5 needs `read:service-sessions:branch`, which a receptionist with only the recording and edit permissions lacks (SS-Q17). How the reception screen gets the history of lines she just saved or edited (the edit response carrying it, or a narrow read limited to her own just-saved lines) is an authorization rule for the 35d spec, not decided here. The owner question is ED-Q12 (batch 23, number 32) and 35d-6 stays blocked on it.
 
 Order: 35d-1 → 35d-2 (consumer, no writer yet); 35d-3 can run in parallel with 35d-2 (disjoint paths; both add a
 migration, so numbers are assigned at merge) → 35d-4, which starts only after 35d-2 has merged, so no edit event exists
 without its consumer (ADR-0044) → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
 before 35d-4 and carries the `TODO(spec)` items above.
 
-## 9. Open owner questions (batch 22, numbered 29–31 in the file)
+## 9. Open owner questions (batch 22, numbered 29–31, and batch 23, number 32, in the file)
 
 | Id | Question | Recommended |
 |---|---|---|
 | ED-Q9 | Who gets the bell: the same four scoped manager roles as the late-session bell, only the branch manager role, or every holder of the new edit permission? | the same four roles |
 | ED-Q10 | Does a manager who made the edit get a bell for it? | no — the other managers do; the history row still records it |
 | ED-Q11 | What does the bell say: only «a price was edited in branch X on date D», or the service plus before → after net (and the editor's name)? | service + before → after net + editor's name |
+| ED-Q12 | What edit history does a receptionist without branch-read permission see for lines she just saved or edited: the edit response carries it, a narrow own-lines read, or only the «changed» badge? | the edit response carries it, no new read |
 
 Until the owner (and Abu Salem, whose pick binds if different) answers, 35d-1's contract subtasks and the whole
-mechanical design above stand; ED-Q9/ED-Q10 gate 35d-2's recipient step and ED-Q11 gates the template wording.
+mechanical design above stand; ED-Q9/ED-Q10 gate 35d-2's recipient step and ED-Q11 gates the template wording; ED-Q12 gates 35d-6.
