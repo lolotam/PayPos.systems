@@ -103,7 +103,8 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
   — two worktrees, or two shells — block or fail each other. Run **one DB-backed run at a time** on the machine.
 - **Deleting a merged worktree on Windows** fails on long `node_modules` paths. Empty it with
   `robocopy <empty-dir> <worktree-dir> /MIR`, then `Remove-Item` the folder, then `git worktree prune`, then
-  `git branch -D <branch>`.
+  `git branch -D <branch>`. `/MIR` deletes without asking, so first run `git status --porcelain` in that worktree and
+  stop if it prints anything (uncommitted or untracked work would be lost).
 
 ### 3.4 Things that bite
 
@@ -153,11 +154,11 @@ waiting on the new server (D-11) — the PITR restore drill and the production s
 - **Next action: row 35d** — edit the price/discount of a saved service line (batch 17 answered: ED-Q1…ED-Q8, spec 050,
   plan row 35d). It is **blocked on issue #189**: the 35d plan must declare the edit-bell event and its consumer
   (ED-Q6, a bell to the branch manager on every edit) before any code is written. Resolve #189 first, then spec and brief 35d.
-- Owner questions SS-Q18, SS-Q19 and SS-Q20 are all answered and built: the recorder confirms «checked — recorded / not
-  recorded» herself without a manager (SS-Q18, #199 closed); before confirming she sees only the visits she recorded in
-  that branch on the attempt date (SS-Q19); the recovery read states whether the attempt committed and pre-selects the
-  matching button (SS-Q20, Waleed's option 1; Abu Salem has not answered yet in `docs/specs/050-orders-record-service-session/owner-questions.ar.md` — his pick
-  binds if it differs).
+- Owner questions SS-Q18 and SS-Q19 are answered by Waleed and Abu Salem and built: the recorder confirms «checked —
+  recorded / not recorded» herself without a manager (SS-Q18, #199 closed), and before confirming she sees only the visits
+  she recorded in that branch on the attempt date (SS-Q19). SS-Q20 is answered by Waleed (option 1) and built: the
+  recovery read states whether the attempt committed and pre-selects the matching button. **Abu Salem has not answered
+  SS-Q20 yet** (`docs/specs/050-orders-record-service-session/owner-questions.ar.md`); his pick binds if it differs.
 
 ### 4.2 Package facts worth knowing
 
@@ -204,7 +205,8 @@ login to one Cashier), #78 and #54 (admin public API origin), #69 and #67 (worke
 membership invitations). From Phase 0: #9 (D-34, platform-only company creation), #10 🔒 (`Grant` constraints, P2-T7),
 #11 🔒 (offline operator credential, P2-T9) and the spec-kit items #6, #7, #8.
 
-Closed since 2026-10-14: #57, #112, #115, #138, #141, #145, #199, #229, #236, #238, #241, #245.
+Closed since 2026-10-14 (25): #57, #112, #115, #138, #141, #145, #199, #202, #207, #209, #210, #211, #213, #214, #216, #217,
+#219, #223, #224, #226, #229, #236, #238, #241, #245.
 
 ### 5.2 Open product decisions
 
