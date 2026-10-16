@@ -119,12 +119,15 @@ the outbox.
 **Acceptance Scenarios**:
 
 - **LE-14** The edit response and every receptionist-visible payload carry the current line and the boolean
-  `edited` (`revision > 1`), and **none** of: previous price/discount/net, the editor's identity (user, membership, name,
+  `edited` (true when at least one price/discount edit exists for the line), and **none** of: previous price/discount/net, the editor's identity (user, membership, name,
   role), the edit time, the reason. A caller holding the edit permission but not `read:service-sessions:branch` gets
   none of those fields (acceptance test of plan-35d §8).
 - **LE-15** A caller with `read:service-sessions:branch` (35d-5) reads, newest first, for one line: revision, previous and
   new price/discount/net, `changed_at`, who (name, or role label) and the reason. The reason appears **only** here.
-- **LE-16** The day list shows the «edited» mark from the `revision` it already returns; no contract change for the mark.
+- **LE-16** The day list and every saved-line payload (record, append, edit responses) carry the boolean `edited`, derived
+  server-side from the existence of a `service_line_edits` row for the line — **not** from `revision`, which cancel (37) and
+  performer changes (37b) also bump (a performer reassignment must not show the badge with an empty history). It is `false` in
+  the recording and append responses.
 
 ### User Story 5 — Retries, races and authority (Priority: P2)
 
@@ -226,7 +229,9 @@ the outbox.
 - **FR-018** History read (35d-5): newest first, by `(company, business, line)` and ordered by revision, cursor on revision,
   `limit` default 50 max 200, under `read:service-sessions:branch` with the `orders` feature; route business/branch/session/line
   mismatch → uniform 403.
-- **FR-019** The mark: clients derive `edited = revision > 1` from the saved-line contract (35d-5 day list, 35d-6 reception).
+- **FR-019** The mark: `edited` is an additive boolean on the saved-line contract (35d-4 adds it to the line snapshot, always
+  `false` on record/append, true after an edit), and the day-list query of 35d-5 computes it with an `EXISTS` over
+  `service_line_edits` (index `service_line_edits_line_fk_idx`, covered by the 35d-5 `EXPLAIN` test). Clients never derive it from `revision`.
   The reception screen (35d-6) uses the edit endpoint and shows only the mark (ED-Q12).
 
 ### Key entities
@@ -254,10 +259,10 @@ the outbox.
 | Table | Columns added / changed | RLS policy | Indexes | Tenant-qualified FKs |
 |---|---|---|---|---|
 | `line_performers` | add `linked_user_id uuid NULL` (user linked to the employee at recording) and `linked_user_snapshotted boolean NOT NULL DEFAULT false` (writers set `true`; existing rows and inserts by an old instance get `false`); `CHECK (linked_user_id IS NULL OR linked_user_snapshotted)`. **No backfill and no data step** | unchanged; grants stay `SELECT, INSERT` — the column is immutable after insert, so **no `UPDATE` grant** | `line_performers_linked_user_idx (linked_user_id) WHERE linked_user_id IS NOT NULL` (the FK index) | `FOREIGN KEY (linked_user_id) REFERENCES "user"(id)` — the global `user` table, as `service_line_edits.changed_by` does; no tenant column involved |
-| `service_line_edits` | widen `editor_role` from `owner|manager` to a role code (`CHECK editor_role ~ '^[a-z][a-z_]{0,63}$'`, the `roles_code_format` rule); add `editor_role_is_system boolean`, `editor_role_name_ar text`, `editor_role_name_en text`; new CHECKs: role columns are all-or-nothing, a company role (`is_system = false`) carries `editor_role_name_en`, name lengths ≤ 255, and **`editor_name_en IS NOT NULL OR editor_role IS NOT NULL`** (a row always has a readable who) | unchanged | none | none |
+| `service_line_edits` | widen `editor_role` from `owner|manager` to a role code (`CHECK editor_role ~ '^[a-z][a-z_]{0,63}$'`, the `roles_code_format` rule); add `editor_role_is_system boolean`, `editor_role_name_ar text`, `editor_role_name_en text`; new CHECKs: `editor_role`, `editor_role_is_system` and `editor_role_name_en` are all-or-nothing (`editor_role_name_ar` stays optional, as `roles.name_ar` is), name lengths ≤ 255, and **`editor_name_en IS NOT NULL OR editor_role IS NOT NULL`** (a row always has a readable who) | unchanged | none | none |
 
 The migration is numbered at merge (after 35d-2's). It follows expand/contract: only additive columns and a looser CHECK.
-The recording and append writers (and 37b's performer change) write `linked_user_id` from the
+The recording and append writers (and 37b's performer change) write `linked_user_id` and `linked_user_snapshotted = true` from the
 `SessionEmployee.user_id` that `PerformerCheckPort.read` already returns — no new port, no new arrow. The schema file's
 `TODO(spec)` comment on `editorRole` (issue #255) is replaced by 35d-3b.
 
@@ -364,8 +369,8 @@ start before both are merged, so the writer never produces a row the consumer ca
   «صاحب الشركة» in the permissions screen: unifying them is a one-word copy change in `in-app-catalog.ts`, not a model change.
 - The generic fallback label for an editor whose role name fails the display-name filter is proposed copy: «مستخدم» / "User".
   It is a rare path and changing it needs no migration.
-- `edited = revision > 1` will also be true for a line whose performers are changed later by 37b, if 37b bumps the revision;
-  the mark then means "changed after first save", and the history panel shows only price/discount edits.
+- `edited` means "has a price/discount edit" and is independent of `revision`, so 37 (cancel) and 37b (performer changes) can
+  bump the revision without showing the badge.
 - Lines recorded before 35d-3b stay non-editable by this endpoint. This costs nothing today (staging test data only, the
   salon pilot has not started); if real lines ever predate the snapshot, a separate, tenant-scoped resolution is a new decision.
 - Edits are rare and single-line; the 200 ms rule is expected to hold synchronously, and 35d-4 measures it rather than assumes it.

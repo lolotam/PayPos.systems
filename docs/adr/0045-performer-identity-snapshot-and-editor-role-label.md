@@ -28,7 +28,7 @@ The self-edit rule refuses when the editor's user equals any performer's `linked
 `employees.user_id` (read under `PerformerCheckPort.lock`, `FOR SHARE`, in the edit transaction). Null never matches.
 
 There is **no backfill**. `line_performers` also gains `linked_user_snapshotted boolean NOT NULL DEFAULT false`; record and
-append write `true`. Existing rows, and rows inserted by an old instance during a rolling deploy, read `false`, and the edit
+append (and 37b, for performers it adds) write `true`. Existing rows, and rows inserted by an old instance during a rolling deploy, read `false`, and the edit
 refuses such a line (`SESSION_EDIT_IDENTITY_UNKNOWN`, fail closed): its performers' identity at recording time cannot be
 proven. A backfill would store the link at migration time, which cannot close the bypass when the link moved earlier, and a
 tenant-row write by the migration owner is outside `CLAUDE.md` §5 / ADR-0038 (a data step runs as `pospay_app` and would need
@@ -70,7 +70,7 @@ the wording of the two labels it names; a company role's name is whatever its ow
   label use. 35d-4 starts only after both. Sizes and gates are in spec-35d §5.
 - Migration numbering follows merge order (after 35d-2's).
 - The `TODO(spec)` comment on `editorRole` in `packages/db/schema/orders.ts` is removed by 35d-3b.
-- 37b must write `linked_user_id` for performers it adds.
+- 37b must write `linked_user_id` and `linked_user_snapshotted = true` for performers it adds (a non-null `linked_user_id` with the default `false` is rejected by the CHECK; an unlinked performer left at `false` would make the line permanently non-editable).
 - No module-map change: the role snapshot is returned by the identity read `SessionEditAccessPort` already performs; if that
   needs a new export symbol, 35d-4 declares its §6 entry.
 - The catalogs say «المالك» (bell) and «صاحب الشركة» (permissions screen) for the owner role; unifying is a copy change.
