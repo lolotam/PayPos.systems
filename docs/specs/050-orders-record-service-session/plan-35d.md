@@ -1,7 +1,7 @@
 # Plan 050 — 35d edit price/discount of a saved service line, and the edit bell
 
 Date: 2026-10-16. DESIGN only: no code, migration or contract file in this PR.
-Worktree: `F:\Dev\Worktrees\PosPay\docs-189-edit-bell-plan`; branch `docs/189-edit-bell-plan`.
+Worktree: `E:\Dev\Worktrees\PosPay\docs-189-edit-bell-plan`; branch `docs/189-edit-bell-plan`.
 Baseline: main `29dab827` (35a, 35b-1/2, 35c and the 35c-13 recovery rows merged; staging runs it).
 Sources: [spec](spec.md) (FR-016, SS-Q10), [35a plan](plan.md), [35b plan](plan-35b.md), [35c plan](plan-35c.md),
 [owner answers](owner-questions.ar.md) (batch 17 = ED-Q1…ED-Q8; batches 22–24 = ED-Q9…ED-Q13, all answered by Waleed 2026-10-16),
