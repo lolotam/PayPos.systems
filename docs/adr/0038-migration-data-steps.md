@@ -76,3 +76,13 @@ violates the CHECK. Once 0101 commits, no NULL `name_en_key` can be written by a
   step (it checks what it needs and becomes a no-op when the data it fixes cannot exist), or freeze it (the
   step keeps its own copy of the SQL and rules it needs as of its migration). Deleting a registered step is
   never allowed while a migration still carries its marker: the runner would abort as "unknown".
+- **A step gets a restricted client, and its statements run one at a time (issue #245).** The migration
+  runner holds the advisory lock on the only connection (`max: 1`), and a closed socket means the lock is
+  gone. The client a step receives therefore offers tagged templates, `unsafe`, `begin` and the value
+  helpers (`json`, `array`, `typed`...). Every other member (`file`, `reserve`, `notify`, `listen`,
+  `largeObject`, `end`...) throws, because each could reach a reconnected backend without the lock;
+  members postgres.js adds later are refused the same way. A step must await each statement before starting
+  the next: a second statement or `begin` started while one is in flight is rejected, because postgres.js
+  would queue it and dispatch it after a reconnect with no further check. A statement that fails with a
+  connection loss marks the session lost at once, so a step that swallows the error cannot let the runner
+  continue. A step that needs SQL from a file reads the file itself and passes the text to `unsafe`.
