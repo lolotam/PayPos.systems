@@ -15,6 +15,8 @@ const MARKER = /^-- pospay:data-step ([a-z0-9-]+)$/;
 const RESERVED = /pospay\s*:\s*data|(--|\/\*).*pospay\s*:|^\s*\*.*pospay\s*:/i;
 
 const SESSION_LOST = 'Migration session lost its advisory lock; aborting';
+const ONE_AT_A_TIME =
+  'Migration statements must run one at a time: await each statement before starting the next';
 
 // SQLSTATE for a backend that is gone, plus the codes postgres.js puts on a dead socket.
 const CONNECTION_LOSS: ReadonlySet<string> = new Set([
@@ -30,6 +32,7 @@ const CONNECTION_LOSS: ReadonlySet<string> = new Set([
 
 interface MigrationSession {
   lost: boolean;
+  busy: boolean;
 }
 
 interface PendingMigration {
@@ -89,11 +92,12 @@ function isDeferredQuery(returned: object): returned is DeferredQuery {
 }
 
 // postgres.js sends a query only when it is first consumed (then, catch, finally, execute, forEach or
-// cursor), and every one of those goes through query.handler. One built before the socket died would
-// otherwise run on the reconnected backend without the lock, so that single hook rejects the query
-// instead. Interpolation never consumes it, and a helper is not thenable, so the same object is returned.
-// A query-shaped object (strings, args, then) without handler and reject means postgres.js changed: refuse
-// it rather than run it unguarded. Helpers such as sql('name') are thenable too, but never run SQL.
+// cursor), and every one of those goes through query.handler, so that single hook is guarded. It rejects a
+// query once the session is lost, and admits one statement at a time: a statement queued behind another is
+// dispatched by the pool after a reconnect, without the lock and with no further check. Interpolating a query
+// into another never consumes it, so the same object is returned. Helpers such as sql('name') are thenable
+// but have no strings and args, so they pass through; a query-shaped object without handler and reject means
+// postgres.js changed, and it is refused rather than run unguarded.
 function guardDeferredQuery<T>(session: MigrationSession, returned: T): T {
   if (typeof returned !== 'object' || returned === null) return returned;
   if (!isDeferredQuery(returned)) {
@@ -102,8 +106,32 @@ function guardDeferredQuery<T>(session: MigrationSession, returned: T): T {
     return returned;
   }
   const handler = returned.handler;
-  returned.handler = (query) => (session.lost ? query.reject(sessionLost()) : handler(query));
+  returned.handler = (query) => {
+    if (session.lost) return query.reject(sessionLost());
+    if (session.busy) return query.reject(new Error(ONE_AT_A_TIME));
+    session.busy = true;
+    releaseWhenSettled(session, query);
+    return handler(query);
+  };
   return returned;
+}
+
+// Frees the single statement slot once the statement settles. It attaches before the caller's own continuation,
+// so a statement started right after an await finds the slot free. A statement that fails with a connection
+// loss marks the session lost at once: the close event arrives later, and a data step that swallows the error
+// could otherwise let the runner issue its next statement on a reconnected backend without the lock.
+// Promise.prototype.then does not consume a query.
+function releaseWhenSettled(session: MigrationSession, work: object): void {
+  Promise.prototype.then.call(
+    work,
+    () => {
+      session.busy = false;
+    },
+    (error: unknown) => {
+      session.busy = false;
+      if (isConnectionLoss(error)) session.lost = true;
+    },
+  );
 }
 
 // Throw before the call: a follow-up write on a socket postgres.js already closed throws outside the
@@ -148,12 +176,47 @@ function guardedUnsafe(client: postgres.Sql, session: MigrationSession): postgre
     )) as postgres.Sql['unsafe'];
 }
 
+// The transaction client a begin callback receives gets the same restricted, one-at-a-time guard as the
+// top-level client, with its own statement slot: it shares one backend with the callback, so two overlapping
+// statements would queue on it exactly as they would on the top-level connection.
+function guardedTransaction(
+  tx: postgres.TransactionSql,
+  session: MigrationSession,
+): postgres.TransactionSql {
+  const transactionSession: MigrationSession = {
+    get lost() {
+      return session.lost;
+    },
+    set lost(value: boolean) {
+      session.lost = value;
+    },
+    busy: false,
+  };
+  return guardedSql(
+    tx as unknown as postgres.Sql,
+    transactionSession,
+  ) as unknown as postgres.TransactionSql;
+}
+
 function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres.Sql['begin'] {
   return ((...args: Parameters<postgres.Sql['begin']>) => {
     if (session.lost) throw sessionLost();
-    if (typeof args[0] === 'string' && typeof args[1] !== 'function')
-      throw new Error('Missing migration transaction callback');
-    return Reflect.apply(client.begin, client, args);
+    const callbackAt = typeof args[0] === 'function' ? 0 : 1;
+    const callback = args[callbackAt] as ((tx: postgres.TransactionSql) => unknown) | undefined;
+    if (typeof callback !== 'function') throw new Error('Missing migration transaction callback');
+    if (session.busy) throw new Error(ONE_AT_A_TIME);
+    const guardedArgs = [...args] as unknown[];
+    guardedArgs[callbackAt] = (tx: postgres.TransactionSql) =>
+      callback(guardedTransaction(tx, session));
+    session.busy = true;
+    try {
+      const transaction = Reflect.apply(client.begin, client, guardedArgs) as object;
+      releaseWhenSettled(session, transaction);
+      return transaction;
+    } catch (error) {
+      session.busy = false;
+      throw error;
+    }
   }) as postgres.Sql['begin'];
 }
 
@@ -287,7 +350,7 @@ export async function applyMigrations(
 ): Promise<void> {
   requireSingleConnection(client);
   const migrations = readMigrationFiles({ migrationsFolder: folder });
-  const session: MigrationSession = { lost: false };
+  const session: MigrationSession = { lost: false, busy: false };
   const restoreClose = armLossWatch(client, session);
   const sql = guardedSql(client, session);
   try {

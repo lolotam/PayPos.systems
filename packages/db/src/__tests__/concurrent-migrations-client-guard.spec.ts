@@ -17,10 +17,13 @@ beforeAll(async () => {
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
 });
 beforeEach(async () => {
+  // The first statement after a test that killed owner's backend receives that termination error.
+  await owner`SELECT 1`.catch(() => undefined);
   await owner`DELETE FROM drizzle.__drizzle_migrations WHERE hash = 'file-guard'`;
 });
 afterAll(async () => {
-  await owner.end();
+  // A test kills the backend owner holds, so a graceful end would wait for a dead socket.
+  await owner.end({ timeout: 1 });
   await testDb.drop();
 });
 
@@ -58,4 +61,68 @@ it('aborts a query consumed with forEach after the session died', async () => {
   } finally {
     await killer.end();
   }
+});
+
+// postgres.js queues a second statement behind the first on the only connection and dispatches it after a
+// reconnect, so the guarded client accepts one statement at a time instead of checking at enqueue.
+it('rejects a second statement or begin while one is in flight and still finishes the first', async () => {
+  files.sql = ['-- pospay:data-step hold\nSELECT 1'];
+  await applyMigrations(owner, 'unused', {
+    hold: async (client) => {
+      const first = client`SELECT pg_sleep(0.2), 1 AS one`;
+      const settled = Promise.resolve(first);
+      await expect(client`SELECT 2 AS two`).rejects.toThrow('one at a time');
+      expect(() => client.begin(async () => undefined)).toThrow('one at a time');
+      expect(await settled).toHaveLength(1);
+      expect(await client`SELECT 3 AS three`).toEqual([{ three: 3 }]);
+      expect(await client.begin(async (tx) => await tx`SELECT 4 AS four`)).toEqual([{ four: 4 }]);
+    },
+  });
+});
+
+it('never dispatches a statement started during an in-flight one after the backend is killed', async () => {
+  await owner`CREATE TABLE queued_guard_test (id int)`;
+  files.sql = ['-- pospay:data-step hold\nSELECT 1'];
+  const killer = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    await expect(
+      applyMigrations(owner, 'unused', {
+        hold: async (client) => {
+          const [{ pid }] = await client<[{ pid: number }]>`SELECT pg_backend_pid() AS pid`;
+          const slow = Promise.resolve(client`SELECT pg_sleep(30)`).then(
+            () => null,
+            (error: unknown) => error,
+          );
+          const queued = Promise.resolve(client`INSERT INTO queued_guard_test VALUES (1)`).then(
+            () => null,
+            (error: unknown) => error,
+          );
+          await killer`SELECT pg_terminate_backend(${pid}, 5000)`;
+          const [slowError, queuedError] = await Promise.all([slow, queued]);
+          expect(slowError).toBeInstanceOf(Error);
+          expect(String(queuedError)).toContain('one at a time');
+        },
+      }),
+    ).rejects.toThrow('Migration session lost its advisory lock; aborting');
+    // owner lost its backend, so the check goes through the separate connection.
+    expect(await killer`SELECT id FROM queued_guard_test`).toHaveLength(0);
+  } finally {
+    await killer.end();
+  }
+});
+
+it('applies the one-at-a-time rule and the restricted members to the transaction client', async () => {
+  files.sql = ['-- pospay:data-step hold\nSELECT 1'];
+  await applyMigrations(owner, 'unused', {
+    hold: async (client) => {
+      const result = await client.begin(async (tx) => {
+        const first = Promise.resolve(tx`SELECT pg_sleep(0.2), 1 AS one`);
+        await expect(tx`SELECT 2 AS two`).rejects.toThrow('one at a time');
+        expect(() => tx.savepoint(async () => undefined)).toThrow('not available');
+        await first;
+        return await tx`SELECT 3 AS three`;
+      });
+      expect(result).toEqual([{ three: 3 }]);
+    },
+  });
 });
