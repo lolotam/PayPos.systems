@@ -158,17 +158,33 @@ function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres
     })) as postgres.Sql['begin'];
 }
 
+// file() builds a deferred query and reserve() takes a pooled connection: both can reach a reconnected
+// backend that does not hold the lock, so they get the same loss check as unsafe.
+function guardedMethod(
+  client: postgres.Sql,
+  session: MigrationSession,
+  name: 'file' | 'reserve',
+): postgres.Sql[typeof name] {
+  const method = client[name] as (...args: unknown[]) => unknown;
+  return ((...args: unknown[]) =>
+    throwIfLost(session, () => Reflect.apply(method, client, args))) as postgres.Sql[typeof name];
+}
+
 // Refuses the next call after the socket closes, and still invokes the client the caller passed in.
 function guardedSql(client: postgres.Sql, session: MigrationSession): postgres.Sql {
-  const begin = guardedBegin(client, session);
-  const unsafe = guardedUnsafe(client, session);
+  const guarded = {
+    begin: guardedBegin(client, session),
+    unsafe: guardedUnsafe(client, session),
+    file: guardedMethod(client, session, 'file'),
+    reserve: guardedMethod(client, session, 'reserve'),
+  };
   return new Proxy(client, {
     apply(target, _thisArg, args) {
       return throwIfLost(session, () => Reflect.apply(target, target, args));
     },
     get(target, property, receiver) {
-      if (property === 'begin') return begin;
-      if (property === 'unsafe') return unsafe;
+      if (typeof property === 'string' && Object.hasOwn(guarded, property))
+        return guarded[property as keyof typeof guarded];
       return Reflect.get(target, property, receiver);
     },
   });
