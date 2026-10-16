@@ -373,3 +373,10 @@ timezone is inclusive; over 120 seconds ahead refuses with 400 and POST's time c
 normalizes once to the injected server clock before staff reads warning facts. Cursor replay rechecks effective_at
 against the current recording window but keeps that instant unchanged. Existing indexes and the scoped sort are EXPLAIN-tested;
 no new table, grant or migration. POST still refreshes its own facts. Both queries have shape/EXPLAIN coverage.
+
+## Addendum 2026-10-16 — 35d edit event and bell
+
+The edit of a saved line's price/discount reuses `ServiceLineChanged` with an additive optional `change` block and
+rings the branch's managers through a worker `orders` consumer and a new `ServiceLineEditNoticeRequested` event
+(ED-Q6, issue #189). The decision, the rejected alternatives and the reason the new `orders → notifications` event
+arrow is allowed are in [ADR-0044](0044-service-line-price-edit-event-and-bell.md); the plan is `plan-35d.md`.
