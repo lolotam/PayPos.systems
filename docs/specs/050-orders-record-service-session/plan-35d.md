@@ -4,7 +4,7 @@ Date: 2026-10-16. DESIGN only: no code, migration or contract file in this PR.
 Worktree: `F:\Dev\Worktrees\PosPay\docs-189-edit-bell-plan`; branch `docs/189-edit-bell-plan`.
 Baseline: main `29dab827` (35a, 35b-1/2, 35c and the 35c-13 recovery rows merged; staging runs it).
 Sources: [spec](spec.md) (FR-016, SS-Q10), [35a plan](plan.md), [35b plan](plan-35b.md), [35c plan](plan-35c.md),
-[owner answers](owner-questions.ar.md) (batch 17 = ED-Q1…ED-Q8; batch 22 = ED-Q9…ED-Q11, answered by Waleed 2026-10-16; batch 23 = ED-Q12, **PENDING**),
+[owner answers](owner-questions.ar.md) (batch 17 = ED-Q1…ED-Q8; batches 22–24 = ED-Q9…ED-Q13, all answered by Waleed 2026-10-16),
 [ADR-0041](../../adr/0041-orders-service-sessions-reads-and-events.md) (§4 events, §5 late bell, §6 later consumers),
 [ADR-0044](../../adr/0044-service-line-price-edit-event-and-bell.md) (this plan's event and consumer decision),
 [ADR-0037](../../adr/0037-not-clocked-in-alert-discovery-and-recipients.md) (interim in-app manager rule),
@@ -21,8 +21,11 @@ them; it does not implement 35d.
 split) depend on no open owner answer. The three recipient/wording details were answered by Waleed on 2026-10-16 (Abu
 Salem has not answered; his pick binds if different): **ED-Q9** the same four scoped roles as the late-visit bell,
 **ED-Q10** everyone gets the bell **including the editor** (against the recommendation), **ED-Q11** service, branch and
-date + «was X, now Y» (net) + the editor's name. One question is still PENDING and marked `TODO(spec)`: ED-Q12, the
-reception edit history (batch 23). See [owner-questions.ar.md](owner-questions.ar.md).
+date + «was X, now Y» (net) + the editor's name. Two more were answered the same day: **ED-Q12** (against the
+recommendation) the receptionist sees only the «edited» mark and the full history is for the manager only, and **ED-Q13**
+an editor with no employee record is shown as a role label instead of a name. **No owner question is PENDING for 35d.**
+The only open item is spec issue #250 (the performer-identity snapshot), which gates 35d-4. See
+[owner-questions.ar.md](owner-questions.ar.md).
 
 ## 1. What 35d is, in one table
 
@@ -132,11 +135,11 @@ by company + business + user id, active employees only, because `employees_activ
 employee per user in each business) and stores `editor_name_ar` / `editor_name_en` (nullable) in the immutable edit-history
 row of the same transaction. The event does not carry the names; the 35d-2 consumer reads that history row by
 `(line_id, revision)` through the orders repository, so the worker needs no `staff` read. An editor with no linked employee
-(for example an owner who is not an employee) has no name to snapshot, and what the bell and the history show for such an editor is **not decided here** (ED-Q13); names
-pass the existing display-name filter. `TODO(spec)` ED-Q13 (batch 24,
-PENDING): an owner who is not an employee cannot be identified by name from employee records, in the bell or in the
-history (ED-Q8), so the owner decides what such a person is shown as; nothing for this case (wording, data shape, tests)
-is built before that answer. The
+(for example an owner who is not an employee) has no name to snapshot. ED-Q13 (Waleed, 2026-10-16) fixes the rule: the
+bell and the «edited» mark write the **role only**, with fixed wording in ar and en («المالك» / «المدير», Owner /
+Manager), until a name source is agreed; there is no name lookup beyond the linked employee. The history row therefore also
+stores a snapshot of the editor's role (`editor_role`: owner or manager) taken from the membership the edit was made
+under; the bell reads that column when the names are null. Names pass the existing display-name filter. The
 `orders → staff` arrow already exists and the exact §6 entry is declared in this PR.
 
 **Ordering.** Consumer first, writer later (§8). No `ServiceLineChanged` carrying a `change` exists until 35d-4 merges,
@@ -203,7 +206,7 @@ Consume side (35d-2, tests 4–9; fixtures insert `ServiceLineChanged` rows and 
    Ledger RLS negative tests (cross-tenant read = 0 rows, cross-tenant write = error), privilege-allowlist and
    tenant-table-inventory entries.
 6. **No manager.** Zero eligible recipients ⇒ ledger row with count 0, no `ServiceLineEditNoticeRequested`, consumed mark
-   set, no exception. Also: the editor is the only eligible person ⇒ the bell is still sent to the editor (ED-Q10); the editor who is a manager is included among several; an editor without a linked employee is a case left unbuilt and untested until ED-Q13 is answered (no guessed label); the editor's name is the snapshot stored at commit, so a deactivated or relinked employee does not change an already-committed bell (a test required).
+   set, no exception. Also: the editor is the only eligible person ⇒ the bell is still sent to the editor (ED-Q10); the editor who is a manager is included among several; an editor without a linked employee gets the fixed role label (ED-Q13; an owner without an employee record renders «المالك» / Owner, a manager «المدير» / Manager, never a name or a blank); the editor's name is the snapshot stored at commit, so a deactivated or relinked employee does not change an already-committed bell (a test required).
 7. **Groups.** More than 100 recipients ⇒ stable groups of at most 100, all committed with the ledger row.
 8. **Ignored events.** `ServiceLineChanged` with `change` absent (or another kind) ⇒ consumed, no ledger row, no bell.
    A closed company ⇒ skip. A malformed payload or a line that does not match ⇒ `PRICE_EDIT_EVENT_INVALID`.
@@ -219,32 +222,37 @@ reported separately. If an estimate is exceeded, split again before code.
 
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
-| **35d-1** | Contracts, template and registrations; no behaviour | 1. `ServiceLineChanged.change`, `ServiceLineEditNoticeRequested`, recipient and money-parameter schemas, OpenAPI. 2. `packages/notifications` template, `packages/i18n` ar/en keys, admin bell render, including the editor-name parameters. 3. Register the notice event in `NOTIFICATION_SOURCE_EVENTS` and the worker's known types; Arabic doc comments | — (ED-Q11 answered); #249 (money kind in the template validator) | 250–380 |
+| **35d-1** | Contracts, template and registrations; no behaviour | 1. `ServiceLineChanged.change`, `ServiceLineEditNoticeRequested`, recipient and money-parameter schemas, OpenAPI. 2. `packages/notifications` template, `packages/i18n` ar/en keys, admin bell render, including the editor-name parameters and the fixed role-label wording of ED-Q13. 3. Register the notice event in `NOTIFICATION_SOURCE_EVENTS` and the worker's known types; Arabic doc comments | — (ED-Q11 answered); #249 (money kind in the template validator) | 250–380 |
 | **35d-2** | The bell works for any `ServiceLineChanged` carrying a `change` | 1. Migration + RLS + grants for `service_line_edit_notices`. 2. Worker `orders` use case, domain functions (recipient groups, parameters), ports, the two adapters (recipients, place), the repository read of the edit-history row (editor-name snapshot), consumer registration. 3. Delivery tests 4–9, privilege and inventory entries | 35d-1 (the contracts and registrations it consumes), 35d-3 (the edit-history table with the editor-name snapshot columns); ED-Q9, ED-Q10 answered | 400–550 |
-| **35d-3** | Permission and storage for edits | 1. «Edit session price/discount» permission and its four default roles (ED-Q1). 2. Edit-history table (ED-Q8 storage; includes the nullable `editor_name_ar` / `editor_name_en` snapshot): insert-only, FORCE RLS, explicit `SELECT, INSERT` grants to `pospay_app` after the usual revoke, as the other orders tables. 3. A narrow **column-level `UPDATE`** grant for `pospay_app` on `service_lines` (migration 0131 grants `SELECT, INSERT` only): `price`, `discount`, `net`, `effective_discount_bps`, `limit_bps_applied`, `limit_source` and `revision`, nothing else (the three limit columns change together with the editor's limit per ED-Q2, so `service_lines_limit` and `service_lines_limit_presence` keep holding; the recorder's original values stay in the history row), plus the grant allowlist, inventory and negative tests | — | 300–450 |
-| **35d-4** | `PATCH` one line's price/discount, audited | 1. Pure domain functions: editor limit (ED-Q2), window (ED-Q3), self-line rule (ED-Q4), reason (ED-Q5). 2. Use case + HTTP adapter + `Idempotency-Key`, outbox emit in the same transaction. The edit authority is rechecked inside the locked transaction through an orders-owned `SessionEditAccessPort` (`lock()` then `read()` of the selected editor membership, the new permission, DENY state and the orders feature, as recording does with `tx.access`), after every line and performer wait and before an idempotency replay is returned (revocation test required). The editor's effective discount limit is read fresh in the same locked transaction through the existing `DiscountLimitPort.read(editorMembershipId)` (ED-Q2), not taken from the recorded line or from a pre-transaction value (limit-change-while-waiting test required). The self-edit rule (ED-Q4) calls `PerformerCheckPort.lock(employeeIds)` (`FOR SHARE` on the employee rows) and then re-reads the line's performers' persisted user links in that transaction (saved `line_performers` hold employee IDs only), never from the request (concurrency test required). `TODO(spec)` (issue #250; it gates 35d-4 below): the current link can change after recording, so the 35d spec must decide between a recording-time snapshot of each performer's user id (a `line_performers` column with a best-effort backfill) and link history; 35d-4 does not start until that decision is made and its storage (if any) has landed in 35d-3, so the self-edit rule never ships as a bypassable interim. The editor's names are read through `EditorNamePort` and stored in the history row (snapshot, two-business editor test). 3. Delivery tests 1–3 and 10 and the edge cases | the 35d spec; issue #250 decided; ED-Q13 answered (an editor with no employee record would otherwise commit an edit whose bell cannot be rendered); 35d-1, 35d-2 (the consumer must be merged first), 35d-3 | 450–600 |
+| **35d-3** | Permission and storage for edits | 1. «Edit session price/discount» permission and its four default roles (ED-Q1). 2. Edit-history table (ED-Q8 storage; includes the nullable `editor_name_ar` / `editor_name_en` snapshot and the `editor_role` snapshot): insert-only, FORCE RLS, explicit `SELECT, INSERT` grants to `pospay_app` after the usual revoke, as the other orders tables. 3. A narrow **column-level `UPDATE`** grant for `pospay_app` on `service_lines` (migration 0131 grants `SELECT, INSERT` only): `price`, `discount`, `net`, `effective_discount_bps`, `limit_bps_applied`, `limit_source` and `revision`, nothing else (the three limit columns change together with the editor's limit per ED-Q2, so `service_lines_limit` and `service_lines_limit_presence` keep holding; the recorder's original values stay in the history row), plus the grant allowlist, inventory and negative tests | — | 300–450 |
+| **35d-4** | `PATCH` one line's price/discount, audited | 1. Pure domain functions: editor limit (ED-Q2), window (ED-Q3), self-line rule (ED-Q4), reason (ED-Q5). 2. Use case + HTTP adapter + `Idempotency-Key`, outbox emit in the same transaction. The edit authority is rechecked inside the locked transaction through an orders-owned `SessionEditAccessPort` (`lock()` then `read()` of the selected editor membership, the new permission, DENY state and the orders feature, as recording does with `tx.access`), after every line and performer wait and before an idempotency replay is returned (revocation test required). The editor's effective discount limit is read fresh in the same locked transaction through the existing `DiscountLimitPort.read(editorMembershipId)` (ED-Q2), not taken from the recorded line or from a pre-transaction value (limit-change-while-waiting test required). The self-edit rule (ED-Q4) calls `PerformerCheckPort.lock(employeeIds)` (`FOR SHARE` on the employee rows) and then re-reads the line's performers' persisted user links in that transaction (saved `line_performers` hold employee IDs only), never from the request (concurrency test required). `TODO(spec)` (issue #250; it gates 35d-4 below): the current link can change after recording, so the 35d spec must decide between a recording-time snapshot of each performer's user id (a `line_performers` column with a best-effort backfill) and link history; 35d-4 does not start until that decision is made and its storage (if any) has landed in 35d-3, so the self-edit rule never ships as a bypassable interim. The editor's names are read through `EditorNamePort` and stored in the history row (snapshot, two-business editor test). 3. Delivery tests 1–3 and 10 and the edge cases | the 35d spec; issue #250 decided; 35d-1, 35d-2 (the consumer must be merged first), 35d-3 | 450–600 |
 | **35d-5** | Edit from the branch day list (ED-Q7) | 1. Guarded history read: contract, query under `read:service-sessions:branch`, route and EXPLAIN test (ED-Q8 data; the day-list line contract carries only current money). 2. Admin form and hook. 3. ar/en keys, component tests | 35d-4 | 250–380 |
-| **35d-6** | Edit on the reception screen + «changed» badge and history (ED-Q7, ED-Q8) | 1. Edit for just-saved lines. 2. Badge + before/after/who/when panel. 3. Tests and keys | 35d-4, 35d-5, ED-Q12 | 300–450 |
+| **35d-6** | Edit on the reception screen + the «edited» mark (ED-Q7, ED-Q12) | 1. Edit for just-saved lines. 2. The boolean «edited» mark (derived from `revision > 1`, which the saved-line contract already carries); no history panel and **no new read** for the receptionist. 3. Tests and keys, including the acceptance test below | 35d-4, 35d-5 | 200–320 |
 
-`TODO(spec)` for 35d-6: the history read of 35d-5 needs `read:service-sessions:branch`, which a receptionist with only the recording and edit permissions lacks (SS-Q17). How the reception screen gets the history of lines she just saved or edited (the edit response carrying it, or a narrow read limited to her own just-saved lines) is an authorization rule for the 35d spec, not decided here. The owner question is ED-Q12 (batch 23, number 32) and 35d-6 stays blocked on it.
+**35d-6 and ED-Q12 (Waleed, 2026-10-16, against the recommendation).** The receptionist sees only the «edited» mark; the
+full history («was X, now Y», who, when) belongs to the manager through the branch-sessions read permission of 35d-5
+(SS-Q12). The edit response returns the current saved line plus the boolean mark and **never** the history fields (previous
+price or discount, new values as history, the editor's identity, the edit time) to a caller who lacks that read
+permission. Acceptance test: a caller holding only the recording and edit permissions receives none of those fields from
+the edit response or from any receptionist-visible payload, while a caller with the read permission receives the full
+history from the 35d-5 read.
 
 Order: 35d-1 and 35d-3 first (contracts; permission and storage — disjoint paths, and 35d-3 adds the first migration) →
 35d-2 (the consumer reads the history snapshot, so it needs 35d-3; it adds the second migration, numbered at merge, and
 there is still no writer) → 35d-4, which starts only after 35d-2 has merged, so no edit event exists without its
 consumer (ADR-0044) → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
-before 35d-4 and carries the `TODO(spec)` items above.
+before 35d-4 and carries the remaining `TODO(spec)` items above (none of them an owner question).
 
-## 9. Owner questions (batch 22 answered; batches 23 and 24 pending)
+## 9. Owner questions (batches 22–24, all answered)
 
 | Id | Question | Recommended |
 |---|---|---|
 | ED-Q9 | Who gets the bell? | **answered:** the same four scoped manager roles as the late-visit bell |
 | ED-Q10 | Does a manager who made the edit get a bell for it? | **answered:** yes, everyone including the editor (against the recommendation) |
 | ED-Q11 | What does the bell say? | **answered:** service, branch, date, «was X, now Y» (net) and the editor's name |
-| ED-Q12 | What edit history does a receptionist without branch-read permission see for lines she just saved or edited: the edit response carries it, a narrow own-lines read, or only the «changed» badge? | the edit response carries it, no new read |
-| ED-Q13 | What name does the bell and the history show for an editor who has no employee record (typically the owner)? | the role name («المالك») until a name source is approved |
+| ED-Q12 | What edit history does a receptionist without branch-read permission see? | **answered:** only the «edited» mark; the full history is for the manager only (against the recommendation) |
+| ED-Q13 | What does the bell and the history show for an editor with no employee record? | **answered:** the role only («المالك» / «المدير»), until a name source is agreed |
 
-Waleed answered ED-Q9…ED-Q11 on 2026-10-16; Abu Salem has not, and his pick replaces Waleed's if it differs (the
-recipient rule, the editor handling and the template wording are small, isolated pieces of 35d-2 and 35d-1). Nothing
-blocks 35d-1 or 35d-2 except the no-employee editor case, whose wording and data shape wait for ED-Q13 (batch 24) and are
-not built until it is answered; ED-Q13 also gates 35d-4 (the writer) and ED-Q12 (batch 23) gates 35d-6.
+Waleed answered ED-Q9…ED-Q13 on 2026-10-16; Abu Salem has not, and his pick replaces Waleed's if it differs (each is a
+small, isolated piece of 35d-1, 35d-2, 35d-3 or 35d-6). **No owner question blocks any 35d subtask.** The one remaining
+gate is spec issue #250 (the performer-identity decision), which gates 35d-4.
