@@ -117,6 +117,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
 | worker `orders` | `LateNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers, including recorder/performer (ADR-0041 35b-2) |
 | worker `orders` | `LateNoticePlace` | worker `tenancy` | branchPlace names only; the date/timezone remains the saved session snapshot (ADR-0041 35b-2) |
+| worker `orders` | `PriceEditNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the ADR-0037 interim rule, minus the editor when ED-Q10 says so (ADR-0044, 35d-2) |
+| worker `orders` | `PriceEditNoticePlace` | worker `tenancy` | branchPlace names only; the date/timezone comes from the event (ADR-0044, 35d-2) |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
@@ -193,8 +195,9 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
-| `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`                                                                        |
+| `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`; worker `orders` (35d price/discount-edit bell — only when the optional `change.kind` is `PRICE_DISCOUNT_EDIT`; ADR-0044) |
 | `LateServiceSessionNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, permanent session ledger; no realtime until Phase 2 (ADR-0041 35b-2) |
+| `ServiceLineEditNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per saved edit of a line (ledger `(line, revision)`), no realtime until Phase 2 (ADR-0044) |
 | `ServiceSessionRecorded` | `orders` | `commissions` (50), `customers` (59); worker `orders` (35b-2 late bell); one batch of accepted revision-1 lines on creation (ADR-0041) |
 | `ServiceSessionLinesAdded` | `orders` | worker `orders` (35b-2 late bell); `commissions` (50), `customers` (59); newly appended revision-1 lines only for the same visit (ADR-0041) |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
@@ -288,6 +291,9 @@ reads:
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/branch-place.adapter.ts
+  - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
+  - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
+  - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/price-edit-place.adapter.ts
   - orders -> catalog.readSessionServices @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
   - orders -> staff.readSessionPerformers @ apps/api/src/modules/orders/persistence/performer-check.adapter.ts
