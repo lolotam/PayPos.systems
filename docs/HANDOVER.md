@@ -15,8 +15,8 @@ inventory, appointments, staff attendance & commissions, customers/loyalty, repo
 English, RTL, KWD with 3 decimals (money = `bigint` mills). Modular monolith, TypeScript end-to-end.
 Solo developer (Waleed) building entirely with AI agents.
 
-- **Repo:** https://github.com/lolotam/PayPos.systems — local clone `F:\Dev\Projects\PosPay.systems\main` (Windows);
-  task worktrees live under `F:\Dev\Worktrees\PosPay\<branch>`
+- **Repo:** https://github.com/lolotam/PayPos.systems — local clone `E:\Dev\Projects\PosPay.systems\Main` (Windows);
+  task worktrees live under `E:\Dev\Worktrees\PosPay\<branch>`
 - Business docs, logos and archives live outside the repo and are **not** part of it
 - The repo is **public for now** (GitHub Actions minutes). Nothing secret may ever be committed. It will go private later.
 

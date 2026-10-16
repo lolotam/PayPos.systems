@@ -50,7 +50,7 @@ moment it happens, in the owner report. Never switch to a metered provider witho
     implementer applies it, and the PR **stays blocked** until it is fixed and confirmed. The cap never lowers the bar.
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
 - **Parallel work: at most 3 tasks at once**, and only when their file paths are **disjoint**. Two tasks that touch the
-  same file wait for each other. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
+  same file wait for each other. Each task has its own branch, worktree (`E:\Dev\Worktrees\PosPay\<branch>`) and PR.
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
 - **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
@@ -93,7 +93,7 @@ the MergePilot panel reviews each pushed commit by itself. Read every result bef
 
 ## 4. Dispatching Grok — and keeping its tokens low
 
-Grok runs through the **Grok CLI** (`grok` on `PATH`, installed under `F:\Dev\Runtimes\npm-global`, signed in with the
+Grok runs through the **Grok CLI** (`grok` on `PATH`, installed under `E:\Dev\Tools_and_Utilities\grok`, signed in with the
 owner's grok.com account), model **`grok-4.7`** at reasoning effort **high** — never through `cursor-agent`,
 which bills a different quota. The CLI hides the xAI API, so `x-grok-conv-id` / `prompt_cache_key` cannot be set by us;
 what saves tokens is reusing one session and keeping its prefix stable:
@@ -103,19 +103,19 @@ what saves tokens is reusing one session and keeping its prefix stable:
 
    ```powershell
    $sid = [guid]::NewGuid().ToString()
-   grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
-       -s $sid --prompt-file F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt --always-approve --permission-mode bypassPermissions --output-format plain
+   grok --cwd E:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
+       -s $sid --prompt-file E:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt --always-approve --permission-mode bypassPermissions --output-format plain
    ```
 
 2. **Every later round resumes that session** instead of starting a new one, so Grok does not re-read the repo:
 
    ```powershell
-   grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
-       --resume $sid --prompt-file F:\Dev\Worktrees\PosPay\briefs\<task>\fix-<round>.txt --always-approve --permission-mode bypassPermissions --output-format plain
+   grok --cwd E:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
+       --resume $sid --prompt-file E:\Dev\Worktrees\PosPay\briefs\<task>\fix-<round>.txt --always-approve --permission-mode bypassPermissions --output-format plain
    ```
 
    Pass the brief with `--prompt-file`. `grok "prompt"` without `--prompt-file`/`-p` opens the interactive TUI and
-   looks hung in a background shell. Keep briefs **outside** the worktree (`F:\Dev\Worktrees\PosPay\briefs\<task>\`)
+   looks hung in a background shell. Keep briefs **outside** the worktree (`E:\Dev\Worktrees\PosPay\briefs\<task>\`)
    so they never land in the diff, and pass them by absolute path: `--prompt-file` resolves against the shell's
    current directory, not against `--cwd`.
 3. **A fixed brief header, always in the same order and wording**, then the part that changes last:
