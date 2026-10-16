@@ -28,8 +28,11 @@ it.each(['ar', 'en'] as const)(
       'read:package-types:business',
       'manage:package-types:business',
       'correct:attendance:branch',
+      'edit:service-line-prices:branch',
     ])
       expect(permissionName(locale, code)).not.toBe(code);
+    expect(permissionName('ar', 'edit:service-line-prices:branch')).toBe('تعديل سعر/خصم جلسة');
+    expect(permissionName('en', 'edit:service-line-prices:branch')).toBe('Edit session price/discount');
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');
   },
 );

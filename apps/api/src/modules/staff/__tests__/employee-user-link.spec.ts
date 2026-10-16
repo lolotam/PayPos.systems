@@ -83,7 +83,7 @@ it('accepts an active membership in another business of this company without cha
         AND (ends_at IS NULL OR ends_at > statement_timestamp())) AS available`);
   });
   expect(JSON.stringify(plan)).toMatch(
-    /memberships_(user_id_idx|pkey|scope_branch_idx|scope_business_idx|company_id_employee_id_idx)/,
+    /memberships_(user_id_idx|company_id_user_id_id_key|pkey|scope_branch_idx|scope_business_idx|company_id_employee_id_idx)/,
   );
   expect(JSON.stringify(plan)).toContain('Index Cond');
 });

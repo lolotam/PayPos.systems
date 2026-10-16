@@ -159,6 +159,9 @@ export const memberships = pgTable(
       'memberships_role_owner',
       sql`${t.roleOwnerKey} = 'global' OR ${t.roleOwnerKey} = ${t.companyId}::text`,
     ),
+    // مفتاح مرجعي لجداول التدقيق التي تحفظ اليوزر والعضوية معاً (service_line_edits)، فيستحيل أن يخالف الاثنان بعضهما.
+    // user_id قبل id عمداً: المخطط لا يختار هذا الفهرس بدل memberships_pkey عند البحث بـ (company_id, id).
+    unique('memberships_company_id_user_id_id_key').on(t.companyId, t.userId, t.id),
     check('memberships_one_holder', sql`num_nonnulls(${t.userId}, ${t.employeeId}) = 1`),
     check('memberships_scope_type', sql`${t.scopeType} IN ${SCOPE_TYPES}`),
     check(

@@ -111,6 +111,61 @@ export const serviceLines = pgTable('service_lines', {
   check('service_lines_rule_values', sql`(${t.rulePctBps} IS NULL OR ${t.rulePctBps} BETWEEN 0 AND 10000) AND (${t.ruleFixedAmount} IS NULL OR ${t.ruleFixedAmount}>=0)`),
 ]);
 
+export const serviceLineEdits = pgTable('service_line_edits', {
+  companyId: uuid('company_id').notNull().references(() => companies.id),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  // السطر هو مرساة الصف الوحيدة؛ الجلسة تُقرأ من السطر كي لا يمكن لصف أن يسمّي جلسة غير جلسة سطره.
+  lineId: uuid('line_id').notNull(),
+  // المراجعة بعد التعديل؛ القراءة اللاحقة تجد الصف بـ (line_id, revision) ولا يكفي حفظ المراجعة السابقة وحدها.
+  revision: integer('revision').notNull(),
+  previousRevision: integer('previous_revision').notNull(),
+  previousPrice: money('previous_price').notNull(),
+  previousDiscount: money('previous_discount').notNull(),
+  previousNet: money('previous_net').notNull(),
+  newPrice: money('new_price').notNull(),
+  newDiscount: money('new_discount').notNull(),
+  newNet: money('new_net').notNull(),
+  previousEffectiveDiscountBps: integer('previous_effective_discount_bps').notNull(),
+  previousLimitBpsApplied: integer('previous_limit_bps_applied'),
+  previousLimitSource: text('previous_limit_source').notNull(),
+  newEffectiveDiscountBps: integer('new_effective_discount_bps').notNull(),
+  newLimitBpsApplied: integer('new_limit_bps_applied'),
+  newLimitSource: text('new_limit_source').notNull(),
+  // السبب نص حر يبقى في التاريخ فقط؛ حدث الجرس لا يحمله.
+  reason: text('reason').notNull(),
+  changedAt: timestamp('changed_at', { withTimezone: true }).notNull(),
+  changedBy: uuid('changed_by').notNull().references(() => user.id),
+  changedByMembershipId: uuid('changed_by_membership_id').notNull(),
+  // لقطة اسم الموظف وقت الحفظ؛ تبقى فارغة إذا لم يرتبط المحرر بموظف.
+  editorNameAr: text('editor_name_ar'),
+  editorNameEn: text('editor_name_en'),
+  // لقطة الدور للجرس عند غياب الاسم. تبقى فارغة عمداً؛ هوية المحرر الدائمة هي changed_by و changed_by_membership_id.
+  // TODO(spec): وسم المحرر المفوَّض الذي ليس مالكاً ولا مديراً ولا موظفاً مربوطاً لم يُحسم بعد (issue #255).
+  editorRole: text('editor_role'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.companyId, t.id] }),
+  unique('service_line_edits_line_revision_key').on(t.companyId, t.lineId, t.revision),
+  foreignKey({ name: 'service_line_edits_line_fk', columns: [t.companyId, t.businessId, t.lineId], foreignColumns: [serviceLines.companyId, serviceLines.businessId, serviceLines.id] }),
+  foreignKey({ name: 'service_line_edits_membership_fk', columns: [t.companyId, t.changedBy, t.changedByMembershipId], foreignColumns: [memberships.companyId, memberships.userId, memberships.id] }),
+  index('service_line_edits_line_fk_idx').on(t.companyId, t.businessId, t.lineId),
+  index('service_line_edits_membership_idx').on(t.companyId, t.changedByMembershipId),
+  index('service_line_edits_changed_by_fk_idx').on(t.changedBy),
+  check('service_line_edits_revision', sql`${t.revision} = ${t.previousRevision} + 1 AND ${t.previousRevision} >= 1`),
+  check('service_line_edits_previous_amounts', sql`${t.previousPrice} >= 0 AND ${t.previousDiscount} BETWEEN 0 AND ${t.previousPrice} AND ${t.previousNet} = ${t.previousPrice} - ${t.previousDiscount}`),
+  check('service_line_edits_new_amounts', sql`${t.newPrice} >= 0 AND ${t.newDiscount} BETWEEN 0 AND ${t.newPrice} AND ${t.newNet} = ${t.newPrice} - ${t.newDiscount}`),
+  check('service_line_edits_previous_bps', sql`${t.previousEffectiveDiscountBps} BETWEEN 0 AND 10000`),
+  check('service_line_edits_new_bps', sql`${t.newEffectiveDiscountBps} BETWEEN 0 AND 10000`),
+  check('service_line_edits_previous_limit', sql`(${t.previousLimitSource}='OWNER' AND ${t.previousLimitBpsApplied} IS NULL) OR (${t.previousLimitSource}='NOT_CONFIGURED' AND ${t.previousLimitBpsApplied}=0) OR (${t.previousLimitSource} IN ('PERSON','BUSINESS') AND ${t.previousLimitBpsApplied} BETWEEN 0 AND 10000)`),
+  check('service_line_edits_previous_limit_presence', sql`(${t.previousLimitSource}='OWNER')=(${t.previousLimitBpsApplied} IS NULL)`),
+  check('service_line_edits_new_limit', sql`(${t.newLimitSource}='OWNER' AND ${t.newLimitBpsApplied} IS NULL) OR (${t.newLimitSource}='NOT_CONFIGURED' AND ${t.newLimitBpsApplied}=0) OR (${t.newLimitSource} IN ('PERSON','BUSINESS') AND ${t.newLimitBpsApplied} BETWEEN 0 AND 10000)`),
+  check('service_line_edits_new_limit_presence', sql`(${t.newLimitSource}='OWNER')=(${t.newLimitBpsApplied} IS NULL)`),
+  check('service_line_edits_reason', sql`char_length(${t.reason}) <= 500 AND btrim(${t.reason}, chr(9) || chr(10) || chr(13) || chr(32)) <> ''`),
+  check('service_line_edits_editor_names', sql`${t.editorNameAr} IS NULL OR ${t.editorNameEn} IS NOT NULL`),
+  check('service_line_edits_editor_role', sql`${t.editorRole} IN ('owner','manager')`),
+]);
+
 export const linePerformers = pgTable('line_performers', {
   ...scope(), lineId: uuid('line_id').notNull(), employeeId: uuid('employee_id').notNull(), performerOrdinal: integer('performer_ordinal').notNull(),
   shareBps: integer('share_bps').notNull(), nameEn: text('name_en').notNull(), nameAr: text('name_ar'),
