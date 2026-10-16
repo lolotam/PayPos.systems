@@ -64,7 +64,7 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
    P0/P1 open; P2/P3 on prose get at most one batch fix, the rest become issues.
 6. Merge with `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` once `ci-gate` is green on
    that head; deploy to staging (code changes only); update the decisions page's status tab; journey doc in its own PR
-   (feature merges only, never after a docs-only PR).
+   (every code merge; never after a docs-only PR).
 
 ### 3.2 Talking to Waleed
 

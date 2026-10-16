@@ -55,7 +55,7 @@ moment it happens, in the owner report. Never switch to a metered provider witho
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
 - **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
 - **Docs-only lane** (owner, 2026-10-17). A PR whose files are all under `docs/**`, `*.md`, `.claude/skills/**` or
-  `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 7, 8 and 14, needs no spec and no implementer dispatch (§3 steps 1 and 3) unless the PR is itself a spec or an ADR, judges §3 step 4 by `pnpm format:check` (Prettier over the changed Markdown) instead of the full `pnpm check`, and skips the
+  `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 7, 8 and 14, needs no implementer dispatch (§3 step 3; specs and ADRs are written by the orchestrator) and no spec (§3 step 1) unless the PR is itself a spec, judges §3 step 4 by `pnpm format:check` (`prettier --check .`, which covers Markdown) instead of the full `pnpm check`, and skips the
   5-round cap. It merges when `ci-gate` is green on the exact head, the Codex bot and the MergePilot panel have
   completed on that head, and no P0/P1 is open. A P1 here means a wrong or contradictory rule in any governing or operational document (a spec, an ADR, `CLAUDE.md`, a skill, `docs/security.md`, a runbook); the bar
   for it does not move. P2/P3 findings on prose are fixed in one batch commit at most; the rest become linked issues.
