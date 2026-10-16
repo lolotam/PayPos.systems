@@ -17,6 +17,8 @@ beforeAll(async () => {
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
 });
 beforeEach(async () => {
+  // The first statement after a test that killed owner's backend receives that termination error.
+  await owner`SELECT 1`.catch(() => undefined);
   await owner`DELETE FROM drizzle.__drizzle_migrations WHERE hash = 'file-guard'`;
 });
 afterAll(async () => {
@@ -107,4 +109,20 @@ it('never dispatches a statement started during an in-flight one after the backe
   } finally {
     await killer.end();
   }
+});
+
+it('applies the one-at-a-time rule and the restricted members to the transaction client', async () => {
+  files.sql = ['-- pospay:data-step hold\nSELECT 1'];
+  await applyMigrations(owner, 'unused', {
+    hold: async (client) => {
+      const result = await client.begin(async (tx) => {
+        const first = Promise.resolve(tx`SELECT pg_sleep(0.2), 1 AS one`);
+        await expect(tx`SELECT 2 AS two`).rejects.toThrow('one at a time');
+        expect(() => tx.savepoint(async () => undefined)).toThrow('not available');
+        await first;
+        return await tx`SELECT 3 AS three`;
+      });
+      expect(result).toEqual([{ three: 3 }]);
+    },
+  });
 });

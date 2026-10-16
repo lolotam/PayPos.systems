@@ -176,15 +176,41 @@ function guardedUnsafe(client: postgres.Sql, session: MigrationSession): postgre
     )) as postgres.Sql['unsafe'];
 }
 
+// The transaction client a begin callback receives gets the same restricted, one-at-a-time guard as the
+// top-level client, with its own statement slot: it shares one backend with the callback, so two overlapping
+// statements would queue on it exactly as they would on the top-level connection.
+function guardedTransaction(
+  tx: postgres.TransactionSql,
+  session: MigrationSession,
+): postgres.TransactionSql {
+  const transactionSession: MigrationSession = {
+    get lost() {
+      return session.lost;
+    },
+    set lost(value: boolean) {
+      session.lost = value;
+    },
+    busy: false,
+  };
+  return guardedSql(
+    tx as unknown as postgres.Sql,
+    transactionSession,
+  ) as unknown as postgres.TransactionSql;
+}
+
 function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres.Sql['begin'] {
   return ((...args: Parameters<postgres.Sql['begin']>) => {
     if (session.lost) throw sessionLost();
-    if (typeof args[0] === 'string' && typeof args[1] !== 'function')
-      throw new Error('Missing migration transaction callback');
+    const callbackAt = typeof args[0] === 'function' ? 0 : 1;
+    const callback = args[callbackAt] as ((tx: postgres.TransactionSql) => unknown) | undefined;
+    if (typeof callback !== 'function') throw new Error('Missing migration transaction callback');
     if (session.busy) throw new Error(ONE_AT_A_TIME);
+    const guardedArgs = [...args] as unknown[];
+    guardedArgs[callbackAt] = (tx: postgres.TransactionSql) =>
+      callback(guardedTransaction(tx, session));
     session.busy = true;
     try {
-      const transaction = Reflect.apply(client.begin, client, args) as object;
+      const transaction = Reflect.apply(client.begin, client, guardedArgs) as object;
       releaseWhenSettled(session, transaction);
       return transaction;
     } catch (error) {
