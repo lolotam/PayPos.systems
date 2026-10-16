@@ -32,5 +32,5 @@
 
 ## Notes
 
-- One owner question is PENDING (ED-Q14, edit response shape for a caller without branch-read; `TODO(spec)` in FR-014, conservative default applied). Answered owner questions (ED-Q1…ED-Q13) are not re-opened; the three technical gates (#250, #252, #255) are decided in the spec and ADR-0045.
+- One owner question is PENDING (ED-Q14, edit response shape for a caller without branch-read; `TODO(spec)` in FR-014; gates 35d-4). Answered owner questions (ED-Q1…ED-Q13) are not re-opened; the three technical gates (#250, #252, #255) are decided in the spec and ADR-0045.
 - The `TODO(spec)` comment in `packages/db/schema/orders.ts` (issue #255) is removed by sub-PR 35d-3b, not by this docs-only PR.

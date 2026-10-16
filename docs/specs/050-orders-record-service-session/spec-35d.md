@@ -4,8 +4,8 @@
 
 **Created**: 2026-10-16
 
-**Status**: Draft for review. Every owner question for 35d is answered (ED-Q1…ED-Q13, Waleed, 2026-10-13/16; Abu Salem has
-not answered, his pick binds if it differs). **One owner question is PENDING: ED-Q14** (what the edit response shows a caller without the branch-read permission; `TODO(spec)` in FR-014, a conservative default applies meanwhile and it does not block 35d-3b, 35d-2b or the start of 35d-4). The three technical gates (#250, #252,
+**Status**: Draft for review. Owner questions ED-Q1…ED-Q13 are answered ( Waleed, 2026-10-13/16; Abu Salem has
+not answered, his pick binds if it differs). **One owner question is PENDING: ED-Q14** (what the edit response shows a caller without the branch-read permission; `TODO(spec)` in FR-014; **it gates 35d-4** — the writer's response contract must not encode a guess — but not 35d-3b or 35d-2b). The three technical gates (#250, #252,
 #255) are decided here and in [ADR-0045](../../adr/0045-performer-identity-snapshot-and-editor-role-label.md).
 
 **Input**: "35d: audited edit of price/discount of a saved service line, extending spec 050."
@@ -219,11 +219,12 @@ the outbox.
 - **FR-013** Authority is rechecked inside the locked transaction through `SessionEditAccessPort` (`lock()` then `read()`),
   before an idempotency replay returns, after every line and performer wait (plan-35d §8).
 - **FR-014** `TODO(spec)` ED-Q14 (PENDING, [owner-questions.ar.md](owner-questions.ar.md) item 34). The response is stored in full
-  and **projected on every return, including a replay**, by the caller's `read:service-sessions:branch` at that moment (read in the
-  same locked transaction through `SessionEditAccessPort`). With the permission: the current saved line plus `edited` and the visit
-  total. Without it, until ED-Q14 is answered: only `{ line: { id, session_id, ordinal, status, revision, edited } }` — **no price,
-  discount, net or total**, as the written ED-Q12 effect says ("neither the old nor the new price"). ED-Q14 may widen the second
-  shape by adding the line's current money; it can never add the history fields of LE-14.
+  and **projected on every return, including a replay**, by the `read:service-sessions:branch` grant of the **selected editor membership** (the one the edit is made under, with its
+  DENY state and expiry) at that moment, read in the same locked transaction through `SessionEditAccessPort`, which therefore also
+  returns that membership's branch-read decision. With the permission: the current saved line plus `edited` and the visit
+  total. Without it: **not decided** — the written ED-Q12 effect says "neither the old nor the new price" (no money at all), ED-Q14
+  asks whether the line's current money may be returned. 35d-4 does not start until ED-Q14 is answered; whichever answer is given,
+  the response can never carry the history fields of LE-14.
 - **FR-015** (D-6) The edit does not issue or consume a session-recovery proof (ADR-0042). A client in doubt re-sends the
   same key (replay) or re-reads the line; a re-send under a new key is made safe by FR-017.
 - **FR-016** Audit entry `service_line.price_discount_edited` on entity `service_line`: session, line, edit id, revision
@@ -350,7 +351,7 @@ Owner rule 2026-10-12: at most three subtasks per PR. Sizes are hand-written lin
 |---|---|---|---|
 | **35d-3b** | Storage for D-1 and D-2: the migration above (no backfill), `linked_user_id` and `linked_user_snapshotted = true` written by record/append, schema + privilege allowlist + inventory + RLS negative tests | this spec; numbered after 35d-2's migration | 250–350 |
 | **35d-2b** | `editorLabel` in `packages/i18n` (+ catalog keys for the other system roles' use and the generic label) and the 35d-2 consumer reading the widened columns, with the LE-21…23 tests | 35d-2 merged, 35d-3b | 120–200 |
-| **35d-4** | The writer, as FR-001…FR-017, the `edited` boolean on the saved-line snapshot (FR-019), plus plan-35d delivery tests 1–3 and 10 | this spec; 35d-1, 35d-2, 35d-2b, 35d-3, 35d-3b | 450–600 |
+| **35d-4** | The writer, as FR-001…FR-017, the `edited` boolean on the saved-line snapshot (FR-019), plus plan-35d delivery tests 1–3 and 10 | this spec; **ED-Q14 answered**; 35d-1, 35d-2, 35d-2b, 35d-3, 35d-3b | 450–600 |
 | **35d-5** | Day-list edit form + the guarded history read (FR-018) + the day-list `edited` boolean and its `EXISTS` query (FR-019) | 35d-4 | 250–380 |
 | **35d-6** | Reception edit for just-saved lines + the «edited» mark (FR-019) | 35d-4, 35d-5 | 200–320 |
 
