@@ -115,7 +115,7 @@ export const serviceLineEdits = pgTable('service_line_edits', {
   companyId: uuid('company_id').notNull().references(() => companies.id),
   id: uuid('id').notNull(),
   businessId: uuid('business_id').notNull(),
-  sessionId: uuid('session_id').notNull(),
+  // السطر هو مرساة الصف الوحيدة؛ الجلسة تُقرأ من السطر كي لا يمكن لصف أن يسمّي جلسة غير جلسة سطره.
   lineId: uuid('line_id').notNull(),
   // المراجعة بعد التعديل؛ القراءة اللاحقة تجد الصف بـ (line_id, revision) ولا يكفي حفظ المراجعة السابقة وحدها.
   revision: integer('revision').notNull(),
@@ -140,16 +140,15 @@ export const serviceLineEdits = pgTable('service_line_edits', {
   // لقطة اسم الموظف وقت الحفظ؛ تبقى فارغة إذا لم يرتبط المحرر بموظف.
   editorNameAr: text('editor_name_ar'),
   editorNameEn: text('editor_name_en'),
-  // لقطة الدور للجرس عند غياب الاسم. تبقى فارغة عمداً: لم يُحسم وسم من ليس مالكاً ولا مديراً بلا موظف.
+  // لقطة الدور للجرس عند غياب الاسم. تبقى فارغة عمداً؛ هوية المحرر الدائمة هي changed_by و changed_by_membership_id.
+  // TODO(spec): وسم المحرر المفوَّض الذي ليس مالكاً ولا مديراً ولا موظفاً مربوطاً لم يُحسم بعد (issue #255).
   editorRole: text('editor_role'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.companyId, t.id] }),
   unique('service_line_edits_line_revision_key').on(t.companyId, t.lineId, t.revision),
-  foreignKey({ name: 'service_line_edits_session_fk', columns: [t.companyId, t.businessId, t.sessionId], foreignColumns: [serviceSessions.companyId, serviceSessions.businessId, serviceSessions.id] }),
   foreignKey({ name: 'service_line_edits_line_fk', columns: [t.companyId, t.businessId, t.lineId], foreignColumns: [serviceLines.companyId, serviceLines.businessId, serviceLines.id] }),
   foreignKey({ name: 'service_line_edits_membership_fk', columns: [t.companyId, t.changedByMembershipId], foreignColumns: [memberships.companyId, memberships.id] }),
-  index('service_line_edits_session_fk_idx').on(t.companyId, t.businessId, t.sessionId),
   index('service_line_edits_line_fk_idx').on(t.companyId, t.businessId, t.lineId),
   index('service_line_edits_membership_idx').on(t.companyId, t.changedByMembershipId),
   index('service_line_edits_changed_by_fk_idx').on(t.changedBy),

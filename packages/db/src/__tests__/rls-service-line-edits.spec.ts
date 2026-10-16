@@ -24,7 +24,6 @@ type Edit = {
   id?: string;
   company?: string;
   business?: string;
-  session?: string;
   line?: string;
   revision?: number;
   previousRevision?: number;
@@ -71,12 +70,12 @@ function edit(input: Edit = {}) {
   const previous = input.previousRevision ?? revision - 1;
   const newLimit = input.newLimit === undefined ? 5000 : input.newLimit;
   const role = input.editorRole === undefined ? 'owner' : input.editorRole;
-  return sql`INSERT INTO service_line_edits(company_id,id,business_id,session_id,line_id,revision,previous_revision,
+  return sql`INSERT INTO service_line_edits(company_id,id,business_id,line_id,revision,previous_revision,
     previous_price,previous_discount,previous_net,new_price,new_discount,new_net,
     previous_effective_discount_bps,previous_limit_bps_applied,previous_limit_source,
     new_effective_discount_bps,new_limit_bps_applied,new_limit_source,reason,changed_at,changed_by,
     changed_by_membership_id,editor_name_ar,editor_name_en,editor_role)
-    VALUES(${company},${input.id ?? ids.newId()},${business},${input.session ?? ORDER_IDS.session},
+    VALUES(${company},${input.id ?? ids.newId()},${business},
       ${input.line ?? ORDER_IDS.line},${revision},${previous},1.000,0.000,1.000,
       ${input.newPrice ?? '2.000'},${input.newDiscount ?? '0.500'},${input.newNet ?? '1.500'},
       0,NULL,'OWNER',${input.newBps ?? 2500},${newLimit},${input.newSource ?? 'PERSON'},
@@ -133,16 +132,10 @@ it('isolates the same id and rejects a cross-company insert', async () => {
   );
 });
 
-it('rejects a session that exists only in the other company', async () => {
-  const foreignSession = ids.newId();
-  await owner`INSERT INTO service_sessions SELECT (jsonb_populate_record(NULL::service_sessions,
-    to_jsonb(s)||jsonb_build_object('id',${foreignSession}::text))).* FROM service_sessions s
-    WHERE company_id=${B.company} AND id=${ORDER_IDS.session}`;
-  await rejected(
-    asA(edit({ session: foreignSession, revision: 41 })),
-    '23503',
-    'service_line_edits_session_fk',
-  );
+it('anchors a history row to its line only, so it cannot name a session that is not the line session', async () => {
+  const columns = await owner`SELECT column_name FROM information_schema.columns
+    WHERE table_name='service_line_edits' AND column_name='session_id'`;
+  expect(columns).toEqual([]);
 });
 
 it('rejects a line that exists only in the other company', async () => {
@@ -184,12 +177,12 @@ async function seedOtherBusiness() {
   });
 }
 
-it('rejects a session that belongs to another business in the same company', async () => {
+it('rejects a line that belongs to another business in the same company', async () => {
   await seedOtherBusiness();
   await rejected(
-    asA(edit({ business: OTHER.business, session: ORDER_IDS.session, line: OTHER.line, revision: 2 })),
+    asA(edit({ business: A.business, line: OTHER.line, revision: 2 })),
     '23503',
-    'service_line_edits_session_fk',
+    'service_line_edits_line_fk',
   );
 });
 

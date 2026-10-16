@@ -2,7 +2,6 @@ CREATE TABLE "service_line_edits" (
 	"company_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
 	"business_id" uuid NOT NULL,
-	"session_id" uuid NOT NULL,
 	"line_id" uuid NOT NULL,
 	"revision" integer NOT NULL,
 	"previous_revision" integer NOT NULL,
@@ -44,10 +43,8 @@ CREATE TABLE "service_line_edits" (
 --> statement-breakpoint
 ALTER TABLE "service_line_edits" ADD CONSTRAINT "service_line_edits_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "service_line_edits" ADD CONSTRAINT "service_line_edits_changed_by_user_id_fk" FOREIGN KEY ("changed_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "service_line_edits" ADD CONSTRAINT "service_line_edits_session_fk" FOREIGN KEY ("company_id","business_id","session_id") REFERENCES "public"."service_sessions"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "service_line_edits" ADD CONSTRAINT "service_line_edits_line_fk" FOREIGN KEY ("company_id","business_id","line_id") REFERENCES "public"."service_lines"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "service_line_edits" ADD CONSTRAINT "service_line_edits_membership_fk" FOREIGN KEY ("company_id","changed_by_membership_id") REFERENCES "public"."memberships"("company_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "service_line_edits_session_fk_idx" ON "service_line_edits" USING btree ("company_id","business_id","session_id");--> statement-breakpoint
 CREATE INDEX "service_line_edits_line_fk_idx" ON "service_line_edits" USING btree ("company_id","business_id","line_id");--> statement-breakpoint
 CREATE INDEX "service_line_edits_membership_idx" ON "service_line_edits" USING btree ("company_id","changed_by_membership_id");--> statement-breakpoint
 CREATE INDEX "service_line_edits_changed_by_fk_idx" ON "service_line_edits" USING btree ("changed_by");

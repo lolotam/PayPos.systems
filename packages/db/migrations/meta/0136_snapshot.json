@@ -1,5 +1,5 @@
 {
-  "id": "93ad67e8-d426-4023-aea6-ac32e4f0f458",
+  "id": "3ac93883-4399-4489-9a00-a021a591b5f1",
   "prevId": "00062137-782f-4d11-abaf-77254b13ba4c",
   "version": "7",
   "dialect": "postgresql",
@@ -14298,12 +14298,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "session_id": {
-          "name": "session_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
         "line_id": {
           "name": "line_id",
           "type": "uuid",
@@ -14445,33 +14439,6 @@
         }
       },
       "indexes": {
-        "service_line_edits_session_fk_idx": {
-          "name": "service_line_edits_session_fk_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "service_line_edits_line_fk_idx": {
           "name": "service_line_edits_line_fk_idx",
           "columns": [
@@ -14558,23 +14525,6 @@
             "changed_by"
           ],
           "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "service_line_edits_session_fk": {
-          "name": "service_line_edits_session_fk",
-          "tableFrom": "service_line_edits",
-          "tableTo": "service_sessions",
-          "columnsFrom": [
-            "company_id",
-            "business_id",
-            "session_id"
-          ],
-          "columnsTo": [
-            "company_id",
-            "business_id",
             "id"
           ],
           "onDelete": "no action",
