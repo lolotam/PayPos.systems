@@ -91,10 +91,16 @@ function isDeferredQuery(returned: object): returned is DeferredQuery {
 // postgres.js sends a query only when it is first consumed (then, catch, finally, execute, forEach or
 // cursor), and every one of those goes through query.handler. One built before the socket died would
 // otherwise run on the reconnected backend without the lock, so that single hook rejects the query
-// instead. Interpolation never consumes it, and a helper has no handler, so the same object is returned.
+// instead. Interpolation never consumes it, and a helper is not thenable, so the same object is returned.
+// A query-shaped object (strings, args, then) without handler and reject means postgres.js changed: refuse
+// it rather than run it unguarded. Helpers such as sql('name') are thenable too, but never run SQL.
 function guardDeferredQuery<T>(session: MigrationSession, returned: T): T {
-  if (typeof returned !== 'object' || returned === null || !isDeferredQuery(returned))
+  if (typeof returned !== 'object' || returned === null) return returned;
+  if (!isDeferredQuery(returned)) {
+    if ('strings' in returned && 'args' in returned && 'then' in returned)
+      throw new Error('postgres.js query shape changed; update the migration loss guard');
     return returned;
+  }
   const handler = returned.handler;
   returned.handler = (query) => (session.lost ? query.reject(sessionLost()) : handler(query));
   return returned;
@@ -143,42 +149,50 @@ function guardedUnsafe(client: postgres.Sql, session: MigrationSession): postgre
 }
 
 function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres.Sql['begin'] {
-  return ((...args: Parameters<postgres.Sql['begin']>) =>
-    throwIfLost(session, () => {
-      if (typeof args[0] === 'string' && typeof args[1] !== 'function')
-        throw new Error('Missing migration transaction callback');
-      return Reflect.apply(client.begin, client, args);
-    })) as postgres.Sql['begin'];
+  return ((...args: Parameters<postgres.Sql['begin']>) => {
+    if (session.lost) throw sessionLost();
+    if (typeof args[0] === 'string' && typeof args[1] !== 'function')
+      throw new Error('Missing migration transaction callback');
+    return Reflect.apply(client.begin, client, args);
+  }) as postgres.Sql['begin'];
 }
 
-// file() builds a deferred query, so it gets the same loss check as unsafe. reserve() would wait for the
-// only connection (the one holding the lock) and hand out a handle this guard cannot see, so it is refused.
-function guardedFile(client: postgres.Sql, session: MigrationSession): postgres.Sql['file'] {
-  return ((...args: Parameters<postgres.Sql['file']>) =>
-    throwIfLost(session, () =>
-      Reflect.apply(client.file, client, args),
-    )) as postgres.Sql['file'];
-}
-
-function refuseReserve(): never {
-  throw new Error('reserve() is not available in a migration data step');
-}
+// A data step may build queries (tagged template, unsafe), open a transaction and use the value helpers.
+// Every other method of the client (file, reserve, notify, listen, largeObject, subscribe, end, close,
+// cancel...) is refused, including any postgres.js adds later, because each can reach a reconnected
+// backend that does not hold the advisory lock without passing the loss check.
+const DATA_STEP_CLIENT_MEMBERS = new Set([
+  'begin',
+  'unsafe',
+  'json',
+  'array',
+  'typed',
+  'types',
+  'options',
+  'parameters',
+  'serialize',
+  'parse',
+  'PostgresError',
+  'CLOSE',
+  'END',
+]);
 
 // Refuses the next call after the socket closes, and still invokes the client the caller passed in.
 function guardedSql(client: postgres.Sql, session: MigrationSession): postgres.Sql {
-  const guarded = {
-    begin: guardedBegin(client, session),
-    unsafe: guardedUnsafe(client, session),
-    file: guardedFile(client, session),
-    reserve: refuseReserve,
-  };
+  const begin = guardedBegin(client, session);
+  const unsafe = guardedUnsafe(client, session);
+  const refused = new Set(Object.keys(client).filter((key) => !DATA_STEP_CLIENT_MEMBERS.has(key)));
   return new Proxy(client, {
     apply(target, _thisArg, args) {
       return throwIfLost(session, () => Reflect.apply(target, target, args));
     },
     get(target, property, receiver) {
-      if (typeof property === 'string' && Object.hasOwn(guarded, property))
-        return guarded[property as keyof typeof guarded];
+      if (property === 'begin') return begin;
+      if (property === 'unsafe') return unsafe;
+      if (typeof property === 'string' && refused.has(property))
+        return () => {
+          throw new Error(`client.${property}() is not available in a migration data step`);
+        };
       return Reflect.get(target, property, receiver);
     },
   });
