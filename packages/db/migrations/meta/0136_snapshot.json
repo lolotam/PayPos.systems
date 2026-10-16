@@ -1,5 +1,5 @@
 {
-  "id": "3ac93883-4399-4489-9a00-a021a591b5f1",
+  "id": "a6d41fdb-fa23-4d71-9c8f-e6f18d7e2332",
   "prevId": "00062137-782f-4d11-abaf-77254b13ba4c",
   "version": "7",
   "dialect": "postgresql",
@@ -14623,7 +14623,7 @@
         },
         "service_line_edits_reason": {
           "name": "service_line_edits_reason",
-          "value": "char_length(btrim(\"service_line_edits\".\"reason\")) BETWEEN 1 AND 500"
+          "value": "char_length(\"service_line_edits\".\"reason\") <= 500 AND btrim(\"service_line_edits\".\"reason\", chr(9) || chr(10) || chr(13) || chr(32)) <> ''"
         },
         "service_line_edits_editor_names": {
           "name": "service_line_edits_editor_names",

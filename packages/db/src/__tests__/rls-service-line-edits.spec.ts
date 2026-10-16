@@ -196,6 +196,8 @@ const badRows: Array<[Edit, string]> = [
   [{ revision: 32, reason: '' }, 'service_line_edits_reason'],
   [{ revision: 33, reason: '   ' }, 'service_line_edits_reason'],
   [{ revision: 34, reason: 'x'.repeat(501) }, 'service_line_edits_reason'],
+  [{ revision: 38, reason: `x${' '.repeat(500)}` }, 'service_line_edits_reason'],
+  [{ revision: 39, reason: '\t\n \r\n' }, 'service_line_edits_reason'],
   [{ revision: 35, editorRole: 'cashier' }, 'service_line_edits_editor_role'],
   [{ revision: 36, editorNameAr: 'اسم', editorNameEn: null }, 'service_line_edits_editor_names'],
   [{ revision: 37, newSource: 'NOT_CONFIGURED', newLimit: 5 }, 'service_line_edits_new_limit'],

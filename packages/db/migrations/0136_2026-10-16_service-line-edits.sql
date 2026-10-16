@@ -36,7 +36,7 @@ CREATE TABLE "service_line_edits" (
 	CONSTRAINT "service_line_edits_previous_limit_presence" CHECK (("service_line_edits"."previous_limit_source"='OWNER')=("service_line_edits"."previous_limit_bps_applied" IS NULL)),
 	CONSTRAINT "service_line_edits_new_limit" CHECK (("service_line_edits"."new_limit_source"='OWNER' AND "service_line_edits"."new_limit_bps_applied" IS NULL) OR ("service_line_edits"."new_limit_source"='NOT_CONFIGURED' AND "service_line_edits"."new_limit_bps_applied"=0) OR ("service_line_edits"."new_limit_source" IN ('PERSON','BUSINESS') AND "service_line_edits"."new_limit_bps_applied" BETWEEN 0 AND 10000)),
 	CONSTRAINT "service_line_edits_new_limit_presence" CHECK (("service_line_edits"."new_limit_source"='OWNER')=("service_line_edits"."new_limit_bps_applied" IS NULL)),
-	CONSTRAINT "service_line_edits_reason" CHECK (char_length(btrim("service_line_edits"."reason")) BETWEEN 1 AND 500),
+	CONSTRAINT "service_line_edits_reason" CHECK (char_length("service_line_edits"."reason") <= 500 AND btrim("service_line_edits"."reason", chr(9) || chr(10) || chr(13) || chr(32)) <> ''),
 	CONSTRAINT "service_line_edits_editor_names" CHECK ("service_line_edits"."editor_name_ar" IS NULL OR "service_line_edits"."editor_name_en" IS NOT NULL),
 	CONSTRAINT "service_line_edits_editor_role" CHECK ("service_line_edits"."editor_role" IN ('owner','manager'))
 );

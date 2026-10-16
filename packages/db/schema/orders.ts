@@ -161,7 +161,7 @@ export const serviceLineEdits = pgTable('service_line_edits', {
   check('service_line_edits_previous_limit_presence', sql`(${t.previousLimitSource}='OWNER')=(${t.previousLimitBpsApplied} IS NULL)`),
   check('service_line_edits_new_limit', sql`(${t.newLimitSource}='OWNER' AND ${t.newLimitBpsApplied} IS NULL) OR (${t.newLimitSource}='NOT_CONFIGURED' AND ${t.newLimitBpsApplied}=0) OR (${t.newLimitSource} IN ('PERSON','BUSINESS') AND ${t.newLimitBpsApplied} BETWEEN 0 AND 10000)`),
   check('service_line_edits_new_limit_presence', sql`(${t.newLimitSource}='OWNER')=(${t.newLimitBpsApplied} IS NULL)`),
-  check('service_line_edits_reason', sql`char_length(btrim(${t.reason})) BETWEEN 1 AND 500`),
+  check('service_line_edits_reason', sql`char_length(${t.reason}) <= 500 AND btrim(${t.reason}, chr(9) || chr(10) || chr(13) || chr(32)) <> ''`),
   check('service_line_edits_editor_names', sql`${t.editorNameAr} IS NULL OR ${t.editorNameEn} IS NOT NULL`),
   check('service_line_edits_editor_role', sql`${t.editorRole} IN ('owner','manager')`),
 ]);
