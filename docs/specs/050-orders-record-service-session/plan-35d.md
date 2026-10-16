@@ -209,9 +209,9 @@ reported separately. If an estimate is exceeded, split again before code.
 | **35d-5** | Edit from the branch day list (ED-Q7) | admin form, hook, ar/en keys, component tests | 35d-4 | 250–380 |
 | **35d-6** | Edit on the reception screen + «changed» badge and history (ED-Q7, ED-Q8) | 1. Edit for just-saved lines. 2. Badge + before/after/who/when panel. 3. Tests and keys | 35d-4, 35d-5 | 300–450 |
 
-numbers are assigned at merge) → 35d-4, which starts only after 35d-2 has merged (so no edit event exists without its
-consumer; ADR-0044) → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
-numbers are assigned at merge) → 35d-4 → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
+Order: 35d-1 → 35d-2 (consumer, no writer yet); 35d-3 can run in parallel with 35d-2 (disjoint paths; both add a
+migration, so numbers are assigned at merge) → 35d-4, which starts only after 35d-2 has merged, so no edit event exists
+without its consumer (ADR-0044) → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
 before 35d-4 and carries the `TODO(spec)` items above.
 
 ## 9. Open owner questions (batch 22, numbered 29–31 in the file)
