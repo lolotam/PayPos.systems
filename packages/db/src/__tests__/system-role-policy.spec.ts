@@ -44,6 +44,7 @@ it('recognizes fixed global identities only; company aliases and technical Devic
 for (const entry of SYSTEM_ROLES) {
   it.each([
     'read:service-sessions:branch',
+    'edit:service-line-prices:branch',
     'read:files:business',
     'manage:files:business',
     'manage:document-types:company',

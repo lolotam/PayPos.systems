@@ -14,6 +14,7 @@ import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
 import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
 import { CARD_COLUMN_GRANTS } from '../../test/card-grants.ts';
 import { SERVICE_COLUMN_GRANTS, PACKAGE_TYPE_COLUMN_GRANTS } from '../../test/catalog-grants.ts';
+import { SERVICE_LINE_EDIT_COLUMN_GRANTS } from '../../test/service-line-edit-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -120,6 +121,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'roles:INSERT',
     'roles:SELECT',
     'roles:UPDATE',
+    'service_line_edits:INSERT',
+    'service_line_edits:SELECT',
     'service_lines:INSERT',
     'service_lines:SELECT',
     'service_session_recoveries:INSERT',
@@ -269,6 +272,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...CARD_COLUMN_GRANTS,
         ...SERVICE_COLUMN_GRANTS,
         ...PACKAGE_TYPE_COLUMN_GRANTS,
+        ...SERVICE_LINE_EDIT_COLUMN_GRANTS,
       ].sort(),
     );
   });

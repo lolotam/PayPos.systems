@@ -7,6 +7,7 @@
 export const PERMISSIONS = [
   'record:service-sessions:branch',
   'read:service-sessions:branch',
+  'edit:service-line-prices:branch',
   'read:passkeys:branch',
   'unbind:passkeys:branch',
   'create:leave:own',
