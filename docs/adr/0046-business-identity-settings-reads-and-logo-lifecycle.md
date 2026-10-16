@@ -25,7 +25,7 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
    worker consumer retires the previous file: it re-checks the current reference through a port wired at the composition
    root, takes the same business lock as binding, sets `purge_started_at` (so a later bind is refused), then deletes the
    object outside any DB transaction and writes the tombstone and a system audit. Storage IO never runs in a request or a
-   transaction. Retirement ships before "replace" is enabled in production.
+   transaction. The consumer ships **before** the producer (27h-3 before 27h-4), so an emitted event always has a registered consumer and is never parked or acknowledged unhandled.
 5. **Reading for the statement** is two exports in `settings/index.ts`: `readBusinessIdentity` (ids and names only) and the
    pure `statementIdentity` fallback. The logo **bytes** are read by a `files`-owned export built with 27i, resolving the
    currently bound logo of the authorised statement's business and writing one access-audit row for the requester. The

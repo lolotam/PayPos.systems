@@ -29,11 +29,11 @@ the name text.
 | **27h-0** | This spec + ADR-0046 + owner questions (docs-only PR) | spec, ADR, plan row | — |
 | **27h-1** | `update-business-identity-names` | (a) migration: 3 columns + CHECKs + composite FK + partial unique index, `privileges.spec.ts` check, RLS negative test; (b) contract + use case + audit + cache-guard fix; (c) integration + query-shape tests | 27h-0 answered |
 | **27h-2** | files side (no new endpoint) | (a) `validateStoredPermission`: `settings` ⇒ `read:settings:business`; (b) per-owner-module upload cap at `request-upload`; (c) `purge_started` added to the file facts read + tests | 27h-0 answered |
-| **27h-3** | `set-business-logo` (bind or remove) | (a) domain `validateLogoFile` + port + adapter (`settings → files` read) + module-map line; (b) use case + `PUT /v1/businesses/:businessId/settings/logo` + audit + `BusinessLogoChanged` event; (c) `readBusinessIdentity` + pure `statementIdentity` exports + tests | 27h-1, 27h-2 |
-| **27h-4** | `retire-business-logo` (worker, `files`-owned consumer) | (a) consumer of `BusinessLogoChanged`; (b) re-check + `purge_started_at` + storage delete + tombstone + system audit; (c) race tests | 27h-3 |
-| **27h-5** | Admin screen (names, upload with status, preview, replace, remove) | (a) names form; (b) logo upload flow (files endpoints, poll status); (c) preview through the audited download + i18n | 27h-1, 27h-3 (4 before "replace" is enabled in production) |
+| **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with an idempotent consumer, and the module-map event arrow; (b) re-check through a port + `purge_started_at` + storage delete + tombstone + system audit; (c) race and replay tests with synthetic events | 27h-2 |
+| **27h-4** | `set-business-logo` (bind or remove; the event producer) | (a) domain `validateLogoFile` + port + adapter (`settings → files` read) + module-map line; (b) use case + `PUT /v1/businesses/:businessId/settings/logo` + audit + `BusinessLogoChanged` emit; (c) `readBusinessIdentity` + pure `statementIdentity` exports + tests | 27h-1, 27h-2, 27h-3 |
+| **27h-5** | Admin screen (names, upload with status, preview, replace, remove) | (a) names form; (b) logo upload flow (files endpoints, poll status); (c) preview through the audited download + i18n | 27h-1, 27h-4 |
 
-Not here: the statement itself (27g), the PDF renderer (27i), the files-side bytes reader for the renderer (27i), the
+Row 27i's logo-bytes reader depends on 27h-4 (the schema and binding surface); the plan row 27i lists it. Not here: the statement itself (27g), the PDF renderer (27i), the files-side bytes reader for the renderer (27i), the
 `staff → settings` import arrow (27g's ADR). Other documents (receipts, invoices) may reuse the identity later; out of scope.
 
 ## 3. Owner rules (final) and pending
@@ -46,7 +46,7 @@ Not here: the statement itself (27g), the PDF renderer (27i), the files-side byt
 - **BR-04 (ST-Q1):** a business with no logo still gets a statement: the header shows the name only.
 - **BR-05 (ST-Q4):** the statement language (ar or en) is chosen at download; the header name follows that language.
 - **BR-06 (ADR-0022, owner 2026-10-03):** a verified file is kept until authorised deletion or **replacement**; so a
-  replaced or removed logo's file is deleted (27h-4).
+  replaced or removed logo's file is deleted (27h-3).
 - **BR-07 (CLAUDE.md §8):** every change to settings is audited.
 
 **Pending (each is `PENDING` in [owner-questions.ar.md](owner-questions.ar.md); nothing below is implemented until answered):**
@@ -68,7 +68,7 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
 | BI-03 | The owner uploads a PNG through the existing files flow (request, PUT, confirm, poll). When the file is READY, binding it saves `logo_file_id`. Binding a PENDING or VERIFYING file is refused with `FILE_NOT_READY`. |
 | BI-04 | A PDF, XLSX, or any file that is not PNG/JPEG cannot be bound as a logo, even if it is READY and uploaded by the same user. |
 | BI-05 | A file uploaded by someone else, for another business, for another owner module, by another company, or one whose purge has started cannot be bound: all answer `FILE_NOT_FOUND`, identical to an unknown id. |
-| BI-06 | Binding a new logo replaces the old one; an outbox event `BusinessLogoChanged` carries the previous and new ids; the old file is retired by the worker (27h-4), never inside the request. |
+| BI-06 | Binding a new logo replaces the old one; an outbox event `BusinessLogoChanged` carries the previous and new ids; the old file is retired by the worker (27h-3), never inside the request. |
 | BI-07 | Removing the logo (`file_id: null`) clears the reference, audits it, and emits the same event; the statement falls back to the name only. |
 | BI-08 | Two concurrent binds of the same file, or of two files, leave exactly one reference and a continuous audit chain. |
 | BI-09 | The same file cannot be the logo of two businesses (unique per company). |
@@ -85,7 +85,7 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
   "no logo" so a transient failure is retried by the renderer, not printed as name-only.
 - Rebinding the file that is already bound is a no-op (no audit, no event).
 - A READY settings-owned file that is never bound stays as an orphan; sweeping such orphans is a deferred follow-up (issue
-  to be opened at 27h-3), not a rule here.
+  to be opened at 27h-4), not a rule here.
 - A closed company is refused like every settings write.
 
 ## 5. Slice design
@@ -102,19 +102,19 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
    handles bytes, keys, or storage.
 3. **Bind check** inside the settings tenant transaction, after the business settings row lock, through the existing
    `files` read export (`documentFileFacts`, extended additively with `purge_started`): READY, purge not started or done,
-   `content_type` in PNG/JPEG, `owner_module='settings'`, owner entity = business = the route's business, no branch,
+   `content_type` in PNG/JPEG, `owner_module='settings'`, `owner_entity_id` and `business_id` both equal the route's business id, no branch,
    `required_permission='read:settings:business'`, `created_by` = the actor, `size_bytes` within the logo cap (BI-Q3).
    PENDING/VERIFYING answers `FILE_NOT_READY`; every other mismatch answers `FILE_NOT_FOUND`.
 4. **Logo cap** is enforced twice: at `request-upload` by `owner_module` (so a too-large PUT is never issued) and at bind
    against the stored (post re-encode) size. The generic 10 MiB policy and the employee-document images are unchanged.
    No new pixel rule: sharp's existing 16 M-pixel input cap bounds memory.
 5. **Replace and remove.** The bind use case writes `BusinessLogoChanged { business_id, previous_file_id,
-   file_id | null }` to the outbox in the same transaction. A later **`files`-owned worker consumer** (27h-4) retires the
+   file_id | null }` to the outbox in the same transaction. The **`files`-owned worker consumer** (27h-3, shipped before this producer so no event is ever emitted without a consumer) retires the
    previous file: it re-checks, through a port wired at the composition root (no `files → settings` import), that the file
    is no longer referenced, sets `purge_started_at` under the same business lock that binding takes (so a later bind of
    that file is refused), then deletes the object outside any DB transaction and writes the tombstone and system audit.
    Rejected: an in-transaction retire export (a cross-module write plus storage IO in a transaction), and keeping files
-   forever (contradicts BR-06). Replacement stays disabled in production until 27h-4 has shipped.
+   forever (contradicts BR-06). Because 27h-3 merges first, the event type is known and handled before 27h-4 can emit it; no emitted event is parked or silently acknowledged.
 6. **Seam for 27g/27i.** `settings/index.ts` exports `readBusinessIdentity(tx, companyId, businessId)` returning
    `{ official_name_ar, official_name_en, logo_file_id }` and the pure `statementIdentity` (§6). The **bytes** reader is
    declared, not built: a `files`-owned export that resolves the currently bound logo of the authorised statement's
@@ -145,7 +145,7 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
 - `PATCH /v1/businesses/:businessId/settings/identity` (27h-1) · `@Require('manage:settings:business')` · body
   `{ official_name_ar?: string|null, official_name_en?: string|null }`; an omitted key is left unchanged, `null` clears.
   Names are trimmed, 1..255 characters. 200 returns the two fields. No Idempotency-Key (configuration with audit, as spec 018).
-- `PUT /v1/businesses/:businessId/settings/logo` (27h-3) · `@Require('manage:settings:business')` · body
+- `PUT /v1/businesses/:businessId/settings/logo` (27h-4) · `@Require('manage:settings:business')` · body
   `{ file_id: uuid|null }`; `null` removes. 200 returns `{ logo_file_id }`. No Idempotency-Key (rebinding the current file
   is a no-op).
 - Errors reuse the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `FILE_NOT_READY`,
@@ -164,22 +164,23 @@ actual choice is BI-Q1; options that need a new permission or a files rule chang
 
 - **Published:** `BusinessLogoChanged` (settings, `events/published.ts`, Arabic one-line doc): emitted in the same
   transaction as a bind/remove that changes the reference. Payload: ids only.
-- **Consumed:** by the `files` worker consumer (27h-4). Delivery is at-least-once, so the consumer is idempotent.
+- **Consumed:** by the `files` worker consumer (27h-3). Delivery is at-least-once, so the consumer is idempotent.
 - **Audit:** entity `business_settings`, action `settings.identity_changed`, before/after hold the three columns (names and
   file ids); never a storage key.
 
 ### 5.6 Module map and ADR
 
-`settings → files` (read, `documentFileFacts`) is a new import arrow: ADR-0046 (this PR) and a `docs/module-map.md` line
-in 27h-3, mirroring ADR-0031's `staff → files`. `files` imports only `tenancy` today, so there is no cycle. The retire
-consumer's reference check is a port, not an import. The later `staff → settings` arrow belongs to 27g.
+Two new arrows, both declared in `docs/module-map.md` by the PR that introduces them (ADR-0046, this PR, is the decision):
+the event arrow `settings ⇒ files` (`BusinessLogoChanged`, consumed by the retire consumer) in 27h-3, and the read arrow
+`settings → files` (`documentFileFacts`, mirroring ADR-0031's `staff → files`) in 27h-4. `files` imports only `tenancy`
+today, so there is no cycle. The retire consumer's reference check is a port wired at the composition root, not an import. The later `staff → settings` arrow belongs to 27g.
 
 ### 5.7 Test plan
 
 - **Domain unit:** `validateLogoFile` (every field of §5.1 item 3, one case each); `statementIdentity` (every branch of
   §6); name normalisation.
 - **Integration (real Postgres, one cloned DB per spec file):** BI-01…BI-14; two concurrent binds; bind while VERIFYING;
-  purge-start versus bind race; event replay (27h-4); revoked authority during the lock wait.
+  purge-start versus bind race; event replay (27h-3); revoked authority during the lock wait.
 - **RLS negative:** another company cannot read or write `business_settings` identity columns, nor reference its files;
   the FK rejects a cross-tenant file id.
 - **Queries:** result-shape test and `EXPLAIN` index assertion for the extended settings read; the old-cache-entry test.
@@ -202,7 +203,7 @@ existing arrow), not through `queries/` (queries may not import domain).
 ## 7. Success criteria
 
 - SC-01: the owner sets the identity of a business in under two minutes without help.
-- SC-02: no storage key, URL, or file bytes appears in any audit row, event payload, log line, or API response (BI-14).
+- SC-02: no storage key, signed URL, or file bytes appears in any settings or identity response, audit row, event payload, or log line (BI-14). The `files` capability endpoints (upload and audited download) return presigned URLs by design and are outside this criterion.
 - SC-03: a statement for a business without a logo or official name still prints a header (never blank).
 
 ## 8. Assumptions
