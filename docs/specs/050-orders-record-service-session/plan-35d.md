@@ -205,11 +205,12 @@ reported separately. If an estimate is exceeded, split again before code.
 | **35d-1** | Contracts, template and registrations; no behaviour | 1. `ServiceLineChanged.change`, `ServiceLineEditNoticeRequested`, recipient and money-parameter schemas, OpenAPI. 2. `packages/notifications` template, `packages/i18n` ar/en keys, admin bell render. 3. Register the notice event in `NOTIFICATION_SOURCE_EVENTS` and the worker's known types; Arabic doc comments | subtask 2 on ED-Q11 | 250–380 |
 | **35d-2** | The bell works for any `ServiceLineChanged` carrying a `change` | 1. Migration + RLS + grants for `service_line_edit_notices`. 2. Worker `orders` use case, domain functions (recipient groups, parameters), ports, the two adapters, consumer registration. 3. Delivery tests 4–10, privilege and inventory entries | ED-Q9, ED-Q10 | 400–550 |
 | **35d-3** | Permission and storage for edits | 1. «Edit session price/discount» permission and its four default roles (ED-Q1). 2. Edit-history table + RLS (ED-Q8 storage). 3. Grant allowlist, inventory and negative tests | — | 300–450 |
-| **35d-4** | `PATCH` one line's price/discount, audited | 1. Pure domain functions: editor limit (ED-Q2), window (ED-Q3), self-line rule (ED-Q4), reason (ED-Q5). 2. Use case + HTTP adapter + `Idempotency-Key`, outbox emit in the same transaction. 3. Delivery tests 1–3 and the edge cases | the 35d spec; 35d-1, 35d-3 | 450–600 |
+| **35d-4** | `PATCH` one line's price/discount, audited | 1. Pure domain functions: editor limit (ED-Q2), window (ED-Q3), self-line rule (ED-Q4), reason (ED-Q5). 2. Use case + HTTP adapter + `Idempotency-Key`, outbox emit in the same transaction. 3. Delivery tests 1–3 and the edge cases | the 35d spec; 35d-1, 35d-2 (the consumer must be merged first), 35d-3 | 450–600 |
 | **35d-5** | Edit from the branch day list (ED-Q7) | admin form, hook, ar/en keys, component tests | 35d-4 | 250–380 |
 | **35d-6** | Edit on the reception screen + «changed» badge and history (ED-Q7, ED-Q8) | 1. Edit for just-saved lines. 2. Badge + before/after/who/when panel. 3. Tests and keys | 35d-4, 35d-5 | 300–450 |
 
-Order: 35d-1 → 35d-2 (consumer, no writer yet) and 35d-3 can run in parallel (disjoint paths; both add a migration, so
+numbers are assigned at merge) → 35d-4, which starts only after 35d-2 has merged (so no edit event exists without its
+consumer; ADR-0044) → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
 numbers are assigned at merge) → 35d-4 → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
 before 35d-4 and carries the `TODO(spec)` items above.
 
