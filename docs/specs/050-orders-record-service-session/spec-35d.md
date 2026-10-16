@@ -232,6 +232,9 @@ the outbox.
 - **FR-019** The mark: `edited` is an additive boolean on the saved-line contract (35d-4 adds it to the line snapshot, always
   `false` on record/append, true after an edit), and the day-list query of 35d-5 computes it with an `EXISTS` over
   `service_line_edits` (index `service_line_edits_line_fk_idx`, covered by the 35d-5 `EXPLAIN` test). Clients never derive it from `revision`.
+  Stored idempotent responses of record/append written before 35d-4 (or by an old instance during a rolling deploy) have no
+  `edited` key and are replayed byte for byte: the response contract therefore declares `edited` optional with a default of `false`
+  on the record and append responses (a replay never recomputes it), while the edit response always carries it.
   The reception screen (35d-6) uses the edit endpoint and shows only the mark (ED-Q12).
 
 ### Key entities
