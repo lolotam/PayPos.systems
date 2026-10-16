@@ -1,7 +1,7 @@
 # ADR-0044 — Service-line price/discount edit: event shape, manager bell and the orders → notifications edge
 
-Date: 2026-10-16. Status: Accepted design for spec 050 row 35d. Recipients (ED-Q9), the editor's own bell (ED-Q10) and
-the wording (ED-Q11) were answered by Waleed on 2026-10-16 (Abu Salem has not answered; his pick binds if different).
+Date: 2026-10-16. Status: Accepted design for spec 050 row 35d. Recipients (ED-Q9), the editor's own bell (ED-Q10), the wording (ED-Q11),
+the receptionist's view (ED-Q12) and the no-employee editor (ED-Q13) were answered by Waleed on 2026-10-16 (Abu Salem has not answered; his pick binds if different).
 Owner decisions: SS-Q10 option 2 (audited edit is its own row), ED-Q1…ED-Q8 (Waleed, 2026-10-13, batch 17; Abu Salem has
 not answered, his pick binds if it differs), in particular ED-Q6 «a bell to the branch manager with every edit».
 Related: ADR-0010 (Phase 1 ports and events), ADR-0018 (notification delivery), ADR-0037 (interim in-app manager rule),
@@ -79,8 +79,11 @@ business is allowed, so the business must be part of the key) and stores them in
 same transaction. The event carries no name; the 35d-2 consumer reads the history row, so a deactivated or relinked
 employee cannot change an already-committed bell and the worker needs no `staff` read. The `orders → staff` arrow already
 exists; the exact §6 read entry is declared with this ADR. An editor with no linked employee (for example an owner who is
-not an employee) has no name to snapshot; what the bell and the history show for such an editor is not decided here and is not built until
-ED-Q13 (PENDING, batch 24) asks the owner what such an editor is shown as, since the global `user` table is not readable here.
+not an employee) has no name to snapshot, and the global `user` table is not readable here. ED-Q13 (Waleed, 2026-10-16)
+decided that the bell and the «edited» mark then write the role only (fixed ar/en wording: «المالك» / «المدير»), until a name
+source is agreed; the history row stores an `editor_role` snapshot for that purpose. ED-Q12 (same day, against the
+recommendation) keeps the full history behind the manager's branch-sessions read: the receptionist sees only an «edited»
+mark and the edit response carries no history fields to a caller without that permission.
 
 ### 6. Edit authority is rechecked inside the edit transaction
 

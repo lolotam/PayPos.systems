@@ -116,8 +116,9 @@ read (35b-1) remains blocked on SS-Q12; no read authorization is implied by this
 (`kind`, editor, previous values; never the typed reason). Worker orders consumes it, resolves the same scoped managers,
 claims a `(line, revision)` ledger row and emits `ServiceLineEditNoticeRequested` to notifications for the IN_APP bell.
 One bell per saved edit; the same four scoped manager roles as the late bell receive it, the editor included, and it
-shows the service, branch, date, «was X, now Y» (net) and the editor's name (ED-Q9–ED-Q11, Waleed 2026-10-16); zero
-recipients is a durable decision.
+shows the service, branch, date, «was X, now Y» (net) and the editor's name, or the role («المالك» / «المدير») when the
+editor has no employee record (ED-Q9–ED-Q11, ED-Q13, Waleed 2026-10-16); the receptionist sees only an «edited» mark and
+the full history is the manager's (ED-Q12); zero recipients is a durable decision.
 
 ---
 
