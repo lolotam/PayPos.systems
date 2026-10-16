@@ -10,7 +10,7 @@ const expectedSchemas = [
   'SessionMoney', 'SessionPerformerInput', 'SessionLineInput', 'RecordServiceSessionInput',
   'AppendServiceSessionLinesInput', 'SessionPerformer', 'SavedServiceLine', 'ServiceSession',
   'RejectedServiceLine', 'RecordServiceSessionResponse', 'AppendServiceSessionLinesResponse',
-  'ServiceLineChanged', 'RecordedServiceLine', 'ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'LateServiceSessionNoticeRequested',
+  'ServiceLineChanged', 'RecordedServiceLine', 'ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'LateServiceSessionNoticeRequested', 'ServiceLineEditNoticeRequested',
   'CreateDocumentTypeInput',
   'DocumentType',
   'DocumentTypeList',
@@ -244,4 +244,18 @@ describe('openapi/openapi.json', () => {
     expect(schemas['TimeZone']?.enum).toContain('Asia/Kuwait');
     expect(schemas['TimeZone']?.enum).not.toContain('Asia/Atlantis');
   });
+});
+
+it('keeps change off a recorded line and optional on a changed line', () => {
+  const schemas = (
+    buildOpenApiDocument()['components'] as {
+      schemas: Record<string, { properties?: Record<string, unknown>; required?: string[] }>;
+    }
+  ).schemas;
+  const recorded = schemas['RecordedServiceLine'];
+  const changed = schemas['ServiceLineChanged'];
+  expect(recorded?.properties).not.toHaveProperty('change');
+  expect(JSON.stringify(recorded)).not.toContain('"not"');
+  expect(changed?.properties).toHaveProperty('change');
+  expect(changed?.required ?? []).not.toContain('change');
 });

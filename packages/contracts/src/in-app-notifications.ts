@@ -64,6 +64,28 @@ export const lateServiceSessionParameters = z.tuple([
 export const lateServiceSessionRecipient = z.strictObject({
   ...inAppBase, template_key: z.literal('late_service_session'), safe_parameters: lateServiceSessionParameters,
 });
+/** فلتر أمان للجرس أوسع من sessionMoney الذي يمنع الصفر البادئ، لأن منتج 35d-2 يمرّر قيمًا متحققة بـ sessionMoney أصلًا. */
+const bellMoney = z.string().regex(/^\d{1,11}\.\d{3}$/);
+const moneyParameter = <Name extends string>(name: Name) =>
+  z.strictObject({ name: z.literal(name), type: z.literal('text'), value: bellMoney });
+/** ترتيب ED-Q11 ثابت مع نص القالب؛ المبلغ ليس displayName لأن 1250.000 يُرفض كاسم. */
+export const serviceLinePriceEditedParameters = z.tuple([
+  displayParameter('service_name_ar'),
+  displayParameter('service_name_en'),
+  displayParameter('branch_name_ar'),
+  displayParameter('branch_name_en'),
+  z.strictObject({ name: z.literal('business_date'), type: z.literal('text'), value: z.iso.date() }),
+  moneyParameter('previous_net'),
+  moneyParameter('new_net'),
+  displayParameter('editor_name_ar'),
+  displayParameter('editor_name_en'),
+]);
+/** مراجعة القالب 1 لأن نص ED-Q11 ثابت؛ تغيير النص لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
+export const serviceLinePriceEditedRecipient = z.strictObject({
+  ...inAppBase,
+  template_key: z.literal('service_line_price_edited'),
+  safe_parameters: serviceLinePriceEditedParameters,
+});
 const changeParameter = z.strictObject({
   name: z.literal('change'),
   type: z.literal('text'),
@@ -87,6 +109,7 @@ export const attendanceChangeDecidedParameters = z.tuple([
 ]);
 export const inAppRecipient = z.discriminatedUnion('template_key', [
   lateServiceSessionRecipient,
+  serviceLinePriceEditedRecipient,
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('break_returned_other_branch'),
@@ -134,6 +157,11 @@ export const inAppNotification = z
     z.strictObject({
       ...inAppNotificationBase, template_key: z.literal('late_service_session'),
       safe_parameters: lateServiceSessionParameters,
+    }),
+    z.strictObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('service_line_price_edited'),
+      safe_parameters: serviceLinePriceEditedParameters,
     }),
     z.strictObject({
       ...inAppNotificationBase,

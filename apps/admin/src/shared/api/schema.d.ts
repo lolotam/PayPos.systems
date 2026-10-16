@@ -3578,6 +3578,22 @@ export interface components {
             /** @enum {string|null} */
             package: null;
             revision: number;
+            change?: {
+                /** @enum {string} */
+                kind: "PRICE_DISCOUNT_EDIT";
+                /** Format: date-time */
+                changed_at: string;
+                /** Format: uuid */
+                changed_by: string;
+                /** Format: uuid */
+                changed_by_membership_id: string;
+                previous: {
+                    revision: number;
+                    price: components["schemas"]["SessionMoney"];
+                    discount: components["schemas"]["SessionMoney"];
+                    net: components["schemas"]["SessionMoney"];
+                };
+            };
         };
         RecordedServiceLine: {
             /** Format: uuid */
@@ -3709,6 +3725,90 @@ export interface components {
                     /** @enum {string} */
                     type: "text";
                     /** Format: date */
+                    value: string;
+                })[];
+            }[];
+        };
+        ServiceLineEditNoticeRequested: {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            line_id: string;
+            revision: number;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: date */
+            business_date: string;
+            business_timezone: string;
+            notification_recipients: {
+                /** @enum {string} */
+                channel: "IN_APP";
+                /** Format: uuid */
+                user_id: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {number} */
+                template_revision: 1;
+                /** @enum {string} */
+                template_key: "service_line_price_edited";
+                safe_parameters: ({
+                    /** @enum {string} */
+                    name: "service_name_ar";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "service_name_en";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "branch_name_ar";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "branch_name_en";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "business_date";
+                    /** @enum {string} */
+                    type: "text";
+                    /** Format: date */
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "previous_net";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "new_net";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "editor_name_ar";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "editor_name_en";
+                    /** @enum {string} */
+                    type: "text";
                     value: string;
                 })[];
             }[];
@@ -4027,6 +4127,83 @@ export interface components {
                 /** @enum {string} */
                 type: "text";
                 /** Format: date */
+                value: string;
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "service_line_price_edited";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "service_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "service_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "business_date";
+                /** @enum {string} */
+                type: "text";
+                /** Format: date */
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "previous_net";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "new_net";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "editor_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "editor_name_en";
+                /** @enum {string} */
+                type: "text";
                 value: string;
             })[];
         } | {
