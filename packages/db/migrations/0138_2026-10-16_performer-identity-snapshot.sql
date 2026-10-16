@@ -1,0 +1,12 @@
+ALTER TABLE "service_line_edits" DROP CONSTRAINT "service_line_edits_editor_role";--> statement-breakpoint
+ALTER TABLE "line_performers" ADD COLUMN "linked_user_id" uuid;--> statement-breakpoint
+ALTER TABLE "line_performers" ADD COLUMN "linked_user_snapshotted" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "service_line_edits" ADD COLUMN "editor_role_is_system" boolean;--> statement-breakpoint
+ALTER TABLE "service_line_edits" ADD COLUMN "editor_role_name_ar" text;--> statement-breakpoint
+ALTER TABLE "service_line_edits" ADD COLUMN "editor_role_name_en" text;--> statement-breakpoint
+ALTER TABLE "line_performers" ADD CONSTRAINT "line_performers_linked_user_id_user_id_fk" FOREIGN KEY ("linked_user_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "line_performers" ADD CONSTRAINT "line_performers_linked_user_snapshot" CHECK ("line_performers"."linked_user_id" IS NULL OR "line_performers"."linked_user_snapshotted");--> statement-breakpoint
+ALTER TABLE "service_line_edits" ADD CONSTRAINT "service_line_edits_editor_role_snapshot" CHECK (("service_line_edits"."editor_role" IS NULL) = ("service_line_edits"."editor_role_is_system" IS NULL) AND ("service_line_edits"."editor_role" IS NULL) = ("service_line_edits"."editor_role_name_en" IS NULL) AND ("service_line_edits"."editor_role_name_ar" IS NULL OR "service_line_edits"."editor_role_name_en" IS NOT NULL));--> statement-breakpoint
+ALTER TABLE "service_line_edits" ADD CONSTRAINT "service_line_edits_editor_name_length" CHECK (char_length("service_line_edits"."editor_name_ar") <= 255 AND char_length("service_line_edits"."editor_name_en") <= 255 AND char_length("service_line_edits"."editor_role_name_ar") <= 255 AND char_length("service_line_edits"."editor_role_name_en") <= 255);--> statement-breakpoint
+ALTER TABLE "service_line_edits" ADD CONSTRAINT "service_line_edits_editor_identity" CHECK ("service_line_edits"."editor_name_en" IS NOT NULL OR "service_line_edits"."editor_role" IS NOT NULL);--> statement-breakpoint
+ALTER TABLE "service_line_edits" ADD CONSTRAINT "service_line_edits_editor_role" CHECK ("service_line_edits"."editor_role" ~ '^[a-z][a-z_]{0,63}$');
