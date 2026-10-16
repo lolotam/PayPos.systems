@@ -118,7 +118,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `orders` | `LateNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers, including recorder/performer (ADR-0041 35b-2) |
 | worker `orders` | `LateNoticePlace` | worker `tenancy` | branchPlace names only; the date/timezone remains the saved session snapshot (ADR-0041 35b-2) |
 | worker `orders` | `PriceEditNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the ADR-0037 interim rule; the editor is not excluded (ED-Q10) (ADR-0044, 35d-2) |
-| worker `orders` | `PriceEditNoticeEditor` | worker `staff` | the editor's active linked employee names (name_ar, name_en) by user id within the event's company and business on the consumer transaction; no linked employee ⇒ generic label (ADR-0044 §5, 35d-2) |
+| `orders` | `EditorNamePort` | `staff` | the editor's active linked employee names (name_ar, name_en) by company, business and user id, read in the edit transaction and stored as a snapshot in the edit-history row; no linked employee ⇒ null names (ADR-0044 §5, 35d-4) |
+| `orders` | `SessionEditAccessPort` | `identity` | locked recheck of the editor membership, the edit permission, DENY state and the orders feature inside the edit transaction and before an idempotency replay (ADR-0044 §6, 35d-4) |
 | worker `orders` | `PriceEditNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044, 35d-2) |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
@@ -295,7 +296,9 @@ reads:
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/price-edit-place.adapter.ts
-  - orders -> staff.employeeNamesByUser @ apps/worker/src/modules/orders/persistence/price-edit-editor.adapter.ts
+  - orders -> staff.employeeNamesByUser @ apps/api/src/modules/orders/persistence/editor-name.adapter.ts
+  - orders -> identity.lockServiceSessionEditAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
+  - orders -> identity.readServiceSessionEditAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> catalog.readSessionServices @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
   - orders -> staff.readSessionPerformers @ apps/api/src/modules/orders/persistence/performer-check.adapter.ts

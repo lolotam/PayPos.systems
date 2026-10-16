@@ -72,13 +72,21 @@ passes) and is a name filter, not a money type, so amounts need their own strict
 ### 5. The editor's name
 
 ED-Q11 puts the editor's name in the bell. Display names live on `employees` (`name_ar`, `name_en`, linked by
-`employees.user_id`); the global `user` table is reachable from `packages/auth` only (CLAUDE.md §5). 35d-2 therefore adds
-one narrow worker-`staff` export that returns the active linked employee's names for a user id within the event's company
-and business (one active employee per user per business is allowed, so the business must be part of the key) on the consumer
-transaction,
-behind an orders-owned port (`PriceEditNoticeEditor`). The `orders → staff` arrow already exists; the exact §6 read entry
-is declared with this ADR. An editor with no linked employee (for example an owner who is not an employee) gets a
-generic translated label, like the branch-name fallback; names pass the existing display-name filter.
+`employees.user_id`); the global `user` table is reachable from `packages/auth` only (CLAUDE.md §5). The name is a
+**snapshot taken at commit**: the 35d-4 edit use case reads the active linked employee's names through an orders-owned
+`EditorNamePort` (a narrow `staff` export keyed by company, business and user id — one active employee per user per
+business is allowed, so the business must be part of the key) and stores them in the immutable edit-history row in the
+same transaction. The event carries no name; the 35d-2 consumer reads the history row, so a deactivated or relinked
+employee cannot change an already-committed bell and the worker needs no `staff` read. The `orders → staff` arrow already
+exists; the exact §6 read entry is declared with this ADR. An editor with no linked employee (for example an owner who is
+not an employee) is stored with null names and the bell shows a generic translated label, like the branch-name fallback.
+
+### 6. Edit authority is rechecked inside the edit transaction
+
+The edit commits a financial change, so the HTTP guard's decision is not enough. The 35d-4 use case rechecks the selected
+editor membership, the new permission, DENY state and feature through an orders-owned `SessionEditAccessPort`
+(`lock()` then `read()`, mirroring recording's access port), after all line and performer waits and before an
+idempotency replay returns. The exact §6 read entries are declared with this ADR.
 
 ## Consequences
 
