@@ -52,12 +52,16 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 1. One row of the phase plan per branch, worktree and PR (`feat/…`, `fix/…`, `docs/…`). **Never push to `main`.**
 2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` **and** to a new numbered
    batch on the decisions page (`CLAUDE.md` §1 5b). When Waleed and his partner (Abu Salem) differ, the partner's pick binds.
+   Ask the questions of a whole feature in one batch before its first sub-PR, with a mockup when the answer is a screen.
 3. The implementer is the **Grok CLI, `grok-4.7`, effort high** (owner, 2026-10-14), one resumed session per
    task to keep its cache warm. Claude Code orchestrates, judges the diff and runs `pnpm check`.
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
    fresh Claude reviewers → the four PR bots: the Codex GitHub bot (`@codex review` after every push) and the
    MergePilot panel (MergePilot, waleed_bot, mohamed_bot). Every bot's result on the head SHA is read before a merge.
 5. Fix every security or correctness finding before merge; P2/P3 left after the cap become linked GitHub issues.
+   **Docs-only PRs** (docs, skills, spec-kit files; no code or migration) use the lighter lane of the skill's section 2:
+   no round cap and no layer 1/2 reviews, merged on a green ci-gate with both bot groups completed on the head and no
+   P0/P1 open; P2/P3 on prose get at most one batch fix, the rest become issues.
 6. Merge with `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` once `ci-gate` is green on
    that head; deploy to staging; update the decisions page's status tab; journey doc in its own PR.
 
