@@ -1,7 +1,7 @@
 # ADR-0044 — Service-line price/discount edit: event shape, manager bell and the orders → notifications edge
 
-Date: 2026-10-16. Status: Proposed design for spec 050 row 35d. Recipients (ED-Q9), the editor's own bell (ED-Q10) and
-the wording (ED-Q11) are PENDING owner answers; the mechanics below do not depend on them.
+Date: 2026-10-16. Status: Accepted design for spec 050 row 35d. Recipients (ED-Q9), the editor's own bell (ED-Q10) and
+the wording (ED-Q11) were answered by Waleed on 2026-10-16 (Abu Salem has not answered; his pick binds if different).
 Owner decisions: SS-Q10 option 2 (audited edit is its own row), ED-Q1…ED-Q8 (Waleed, 2026-10-13, batch 17; Abu Salem has
 not answered, his pick binds if it differs), in particular ED-Q6 «a bell to the branch manager with every edit».
 Related: ADR-0010 (Phase 1 ports and events), ADR-0018 (notification delivery), ADR-0037 (interim in-app manager rule),
@@ -53,7 +53,7 @@ tenancy data to find recipients, or orders would have to import the notification
 Idempotency is by event id (the outbox consumed mark, committed with the notice events, ADR-0018) and, as a second
 line, by `(line, revision)` in the ledger. It is per line revision and **not** per session, unlike the late bell,
 because ED-Q6 is "every edit". With no eligible manager the ledger records a count of zero and nothing is sent.
-Memberships are sampled at processing time, as in 35b-2. The editor is removed from the recipients when ED-Q10 says so.
+Memberships are sampled at processing time, as in 35b-2. The editor is **not** removed from the recipients (ED-Q10, against the recommendation): everyone eligible gets the bell, including the person who edited, as with the late bell.
 
 ### 3. Why a new `orders → notifications` edge is allowed
 
@@ -67,8 +67,16 @@ itself never waits for, or fails because of, the bell. Future extraction cost: n
 ### 4. Money in the bell
 
 The in-app display-name filter rejects any seven digits even with separators between them (`1250.000` fails, `125.000`
-passes) and is a name filter, not a money type, so amounts need their own strict parameter (`/^\d{1,11}\.\d{3}$/`) beside the existing ISO-date parameter. If ED-Q11 puts the editor's name in the bell, 35d-2 adds
-one narrow worker-`identity` display-name read with its exact §6 entry, as an addendum to this ADR.
+passes) and is a name filter, not a money type, so amounts need their own strict parameter (`/^\d{1,11}\.\d{3}$/`) beside the existing ISO-date parameter.
+
+### 5. The editor's name
+
+ED-Q11 puts the editor's name in the bell. Display names live on `employees` (`name_ar`, `name_en`, linked by
+`employees.user_id`); the global `user` table is reachable from `packages/auth` only (CLAUDE.md §5). 35d-2 therefore adds
+one narrow worker-`staff` export that returns the linked employee's names for a user id on the consumer transaction,
+behind an orders-owned port (`PriceEditNoticeEditor`). The `orders → staff` arrow already exists; the exact §6 read entry
+is declared with this ADR. An editor with no linked employee (for example an owner who is not an employee) gets a
+generic translated label, like the branch-name fallback; names pass the existing display-name filter.
 
 ## Consequences
 

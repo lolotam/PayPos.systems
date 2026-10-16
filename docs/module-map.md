@@ -117,7 +117,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
 | worker `orders` | `LateNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers, including recorder/performer (ADR-0041 35b-2) |
 | worker `orders` | `LateNoticePlace` | worker `tenancy` | branchPlace names only; the date/timezone remains the saved session snapshot (ADR-0041 35b-2) |
-| worker `orders` | `PriceEditNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the ADR-0037 interim rule, minus the editor when ED-Q10 says so (ADR-0044, 35d-2) |
+| worker `orders` | `PriceEditNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the ADR-0037 interim rule; the editor is not excluded (ED-Q10) (ADR-0044, 35d-2) |
+| worker `orders` | `PriceEditNoticeEditor` | worker `staff` | the editor's linked employee names (name_ar, name_en) by user id on the consumer transaction; no linked employee ⇒ generic label (ADR-0044 §5, 35d-2) |
 | worker `orders` | `PriceEditNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044, 35d-2) |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
@@ -294,6 +295,7 @@ reads:
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/price-edit-place.adapter.ts
+  - orders -> staff.employeeNamesByUser @ apps/worker/src/modules/orders/persistence/price-edit-editor.adapter.ts
   - orders -> catalog.readSessionServices @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
   - orders -> staff.readSessionPerformers @ apps/api/src/modules/orders/persistence/performer-check.adapter.ts
