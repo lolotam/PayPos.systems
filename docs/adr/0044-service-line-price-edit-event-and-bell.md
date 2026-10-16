@@ -79,14 +79,16 @@ business is allowed, so the business must be part of the key) and stores them in
 same transaction. The event carries no name; the 35d-2 consumer reads the history row, so a deactivated or relinked
 employee cannot change an already-committed bell and the worker needs no `staff` read. The `orders → staff` arrow already
 exists; the exact §6 read entry is declared with this ADR. An editor with no linked employee (for example an owner who is
-not an employee) is stored with null names and the bell shows a generic translated label, like the branch-name fallback.
+not an employee) is stored with null names and the bell shows a generic translated label, like the branch-name fallback;
+ED-Q13 (PENDING, batch 24) asks the owner what such an editor is shown as, since the global `user` table is not readable here.
 
 ### 6. Edit authority is rechecked inside the edit transaction
 
 The edit commits a financial change, so the HTTP guard's decision is not enough. The 35d-4 use case rechecks the selected
 editor membership, the new permission, DENY state and feature through an orders-owned `SessionEditAccessPort`
 (`lock()` then `read()`, mirroring recording's access port), after all line and performer waits and before an
-idempotency replay returns. The exact §6 read entries are declared with this ADR.
+idempotency replay returns; the editor's effective discount limit is read fresh in the same transaction
+(`DiscountLimitPort.read`, ED-Q2). The exact §6 read entries are declared with this ADR.
 
 ## Consequences
 
