@@ -104,7 +104,8 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 - **Deleting a merged worktree on Windows** fails on long `node_modules` paths. Empty it with
   `robocopy <empty-dir> <worktree-dir> /MIR`, then `Remove-Item` the folder, then `git worktree prune`, then
   `git branch -D <branch>`. `/MIR` deletes without asking, so first run `git status --porcelain` in that worktree and
-  stop if it prints anything (uncommitted or untracked work would be lost).
+  stop if it prints anything (uncommitted or untracked work would be lost). Git-ignored files are not listed there and
+  are deleted too — the copied `.env` is expected to go, anything else you care about must be copied out first.
 
 ### 3.4 Things that bite
 
