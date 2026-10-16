@@ -268,7 +268,7 @@ the outbox.
 | Table | Columns added / changed | RLS policy | Indexes | Tenant-qualified FKs |
 |---|---|---|---|---|
 | `line_performers` | add `linked_user_id uuid NULL` (user linked to the employee at recording) and `linked_user_snapshotted boolean NOT NULL DEFAULT false` (writers set `true`; existing rows and inserts by an old instance get `false`); `CHECK (linked_user_id IS NULL OR linked_user_snapshotted)`. **No backfill and no data step** | unchanged; grants stay `SELECT, INSERT` — the column is immutable after insert, so **no `UPDATE` grant** | `line_performers_linked_user_idx (linked_user_id) WHERE linked_user_id IS NOT NULL` (the FK index) | `FOREIGN KEY (linked_user_id) REFERENCES "user"(id)` — the global `user` table, as `service_line_edits.changed_by` does; no tenant column involved |
-| `service_line_edits` | widen `editor_role` from `owner|manager` to a role code (`CHECK editor_role ~ '^[a-z][a-z_]{0,63}$'`, the `roles_code_format` rule); add `editor_role_is_system boolean`, `editor_role_name_ar text`, `editor_role_name_en text`; new CHECKs: `editor_role`, `editor_role_is_system` and `editor_role_name_en` are all-or-nothing (`editor_role_name_ar` stays optional, as `roles.name_ar` is), name lengths ≤ 255, and **`editor_name_en IS NOT NULL OR editor_role IS NOT NULL`** (a row always has a readable who) | unchanged | none | none |
+| `service_line_edits` | widen `editor_role` from the two values `owner` and `manager` to a role code (`CHECK editor_role ~ '^[a-z][a-z_]{0,63}$'`, the `roles_code_format` rule); add `editor_role_is_system boolean`, `editor_role_name_ar text`, `editor_role_name_en text`; new CHECKs: `editor_role`, `editor_role_is_system` and `editor_role_name_en` are all-or-nothing (`editor_role_name_ar` stays optional, as `roles.name_ar` is), name lengths ≤ 255, and **`editor_name_en IS NOT NULL OR editor_role IS NOT NULL`** (a row always has a readable who) | unchanged | none | none |
 
 The migration is numbered at merge (after 35d-2's). It follows expand/contract: only additive columns and a looser CHECK.
 The recording and append writers (and 37b's performer change) write `linked_user_id` and `linked_user_snapshotted = true` from the
@@ -365,7 +365,8 @@ start before both are merged, so the writer never produces a row the consumer ca
   extra step.
 - **SC-002** 100% of committed edits show a readable "who" in the history and the bell, for every role that can hold the
   permission; 0 edits are shown as a blank or an id.
-- **SC-003** 0 edits are accepted from a user who is, or was when the line was recorded, a performer of that line; a line whose
+- **SC-003** 0 edits are accepted from a user who is, or was when the line was recorded, a performer of that line (a performer is identified by the
+  employee-user link, as in SS-25: a performer who was unlinked at recording cannot be detected, exactly as for recording); a line whose
   performer identity was never recorded cannot be edited at all.
 - **SC-004** 0 edits are saved above the editor's discount limit; the refusal always says the largest allowed discount.
 - **SC-005** A receptionist without the branch-read permission never sees a previous price, an editor or an edit time, on any

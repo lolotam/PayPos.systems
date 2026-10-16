@@ -21,7 +21,7 @@
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded (cancel 37, performer changes 37b, approvals 38–41, commissions 50 excluded)
 - [x] Dependencies and assumptions identified
-- [x] **Slice design** complete: schema (35d-3b), API contract (edit + history), permissions, events, test plan
+- [ ] **Slice design** complete: schema (35d-3b), API contract (edit + history), permissions, events, test plan — the edit-response shape for a caller without branch-read is an open contract item (ED-Q14, gates 35d-4)
 
 ## Feature Readiness
 
