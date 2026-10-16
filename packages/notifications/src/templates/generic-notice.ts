@@ -1,6 +1,7 @@
 import { validateParameters, type SafeParameter, type TemplateDefinition } from './definition.ts';
 import { breakNotReturned } from './break-not-returned.ts';
 import { lateServiceSession } from './late-service-session.ts';
+import { serviceLinePriceEdited } from './service-line-price-edited.ts';
 import { shiftNotClockedIn } from './shift-not-clocked-in.ts';
 import { attendanceChangeRequested } from './attendance-change-requested.ts';
 import { attendanceChangeDecided } from './attendance-change-decided.ts';
@@ -36,6 +37,7 @@ export function validInAppTemplate(
     [
       genericNotice,
       lateServiceSession,
+      serviceLinePriceEdited,
       shiftNotClockedIn,
       breakNotReturned,
       breakReturnedOtherBranch,

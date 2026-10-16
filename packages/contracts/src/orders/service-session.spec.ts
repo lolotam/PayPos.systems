@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { appendServiceSessionLinesInput, recordServiceSessionInput, recordedServiceLine, serviceLineChanged, sessionMoney } from './service-session.js';
+import { appendServiceSessionLinesInput, recordServiceSessionInput, recordedServiceLine, serviceLineChanged, serviceSessionLinesAdded, serviceSessionRecorded, sessionMoney } from './service-session.js';
 const id = '01920000-0000-7000-8000-000000004001';
 const other = '01920000-0000-7000-8000-000000004002';
 const line = { service_id: id, price: '7.125', discount: { kind: 'PERCENT', bps: 1000 }, performers: [{ employee_id: id }] };
@@ -50,4 +50,61 @@ it('batch snapshots are ACTIVE revision one; later changed-line snapshots may be
   expect(recordedServiceLine.safeParse({ ...saved, status: 'CANCELLED' }).success).toBe(false);
   expect(recordedServiceLine.safeParse({ ...saved, revision: 2 }).success).toBe(false);
   expect(serviceLineChanged.safeParse({ ...saved, status: 'CANCELLED', revision: 2 }).success).toBe(true);
+});
+const priceEdit = {
+  kind: 'PRICE_DISCOUNT_EDIT',
+  changed_at: '2026-10-16T10:00:00.000Z',
+  changed_by: id,
+  changed_by_membership_id: id,
+  previous: { revision: 1, price: '25.000', discount: '0.000', net: '25.000' },
+};
+const editedLine = {
+  line_id: id, session_id: id, service_id: id, branch_id: id, business_id: id, customer_id: id,
+  status: 'ACTIVE', occurred_at: '2026-10-16T10:00:00.000Z', recorded_at: '2026-10-12T10:00:00.000Z',
+  business_date: '2026-10-12', late: false, recorded_by: id, recorded_by_membership_id: id,
+  list_price: '25.000', price: '20.000', discount: '5.000', net: '20.000',
+  performers: [{ employee_id: id, share_bps: 10000 }], rule_snapshot: { kind: 'FIXED', value: '2.500' },
+  counts_snapshot: true, package: null, revision: 2, change: priceEdit,
+};
+it('accepts a price or discount edit on the next active revision', () => {
+  expect(serviceLineChanged.parse(editedLine).revision).toBe(2);
+});
+it('rejects a malformed price edit', () => {
+  const withoutEditor = Object.fromEntries(Object.entries(priceEdit).filter(([key]) => key !== 'changed_by'));
+  for (const candidate of [
+    { ...editedLine, change: { ...priceEdit, kind: 'CANCEL' } },
+    { ...editedLine, change: { ...priceEdit, note: 'extra' } },
+    { ...editedLine, revision: 3 },
+    { ...editedLine, status: 'CANCELLED' },
+    { ...editedLine, change: { ...priceEdit, previous: { ...priceEdit.previous, net: '2.5' } } },
+    { ...editedLine, change: { ...priceEdit, previous: { ...priceEdit.previous, price: '1250' } } },
+    { ...editedLine, change: { ...priceEdit, previous: { ...priceEdit.previous, discount: '1250.0000' } } },
+    { ...editedLine, change: { ...priceEdit, previous: { ...priceEdit.previous, net: '-1.000' } } },
+    { ...editedLine, change: { ...priceEdit, previous: { ...priceEdit.previous, price: '01.000' } } },
+    { ...editedLine, change: withoutEditor },
+    { ...editedLine, change: null },
+  ]) expect(serviceLineChanged.safeParse(candidate).success).toBe(false);
+});
+it('recorded batches stay without a change block', () => {
+  const saved = {
+    line_id: id, session_id: id, service_id: id, branch_id: id, business_id: id, customer_id: id,
+    status: 'ACTIVE', occurred_at: '2026-10-12T10:00:00.000Z', recorded_at: '2026-10-12T10:00:00.000Z',
+    business_date: '2026-10-12', late: false, recorded_by: id, recorded_by_membership_id: id,
+    list_price: '25.000', price: '25.000', discount: '0.000', net: '25.000',
+    performers: [{ employee_id: id, share_bps: 10000 }], rule_snapshot: { kind: 'FIXED', value: '2.500' },
+    counts_snapshot: true, package: null, revision: 1,
+  };
+  const recorded = {
+    schema_version: 1, session_id: id, business_id: id, branch_id: id, customer_id: id,
+    occurred_at: saved.occurred_at, recorded_at: saved.recorded_at, business_date: saved.business_date,
+    business_timezone: 'Asia/Kuwait', late: false, recorded_by: id, recorded_by_membership_id: id,
+    lines: [saved],
+  };
+  expect(recordedServiceLine.safeParse(saved).success).toBe(true);
+  expect(recordedServiceLine.safeParse({ ...saved, change: priceEdit }).success).toBe(false);
+  expect(recordedServiceLine.safeParse({ ...saved, extra: true }).success).toBe(false);
+  expect(serviceSessionRecorded.safeParse(recorded).success).toBe(true);
+  expect(serviceSessionLinesAdded.safeParse(recorded).success).toBe(true);
+  expect(serviceSessionRecorded.safeParse({ ...recorded, lines: [{ ...saved, change: priceEdit }] }).success).toBe(false);
+  expect(serviceSessionLinesAdded.safeParse({ ...recorded, lines: [{ ...saved, change: priceEdit }] }).success).toBe(false);
 });

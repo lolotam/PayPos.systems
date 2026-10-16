@@ -1,2 +1,4 @@
 /** يصدر للفائز بقرار جرس الزيارة المتأخرة، حدث واحد لكل مجموعة مديرين ضمن معاملة الدفتر. */
 export type { LateServiceSessionNoticeRequested } from '@pospay/contracts';
+/** يلحقه عامل orders مرة لكل مجموعة مستلمين بحد أقصى 100، داخل معاملة المستهلك التي تحجز صف دفتر (line, revision)، وفقط عندما يحمل التعديل المحفوظ change من نوع PRICE_DISCOUNT_EDIT ويوجد مدير مؤهل واحد على الأقل. */
+export type { ServiceLineEditNoticeRequested } from '@pospay/contracts';

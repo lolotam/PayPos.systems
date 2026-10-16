@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { id as sharedId } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { lateServiceSessionNoticeRequested } from './late-service-session-notice.js';
+import { serviceLineEditNoticeRequested } from './service-line-edit-notice.js';
 import { serviceCommissionRule } from '../catalog/service.js';
 const id = sharedId.toLowerCase();
 
@@ -56,15 +57,43 @@ const responseFields = { outcome: z.enum(['COMPLETE', 'PARTIAL']), session: serv
 export const recordServiceSessionResponse = z.strictObject(responseFields).meta({ id: 'RecordServiceSessionResponse' });
 export const appendServiceSessionLinesResponse = z.strictObject({ ...responseFields, added_lines: z.array(savedServiceLine).min(1).max(20) })
   .meta({ id: 'AppendServiceSessionLinesResponse' });
-export const serviceLineChanged = z.strictObject({
+const serviceLinePriceEdit = z.strictObject({
+  kind: z.literal('PRICE_DISCOUNT_EDIT'),
+  changed_at: timestamp,
+  changed_by: id,
+  changed_by_membership_id: id,
+  previous: z.strictObject({
+    revision: z.number().int().positive(),
+    price: sessionMoney,
+    discount: sessionMoney,
+    net: sessionMoney,
+  }),
+});
+const serviceLineChangedObject = z.strictObject({
   line_id: id, session_id: id, service_id: id, branch_id: id, business_id: id, customer_id: id,
   status: z.enum(['ACTIVE', 'CANCELLED']), occurred_at: timestamp, recorded_at: timestamp,
   business_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), late: z.boolean(), recorded_by: id, recorded_by_membership_id: id,
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
   performers: z.array(z.strictObject({ employee_id: id, share_bps: bps.min(1) })).min(1).max(4),
   rule_snapshot: serviceCommissionRule, counts_snapshot: z.boolean(), package: z.null(), revision: z.number().int().positive(),
-}).meta({ id: 'ServiceLineChanged' });
-export const recordedServiceLine = serviceLineChanged.extend({ status: z.literal('ACTIVE'), revision: z.literal(1) })
+  change: serviceLinePriceEdit.optional(),
+});
+/**
+ * التغيير اختياري لأن لقطات التسجيل المنشورة صارمة ومن غير المفتاح؛ وجوده يعني تعديل سعر أو خصم على سطر ACTIVE بالنسخة التالية حتى لا يُقرأ الإلغاء كتعديل سعر.
+ */
+export const serviceLineChanged = serviceLineChangedObject
+  .refine(
+    (line) =>
+      line.change === undefined ||
+      (line.revision === line.change.previous.revision + 1 && line.status === 'ACTIVE'),
+  )
+  .meta({ id: 'ServiceLineChanged' });
+/**
+ * الحذف قبل التدقيق لأن `z.undefined()` لا يُمثَّل في JSON Schema، و`z.never().optional()` ينشر المفتاح بصيغة `not` التي لا يفهمها OpenAPI 3.0.
+ */
+export const recordedServiceLine = serviceLineChangedObject
+  .omit({ change: true })
+  .safeExtend({ status: z.literal('ACTIVE'), revision: z.literal(1) })
   .meta({ id: 'RecordedServiceLine' });
 const eventFields = {
   schema_version: z.literal(1), session_id: id, business_id: id, branch_id: id, customer_id: id,
@@ -76,7 +105,7 @@ export const serviceSessionRecorded = z.strictObject(eventFields).meta({ id: 'Se
 export const serviceSessionLinesAdded = z.strictObject(eventFields).meta({ id: 'ServiceSessionLinesAdded' });
 export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessionLineInput, recordServiceSessionInput,
   appendServiceSessionLinesInput, sessionPerformer, savedServiceLine, serviceSession, rejectedServiceLine,
-  recordServiceSessionResponse, appendServiceSessionLinesResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested];
+  recordServiceSessionResponse, appendServiceSessionLinesResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested];
 export type RecordServiceSessionInput = z.infer<typeof recordServiceSessionInput>;
 export type AppendServiceSessionLinesInput = z.infer<typeof appendServiceSessionLinesInput>;
 export type RecordServiceSessionResponse = z.infer<typeof recordServiceSessionResponse>;

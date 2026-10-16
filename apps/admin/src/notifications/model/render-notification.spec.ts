@@ -215,3 +215,54 @@ it('late session copy follows viewer locale, saved date and English fallback', (
     ),
   ).toBe('سُجّلت جلسة متأخرة بتاريخ 2026-10-14 في فرع Salmiya.');
 });
+
+it('renders a price edit in the viewer locale, falling back to English names and the owner role label', () => {
+  const parameters = [
+    { name: 'service_name_ar', type: 'text', value: 'قص' },
+    { name: 'service_name_en', type: 'text', value: 'Cut' },
+    { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
+    { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
+    { name: 'business_date', type: 'text', value: '2026-10-16' },
+    { name: 'previous_net', type: 'text', value: '25.000' },
+    { name: 'new_net', type: 'text', value: '20.000' },
+    { name: 'editor_name_ar', type: 'text', value: 'ليلى' },
+    { name: 'editor_name_en', type: 'text', value: 'Laila' },
+  ];
+  const item = {
+    ...shift('ar'),
+    template_key: 'service_line_price_edited',
+    safe_parameters: parameters,
+  } as InAppNotification;
+  expect(renderNotification(item, 'ar')).toBe(
+    'عدّل ليلى خدمة قص في فرع السالمية بتاريخ 2026-10-16: كان الصافي 25.000 دينار وأصبح 20.000 دينار.',
+  );
+  expect(renderNotification(item, 'en')).toBe(
+    'Laila edited Cut at Salmiya dated 2026-10-16: the net was 25.000 KWD and is now 20.000 KWD.',
+  );
+  expect(
+    renderNotification(
+      {
+        ...item,
+        safe_parameters: parameters.map((parameter) =>
+          parameter.name.endsWith('_ar') ? { ...parameter, value: '   ' } : parameter,
+        ),
+      } as InAppNotification,
+      'ar',
+    ),
+  ).toBe(
+    'عدّل Laila خدمة Cut في فرع Salmiya بتاريخ 2026-10-16: كان الصافي 25.000 دينار وأصبح 20.000 دينار.',
+  );
+  const owner = parameters.map((parameter) =>
+    parameter.name === 'editor_name_ar'
+      ? { ...parameter, value: 'المالك' }
+      : parameter.name === 'editor_name_en'
+        ? { ...parameter, value: 'Owner' }
+        : parameter,
+  );
+  expect(renderNotification({ ...item, safe_parameters: owner } as InAppNotification, 'ar')).toBe(
+    'عدّل المالك خدمة قص في فرع السالمية بتاريخ 2026-10-16: كان الصافي 25.000 دينار وأصبح 20.000 دينار.',
+  );
+  expect(renderNotification({ ...item, safe_parameters: owner } as InAppNotification, 'en')).toBe(
+    'Owner edited Cut at Salmiya dated 2026-10-16: the net was 25.000 KWD and is now 20.000 KWD.',
+  );
+});

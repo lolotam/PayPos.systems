@@ -7,8 +7,8 @@ export interface TemplateParameter {
   readonly sensitivity: 'safe' | 'sensitive';
   readonly component: 'header' | 'body' | 'button';
   readonly buttonIndex?: string;
-  /** safe يرفض أي سلسلة من ٤–٨ أرقام؛ display_name يسمح بسنة داخل الاسم ويرفض الرابط والهاتف والرمز وحده؛ date يثبت التاريخ الميلادي الفعلي. */
-  readonly textKind?: 'safe' | 'display_name' | 'date';
+  /** safe يرفض أي سلسلة من ٤–٨ أرقام؛ display_name يسمح بسنة داخل الاسم ويرفض الرابط والهاتف والرمز وحده؛ date يثبت التاريخ الميلادي الفعلي؛ money يقبل 1250.000 كدينار بثلاث خانات لأن قاعدة ٤–٨ أرقام ترفض جزء 1250. */
+  readonly textKind?: 'safe' | 'display_name' | 'date' | 'money';
 }
 export interface TemplateDefinition {
   readonly key: string;
@@ -61,6 +61,7 @@ function textAllowed(descriptor: TemplateParameter, value: string): boolean {
       Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
   if (descriptor.textKind === 'display_name')
     return value.trim().length > 0 && !DISPLAY_NAME_UNSAFE.test(value.trim());
+  if (descriptor.textKind === 'money') return /^\d{1,11}\.\d{3}$/.test(value);
   return !UNSAFE_TEXT.test(value);
 }
 
