@@ -79,7 +79,7 @@ business is allowed, so the business must be part of the key) and stores them in
 same transaction. The event carries no name; the 35d-2 consumer reads the history row, so a deactivated or relinked
 employee cannot change an already-committed bell and the worker needs no `staff` read. The `orders → staff` arrow already
 exists; the exact §6 read entry is declared with this ADR. An editor with no linked employee (for example an owner who is
-not an employee) is stored with null names and the bell shows a generic translated label, like the branch-name fallback;
+not an employee) has no name to snapshot; what the bell and the history show for such an editor is not decided here and is not built until
 ED-Q13 (PENDING, batch 24) asks the owner what such an editor is shown as, since the global `user` table is not readable here.
 
 ### 6. Edit authority is rechecked inside the edit transaction

@@ -132,8 +132,8 @@ by company + business + user id, active employees only, because `employees_activ
 employee per user in each business) and stores `editor_name_ar` / `editor_name_en` (nullable) in the immutable edit-history
 row of the same transaction. The event does not carry the names; the 35d-2 consumer reads that history row by
 `(line_id, revision)` through the orders repository, so the worker needs no `staff` read. An editor with no linked employee
-(for example an owner who is not an employee) is stored with null names and the bell falls back to a generic translated
-label, like the branch-name fallback; names pass the existing display-name filter. `TODO(spec)` ED-Q13 (batch 24,
+(for example an owner who is not an employee) has no name to snapshot, and what the bell and the history show for such an editor is **not decided here** (ED-Q13); names
+pass the existing display-name filter. `TODO(spec)` ED-Q13 (batch 24,
 PENDING): that fallback means an owner who is not an employee is not identifiable by name in the bell or the history
 (ED-Q8), so the owner decides what such a person is shown as before the fallback wording is built. The
 `orders → staff` arrow already exists and the exact §6 entry is declared in this PR.
@@ -202,7 +202,7 @@ Consume side (35d-2, tests 4–9; fixtures insert `ServiceLineChanged` rows and 
    Ledger RLS negative tests (cross-tenant read = 0 rows, cross-tenant write = error), privilege-allowlist and
    tenant-table-inventory entries.
 6. **No manager.** Zero eligible recipients ⇒ ledger row with count 0, no `ServiceLineEditNoticeRequested`, consumed mark
-   set, no exception. Also: the editor is the only eligible person ⇒ the bell is still sent to the editor (ED-Q10); the editor who is a manager is included among several; an editor without a linked employee gets the generic name label; the editor's name is the snapshot stored at commit, so a deactivated or relinked employee does not change an already-committed bell (a test required).
+   set, no exception. Also: the editor is the only eligible person ⇒ the bell is still sent to the editor (ED-Q10); the editor who is a manager is included among several; an editor without a linked employee is a case left unbuilt and untested until ED-Q13 is answered (no guessed label); the editor's name is the snapshot stored at commit, so a deactivated or relinked employee does not change an already-committed bell (a test required).
 7. **Groups.** More than 100 recipients ⇒ stable groups of at most 100, all committed with the ledger row.
 8. **Ignored events.** `ServiceLineChanged` with `change` absent (or another kind) ⇒ consumed, no ledger row, no bell.
    A closed company ⇒ skip. A malformed payload or a line that does not match ⇒ `PRICE_EDIT_EVENT_INVALID`.
@@ -245,4 +245,5 @@ before 35d-4 and carries the `TODO(spec)` items above.
 
 Waleed answered ED-Q9…ED-Q11 on 2026-10-16; Abu Salem has not, and his pick replaces Waleed's if it differs (the
 recipient rule, the editor handling and the template wording are small, isolated pieces of 35d-2 and 35d-1). Nothing
-blocks 35d-1 or 35d-2; only ED-Q12 (batch 23) gates 35d-6.
+blocks 35d-1 or 35d-2 except the no-employee editor case, whose wording and data shape wait for ED-Q13 (batch 24) and are
+not built until it is answered; ED-Q12 (batch 23) gates 35d-6.
