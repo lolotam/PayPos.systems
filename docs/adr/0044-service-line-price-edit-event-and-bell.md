@@ -73,7 +73,9 @@ passes) and is a name filter, not a money type, so amounts need their own strict
 
 ED-Q11 puts the editor's name in the bell. Display names live on `employees` (`name_ar`, `name_en`, linked by
 `employees.user_id`); the global `user` table is reachable from `packages/auth` only (CLAUDE.md §5). 35d-2 therefore adds
-one narrow worker-`staff` export that returns the linked employee's names for a user id on the consumer transaction,
+one narrow worker-`staff` export that returns the active linked employee's names for a user id within the event's company
+and business (one active employee per user per business is allowed, so the business must be part of the key) on the consumer
+transaction,
 behind an orders-owned port (`PriceEditNoticeEditor`). The `orders → staff` arrow already exists; the exact §6 read entry
 is declared with this ADR. An editor with no linked employee (for example an owner who is not an employee) gets a
 generic translated label, like the branch-name fallback; names pass the existing display-name filter.

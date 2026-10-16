@@ -126,7 +126,9 @@ filter with the generic fallback label used by the late bell. Which parameters a
 editor name, branch, date) is fixed by ED-Q11: service name, branch and date, «was X, now Y» (net) and the editor's
 name. The editor's name needs a lookup: display names live on `employees` (`name_ar`, `name_en`, linked by
 `employees.user_id`); the global `user` table is reachable from `packages/auth` only. 35d-2 therefore adds one narrow
-worker-`staff` export returning the linked employee's names for a user id, read inside the consumer transaction through
+worker-`staff` export returning the linked employee's names for a user id **within the event's company and business**
+(`employees_active_user_business_key` allows one active employee per user in each business, so a user-id-only lookup would be
+ambiguous), active employees only, read inside the consumer transaction through
 an orders-owned port `PriceEditNoticeEditor`; the `orders → staff` arrow already exists and the exact §6 entry is
 declared in this PR. An editor with no linked employee (for example an owner who is not an employee) falls back to a
 generic translated label, like the branch-name fallback, and the names pass the existing display-name filter.
@@ -195,7 +197,7 @@ Consume side (35d-2; fixtures insert `ServiceLineChanged` rows directly, like `l
    Ledger RLS negative tests (cross-tenant read = 0 rows, cross-tenant write = error), privilege-allowlist and
    tenant-table-inventory entries.
 6. **No manager.** Zero eligible recipients ⇒ ledger row with count 0, no `ServiceLineEditNoticeRequested`, consumed mark
-   set, no exception. Also: the editor is the only eligible person ⇒ the bell is still sent to the editor (ED-Q10); the editor who is a manager is included among several; an editor without a linked employee gets the generic name label.
+   set, no exception. Also: the editor is the only eligible person ⇒ the bell is still sent to the editor (ED-Q10); the editor who is a manager is included among several; an editor without a linked employee gets the generic name label; an editor linked to two businesses gets the name of the edited business's employee (a test required).
 7. **Groups.** More than 100 recipients ⇒ stable groups of at most 100, all committed with the ledger row.
 8. **Ignored events.** `ServiceLineChanged` with `change` absent (or another kind) ⇒ consumed, no ledger row, no bell.
    A closed company ⇒ skip. A malformed payload or a line that does not match ⇒ `PRICE_EDIT_EVENT_INVALID`.
