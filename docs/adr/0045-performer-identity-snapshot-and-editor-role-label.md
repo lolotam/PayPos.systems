@@ -27,12 +27,13 @@ transaction: no new port and no new arrow. The column is immutable (the table ke
 The self-edit rule refuses when the editor's user equals any performer's `linked_user_id` **or** that performer's current
 `employees.user_id` (read under `PerformerCheckPort.lock`, `FOR SHARE`, in the edit transaction). Null never matches.
 
-Existing rows are backfilled once, best effort, with a plain SQL `UPDATE ... FROM employees` in the same migration, run by the
-migration owner under the migration-0074 guard (`rolsuper OR rolbypassrls`) and idempotent (`WHERE linked_user_id IS NULL`),
-as migration 0097 did. It is not an ADR-0038 data step: no TypeScript function is needed, and a data step runs as `pospay_app`,
-which would need a permanent column `UPDATE` grant and defeat immutability. A backfilled value is the link at migration time,
-possibly not the link at recording time; because the rule also checks the current link, it is never weaker than the interim
-rule of issue #250 ("deny when the editor is linked to any performer now").
+There is **no backfill**. `line_performers` also gains `linked_user_snapshotted boolean NOT NULL DEFAULT false`; record and
+append write `true`. Existing rows, and rows inserted by an old instance during a rolling deploy, read `false`, and the edit
+refuses such a line (`SESSION_EDIT_IDENTITY_UNKNOWN`, fail closed): its performers' identity at recording time cannot be
+proven. A backfill would store the link at migration time, which cannot close the bypass when the link moved earlier, and a
+tenant-row write by the migration owner is outside `CLAUDE.md` §5 / ADR-0038 (a data step runs as `pospay_app` and would need
+a permanent `UPDATE` grant that breaks the column's immutability). The cost is that pre-35d-3b lines are not editable; Phase 1
+has no production data (the salon pilot, row 63, has not started), so only staging test lines are affected.
 
 Consequence accepted: a user who *was* linked to a performer at recording and was later moved off cannot edit that old line.
 Another manager can. A false refusal is the safe direction for a commission-integrity rule.

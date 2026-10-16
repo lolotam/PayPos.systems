@@ -26,7 +26,7 @@ It settles the items plan-35d left as `TODO(spec)`:
 
 | Item | Where plan-35d left it | Decision | Section |
 |---|---|---|---|
-| How the self-edit rule knows a performer's user (#250) | §8 row 35d-4 | recording-time snapshot column on `line_performers`, **plus** the current link | D-1, FR-007 |
+| How the self-edit rule knows a performer's user (#250) | §8 row 35d-4 | recording-time snapshot on `line_performers` **plus** the current link; lines without a snapshot are refused (fail closed) | D-1, FR-007 |
 | `editor_role` must cover every delegable role (#252) and a delegated editor without an employee (#255) | §3, schema comment | store the real role code and a name snapshot; render through one label function | D-2, FR-012 |
 | Equal values | §2 | refused with `SESSION_EDIT_NO_CHANGE` | D-3, FR-009 |
 | Several lines in one request | §6 | one line per request | D-4, FR-001 |
@@ -39,7 +39,7 @@ payment, printing or sync.
 
 | ID | Decision | Alternative rejected |
 |---|---|---|
-| D-1 | Performer identity for ED-Q4 = **snapshot ∪ current link** (ADR-0045 §1) | link history table; current link only |
+| D-1 | Performer identity for ED-Q4 = **snapshot ∪ current link**; a line whose performers have no recording-time snapshot (recorded before 35d-3b, or by an old instance during a rolling deploy) is **not editable** (ADR-0045 §1) | link history table; current link only; a best-effort backfill (it cannot recover a link that moved before the migration, and a tenant backfill needs the ADR-0038 data-step machinery) |
 | D-2 | Editor label = real role code + name snapshot, one pure label function (ADR-0045 §2) | two-value enum; refuse the permission for editors without an employee |
 | D-3 | An edit that changes neither stored price nor stored discount is refused | silently accept (burns a revision, rings the bell, writes history for nothing) |
 | D-4 | One line per request | batch edit (partial-failure semantics with no owner request behind them) |
@@ -107,6 +107,10 @@ the outbox.
   and **U2 is refused too** (current link). A different manager U3 can edit.
 - **LE-12** A performer who was **unlinked** at recording and linked to U4 afterwards: U4 is refused (current link).
 - **LE-13** A line with several performers: any one of them, by either source, refuses.
+- **LE-13b** (fail closed) A line recorded before the snapshot existed, or inserted by an old instance during a rolling
+  deploy (its performers have `linked_user_snapshotted = false`) → 422 `SESSION_EDIT_IDENTITY_UNKNOWN`; nothing written. The
+  identity of its performers cannot be proven, so nobody, owner included, may edit it. (Phase 1 has no production data yet: the
+  salon pilot, row 63, starts later; the affected lines are staging test lines.)
 
 ### User Story 4 — History for managers, a mark for everyone else (Priority: P2)
 
@@ -188,7 +192,8 @@ the outbox.
 - **FR-007** ED-Q4 (D-1): refuse with `SESSION_PERFORMER_SELF_FORBIDDEN` when the **editor's user id** equals the
   `linked_user_id` snapshot of any performer of the line, **or** the current `employees.user_id` of any performer
   (read through `PerformerCheckPort` after `lock(employeeIds)`, `FOR SHARE`). The comparison is one pure orders domain
-  function; null never matches (an unlinked performer cannot be detected as the editor, as in SS-25).
+  function; null never matches (an unlinked performer cannot be detected as the editor, as in SS-25). Before comparing, if
+  any performer row has `linked_user_snapshotted = false`, refuse with `SESSION_EDIT_IDENTITY_UNKNOWN` (LE-13b).
 - **FR-008** ED-Q5: `reason` is required, trimmed of leading/trailing space, tab, CR and LF, then 1…500 characters.
   The database `CHECK service_line_edits_reason` of 35d-3 already enforces the same rule; the domain function mirrors it
   and is the unit-tested source (D-7).
@@ -228,8 +233,8 @@ the outbox.
 
 - **Line edit** (`service_line_edits`, 35d-3): one immutable row per accepted edit, keyed `(company_id, id)` and unique on
   `(company_id, line_id, revision)`. Extended by 35d-3b with the role snapshot.
-- **Performer snapshot** (`line_performers.linked_user_id`, new in 35d-3b): the user linked to the performer's employee record
-  at the moment the line was recorded; null when unlinked.
+- **Performer snapshot** (`line_performers.linked_user_id` + `linked_user_snapshotted`, new in 35d-3b): the user linked to the
+  performer's employee record at the moment the line was recorded (null when unlinked), and whether a snapshot was taken at all.
 - **Editor label**: a computed value (name or role), never stored as one string.
 
 ## 4. Slice design *(mandatory — `CLAUDE.md` §1)*
@@ -248,7 +253,7 @@ the outbox.
 
 | Table | Columns added / changed | RLS policy | Indexes | Tenant-qualified FKs |
 |---|---|---|---|---|
-| `line_performers` | add `linked_user_id uuid NULL` — user linked to the employee at recording; **backfill** from the current link (best effort, plain SQL as the migration owner, `WHERE linked_user_id IS NULL`, same `rolsuper OR rolbypassrls` guard as migration 0074, idempotent) | unchanged; grants stay `SELECT, INSERT` — the column is immutable after insert, so **no `UPDATE` grant** | `line_performers_linked_user_idx (linked_user_id) WHERE linked_user_id IS NOT NULL` (the FK index) | `FOREIGN KEY (linked_user_id) REFERENCES "user"(id)` — the global `user` table, as `service_line_edits.changed_by` does; no tenant column involved |
+| `line_performers` | add `linked_user_id uuid NULL` (user linked to the employee at recording) and `linked_user_snapshotted boolean NOT NULL DEFAULT false` (writers set `true`; existing rows and inserts by an old instance get `false`); `CHECK (linked_user_id IS NULL OR linked_user_snapshotted)`. **No backfill and no data step** | unchanged; grants stay `SELECT, INSERT` — the column is immutable after insert, so **no `UPDATE` grant** | `line_performers_linked_user_idx (linked_user_id) WHERE linked_user_id IS NOT NULL` (the FK index) | `FOREIGN KEY (linked_user_id) REFERENCES "user"(id)` — the global `user` table, as `service_line_edits.changed_by` does; no tenant column involved |
 | `service_line_edits` | widen `editor_role` from `owner|manager` to a role code (`CHECK editor_role ~ '^[a-z][a-z_]{0,63}$'`, the `roles_code_format` rule); add `editor_role_is_system boolean`, `editor_role_name_ar text`, `editor_role_name_en text`; new CHECKs: role columns are all-or-nothing, a company role (`is_system = false`) carries `editor_role_name_en`, name lengths ≤ 255, and **`editor_name_en IS NOT NULL OR editor_role IS NOT NULL`** (a row always has a readable who) | unchanged | none | none |
 
 The migration is numbered at merge (after 35d-2's). It follows expand/contract: only additive columns and a looser CHECK.
@@ -256,9 +261,12 @@ The recording and append writers (and 37b's performer change) write `linked_user
 `SessionEmployee.user_id` that `PerformerCheckPort.read` already returns — no new port, no new arrow. The schema file's
 `TODO(spec)` comment on `editorRole` (issue #255) is replaced by 35d-3b.
 
-The backfill is plain SQL, not an ADR-0038 data step: it needs no TypeScript function (the value is copied), and a data
-step runs as `pospay_app`, which would force a permanent `UPDATE` grant on the snapshot column and break its immutability.
-Precedent for owner-run SQL backfills: migration 0097.
+There is deliberately no backfill. A backfilled value would be the link at migration time, not at recording time, so it
+cannot close the bypass for a link that moved earlier; and a tenant-row write by the migration owner is outside the
+`CLAUDE.md` §5 rule (a data step runs as `pospay_app`, which would need a permanent `UPDATE` grant that defeats immutability).
+`ADD COLUMN ... NOT NULL DEFAULT false` is a metadata-only change. The default also covers the rolling deploy: an old instance
+that inserts a performer without the new columns produces `linked_user_snapshotted = false`, which the edit refuses (LE-13b),
+so no deployment window can create an editable line without a snapshot.
 
 ### API contract
 
@@ -269,7 +277,7 @@ Precedent for owner-run SQL backfills: migration 0097.
   editor_membership_id?: uuid }` → `200 { line: <saved line snapshot> & { edited: boolean }, session: { id, total } }`.
 - **Idempotency-Key**: required; COMPANY scope, operation `edit-service-line-price`; fingerprint over
   `{method, route, query, body, params:{businessId, branchId, companyId, actorUserId, sessionId, lineId}}` using the shared helper.
-- **History** (35d-5) — `GET .../service-sessions/:sessionId/lines/:lineId/edits?cursor&limit` · `@Require('read:service-sessions:branch')`
+- **History** (35d-5) — `GET .../service-sessions/:sessionId/lines/:lineId/edits?cursor&limit` · `@Require('read:service-sessions:branch', { branch: 'branchId' })` · `@RequiresFeature('orders')` · `SessionAdminGuard`
   → `{ items: [{ revision, previous: {price, discount, net}, new: {price, discount, net}, changed_at, editor_label_ar,
   editor_label_en, reason }], next_cursor }`. A `queries/` file: read-only, no `domain/` or `use-cases/` import.
 - **Errors** (`message_ar` / `message_en`):
@@ -278,6 +286,7 @@ Precedent for owner-run SQL backfills: migration 0097.
   - `SESSION_LINE_NOT_EDITABLE` 422 — «السطر ده ملغي ومينفعش يتعدّل.» / "This line is cancelled and cannot be edited."
   - `SESSION_EDIT_REASON_INVALID` 422 — «اكتب سبب التعديل (لحد 500 حرف).» / "Enter the reason for the edit (up to 500 characters)."
   - `SESSION_EDITOR_MEMBERSHIP_REQUIRED` 422 — details `editor_membership_ids`, mirrors `SESSION_RECORDER_MEMBERSHIP_REQUIRED`.
+  - `SESSION_EDIT_IDENTITY_UNKNOWN` 422 — «مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتعدّل.» / "This older line has no performer identity record and cannot be edited."
   - Reused: `SESSION_DISCOUNT_ABOVE_LIMIT`, `SESSION_DISCOUNT_INVALID`, `SESSION_TIME_TOO_OLD`, `SESSION_PERFORMER_SELF_FORBIDDEN`,
     `SESSION_TOTAL_TOO_LARGE`, `IDEMPOTENCY_KEY_REUSED`, `FORBIDDEN`, `FEATURE_DISABLED`.
 
@@ -315,7 +324,9 @@ Precedent for owner-run SQL backfills: migration 0097.
   name nor role.
 - **Queries (35d-5)**: result-shape test and an `EXPLAIN` assertion that the history read uses
   `service_line_edits_line_revision_key`.
-- **Migration**: the backfill is idempotent (second run updates 0 rows) and never overwrites a non-null snapshot.
+- **Migration / rollout**: existing rows read `linked_user_snapshotted = false`; an insert that omits the new columns (old
+  instance) yields `false`; the CHECK rejects `linked_user_id` set with `linked_user_snapshotted = false`; the edit refuses such a
+  line (LE-13b).
 
 ## 5. Delivery: the sub-PR split after this spec
 
@@ -323,7 +334,7 @@ Owner rule 2026-10-12: at most three subtasks per PR. Sizes are hand-written lin
 
 | PR | Result | Blocked on | Size |
 |---|---|---|---|
-| **35d-3b** | Storage for D-1 and D-2: the migration above, the backfill, `linked_user_id` written by record/append, schema + privilege allowlist + inventory + RLS negative tests | this spec; numbered after 35d-2's migration | 250–350 |
+| **35d-3b** | Storage for D-1 and D-2: the migration above (no backfill), `linked_user_id` and `linked_user_snapshotted = true` written by record/append, schema + privilege allowlist + inventory + RLS negative tests | this spec; numbered after 35d-2's migration | 250–350 |
 | **35d-2b** | `editorLabel` in `packages/i18n` (+ catalog keys for the other system roles' use and the generic label) and the 35d-2 consumer reading the widened columns, with the LE-21…23 tests | 35d-2 merged, 35d-3b | 120–200 |
 | **35d-4** | The writer, as FR-001…FR-017, plus plan-35d delivery tests 1–3 and 10 | this spec; 35d-1, 35d-2, 35d-2b, 35d-3, 35d-3b | 450–600 |
 | **35d-5** | Day-list edit form + the guarded history read (FR-018) | 35d-4 | 250–380 |
@@ -331,7 +342,7 @@ Owner rule 2026-10-12: at most three subtasks per PR. Sizes are hand-written lin
 
 35d-2b is small enough to be absorbed by the 35d-2 session if 35d-2 has not merged when 35d-3b does; either way 35d-4 does not
 start before both are merged, so the writer never produces a row the consumer cannot label. 37b (performer changes) must write
-`linked_user_id` for the performers it adds.
+`linked_user_id` and `linked_user_snapshotted = true` for the performers it adds.
 
 ## 6. Success criteria *(mandatory)*
 
@@ -339,7 +350,8 @@ start before both are merged, so the writer never produces a row the consumer ca
   extra step.
 - **SC-002** 100% of committed edits show a readable "who" in the history and the bell, for every role that can hold the
   permission; 0 edits are shown as a blank or an id.
-- **SC-003** 0 edits are accepted from a user who is, or was when the line was recorded, a performer of that line.
+- **SC-003** 0 edits are accepted from a user who is, or was when the line was recorded, a performer of that line; a line whose
+  performer identity was never recorded cannot be edited at all.
 - **SC-004** 0 edits are saved above the editor's discount limit; the refusal always says the largest allowed discount.
 - **SC-005** A receptionist without the branch-read permission never sees a previous price, an editor or an edit time, on any
   screen or response.
@@ -354,9 +366,8 @@ start before both are merged, so the writer never produces a row the consumer ca
   It is a rare path and changing it needs no migration.
 - `edited = revision > 1` will also be true for a line whose performers are changed later by 37b, if 37b bumps the revision;
   the mark then means "changed after first save", and the history panel shows only price/discount edits.
-- Backfilled `linked_user_id` values are the link at migration time, which may differ from the link at recording time. This is
-  harmless: the self-edit rule also checks the current link, so a backfilled row is never weaker than checking the current link
-  alone (the interim behaviour #250 describes).
+- Lines recorded before 35d-3b stay non-editable by this endpoint. This costs nothing today (staging test data only, the
+  salon pilot has not started); if real lines ever predate the snapshot, a separate, tenant-scoped resolution is a new decision.
 - Edits are rare and single-line; the 200 ms rule is expected to hold synchronously, and 35d-4 measures it rather than assumes it.
 - Out of scope and unchanged: the bell wording (ED-Q11), recipients (ED-Q9), the editor receiving the bell (ED-Q10), the
   window (ED-Q3) and each answered owner question.
