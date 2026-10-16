@@ -1,1 +1,4 @@
-export { createLateServiceSessionNoticeConsumer } from './orders.module.ts';
+export {
+  createLateServiceSessionNoticeConsumer,
+  createPriceEditNoticeConsumer,
+} from './orders.module.ts';
