@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   interimPriceEditNoticeRule,
+  priceEditEditorLabel,
   priceEditNoticeParameters,
   priceEditRecipientGroups,
   type PriceEditParameterInput,
@@ -11,6 +12,7 @@ const fallback: PriceEditParameterInput['fallback'] = {
   branch: { ar: 'فرع', en: 'Branch' },
   owner: { ar: 'المالك', en: 'Owner' },
   manager: { ar: 'المدير', en: 'Manager' },
+  employee: { ar: 'موظف', en: 'Employee' },
 };
 const base = {
   service: { nameAr: 'قص', nameEn: 'Cut' },
@@ -18,7 +20,7 @@ const base = {
   businessDate: '2026-10-16',
   previousNet: '2.500',
   newNet: '1250.000',
-  editor: { nameAr: 'سالم', nameEn: 'Salem', role: 'manager' },
+  editor: { ar: 'سالم', en: 'Salem' },
   fallback,
 } satisfies PriceEditParameterInput;
 
@@ -90,6 +92,7 @@ it('editor English does not fall back to Arabic; a missing name uses the stored 
     'Salem',
     'Salem',
   ]);
+  expect(names({ nameAr: null, nameEn: 'https://x.test', role: null })).toEqual(['موظف', 'Employee']);
   expect(() => names({ nameAr: null, nameEn: null, role: null })).toThrow('PRICE_EDIT_EVENT_INVALID');
   expect(() => names({ nameAr: '   ', nameEn: null, role: 'cashier' })).toThrow(
     'PRICE_EDIT_EVENT_INVALID',
@@ -104,8 +107,7 @@ it('keeps a year inside a name and a real leap day', () => {
   expect(values[0]).toBe('خدمة 2026');
   expect(values[4]).toBe('2024-02-29');
 });
-function names(editor: PriceEditParameterInput['editor']) {
-  return priceEditNoticeParameters({ ...base, editor })
-    .slice(7)
-    .map((item) => item.value);
+function names(editor: Parameters<typeof priceEditEditorLabel>[0]) {
+  const label = priceEditEditorLabel(editor, fallback);
+  return [label.ar, label.en];
 }

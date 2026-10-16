@@ -84,6 +84,24 @@ it('test 6: unsafe service and branch names fall back to the catalog labels', as
   }
 });
 
+it('test 6: an editor row with no usable label is invalid even when nobody would be notified', async () => {
+  const prepared = await f.edit({ editorNameAr: null, editorNameEn: null, editorRole: null });
+  expect((await withoutManagers()(prepared.event)).delivered).toBe(false);
+  expect(await f.notices(prepared.lineId)).toHaveLength(0);
+  expect(await f.consumed(prepared.event.id)).toHaveLength(0);
+});
+
+it('test 6: a stored editor name rejected as unsafe uses the generic employee label when there is no role', async () => {
+  const prepared = await f.edit({
+    editorNameAr: null,
+    editorNameEn: 'https://example.test',
+    editorRole: null,
+  });
+  await f.deliver(prepared.event);
+  expect(parameter(await f.requests(prepared.sessionId), 'editor_name_ar')).toBe('موظف');
+  expect(parameter(await f.requests(prepared.sessionId), 'editor_name_en')).toBe('Employee');
+});
+
 function withoutManagers() {
   return createDeliverer(
     f.db,
@@ -111,6 +129,7 @@ function catalogFallback(): PriceEditNameFallback {
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
     owner: { ar: t('ar', 'inApp.editor_role_owner'), en: t('en', 'inApp.editor_role_owner') },
     manager: { ar: t('ar', 'inApp.editor_role_manager'), en: t('en', 'inApp.editor_role_manager') },
+    employee: { ar: t('ar', 'inApp.generic_employee'), en: t('en', 'inApp.generic_employee') },
   };
 }
 function recipientIds(rows: Record<string, unknown>[]): string[] {

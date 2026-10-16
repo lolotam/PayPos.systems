@@ -1,7 +1,9 @@
 import {
   interimPriceEditNoticeRule,
+  priceEditEditorLabel,
   priceEditNoticeParameters,
   priceEditRecipientGroups,
+  type PriceEditEditorLabel,
   type PriceEditNameFallback,
   type PriceEditParameters,
 } from '../../domain/price-edit-notice.ts';
@@ -10,7 +12,6 @@ import type {
   IdGenerator,
   PriceEditNoticeLine,
   PriceEditNoticePorts,
-  PriceEditSnapshot,
 } from '../../ports/price-edit-notice.port.ts';
 
 /** يطلب جرس تعديل السعر مرة لكل (سطر، مراجعة) داخل معاملة المستهلك. */
@@ -40,6 +41,10 @@ export class RequestPriceEditNotice {
       snapshot.newNet !== input.newNet
     )
       throw new Error('PRICE_EDIT_EVENT_INVALID');
+    const editor = priceEditEditorLabel(
+      { nameAr: snapshot.editorNameAr, nameEn: snapshot.editorNameEn, role: snapshot.editorRole },
+      this.fallback,
+    );
     const { groups, recipientCount } = priceEditRecipientGroups(users);
     const won = await this.ports.repository.claim(input, {
       id: this.ids.newId(),
@@ -48,12 +53,12 @@ export class RequestPriceEditNotice {
       recipientCount,
     });
     if (!won || recipientCount === 0) return;
-    await this.publish(input, snapshot, groups, rule.channel);
+    await this.publish(input, editor, groups, rule.channel);
   }
 
   private async publish(
     input: PriceEditNoticeInput,
-    snapshot: PriceEditSnapshot,
+    editor: PriceEditEditorLabel,
     groups: readonly (readonly string[])[],
     channel: 'IN_APP',
   ): Promise<void> {
@@ -67,11 +72,7 @@ export class RequestPriceEditNotice {
       businessDate: input.businessDate,
       previousNet: input.previousNet,
       newNet: input.newNet,
-      editor: {
-        nameAr: snapshot.editorNameAr,
-        nameEn: snapshot.editorNameEn,
-        role: snapshot.editorRole,
-      },
+      editor,
       fallback: this.fallback,
     });
     for (const group of groups) await this.append(input, context.businessTimezone, group, channel, parameters);

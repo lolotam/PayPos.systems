@@ -125,5 +125,6 @@ function catalogFallback(): PriceEditNameFallback {
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
     owner: { ar: t('ar', 'inApp.editor_role_owner'), en: t('en', 'inApp.editor_role_owner') },
     manager: { ar: t('ar', 'inApp.editor_role_manager'), en: t('en', 'inApp.editor_role_manager') },
+    employee: { ar: t('ar', 'inApp.generic_employee'), en: t('en', 'inApp.generic_employee') },
   };
 }

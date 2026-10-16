@@ -9,6 +9,7 @@ export interface PriceEditNameFallback {
   readonly branch: { readonly ar: string; readonly en: string };
   readonly owner: { readonly ar: string; readonly en: string };
   readonly manager: { readonly ar: string; readonly en: string };
+  readonly employee: { readonly ar: string; readonly en: string };
 }
 /** ترتيب ED-Q11 ثابت؛ المبلغ نص بثلاث خانات وليس ناتج تحويل رقمي. */
 export type PriceEditParameters = [
@@ -22,17 +23,23 @@ export type PriceEditParameters = [
   { name: 'editor_name_ar'; type: 'text'; value: string },
   { name: 'editor_name_en'; type: 'text'; value: string },
 ];
+/** اسم المحرر الجاهز للقالب بعد تطبيق قواعد الرجوع. */
+export interface PriceEditEditorLabel {
+  readonly ar: string;
+  readonly en: string;
+}
+export interface PriceEditEditorSnapshot {
+  readonly nameAr: string | null;
+  readonly nameEn: string | null;
+  readonly role: string | null;
+}
 export interface PriceEditParameterInput {
   readonly service: { readonly nameAr: string | null; readonly nameEn: string | null };
   readonly branch: { readonly nameAr: string | null; readonly nameEn: string | null };
   readonly businessDate: string;
   readonly previousNet: string;
   readonly newNet: string;
-  readonly editor: {
-    readonly nameAr: string | null;
-    readonly nameEn: string | null;
-    readonly role: string | null;
-  };
+  readonly editor: PriceEditEditorLabel;
   readonly fallback: PriceEditNameFallback;
 }
 const UNSAFE_NAME =
@@ -77,7 +84,6 @@ export function priceEditNoticeParameters(input: PriceEditParameterInput): Price
   assertCanonicalMoney(input.newNet);
   const service = bilingual(input.service.nameAr, input.service.nameEn, input.fallback.service);
   const branch = bilingual(input.branch.nameAr, input.branch.nameEn, input.fallback.branch);
-  const editor = editorNames(input.editor, input.fallback);
   return [
     { name: 'service_name_ar', type: 'text', value: service.ar },
     { name: 'service_name_en', type: 'text', value: service.en },
@@ -86,8 +92,8 @@ export function priceEditNoticeParameters(input: PriceEditParameterInput): Price
     { name: 'business_date', type: 'text', value: input.businessDate },
     { name: 'previous_net', type: 'text', value: input.previousNet },
     { name: 'new_net', type: 'text', value: input.newNet },
-    { name: 'editor_name_ar', type: 'text', value: editor.ar },
-    { name: 'editor_name_en', type: 'text', value: editor.en },
+    { name: 'editor_name_ar', type: 'text', value: input.editor.ar },
+    { name: 'editor_name_en', type: 'text', value: input.editor.en },
   ];
 }
 function bilingual(
@@ -100,14 +106,24 @@ function bilingual(
     en: safeName(nameEn) ?? fallback.en,
   };
 }
-function editorNames(
-  editor: PriceEditParameterInput['editor'],
+/**
+ * يحدد اسم المحرر من لقطة سجل التعديل: الاسم الآمن، ثم مسمى الدور الثابت (ED-Q13)، ثم تسمية الموظف العامة
+ * لو كان الاسم مخزنًا لكنه مرفوض كاسم آمن. لقطة بلا اسم ولا دور ثغرة مواصفات مفتوحة (#255) فتُرفض.
+ *
+ * @param editor الاسمان والدور كما خُزنت وقت الحفظ
+ * @param fallback التسميات المحقونة من الكتالوج
+ * @returns الاسم العربي والإنجليزي الجاهزين لمعاملات القالب
+ */
+export function priceEditEditorLabel(
+  editor: PriceEditEditorSnapshot,
   fallback: PriceEditNameFallback,
-): { ar: string; en: string } {
+): PriceEditEditorLabel {
   const role =
     editor.role === 'owner' ? fallback.owner : editor.role === 'manager' ? fallback.manager : null;
-  const en = safeName(editor.nameEn) ?? role?.en ?? null;
-  const ar = safeName(editor.nameAr) ?? safeName(editor.nameEn) ?? role?.ar ?? null;
+  const stored = [editor.nameAr, editor.nameEn].some((name) => (name?.trim() ?? '') !== '');
+  const generic = stored ? fallback.employee : null;
+  const en = safeName(editor.nameEn) ?? role?.en ?? generic?.en ?? null;
+  const ar = safeName(editor.nameAr) ?? safeName(editor.nameEn) ?? role?.ar ?? generic?.ar ?? null;
   if (ar === null || en === null) throw new Error('PRICE_EDIT_EVENT_INVALID');
   return { ar, en };
 }
