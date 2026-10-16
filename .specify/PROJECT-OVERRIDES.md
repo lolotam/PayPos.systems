@@ -9,6 +9,8 @@ changes, so that a `specify` refresh can be checked against them.
 | Business rules are never guessed; no cap on clarification markers | `speckit-specify` skills | `CLAUDE.md` §11 |
 | Specs carry a mandatory **Slice design** section (schema, API contract, permissions, events, test plan) | `templates/overrides/spec-template.md`, `speckit-specify` checklist | `CLAUDE.md` §1 |
 | Test tasks are mandatory, never optional | `speckit-tasks` skills, `templates/overrides/tasks-template.md` | `CLAUDE.md` §9 — tests are required to merge |
+| `/speckit-implement` refuses to start while a business-rule checklist item is open (`checklists/requirements.md`, or any checklist item about money, permissions, tenant scope or business rules); a "yes" never overrides it. Other reviewer checklists keep the ask-to-proceed prompt | `speckit-implement` skills (`.claude`, `.github`, `.agents`) | `CLAUDE.md` §11 — business rules are never guessed |
+| `/speckit-implement` runs `pnpm check` from the repo root and does not report completion unless it exits 0 | `speckit-implement` skills (`.claude`, `.github`, `.agents`) | `CLAUDE.md` §1 — a slice is not done until `pnpm check` passes |
 
 ## Where the commands run
 
@@ -21,8 +23,9 @@ install PowerShell 7 (`pwsh`) there or re-initialise spec-kit with `--script sh`
 
 - `templates/overrides/` is Spec Kit's own project layer and survives a refresh untouched.
 - The script and the `speckit-*` skills in `.claude/`, `.github/` and `.agents/` **are** regenerated.
-  Re-apply the two rows above, then run:
+  Re-apply the rows above, then run:
   `Select-String -Path .specify\scripts\powershell\*.ps1, .claude\skills\speckit-*\SKILL.md -Pattern "'specs'|Tests are OPTIONAL"` — it must return nothing.
+  `Select-String -Path .claude\skills\speckit-implement\SKILL.md, .github\skills\speckit-implement\SKILL.md, .agents\skills\speckit-implement\SKILL.md -Pattern "pnpm check", "this gate cannot be overridden"` — each pattern must match in all three files. `-Pattern "If any checklist has unchecked items\*\*:"` on the same paths must return nothing (it is the old overridable prompt).
 
 ## Naming a feature
 
