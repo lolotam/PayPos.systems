@@ -1,5 +1,5 @@
 {
-  "id": "691a2a81-cf35-4c1e-adf3-77f6bb1adbef",
+  "id": "a5d2f5ea-0f7a-4e54-aed2-ffb186ef4fb7",
   "prevId": "00062137-782f-4d11-abaf-77254b13ba4c",
   "version": "7",
   "dialect": "postgresql",
@@ -3666,13 +3666,13 @@
         }
       },
       "uniqueConstraints": {
-        "memberships_company_id_id_user_id_key": {
-          "name": "memberships_company_id_id_user_id_key",
+        "memberships_company_id_user_id_id_key": {
+          "name": "memberships_company_id_user_id_id_key",
           "nullsNotDistinct": false,
           "columns": [
             "company_id",
-            "id",
-            "user_id"
+            "user_id",
+            "id"
           ]
         }
       },
@@ -14563,13 +14563,13 @@
           "tableTo": "memberships",
           "columnsFrom": [
             "company_id",
-            "changed_by_membership_id",
-            "changed_by"
+            "changed_by",
+            "changed_by_membership_id"
           ],
           "columnsTo": [
             "company_id",
-            "id",
-            "user_id"
+            "user_id",
+            "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
