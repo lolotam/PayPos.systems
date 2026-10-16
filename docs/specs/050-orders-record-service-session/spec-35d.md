@@ -261,6 +261,10 @@ the outbox.
 - **BR-002** The editor must not be (now, or when the line was recorded) a performer of that line, whatever the role
   (SS-25 extended in time). A false refusal is accepted: a user who *was* a performer and was later moved off
   the employee record cannot edit that old line; another manager can.
+- **BR-002b** The rule looks at the performers attached to the line **at edit time** (their snapshot and their current link). A
+  performer that a later row-37b change removes from the line is no longer attached, so 37b's own spec must decide `TODO(spec)` 37b
+  whether a removed performer's recorded identity keeps blocking edits (the snapshot row must then be retained, e.g. by marking the
+  row removed instead of deleting it) or stops blocking; 35d does not guess it, and 37b must not delete a snapshot silently.
 - **BR-003** A revision is consumed only by a real change. Reason and who-label are mandatory facts of every edit.
 - **BR-004** Orders owns the line's money, the history and the snapshots; it never reads `user`, a statement or a rating.
 

@@ -70,7 +70,7 @@ the wording of the two labels it names; a company role's name is whatever its ow
   label use. 35d-4 starts only after both. Sizes and gates are in spec-35d §5.
 - Migration numbering follows merge order (after 35d-2's).
 - The `TODO(spec)` comment on `editorRole` in `packages/db/schema/orders.ts` is removed by 35d-3b.
-- 37b must write `linked_user_id` and `linked_user_snapshotted = true` for performers it adds (a non-null `linked_user_id` with the default `false` is rejected by the CHECK; an unlinked performer left at `false` would make the line permanently non-editable).
+- 37b must decide, in its own spec (`TODO(spec)` 37b), whether a performer it removes keeps blocking edits (then the removed row's snapshot must be retained, not deleted) or stops blocking; and it must write `linked_user_id` and `linked_user_snapshotted = true` for performers it adds (a non-null `linked_user_id` with the default `false` is rejected by the CHECK; an unlinked performer left at `false` would make the line permanently non-editable).
 - No module-map change: the role snapshot is returned by the identity read `SessionEditAccessPort` already performs; if that
   needs a new export symbol, 35d-4 declares its §6 entry.
 - The catalogs say «المالك» (bell) and «صاحب الشركة» (permissions screen) for the owner role; unifying is a copy change.
