@@ -188,7 +188,7 @@ Emit side (35d-4, real Postgres, T2 compose stack, one cloned database per spec 
 2. **Payload privacy.** The emitted key set is exactly the contract: no reason, phone, customer name or recipients.
 3. **Contract compatibility.** Every payload published by 35a still parses; `recordedServiceLine` rejects a `change`.
 
-Consume side (35d-2; fixtures insert `ServiceLineChanged` rows directly, like `late-notice.spec.ts`):
+Consume side (35d-2, tests 4–9; fixtures insert `ServiceLineChanged` rows and the edit-history snapshot row directly, like `late-notice.spec.ts`, because the writer does not exist yet):
 
 4. **Consume once.** Deliver the same event twice (and once with the consumed mark removed): one ledger row, one set of
    notice events, one in-app row per recipient. Two edits of one line (revisions 2 and 3) ring twice; edits of two lines
@@ -206,8 +206,8 @@ Consume side (35d-2; fixtures insert `ServiceLineChanged` rows directly, like `l
    A closed company ⇒ skip. A malformed payload or a line that does not match ⇒ `PRICE_EDIT_EVENT_INVALID`.
 9. **Notification side.** The template renders in ar and en; money parameters accept `"2.500"` and `"1250.000"` and reject
    `"2.5"`, a phone-like string and a URL; the in-app row is visible only to its recipient through the admin inbox API.
-10. **End to end through the dispatcher.** edit → outbox → dispatcher → consumer → notice event → in-app row, for a
-    branch manager, with no provider call.
+10. **End to end through the dispatcher** (35d-4, once the writer exists). edit → outbox → dispatcher → consumer → notice
+    event → in-app row, for a branch manager, with no provider call; the bell names the editor from the history snapshot.
 
 ## 8. Sub-PR split (owner rule 2026-10-12: at most three subtasks per PR, small enough to review)
 
@@ -217,17 +217,18 @@ reported separately. If an estimate is exceeded, split again before code.
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
 | **35d-1** | Contracts, template and registrations; no behaviour | 1. `ServiceLineChanged.change`, `ServiceLineEditNoticeRequested`, recipient and money-parameter schemas, OpenAPI. 2. `packages/notifications` template, `packages/i18n` ar/en keys, admin bell render, including the editor-name parameters. 3. Register the notice event in `NOTIFICATION_SOURCE_EVENTS` and the worker's known types; Arabic doc comments | — (ED-Q11 answered); #249 (money kind in the template validator) | 250–380 |
-| **35d-2** | The bell works for any `ServiceLineChanged` carrying a `change` | 1. Migration + RLS + grants for `service_line_edit_notices`. 2. Worker `orders` use case, domain functions (recipient groups, parameters), ports, the two adapters (recipients, place), the repository read of the edit-history row (editor-name snapshot), consumer registration. 3. Delivery tests 4–10, privilege and inventory entries | — (ED-Q9, ED-Q10 answered) | 400–550 |
+| **35d-2** | The bell works for any `ServiceLineChanged` carrying a `change` | 1. Migration + RLS + grants for `service_line_edit_notices`. 2. Worker `orders` use case, domain functions (recipient groups, parameters), ports, the two adapters (recipients, place), the repository read of the edit-history row (editor-name snapshot), consumer registration. 3. Delivery tests 4–9, privilege and inventory entries | 35d-3 (the edit-history table with the editor-name snapshot columns); ED-Q9, ED-Q10 answered | 400–550 |
 | **35d-3** | Permission and storage for edits | 1. «Edit session price/discount» permission and its four default roles (ED-Q1). 2. Edit-history table (ED-Q8 storage; includes the nullable `editor_name_ar` / `editor_name_en` snapshot): insert-only, FORCE RLS, explicit `SELECT, INSERT` grants to `pospay_app` after the usual revoke, as the other orders tables. 3. A narrow **column-level `UPDATE`** grant for `pospay_app` on `service_lines` (migration 0131 grants `SELECT, INSERT` only): `price`, `discount`, `net`, `effective_discount_bps`, `limit_bps_applied`, `limit_source` and `revision`, nothing else (the three limit columns change together with the editor's limit per ED-Q2, so `service_lines_limit` and `service_lines_limit_presence` keep holding; the recorder's original values stay in the history row), plus the grant allowlist, inventory and negative tests | — | 300–450 |
-| **35d-4** | `PATCH` one line's price/discount, audited | 1. Pure domain functions: editor limit (ED-Q2), window (ED-Q3), self-line rule (ED-Q4), reason (ED-Q5). 2. Use case + HTTP adapter + `Idempotency-Key`, outbox emit in the same transaction. The edit authority is rechecked inside the locked transaction through an orders-owned `SessionEditAccessPort` (`lock()` then `read()` of the selected editor membership, the new permission, DENY state and the orders feature, as recording does with `tx.access`), after every line and performer wait and before an idempotency replay is returned (revocation test required). The self-edit rule (ED-Q4) calls `PerformerCheckPort.lock(employeeIds)` (`FOR SHARE` on the employee rows) and then re-reads the line's performers' persisted user links in that transaction (saved `line_performers` hold employee IDs only), never from the request (concurrency test required). The editor's names are read through `EditorNamePort` and stored in the history row (snapshot, two-business editor test). 3. Delivery tests 1–3 and the edge cases | the 35d spec; 35d-1, 35d-2 (the consumer must be merged first), 35d-3 | 450–600 |
+| **35d-4** | `PATCH` one line's price/discount, audited | 1. Pure domain functions: editor limit (ED-Q2), window (ED-Q3), self-line rule (ED-Q4), reason (ED-Q5). 2. Use case + HTTP adapter + `Idempotency-Key`, outbox emit in the same transaction. The edit authority is rechecked inside the locked transaction through an orders-owned `SessionEditAccessPort` (`lock()` then `read()` of the selected editor membership, the new permission, DENY state and the orders feature, as recording does with `tx.access`), after every line and performer wait and before an idempotency replay is returned (revocation test required). The self-edit rule (ED-Q4) calls `PerformerCheckPort.lock(employeeIds)` (`FOR SHARE` on the employee rows) and then re-reads the line's performers' persisted user links in that transaction (saved `line_performers` hold employee IDs only), never from the request (concurrency test required). The editor's names are read through `EditorNamePort` and stored in the history row (snapshot, two-business editor test). 3. Delivery tests 1–3 and 10 and the edge cases | the 35d spec; 35d-1, 35d-2 (the consumer must be merged first), 35d-3 | 450–600 |
 | **35d-5** | Edit from the branch day list (ED-Q7) | 1. Guarded history read: contract, query under `read:service-sessions:branch`, route and EXPLAIN test (ED-Q8 data; the day-list line contract carries only current money). 2. Admin form and hook. 3. ar/en keys, component tests | 35d-4 | 250–380 |
 | **35d-6** | Edit on the reception screen + «changed» badge and history (ED-Q7, ED-Q8) | 1. Edit for just-saved lines. 2. Badge + before/after/who/when panel. 3. Tests and keys | 35d-4, 35d-5, ED-Q12 | 300–450 |
 
 `TODO(spec)` for 35d-6: the history read of 35d-5 needs `read:service-sessions:branch`, which a receptionist with only the recording and edit permissions lacks (SS-Q17). How the reception screen gets the history of lines she just saved or edited (the edit response carrying it, or a narrow read limited to her own just-saved lines) is an authorization rule for the 35d spec, not decided here. The owner question is ED-Q12 (batch 23, number 32) and 35d-6 stays blocked on it.
 
-Order: 35d-1 → 35d-2 (consumer, no writer yet); 35d-3 can run in parallel with 35d-2 (disjoint paths; both add a
-migration, so numbers are assigned at merge) → 35d-4, which starts only after 35d-2 has merged, so no edit event exists
-without its consumer (ADR-0044) → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
+Order: 35d-1 and 35d-3 first (contracts; permission and storage — disjoint paths, and 35d-3 adds the first migration) →
+35d-2 (the consumer reads the history snapshot, so it needs 35d-3; it adds the second migration, numbered at merge, and
+there is still no writer) → 35d-4, which starts only after 35d-2 has merged, so no edit event exists without its
+consumer (ADR-0044) → 35d-5 → 35d-6. The 35d spec (`/speckit-specify`, extending spec 050) is written
 before 35d-4 and carries the `TODO(spec)` items above.
 
 ## 9. Owner questions (batch 22 answered; batch 23 pending)
