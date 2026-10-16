@@ -151,7 +151,11 @@ function guardedUnsafe(client: postgres.Sql, session: MigrationSession): postgre
 
 function guardedBegin(client: postgres.Sql, session: MigrationSession): postgres.Sql['begin'] {
   return ((...args: Parameters<postgres.Sql['begin']>) =>
-    throwIfLost(session, () => Reflect.apply(client.begin, client, args))) as postgres.Sql['begin'];
+    throwIfLost(session, () => {
+      if (typeof args[0] === 'string' && typeof args[1] !== 'function')
+        throw new Error('Missing migration transaction callback');
+      return Reflect.apply(client.begin, client, args);
+    })) as postgres.Sql['begin'];
 }
 
 // Refuses the next call after the socket closes, and still invokes the client the caller passed in.
