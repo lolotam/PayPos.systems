@@ -171,7 +171,7 @@ Modular monolith · Screaming Architecture root folders named after business cap
 
 ### 5.3 Workflow (from `CLAUDE.md`, decided)
 
-One vertical slice at a time · spec before code in `docs/specs/<module>/<use-case>.md` · order inside a slice: contract (Zod) → migration + RLS → domain functions + tests → use case → adapters → integration tests → UI · `pnpm check` green before done · Arabic JSDoc mandatory on `domain/**`, `ports/**`, `events/published.ts` (`pnpm lint:docs`) · no `FIXME`/`HACK`/closing comments/commented-out code · max 300 warn / 400 error lines per file, 60 per function · conventional commits, one slice per PR, never commit to `main` · CI gate order: `typecheck → lint → lint:docs → boundaries → cycles → module-map → unit → integration → RLS negative → EXPLAIN → build → docker images`.
+One vertical slice at a time · spec before code in `docs/specs/NNN-<module>-<use-case>/spec.md` · order inside a slice: contract (Zod) → migration + RLS → domain functions + tests → use case → adapters → integration tests → UI · `pnpm check` green before done · Arabic JSDoc mandatory on `domain/**`, `ports/**`, `events/published.ts` (`pnpm lint:docs`) · no `FIXME`/`HACK`/closing comments/commented-out code · max 300 warn / 400 error lines per file, 60 per function · conventional commits, one slice per PR, never commit to `main` · CI gate order: `typecheck → lint → lint:docs → boundaries → cycles → module-map → unit → integration → RLS negative → EXPLAIN → build → docker images`.
 
 ### 5.4 Data, money and time rules (decided)
 
@@ -329,7 +329,7 @@ Every `domain/` function has exhaustive unit tests with no database; every use c
 
 The phase order follows `06` §7 (the governing doc), `05_App_Blueprint_Build_Plan_AR.md` §3 and `10_Developer_Proposal_AR.md` §15. All three put **attendance + commissions before the POS**. They are the client's two named pains and are low-risk (no hardware, no gateway, no offline). They can be piloted in the salon within weeks, and they prove the architecture before the riskiest module. Only the investor proposal `client-phased-proposal-ar.md` orders the POS first. That is decision D-01.
 
-**Tasks here are epics, not slices.** Under `CLAUDE.md` §1 the unit of work is one use case. Every task below (`P<n>-T<m>`) is an epic. Before it starts, it is decomposed into slice specs in `docs/specs/<module>/<use-case>.md`, one PR each, in the fixed order contract → migration + RLS → domain + tests → use case → adapters → integration tests → UI. A sub-task that names several use cases is several slices. A sub-task that says "schema" covers only the tables its first slice needs; later tables arrive with the slice that uses them.
+**Tasks here are epics, not slices.** Under `CLAUDE.md` §1 the unit of work is one use case. Every task below (`P<n>-T<m>`) is an epic. Before it starts, it is decomposed into slice specs in `docs/specs/NNN-<module>-<use-case>/spec.md`, one PR each, in the fixed order contract → migration + RLS → domain + tests → use case → adapters → integration tests → UI. A sub-task that names several use cases is several slices. A sub-task that says "schema" covers only the tables its first slice needs; later tables arrive with the slice that uses them.
 
 **Pilot calendar is separate from build time.** A phase's duration below is focused build time. Pilot waits (Phase 1's dry-run week and trial month, Phase 2's two-week parallel run, partner approvals, hardware delivery) are calendar time added on top and are not compressible by AI.
 
@@ -471,7 +471,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 
 #### P0-T8 — `tenancy` use cases · L · ⬜ · depends T9a
 
-- [ ] P0-T8.1 Module shape exactly per `CLAUDE.architecture.md` §5; slice specs in `docs/specs/tenancy/{create-business,create-branch}.md` (company creation is `identity`'s `onboard-company`).
+- [ ] P0-T8.1 Module shape exactly per `CLAUDE.architecture.md` §5; slice specs in `docs/specs/002-tenancy-create-business/spec.md` and `docs/specs/003-tenancy-create-branch/spec.md` (company creation is `identity`'s `onboard-company`).
 - [ ] P0-T8.7 Demo data: one company per vertical (generic names) created through `onboard-company`, then `create-business` with its `vertical_type` and `create-branch` — never a raw seed (plan v4).
 - [ ] P0-T8.2 Use cases `create-business`, `create-branch` (`registerCompany` already exists from P0-T9a.0): one transaction, `Idempotency-Key`, outbox event inside the transaction, audit row; events `BusinessCreated`, `BranchCreated` documented in `events/published.ts`. A new business copies its vertical template into `business.settings`.
 - [ ] P0-T8.3 Scenario IDs written into the slice specs before code: `TEN-01` happy path per use case, `TEN-02` duplicate `Idempotency-Key` replay, `TEN-03` cross-company `business_id` on branch creation, `TEN-04` user switching to a company they belong to, `TEN-05` user requesting a company they do not belong to.
@@ -566,7 +566,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 - [ ] P1-T1.1 `docs/specs/phase-1/SPEC.md` + `IMPLEMENTATION-PLAN.md`, adversarially reviewed like Phase 0.
 - [ ] P1-T1.2 Collect the client's answers to discovery questions §3-ب/ج of `03_Meeting2_Agenda_And_Questions_AR.md`: QR placement, who scans, geofence/selfie, fixed vs weekly shifts, lateness rules, leave workflow, commission basis (before/after discount), split rule, revenue scope, tier mode, refund handling, rating link, attendance link, payout cycle.
 - [ ] P1-T1.3 A **fixed expected dataset** for the trial: the owner's own worked commission calculation for a sample month, approved in writing before code, used as the Phase 1 exit oracle.
-- [ ] P1-T1.4 Slice specs for every use case below in `docs/specs/{staff,commissions,catalog,orders,files,notifications}/`, each with numbered scenarios.
+- [ ] P1-T1.4 Slice specs for every use case below, one `docs/specs/NNN-<module>-<use-case>/spec.md` each (modules `staff`, `commissions`, `catalog`, `orders`, `files`, `notifications`), each with numbered scenarios.
 
 #### P1-T2 — App shells and design system · L
 

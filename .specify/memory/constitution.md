@@ -1,5 +1,7 @@
 <!--
 Sync Impact Report
+- 3.0.1 (2026-10-17, PATCH): Principle I names the slice spec path `docs/specs/NNN-<module>-<use-case>/spec.md`, as `CLAUDE.md` §1 does; the
+  old `docs/specs/<module>/<use-case>.md` is gone from the constitution and `docs/PRD.md` (issue #7).
 - 3.0.0 (2026-10-07, MAJOR — Principle I redefined): Principle I allows up to three slices in flight at once when their file paths are
   disjoint (Waleed, 2026-10-07, with the pospay-pipeline skill); each still merges only when green, and migration and
   ADR numbers are assigned at merge. One use case per PR is unchanged.
@@ -55,7 +57,7 @@ Sync Impact Report
 ### I. One Vertical Slice at a Time
 
 Work is delivered as single use cases, never whole modules. Every slice MUST begin with a
-spec at `docs/specs/<module>/<use-case>.md` covering requirements, business rules, edge cases,
+spec at `docs/specs/NNN-<module>-<use-case>/spec.md` covering requirements, business rules, edge cases,
 acceptance criteria, schema changes, API contract, permissions and tests. Implementation MUST
 follow this order: Zod contract → migration + RLS policy → domain functions + unit tests →
 use case → adapters (persistence, http) → integration tests → UI. A slice MUST NOT touch
@@ -437,7 +439,7 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 3.0.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-07
+**Version**: 3.0.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-17
 
 ## PR 6 amendment — ADR-0019, 2026-10-02
 
