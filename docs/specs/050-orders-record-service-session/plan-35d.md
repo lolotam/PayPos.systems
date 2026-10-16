@@ -23,7 +23,7 @@ Salem has not answered; his pick binds if different): **ED-Q9** the same four sc
 **ED-Q10** everyone gets the bell **including the editor** (against the recommendation), **ED-Q11** service, branch and
 date + «was X, now Y» (net) + the editor's name. Two more were answered the same day: **ED-Q12** (against the
 recommendation) the receptionist sees only the «edited» mark and the full history is for the manager only, and **ED-Q13**
-an editor with no employee record is shown as a role label instead of a name. **One owner question is PENDING: ED-Q14 (item 34 of owner-questions.ar.md, the edit response for a caller without branch-read); it gates 35d-4, see [spec-35d](spec-35d.md) FR-014.**
+an editor with no employee record is shown as a role label instead of a name. **ED-Q14 (item 34 of owner-questions.ar.md, the edit response for a caller without branch-read) was answered on 2026-10-16: no figures at all, see [spec-35d](spec-35d.md) FR-014.**
 Spec issue #250 (the performer-identity snapshot) was decided in [spec-35d](spec-35d.md) D-1 and [ADR-0045](../../adr/0045-performer-identity-snapshot-and-editor-role-label.md); its storage (sub-PR 35d-3b) gates 35d-4. See
 [owner-questions.ar.md](owner-questions.ar.md).
 
@@ -232,7 +232,7 @@ reported separately. If an estimate is exceeded, split again before code.
 
 **35d-6 and ED-Q12 (Waleed, 2026-10-16, against the recommendation).** The receptionist sees only the «edited» mark; the
 full history («was X, now Y», who, when) belongs to the manager through the branch-sessions read permission of 35d-5
-(SS-Q12). The edit response returns the boolean mark and, to a caller without that read permission, **no** decision yet: ED-Q14 (owner-questions item 34, PENDING) gates 35d-4 ([spec-35d](spec-35d.md) FR-014), and **never** the history fields (previous
+(SS-Q12). The edit response returns the boolean mark and, to a caller without that read permission, **no** figures at all (ED-Q14, owner-questions item 34; [spec-35d](spec-35d.md) FR-014), and **never** the history fields (previous
 price or discount, new values as history, the editor's identity, the edit time) to a caller who lacks that read
 permission. Acceptance test: a caller holding only the recording and edit permissions receives none of those fields from
 the edit response or from any receptionist-visible payload, while a caller with the read permission receives the full
@@ -256,5 +256,5 @@ sub-PRs 35d-3b and 35d-2b to this split.
 | ED-Q13 | What does the bell and the history show for an editor with no employee record? | **answered:** the role only («المالك» / «المدير»), until a name source is agreed |
 
 Waleed answered ED-Q9…ED-Q13 on 2026-10-16; Abu Salem has not, and his pick replaces Waleed's if it differs (each is a
-small, isolated piece of 35d-1, 35d-2, 35d-3 or 35d-6). **ED-Q14 (PENDING) gates 35d-4 only; no owner question blocks any other 35d subtask.** The one remaining
+small, isolated piece of 35d-1, 35d-2, 35d-3 or 35d-6). **No owner question is pending (ED-Q14 was answered on 2026-10-16).** The one remaining
 gate is the storage for spec issue #250 (sub-PR 35d-3b), which gates 35d-4.
