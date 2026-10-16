@@ -134,8 +134,9 @@ row of the same transaction. The event does not carry the names; the 35d-2 consu
 `(line_id, revision)` through the orders repository, so the worker needs no `staff` read. An editor with no linked employee
 (for example an owner who is not an employee) has no name to snapshot, and what the bell and the history show for such an editor is **not decided here** (ED-Q13); names
 pass the existing display-name filter. `TODO(spec)` ED-Q13 (batch 24,
-PENDING): that fallback means an owner who is not an employee is not identifiable by name in the bell or the history
-(ED-Q8), so the owner decides what such a person is shown as before the fallback wording is built. The
+PENDING): an owner who is not an employee cannot be identified by name from employee records, in the bell or in the
+history (ED-Q8), so the owner decides what such a person is shown as; nothing for this case (wording, data shape, tests)
+is built before that answer. The
 `orders → staff` arrow already exists and the exact §6 entry is declared in this PR.
 
 **Ordering.** Consumer first, writer later (§8). No `ServiceLineChanged` carrying a `change` exists until 35d-4 merges,
