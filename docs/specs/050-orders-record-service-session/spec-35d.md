@@ -5,7 +5,7 @@
 **Created**: 2026-10-16
 
 **Status**: Draft for review. Owner questions ED-Q1…ED-Q13 are answered ( Waleed, 2026-10-13/16; Abu Salem has
-not answered, his pick binds if it differs). **No owner question is pending** (the partner Abu Salem has not answered ED-Q14; if his pick differs, his binds, `CLAUDE.md` §1 5b). ED-Q14 (what the edit response shows a caller without the branch-read permission) was answered on the decisions page on 2026-10-16: option 2, no figures at all (FR-014). The three technical gates (#250, #252,
+not answered, his pick binds if it differs). **No owner question is pending** (the decisions page does not record who chose; if the partner Abu Salem picks differently, his pick binds, `CLAUDE.md` §1 5b). ED-Q14 (what the edit response shows a caller without the branch-read permission) was answered on the decisions page on 2026-10-16: option 2, no figures at all (FR-014). The three technical gates (#250, #252,
 #255) are decided here and in [ADR-0045](../../adr/0045-performer-identity-snapshot-and-editor-role-label.md).
 
 **Input**: "35d: audited edit of price/discount of a saved service line, extending spec 050."
@@ -360,7 +360,7 @@ Owner rule 2026-10-12: at most three subtasks per PR. Sizes are hand-written lin
 |---|---|---|---|
 | **35d-3b** | Storage for D-1 and D-2: the migration above (no backfill), `linked_user_id` and `linked_user_snapshotted = true` written by record/append, schema + privilege allowlist + inventory + RLS negative tests | this spec; numbered after 35d-2's migration | 250–350 |
 | **35d-2b** | `editorLabel` in `packages/i18n` (+ catalog keys for the other system roles' use and the generic label) and the 35d-2 consumer reading the widened columns, with the LE-21…23 tests | 35d-2 merged, 35d-3b | 120–200 |
-| **35d-4** | The writer, as FR-001…FR-017, the `edited` boolean on the saved-line snapshot (FR-019), plus plan-35d delivery tests 1–3 and 10 | this spec; 35d-1, 35d-2, 35d-2b, 35d-3, 35d-3b | 450–600 |
+| **35d-4** | The writer, as FR-001…FR-017, the `edited` boolean on the saved-line snapshot (FR-019), plus plan-35d delivery tests 1–3 and 10 | this spec; issue #272 decided (how a caller without branch-read learns the new revision); 35d-1, 35d-2, 35d-2b, 35d-3, 35d-3b | 450–600 |
 | **35d-5** | Day-list edit form + the guarded history read (FR-018) + the day-list `edited` boolean and its `EXISTS` query (FR-019) | 35d-4 | 250–380 |
 | **35d-6** | Reception edit for just-saved lines + the «edited» mark (FR-019) | 35d-4, 35d-5 | 200–320 |
 
