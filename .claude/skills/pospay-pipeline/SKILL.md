@@ -1,6 +1,6 @@
 ---
 name: pospay-pipeline
-description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07 and updated 2026-10-14. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (Grok CLI grok-4.7-build-fast high implements, Codex and the MergePilot panel review, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the guard pass, the staging deploy, the status page and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo, a docs-only change, or a question — except that every merge, docs-only included, still updates the decisions page's status tab (§6 step 8)."
+description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07 and updated 2026-10-14. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (Grok CLI grok-4.7 high implements, Codex and the MergePilot panel review, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the guard pass, the staging deploy, the status page and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo, a docs-only change, or a question — except that every merge, docs-only included, still updates the decisions page's status tab (§6 step 8)."
 ---
 
 # PosPay delivery pipeline
@@ -25,7 +25,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 |---|---|---|
 | Orchestrator | Claude Code (this session) | yes — specs, briefs, merges, renumbering, small fixes |
 | Design advisors (risky slices only, §3 step 2) | Codex astra 6 medium (`gpt-6-astra`, effort medium) **and** Claude Fable 5.1 medium (`claude-fable-5-1`) | no — read-only |
-| **Implementer** — code, tests **and migrations** | **Grok CLI, `grok-4.7-build-fast`, reasoning effort high** — owner's choice 2026-10-14 (replaces Codex Sol 6.1) | yes, in its own worktree |
+| **Implementer** — code, tests **and migrations** | **Grok CLI, `grok-4.7`, reasoning effort high** — owner's choice 2026-10-14 (replaces Codex Sol 6.1; switched from `grok-4.7-build-fast` the same evening) | yes, in its own worktree |
 | **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
 | Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
 | Review layer 2 | a fresh Claude reviewer (new subagent, no prior context); the confirm round uses another fresh one | no |
@@ -33,9 +33,9 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | Fixer | the implementer, resuming **its own Grok session** with only the findings (§4); the orchestrator only for one-line fixes | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
-The owner asked for "Grok 4.6 fast"; the CLI has no such model, and on 2026-10-14 he picked `grok-4.7-build-fast` from
-the live list (`grok models`: `grok-4.7`, `grok-4.7-build-fast`, `grok-4.6`, `grok-4.5`). Re-check `grok models` before
-the first dispatch of a session; if the id is gone, ask the owner — never substitute silently.
+On 2026-10-14 the owner picked `grok-4.7` at reasoning effort high from the live list (`grok models`: `grok-4.7`,
+`grok-4.7-build-fast`, `grok-4.6`, `grok-4.5`). Re-check `grok models` before the first dispatch of a session; if the id
+is gone, or the CLI says "not authenticated" or a call returns 402, ask the owner — never substitute silently.
 
 Fallback when Grok fails twice on one brief (§4 rule 9): the orchestrator implements. Announce the substitution the
 moment it happens, in the owner report. Never switch to a metered provider without the owner saying so.
@@ -54,6 +54,12 @@ moment it happens, in the owner report. Never switch to a metered provider witho
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
 - **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
+- **Docs-only lane** (owner, 2026-10-17). A PR whose files are all under `docs/**`, `*.md`, `.claude/skills/**` or
+  `.specify/**` (no code, no migration, no generated file) skips steps 2, 5 (except `docs-guard`), 6, 7 and 8 and the
+  5-round cap. It merges when `ci-gate` is green on the exact head, the Codex bot and the MergePilot panel have
+  completed on that head, and no P0/P1 is open. A P1 here means a wrong or contradictory rule in a spec or ADR; the bar
+  for it does not move. P2/P3 findings on prose are fixed in one batch commit at most; the rest become linked issues.
+  The status-page update (§6 step 8) still applies after the merge.
 
 ---
 
@@ -62,7 +68,7 @@ moment it happens, in the owner report. Never switch to a metered provider witho
 | # | Step | Owner | Done when |
 |---|---|---|---|
 | 0 | Pick the next row of the phase plan, or the task the owner names | orchestrator + owner | row named in the report |
-| 1 | Spec: `/speckit-specify` → `docs/specs/NNN-<module>-<use-case>/spec.md`; owner questions → the slice's `owner-questions.ar.md` **and** a new numbered batch on the decisions page (`CLAUDE.md` §1 5b) | orchestrator | every business rule is in the spec or asked; an unknown rule is a `TODO(spec)` and a stop |
+| 1 | Spec: `/speckit-specify` → `docs/specs/NNN-<module>-<use-case>/spec.md`; owner questions → the slice's `owner-questions.ar.md` **and** a new numbered batch on the decisions page (`CLAUDE.md` §1 5b) | orchestrator | every business rule is in the spec or asked; an unknown rule is a `TODO(spec)` and a stop. **Ask the whole feature at once** (owner, 2026-10-17): before the first sub-PR of a feature starts, list every sub-PR in the plan, collect all of their owner questions into one numbered batch, and add a clickable mockup (an HTML artifact, or a Lovable prototype) when the answer is a screen; late-found questions are the exception, not the routine |
 | 2 | Design advice — **only** when the slice parses files, runs long work, may cross 200 ms, moves money, or changes auth/RLS | both advisors, read-only | the chosen design is written into the spec |
 | 3 | Brief and dispatch the implementer (§4), baseline captured first | orchestrator → Grok | Grok reports done; the delivery is kept as the first commit, as delivered |
 | 4 | Judge the delivery: diff against the baseline, read it against the spec, merge `main`, renumber migrations/ADRs, `pnpm check` | orchestrator | `pnpm check` green |
@@ -88,7 +94,7 @@ the MergePilot panel reviews each pushed commit by itself. Read every result bef
 ## 4. Dispatching Grok — and keeping its tokens low
 
 Grok runs through the **Grok CLI** (`grok` on `PATH`, installed under `F:\Dev\Runtimes\npm-global`, signed in with the
-owner's grok.com account), model **`grok-4.7-build-fast`** at reasoning effort **high** — never through `cursor-agent`,
+owner's grok.com account), model **`grok-4.7`** at reasoning effort **high** — never through `cursor-agent`,
 which bills a different quota. The CLI hides the xAI API, so `x-grok-conv-id` / `prompt_cache_key` cannot be set by us;
 what saves tokens is reusing one session and keeping its prefix stable:
 
@@ -97,14 +103,14 @@ what saves tokens is reusing one session and keeping its prefix stable:
 
    ```powershell
    $sid = [guid]::NewGuid().ToString()
-   grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7-build-fast --reasoning-effort high `
+   grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
        -s $sid --prompt-file F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt --always-approve --permission-mode bypassPermissions --output-format plain
    ```
 
 2. **Every later round resumes that session** instead of starting a new one, so Grok does not re-read the repo:
 
    ```powershell
-   grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7-build-fast --reasoning-effort high `
+   grok --cwd F:\Dev\Worktrees\PosPay\<branch> -m grok-4.7 --reasoning-effort high `
        --resume $sid --prompt-file F:\Dev\Worktrees\PosPay\briefs\<task>\fix-<round>.txt --always-approve --permission-mode bypassPermissions --output-format plain
    ```
 

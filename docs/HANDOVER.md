@@ -52,7 +52,7 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 1. One row of the phase plan per branch, worktree and PR (`feat/…`, `fix/…`, `docs/…`). **Never push to `main`.**
 2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` **and** to a new numbered
    batch on the decisions page (`CLAUDE.md` §1 5b). When Waleed and his partner (Abu Salem) differ, the partner's pick binds.
-3. The implementer is the **Grok CLI, `grok-4.7-build-fast`, effort high** (owner, 2026-10-14), one resumed session per
+3. The implementer is the **Grok CLI, `grok-4.7`, effort high** (owner, 2026-10-14), one resumed session per
    task to keep its cache warm. Claude Code orchestrates, judges the diff and runs `pnpm check`.
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
    fresh Claude reviewers → the four PR bots: the Codex GitHub bot (`@codex review` after every push) and the
