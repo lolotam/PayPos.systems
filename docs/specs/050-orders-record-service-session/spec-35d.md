@@ -219,9 +219,10 @@ the outbox.
 - **FR-013** Authority is rechecked inside the locked transaction through `SessionEditAccessPort` (`lock()` then `read()`),
   before an idempotency replay returns, after every line and performer wait (plan-35d §8).
 - **FR-014** `TODO(spec)` ED-Q14 (PENDING, [owner-questions.ar.md](owner-questions.ar.md) item 34). The response is stored in full
-  and **projected on every return, including a replay**, by the `read:service-sessions:branch` grant of the **selected editor membership** (the one the edit is made under, with its
-  DENY state and expiry) at that moment, read in the same locked transaction through `SessionEditAccessPort`, which therefore also
-  returns that membership's branch-read decision. With the permission: the current saved line plus `edited` and the visit
+  and **projected on every return, including a replay**, by the caller's **effective** `read:service-sessions:branch` at that moment — evaluated for the principal across **all** their
+  active memberships covering the branch, with the repository's usual semantics (any covering DENY wins, an ALLOW on any
+  membership counts), read in the same locked transaction through `SessionEditAccessPort`. The selected editor membership is used
+  only for edit attribution, the edit permission and the discount limit, never for this decision. With the permission: the current saved line plus `edited` and the visit
   total. Without it: **not decided** — the written ED-Q12 effect says "neither the old nor the new price" (no money at all), ED-Q14
   asks whether the line's current money may be returned. 35d-4 does not start until ED-Q14 is answered; whichever answer is given,
   the response can never carry the history fields of LE-14.
@@ -366,7 +367,7 @@ start before both are merged, so the writer never produces a row the consumer ca
 - **SC-002** 100% of committed edits show a readable "who" in the history and the bell, for every role that can hold the
   permission; 0 edits are shown as a blank or an id.
 - **SC-003** 0 edits are accepted from a user who is, or was when the line was recorded, a performer of that line (a performer is identified by the
-  employee-user link, as in SS-25: a performer who was unlinked at recording cannot be detected, exactly as for recording); a line whose
+  employee-user link, as in SS-25: a performer with no link at recording and none at edit time cannot be detected, exactly as for recording; one linked later is caught by the current link, LE-12); a line whose
   performer identity was never recorded cannot be edited at all.
 - **SC-004** 0 edits are saved above the editor's discount limit; the refusal always says the largest allowed discount.
 - **SC-005** A receptionist without the branch-read permission never sees a previous price, an editor or an edit time, on any
