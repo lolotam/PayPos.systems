@@ -82,7 +82,14 @@ You **MUST** consider the user input before proceeding (if not empty).
      - **PASS**: All checklists have 0 unchecked items
      - **FAIL**: One or more checklists have unchecked items
 
-   - **If any checklist has unchecked items**:
+   - **If any business-rule checklist item is unchecked — this gate cannot be overridden**:
+     - A business-rule item is any unchecked item in `checklists/requirements.md` (the built-in checklist), and any unchecked item in another checklist that concerns money, permissions or authorization, tenant scope (`company_id`, RLS) or any other business rule. `CLAUDE.md` §11: a business rule is never guessed, so an open item means the spec is not ready.
+     - Display the table and list every blocking item
+     - **STOP**. Do NOT ask whether to proceed anyway, and do not treat "yes", "proceed" or "continue" from the user as an override
+     - Tell the user to close the item first by fixing the spec (`/speckit-clarify` or `/speckit-specify`; an unknown business rule is asked to the owner, never guessed), which re-validates the checklist. This command never edits checklist files
+     - Continue only after a fresh scan finds no unchecked business-rule item
+
+   - **If any other checklist has unchecked items** (reviewer-owned checklists from `/speckit-checklist` with no business-rule item):
      - Display the table with unchecked item counts
      - **STOP** and ask: "Some checklists have unchecked items. Do you want to proceed with implementation anyway? (yes/no)"
      - Wait for user response before continuing
@@ -179,6 +186,10 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Check that implemented features match the original specification
    - Validate that tests pass and coverage meets requirements
    - Confirm the implementation follows the technical plan
+   - **Mandatory final gate — `pnpm check`**: run `pnpm check` from the repo root. `CLAUDE.md` §1: a slice is not done until it passes. Never report completion, or call the work done, while it has not run or has failed:
+     - If it fails, fix the cause within the slice's tasks and run it again. Do not skip, weaken or comment out a check, and do not narrow its scope to get a pass
+     - If it cannot run (missing dependencies, services down), report the slice as NOT complete, name the blocker and stop
+     - Record the command, its exit status and the date for the Completion Report
 
 Note: This command assumes a complete task breakdown exists in tasks.md. If tasks are incomplete or missing, suggest running `/speckit-tasks` first to regenerate the task list.
 
@@ -219,11 +230,13 @@ Check if `.specify/extensions.yml` exists in the project root.
 
 ## Completion Report
 
-Report final status with summary of completed work.
+Report final status with summary of completed work, including the `pnpm check` result (exit status). If `pnpm check` did not exit 0, report the slice as not complete.
 
 ## Done When
 
 - [ ] All tasks in tasks.md completed and marked `[X]`
+- [ ] No business-rule checklist item was open when implementation started (the gate was not overridden)
 - [ ] Implementation validated against specification, plan, and test coverage
+- [ ] `pnpm check` ran from the repo root and exited 0
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
 - [ ] Completion reported to user with summary of completed work
