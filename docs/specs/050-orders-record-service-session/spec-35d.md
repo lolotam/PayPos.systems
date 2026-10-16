@@ -226,9 +226,9 @@ the outbox.
   membership counts), read in the same locked transaction through `SessionEditAccessPort`. The selected editor membership is used
   only for edit attribution, the edit permission and the discount limit, never for this decision. With the permission: the current saved line plus `edited` and the visit
   total. Without it: **no figures at all** (ED-Q14, option 2): the response says only that the edit was saved and carries the `edited`
-  mark, the line id and the line's new `revision` (not money; the next edit needs it as `expected_revision`, FR-017, so a
-  receptionist who corrects the same line twice never hits a stale-revision refusal), with no price, discount, net, previous value,
-  editor, time or visit total; the screen shows figures only to a caller who holds
+  mark, with no price, discount, net, previous value, editor, time or visit total, and no number at all (the owner's wording of
+  ED-Q14). How such a caller learns the new revision for a second correction of the same line is a technical question for 35d-4,
+  tracked in issue #271; it is not decided here and no field is added without the owner's agreement; the screen shows figures only to a caller who holds
   the read permission. The response can never carry the history fields of LE-14.
 - **FR-015** (D-6) The edit does not issue or consume a session-recovery proof (ADR-0042). A client in doubt re-sends the
   same key (replay) or re-reads the line; a re-send under a new key is made safe by FR-017.
