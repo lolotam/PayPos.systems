@@ -341,8 +341,8 @@ Owner rule 2026-10-12: at most three subtasks per PR. Sizes are hand-written lin
 |---|---|---|---|
 | **35d-3b** | Storage for D-1 and D-2: the migration above (no backfill), `linked_user_id` and `linked_user_snapshotted = true` written by record/append, schema + privilege allowlist + inventory + RLS negative tests | this spec; numbered after 35d-2's migration | 250–350 |
 | **35d-2b** | `editorLabel` in `packages/i18n` (+ catalog keys for the other system roles' use and the generic label) and the 35d-2 consumer reading the widened columns, with the LE-21…23 tests | 35d-2 merged, 35d-3b | 120–200 |
-| **35d-4** | The writer, as FR-001…FR-017, plus plan-35d delivery tests 1–3 and 10 | this spec; 35d-1, 35d-2, 35d-2b, 35d-3, 35d-3b | 450–600 |
-| **35d-5** | Day-list edit form + the guarded history read (FR-018) | 35d-4 | 250–380 |
+| **35d-4** | The writer, as FR-001…FR-017, the `edited` boolean on the saved-line snapshot (FR-019), plus plan-35d delivery tests 1–3 and 10 | this spec; 35d-1, 35d-2, 35d-2b, 35d-3, 35d-3b | 450–600 |
+| **35d-5** | Day-list edit form + the guarded history read (FR-018) + the day-list `edited` boolean and its `EXISTS` query (FR-019) | 35d-4 | 250–380 |
 | **35d-6** | Reception edit for just-saved lines + the «edited» mark (FR-019) | 35d-4, 35d-5 | 200–320 |
 
 35d-2b is small enough to be absorbed by the 35d-2 session if 35d-2 has not merged when 35d-3b does; either way 35d-4 does not
