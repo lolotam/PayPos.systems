@@ -31,7 +31,7 @@ wording (ED-Q11). Their questions are in [owner-questions.ar.md](owner-questions
 | ED-Q1 | New delegable permission «edit session price/discount»; defaults to owner, general manager, business manager, branch manager | 35d-3 |
 | ED-Q2 | The editor's own discount limit applies, with the same half-up effective-discount arithmetic as row 35 | 35d-4 |
 | ED-Q3 | Same window as recording (first of the previous month). An approved/paid month records a correction on the next month | 35d-4 window; correction = §6 note |
-| ED-Q4 | No editing a line you performed (owner exempt) | 35d-4 |
+| ED-Q4 | No editing a line you performed, exactly as in recording (SS-25: even an unlimited owner is refused; the answer records no owner exemption) | 35d-4 |
 | ED-Q5 | A typed reason is required | 35d-4 (stored in history, **never** in the event) |
 | ED-Q6 | A bell to the branch manager on every edit | 35d-1 and 35d-2 (this plan) |
 | ED-Q7 | Edit from the branch day list **and** from the reception screen for lines just saved | 35d-5, 35d-6 |
@@ -98,8 +98,9 @@ all inside the consumer transaction under `withTenant(event.company_id)`:
 6. Zero recipients: the ledger row records `recipient_count = 0`, **no** notice event, no error, no escalation. An owner
    or manager editing in a branch with no other eligible manager simply produces no bell; the edit-history row (ED-Q8)
    is the permanent record.
-7. Otherwise read the branch names (`tenancy.branchPlace`) and the line's service-name snapshot (orders' own table, via the
-   repository), build the template parameters, split recipients into groups of at most 100, and append one
+7. Otherwise read the branch names (`tenancy.branchPlace`) and, from orders' own tables through the repository, the line's
+   service-name snapshot and the session's saved `business_timezone` (the event carries `business_date` but no
+   timezone, and the date is never re-derived), build the template parameters, split recipients into groups of at most 100, and append one
    `ServiceLineEditNoticeRequested` per group. The consumed mark, the ledger row and every group commit together.
 
 **Idempotency.** First line: the outbox consumed mark per `(consumer id, event id)`, committed in the same transaction as
