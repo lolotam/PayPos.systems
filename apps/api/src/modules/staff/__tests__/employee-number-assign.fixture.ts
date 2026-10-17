@@ -146,7 +146,8 @@ function holdOnSequenceLock(tx: Tx, release: Promise<void>, held: () => void): T
 
 async function waitForAppLock(f: EmployeeFixture, pattern: RegExp): Promise<string> {
   let seen = '';
-  for (let attempt = 0; attempt < 200; attempt += 1) {
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
     const rows = await f.h.owner<{ query: string }[]>`
       SELECT query FROM pg_stat_activity
       WHERE datname = current_database()
@@ -156,6 +157,7 @@ async function waitForAppLock(f: EmployeeFixture, pattern: RegExp): Promise<stri
     seen = rows.map((row) => row.query).join('\n');
     const waiting = rows.find((row) => pattern.test(row.query));
     if (waiting !== undefined) return waiting.query;
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error(`no locked backend matched ${pattern}; saw: ${seen}`);
 }
