@@ -7,8 +7,11 @@ import { createTestDatabase, type TestDatabase } from '../../test/test-database.
 import { seedTwoTenants, USER } from '../../test/tenancy-fixtures.ts';
 import { seedOrders, ORDER_IDS } from '../../test/orders-fixture.ts';
 import {
+  cancelBehindPerformerInsert,
   cancelServiceLine,
   historySql,
+  performerWarningLockCodes,
+  refused,
   type CancelLine,
   type SlcPatch,
 } from '../../test/service-line-cancellation.ts';
@@ -34,6 +37,8 @@ const LINE = {
   both: '01920000-0000-7000-8000-000000004475',
   immediate: '01920000-0000-7000-8000-000000004476',
   race: '01920000-0000-7000-8000-000000004477',
+  lock: '01920000-0000-7000-8000-000000004478',
+  wait: '01920000-0000-7000-8000-000000004479',
 };
 let testDb: TestDatabase, owner: postgres.Sql, db: Database;
 const ids = systemUuidV7();
@@ -57,6 +62,8 @@ beforeAll(async () => {
     [LINE.both, 7],
     [LINE.immediate, 8],
     [LINE.race, 9],
+    [LINE.lock, 10],
+    [LINE.wait, 11],
   ];
   for (const [lineId, ordinal] of lines) await recordLine(db, ctx, ids, lineId, ordinal, [calm]);
   await cancel(LINE.frozen, 1);
@@ -66,30 +73,6 @@ afterAll(async () => {
   await owner?.end();
   await testDb?.drop();
 });
-
-function pgError(error: unknown): { code?: string; constraint_name?: string; message?: string } {
-  let current: unknown = error;
-  for (let depth = 0; depth < 5 && current instanceof Error; depth += 1) {
-    const candidate = current as Error & {
-      code?: string;
-      constraint_name?: string;
-      cause?: unknown;
-    };
-    if (candidate.code !== undefined || candidate.constraint_name !== undefined) return candidate;
-    current = candidate.cause;
-  }
-  return {};
-}
-
-async function refused(work: Promise<unknown>, constraint: string, code = '23514') {
-  const error = await work.then(
-    () => null,
-    (caught: unknown) => caught,
-  );
-  expect(error).toBeInstanceOf(Error);
-  expect([pgError(error).code, pgError(error).constraint_name]).toEqual([code, constraint]);
-  return pgError(error).message;
-}
 
 const run = (query: ReturnType<typeof sql>) =>
   db.withTenant(ctx.company, (tx) => tx.execute(query), { userId: USER });
@@ -315,6 +298,28 @@ it('refuses a performer delete on a cancelled line', async () => {
     ),
     'line_performers_cancel_guard',
   );
+});
+
+it('refuses an owner update of a performer on a cancelled line', async () => {
+  await refused(
+    owner`UPDATE line_performers SET name_en='Renamed' WHERE company_id=${ctx.company} AND line_id=${LINE.frozen}`,
+    'line_performers_cancel_guard',
+  );
+});
+
+it('refuses moving a performer from an active line onto a cancelled line', async () => {
+  await refused(
+    owner`UPDATE line_performers SET line_id=${LINE.frozen} WHERE company_id=${ctx.company} AND line_id=${LINE.live}`,
+    'line_performers_cancel_guard',
+  );
+});
+
+it('serializes two performer inserts that update the same line', async () => {
+  await performerWarningLockCodes(db, owner, ctx, ids, LINE.lock);
+});
+
+it('lets a waiting cancel commit after the performer insert rolls back', async () => {
+  await cancelBehindPerformerInsert(db, owner, ctx, ids, LINE.wait);
 });
 
 it('refuses a performer-change header then a revision update on a cancelled line', async () => {

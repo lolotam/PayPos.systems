@@ -83,23 +83,30 @@ BEGIN
   RETURN NEW;
 END $$;
 --> statement-breakpoint
+-- FOR UPDATE بلا ترقية قفل: FOR SHARE ثم UPDATE على نفس السطر يعلق معاملتين حتى 40P01، والقفل الحصري يتسلسل مع إلغاء متزامن. تحديث line_performers غير ممنوح لأي دور تشغيل؛ تحديث يدوي من المالك متزامن مع تغيير مؤدٍ قد ينتهي بـ deadlock مكتشف (معاملة واحدة ترجع) لا بحالة خاطئة.
 CREATE FUNCTION line_performers_cancel_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
 DECLARE parent_status text;
 BEGIN
-  IF TG_OP = 'DELETE' THEN
+  IF TG_OP = 'DELETE' OR TG_OP = 'UPDATE' THEN
     SELECT l.status INTO parent_status FROM public.service_lines l
     WHERE l.company_id = OLD.company_id AND l.business_id = OLD.business_id AND l.id = OLD.line_id
-    FOR SHARE;
-    IF NOT FOUND THEN RETURN OLD; END IF;
-  ELSE
+    FOR UPDATE;
+    IF NOT FOUND THEN
+      IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+    ELSIF parent_status = 'CANCELLED' THEN
+      RAISE EXCEPTION 'a cancelled service line accepts no performer change' USING ERRCODE = '23514', CONSTRAINT = 'line_performers_cancel_guard';
+    END IF;
+  END IF;
+  IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND (OLD.company_id IS DISTINCT FROM NEW.company_id
+    OR OLD.business_id IS DISTINCT FROM NEW.business_id OR OLD.line_id IS DISTINCT FROM NEW.line_id)) THEN
     SELECT l.status INTO parent_status FROM public.service_lines l
     WHERE l.company_id = NEW.company_id AND l.business_id = NEW.business_id AND l.id = NEW.line_id
-    FOR SHARE;
+    FOR UPDATE;
     IF NOT FOUND THEN RETURN NEW; END IF;
-  END IF;
-  IF parent_status = 'CANCELLED' THEN
-    RAISE EXCEPTION 'a cancelled service line accepts no performer change' USING ERRCODE = '23514', CONSTRAINT = 'line_performers_cancel_guard';
+    IF parent_status = 'CANCELLED' THEN
+      RAISE EXCEPTION 'a cancelled service line accepts no performer change' USING ERRCODE = '23514', CONSTRAINT = 'line_performers_cancel_guard';
+    END IF;
   END IF;
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
@@ -143,7 +150,7 @@ GRANT EXECUTE ON FUNCTION service_lines_cancel_guard(), line_performers_cancel_g
 CREATE TRIGGER service_lines_cancel_guard BEFORE INSERT OR UPDATE ON service_lines
 FOR EACH ROW EXECUTE FUNCTION service_lines_cancel_guard();
 --> statement-breakpoint
-CREATE TRIGGER line_performers_cancel_guard BEFORE INSERT OR DELETE ON line_performers
+CREATE TRIGGER line_performers_cancel_guard BEFORE INSERT OR UPDATE OR DELETE ON line_performers
 FOR EACH ROW EXECUTE FUNCTION line_performers_cancel_guard();
 --> statement-breakpoint
 -- الاقتران بالحالة فقط بلا ختم معاملة: صف الإلغاء يبقى مطابقاً لنسخة السطر وأرقامه بعد الاستعادة.
