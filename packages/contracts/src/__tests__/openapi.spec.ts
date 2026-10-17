@@ -11,7 +11,7 @@ const expectedSchemas = [
   'AppendServiceSessionLinesInput', 'SessionPerformer', 'SavedServiceLine', 'ServiceSession',
   'EditServiceLineInput', 'EditServiceLineResponseFull', 'EditServiceLineResponseNarrow', 'EditServiceLineResponse',
   'RejectedServiceLine', 'RecordServiceSessionResponse', 'AppendServiceSessionLinesResponse',
-  'ServiceLineChanged', 'RecordedServiceLine', 'ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'LateServiceSessionNoticeRequested', 'ServiceLineEditNoticeRequested',
+  'ServiceLineChanged', 'RecordedServiceLine', 'ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'LateServiceSessionNoticeRequested', 'ServiceLineEditNoticeRequested', 'ServiceLineCancelNoticeRequested',
   'CreateDocumentTypeInput',
   'DocumentType',
   'DocumentTypeList',
@@ -259,4 +259,10 @@ it('keeps change off a recorded line and optional on a changed line', () => {
   expect(JSON.stringify(recorded)).not.toContain('"not"');
   expect(changed?.properties).toHaveProperty('change');
   expect(changed?.required ?? []).not.toContain('change');
+});
+
+it('publishes both change kinds of a changed line', () => {
+  const document = JSON.stringify(buildOpenApiDocument());
+  expect(document).toContain('PRICE_DISCOUNT_EDIT');
+  expect(document).toContain('LINE_CANCELLED');
 });

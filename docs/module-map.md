@@ -197,9 +197,10 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
-| `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`; worker `orders` (35d price/discount-edit bell — only when the optional `change.kind` is `PRICE_DISCOUNT_EDIT`; ADR-0044) |
+| `ServiceLineChanged`                                                        | `orders`        | `commissions`, `customers`; worker `orders` (35d price/discount-edit bell — only when the optional `change.kind` is `PRICE_DISCOUNT_EDIT`; ADR-0044); worker `orders` also consumes `change.kind` `LINE_CANCELLED` (row 37 cancel bell; ADR-0044 addendum) |
 | `LateServiceSessionNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, permanent session ledger; no realtime until Phase 2 (ADR-0041 35b-2) |
 | `ServiceLineEditNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per saved edit of a line (ledger `(line, revision)`), no realtime until Phase 2 (ADR-0044) |
+| `ServiceLineCancelNoticeRequested` | `orders` | `notifications` existing IN_APP storage, groups ≤100, one bell per cancelled line (ledger `(line, revision)`), no realtime until Phase 2 (ADR-0044 addendum) |
 | `ServiceSessionRecorded` | `orders` | `commissions` (50), `customers` (59); worker `orders` (35b-2 late bell); one batch of accepted revision-1 lines on creation (ADR-0041) |
 | `ServiceSessionLinesAdded` | `orders` | worker `orders` (35b-2 late bell); `commissions` (50), `customers` (59); newly appended revision-1 lines only for the same visit (ADR-0041) |
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |

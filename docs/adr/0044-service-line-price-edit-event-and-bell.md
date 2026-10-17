@@ -105,3 +105,17 @@ idempotency replay returns; the editor's effective discount limit is read fresh 
   inventory entry and a negative isolation test in 35d-2; pipeline §5 database review applies.
 - The bell is not a control by itself: the edit-history row (ED-Q8) is the permanent record, and an edit with no eligible
   recipient produces no bell.
+
+## Addendum (row 37, cancel bell)
+
+`ServiceLineChanged` stays one event and gains the additive change kind `LINE_CANCELLED`. The refinement is
+kind-dependent: `PRICE_DISCOUNT_EDIT` requires `status ACTIVE`; `LINE_CANCELLED` requires `status CANCELLED`; both
+require `revision = change.previous.revision + 1`. A sibling worker `orders` consumer `orders.line-cancel-notice-v1`
+handles only `LINE_CANCELLED`. The price-edit consumer `orders.price-edit-notice-v1` keeps ignoring every other kind.
+
+The bell is a separate event, `ServiceLineCancelNoticeRequested`, with a separate insert-only ledger keyed
+`(company_id, line_id, revision)`: one notice per cancelled line, in groups of at most 100. Recipients are the same
+four scoped manager roles, and the canceller is not excluded. The bell (`service_line_cancelled`, ar/en) shows the
+service, the branch, the business date and the cancelled net. It never carries the cancellation reason or the
+canceller's identity; identity is readable only through the guarded history read. No new import arrow.
+`notifications` only stores the in-app row and does not consume `ServiceLineChanged`.
