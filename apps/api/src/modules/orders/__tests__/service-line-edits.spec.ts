@@ -98,5 +98,7 @@ it('rejects a bad or foreign cursor before any tenant read', async () => {
   const foreign = Buffer.from(JSON.stringify({ ...decoded, line: ids.newId() })).toString('base64url');
   await expect(guarded.execute(scope(), { limit: 50, cursor: 'abc' })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   await expect(guarded.execute(scope(), { limit: 50, cursor: foreign })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  const oversized = Buffer.from(JSON.stringify({ ...decoded, revision: 2147483648 })).toString('base64url');
+  await expect(guarded.execute(scope(), { limit: 50, cursor: oversized })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
   expect(statements).toHaveLength(0);
 });

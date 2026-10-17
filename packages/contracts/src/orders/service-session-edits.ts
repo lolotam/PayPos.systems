@@ -11,7 +11,8 @@ export const serviceLineEditsQuery = z.strictObject({
 }).meta({ id: 'ServiceLineEditsQuery' });
 export const serviceLineEditsCursor = z.strictObject({
   v: z.literal(1), company: id, business: id, branch: id, session: id, line: id,
-  revision: z.number().int().positive(),
+  // عمود revision من نوع integer؛ قيمة أكبر منه كانت ستفشل في القاعدة بدل رفضها بـ 400 عند قراءة المؤشر.
+  revision: z.number().int().positive().max(2147483647),
 });
 const amounts = z.strictObject({ price: sessionMoney, discount: sessionMoney, net: sessionMoney });
 export const serviceLineEditItem = z.strictObject({
