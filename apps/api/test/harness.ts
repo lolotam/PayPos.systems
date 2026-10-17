@@ -57,7 +57,7 @@ export interface Harness {
   signedInOperator(email: string): Promise<string>;
   onboard(cookie: string, name: string): Promise<string>;
   send(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PATCH',
     url: string,
     options: { cookie: string; company?: string; key?: string; body?: object },
   ): Promise<{

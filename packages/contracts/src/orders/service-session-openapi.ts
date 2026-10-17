@@ -39,4 +39,22 @@ export const serviceSessionPaths = {
   '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines': {
     post: write('appendServiceSessionLines', 'AppendServiceSessionLinesInput', 'AppendServiceSessionLinesResponse', true),
   },
+  '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}': {
+    patch: {
+      operationId: 'editServiceLine',
+      description: 'Edits one saved line price and discount. Requires edit:service-line-prices:branch on the route branch, the orders feature, and an individual admin login. Actor-bound Idempotency-Key. Every return, including a replay, is projected by the caller effective read:service-sessions:branch: the saved line with edited true and the visit total, or only saved and edited when that read is absent. History is never returned.',
+      parameters: [...parameters,
+        { in: 'path', name: 'sessionId', required: true, schema: { type: 'string', format: 'uuid' } },
+        { in: 'path', name: 'lineId', required: true, schema: { type: 'string', format: 'uuid' } }],
+      requestBody: { required: true, content: json('EditServiceLineInput') },
+      responses: {
+        '200': { description: 'Projected edit. With branch read: line edited true and session id plus total_net. Without it: saved true and edited true only.', content: json('EditServiceLineResponse') },
+        '400': { description: 'Shape error or a missing Idempotency-Key. A missing reason is not a shape error.', content: json('ErrorEnvelope') },
+        '403': { description: 'Permission, orders feature, device principal, self-edit, or a line that does not match the route.', content: json('ErrorEnvelope') },
+        '409': { description: 'Stale expected_revision (SESSION_LINE_REVISION_STALE): details carry current_revision only and no money. Also an idempotent request still in progress or a transaction retry, which carry no details.', content: json('ErrorEnvelope') },
+        '422': { description: 'Domain refusal, including an invalid reason, an unchanged price and discount, or the same Idempotency-Key reused with another request (IDEMPOTENCY_KEY_REUSED).', content: json('ErrorEnvelope') },
+        default: { description: 'Bilingual authentication or readiness refusal.', content: json('ErrorEnvelope') },
+      },
+    },
+  },
 };
