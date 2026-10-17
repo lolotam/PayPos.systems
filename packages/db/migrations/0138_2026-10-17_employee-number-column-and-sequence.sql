@@ -15,4 +15,4 @@ ALTER TABLE "employees" ADD COLUMN "employee_number" integer;--> statement-break
 ALTER TABLE "employee_number_sequences" ADD CONSTRAINT "employee_number_sequences_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employee_number_sequences" ADD CONSTRAINT "employee_number_sequences_start_set_by_user_id_fk" FOREIGN KEY ("start_set_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "employee_number_sequences_start_set_by_idx" ON "employee_number_sequences" USING btree ("start_set_by");--> statement-breakpoint
-ALTER TABLE "employees" ADD CONSTRAINT "employees_employee_number_range" CHECK ("employees"."employee_number" IS NULL OR "employees"."employee_number" BETWEEN 1 AND 999999);
+ALTER TABLE "employees" ADD CONSTRAINT "employees_employee_number_range" CHECK ("employees"."employee_number" IS NULL OR "employees"."employee_number" BETWEEN 1 AND 999999) NOT VALID;

@@ -45,6 +45,7 @@ it('employee detail projects the contract shape and uses tenant/business index',
     input: termsFor(f),
   });
   expect(await detailFor(f, f.company, f.business, created.id)).toMatchObject(created);
+  await f.h.owner`ANALYZE employees`;
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) SELECT id,business_id,primary_branch_id,user_id,name_ar,name_en,role_code,
@@ -53,6 +54,6 @@ it('employee detail projects the contract shape and uses tenant/business index',
       FROM employees WHERE company_id=${f.company} AND business_id=${f.business} AND id=${created.id} AND deleted_at IS NULL`);
   });
   expect(JSON.stringify(plan)).toMatch(
-    /employees_(company_business_(id_(idx|key)|name_(en|ar)_key_idx)|company_employee_number_key|pkey)/,
+    /employees_(company_business_(id_(idx|key)|name_(en|ar)_key_idx)|pkey)/,
   );
 });
