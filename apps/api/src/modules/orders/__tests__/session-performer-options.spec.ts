@@ -37,7 +37,7 @@ it('record-only access yields exact private-field-free pages, stable cursors wit
   f.h.calls.statements.length = 0;
   const first = await get('lang=ar&limit=2&q=zulu'); expect(first.status).toBe(200);
   const page = sessionPerformerOptionPage.parse(first.body);
-  expect(page).toEqual({ items: f.employees.slice(0, 2).map((id) => ({ id, name_ar: 'باء', name_en: 'ZULU',
+  expect(page).toEqual({ items: f.employees.slice(0, 2).map((id) => ({ id, name_ar: 'باء', name_en: 'ZULU', employee_number: null,
     not_clocked_in_warning: true, approved_leave_warning: false })), next_cursor: null });
   const last = sessionPerformerOptionPage.parse((await get(`lang=ar&limit=2&cursor=${cursor('باء', must(f.employees[1]), 'ar')}`)).body);
   expect(last.items.map((r) => r.id)).toEqual([f.employees[2]]); expect(last.next_cursor).toBeNull();
