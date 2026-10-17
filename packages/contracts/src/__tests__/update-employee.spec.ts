@@ -45,7 +45,8 @@ it('bounds cursor pages and requires current branch metadata on edit details', (
   });
   expect(employeeListQuery.safeParse({ cursor: 'foreign-text' }).success).toBe(false);
   expect(employeeListQuery.safeParse({ limit: '101' }).success).toBe(false);
-  for (const employee_number of [0, 1_000_000, '1.5', 'abc', '-1'])
+  expect(employeeListQuery.parse({ employee_number: '007' }).employee_number).toBe(7);
+  for (const employee_number of [0, 7, 1_000_000, '0', '1000000', '1.5', 'abc', '-1', '0x7', '1e3', ' 7', '+7', ''])
     expect(employeeListQuery.safeParse({ employee_number }).success).toBe(false);
   expect(employeeDetailRecord.safeParse(terms).success).toBe(false);
 });

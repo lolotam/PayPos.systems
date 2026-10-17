@@ -6,10 +6,11 @@ import { attendanceWorkingDate } from '../domain/clock-attendance.ts';
 import { schedulingContext } from './schedule-context.adapter.ts';
 import { sessionPerformers } from './session-performers.reader.ts';
 
-// بديل مؤقت لـ parseEmployeeNumber لحد 8c-6: نص أرقام من خانة لست، وقيمته من 1 إلى 999999، وغير كده مفيش مطابقة رقم.
+// بديل مؤقت لـ parseEmployeeNumber لحد 8c-6: بعد القص أرقام فقط بأي طول، والأصفار البادئة تتشال، والقيمة من 1 إلى 999999.
 function employeeNumberFromSearch(q: string | undefined): number | null {
-  if (q === undefined || !/^[0-9]{1,6}$/.test(q)) return null;
-  const value = Number(q);
+  const text = q?.trim();
+  if (text === undefined || !/^[0-9]+$/.test(text)) return null;
+  const value = Number(text);
   return value >= 1 && value <= 999_999 ? value : null;
 }
 

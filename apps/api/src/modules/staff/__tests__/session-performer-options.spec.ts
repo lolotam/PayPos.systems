@@ -153,6 +153,8 @@ it('EN-14 digit search matches the exact number or the name, and 007 matches 7',
     const byTwo = await search('2');
     expect(byTwo.items.map((row) => [row.id, row.employee_number])).toEqual([[plain, 2], [named, 9]]);
     expect((await search('007')).items.map((row) => [row.id, row.employee_number])).toEqual([[seven, 7]]);
+    expect((await search('0000007')).items.map((row) => [row.id, row.employee_number])).toEqual([[seven, 7]]);
+    expect((await search(' 0000007 ')).items.map((row) => [row.id, row.employee_number])).toEqual([[seven, 7]]);
     expect((await search('0')).items.map((row) => row.id)).not.toContain(ten);
     expect(await search('1000000')).toEqual({ items: [], next_cursor: null });
   } finally {
@@ -176,6 +178,50 @@ it('EN-14 digit search hides a number in another business or on another branch',
     expect(await search('4')).toEqual({ items: [], next_cursor: null });
   } finally {
     await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.company} AND id IN (${other},${off})`;
+  }
+});
+it('EN-14 digit search hides the same number in another company and on a deleted employee', async () => {
+  const live = must(f.employees[1]);
+  const foreign = ids.newId();
+  const gone = ids.newId();
+  await f.h.owner`UPDATE employees SET employee_number=7 WHERE company_id=${f.company} AND id=${live}`;
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.otherCompany},${foreign},${f.foreignBusiness},${f.foreignBranch},'Foreign number','foreign number','staff','2026-01-01',7)`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.otherCompany},${ids.newId()},${f.foreignBusiness},${foreign},${f.foreignBranch},'2026-01-01')`;
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.company},${gone},${f.business},${f.branch},'Gone number','gone number','staff','2026-01-01',6)`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.company},${ids.newId()},${f.business},${gone},${f.branch},'2026-01-01')`;
+  await f.h.owner`UPDATE employees SET deleted_at=now() WHERE company_id=${f.company} AND id=${gone}`;
+  try {
+    expect((await search('7')).items.map((row) => row.id)).toEqual([live]);
+    expect(await search('6')).toEqual({ items: [], next_cursor: null });
+  } finally {
+    await f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${live}`;
+    await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.otherCompany} AND id=${foreign}`;
+    await f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${gone}`;
+  }
+});
+it('EN-14 digit search pages number and name matches with limit 1', async () => {
+  const named = must(f.employees[2]);
+  const plain = ids.newId();
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.company},${plain},${f.business},${f.branch},'Plain name','plain name','staff','2026-01-01',2)`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.company},${ids.newId()},${f.business},${plain},${f.branch},'2026-01-01')`;
+  await f.h.owner`UPDATE employees SET employee_number=9 WHERE company_id=${f.company} AND id=${named}`;
+  const page = (cursor?: string) => f.db.withTenant(f.company, (tx) => readSessionPerformerOptions(tx, f.company, f.business, f.branch,
+    { occurred_at, lang: 'en', limit: 1, q: '2', ...(cursor === undefined ? {} : { cursor }) }, (instant) => instant));
+  try {
+    const first = await page();
+    expect(first.items.map((row) => row.id)).toEqual([plain]);
+    const second = await page(must(first.next_cursor));
+    expect(second.items.map((row) => row.id)).toEqual([named]);
+    expect(second.next_cursor).toBeNull();
+  } finally {
+    await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.company} AND id=${plain}`;
+    await f.h.owner`UPDATE employees SET employee_number=NULL WHERE company_id=${f.company} AND id=${named}`;
   }
 });
 it('EXPLAIN ANALYZE uses employees_company_employee_number_key for a digit search', async () => {

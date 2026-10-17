@@ -154,6 +154,26 @@ it('EN-14 list filter returns exactly that employee and an empty page outside it
     next_cursor: null,
   });
 });
+it('EN-14 list filter hides the same number in another company and a deleted employee', async () => {
+  const record = records[1];
+  if (record?.employee_number == null) throw new Error('missing employee number');
+  const number = record.employee_number;
+  const foreign = ids.newId();
+  await f.h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES(${f.otherCompany},${foreign},${f.foreignBusiness},${f.foreignBranch},'Foreign number','foreign number','staff','2026-01-01',${number})`;
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.otherCompany},${ids.newId()},${f.foreignBusiness},${foreign},${f.foreignBranch},'2026-01-01')`;
+  try {
+    expect(
+      employeePage.parse(await list(20, undefined, f.company, f.business, number)).items.map((row) => row.id),
+    ).toEqual([record.id]);
+    await f.h.owner`UPDATE employees SET deleted_at=now() WHERE company_id=${f.company} AND id=${record.id}`;
+    expect(await list(20, undefined, f.company, f.business, number)).toEqual({ items: [], next_cursor: null });
+  } finally {
+    await f.h.owner`UPDATE employees SET deleted_at=NULL WHERE company_id=${f.company} AND id=${record.id}`;
+    await f.h.owner`UPDATE employees SET deleted_at=now(),employee_number=NULL WHERE company_id=${f.otherCompany} AND id=${foreign}`;
+  }
+});
 it('EN-14 list filter hides the numbered employee when their branch is forbidden', async () => {
   const record = records[1];
   if (record?.employee_number == null) throw new Error('missing employee number');
