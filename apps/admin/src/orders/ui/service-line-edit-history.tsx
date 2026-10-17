@@ -6,6 +6,7 @@ import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useLineEditHistory } from '../api/use-line-edit-history';
 import type { SessionServiceScope } from '../api/use-session-services';
+import { serviceSessionAccessRevoked } from '../model/service-session-access';
 
 const kwd = (value: string) => formatKwd(parseMoney(value));
 
@@ -14,8 +15,11 @@ export function ServiceLineEditHistory({ scope, sessionId, lineId, timezone }: {
 }) {
   const locale = useLocale();
   const query = useLineEditHistory(scope, sessionId, lineId, true);
+  const failure = <p role="alert">{envelopeMessage(query.error, locale)} <Button type="button" variant="outline" onClick={() => { void query.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>;
+  // خطأ الصلاحية بيسيب صفحات السجل القديمة؛ الرسالة بس، من غير الأسباب ولا الأسعار المخزنة.
+  if (serviceSessionAccessRevoked(query.error)) return failure;
   if (query.isPending) return <p>{t(locale, 'serviceLineEdit.loading')}</p>;
-  if (query.isError) return <p role="alert">{envelopeMessage(query.error, locale)} <Button type="button" variant="outline" onClick={() => { void query.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>;
+  if (query.isError) return failure;
   const items = query.data.pages.flatMap((page) => page.items);
   if (!items.length) return <p>{t(locale, 'serviceLineEdit.historyEmpty')}</p>;
   return <div className="grid gap-2 text-start">

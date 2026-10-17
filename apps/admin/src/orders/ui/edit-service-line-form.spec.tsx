@@ -37,6 +37,9 @@ function fill(text = 'because', price = '10.000', discount = '2.500') {
 const saved = { data: { saved: true, edited: true }, response: { status: 200 } };
 const bodyOf = (index: number) => state.patch.mock.calls[index]?.[1].body as { reason: string; expected_revision: number; editor_membership_id?: string };
 const keyOf = (index: number) => state.patch.mock.calls[index]?.[1].params.header['Idempotency-Key'] as string;
+async function flushStale(onStale: { mock: { results: { value?: unknown }[] } }) {
+  await act(async () => { await onStale.mock.results.at(-1)?.value; });
+}
 
 it('requires a reason and counts an emoji as one character through 500', async () => {
   state.patch.mockReset(); state.patch.mockResolvedValue(saved); shown(); save();
@@ -73,8 +76,9 @@ it('sends the revision the form opened with when the line changes in the backgro
 
 it('shows a stale revision, refetches once, and waits for a second save', async () => {
   state.patch.mockReset(); state.patch.mockResolvedValue(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 2 }));
-  const view = shown(); fill('because', '12.000', '1.000'); save();
+  const view = shown(); view.onStale.mockResolvedValue(2); fill('because', '12.000', '1.000'); save();
   await waitFor(() => expect(view.onStale).toHaveBeenCalledTimes(1));
+  await flushStale(view.onStale);
   expect(state.patch).toHaveBeenCalledTimes(1);
   expect((screen.getByLabelText(t('en', 'serviceSessions.price')) as HTMLInputElement).value).toBe('12.000');
   const refreshed = { ...dayLine(2), price: '11.000', discount: '0.500', net: '10.500' };
@@ -88,8 +92,9 @@ it('shows a stale revision, refetches once, and waits for a second save', async 
 it('adopts one refreshed revision after a stale save and ignores the next background change', async () => {
   state.patch.mockReset();
   state.patch.mockResolvedValueOnce(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 2 })).mockResolvedValue(saved);
-  const view = shown(); fill('because', '12.000', '1.000'); save();
+  const view = shown(); view.onStale.mockResolvedValue(2); fill('because', '12.000', '1.000'); save();
   await waitFor(() => expect(view.onStale).toHaveBeenCalledTimes(1));
+  await flushStale(view.onStale);
   const refreshed = { ...dayLine(2), price: '11.000', discount: '0.500', net: '10.500' };
   view.rerender(view.ui(refreshed));
   expect(screen.getByText(t('en', 'serviceLineEdit.current'), { exact: false }).textContent).toContain(formatKwd(parseMoney('11.000')));
@@ -98,6 +103,26 @@ it('adopts one refreshed revision after a stale save and ignores the next backgr
   await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(2));
   expect(bodyOf(0).expected_revision).toBe(1);
   expect(bodyOf(1).expected_revision).toBe(2);
+});
+
+it('adopts the refetched revision when the cached line is already newer', async () => {
+  state.patch.mockReset();
+  state.patch.mockResolvedValueOnce(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 3 })).mockResolvedValue(saved);
+  const view = shown();
+  const cached = { ...dayLine(2), price: '11.000', discount: '0.500', net: '10.500' };
+  view.rerender(view.ui(cached));
+  fill('because', '12.000', '1.000');
+  let finish: (revision: number | null) => void = () => undefined;
+  view.onStale.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  save();
+  await waitFor(() => expect(view.onStale).toHaveBeenCalledTimes(1));
+  await act(async () => { finish(3); await view.onStale.mock.results[0]?.value; });
+  expect(screen.getByText(t('en', 'serviceLineEdit.current'), { exact: false }).textContent).toContain(formatKwd(parseMoney('11.000')));
+  expect((screen.getByLabelText(t('en', 'serviceSessions.price')) as HTMLInputElement).value).toBe('12.000');
+  save();
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(2));
+  expect(bodyOf(0).expected_revision).toBe(1);
+  expect(bodyOf(1).expected_revision).toBe(3);
 });
 
 it('rejects an amount discount above the price before submit', async () => {

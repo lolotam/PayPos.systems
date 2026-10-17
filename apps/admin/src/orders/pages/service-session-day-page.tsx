@@ -7,6 +7,7 @@ import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchDaySessions } from '../api/use-branch-day-sessions';
 import type { SessionServiceScope } from '../api/use-session-services';
+import { serviceSessionAccessRevoked } from '../model/service-session-access';
 import { sessionLocalTime } from '../model/session-local-time';
 import { useBrowserConnectivity } from '../model/use-browser-connectivity';
 import { useSessionQueryLifecycle } from '../model/use-session-query-lifecycle';
@@ -18,9 +19,18 @@ import { ServiceSessionDayVisit } from '../ui/service-session-day-visit';
 type Visit = DayPage['items'][number];
 type OpenEditor = { key: string; token: number };
 
-// حفظ قديم ما يقفلش فتحة جديدة لنفس السطر؛ التوكن بيميز كل فتح.
+// توكن جديد لكل فتحة؛ ضغطة تعديل على السطر المفتوح ما بتجدّدش التوكن عشان الحفظ الجاري يقفل نفس الفتحة.
 function releaseEditor(key: string, token: number) {
   return (current: OpenEditor | null) => (current?.key === key && current.token === token ? null : current);
+}
+
+// مراجعة السطر بتتاخد من صفحات الجلب اللي طلبه الـ 409؛ لو الجلب فشل أو السطر مش موجود مفيش رقم يتبعت.
+function lineRevision(pages: readonly DayPage[], sessionId: string, lineId: string): number | null {
+  for (const page of pages) {
+    const match = page.items.find((item) => item.id === sessionId)?.lines.find((item) => item.id === lineId);
+    if (match) return match.revision;
+  }
+  return null;
 }
 
 function findLine(visits: Visit[], key: string | null) {
@@ -44,7 +54,11 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
   const [history, setHistory] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const query = useBranchDaySessions(scope, date, lateOnly, online);
-  const visits = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const revoked = serviceSessionAccessRevoked(query.error);
+  // الرفض بيتقفل في نفس الرسمة من غير تأثير؛ البيانات القديمة لسه في الكاش ولازم نمسح فتحة التعديل والسجل قبل ما تترسم.
+  if (revoked && editing) setEditing(null);
+  if (revoked && history) setHistory(null);
+  const visits = revoked ? [] : (query.data?.pages.flatMap((page) => page.items) ?? []);
   const target = findLine(visits, editing?.key ?? null);
   return <section className="grid gap-4 text-start" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
     <PageHeader title={t(locale, 'serviceLineEdit.title')} />
@@ -58,15 +72,15 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
       const lineKey = target?.visit.id === visit.id ? `${visit.id}:${target.line.id}` : null;
       const openToken = editing?.token;
       return <ServiceSessionDayVisit key={visit.id} visit={visit} locale={locale} activeLineId={target?.visit.id === visit.id ? target.line.id : null} historyLineId={historyLineId}
-        onEdit={(lineId) => { setNotice(null); editorToken.current += 1; setEditing({ key: `${visit.id}:${lineId}`, token: editorToken.current }); }}
+        onEdit={(lineId) => { const key = `${visit.id}:${lineId}`; setNotice(null); if (editing?.key === key) return; editorToken.current += 1; setEditing({ key, token: editorToken.current }); }}
         onToggleHistory={(lineId) => setHistory((current) => current === `${visit.id}:${lineId}` ? null : `${visit.id}:${lineId}`)}
         editor={lineKey && target && openToken !== undefined ? <EditServiceLineForm key={target.line.id} scope={scope} sessionId={visit.id} line={target.line} online={online}
           onSaved={() => { setEditing(releaseEditor(lineKey, openToken)); setNotice(t(locale, 'serviceLineEdit.saved')); }}
-          onStale={() => { void query.refetch(); }}
+          onStale={async () => { const fresh = await query.refetch(); return fresh.isSuccess ? lineRevision(fresh.data.pages, visit.id, target.line.id) : null; }}
           onForbidden={(message) => { setEditing(releaseEditor(lineKey, openToken)); setNotice(message); }}
           onClose={() => { setEditing(releaseEditor(lineKey, openToken)); }} /> : null}
         historyPanel={historyLineId ? <ServiceLineEditHistory scope={scope} sessionId={visit.id} lineId={historyLineId} timezone={visit.business_timezone} /> : null} />;
     })}
-    {query.hasNextPage ? <Button type="button" variant="outline" onClick={() => { void query.fetchNextPage(); }}>{t(locale, 'serviceLineEdit.loadMore')}</Button> : null}
+    {!revoked && query.hasNextPage ? <Button type="button" variant="outline" onClick={() => { void query.fetchNextPage(); }}>{t(locale, 'serviceLineEdit.loadMore')}</Button> : null}
   </section>;
 }
