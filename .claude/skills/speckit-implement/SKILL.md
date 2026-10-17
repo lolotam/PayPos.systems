@@ -229,7 +229,7 @@ Check if `.specify/extensions.yml` exists in the project root.
     ```
 
 **Re-run the final gate after the hooks.** The `pnpm check` run in the validation step describes the worktree as it was *before* the hooks, and a hook can change source, generated or untracked files, or commit. Do not try to detect what a hook changed: a status or diff snapshot misses untracked and ignored files and hook-made commits.
-- If no hook ran (none registered, all disabled or skipped for a `condition`, or only optional hooks the user did not run), the earlier `pnpm check` result stands
+- If no hook ran (none registered, all disabled or skipped for a `condition`, or only optional hooks the user did not run), the earlier `pnpm check` result stands. If you cannot tell whether a hook ran, including an optional hook the user may have run elsewhere, treat it as having run
 - If any hook ran, run `pnpm check` again from the repo root after the last hook has finished, under the same rules as the final gate above (fix causes within the slice's tasks, never skip or weaken a check, stop and report the slice as NOT complete when it cannot run or fails outside the slice), and record that run's command, exit status and date. If a hook changes files again while you fix a failure, repeat this step
 
 ## Completion Report
