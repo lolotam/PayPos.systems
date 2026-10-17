@@ -29,7 +29,10 @@ export function SessionServiceField({ scope, value, onChange, onCatalogRefresh, 
   useEffect(() => {
     if (catalogSelection && value && catalogSelection.revision !== value.revision) onCatalogRefresh?.(catalogSelection);
   }, [catalogSelection, value, onCatalogRefresh]);
-  const name = (item: SessionServiceSelection) => locale === 'ar' ? item.name_ar ?? item.name_en : item.name_en;
+  // الخدمة المسترجعة اسمها هو معرّفها؛ نقول «جاري التحميل» فقط والقائمة فعلًا بتتحمّل.
+  const optionsLoading = !query.data && query.isFetching;
+  const name = (item: SessionServiceSelection) => item.price_source === 'INPUT' && optionsLoading ? t(locale, 'serviceSessions.loadingService')
+    : locale === 'ar' ? item.name_ar ?? item.name_en : item.name_en;
   return <fieldset disabled={disabled} className="grid gap-2 text-start">
     <Label htmlFor={`${prefix}-search`}>{t(locale, 'serviceSessions.searchServices')}</Label>
     <Input id={`${prefix}-search`} type="search" maxLength={50} value={search}
