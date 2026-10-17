@@ -115,16 +115,27 @@ async function insertHistory(
 ) {
   const previousNet = spec.previousNet ?? '2.500';
   const newNet = spec.newNet ?? '1250.000';
-  await owner`INSERT INTO service_line_edits(company_id,id,business_id,line_id,revision,previous_revision,
+  const role = spec.editorRole === undefined ? 'owner' : spec.editorRole;
+  const nameEn = spec.editorNameEn === undefined ? 'Synthetic editor' : spec.editorNameEn;
+  const insert = (query: postgres.TransactionSql) => query`INSERT INTO service_line_edits(company_id,id,business_id,line_id,revision,previous_revision,
     previous_price,previous_discount,previous_net,new_price,new_discount,new_net,
     previous_effective_discount_bps,previous_limit_source,new_effective_discount_bps,new_limit_source,
-    reason,changed_at,changed_by,changed_by_membership_id,editor_name_ar,editor_name_en,editor_role)
+    reason,changed_at,changed_by,changed_by_membership_id,editor_name_ar,editor_name_en,editor_role,
+    editor_role_is_system,editor_role_name_en)
     VALUES(${line.companyId},${ids.newId()},${line.businessId},${line.lineId},${revision},${revision - 1},
       ${previousNet},'0.000',${previousNet},${newNet},'0.000',${newNet},
       0,'OWNER',0,'OWNER','recorded reason',${at},${USER},${ORDER_IDS.membership},
-      ${spec.editorNameAr === undefined ? null : spec.editorNameAr},
-      ${spec.editorNameEn === undefined ? 'Synthetic editor' : spec.editorNameEn},
-      ${spec.editorRole === undefined ? 'owner' : spec.editorRole})`;
+      ${spec.editorNameAr === undefined ? null : spec.editorNameAr},${nameEn},${role},
+      ${role === null ? null : true},${role === null ? null : 'Synthetic role'})`;
+  // صف بلا اسم ولا دور لم يعد ممكناً بعد 35d-3b؛ نكتبه بإسقاط القيد لحظياً لنختبر دفاع المستهلك أمام صف تاريخي قديم.
+  const legacyShape = role === null && nameEn === null;
+  await owner.begin(async (tx) => {
+    if (legacyShape) await tx`ALTER TABLE service_line_edits DROP CONSTRAINT service_line_edits_editor_identity`;
+    await insert(tx);
+    if (legacyShape)
+      await tx`ALTER TABLE service_line_edits ADD CONSTRAINT service_line_edits_editor_identity
+        CHECK (editor_name_en IS NOT NULL OR editor_role IS NOT NULL) NOT VALID`;
+  });
 }
 async function insertEvent(
   context: PriceEditContext,

@@ -94,6 +94,7 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'late_service_session_notices:SELECT',
     'leave_requests:INSERT',
     'leave_requests:SELECT',
+    // لقطة هوية المنفذ (linked_user_id، linked_user_snapshotted) لا تتغير بعد الإدخال، فلا UPDATE هنا ولا على عمود منها (ADR-0045 §1).
     'line_performers:INSERT',
     'line_performers:SELECT',
     'memberships:DELETE',
