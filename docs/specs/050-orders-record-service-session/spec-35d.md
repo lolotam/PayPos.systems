@@ -47,6 +47,8 @@ payment, printing or sync.
 | D-6 | The edit does not join the ADR-0042 recovery proof | widening `service_session_recoveries.operation` |
 | D-7 | The typed reason is stored in the history row only: not in the event, the bell, the audit entry or any log | copying it into the audit entry |
 | D-8 | `expected_revision` is required (compare-and-set) | last-write-wins |
+| D-9 | An editor membership is eligible when it is active, covers the branch and **itself** grants `edit:service-line-prices:branch` (not denied); the edit is attributed to it and its limit applies. One eligible membership is picked automatically; several without `editor_membership_id` → `SESSION_EDITOR_MEMBERSHIP_REQUIRED`; none, or a supplied one that is not eligible → uniform 403 | the principal-wide permission of recording (it would let a membership without the grant lend its higher limit) |
+| D-10 | The use case checks `expected_revision` against the loaded line **before** preparation, so two identical racing edits give the loser `SESSION_LINE_REVISION_STALE` and not `SESSION_EDIT_NO_CHANGE` (the CAS `UPDATE` still guards the write). Refusal order: authority, scope, performer identity, stale revision, cancelled, window, reason, discount shape, no change, limit, total. The idempotent response is stored in full with status 200 and projected by the caller's read permission on every return, replays included; the edit does not create a recovery proof | late revision check; storing the projected body |
 
 ## 2. User scenarios and testing *(mandatory)*
 
@@ -227,9 +229,7 @@ the outbox.
   only for edit attribution, the edit permission and the discount limit, never for this decision. With the permission: the current saved line plus `edited` and the visit
   total. Without it: **no figures at all** (ED-Q14, option 2): the response says only that the edit was saved and carries the `edited`
   mark, with no price, discount, net, previous value, editor, time or visit total, and no number at all (the owner's wording of
-  ED-Q14). How such a caller learns the new revision for a second correction of the same line is a technical question for 35d-4,
-  tracked in issue #272; it is not decided here and no field is added without the owner's agreement; the screen shows figures only to a caller who holds
-  the read permission. The response can never carry the history fields of LE-14.
+  ED-Q14). A caller without the read permission is never told the revision on success. Decided (issue #272, option 1): a stale `expected_revision` is refused with 409 `SESSION_LINE_REVISION_STALE` whose details carry only `current_revision` (a counter, not a figure), and the client retries with it; a first edit uses the revision from the record or append snapshot the caller already holds. No field is added to the success response; how the reception screen presents the retry is 35d-6's. The test is `LE-18b` (a read-less caller gets 409 with `current_revision` and no money, then succeeds with that revision). The response can never carry the history fields of LE-14.
 - **FR-015** (D-6) The edit does not issue or consume a session-recovery proof (ADR-0042). A client in doubt re-sends the
   same key (replay) or re-reads the line; a re-send under a new key is made safe by FR-017.
 - **FR-016** Audit entry `service_line.price_discount_edited` on entity `service_line`: session, line, edit id, revision
@@ -297,8 +297,8 @@ so no deployment window can create an editable line without a snapshot.
   `@Require('edit:service-line-prices:branch', { branch: 'branchId' })` · `@RequiresFeature('orders')` · `SessionAdminGuard`.
   Zod in `packages/contracts/src/orders/service-session.ts` (strict):
   `{ price: Money, discount: {kind:'AMOUNT', amount} | {kind:'PERCENT', bps}, reason: string, expected_revision: int ≥ 1,
-  editor_membership_id?: uuid }` → `200`: with the branch-read permission `{ line: <saved line snapshot> & { edited: boolean }, session: { id, total } }`; without it the
-  narrow shape of FR-014.
+  editor_membership_id?: uuid }` → `200`: with the branch-read permission `{ line: <saved line snapshot> & { edited: true }, session: { id, total_net } }`; without it the
+  narrow shape `{ saved: true, edited: true }` (FR-014).
 - **Idempotency-Key**: required; COMPANY scope, operation `edit-service-line-price`; fingerprint over
   `{method, route, query, body, params:{businessId, branchId, companyId, actorUserId, sessionId, lineId}}` using the shared helper.
 - **History** (35d-5) — `GET .../service-sessions/:sessionId/lines/:lineId/edits?cursor&limit` · `@Require('read:service-sessions:branch', { branch: 'branchId' })` · `@RequiresFeature('orders')` · `SessionAdminGuard`
@@ -360,9 +360,11 @@ Owner rule 2026-10-12: at most three subtasks per PR. Sizes are hand-written lin
 |---|---|---|---|
 | **35d-3b** | Storage for D-1 and D-2: the migration above (no backfill), `linked_user_id` and `linked_user_snapshotted = true` written by record/append, schema + privilege allowlist + inventory + RLS negative tests | this spec; numbered after 35d-2's migration | 250–350 |
 | **35d-2b** | `editorLabel` in `packages/i18n` (+ catalog keys for the other system roles' use and the generic label) and the 35d-2 consumer reading the widened columns, with the LE-21…23 tests | 35d-2 merged, 35d-3b | 120–200 |
-| **35d-4** | The writer, as FR-001…FR-017, the `edited` boolean on the saved-line snapshot (FR-019), plus plan-35d delivery tests 1–3 and 10 | this spec; issue #272 decided (how a caller without branch-read learns the new revision); 35d-1, 35d-2, 35d-2b, 35d-3, 35d-3b | 450–600 |
-| **35d-5** | Day-list edit form + the guarded history read (FR-018) + the day-list `edited` boolean and its `EXISTS` query (FR-019) | 35d-4 | 250–380 |
-| **35d-6** | Reception edit for just-saved lines + the «edited» mark (FR-019) | 35d-4, 35d-5 | 200–320 |
+| **35d-4a** | Contracts and pure rules of the writer | 1. `editServiceLineInput`, `editServiceLineResponse` (full and narrow, FR-014), optional `edited` (default `false`) on the saved-line contract (FR-019), OpenAPI/client regeneration. 2. Domain: reason (FR-008), editor eligibility and selection (D-9), performer-identity rule (FR-007, D-1), line preparation (FR-004/005/009: limit, no-change, cancelled, total), response projection (FR-014). 3. Error codes with ar/en messages and unit tests | this spec; 35d-1, 35d-2, 35d-2b, 35d-3, 35d-3b | 250–350 |
+| **35d-4b** | The edit use case and its storage access | 1. Orders ports (`SessionEditAccessPort`, `EditorNamePort`, line edit repository) and the three adapters over the `identity` and `staff` exports already named in the module map §6. 2. `EditServiceLinePriceUseCase` in the lock order of §4 *Concurrency*, the status-200 idempotent store without a recovery proof (D-6, D-10), audit, `ServiceLineChanged` emit. 3. Integration tests LE-01…LE-13b, LE-17…LE-20, plan delivery tests 1–3 | 35d-4a | 400–550 |
+| **35d-4c** | HTTP and the end-to-end proof | 1. `PATCH` route, guard, error filter mapping, OpenAPI and generated clients. 2. LE-14…LE-16 and LE-21…LE-23 over HTTP, `LE-18b`. 3. Plan delivery test 10 (edit → dispatcher → bell) | 35d-4b | 250–400 |
+| **35d-5** | Day-list edit form + the guarded history read (FR-018) + the day-list `edited` boolean and its `EXISTS` query (FR-019) | 35d-4c | 250–380 |
+| **35d-6** | Reception edit for just-saved lines + the «edited» mark (FR-019) | 35d-4c, 35d-5 | 200–320 |
 
 35d-2b is small enough to be absorbed by the 35d-2 session if 35d-2 has not merged when 35d-3b does; either way 35d-4 does not
 start before both are merged, so the writer never produces a row the consumer cannot label. 37b (performer changes) must write
