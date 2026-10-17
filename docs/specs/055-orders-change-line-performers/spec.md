@@ -35,7 +35,7 @@ line to سارة 70% / رنا 30% with the reason «رنا شاركت في ال�
 | Self (PF-Q2) | nobody changes a line he or she performs, and nobody puts himself or herself on a line; the owner is not exempt | FR-006, BR-02, D-3 |
 | How long (PF-Q3) | the recording window (back to the first day of the previous month); an approved month gets two corrections | FR-007, D-6 |
 | Rules, reason, bell, mark (PF-Q4) | the recording rules, a written reason, a bell to the branch managers, a «changed» mark with its date | FR-008, FR-009, FR-013, FR-015 |
-| A removed performer's identity (35d BR-002b, ADR-0045) | **retained**: her recorded identity keeps blocking changes of that line | D-3, §6 *Schema* |
+| A removed performer's identity (35d BR-002b, ADR-0045) | **retained**: her recorded identity keeps blocking **every** writer of that line (price edit, cancel, performer change, tips) | D-3, FR-017, §6 *Schema* |
 | Tips (TP-Q6, `PENDING` in spec 053) | not touched here; the recommended TP-Q6 needs no code in this writer | §3.2 |
 
 **Not in 37b:** price/discount edits (35d); cancelling a line (037, spec 054); changing the **customer** or the **service** of a line;
@@ -49,7 +49,7 @@ payments, printing, sync (Phase 2).
 |---|---|---|
 | D-1 | One line per request; a second line is a second request, revision, bell | batch change (partial-failure semantics with no owner request behind them) |
 | D-2 | New permission `change:service-line-performers:branch`, independent of edit, record and cancel | reusing `edit:service-line-prices:branch` (a different act; the owner asked for a new permission) |
-| D-3 | **Retention.** A performer removed by a change keeps blocking changes of that line: the self rule looks at the current performers, at every performer the line ever had (`BEFORE` rows of its history) and at the performers of the requested set. A false refusal is accepted, in the safe direction (ADR-0045) | letting a removed performer change the line she was removed from (a way around PF-Q2 later); deleting the snapshot (ADR-0045 forbids a silent delete) |
+| D-3 | **Retention.** A performer removed by a change keeps blocking **every** writer of that line (price edit 35d, cancel 054, tips 053 TP-04, and this one): the self rule looks at the current performers, at every performer the line ever had (`BEFORE` rows of its history) and, for this writer, at the performers of the requested set. One shared read serves all four writers (FR-017). A false refusal is accepted, in the safe direction (ADR-0045) | letting a removed performer change the line she was removed from (a way around PF-Q2 later); deleting the snapshot (ADR-0045 forbids a silent delete) |
 | D-4 | A change **replaces the whole set** (delete the current rows, insert the new ones, in one transaction); ordinals are `1…n` in request order; the set after the change is what every reader sees. History keeps both sides | updating shares in place (the table is insert-only; ordinals and unique keys would need swaps) |
 | D-5 | A performer who stays keeps her **recording-time** identity snapshot (copied from the old row, never re-read); an added performer gets the link at change time with `linked_user_snapshotted = true` (ADR-0045) | re-snapshotting everybody (it would overwrite the recording-time link) |
 | D-6 | Orders reads no statement status. A change in an approved or paid month is stored like any other; rows 50/55 post the two corrections from the event | orders reading commission statements (35d D-5) |
@@ -57,7 +57,7 @@ payments, printing, sync (Phase 2).
 | D-8 | A package line is refused by this writer (`SESSION_LINE_PERFORMERS_NOT_CHANGEABLE`) once rows 42/43 add the marker; until then no such line exists | changing performers of a redeemed slot here before rows 42–47 decide it |
 | D-9 | `expected_revision` is required (compare-and-set); the refusal order is fixed (FR-011) | last-write-wins |
 | D-10 | The change does not join the ADR-0042 recovery proof (35d D-6) | widening `service_session_recoveries.operation` |
-| D-11 | Eligibility (PF-Q4 «same rules») is checked for **every** performer of the new set at the line's original `occurred_at`; a line with a performer who is no longer eligible is changed by removing her | exempting kept performers (it adds a second rule nobody asked for) |
+| D-11 | Eligibility and the attendance/leave warnings (PF-Q4 «same rules») are evaluated for the performers the change **adds**, with the recording-time staff check called at the line's original `occurred_at`. A performer who stays keeps her original verdict, flags and identity snapshot (copied from her old row), so a colleague who has since left never forces her removal just to fix another share | re-checking kept performers (a departed colleague could then be fixed only by silently moving her commission to the others, a money consequence nobody chose) |
 
 ## 3. Owner rules and how they meet the tip rules
 
@@ -91,7 +91,7 @@ who recorded; سارة, رنا and هبة are employees; ليلى is the branch 
 
 - **PC-01** ليلى changes the line from سارة 100% to سارة 70% / رنا 30% (revision 1, expected 1). In **one** transaction: the line's
   `revision` becomes 2 (compare-and-set); the two current rows are replaced by two new rows (ordinals 1, 2); one history header and
-  four history rows (`BEFORE` سارة 100%; `AFTER` سارة 70%, رنا 30%) are inserted; one audit entry is written; one `ServiceLineChanged`
+  three history rows (`BEFORE` سارة 100%; `AFTER` سارة 70%, رنا 30%) are inserted; one audit entry is written; one `ServiceLineChanged`
   is appended with `change.kind = 'PERFORMERS_CHANGE'`, the new `performers`, `change.previous = {revision 1, performers}` and
   `change.changed_by` = ليلى (not منى); the idempotent response is stored.
 - **PC-02** Price, discount, net, status, the other lines and the visit `total_net` are unchanged; `edited` (35d) is unchanged
@@ -101,11 +101,10 @@ who recorded; سارة, رنا and هبة are employees; ليلى is the branch 
   (nothing written, no bell, no revision).
 - **PC-04** Omitted shares for all performers → equal split with the remainder bps to the first input (SS-Q7); some omitted and some
   explicit, zero or fractional share, sum ≠ 10000, zero or more than four or duplicate performers → `SESSION_PERFORMER_SHARES_INVALID`.
-- **PC-05** Every performer of the new set must be active and not deleted in the business, inside her hire and contract dates
-  (contract end inclusive) and attached to this branch on the line's occurred date (`from ≤ date < to`, open-ended `to` allowed), judged at
-  the original `occurred_at`, never today; otherwise `SESSION_PERFORMER_NOT_ELIGIBLE` with the employee ids and the whole request rolls back (D-11).
+- **PC-05** Every performer the change **adds** must pass the recording-time staff check at the line's original `occurred_at`, never today (active in the business, inside her hire and contract dates, contract end inclusive, attached to this branch
+  on the occurred date, `from ≤ date < to`, open-ended `to` allowed); otherwise `SESSION_PERFORMER_NOT_ELIGIBLE` with the employee ids and the whole request rolls back. A performer who stays is not re-checked (D-11): fixing a co-performer's share works even if she has since left.
 - **PC-06** A performer with no clock-in that day, or on approved leave, saves with the per-performer warning and the line flag; the warnings
-  never block and never change shares (SS-Q8). They are recomputed for the new set.
+  never block and never change shares (SS-Q8). They are computed for the added performers; a performer who stays keeps her flags.
 
 ### Story 2 — Authority and "not your own line" (P1)
 
@@ -116,6 +115,7 @@ who recorded; سارة, رنا and هبة are employees; ليلى is the branch 
 - **PC-09** The changer's user is linked to a performer of the **requested** set (putting herself on the line) → 403 `SESSION_PERFORMER_SELF_FORBIDDEN`.
 - **PC-10** (retention, D-3) سارة was removed from the line by a first change; later the user linked to سارة holds the permission and tries to change
   the same line → 403 `SESSION_PERFORMER_SELF_FORBIDDEN`. Another manager can.
+- **PC-10b** سارة was unlinked when the line was recorded (snapshot `NULL`), was removed by a change, and is **linked later** to the changer's user → 403 `SESSION_PERFORMER_SELF_FORBIDDEN` (her current link is read under the lock, FR-004); a concurrent relink cannot slip between the read and the commit.
 - **PC-11** The #250 cases of 35d (LE-11…LE-13): link removed or moved after recording, performer linked later, several performers — all refuse by either source.
 - **PC-12** (fail closed, ADR-0045) A line whose current performers have `linked_user_snapshotted = false` → 422 `SESSION_LINE_IDENTITY_UNKNOWN`; nobody, owner included, changes it.
 - **PC-13** An added performer is stored with her link at change time and `linked_user_snapshotted = true`; a kept performer keeps her recording-time snapshot (D-5);
@@ -159,13 +159,13 @@ who recorded; سارة, رنا and هبة are employees; ليلى is the branch 
   (`lock()` then `read()`), before an idempotency replay returns and after every line and performer wait.
 - **FR-003** Body (strict Zod): `{ performers: [{ employee_id, share_bps? }] (1…4), reason?: string, expected_revision: int ≥ 1, changer_membership_id?: uuid }`. `reason` is optional **in the Zod schema on purpose** (as in the edit and cancel
   contracts): a missing or blank value must reach the domain rule and return 422 `SESSION_PERFORMERS_REASON_INVALID`, not a 400 from the pipe. No client field names the changer, the time, the status or any figure.
-- **FR-004** The single transaction, in the 35d lock order with the set rewrite: idempotency claim → `access.lock()` → visit advisory lock → load the line `FOR UPDATE` → `performers.lock(currentIds ∪ newIds, ascending)` → `access.read` at the fresh instant → **load, without judging**: the
-  current performers and their snapshots, every `BEFORE` identity of the line's history, the eligibility facts and links of the new set → evaluate the rules in **one** place, the FR-011 order (pure functions, no I/O) → CAS `UPDATE` of `revision` → `DELETE` the current rows → `INSERT` the new rows → history header and rows → audit → emit →
+- **FR-004** The single transaction, in the 35d lock order with the set rewrite: idempotency claim → `access.lock()` → visit advisory lock → load the line `FOR UPDATE` → `performers.lock(currentIds ∪ retainedIds ∪ newIds, ascending)` (`retainedIds` = the employees of every `BEFORE` row of the line's history, so their current links are read `FOR SHARE` too) → `access.read` at the fresh instant → **load, without judging**: the
+  current performers and their snapshots, every `BEFORE` identity of the line's history with its current link, the eligibility facts and links of the performers the change adds → evaluate the rules in **one** place, the FR-011 order (pure functions, no I/O) → CAS `UPDATE` of `revision` → `DELETE` the current rows → `INSERT` the new rows → history header and rows → audit → emit →
   store the response. **FR-011 is the single authoritative order of refusals.** Any failure rolls all of it back; the deferred consistency trigger (1…4 performers, sum 10000) is checked at commit.
 - **FR-005** `revision` increments by one; no money column of `service_lines` changes; nothing is written to `service_sessions`; the visit total is derived and does not move. The `UPDATE` column grant on `service_lines` does not change (`revision` is already granted).
-- **FR-006** (PF-Q2, D-3) The self rule is the **same pure domain function family** as 35d's (`assertEditorIsNotPerformer`: snapshot ∪ current link, null never matches, fail closed on `linked_user_snapshotted = false`), applied to the union of the current performers, the retained `BEFORE` identities and the requested set. It is not re-implemented.
+- **FR-006** (PF-Q2, D-3) The self rule is the **same pure domain function family** as 35d's (`assertEditorIsNotPerformer`: snapshot ∪ current link, null never matches, fail closed on `linked_user_snapshotted = false`), applied to the union of the current performers, the retained `BEFORE` identities (each with its snapshot **and** its locked current link) and the requested set. It is not re-implemented.
 - **FR-007** (PF-Q3) `validateAppendWindow(session.business_date, now, session.business_timezone)` at the fresh instant after all lock waits; the first of the previous month, inclusive.
-- **FR-008** (PF-Q4) The recording rules are the recording domain functions unchanged: `validateShares` / `equalShares` (SS-Q7, SS-20) and the staff performer check at the line's `occurred_at` (SS-Q8, D-11). The reason is mandatory (PC-16); a database `CHECK` mirrors it.
+- **FR-008** (PF-Q4) The recording rules are the recording domain functions unchanged: `validateShares` / `equalShares` (SS-Q7, SS-20) and the staff performer check at the line's `occurred_at` for the performers the change adds (SS-Q8, D-11). The reason is mandatory (PC-16); a database `CHECK` mirrors it.
 - **FR-009** (PF-Q4) A bell and a mark: see FR-013 and FR-015.
 - **FR-010** Idempotency-Key required; COMPANY scope, operation `change-line-performers`; fingerprint over `{method, route, query, body, params:{businessId, branchId, companyId, actorUserId, sessionId, lineId}}` with the shared helper; the response is stored in full (status 200) and
   **projected on every return, replays included**, by the caller's effective `read:service-sessions:branch` (§6).
@@ -179,6 +179,7 @@ who recorded; سارة, رنا and هبة are employees; ليلى is the branch 
 - **FR-015** (PF-Q4) The mark: the saved-line contract carries an additive optional `performers_changed_at` (the latest change, a business-timezone date), derived from the history table; the day list shows «اتغيّر المنفّذين» with that date. Clients never derive it from `revision`.
 - **FR-016** History read: `GET …/lines/:lineId/performer-changes?cursor&limit` under `read:service-sessions:branch` and the `orders` feature → newest first `{ items: [{ revision, changed_at, changer_label_ar, changer_label_en, reason, before: [{employee name, share_bps}], after: [...] }], next_cursor }`;
   route mismatch → uniform 403. A `queries/` file: read-only, no `domain/` or `use-cases/` import.
+- **FR-017** (D-3, BR-05) **One retained-identity read for every writer of a line.** Orders exposes, inside the writer's own transaction and under the same `performers.lock`, the line's *identity people*: the current performers, plus the employees of every `BEFORE` row of the line's change history, each with the snapshot `linked_user_id` and the current link. The price edit (35d FR-007), the cancel (054 FR-006), the tip writer (053 TP-04) and this writer feed that one list to the same pure self rule. Until the first removal exists the retained part is empty, so wiring it earlier changes nothing; it must be wired **before** the route that can create a removal is live (§7, 37b-4d gates 37b-4c).
 
 ## 6. Slice design
 
@@ -188,7 +189,7 @@ who recorded; سارة, رنا and هبة are employees; ليلى is the branch 
 - **BR-02** The changer is never (now, when the line was recorded, when she was removed, or in the requested set) a performer of that line, whatever the role (PF-Q2, 35d BR-002 in time).
 - **BR-03** A revision is consumed only by a real change; the reason and the who-label are mandatory facts of every change.
 - **BR-04** Orders owns the line, its performers, the history and the snapshots; it never reads `user`, a statement or a rating (35d BR-004).
-- **BR-05** A removed performer's recorded identity is never deleted: it moves to the history, where the self rule still reads it (D-3, ADR-0045).
+- **BR-05** A removed performer's recorded identity is never deleted: it moves to the history, where the self rule of **every** writer of the line still reads it (D-3, FR-017, ADR-0045).
 
 ### Response projection (derived from 35d FR-014, not a new owner rule)
 
@@ -240,7 +241,8 @@ Consumer **before** writer, as in 35d and 054. Sizes are hand-written lines incl
 | **37b-3** | The bell works for any `PERFORMERS_CHANGE` event | 1. Migration + RLS + grants for `service_line_performer_notices`. 2. Worker `orders` use case, recipients/place adapters, history-header read, consumer registration. 3. Delivery tests (consume once, tenant and scope isolation, no manager, groups, ignored kinds, notification side) | 37b-1, 37b-2 | 380–520 |
 | **37b-4a** | Contracts and pure rules of the writer | 1. `changeLinePerformersInput/Response` (full and narrow), optional `performers_changed_at` on the saved-line contract, OpenAPI. 2. Pure domain: reason, changer selection, the set rewrite plan (kept / removed / added with the snapshot rules), the retention-aware self rule, no-change, response projection. 3. Error codes ar/en + unit tests | 37b-1, 37b-2; 35d-4a (merged) | 240–340 |
 | **37b-4b** | The use case and its storage access | 1. Orders ports (the 35d access/performer/name ports reused; the change repository) and adapters. 2. `ChangeLinePerformersUseCase` in the FR-004 lock order, status-200 idempotent store, audit, event emit. 3. Integration tests PC-01…PC-15, PC-20…PC-24 | 37b-4a; **35d-4b** (the access port) | 420–560 |
-| **37b-4c** | HTTP and end-to-end | 1. `PUT` route, guard, error mapping, OpenAPI and clients. 2. PC-16…PC-19 over HTTP. 3. End to end: change → outbox → dispatcher → consumer → notice event → in-app row | 37b-4b, 37b-3 | 220–350 |
+| **37b-4d** | Retained identities for the other writers (FR-017) | 1. The shared orders read (`SessionLineIdentityPort`: current performers ∪ `BEFORE` employees, locked, each with snapshot and current link). 2. Wire it into the 35d price-edit loader and 054's cancel loader (whichever is merged; the other adopts it when it lands) with tests that a removed performer is refused by each. 3. Wire it into the tip identity read of spec 053 (TP-04) when row 36 code exists, with the same test | 37b-4a, 37b-2; 35d-4b merged | 220–340 |
+| **37b-4c** | HTTP and end-to-end | 1. `PUT` route, guard, error mapping, OpenAPI and clients. 2. PC-16…PC-19 over HTTP. 3. End to end: change → outbox → dispatcher → consumer → notice event → in-app row | 37b-4b, 37b-3, **37b-4d** | 220–350 |
 | **37b-5** | Manager day list | 1. Performer editor with reason, shares and the «اتغيّر المنفّذين» mark and date. 2. Guarded history read (FR-016) with `EXPLAIN`. 3. ar/en keys and component tests | 37b-4c | 240–360 |
 
 **File overlap:** 37b-1 and 054's 37-1 both extend the kind-dependent event refinement, the ADR-0044 addendum and the module map; 37b-4a and 054's 37-4a both touch the saved-line contract and the shared error messages. They run **one at a time** (pipeline rule: disjoint files in parallel). The second to land rebases on the first.
@@ -258,6 +260,8 @@ Consumer **before** writer, as in 35d and 054. Sizes are hand-written lines incl
 
 - The retention rule (D-3) extends PF-Q2's "nobody tampers with their own commission" to time: a removed performer is still "a performer of that line" for the self rule. It is the fail-closed reading, consistent with ADR-0045 and 35d BR-002b. If the owners prefer that a removed performer stops
   blocking, only the retention read in 37b-4a changes (the history rows stay).
+- D-11 reads PF-Q4's «same rules» as the recording rules **for the performers the change adds**: a performer who stays keeps her original verdict, so fixing a co-performer's share never forces a departed colleague off the line (which would move her commission to the others). If the owners
+  want every performer re-checked, only the eligibility step of 37b-4a changes.
 - Bell wording and the template parameters are proposed copy, like the 35d and 054 bells; changing them needs no migration. The bell recipients (the four scoped roles, changer included) repeat the price-edit rule because PF-Q4 asks for "the same package"; if Abu Salem picks otherwise, only the recipient list changes.
 - The `performers_changed_at` mark is visible to everyone who can see the line; the reason, the names and the changer only through the guarded read (the ED-Q12 shape). This is derived, not asked.
 - The response projection for a caller without the branch-read permission copies the answered ED-Q14 shape; if the owners want a different one it is a small change in 37b-4a.
