@@ -34,7 +34,7 @@ export async function monthlyReportProfile(f: MonthlyReportFixture) {
     if (typeof scope === 'string') throw new Error(scope);
     const rows = await attendanceMonthlyInputs(profiled, f.company, scope, '2026-10-01', '2026-10-31');
     const domainStart = performance.now();
-    const computed = rows.map((row) => ({ employee_id: row.employee_id, name_ar: row.name_ar, name_en: row.name_en,
+    const computed = rows.map((row) => ({ employee_id: row.employee_id, name_ar: row.name_ar, name_en: row.name_en, employee_number: row.employee_number,
       ...computeAttendanceMonthlyReport(row.branches, '2026-10') }));
     const domainEnd = performance.now();
     const view = attendanceMonthlyReport.parse({ business_id: f.business, branch_id: 'all', month: '2026-10', rows: computed });

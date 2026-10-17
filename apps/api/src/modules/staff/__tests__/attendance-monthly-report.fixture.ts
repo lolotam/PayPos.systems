@@ -1,4 +1,5 @@
 import { OWNER_ROLE_ID, SYSTEM_ROLES } from '@pospay/db';
+import { t } from '@pospay/i18n';
 import { salaryIds } from './salary.fixture.ts';
 import { defaultHoursFixture, hoursCommand } from './employee-default-shifts.fixture.ts';
 
@@ -9,6 +10,12 @@ export async function monthlyReportFixture() {
   return f;
 }
 export type MonthlyReportFixture = Awaited<ReturnType<typeof monthlyReportFixture>>;
+export function annualLeaveCsvCells(payload: string) {
+  const lines = payload.split('\r\n');
+  const at = lines[0]?.split(',').indexOf(`"${t('ar', 'attendanceReport.annualLeaveDays')}"`) ?? -1;
+  if (at < 0) throw new Error('ANNUAL_LEAVE_COLUMN_MISSING');
+  return lines[1]?.split(',').slice(at, at + 2);
+}
 export const reportHeaders = (f: MonthlyReportFixture) => ({cookie:f.cookie,'x-company-id':f.company});
 export const reportUrl = (f: MonthlyReportFixture, branch = f.branch, csv = false) =>
   `/v1/businesses/${f.business}${branch === 'all' ? '' : `/branches/${branch}`}/attendance-report${csv ? '.csv' : ''}?month=2026-10`;

@@ -16,6 +16,7 @@ export const attendanceReportEn = {
   sortDescending: 'Sort descending',
   hoursFormat:
     'Hours are shown as h:mm. Difference is worked minus contracted hours after approved leave.',
+  employeeNumber: 'Employee number',
   employeeName: 'Employee name',
   daysPresent: 'Days present',
   workedHours: 'Worked hours',
@@ -58,6 +59,7 @@ export const attendanceReportAr: Record<keyof typeof attendanceReportEn, string>
   sortDescending: 'ترتيب تنازلي',
   hoursFormat:
     'الساعات بتتعرض ساعات:دقايق. الفرق هو الفعلي ناقص المتفق عليه بعد طرح الإجازات المقبولة.',
+  employeeNumber: 'رقم الموظف',
   employeeName: 'اسم الموظفة',
   daysPresent: 'أيام الحضور',
   workedHours: 'ساعات العمل',

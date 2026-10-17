@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { attendanceMonthlyReport } from '@pospay/contracts';
-import { monthlyReportFixture, reportHeaders, reportLeave, reportUrl,
+import { annualLeaveCsvCells, monthlyReportFixture, reportHeaders, reportLeave, reportUrl,
   type MonthlyReportFixture } from './attendance-monthly-report.fixture.ts';
 import { hoursCommand } from './employee-default-shifts.fixture.ts';
 import { salaryIds } from './salary.fixture.ts';
@@ -43,7 +43,6 @@ it.each([
     expect(rows[0]?.contracted_minutes).toBe((baseline[index] ?? 0) - (kind === 'FULL_DAY' ? value * 480 : value));
     const csv = await f.h.app.inject({ method: 'GET', url: reportUrl(f, branch, true), headers: reportHeaders(f) });
     expect(csv.statusCode).toBe(200);
-    const cells = csv.payload.split('\r\n')[1]?.split(',');
-    expect(cells?.slice(14, 16)).toEqual(kind === 'FULL_DAY' ? [`"${value}"`, '"0.00"'] : ['"0"', `"${(value / 60).toFixed(2)}"`]);
+    expect(annualLeaveCsvCells(csv.payload)).toEqual(kind === 'FULL_DAY' ? [`"${value}"`, '"0.00"'] : ['"0"', `"${(value / 60).toFixed(2)}"`]);
   }
 });
