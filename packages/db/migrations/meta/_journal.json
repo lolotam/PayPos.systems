@@ -953,6 +953,34 @@
       "when": 1792181084486,
       "tag": "0137_2026-10-16_service-line-edit-notices",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1792195923707,
+      "tag": "0138_2026-10-17_employee-number-column-and-sequence",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1792195945636,
+      "tag": "0139_2026-10-17_employee-number-unique-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1792195952844,
+      "tag": "0140_2026-10-17_employee-number-sequences-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1792195956187,
+      "tag": "0141_2026-10-17_employee-number-backfill",
+      "breakpoints": true
     }
   ]
 }
