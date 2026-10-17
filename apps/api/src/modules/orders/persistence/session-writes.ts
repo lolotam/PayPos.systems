@@ -22,8 +22,14 @@ export async function insertLines(tx: Tx, companyId: string, businessId: string,
     list_price,price,discount,net,effective_discount_bps,limit_bps_applied,limit_source,name_en,name_ar,catalog_revision,rule_kind,rule_pct_bps,rule_fixed_amount,
     counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late,created_at) VALUES ${sql.join(values, sql`,`)}`);
   // الرابط يُقرأ من حقائق الكتابة لا من لقطة الاستجابة، حتى لا يصل معرّف المستخدم إلى الرد ولا إلى الحدث.
-  const performers = rows.flatMap((line, i) => line.performers.map((p, j) => sql`(${companyId},${p.id},${businessId},${line.id},${p.employee_id},${p.performer_ordinal},
-    ${p.share_bps},${p.name_en},${p.name_ar},${p.not_clocked_in_warning},${p.approved_leave_warning},${lines[i]?.performers[j]?.employee.user_id ?? null},true)`));
+  // يُربط بالموظف نفسه لا بالموضع، وغيابه خطأ لا قيمة null: الصف لا يتغير بعد الإدخال فلا يمكن تصحيحه.
+  const linkedUser = (lineIndex: number, employeeId: string) => {
+    const performer = lines[lineIndex]?.performers.find((candidate) => candidate.employee.id === employeeId);
+    if (performer === undefined) throw new Error('Performer missing from the recorded line');
+    return performer.employee.user_id;
+  };
+  const performers = rows.flatMap((line, i) => line.performers.map((p) => sql`(${companyId},${p.id},${businessId},${line.id},${p.employee_id},${p.performer_ordinal},
+    ${p.share_bps},${p.name_en},${p.name_ar},${p.not_clocked_in_warning},${p.approved_leave_warning},${linkedUser(i, p.employee_id)},true)`));
   await tx.execute(sql`INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,name_ar,
     not_clocked_in_warning,approved_leave_warning,linked_user_id,linked_user_snapshotted) VALUES ${sql.join(performers, sql`,`)}`);
 }

@@ -35,8 +35,9 @@ it('append snapshots its own performers at append time and leaves the earlier ro
 it('never returns the linked user in the response or the outbox payload', async () => {
   await link(f.employees[0], f.ownerId);
   const first = await f.create.execute({ ...f.context(), input: f.body([f.line()]) }).finally(() => link(f.employees[0], null));
+  expect(JSON.stringify(first)).not.toMatch(/linked_user|user_id/);
   expect(JSON.stringify(first)).not.toContain(f.ownerId);
   const events = await f.h.owner`SELECT payload::text AS payload FROM outbox WHERE aggregate_id=${first.session.id}`;
   expect(events.length).toBeGreaterThan(0);
-  expect(events.every((event) => !String(event['payload']).includes(f.ownerId))).toBe(true);
+  expect(events.every((event) => !/linked_user/.test(String(event['payload'])) && !String(event['payload']).includes(f.ownerId))).toBe(true);
 });
