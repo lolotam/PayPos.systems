@@ -1,14 +1,12 @@
 import { createDatabase, SYSTEM_ROLES, type TenantWrappers, type Tx } from '@pospay/db';
-import { employeeNameMatchKey } from '@pospay/domain';
 import { systemUuidV7 } from '@pospay/ids';
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { startHarness } from './harness.ts';
-import { ordersLineEdits, ordersTransactions } from '../src/modules/orders/orders.module.ts';
+import { ordersTransactions } from '../src/modules/orders/orders.module.ts';
 import { createSessionRecovery } from '../src/modules/orders/persistence/session-recovery.adapter.ts';
 import { RecordServiceSessionUseCase } from '../src/modules/orders/use-cases/record-service-session/record-service-session.usecase.ts';
 import { AppendServiceSessionLinesUseCase } from '../src/modules/orders/use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
-import { EditServiceLinePriceUseCase } from '../src/modules/orders/use-cases/edit-service-line-price/edit-service-line-price.usecase.ts';
 
 export const ids = systemUuidV7();
 export const AT = new Date('2026-10-15T08:00:00.000Z');
@@ -53,7 +51,6 @@ export async function sessionFixture(options: Parameters<typeof startHarness>[0]
       VALUES(${company},${id},${business},${branch},${`Synthetic employee ${i}`},${`synthetic employee ${i}`},'staff','2026-01-01')`;
     await h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from") VALUES(${company},${ids.newId()},${business},${id},${branch},'2026-01-01')`;
   }
-  const editor = await sessionEditor(h, company, business, branch, ownerId);
   const db = createDatabase({ url: h.urls.app, ids });
   let at = AT;
   const clock = { now: () => at };
@@ -61,41 +58,14 @@ export async function sessionFixture(options: Parameters<typeof startHarness>[0]
   const recovery = createSessionRecovery(db, ids, clock);
   const create = new RecordServiceSessionUseCase(transactions, recovery, ids, clock);
   const append = new AppendServiceSessionLinesUseCase(transactions, recovery, ids, clock);
-  const edit = new EditServiceLinePriceUseCase(ordersLineEdits(db), ids, clock);
-  const context = (key = ids.newId(), actor = userId, fingerprint = 'a'.repeat(64)) => ({ companyId: company, userId: actor, businessId: business, branchId: branch, key, fingerprint });
+  const context = (key = ids.newId(), actor = userId) => ({ companyId: company, userId: actor, businessId: business, branchId: branch, key, fingerprint: 'a'.repeat(64) });
   const line = (service = must(services[0]), price = '25.000', discount = '0.000') => ({ service_id: service, price,
     discount: { kind: 'AMOUNT' as const, amount: discount }, performers: [{ employee_id: must(employees[0]) }] });
   const body = (lines = [line()]) => ({ customer_id: customer, occurred_at: '2026-10-14T08:00:00.000Z', lines });
   const base = `/v1/businesses/${business}/branches/${branch}/service-sessions`;
   return { h, db, company, otherCompany, userId, ownerId, ownerCookie, cookie, membership, business, branch, secondBusiness, secondBranch,
-    foreignBusiness, foreignBranch, customer, services, employees, clock, create, append, edit, transactions, context, line, body, base, ...editor,
-    linkEmployee: (employeeId: string, linkedUser: string | null) => h.owner`UPDATE employees SET user_id=${linkedUser} WHERE company_id=${company} AND id=${employeeId}`,
-    snapshotPerformers: (lineId: string, rows: PerformerSnapshot[]) => applyPerformerSnapshot(h, company, lineId, rows),
+    foreignBusiness, foreignBranch, customer, services, employees, clock, create, append, transactions, context, line, body, base,
     setAt: (next: Date) => { at = next; }, close: async () => { await db.close(); await h.close(); } };
-}
-interface PerformerSnapshot { employee_id: string; linked_user_id: string | null; linked_user_snapshotted: boolean }
-async function sessionEditor(h: Awaited<ReturnType<typeof startHarness>>, company: string, business: string, branch: string, ownerId: string) {
-  await h.signedInOperator('session-editor@example.test');
-  const users = await h.owner`SELECT id FROM "user" WHERE email='session-editor@example.test'`;
-  const editorId = must(users[0])['id'] as string;
-  const editorMembership = ids.newId();
-  const role = must(SYSTEM_ROLES.find((item) => item.code === 'branch_manager')).id;
-  const nameEn = 'Layla Editor';
-  const nameAr = 'ليلى';
-  const editorEmployee = ids.newId();
-  await h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at)
-    VALUES(${company},${editorMembership},${editorId},${role},'global','BRANCH',${branch},2000,'2026-01-01T00:00:00Z')`;
-  await h.owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,user_id,name_en,name_en_key,name_ar,name_ar_key,role_code,hire_date)
-    VALUES(${company},${editorEmployee},${business},${branch},${editorId},${nameEn},${employeeNameMatchKey(nameEn)},${nameAr},${employeeNameMatchKey(nameAr)},'branch_manager','2026-01-01')`;
-  await h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from") VALUES(${company},${ids.newId()},${business},${editorEmployee},${branch},'2026-01-01')`;
-  const owners = await h.owner`SELECT id FROM memberships WHERE company_id=${company} AND user_id=${ownerId} AND scope_type='COMPANY' ORDER BY id`;
-  return { editorId, editorMembership, editorEmployee, ownerMembership: must(owners[0])['id'] as string };
-}
-async function applyPerformerSnapshot(h: Awaited<ReturnType<typeof startHarness>>, company: string, lineId: string, rows: readonly PerformerSnapshot[]) {
-  for (const row of rows) {
-    await h.owner`UPDATE line_performers SET linked_user_id=${row.linked_user_id}, linked_user_snapshotted=${row.linked_user_snapshotted}
-      WHERE company_id=${company} AND line_id=${lineId} AND employee_id=${row.employee_id}`;
-  }
 }
 export type SessionFixture = Awaited<ReturnType<typeof sessionFixture>>;
 export function interceptDatabase(database: TenantWrappers, inspect: (statement: string) => Promise<void>): TenantWrappers {

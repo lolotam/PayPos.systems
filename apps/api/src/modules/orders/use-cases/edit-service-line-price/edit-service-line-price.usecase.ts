@@ -56,12 +56,14 @@ export class EditServiceLinePriceUseCase {
 
   private async authorize(tx: LineEditTransaction, context: EditContext): Promise<void> {
     if ((await tx.place.read()) === null) throw new SessionError('FORBIDDEN');
-    resolveSessionEditor(editorAccess(await tx.access.read(this.clock.now())), context.input.editor_membership_id);
+    const access = editorAccess(await tx.access.read(this.clock.now()));
+    resolveSessionEditor(access, context.input.editor_membership_id ?? access.eligible_membership_ids[0]);
   }
 
   private async recheck(tx: LineEditTransaction, context: EditContext): Promise<boolean> {
     const facts = await tx.access.read(this.clock.now());
-    resolveSessionEditor(editorAccess(facts), context.input.editor_membership_id);
+    const access = editorAccess(facts);
+    resolveSessionEditor(access, context.input.editor_membership_id ?? access.eligible_membership_ids[0]);
     return facts.can_read;
   }
 
@@ -86,6 +88,7 @@ export class EditServiceLinePriceUseCase {
     const facts = await tx.access.read(at);
     const membershipId = resolveSessionEditor(editorAccess(facts), context.input.editor_membership_id);
     const editor = selectedEditor(facts, membershipId);
+    // الحد يُقرأ من جديد بعد كل انتظار؛ قفل العضويات FOR SHARE لا يسمح باختبار تغيّره أثناء الانتظار.
     const limit = await tx.discount.read(membershipId);
     if ((await tx.place.read()) === null) throw new SessionError('FORBIDDEN');
     await this.refusePerformer(tx, context, line);

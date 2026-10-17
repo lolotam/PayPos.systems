@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { serviceLineChanged } from '@pospay/contracts';
-import { AT, ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import { AT, ids, must, editFixture, type EditFixture } from './session.fixture.ts';
 import { editBody, editRows, quietCounts, recorded, runEdit } from './line-edit.helpers.ts';
 
-let f: SessionFixture;
-beforeAll(async () => { f = await sessionFixture(); });
+let f: EditFixture;
+beforeAll(async () => { f = await editFixture(); });
 afterAll(async () => { await f?.close(); });
 
 it('LE-01/02 a manager discount writes one revision, history, audit, and editor event', async () => {
@@ -60,10 +60,12 @@ it('an unchanged price and discount writes nothing', async () => {
   expect(await quietCounts(f, visit.sessionId, visit.lineId, key)).toEqual({ edits: 0, audits: 0, events: 0, keys: 0 });
 });
 
-it('a cancelled line is not editable', async () => {
+it('a cancelled line is not editable and writes nothing', async () => {
   const visit = await recorded(f, '25.000', '0.000');
+  const key = ids.newId();
   await f.h.owner`UPDATE service_lines SET status='CANCELLED' WHERE company_id=${f.company} AND id=${visit.lineId}`;
-  await expect(runEdit(f, visit.sessionId, visit.lineId, editBody({ price: '26.000', discount: { kind: 'AMOUNT', amount: '0.000' } }))).rejects.toThrow('SESSION_LINE_NOT_EDITABLE');
+  await expect(runEdit(f, visit.sessionId, visit.lineId, editBody({ price: '26.000', discount: { kind: 'AMOUNT', amount: '0.000' } }), { key })).rejects.toThrow('SESSION_LINE_NOT_EDITABLE');
+  expect(await quietCounts(f, visit.sessionId, visit.lineId, key)).toEqual({ edits: 0, audits: 0, events: 0, keys: 0 });
 });
 
 it('an edit outside the recording window is refused and the clock is restored', async () => {
@@ -80,3 +82,48 @@ it('a visit total above the money maximum is refused', async () => {
   const small = must(added.added_lines[0]);
   await expect(runEdit(f, big.session.id, small.id, editBody({ price: '1.001', discount: { kind: 'AMOUNT', amount: '0.000' } }), { userId: f.ownerId })).rejects.toThrow('SESSION_TOTAL_TOO_LARGE');
 });
+
+it('missing and foreign lines share one forbidden error and write nothing', async () => {
+  const visit = await recorded(f);
+  const other = await recorded(f);
+  const before = await editFootprint(f);
+  const errors = await Promise.all([
+    refused(f, visit.sessionId, ids.newId()),
+    refused(f, visit.sessionId, other.lineId),
+    refused(f, visit.sessionId, visit.lineId, { branchId: f.secondBranch }),
+    refused(f, visit.sessionId, visit.lineId, { companyId: f.otherCompany, businessId: f.foreignBusiness, branchId: f.foreignBranch }),
+  ]);
+  const message = messageOf(errors[0]);
+  for (const error of errors) expect(error).toMatchObject({ code: 'FORBIDDEN', message });
+  expect(await editFootprint(f)).toEqual(before);
+});
+
+it('refuses the edit when the orders feature is off and writes nothing', async () => {
+  const visit = await recorded(f);
+  const key = ids.newId();
+  await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by) VALUES(${f.company},'orders',false,'Synthetic feature',${f.ownerId})`;
+  try {
+    await expect(runEdit(f, visit.sessionId, visit.lineId, editBody(), { key })).rejects.toThrow('FEATURE_DISABLED');
+    expect(await quietCounts(f, visit.sessionId, visit.lineId, key)).toEqual({ edits: 0, audits: 0, events: 0, keys: 0 });
+  } finally {
+    await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
+  }
+});
+
+async function refused(f: EditFixture, sessionId: string, lineId: string, patch: { branchId?: string; companyId?: string; businessId?: string } = {}) {
+  return f.edit.execute({ ...f.context(), ...patch, sessionId, lineId, input: editBody() }).then(() => null, (caught: unknown) => caught);
+}
+
+function messageOf(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  throw new Error('Expected a forbidden error');
+}
+
+async function editFootprint(f: EditFixture) {
+  const [row] = await f.h.owner`SELECT
+    (SELECT count(*)::int FROM service_line_edits WHERE company_id IN (${f.company},${f.otherCompany})) AS edits,
+    (SELECT count(*)::int FROM audit_log WHERE company_id IN (${f.company},${f.otherCompany}) AND action='service_line.price_discount_edited') AS audits,
+    (SELECT count(*)::int FROM outbox WHERE company_id IN (${f.company},${f.otherCompany}) AND event_type='ServiceLineChanged') AS events,
+    (SELECT count(*)::int FROM idempotency_keys WHERE operation='edit-service-line-price' AND company_id IN (${f.company},${f.otherCompany})) AS keys`;
+  return row;
+}

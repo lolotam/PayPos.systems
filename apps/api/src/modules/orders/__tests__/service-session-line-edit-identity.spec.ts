@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import { ids, must, editFixture, type EditFixture } from './session.fixture.ts';
 import { branchManager, editBody, quietCounts, recorded, runEdit } from './line-edit.helpers.ts';
 
-let f: SessionFixture;
-beforeAll(async () => { f = await sessionFixture(); });
+let f: EditFixture;
+beforeAll(async () => { f = await editFixture(); });
 afterAll(async () => { await f?.close(); });
 
 it('LE-09/10 a performer-linked editor, including an unlimited owner, is refused and nothing is written', async () => {

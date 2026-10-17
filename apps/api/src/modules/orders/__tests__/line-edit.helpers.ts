@@ -1,5 +1,5 @@
 import { SYSTEM_ROLES } from '@pospay/db';
-import { ids, must, type SessionFixture } from './session.fixture.ts';
+import { ids, must, type EditFixture } from './session.fixture.ts';
 
 export const EDIT_REASON = 'Synthetic edit reason';
 const managerRole = must(SYSTEM_ROLES.find((role) => role.code === 'branch_manager')).id;
@@ -7,7 +7,7 @@ type Discount = { kind: 'AMOUNT'; amount: string } | { kind: 'PERCENT'; bps: num
 type EditPatch = { price?: string; discount?: Discount; reason?: string; expected_revision?: number; editor_membership_id?: string };
 type EditOptions = { userId?: string; key?: string; fingerprint?: string };
 
-export async function recorded(f: SessionFixture, price = '25.000', discount = '2.500', performers?: { employee_id: string }[]) {
+export async function recorded(f: EditFixture, price = '25.000', discount = '2.500', performers?: { employee_id: string }[]) {
   const base = f.line(must(f.services[0]), price, discount);
   const result = await f.create.execute({ ...f.context(), input: f.body([performers === undefined ? base : { ...base, performers }]) });
   const saved = must(result.session.lines[0]);
@@ -24,11 +24,11 @@ export function editBody(patch: EditPatch = {}) {
   };
 }
 
-export function runEdit(f: SessionFixture, sessionId: string, lineId: string, input: ReturnType<typeof editBody>, options: EditOptions = {}) {
+export function runEdit(f: EditFixture, sessionId: string, lineId: string, input: ReturnType<typeof editBody>, options: EditOptions = {}) {
   return f.edit.execute({ ...f.context(options.key ?? ids.newId(), options.userId ?? f.editorId, options.fingerprint), sessionId, lineId, input });
 }
 
-export async function editRows(f: SessionFixture, sessionId: string, lineId: string) {
+export async function editRows(f: EditFixture, sessionId: string, lineId: string) {
   const edits = await f.h.owner`SELECT revision,previous_revision,previous_price::text,previous_discount::text,previous_net::text,
     new_price::text,new_discount::text,new_net::text,previous_effective_discount_bps,previous_limit_bps_applied,previous_limit_source,
     new_effective_discount_bps,new_limit_bps_applied,new_limit_source,reason,changed_by,changed_by_membership_id,
@@ -41,7 +41,7 @@ export async function editRows(f: SessionFixture, sessionId: string, lineId: str
   return { edits, audits, events, line: must(line) };
 }
 
-export async function quietCounts(f: SessionFixture, sessionId: string, lineId: string, key: string) {
+export async function quietCounts(f: EditFixture, sessionId: string, lineId: string, key: string) {
   const edits = await f.h.owner`SELECT 1 FROM service_line_edits WHERE company_id=${f.company} AND line_id=${lineId}`;
   const audits = await f.h.owner`SELECT 1 FROM audit_log WHERE company_id=${f.company} AND entity_id=${lineId} AND action='service_line.price_discount_edited'`;
   const events = await f.h.owner`SELECT 1 FROM outbox WHERE company_id=${f.company} AND aggregate_id=${sessionId} AND event_type='ServiceLineChanged'`;
@@ -49,7 +49,7 @@ export async function quietCounts(f: SessionFixture, sessionId: string, lineId: 
   return { edits: edits.length, audits: audits.length, events: events.length, keys: keys.length };
 }
 
-export async function branchManager(f: SessionFixture, email: string) {
+export async function branchManager(f: EditFixture, email: string) {
   await f.h.signedInOperator(email);
   const users = await f.h.owner`SELECT id FROM "user" WHERE email=${email}`;
   const userId = must(users[0])['id'] as string;

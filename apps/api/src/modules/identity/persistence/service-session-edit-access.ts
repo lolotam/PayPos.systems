@@ -53,7 +53,7 @@ export async function lockServiceSessionEditAccess(tx: Tx, companyId: string): P
 
 /**
  * يعيد عضويات التعديل المؤهلة بذاتها، ومنع التعديل، وقراءة الزيارات، وميزة الطلبات عند اللحظة المحقونة.
- * أهلية التعديل تُحسب لكل عضوية وحدها، وأي DENY يغطي الفرع يمنع التعديل كله بعد حماية المالك.
+ * المنع والقراءة يُحسبان على كل عضوية سارية لأن نطاق الـ override مستقل عن نطاق عضويته، والأهلية تبقى للعضوية التي تغطي الفرع وتمنح التعديل بذاتها.
  *
  * @param tx معاملة المستهلك نفسها
  * @param companyId الشركة المؤكدة
@@ -71,14 +71,13 @@ export async function readServiceSessionEditAccess(
   branchId: string,
   at: Date,
 ): Promise<EditAccess> {
-  const candidates = await candidateMemberships(tx, companyId, userId, businessId, branchId, at);
-  if (candidates.length === 0) return { denied: false, feature: false, can_read: false, eligible: [] };
   const target = { companyId, businessId, branchId };
-  const [rows, feature] = await Promise.all([
-    candidateGrants(tx, companyId, userId, candidates.map((candidate) => candidate.id), at),
+  const [candidates, principal, featureOn] = await Promise.all([
+    candidateMemberships(tx, companyId, userId, businessId, branchId, at),
+    principalAccess(tx, companyId, userId, at),
     readFeatureEnabled(tx, companyId, 'orders', at),
   ]);
-  return decideEditAccess(candidates, grantRows(rows), feature, target);
+  return decideEditAccess(candidates, principal, featureOn && candidates.length > 0, target);
 }
 
 async function candidateMemberships(
@@ -101,21 +100,27 @@ async function candidateMemberships(
     ORDER BY m.id`);
 }
 
-async function candidateGrants(tx: Tx, companyId: string, userId: string, membershipIds: readonly string[], at: Date) {
+type OwnerRow = { owner: boolean };
+
+async function principalAccess(tx: Tx, companyId: string, userId: string, at: Date) {
   const instant = at.toISOString();
-  const ids = sql.join(membershipIds.map((id) => sql`${id}::uuid`), sql`, `);
-  const active = sql`m.company_id=${companyId} AND m.user_id=${userId} AND m.id IN (${ids})
+  const active = sql`m.company_id=${companyId} AND m.user_id=${userId}
     AND m.starts_at<=${instant}::timestamptz AND (m.ends_at IS NULL OR m.ends_at>${instant}::timestamptz)`;
   const permissions = sql`${EDIT_PERMISSION}, ${READ_PERMISSION}`;
-  return tx.execute<GrantRow>(sql`SELECT m.id AS membership_id,rp.permission_code AS permission,'ALLOW' AS effect,
-      m.scope_type AS "scopeType",m.scope_id AS "scopeId" FROM memberships m
-    JOIN role_permissions rp ON rp.role_id=m.role_id AND rp.role_owner_key=m.role_owner_key
-    WHERE ${active} AND rp.permission_code IN (${permissions}) AND ${systemRoleGrantAllowedSql('m', 'rp')}
-    UNION ALL SELECT m.id,o.permission_code,o.effect,o.scope_type,o.scope_id FROM permission_overrides o
-    JOIN memberships m ON m.company_id=o.company_id AND m.id=o.membership_id
-    WHERE ${active} AND o.permission_code IN (${permissions})
-      AND (o.expires_at IS NULL OR o.expires_at>${instant}::timestamptz)
-      AND ${systemRoleOverrideAllowedSql('m', 'o')}`);
+  const [owners, rows] = await Promise.all([
+    tx.execute<OwnerRow>(sql`SELECT COALESCE(bool_or((${canonicalOwnerSql('m', companyId)})::boolean), false) AS owner
+      FROM memberships m WHERE ${active}`),
+    tx.execute<GrantRow>(sql`SELECT m.id AS membership_id,rp.permission_code AS permission,'ALLOW' AS effect,
+        m.scope_type AS "scopeType",m.scope_id AS "scopeId" FROM memberships m
+      JOIN role_permissions rp ON rp.role_id=m.role_id AND rp.role_owner_key=m.role_owner_key
+      WHERE ${active} AND rp.permission_code IN (${permissions}) AND ${systemRoleGrantAllowedSql('m', 'rp')}
+      UNION ALL SELECT m.id,o.permission_code,o.effect,o.scope_type,o.scope_id FROM permission_overrides o
+      JOIN memberships m ON m.company_id=o.company_id AND m.id=o.membership_id
+      WHERE ${active} AND o.permission_code IN (${permissions})
+        AND (o.expires_at IS NULL OR o.expires_at>${instant}::timestamptz)
+        AND ${systemRoleOverrideAllowedSql('m', 'o')}`),
+  ]);
+  return { owner: owners[0]?.owner === true, grants: grantRows(rows) };
 }
 
 function grantRows(rows: readonly GrantRow[]): Array<AccessGrant & { membership_id: string }> {
@@ -146,18 +151,18 @@ function grantScope(scope: string): ScopeType {
 
 function decideEditAccess(
   candidates: readonly CandidateRow[],
-  grants: readonly (AccessGrant & { membership_id: string })[],
-  featureOn: boolean,
+  principal: { owner: boolean; grants: readonly (AccessGrant & { membership_id: string })[] },
+  feature: boolean,
   target: AccessTarget,
 ): EditAccess {
-  const visible = protectOwnerAccess(grants, candidates.some((candidate) => candidate.owner === true));
+  const visible = protectOwnerAccess(principal.grants, principal.owner);
   const covers = (scope: string, id: string) =>
     (scope === 'COMPANY' && id === target.companyId) ||
     (scope === 'BUSINESS' && id === target.businessId) ||
     (scope === 'BRANCH' && id === target.branchId);
   return {
     denied: visible.some((grant) => grant.permission === EDIT_PERMISSION && grant.effect === 'DENY' && covers(grant.scopeType, grant.scopeId)),
-    feature: featureOn,
+    feature,
     can_read: evaluateAccess(visible, READ_PERMISSION, target),
     eligible: candidates.filter((candidate) => evaluateAccess(visible.filter((grant) => grant.membership_id === candidate.id), EDIT_PERMISSION, target)).map((candidate) => ({
       membership_id: candidate.id,

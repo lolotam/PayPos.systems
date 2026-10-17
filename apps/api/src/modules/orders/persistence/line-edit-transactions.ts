@@ -1,5 +1,4 @@
 import {
-  IdempotencyKeyBusyError,
   IdempotencyKeyReusedError,
   appendAuditLogs,
   appendOutboxEvent,
@@ -17,8 +16,8 @@ import { insertLineEdit, updateLinePrice } from './line-edit-writes.ts';
 import { performerCheck } from './performer-check.adapter.ts';
 import { sessionEditAccess } from './session-edit-access.adapter.ts';
 import { sessionPlace } from './session-place.adapter.ts';
+import { cleanSessionWrite } from './session-recovery-proof.ts';
 
-const RETRYABLE_SQLSTATE = new Set(['40P01', '40001', '55P03']);
 const EDIT_OPERATION = 'edit-service-line-price';
 
 interface LineEditReaders {
@@ -97,13 +96,6 @@ async function writeLineEditAudit(tx: Tx, id: string, entry: LineEditAuditEntry)
 }
 
 function mapLineEditError(error: unknown): never {
-  const seen = new Set<unknown>();
-  for (let current = error, depth = 0; typeof current === 'object' && current !== null && !seen.has(current); current = (current as { cause?: unknown }).cause, depth += 1) {
-    seen.add(current);
-    if (current instanceof SessionError || current instanceof IdempotencyKeyBusyError) throw current;
-    if (depth === 0 && current instanceof IdempotencyKeyReusedError) throw new SessionError('IDEMPOTENCY_KEY_REUSED');
-    const code = (current as { code?: unknown }).code;
-    if (typeof code === 'string' && RETRYABLE_SQLSTATE.has(code)) throw new SessionError('TRANSACTION_RETRY_REQUIRED');
-  }
-  throw error;
+  if (error instanceof IdempotencyKeyReusedError) throw new SessionError('IDEMPOTENCY_KEY_REUSED');
+  cleanSessionWrite(error);
 }
