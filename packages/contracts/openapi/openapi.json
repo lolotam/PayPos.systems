@@ -5972,7 +5972,7 @@
     "/v1/businesses/{businessId}/employees": {
       "get": {
         "operationId": "listEmployees",
-        "description": "Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature.",
+        "description": "Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope.",
         "parameters": [
           {
             "in": "header",
@@ -6008,6 +6008,15 @@
               "minimum": 1,
               "maximum": 100,
               "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "employee_number",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 999999
             }
           }
         ],
@@ -15721,6 +15730,12 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
           },
+          "employee_number": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          },
           "revision": {
             "type": "integer",
             "minimum": 0,
@@ -15749,6 +15764,7 @@
           "contract_end",
           "user_id",
           "created_at",
+          "employee_number",
           "revision",
           "branch_ids"
         ]
@@ -15782,6 +15798,12 @@
           },
           "hire_date": {
             "$ref": "#/components/schemas/EmployeeDate"
+          },
+          "employee_number": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
           }
         },
         "required": [
@@ -15790,7 +15812,8 @@
           "name_en",
           "role_code",
           "primary_branch_id",
-          "hire_date"
+          "hire_date",
+          "employee_number"
         ]
       },
       "EmployeePage": {
@@ -15825,6 +15848,11 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "employee_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
           }
         },
         "additionalProperties": false
@@ -16425,6 +16453,12 @@
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "employee_number": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
           }
         },
         "required": [
@@ -16437,7 +16471,8 @@
           "hire_date",
           "contract_end",
           "user_id",
-          "created_at"
+          "created_at",
+          "employee_number"
         ]
       },
       "CreatedEmployee": {
@@ -20847,6 +20882,12 @@
             "minLength": 1,
             "maxLength": 255
           },
+          "employee_number": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          },
           "not_clocked_in_warning": {
             "type": "boolean"
           },
@@ -20858,6 +20899,7 @@
           "id",
           "name_ar",
           "name_en",
+          "employee_number",
           "not_clocked_in_warning",
           "approved_leave_warning"
         ],

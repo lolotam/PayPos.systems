@@ -168,8 +168,11 @@ it('keeps one company counter still when another company creates an employee', a
 it('employee detail still reads a freshly numbered employee', async () => {
   const created = await executeCreate(f, 'Detail numbered');
   const detail = await detailFor(f, f.company, f.business, created.id);
-  expect(detail).toMatchObject({ id: created.id, name_en: 'Detail numbered' });
-  expect(detail).not.toHaveProperty('employee_number');
+  expect(detail).toMatchObject({
+    id: created.id,
+    name_en: 'Detail numbered',
+    employee_number: created.employee_number,
+  });
 });
 
 it('EN-12 gives 999999 then refuses, and ignores holes below a full top window', async () => {

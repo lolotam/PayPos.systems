@@ -6,6 +6,13 @@ import { attendanceWorkingDate } from '../domain/clock-attendance.ts';
 import { schedulingContext } from './schedule-context.adapter.ts';
 import { sessionPerformers } from './session-performers.reader.ts';
 
+// بديل مؤقت لـ parseEmployeeNumber لحد 8c-6: نص أرقام من خانة لست، وقيمته من 1 إلى 999999، وغير كده مفيش مطابقة رقم.
+function employeeNumberFromSearch(q: string | undefined): number | null {
+  if (q === undefined || !/^[0-9]{1,6}$/.test(q)) return null;
+  const value = Number(q);
+  return value >= 1 && value <= 999_999 ? value : null;
+}
+
 function readCursor(query: SessionPerformerOptionsQuery, requestedAt: string, scopeHash: string) {
   if (query.cursor === undefined) return null;
   try {
@@ -32,7 +39,8 @@ export const sessionPerformerCursorCodec = {
 
 export function createSessionReaders(reads: {
   page(tx: Tx, companyId: string, businessId: string, branchId: string, day: string, query: SessionPerformerOptionsQuery,
-    codec: typeof sessionPerformerCursorCodec, requestedAt: string, scopeHash: string): Promise<SessionPerformerOptionPage>;
+    codec: typeof sessionPerformerCursorCodec, requestedAt: string, scopeHash: string,
+    employeeNumber: number | null): Promise<SessionPerformerOptionPage>;
   warningColumns(branchId: string, day: string, occurredAt: Date): SQL;
 }) {
   return {
@@ -51,7 +59,8 @@ export function createSessionReaders(reads: {
       // تثبيت لحظة الصفحة الأولى يمنع تبدّل الإجازة الجزئية؛ نتيجة تطبيع الساعة الجديدة لا تُستخدم بعد فحص النافذة.
       if (cursor !== null) normalizeTime(effectiveAt);
       const day = attendanceWorkingDate(new Date(effectiveAt), place.timezone);
-      return reads.page(tx, companyId, businessId, branchId, day, { ...query, occurred_at: effectiveAt }, sessionPerformerCursorCodec, requestedAt, scopeHash);
+      return reads.page(tx, companyId, businessId, branchId, day, { ...query, occurred_at: effectiveAt },
+        sessionPerformerCursorCodec, requestedAt, scopeHash, employeeNumberFromSearch(query.q));
     },
   };
 }

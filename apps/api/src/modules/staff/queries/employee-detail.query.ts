@@ -44,7 +44,7 @@ export async function employeeDetail(
     primary_branch_id: string;
     branch_ids: string[];
     scope_branch_ids: string[];
-  }>(sql`SELECT id, business_id, primary_branch_id, user_id, name_ar, name_en, revision,
+  }>(sql`SELECT id, business_id, primary_branch_id, user_id, name_ar, name_en, employee_number, revision,
     ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=employees.company_id AND eb.employee_id=employees.id AND eb."to" IS NULL ORDER BY eb.branch_id) AS branch_ids,
     ARRAY(SELECT eb.branch_id FROM employee_branches eb WHERE eb.company_id=employees.company_id AND eb.employee_id=employees.id AND ${currentAttachment()}) AS scope_branch_ids,
     role_code, to_char(hire_date, 'YYYY-MM-DD') AS hire_date, to_char(contract_end, 'YYYY-MM-DD') AS contract_end,

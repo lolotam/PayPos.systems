@@ -32,8 +32,11 @@ it('requires occurred time, trims bounded search and rejects private performer f
     { occurred_at, lang: 'en', user_id: id }, { occurred_at }, { occurred_at, lang: 'AR' },
     { occurred_at, lang: 'en', q: '\u0000' }, { occurred_at, lang: 'en', q: 'élè\u0000' }])
     expect(sessionPerformerOptionsQuery.safeParse(query).success).toBe(false);
-  const item = { id, name_ar: null, name_en: 'Synthetic employee', not_clocked_in_warning: true, approved_leave_warning: false };
+  const item = { id, name_ar: null, name_en: 'Synthetic employee', employee_number: null, not_clocked_in_warning: true, approved_leave_warning: false };
   expect(sessionPerformerOptionPage.parse({ items: [item], next_cursor: null }).items).toEqual([item]);
+  expect(sessionPerformerOptionPage.parse({ items: [{ ...item, employee_number: 7 }], next_cursor: null }).items[0]?.employee_number).toBe(7);
+  expect(sessionPerformerOptionPage.safeParse({ items: [{ ...item, employee_number: 0 }], next_cursor: null }).success).toBe(false);
+  expect(sessionPerformerOptionPage.safeParse({ items: [{ ...item, employee_number: 1_000_000 }], next_cursor: null }).success).toBe(false);
   for (const field of ['salary', 'phone', 'leave_reason', 'attendance_history', 'user_id'])
     expect(sessionPerformerOptionPage.safeParse({ items: [{ ...item, [field]: 'private' }], next_cursor: null }).success).toBe(false);
 });

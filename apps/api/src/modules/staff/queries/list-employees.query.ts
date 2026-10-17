@@ -3,7 +3,7 @@ import { employeePage, type EmployeeListQuery, type EmployeePage } from '@pospay
 import { sql } from 'drizzle-orm';
 import type { EmployeeDetailAccess } from './employee-detail.query.ts';
 
-// جدول الموظفين يقسم الصفحات بعد تصفية النطاق؛ المؤشر لا يحمل معرف موظف ممنوع.
+// قائمة الموظفين تقسم الصفحات بعد النطاق؛ فلتر الرقم بحث بالمفتاح الفريد حتى لا يطابق 2 الرقم 12.
 export function listEmployeesStatement(
   companyId: string,
   businessId: string,
@@ -11,10 +11,11 @@ export function listEmployeesStatement(
   allowedBranches: readonly string[],
 ) {
   return sql`WITH allowed_branches AS (SELECT jsonb_array_elements_text(${JSON.stringify(allowedBranches)}::jsonb)::uuid AS id)
-    SELECT e.id,e.name_ar,e.name_en,e.role_code,e.primary_branch_id,to_char(e.hire_date,'YYYY-MM-DD') AS hire_date
+    SELECT e.id,e.name_ar,e.name_en,e.role_code,e.primary_branch_id,to_char(e.hire_date,'YYYY-MM-DD') AS hire_date,e.employee_number
     FROM employees e WHERE e.company_id=${companyId} AND e.business_id=${businessId} AND e.deleted_at IS NULL
     AND e.primary_branch_id IN (SELECT id FROM allowed_branches)
     AND NOT EXISTS (SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.employee_id=e.id AND ${currentAttachment()} AND eb.branch_id NOT IN (SELECT id FROM allowed_branches))
+    ${query.employee_number === undefined ? sql`` : sql`AND e.id=(SELECT numbered.id FROM employees numbered WHERE numbered.company_id=${companyId} AND numbered.employee_number=${query.employee_number})`}
     ${query.cursor === undefined ? sql`` : sql`AND e.id > ${query.cursor}`} ORDER BY e.id LIMIT ${query.limit + 1}`;
 }
 

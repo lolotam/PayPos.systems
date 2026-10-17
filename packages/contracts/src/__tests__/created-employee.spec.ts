@@ -27,11 +27,21 @@ describe('createdEmployee', () => {
     expect(createdEmployee.safeParse({ ...body, employee_number: 1_000_000 }).success).toBe(false);
   });
 
-  it('leaves employee and employeeDetailRecord without a required number', () => {
-    expect(employee.safeParse(body).success).toBe(true);
-    expect(employee.parse({ ...body, employee_number: 4 })).not.toHaveProperty('employee_number');
+  it('requires the number on employee and detail, including null', () => {
+    expect(employee.safeParse(body).success).toBe(false);
+    expect(employee.parse({ ...body, employee_number: 4 }).employee_number).toBe(4);
+    expect(employee.parse({ ...body, employee_number: null }).employee_number).toBeNull();
+    expect(employee.safeParse({ ...body, employee_number: 0 }).success).toBe(false);
     expect(
       employeeDetailRecord.safeParse({ ...body, revision: 1, branch_ids: [body.id] }).success,
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      employeeDetailRecord.parse({
+        ...body,
+        employee_number: null,
+        revision: 1,
+        branch_ids: [body.id],
+      }).employee_number,
+    ).toBeNull();
   });
 });

@@ -945,7 +945,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. */
+        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope. */
         get: operations["listEmployees"];
         put?: never;
         /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). The response is CreatedEmployee; employee_number is the automatic number or null. No free number left returns EMPLOYEE_NUMBER_EXHAUSTED (422) and writes nothing. */
@@ -3007,6 +3007,7 @@ export interface components {
             user_id: string | null;
             /** Format: date-time */
             created_at: string;
+            employee_number: number | null;
             revision: number;
             branch_ids: string[];
         };
@@ -3019,6 +3020,7 @@ export interface components {
             /** Format: uuid */
             primary_branch_id: string;
             hire_date: components["schemas"]["EmployeeDate"];
+            employee_number: number | null;
         };
         EmployeePage: {
             items: components["schemas"]["EmployeeListItem"][];
@@ -3029,6 +3031,7 @@ export interface components {
             cursor?: string;
             /** @default 20 */
             limit: number;
+            employee_number?: number;
         };
         DiscountLimit: {
             limit_bps: number | null;
@@ -3187,6 +3190,7 @@ export interface components {
             user_id: string | null;
             /** Format: date-time */
             created_at: string;
+            employee_number: number | null;
         };
         CreatedEmployee: {
             /** Format: uuid */
@@ -4223,6 +4227,7 @@ export interface components {
             id: string;
             name_ar: string | null;
             name_en: string;
+            employee_number: number | null;
             not_clocked_in_warning: boolean;
             approved_leave_warning: boolean;
         };
@@ -8401,6 +8406,7 @@ export interface operations {
             query?: {
                 cursor?: string;
                 limit?: number;
+                employee_number?: number;
             };
             header: {
                 "x-company-id": string;
