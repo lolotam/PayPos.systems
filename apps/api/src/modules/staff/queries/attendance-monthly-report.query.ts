@@ -20,6 +20,7 @@ export function attendanceMonthlyInputsStatement(companyId: string, scope: Atten
   const branchIds = sql`ARRAY[${sql.join(scope.branches.map((branch) => sql`${branch.id}::uuid`), sql`, `)}]::uuid[]`;
   const zones = sql.join(scope.branches.map((branch) => sql`(${branch.id}::uuid,${branch.timezone}::text)`), sql`, `);
   const contracts = attendanceReportContractsStatement(companyId, scope.businessId, branchIds, zones, from, to);
+  // شاشة تقرير الحضور الشهري وملف CSV يقرآن مدخلات حساب كل موظفة (رقمها واسمها وجلساتها وورديتها وعقدها وإجازاتها) من هذا الاستعلام.
   return sql`WITH contracts AS MATERIALIZED (${contracts}),
     zones(branch_id,timezone) AS (VALUES ${zones}),
     sessions AS MATERIALIZED (
