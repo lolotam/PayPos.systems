@@ -84,11 +84,20 @@ it.each(['ar', 'en'] as const)('shows a recovered rejected selection outside the
     <SessionServiceField scope={scope} value={restored.service} onChange={onChange} /></QueryClientProvider>);
   await screen.findByRole('option', { name: option.name_en });
   const select = screen.getByRole('combobox') as HTMLSelectElement;
-  expect(select.value).toBe(restored.service_id); expect(select.selectedOptions[0]?.textContent).toBe(restored.service_id);
+  expect(select.value).toBe(restored.service_id); expect(select.selectedOptions[0]?.textContent).toBe(t(locale, 'serviceSessions.loadingService'));
   expect(screen.queryByText(t(locale, 'serviceSessions.listPrice'))).toBeNull();
   const partial = transition(pending, { type: 'RECORDED', attempt: recordAttempt, response }), rejected = partial.drafts.lines[0];
   if (!rejected?.service) throw new Error('Missing rejected selection');
   view.rerender(<QueryClientProvider client={client}><SessionServiceField scope={scope} value={rejected.service} onChange={onChange} /></QueryClientProvider>);
   expect(select.value).toBe(rejected.service_id); expect(select.selectedOptions[0]?.textContent).toBe(response.rejected_lines[0]?.name_en);
   expect(screen.getByText(t(locale, 'serviceSessions.listPrice')).textContent).toContain('7.125'); expect(onChange).not.toHaveBeenCalled();
+});
+it.each(['ar', 'en'] as const)('labels a recovered service while the options load and keeps its service_id in %s', async (locale) => {
+  state.locale = locale; state.get.mockReset(); state.get.mockReturnValue(new Promise(() => {}));
+  const pending = transition(emptySessionRecordingResult(), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: recordAttempt } });
+  const draft = pending.drafts.lines[0]; if (!draft?.service) throw new Error('Missing recovered service');
+  render(<QueryClientProvider client={new QueryClient()}><SessionServiceField scope={scope} value={draft.service} onChange={vi.fn()} /></QueryClientProvider>);
+  const select = screen.getByRole('combobox') as HTMLSelectElement;
+  expect(select.selectedOptions[0]?.textContent).toBe(t(locale, 'serviceSessions.loadingService'));
+  expect(select.value).toBe(draft.service_id); expect(screen.queryByText(draft.service_id)).toBeNull();
 });
