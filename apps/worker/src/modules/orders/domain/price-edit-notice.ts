@@ -3,13 +3,14 @@ export interface PriceEditNoticeRule {
   readonly channel: 'IN_APP';
   readonly roles: readonly string[];
 }
-/** تسميات الكتالوج المحقونة: الخدمة والفرع ودور المحرر عند رفض الاسم. */
+/**
+ * تسميات الكتالوج ودالتا العرض المحقونتان؛ domain لا يستورد i18n فتُحقن editorLabel وsafeDisplayName من التوصيل.
+ */
 export interface PriceEditNameFallback {
   readonly service: { readonly ar: string; readonly en: string };
   readonly branch: { readonly ar: string; readonly en: string };
-  readonly owner: { readonly ar: string; readonly en: string };
-  readonly manager: { readonly ar: string; readonly en: string };
-  readonly employee: { readonly ar: string; readonly en: string };
+  readonly safeName: (value: string | null) => string | null;
+  readonly editorText: (locale: 'ar' | 'en', editor: PriceEditEditorSnapshot) => string;
 }
 /** ترتيب ED-Q11 ثابت؛ المبلغ نص بثلاث خانات وليس ناتج تحويل رقمي. */
 export type PriceEditParameters = [
@@ -32,6 +33,9 @@ export interface PriceEditEditorSnapshot {
   readonly nameAr: string | null;
   readonly nameEn: string | null;
   readonly role: string | null;
+  readonly roleIsSystem: boolean | null;
+  readonly roleNameAr: string | null;
+  readonly roleNameEn: string | null;
 }
 export interface PriceEditParameterInput {
   readonly service: { readonly nameAr: string | null; readonly nameEn: string | null };
@@ -42,8 +46,6 @@ export interface PriceEditParameterInput {
   readonly editor: PriceEditEditorLabel;
   readonly fallback: PriceEditNameFallback;
 }
-const UNSAFE_NAME =
-  /(?:https?:|[a-z][a-z\d+.-]*:\/\/|\b[a-z\d-]+\.[a-z]{2,}\b|\p{Nd}(?:[\s().+-]*\p{Nd}){6,}|\b(?:bearer|token|otp|code)\b|^\p{Nd}{4,8}$)/iu;
 const CANONICAL_MONEY = /^(0|[1-9]\d{0,10})\.\d{3}$/;
 
 /**
@@ -80,8 +82,18 @@ export function priceEditRecipientGroups(userIds: readonly string[]): {
  */
 export function priceEditNoticeParameters(input: PriceEditParameterInput): PriceEditParameters {
   assertPriceEditEventValues(input);
-  const service = bilingual(input.service.nameAr, input.service.nameEn, input.fallback.service);
-  const branch = bilingual(input.branch.nameAr, input.branch.nameEn, input.fallback.branch);
+  const service = bilingual(
+    input.service.nameAr,
+    input.service.nameEn,
+    input.fallback.service,
+    input.fallback.safeName,
+  );
+  const branch = bilingual(
+    input.branch.nameAr,
+    input.branch.nameEn,
+    input.fallback.branch,
+    input.fallback.safeName,
+  );
   return [
     { name: 'service_name_ar', type: 'text', value: service.ar },
     { name: 'service_name_en', type: 'text', value: service.en },
@@ -98,6 +110,7 @@ function bilingual(
   nameAr: string | null,
   nameEn: string | null,
   fallback: { readonly ar: string; readonly en: string },
+  safeName: (value: string | null) => string | null,
 ) {
   return {
     ar: safeName(nameAr) ?? safeName(nameEn) ?? fallback.ar,
@@ -105,25 +118,20 @@ function bilingual(
   };
 }
 /**
- * يحدد اسم المحرر من لقطة سجل التعديل: الاسم الآمن، ثم مسمى الدور الثابت (ED-Q13)، ثم تسمية الموظف العامة
- * لو كان الاسم مخزنًا لكنه مرفوض كاسم آمن. لقطة بلا اسم ولا دور ثغرة مواصفات مفتوحة (#255) فتُرفض.
+ * يبني اسمي المحرر للقالب من لقطة صف التعديل عبر editorLabel الواحدة؛ لقطة بلا اسم ولا دور (صف قبل ADR-0045) تُرفض
+ * حتى لا يظهر محرر مجهول في الجرس.
  *
- * @param editor الاسمان والدور كما خُزنت وقت الحفظ
- * @param fallback التسميات المحقونة من الكتالوج
+ * @param editor الاسمان ولقطة الدور كما خُزنت وقت الحفظ
+ * @param fallback دالة editorLabel المحقونة
  * @returns الاسم العربي والإنجليزي الجاهزين لمعاملات القالب
  */
 export function priceEditEditorLabel(
   editor: PriceEditEditorSnapshot,
-  fallback: PriceEditNameFallback,
+  fallback: Pick<PriceEditNameFallback, 'editorText'>,
 ): PriceEditEditorLabel {
-  const role =
-    editor.role === 'owner' ? fallback.owner : editor.role === 'manager' ? fallback.manager : null;
-  const stored = [editor.nameAr, editor.nameEn].some((name) => (name?.trim() ?? '') !== '');
-  const generic = stored ? fallback.employee : null;
-  const en = safeName(editor.nameEn) ?? role?.en ?? generic?.en ?? null;
-  const ar = safeName(editor.nameAr) ?? safeName(editor.nameEn) ?? role?.ar ?? generic?.ar ?? null;
-  if (ar === null || en === null) throw new Error('PRICE_EDIT_EVENT_INVALID');
-  return { ar, en };
+  const hasName = [editor.nameAr, editor.nameEn].some((name) => (name?.trim() ?? '') !== '');
+  if (!hasName && editor.role === null) throw new Error('PRICE_EDIT_EVENT_INVALID');
+  return { ar: fallback.editorText('ar', editor), en: fallback.editorText('en', editor) };
 }
 /**
  * يرفض تاريخًا غير تقويمي أو مبلغًا غير قانوني قبل حجز دفتر الجرس، حتى لا يُحجز صف لحدث فاسد.
@@ -152,8 +160,4 @@ function assertCalendarDate(businessDate: string): void {
     new Date(businessDate).toISOString().slice(0, 10) !== businessDate
   )
     throw new Error('PRICE_EDIT_EVENT_INVALID');
-}
-function safeName(value: string | null): string | null {
-  const name = value?.trim() ?? '';
-  return name.length > 0 && name.length <= 255 && !UNSAFE_NAME.test(name) ? name : null;
 }

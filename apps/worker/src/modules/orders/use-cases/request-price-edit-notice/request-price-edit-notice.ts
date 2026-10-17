@@ -44,7 +44,14 @@ export class RequestPriceEditNotice {
     )
       throw new Error('PRICE_EDIT_EVENT_INVALID');
     const editor = priceEditEditorLabel(
-      { nameAr: snapshot.editorNameAr, nameEn: snapshot.editorNameEn, role: snapshot.editorRole },
+      {
+        nameAr: snapshot.editorNameAr,
+        nameEn: snapshot.editorNameEn,
+        role: snapshot.editorRole,
+        roleIsSystem: snapshot.editorRoleIsSystem,
+        roleNameAr: snapshot.editorRoleNameAr,
+        roleNameEn: snapshot.editorRoleNameEn,
+      },
       this.fallback,
     );
     const { groups, recipientCount } = priceEditRecipientGroups(users);
@@ -77,7 +84,8 @@ export class RequestPriceEditNotice {
       editor,
       fallback: this.fallback,
     });
-    for (const group of groups) await this.append(input, context.businessTimezone, group, channel, parameters);
+    for (const group of groups)
+      await this.append(input, context.businessTimezone, group, channel, parameters);
   }
 
   private async append(

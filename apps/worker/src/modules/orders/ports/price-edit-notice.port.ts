@@ -17,6 +17,9 @@ export interface PriceEditSnapshot {
   readonly editorNameAr: string | null;
   readonly editorNameEn: string | null;
   readonly editorRole: string | null;
+  readonly editorRoleIsSystem: boolean | null;
+  readonly editorRoleNameAr: string | null;
+  readonly editorRoleNameEn: string | null;
   readonly previousNet: string;
   readonly newNet: string;
 }

@@ -9,20 +9,25 @@ import type {
   PriceEditSnapshot,
 } from '../ports/price-edit-notice.port.ts';
 
-export const lineNoticeMatchStatement = (line: PriceEditNoticeLine) => sql`SELECT l.id FROM service_lines l
+export const lineNoticeMatchStatement = (
+  line: PriceEditNoticeLine,
+) => sql`SELECT l.id FROM service_lines l
   JOIN service_sessions s ON s.company_id = l.company_id AND s.business_id = l.business_id AND s.id = l.session_id
   WHERE l.company_id = ${line.companyId} AND l.id = ${line.lineId} AND l.business_id = ${line.businessId}
     AND l.session_id = ${line.sessionId} AND s.branch_id = ${line.branchId} AND l.revision >= ${line.revision}`;
 
 // numeric قد يصل كرقم؛ القالب يشترط النص القانوني بثلاث خانات دون تحويل حسابي.
 export const editSnapshotStatement = (companyId: string, lineId: string, revision: number) => sql`
-  SELECT editor_name_ar, editor_name_en, editor_role,
+  SELECT editor_name_ar, editor_name_en, editor_role, editor_role_is_system,
+    editor_role_name_ar, editor_role_name_en,
     btrim(to_char(previous_net, '99999999990.000')) AS previous_net,
     btrim(to_char(new_net, '99999999990.000')) AS new_net
   FROM service_line_edits
   WHERE company_id = ${companyId} AND line_id = ${lineId} AND revision = ${revision}`;
 
-export const lineContextStatement = (line: PriceEditNoticeLine) => sql`SELECT l.name_ar, l.name_en, s.business_timezone
+export const lineContextStatement = (
+  line: PriceEditNoticeLine,
+) => sql`SELECT l.name_ar, l.name_en, s.business_timezone
   FROM service_lines l
   JOIN service_sessions s ON s.company_id = l.company_id AND s.business_id = l.business_id AND s.id = l.session_id
   WHERE l.company_id = ${line.companyId} AND l.id = ${line.lineId} AND l.business_id = ${line.businessId}
@@ -43,7 +48,9 @@ export function priceEditRepository(tx: Tx): PriceEditNoticeRepository {
   return {
     matchesLine: async (line) => (await tx.execute(lineNoticeMatchStatement(line))).length === 1,
     readEditSnapshot: async (companyId, lineId, revision) => {
-      const [row] = await tx.execute<SnapshotRow>(editSnapshotStatement(companyId, lineId, revision));
+      const [row] = await tx.execute<SnapshotRow>(
+        editSnapshotStatement(companyId, lineId, revision),
+      );
       return row === undefined ? null : toSnapshot(row);
     },
     readLineContext: async (line) => {
@@ -69,6 +76,9 @@ type SnapshotRow = Record<string, unknown> & {
   editor_name_ar: string | null;
   editor_name_en: string | null;
   editor_role: string | null;
+  editor_role_is_system: boolean | null;
+  editor_role_name_ar: string | null;
+  editor_role_name_en: string | null;
   previous_net: string;
   new_net: string;
 };
@@ -82,6 +92,9 @@ function toSnapshot(row: SnapshotRow): PriceEditSnapshot {
     editorNameAr: row.editor_name_ar,
     editorNameEn: row.editor_name_en,
     editorRole: row.editor_role,
+    editorRoleIsSystem: row.editor_role_is_system,
+    editorRoleNameAr: row.editor_role_name_ar,
+    editorRoleNameEn: row.editor_role_name_en,
     previousNet: row.previous_net,
     newNet: row.new_net,
   };

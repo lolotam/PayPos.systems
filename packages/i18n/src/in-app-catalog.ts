@@ -19,6 +19,7 @@ export const inAppEn = {
     '{{editor_name_en}} edited {{service_name_en}} at {{branch_name_en}} dated {{business_date}}: the net was {{previous_net}} KWD and is now {{new_net}} KWD.',
   editor_role_owner: 'Owner',
   editor_role_manager: 'Manager',
+  editor_generic: 'User',
   shift_not_clocked_in:
     '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
   break_not_returned:
@@ -45,6 +46,7 @@ export const inAppAr = {
     'عدّل {{editor_name_ar}} خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: كان الصافي {{previous_net}} دينار وأصبح {{new_net}} دينار.',
   editor_role_owner: 'المالك',
   editor_role_manager: 'المدير',
+  editor_generic: 'مستخدم',
   shift_not_clocked_in:
     'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
   break_not_returned:
