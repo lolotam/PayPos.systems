@@ -20,6 +20,7 @@ export type LineCancelParameters = [
   { name: 'business_date'; type: 'text'; value: string },
   { name: 'cancelled_net'; type: 'text'; value: string },
 ];
+/** مدخلات معاملات جرس الإلغاء: أسماء الخدمة والفرع المحفوظة وتاريخ الزيارة وصافي السطر الملغي، بلا سبب ولا هوية الملغي. */
 export interface LineCancelParameterInput {
   readonly service: { readonly nameAr: string | null; readonly nameEn: string | null };
   readonly branch: { readonly nameAr: string | null; readonly nameEn: string | null };
