@@ -40,7 +40,7 @@ function editContext(base: SessionFixture) {
 }
 
 async function sessionEditor(base: SessionFixture) {
-  await base.h.signedInOperator('session-editor@example.test');
+  const editorCookie = await base.h.signedInOperator('session-editor@example.test');
   const users = await base.h.owner`SELECT id FROM "user" WHERE email='session-editor@example.test'`;
   const editorId = must(users[0])['id'] as string;
   const editorMembership = ids.newId();
@@ -51,7 +51,7 @@ async function sessionEditor(base: SessionFixture) {
   await insertEditor(base, editorId, editorMembership, editorEmployee, role, nameEn, nameAr);
   const owners = await base.h.owner`SELECT id FROM memberships
     WHERE company_id=${base.company} AND user_id=${base.ownerId} AND scope_type='COMPANY' ORDER BY id`;
-  return { editorId, editorMembership, editorEmployee, ownerMembership: must(owners[0])['id'] as string };
+  return { editorId, editorMembership, editorEmployee, editorCookie, ownerMembership: must(owners[0])['id'] as string };
 }
 
 async function insertEditor(

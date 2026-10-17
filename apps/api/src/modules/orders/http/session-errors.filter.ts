@@ -5,6 +5,21 @@ import { ApiError } from '../../../shared/errors.ts';
 import { EnvelopeExceptionFilter } from '../../../shared/exception.filter.ts';
 import { SessionError } from '../use-cases/record-service-session/record-service-session.usecase.ts';
 
+// عضوية التعديل 422 لأن الجسم سليم والاختيار قاعدة نطاق؛ عضوية التسجيل تبقى 400.
+const EDIT_UNPROCESSABLE = new Set<string>([
+  'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
+  'SESSION_EDITOR_MEMBERSHIP_REQUIRED', 'SESSION_EDIT_IDENTITY_UNKNOWN',
+]);
+
+function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
+  if (code === 'SESSION_PERFORMER_SELF_FORBIDDEN') return 403;
+  if (code === 'SESSION_RECORDER_MEMBERSHIP_REQUIRED') return 400;
+  if (code === 'SESSION_RECOVERY_NOT_FOUND') return 404;
+  if (code === 'SESSION_RECOVERY_NOT_YET' || code === 'SESSION_RECOVERY_CLOSED' || code === 'SESSION_LINE_REVISION_STALE') return 409;
+  if (EDIT_UNPROCESSABLE.has(code)) return 422;
+  return invalidStatus;
+}
+
 @Catch(SessionError)
 export class SessionErrorsFilter implements ExceptionFilter {
   constructor(private readonly invalidStatus = 422) {}
@@ -13,11 +28,7 @@ export class SessionErrorsFilter implements ExceptionFilter {
       new EnvelopeExceptionFilter().catch(new ApiError(error.code, error.details), host);
       return;
     }
-    const status = error.code === 'SESSION_PERFORMER_SELF_FORBIDDEN' ? 403
-      : error.code === 'SESSION_RECORDER_MEMBERSHIP_REQUIRED' ? 400
-      : error.code === 'SESSION_RECOVERY_NOT_FOUND' ? 404
-      : error.code === 'SESSION_RECOVERY_NOT_YET' || error.code === 'SESSION_RECOVERY_CLOSED' ? 409
-      : this.invalidStatus;
+    const status = sessionErrorHttpStatus(error.code, this.invalidStatus);
     const envelope = { code: error.code, ...serviceSessionErrors[error.code], ...(error.details === undefined ? {} : { details: error.details }) };
     void host.switchToHttp().getResponse<FastifyReply>().status(status).send(envelope);
   }
