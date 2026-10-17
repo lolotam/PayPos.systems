@@ -288,3 +288,63 @@ export const serviceLinePerformerChangeRows = pgTable('service_line_performer_ch
   check('slpcr_share_ordinal_ck', sql`${t.shareBps} BETWEEN 1 AND 10000 AND ${t.performerOrdinal} BETWEEN 1 AND 4`),
   check('slpcr_snapshot_ck', sql`${t.linkedUserId} IS NULL OR ${t.linkedUserSnapshotted}`),
 ]);
+
+export const sessionTipRevisions = pgTable('session_tip_revisions', {
+  companyId: uuid('company_id').notNull(),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  sessionId: uuid('session_id').notNull(),
+  revision: integer('revision').notNull(),
+  // السلسلة معلنة بالصف السابق؛ فجوة الرقم ترفضها المرجعية من غير تريغر max()+1 ولا قفل استشاري.
+  previousRevision: integer('previous_revision'),
+  changedBy: uuid('changed_by').notNull(),
+  changedByMembershipId: uuid('changed_by_membership_id').notNull(),
+  changedAt: timestamp('changed_at', { withTimezone: true }).notNull(),
+  // المراجعة الأولى بلا سبب (TP-Q5)؛ الاستبدال يرفض الغياب بقيد منفصل عن شكل النص.
+  reason: text('reason'),
+  // بلا مفتاح للأوتبوكس: الصف يُمسح لاحقاً ودور التطبيق إدخال فقط، وربط الحدث يُفحص في حالة الاستخدام.
+  eventId: uuid('event_id').notNull(),
+  writeXid: xid8('write_xid').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ name: 'session_tip_revisions_pk', columns: [t.companyId, t.id] }),
+  unique('session_tip_revisions_session_revision_uq').on(t.companyId, t.sessionId, t.revision),
+  unique('session_tip_revisions_event_uq').on(t.companyId, t.eventId),
+  unique('session_tip_revisions_business_session_id_uq').on(t.companyId, t.businessId, t.sessionId, t.id),
+  unique('session_tip_revisions_session_xid_uq').on(t.companyId, t.sessionId, t.writeXid),
+  foreignKey({ name: 'session_tip_revisions_company_fk', columns: [t.companyId], foreignColumns: [companies.id] }),
+  foreignKey({ name: 'session_tip_revisions_session_fk', columns: [t.companyId, t.businessId, t.sessionId], foreignColumns: [serviceSessions.companyId, serviceSessions.businessId, serviceSessions.id] }),
+  foreignKey({ name: 'session_tip_revisions_previous_fk', columns: [t.companyId, t.sessionId, t.previousRevision], foreignColumns: [t.companyId, t.sessionId, t.revision] }),
+  foreignKey({ name: 'session_tip_revisions_membership_fk', columns: [t.companyId, t.changedBy, t.changedByMembershipId], foreignColumns: [memberships.companyId, memberships.userId, memberships.id] }),
+  foreignKey({ name: 'session_tip_revisions_actor_fk', columns: [t.changedBy], foreignColumns: [user.id] }),
+  index('session_tip_revisions_membership_idx').on(t.companyId, t.changedBy, t.changedByMembershipId),
+  index('session_tip_revisions_actor_idx').on(t.changedBy),
+  index('session_tip_revisions_previous_idx').on(t.companyId, t.sessionId, t.previousRevision),
+  // CHECK ينجح على UNKNOWN؛ من غير coalesce مراجعة أولى غير 1 وprevious فارغ كانت هتتخزن.
+  check('session_tip_revisions_revision_ck', sql`coalesce((${t.revision} = 1 AND ${t.previousRevision} IS NULL) OR (${t.revision} >= 2 AND ${t.previousRevision} = ${t.revision} - 1), false)`),
+  check('session_tip_revisions_reason_required_ck', sql`${t.revision} = 1 OR ${t.reason} IS NOT NULL`),
+  check('session_tip_revisions_reason_ck', sql`${t.reason} IS NULL OR (${t.reason} = btrim(${t.reason}, chr(9) || chr(10) || chr(13) || chr(32)) AND char_length(${t.reason}) BETWEEN 1 AND 500)`),
+]);
+
+export const sessionTips = pgTable('session_tips', {
+  companyId: uuid('company_id').notNull(),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  revisionId: uuid('revision_id').notNull(),
+  sessionId: uuid('session_id').notNull(),
+  employeeId: uuid('employee_id').notNull(),
+  method: text('method').notNull(),
+  // الحد الأعلى سقف النوع لرفض NaN؛ سقف البقشيش التجاري يبقى في الدومين (TP-Q7).
+  amount: money('amount').notNull(),
+}, (t) => [
+  primaryKey({ name: 'session_tips_pk', columns: [t.companyId, t.id] }),
+  unique('session_tips_entry_uq').on(t.companyId, t.revisionId, t.employeeId, t.method),
+  foreignKey({ name: 'session_tips_company_fk', columns: [t.companyId], foreignColumns: [companies.id] }),
+  foreignKey({ name: 'session_tips_revision_fk', columns: [t.companyId, t.businessId, t.sessionId, t.revisionId], foreignColumns: [sessionTipRevisions.companyId, sessionTipRevisions.businessId, sessionTipRevisions.sessionId, sessionTipRevisions.id] }),
+  foreignKey({ name: 'session_tips_session_fk', columns: [t.companyId, t.businessId, t.sessionId], foreignColumns: [serviceSessions.companyId, serviceSessions.businessId, serviceSessions.id] }),
+  foreignKey({ name: 'session_tips_employee_fk', columns: [t.companyId, t.businessId, t.employeeId], foreignColumns: [employees.companyId, employees.businessId, employees.id] }),
+  index('session_tips_session_revision_idx').on(t.companyId, t.businessId, t.sessionId, t.revisionId),
+  index('session_tips_employee_idx').on(t.companyId, t.businessId, t.employeeId),
+  check('session_tips_method_ck', sql`${t.method} IN ('CASH','CARD')`),
+  check('session_tips_amount_ck', sql`${t.amount} > 0 AND ${t.amount} <= 99999999999.999`),
+]);

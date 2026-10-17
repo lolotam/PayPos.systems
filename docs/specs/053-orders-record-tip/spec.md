@@ -145,15 +145,22 @@ in `privileges.spec.ts` updated in the same PR, and a negative isolation test pe
 
 | Table | Columns | Constraints and keys | Indexes |
 |-------|---------|----------------------|---------|
-| `session_tip_revisions` | `company_id`, `id`, `business_id`, `session_id`, `revision int`, `changed_by uuid` (user), `changed_at timestamptz`, `reason text NULL`, `event_id uuid` (the id of the `SessionTipsChanged` outbox row written in the same transaction, from the injected `IdGenerator`) | `CHECK (revision >= 1)`, `CHECK (reason IS NULL OR char_length(btrim(reason)) BETWEEN 1 AND 500)`, `UNIQUE (company_id, session_id, revision)`, `UNIQUE (company_id, event_id)`, FK `(company_id, business_id, session_id)` → `service_sessions` | the unique index (leading `company_id`); user FK index |
-| `session_tips` | `company_id`, `id`, `business_id`, `revision_id`, `session_id`, `employee_id`, `method text`, `amount numeric(14,3)` | `CHECK (method IN ('CASH','CARD'))`, `CHECK (amount > 0)`, `UNIQUE (company_id, revision_id, employee_id, method)`, business-qualified FKs: `(company_id, revision_id)`, `(company_id, business_id, session_id)` → `service_sessions` (it has `UNIQUE (company_id, business_id, id)`), `(company_id, business_id, employee_id)` → `employees` (`employees_company_business_id_key`) | `(company_id, session_id, revision_id)`; employee FK index |
+| `session_tip_revisions` | `company_id`, `id`, `business_id`, `session_id`, `revision int`, `previous_revision int NULL`, `changed_by uuid` (user), `changed_by_membership_id uuid` (membership of that user), `changed_at timestamptz`, `reason text NULL`, `event_id uuid` (the id of the `SessionTipsChanged` outbox row written in the same transaction, from the injected `IdGenerator`; no FK to `outbox`), `write_xid xid8`, `created_at timestamptz DEFAULT now()` | PK `(company_id, id)`; `UNIQUE (company_id, session_id, revision)`; `UNIQUE (company_id, event_id)`; `UNIQUE (company_id, business_id, session_id, id)`; `UNIQUE (company_id, session_id, write_xid)`; `CHECK (coalesce((revision = 1 AND previous_revision IS NULL) OR (revision >= 2 AND previous_revision = revision - 1), false))`; `CHECK (revision = 1 OR reason IS NOT NULL)`; `CHECK (reason IS NULL OR (reason = btrim(reason, tab/LF/CR/space) AND char_length(reason) BETWEEN 1 AND 500))`; FKs: `company_id` → `companies`; `(company_id, business_id, session_id)` → `service_sessions`; self-FK `(company_id, session_id, previous_revision)` → `(company_id, session_id, revision)`; `(company_id, changed_by, changed_by_membership_id)` → `memberships`; `changed_by` → `user` | `(company_id, changed_by, changed_by_membership_id)`; `(changed_by)`; `(company_id, session_id, previous_revision)` |
+| `session_tips` | `company_id`, `id`, `business_id`, `revision_id`, `session_id`, `employee_id`, `method text`, `amount numeric(14,3)` | PK `(company_id, id)`; `UNIQUE (company_id, revision_id, employee_id, method)`; `CHECK (method IN ('CASH','CARD'))`; `CHECK (amount > 0 AND amount <= 99999999999.999)` (the upper bound is the column maximum and rejects `NaN`; it is not a business ceiling, TP-Q7); FKs: `company_id` → `companies`; `(company_id, business_id, session_id, revision_id)` → `session_tip_revisions (company_id, business_id, session_id, id)`; `(company_id, business_id, session_id)` → `service_sessions`; `(company_id, business_id, employee_id)` → `employees` | `(company_id, business_id, session_id, revision_id)`; `(company_id, business_id, employee_id)` |
 
-The current set of a visit is the entries of its highest revision (a revision with no entries means "no tips"). A deferred
-trigger (SECURITY INVOKER, as in spec 050) checks that a revision's entries belong to the same session as their revision;
-business consistency is enforced by the business-qualified foreign keys above, so a tip cannot name an employee of another
-business of the same company.
-Expand-only: new tables, no change to existing tables. Indexes on the new tables are created with them; no
-`CONCURRENTLY` is needed on new tables (ADR-0033 covers indexes added to existing tables).
+The current set of a visit is the entries of its highest revision (a revision with no entries means "no tips"). The chain
+is declarative: `previous_revision` plus the self-FK, with no `max()+1` trigger and no advisory lock. The chain CHECK is
+wrapped in `coalesce(..., false)` because PostgreSQL treats UNKNOWN as success, so a null `previous_revision` on any
+revision other than 1 would otherwise be stored. `write_xid` is
+stamped on every insert by `session_tip_revisions_begin` (`BEFORE INSERT`, `SECURITY INVOKER`), which overwrites any
+client value with `pg_current_xact_id()`. `session_tips_insert_guard` (`BEFORE INSERT`, `SECURITY INVOKER`) refuses an
+entry unless that parent revision was inserted in the same transaction. Nothing is deferred. The composite FK on
+`(company_id, business_id, session_id, revision_id)` keeps an entry on its revision's session and business, and
+`session_tips_employee_fk` stops a tip from naming an employee of another business of the same company. A replacement
+(`revision >= 2`) requires a reason; revision 1 may omit it, and a reason stored on revision 1 is kept. There is no
+storage check that sums a revision (`TIP_TOTAL_TOO_LARGE` stays in the domain). Expand-only: new tables, no change to
+existing tables. Indexes on the new tables are created with them; no `CONCURRENTLY` is needed on new tables (ADR-0033
+covers indexes added to existing tables).
 
 ### 5.4 API contract (36-3)
 

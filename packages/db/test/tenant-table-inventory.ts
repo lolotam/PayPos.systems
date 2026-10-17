@@ -8,6 +8,8 @@ export const TENANT_TABLES = [
   'service_line_edits',
   'service_line_performer_changes',
   'service_line_performer_change_rows',
+  'session_tip_revisions',
+  'session_tips',
   'service_line_edit_notices',
   'line_performers',
   'document_types',
