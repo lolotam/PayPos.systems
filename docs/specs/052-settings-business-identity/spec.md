@@ -30,7 +30,7 @@ the name text.
 | Part | Use case / content | Subtasks | Depends on |
 |------|--------------------|----------|-----------|
 | **27h-0** | This spec + ADR-0046 + owner questions (docs-only PR) | spec, ADR, plan row | — |
-| **27h-1a** | permission `manage:business-identity:business` (BI-Q1) | (a) migration that inserts the permission and its owner role default (pattern of migration 0128), added to `ROLE_DEFAULTS`, `OWNER_GRANTED_PERMISSIONS` (db and identity lists) and the owner-only rules of `permission-edit`; (b) the ar/en permission-name catalogs («إدارة هوية النشاط») in `packages/i18n`; (c) tests: default owner-only, only the owner can grant it, never a device, `privileges.spec.ts` allowlist | 27h-0 |
+| **27h-1a** | permission `manage:business-identity:business` (BI-Q1) | (a) migration that inserts the permission and its owner role default (pattern of migration 0128), added to `ROLE_DEFAULTS`, `OWNER_GRANTED_PERMISSIONS` (db and identity lists), `deviceForbidden` in `packages/db/src/system-role-policy.ts` (a device is otherwise eligible for every catalog permission not listed there) and the owner-only rules of `permission-edit`; (b) the ar/en permission-name catalogs («إدارة هوية النشاط») in `packages/i18n`; (c) tests: default owner-only, only the owner can grant it, never a device (an ALLOW override on a device membership is refused), `privileges.spec.ts` allowlist | 27h-0 |
 | **27h-1** | `update-business-identity-names` | (a) migration: 3 columns + CHECKs + composite FK + partial unique index, `privileges.spec.ts` check, RLS negative test; (b) contract + use case + audit + cache-guard fix; (c) integration + query-shape tests | 27h-1a |
 | **27h-2** | files side (no new endpoint, no logo-specific size cap: BI-Q3 keeps the generic 10 MiB) | (a) `validateStoredPermission`: `settings` ⇒ `read:settings:business`; (b) `purge_started` added to the file facts read + tests | 27h-0 |
 | **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with a database-only idempotent consumer, the module-map event arrow **and the reverse port arrow `files → settings` (logo-reference read)**; (b) lock, re-check through that port, `purge_started_at` handoff, the `retired` kind in the retention worker (storage delete outside transactions, tombstone, system audit) and the schedule bootstrap of §5.1 item 5; (c) race, crash-between-steps and replay tests with synthetic events | 27h-1 (needs `business_settings.logo_file_id` for the reference check), 27h-2 (needs the `purge_started` flag) |
@@ -85,7 +85,7 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
 | BI-13 | The settings read (`GET .../settings`) includes the three new fields; a Redis entry cached before this release is never served without them. |
 | BI-14 | The audit and the event never contain a storage key, a signed URL or file bytes. |
 | BI-15 | A person who holds `manage:settings:business` but not `manage:business-identity:business` (a manager) is refused `FORBIDDEN` on the names, the bind and the removal, and nothing is written; the owner, and a person the owner granted the permission to, succeed. A person without `manage:files:business` can still type names and bind a file she uploaded but cannot upload one. |
-| BI-16 | A logo file of exactly the generic 10 MiB limit is accepted like any file and can be bound; nothing logo-specific refuses it. |
+| BI-16 | A logo whose upload and whose re-encoded output are both within the generic 10 MiB limit is accepted like any file and can be bound; one whose re-encoding grows past the limit is rejected at verification with `FILE_SIZE_INVALID`, like any image. Nothing logo-specific refuses either. |
 
 ### Edge cases
 
@@ -122,7 +122,7 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
 4. **No logo-specific cap (BI-Q3 = 10 MiB).** The generic file policy and the DB checks apply unchanged, and the
    verification worker re-encodes the logo like any image. `request-upload`, the verification worker and the bind add
    nothing for size, and the employee-document images are unaffected. No new pixel rule: sharp's existing
-   16 M-pixel input cap bounds memory. The renderer (27i) reads at most the generic file cap, with a bounded read: a stored logo larger than the cap (rare; a PNG can grow when re-encoded) is treated as "no usable logo" (§4 edge cases) and the statement prints the name only, so a header is never blocked.
+   16 M-pixel input cap bounds memory. Verification already validates the re-encoded bytes against the generic policy (`inspectContent`), so every READY logo is within 10 MiB; the renderer (27i) still bounds its read at that cap.
 5. **Replace and remove.** The bind use case writes `BusinessLogoChanged { business_id, previous_file_id,
    file_id | null }` to the outbox in the same transaction. The **`files`-owned worker consumer** (27h-3, shipped before this producer so no event is ever emitted without a consumer) retires the
    previous file in **two durable steps**, because an outbox consumer runs inside one tenant transaction together with its
@@ -195,7 +195,7 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
 
 - Reading the settings (including the three new fields) keeps `read:settings:business`.
 - Changing the names, binding the logo and removing it need the new `manage:business-identity:business` (BI-Q1, BR-08):
-  `ROLE_DEFAULTS = ['owner']`, added to `OWNER_GRANTED_PERMISSIONS` (db and identity lists), the owner-only rules of
+  `ROLE_DEFAULTS = ['owner']`, added to `OWNER_GRANTED_PERMISSIONS` (db and identity lists), `deviceForbidden` in `packages/db/src/system-role-policy.ts`, the owner-only rules of
   `permission-edit` and the i18n permission-name catalogs (ar «إدارة هوية النشاط»); the owner can grant it to any human role,
   never a device. A migration (27h-1a, pattern of 0128) inserts it into `permissions` and into the owner role default.
   `manage:settings:business` no longer lets anyone change the identity.
