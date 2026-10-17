@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { attendanceMonthlyReport } from '@pospay/contracts';
-import { monthlyReportFixture, reportHeaders, reportLeave, reportUrl, scopeReportReader,
+import { annualLeaveCsvCells, monthlyReportFixture, reportHeaders, reportLeave, reportUrl, scopeReportReader,
   type MonthlyReportFixture } from './attendance-monthly-report.fixture.ts';
 import { hoursCommand } from './employee-default-shifts.fixture.ts';
 
@@ -41,8 +41,7 @@ it.each([
   }
   const csv = await f.h.app.inject({method:'GET',url:reportUrl(f,'all',true),headers:reportHeaders(f)});
   expect(csv.statusCode).toBe(200);
-  const cells = csv.payload.split('\r\n')[1]?.split(',');
-  expect(cells?.slice(14,16)).toEqual(kind === 'FULL_DAY' ? ['"1"','"0.00"'] : ['"0"','"2.00"']);
+  expect(annualLeaveCsvCells(csv.payload)).toEqual(kind === 'FULL_DAY' ? ['"1"','"0.00"'] : ['"0"','"2.00"']);
 });
 
 it('AB-Q11 a Hawalli-scoped reader gets employee leave filed at Salmiya without needing Salmiya access', async () => {
