@@ -129,7 +129,7 @@ the outbox.
 - **LE-15** A caller with `read:service-sessions:branch` (35d-5) reads, newest first, for one line: revision, previous and
   new price/discount/net, `changed_at`, who (name, or role label) and the reason. The reason appears **only** here.
 - **LE-16** The day list and the edit response always carry the boolean `edited`; the record and append responses carry it
-  as an optional field that parses as `false` when absent (a replayed pre-35d-4 response, FR-019). It is derived
+  as an optional field that reads as `false` when absent (a replayed pre-35d-4 response, FR-019). It is derived
   server-side from the existence of a `service_line_edits` row for the line — **not** from `revision`, which cancel (37) and
   performer changes (37b) also bump (a performer reassignment must not show the badge with an empty history). It is `false` in
   the recording and append responses.
@@ -244,8 +244,7 @@ the outbox.
   `false` on record/append, true after an edit), and the day-list query of 35d-5 computes it with an `EXISTS` over
   `service_line_edits` (index `service_line_edits_line_fk_idx`, covered by the 35d-5 `EXPLAIN` test). Clients never derive it from `revision`.
   Stored idempotent responses of record/append written before 35d-4 (or by an old instance during a rolling deploy) have no
-  `edited` key and are replayed byte for byte: the response contract therefore declares `edited` optional with a default of `false`
-  on the record and append responses (a replay never recomputes it), while the edit response always carries it.
+  `edited` key and are replayed byte for byte: the response contract therefore declares `edited` optional on the record and append responses, where **absent means `false`** (a reader tests `line.edited === true`; a replay never recomputes it), while the edit response always carries it. It is deliberately **not** a Zod `.default(false)`: a default makes the parsed type require the key from every producer (the record and append use cases, the admin and POS fixtures) and would rewrite stored bodies on re-parse.
   The reception screen (35d-6) uses the edit endpoint and shows only the mark (ED-Q12).
 
 ### Key entities
