@@ -62,7 +62,10 @@ export class ImportCommitError extends Error {
   /** ينشئ سبب رفض لا يحتوي على صفوف الموظفين أو معاملات قاعدة البيانات. */
   constructor(
     readonly code:
-      'EMPLOYEE_BRANCH_NOT_FOUND' | 'IMPORT_PREVIEW_HAS_ERRORS' | 'IMPORT_PREVIEW_EXPIRED',
+      | 'EMPLOYEE_BRANCH_NOT_FOUND'
+      | 'IMPORT_PREVIEW_HAS_ERRORS'
+      | 'IMPORT_PREVIEW_EXPIRED'
+      | 'IMPORT_COMMIT_FAILED',
   ) {
     super(code);
   }

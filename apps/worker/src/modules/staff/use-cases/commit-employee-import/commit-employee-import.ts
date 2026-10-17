@@ -1,4 +1,4 @@
-import { EmployeeNumberExhaustedError, type IdGenerator } from '@pospay/db';
+import type { IdGenerator } from '@pospay/db';
 import { employeeNameMatchKey } from '@pospay/domain';
 import {
   ImportCommitError,
@@ -55,8 +55,6 @@ export class CommitEmployeeImport {
     } catch (error) {
       if (error instanceof ImportCommitError)
         await this.transactions.fail(companyId, previewId, error.code);
-      else if (error instanceof EmployeeNumberExhaustedError)
-        await this.transactions.fail(companyId, previewId, 'IMPORT_COMMIT_FAILED');
       else throw error;
     }
   }

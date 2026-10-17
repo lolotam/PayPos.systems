@@ -142,6 +142,11 @@ it('commits 500 immutable rows once with all audits/events at the injected insta
     await f.owner`SELECT payload FROM outbox WHERE aggregate_id=${id} AND event_type='ImportCommitted'`;
   const payload = summary?.['payload'] as { employee_ids: string[]; committed_at: string };
   expect(payload.committed_at).toBe(f.clock.value.toISOString());
+  const [numbers] = await f.owner`SELECT min(employee_number)::int AS lo, max(employee_number)::int AS hi,
+    count(DISTINCT employee_number)::int AS n FROM employees WHERE id=ANY(${payload.employee_ids}::uuid[])`;
+  expect(numbers?.['n']).toBe(500);
+  expect(Number(numbers?.['hi']) - Number(numbers?.['lo'])).toBe(499);
+  expect((await f.owner`SELECT next_number FROM employee_number_sequences WHERE company_id=${f.company}`)[0]?.['next_number']).toBe(Number(numbers?.['hi']) + 1);
   expect(
     (
       await f.owner`SELECT count(*)::int AS n FROM audit_log WHERE entity_id=ANY(${payload.employee_ids}::uuid[])`

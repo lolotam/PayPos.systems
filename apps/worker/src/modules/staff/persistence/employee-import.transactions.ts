@@ -1,13 +1,18 @@
 import {
   appendOutboxEvent,
   assignEmployeeNumber,
+  EmployeeNumberExhaustedError,
   type IdGenerator,
   type TenantWrappers,
   type Tx,
 } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { employeeImportBranches } from '../../tenancy/index.ts';
-import type { ImportedEmployeeRecord, ImportCommitPreview } from '../domain/employee-import.ts';
+import {
+  ImportCommitError,
+  type ImportedEmployeeRecord,
+  type ImportCommitPreview,
+} from '../domain/employee-import.ts';
 import type { ImportCommitTransactions } from '../ports/employee-import.port.ts';
 import { insertEmployees } from './employee-import-writes.ts';
 
@@ -54,7 +59,7 @@ export function employeeImportTransactions(
           await work({
             preview: preview ?? null,
             branches: (businessId) => employeeImportBranches(tx, businessId),
-            assignEmployeeNumber: () => assignEmployeeNumber(tx, companyId),
+            assignEmployeeNumber: () => nextImportedNumber(tx, companyId),
             insert: (records) => insertEmployees(tx, companyId, ids, records),
             complete: (stored, records, at) => complete(tx, ids, stored, records, at),
           });
@@ -67,4 +72,15 @@ export function employeeImportTransactions(
         WHERE company_id=${companyId} AND id=${previewId} AND status='commit_requested'`);
       }),
   };
+}
+
+// امتلاء النطاق يُرجع المعاملة كلها ويُفشل المعاينة بالرمز الموجود، من غير ما الـ use case يعرف خطأ قاعدة البيانات.
+async function nextImportedNumber(tx: Tx, companyId: string): Promise<number> {
+  try {
+    return await assignEmployeeNumber(tx, companyId);
+  } catch (error) {
+    if (error instanceof EmployeeNumberExhaustedError)
+      throw new ImportCommitError('IMPORT_COMMIT_FAILED');
+    throw error;
+  }
 }
