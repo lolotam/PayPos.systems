@@ -10,7 +10,7 @@ changes, so that a `specify` refresh can be checked against them.
 | Specs carry a mandatory **Slice design** section (schema, API contract, permissions, events, test plan) | `templates/overrides/spec-template.md`, `speckit-specify` checklist | `CLAUDE.md` §1 |
 | Test tasks are mandatory, never optional | `speckit-tasks` skills, `templates/overrides/tasks-template.md` | `CLAUDE.md` §9 — tests are required to merge |
 | `/speckit-implement` refuses to start while a business-rule checklist item is open (`checklists/requirements.md`, or any checklist item about money, permissions, tenant scope or business rules); a "yes" never overrides it. Other reviewer checklists keep the ask-to-proceed prompt | `speckit-implement` skills (`.claude`, `.github`, `.agents`) | `CLAUDE.md` §11 — business rules are never guessed |
-| `/speckit-implement` runs `pnpm check` from the repo root, runs it again after the `after_implement` hooks when a hook changed the worktree, and does not report completion unless the last run exits 0 | `speckit-implement` skills (`.claude`, `.github`, `.agents`) | `CLAUDE.md` §1 — a slice is not done until `pnpm check` passes |
+| `/speckit-implement` runs `pnpm check` from the repo root, runs it again after the `after_implement` hooks whenever any hook ran, and does not report completion unless the last run exits 0 | `speckit-implement` skills (`.claude`, `.github`, `.agents`) | `CLAUDE.md` §1 — a slice is not done until `pnpm check` passes |
 
 ## Where the commands run
 
