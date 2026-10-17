@@ -1,4 +1,5 @@
 import { expect, it } from 'vitest';
+import { errorMessages } from './catalog.js';
 import { serviceSessionErrors } from './service-session-errors.js';
 
 const added = {
@@ -40,5 +41,39 @@ it('keeps every service-session error in both languages', () => {
 it('publishes the line-edit errors from spec 35d', () => {
   for (const code of Object.keys(added) as (keyof typeof added)[]) {
     expect(serviceSessionErrors[code]).toEqual(added[code]);
+  }
+});
+
+const tipMessages = {
+  TIP_WINDOW_CLOSED: {
+    message_ar: 'فات وقت تسجيل البقشيش للزيارة دي.',
+    message_en: 'The time to record a tip for this visit has passed.',
+  },
+  TIP_SELF_FORBIDDEN: {
+    message_ar: 'ماينفعش تسجّلي أو تغيّري بقشيشك إنتِ.',
+    message_en: 'You cannot record or change your own tip.',
+  },
+  TIP_IDENTITY_UNKNOWN: {
+    message_ar: 'البقشيش ده مايتعدّلش لأن هوية الموظفة في الزيارة مش معروفة.',
+    message_en:
+      "This tip cannot be changed because the performer's identity on this visit is unknown.",
+  },
+  TIP_EMPLOYEE_NOT_PERFORMER: {
+    message_ar: 'الموظفة دي مش منفّذة لخدمة فعّالة في الزيارة.',
+    message_en: 'This employee does not perform an active service on this visit.',
+  },
+  TIP_TOTAL_TOO_LARGE: {
+    message_ar: 'إجمالي البقشيش أكبر من الحد المسموح.',
+    message_en: 'The tip total is above the allowed limit.',
+  },
+} as const;
+
+it('reuses the generic validation message for a malformed tip', () => {
+  expect(serviceSessionErrors.VALIDATION_FAILED).toEqual(errorMessages('VALIDATION_FAILED'));
+});
+
+it('publishes the tip errors from spec 053', () => {
+  for (const code of Object.keys(tipMessages) as (keyof typeof tipMessages)[]) {
+    expect(serviceSessionErrors[code]).toEqual(tipMessages[code]);
   }
 });

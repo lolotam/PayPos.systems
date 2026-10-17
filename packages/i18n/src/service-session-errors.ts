@@ -22,5 +22,11 @@ export const serviceSessionErrors = {
   SESSION_EDIT_REASON_INVALID: { message_ar: 'اكتب سبب التعديل (لحد 500 حرف).', message_en: 'Enter the reason for the edit (up to 500 characters).' },
   SESSION_EDITOR_MEMBERSHIP_REQUIRED: { message_ar: 'اختاري العضوية اللي بتعدّلي بيها.', message_en: 'Select the membership you are editing under.' },
   SESSION_EDIT_IDENTITY_UNKNOWN: { message_ar: 'مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتعدّل.', message_en: 'This older line has no performer identity record and cannot be edited.' },
+  VALIDATION_FAILED: { message_ar: 'البيانات المرسلة غير صحيحة', message_en: 'The request is not valid' },
+  TIP_WINDOW_CLOSED: { message_ar: 'فات وقت تسجيل البقشيش للزيارة دي.', message_en: 'The time to record a tip for this visit has passed.' },
+  TIP_SELF_FORBIDDEN: { message_ar: 'ماينفعش تسجّلي أو تغيّري بقشيشك إنتِ.', message_en: 'You cannot record or change your own tip.' },
+  TIP_IDENTITY_UNKNOWN: { message_ar: 'البقشيش ده مايتعدّلش لأن هوية الموظفة في الزيارة مش معروفة.', message_en: "This tip cannot be changed because the performer's identity on this visit is unknown." },
+  TIP_EMPLOYEE_NOT_PERFORMER: { message_ar: 'الموظفة دي مش منفّذة لخدمة فعّالة في الزيارة.', message_en: 'This employee does not perform an active service on this visit.' },
+  TIP_TOTAL_TOO_LARGE: { message_ar: 'إجمالي البقشيش أكبر من الحد المسموح.', message_en: 'The tip total is above the allowed limit.' },
 } as const;
 export type ServiceSessionErrorCode = keyof typeof serviceSessionErrors;
