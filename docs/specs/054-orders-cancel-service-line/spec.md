@@ -183,7 +183,7 @@ Named tests; each is an integration test against real Postgres (T2 stack) unless
 - **FR-005** `revision` increments by one; `status` goes to `CANCELLED`; no money column changes and nothing is written to `service_sessions`: the visit total is derived from the ACTIVE lines on read, never stored. The `UPDATE` column grant on `service_lines`
   gains **only** `status` (it already has `revision`).
 - **FR-006** (CX-Q1) The self-cancel rule is the **same pure domain function** as the self-edit rule of 35d (`selfEditForbidden`, snapshot ∪ current
-  link, null never matches, fail closed on `linked_user_snapshotted = false`); it is not re-implemented.
+  link, null never matches, fail closed on `linked_user_snapshotted = false`); it is not re-implemented. Its input also includes the performers a row-37b change removed from the line (retained identities, spec 055 FR-017).
 - **FR-007** (CX-Q2) `validateAppendWindow(session.business_date, now, session.business_timezone)` at the fresh instant after all lock waits;
   the first of the previous month, inclusive.
 - **FR-008** (CX-Q3) The reason is mandatory (LC-10); a database `CHECK` mirrors the rule as in `service_line_edits_reason`.
