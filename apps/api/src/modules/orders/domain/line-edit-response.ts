@@ -10,6 +10,7 @@ export interface EditServiceLineResponseNarrow {
   edited: true;
 }
 
+/** رد التعديل إما كاملاً أو علامة الحفظ فقط؛ لا ثالث لهما، حتى لا يتسرب رقم لمن لا تملك قراءة الزيارات (ED-Q14). */
 export type EditServiceLineResponse = EditServiceLineResponseFull | EditServiceLineResponseNarrow;
 
 /**
