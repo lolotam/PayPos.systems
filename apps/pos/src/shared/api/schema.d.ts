@@ -4858,6 +4858,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
+                            employee_number: number | null;
                             days_present: number;
                             worked_minutes: number;
                             scheduled_minutes: number;
@@ -4955,6 +4956,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
+                            employee_number: number | null;
                             days_present: number;
                             worked_minutes: number;
                             scheduled_minutes: number;
@@ -6666,6 +6668,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
+                            employee_number: number | null;
                             /** Format: date-time */
                             clock_in: string;
                             /** @enum {string} */
@@ -6680,6 +6683,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
+                            employee_number: number | null;
                             own: boolean;
                             /** Format: date-time */
                             clock_in: string;

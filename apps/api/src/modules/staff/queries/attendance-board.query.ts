@@ -16,7 +16,7 @@ const instant = (column: string) =>
   sql`to_char(${sql.raw(column)} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
 // لوحة الحضور تُسقط حقول الجلسة مباشرة؛ الاسم لا يعتمد على ارتباط الموظفة الحالي بالفرع.
-const employeeProjection = sql`'employee_id',e.id,'name_ar',e.name_ar,'name_en',e.name_en`;
+const employeeProjection = sql`'employee_id',e.id,'name_ar',e.name_ar,'name_en',e.name_en,'employee_number',e.employee_number`;
 
 // لوحة الحضور تجمع التحذيرات المفتوحة وأسماء طرفي الطلب اليدوي من سجلات الشركة فقط.
 const sessionProjection = (

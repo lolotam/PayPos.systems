@@ -24,7 +24,12 @@ export const attendanceBoardRefusalsQuery = z
     limit: z.coerce.number().int().min(1).max(100).default(50),
   })
   .meta({ id: 'AttendanceBoardRefusalsQuery' });
-const employeeFields = { employee_id: id, name_ar: z.string().nullable(), name_en: z.string() };
+const employeeFields = {
+  employee_id: id,
+  name_ar: z.string().nullable(),
+  name_en: z.string(),
+  employee_number: z.number().int().min(1).max(999999).nullable(),
+};
 const source = z.enum(['QR', 'BARCODE', 'MANUAL']);
 const geo = z.enum(['OK', 'NONE', 'OUT_OF_RANGE']);
 export const attendanceBoard = z

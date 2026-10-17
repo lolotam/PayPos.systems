@@ -11,6 +11,7 @@ export interface AttendanceReportInputRow extends Record<string, unknown> {
   employee_id: string;
   name_ar: string | null;
   name_en: string;
+  employee_number: number | null;
   branches: AttendanceReportBranchInputs[];
 }
 
@@ -53,7 +54,7 @@ export function attendanceMonthlyInputsStatement(companyId: string, scope: Atten
           AND (extract(dow FROM day)::int+1)%7=(entry->>'day')::int
           AND EXISTS(SELECT 1 FROM jsonb_array_elements(c.links) link WHERE day::date>=(link->>'from')::date
             AND (link->>'to' IS NULL OR day::date<(link->>'to')::date))))
-    SELECT e.id AS employee_id,e.name_ar,e.name_en,json_agg(json_build_object(
+    SELECT e.id AS employee_id,e.name_ar,e.name_en,e.employee_number,json_agg(json_build_object(
       'timezone',z.timezone,'sessions',COALESCE(s.sessions,'[]'::json),'shifts',COALESCE(sh.shifts,'[]'::json),
       'contract',CASE WHEN c.employee_id IS NULL THEN NULL ELSE json_build_object(
         'hire_date',c.hire_date,'contract_end',c.contract_end,'entries',c.entries,'links',c.links) END,
@@ -64,7 +65,7 @@ export function attendanceMonthlyInputsStatement(companyId: string, scope: Atten
     LEFT JOIN sessions s ON s.employee_id=ca.employee_id AND s.branch_id=ca.branch_id
     LEFT JOIN shifts sh ON sh.employee_id=ca.employee_id AND sh.branch_id=ca.branch_id
     LEFT JOIN approved_employee_leave l ON l.employee_id=ca.employee_id
-    GROUP BY e.id,e.name_ar,e.name_en ORDER BY e.id`;
+    GROUP BY e.id,e.name_ar,e.name_en,e.employee_number ORDER BY e.id`;
 }
 
 export function attendanceMonthlyInputs(tx: Tx, companyId: string, scope: AttendanceReportScope, from: string, to: string) {
