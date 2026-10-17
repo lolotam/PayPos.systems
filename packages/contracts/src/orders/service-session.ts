@@ -9,15 +9,16 @@ const id = sharedId.toLowerCase();
 export const sessionMoney = z.string().regex(/^(0|[1-9]\d{0,10})\.\d{3}$/).meta({ id: 'SessionMoney' });
 const bps = z.number().int().min(0).max(10000);
 const names = { name_en: z.string(), name_ar: z.string().nullable() };
+const sessionLineDiscount = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('AMOUNT'), amount: sessionMoney }),
+  z.strictObject({ kind: z.literal('PERCENT'), bps }),
+]);
 export const sessionPerformerInput = z.strictObject({ employee_id: id, share_bps: z.number().optional() })
   .meta({ id: 'SessionPerformerInput' });
 export const sessionLineInput = z.strictObject({
   service_id: id,
   price: sessionMoney,
-  discount: z.discriminatedUnion('kind', [
-    z.strictObject({ kind: z.literal('AMOUNT'), amount: sessionMoney }),
-    z.strictObject({ kind: z.literal('PERCENT'), bps }),
-  ]),
+  discount: sessionLineDiscount,
   performers: z.array(sessionPerformerInput),
 }).meta({ id: 'SessionLineInput' });
 const writeFields = { lines: z.array(sessionLineInput).min(1).max(20), recorder_membership_id: id.optional() };
@@ -39,6 +40,8 @@ export const savedServiceLine = z.strictObject({
   rule_snapshot: serviceCommissionRule, counts_snapshot: z.boolean(), catalog_revision: z.number().int().positive(),
   has_performer_warning: z.boolean(), performers: z.array(sessionPerformer).min(1).max(4),
   recorded_by: id, recorded_by_membership_id: id, recorded_at: timestamp, late: z.boolean(),
+  // الغياب يعني «لم يُعدَّل» من غير .default، حتى يُعاد جسم التسجيل القديم بايتاً ببايت.
+  edited: z.boolean().optional(),
 }).meta({ id: 'SavedServiceLine' });
 export const serviceSession = z.strictObject({
   id, business_id: id, branch_id: id, customer: z.strictObject({ id, name: z.string(), phone_masked: z.string() }),
@@ -57,6 +60,25 @@ const responseFields = { outcome: z.enum(['COMPLETE', 'PARTIAL']), session: serv
 export const recordServiceSessionResponse = z.strictObject(responseFields).meta({ id: 'RecordServiceSessionResponse' });
 export const appendServiceSessionLinesResponse = z.strictObject({ ...responseFields, added_lines: z.array(savedServiceLine).min(1).max(20) })
   .meta({ id: 'AppendServiceSessionLinesResponse' });
+export const editServiceLineInput = z.strictObject({
+  price: sessionMoney,
+  discount: sessionLineDiscount,
+  // السبب الغائب يصل للنطاق ليرد 422، لا 400 من التحقق الشكلي.
+  reason: z.string().optional(),
+  expected_revision: z.number().int().min(1),
+  editor_membership_id: id.optional(),
+}).meta({ id: 'EditServiceLineInput' });
+const editedServiceLine = savedServiceLine.safeExtend({ edited: z.literal(true) });
+export const editServiceLineResponseFull = z.strictObject({
+  line: editedServiceLine,
+  session: z.strictObject({ id, total_net: sessionMoney }),
+}).meta({ id: 'EditServiceLineResponseFull' });
+export const editServiceLineResponseNarrow = z.strictObject({
+  saved: z.literal(true),
+  edited: z.literal(true),
+}).meta({ id: 'EditServiceLineResponseNarrow' });
+export const editServiceLineResponse = z.union([editServiceLineResponseFull, editServiceLineResponseNarrow])
+  .meta({ id: 'EditServiceLineResponse' });
 const serviceLinePriceEdit = z.strictObject({
   kind: z.literal('PRICE_DISCOUNT_EDIT'),
   changed_at: timestamp,
@@ -105,7 +127,8 @@ export const serviceSessionRecorded = z.strictObject(eventFields).meta({ id: 'Se
 export const serviceSessionLinesAdded = z.strictObject(eventFields).meta({ id: 'ServiceSessionLinesAdded' });
 export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessionLineInput, recordServiceSessionInput,
   appendServiceSessionLinesInput, sessionPerformer, savedServiceLine, serviceSession, rejectedServiceLine,
-  recordServiceSessionResponse, appendServiceSessionLinesResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested];
+  recordServiceSessionResponse, appendServiceSessionLinesResponse, editServiceLineInput, editServiceLineResponseFull,
+  editServiceLineResponseNarrow, editServiceLineResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested];
 export type RecordServiceSessionInput = z.infer<typeof recordServiceSessionInput>;
 export type AppendServiceSessionLinesInput = z.infer<typeof appendServiceSessionLinesInput>;
 export type RecordServiceSessionResponse = z.infer<typeof recordServiceSessionResponse>;
@@ -116,3 +139,7 @@ export type RejectedServiceLine = z.infer<typeof rejectedServiceLine>;
 export type ServiceSessionRecorded = z.infer<typeof serviceSessionRecorded>;
 export type ServiceSessionLinesAdded = z.infer<typeof serviceSessionLinesAdded>;
 export type ServiceLineChanged = z.infer<typeof serviceLineChanged>;
+export type EditServiceLineInput = z.infer<typeof editServiceLineInput>;
+export type EditServiceLineResponseFull = z.infer<typeof editServiceLineResponseFull>;
+export type EditServiceLineResponseNarrow = z.infer<typeof editServiceLineResponseNarrow>;
+export type EditServiceLineResponse = z.infer<typeof editServiceLineResponse>;
