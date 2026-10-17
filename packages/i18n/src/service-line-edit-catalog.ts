@@ -5,6 +5,7 @@ export const serviceLineEditEn = {
   reason: 'Reason', reasonCount: 'Characters {count}/500',
   reasonInvalid: 'Enter a reason of 1 to 500 characters.',
   current: 'Saved now', preview: 'After this edit', net: 'Net (KWD)', discount: 'Discount (KWD)', edited: 'Edited',
+  figuresHidden: 'Price edited. Figures are shown to managers only.',
   membership: 'Membership', membershipN: 'Membership {n}', more: 'More',
   was: 'Was', became: 'Now', revision: 'Revision', editor: 'Editor',
 };
@@ -15,6 +16,7 @@ export const serviceLineEditAr: Record<keyof typeof serviceLineEditEn, string> =
   reason: 'السبب', reasonCount: 'الحروف {count}/500',
   reasonInvalid: 'اكتب سبب من حرف واحد لحد 500 حرف.',
   current: 'المحفوظ دلوقتي', preview: 'بعد التعديل', net: 'الصافي (د.ك)', discount: 'الخصم (د.ك)', edited: 'اتعدّل',
+  figuresHidden: 'السعر اتعدّل. الأرقام بتظهر للمديرين بس.',
   membership: 'العضوية', membershipN: 'العضوية {n}', more: 'سجلات تانية',
   was: 'قبل', became: 'بعد', revision: 'المراجعة', editor: 'المعدّل',
 };

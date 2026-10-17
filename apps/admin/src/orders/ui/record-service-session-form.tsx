@@ -108,6 +108,6 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
         {t(locale, result.sessionId ? 'serviceSessions.correctAndAppend' : 'serviceSessions.save')}
       </Button>
     </form>
-    {journal ? <SessionSavedResult result={result} journal={journal} onNewVisit={recording.replaceResult} /> : null}
+    {journal ? <SessionSavedResult result={result} journal={journal} onNewVisit={recording.replaceResult} scope={scope} online={online} /> : null}
   </FormProvider>;
 }

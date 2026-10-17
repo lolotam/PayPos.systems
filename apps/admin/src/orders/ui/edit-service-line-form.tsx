@@ -1,20 +1,21 @@
 'use client';
-import type { EditServiceLineInput, ServiceSessionDayPage } from '@pospay/contracts';
+import type { EditServiceLineInput } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
 import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { useEditServiceLine } from '../api/use-edit-service-line';
+import { useEditServiceLine, type EditServiceLineResult } from '../api/use-edit-service-line';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { classifyEditError, resolveEditLine, type EditLimitDetails, type EditLineFormInput } from '../model/edit-service-line-values';
 import { EditServiceLineFields } from './edit-service-line-fields';
 import { EditServiceLinePreview } from './edit-service-line-preview';
 
-type DayLine = ServiceSessionDayPage['items'][number]['lines'][number];
+export type EditableServiceLine = { id: string; price: string; discount: string; net: string; revision: number };
 export type EditServiceLineFormProps = {
-  scope: SessionServiceScope; sessionId: string; line: DayLine; online: boolean;
-  onSaved: () => void; onStale: () => Promise<number | null> | undefined; onForbidden: (message: string) => void;
+  scope: SessionServiceScope; sessionId: string; line: EditableServiceLine; online: boolean;
+  figuresKnown?: boolean; retryStaleOnce?: boolean;
+  onSaved: (result: EditServiceLineResult) => void; onStale: () => Promise<number | null> | undefined; onForbidden: (message: string) => void;
   onAccessDenied?: (message: string) => void; onClose: () => void;
 };
 
@@ -48,13 +49,14 @@ async function adoptRefetchedRevision(load: EditServiceLineFormProps['onStale'],
 
 export function EditServiceLineForm(props: EditServiceLineFormProps) {
   const locale = useLocale();
-  const mutation = useEditServiceLine(props.scope);
+  const known = props.figuresKnown !== false;
+  const mutation = useEditServiceLine(props.scope, props.retryStaleOnce === true);
   const [root, setRoot] = useState<string | null>(null);
   const [limit, setLimit] = useState<EditLimitDetails | null>(null);
   const [memberships, setMemberships] = useState<string[]>([]);
   const form = useForm<EditLineFormInput, unknown, EditServiceLineInput>({
     resolver: resolveEditLine,
-    defaultValues: { price: props.line.price, discount_kind: 'AMOUNT', discount_value: props.line.discount, reason: '', expected_revision: props.line.revision, editor_membership_id: '' },
+    defaultValues: { price: known ? props.line.price : '', discount_kind: 'AMOUNT', discount_value: known ? props.line.discount : '', reason: '', expected_revision: props.line.revision, editor_membership_id: '' },
   });
   const { control } = form;
   const watched = useWatch({ control });
@@ -66,8 +68,7 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
     setRoot(null);
     setLimit(null);
     try {
-      await mutation.mutateAsync({ sessionId: props.sessionId, lineId: props.line.id, body });
-      props.onSaved();
+      props.onSaved(await mutation.mutateAsync({ sessionId: props.sessionId, lineId: props.line.id, body }));
     } catch (error) {
       const stale = applyEditError(error, locale, form, setRoot, setLimit, setMemberships, props);
       if (!stale) return;
@@ -82,6 +83,6 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
   return <form className="grid gap-3 text-start" onSubmit={(event) => { void submit(event); }} onKeyDown={submitOnEnter(props.online, blocked)}>
     {root ? <p role="alert">{root}</p> : null}
     <EditServiceLineFields form={form} locale={locale} memberships={memberships} online={props.online} pending={blocked} onClose={props.onClose} />
-    <EditServiceLinePreview locale={locale} line={props.line} price={watched.price ?? ''} kind={watched.discount_kind ?? 'AMOUNT'} discount={watched.discount_value ?? ''} limit={limit} />
+    <EditServiceLinePreview locale={locale} line={props.line} price={watched.price ?? ''} kind={watched.discount_kind ?? 'AMOUNT'} discount={watched.discount_value ?? ''} limit={limit} figuresKnown={known} />
   </form>;
 }
