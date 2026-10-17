@@ -105,8 +105,12 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
    `content_type` in PNG/JPEG, `owner_module='settings'`, `owner_entity_id` and `business_id` both equal the route's business id, no branch,
    `required_permission='read:settings:business'`, `created_by` = the actor, `size_bytes` within the logo cap (BI-Q3).
    PENDING/VERIFYING answers `FILE_NOT_READY`; every other mismatch answers `FILE_NOT_FOUND`.
-4. **Logo cap** is enforced twice: at `request-upload` by `owner_module` (so a too-large PUT is never issued) and at bind
-   against the stored (post re-encode) size. The generic 10 MiB policy and the employee-document images are unchanged.
+4. **One cap rule, on the bytes that are kept.** The logo cap (BI-Q3) applies to the **re-encoded** output: the
+   verification worker rejects a settings logo whose encoded size exceeds it (file status `REJECTED`, code
+   `FILE_SIZE_INVALID`), so a file that reaches `READY` is always within the cap and can always be bound. `request-upload`
+   also refuses a declared size above the cap for `owner_module='settings'`, only as an early refusal so a too-large PUT
+   is never issued. The bind re-checks the stored size as defence in depth and answers `FILE_SIZE_INVALID`, never
+   `FILE_NOT_FOUND`. The generic 10 MiB policy and the employee-document images are unchanged.
    No new pixel rule: sharp's existing 16 M-pixel input cap bounds memory.
 5. **Replace and remove.** The bind use case writes `BusinessLogoChanged { business_id, previous_file_id,
    file_id | null }` to the outbox in the same transaction. The **`files`-owned worker consumer** (27h-3, shipped before this producer so no event is ever emitted without a consumer) retires the
@@ -119,13 +123,19 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
    cannot slip between them. This commit is the durable handoff and is idempotent on replay. Step 2, the existing hourly retention worker
    (ADR-0022: bounded batches, recoverable leases, fencing) gains a third eligibility kind, `retired` (`purge_started_at`
    set, `purged_at` null, not bound), deletes the object outside any DB transaction and writes the tombstone and system
-   audit. **The retired path must delete the verified object at `storage_key`** (a READY logo's bytes live there; its
-   `staging_key` object is normally gone already): the claim returns `storage_key` for this kind and the cleanup removes
-   it, with a test that a replaced logo's verified object no longer exists afterwards. A crash between the steps loses nothing: the next retention run picks the row up. **Schedule bootstrap:** the hourly
+   audit. **The retired path deletes both objects:** the verified object at `storage_key` (a READY logo's bytes live there) and
+   the `staging_key` object when it still exists (a crash between verification and staging cleanup can leave it; each
+   deletion is idempotent, a missing object counts as deleted). The claim returns both keys for this kind, the tombstone and
+   `purged_at` are written only after both deletions are acknowledged, and a test proves that neither object exists
+   afterwards. A crash between the steps loses nothing: the next retention run picks the row up. **Schedule bootstrap:** the hourly
    retention schedules are registered per tenant only when a `FileUploadRequested` is delivered, so a tenant whose last
    such event predates 27h-3 would never run the `retired` kind. After its commit the consumer's post-commit step (outside
    `OutboxConsumer.handle`, as ADR-0018) therefore idempotently upserts that company's two hourly schedules through the
-   same registration used by `files.deliver`; nothing runs at worker start.
+   same registration used by `files.deliver`; nothing runs at worker start. **Storage disabled:** registering the
+   consumer, the durable handoff (`purge_started_at`) and the schedules needs only the database and Redis, so 27h-3 makes
+   them independent of object storage (today `startFilesWorker` returns `null` when storage is absent). The retention
+   processor itself still registers, and when storage is unavailable it skips the run without claiming any row; the rows
+   stay pending and the next hourly run after storage returns deletes them.
    Rejected: an in-transaction retire export (a cross-module write plus storage IO in a transaction), and keeping files
    forever (contradicts BR-06). Because 27h-3 merges first, the event type is known and handled before 27h-4 can emit it; no emitted event is parked or silently acknowledged.
 6. **Seam for 27g/27i.** `settings/index.ts` exports `readBusinessIdentity(tx, companyId, businessId)` returning
