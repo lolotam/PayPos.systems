@@ -74,6 +74,14 @@ it('projects exactly the board contract without private employee fields, retaini
     'sessions',
     'timezone',
   ]);
+  expect(Object.keys(result.in_now[0] ?? {}).sort()).toEqual([
+    'clock_in', 'employee_id', 'employee_number', 'name_ar', 'name_en', 'scheduled_end', 'source',
+  ]);
+  expect(Object.keys(result.sessions[0] ?? {}).sort()).toEqual([
+    'clock_in', 'clock_out', 'corrected', 'employee_id', 'employee_number', 'geo', 'id',
+    'late_minutes', 'manual', 'name_ar', 'name_en', 'open_exceptions', 'out_geo', 'own',
+    'revision', 'scheduled_end', 'scheduled_start', 'source', 'status',
+  ]);
   expect(result.sessions).toHaveLength(3);
   const manualRow = result.sessions.find((row) => row.id === manual);
   expect(manualRow?.manual).toEqual({
@@ -92,7 +100,7 @@ it('projects exactly the board contract without private employee fields, retaini
     result.sessions.map((row) => row.clock_in).sort(),
   );
   const serialized = JSON.stringify(result);
-  for (const privateField of ['phone', 'salary', 'iban', 'documents', 'employee_number', 'hours'])
+  for (const privateField of ['phone', 'salary', 'iban', 'documents', 'hours'])
     expect(serialized).not.toContain(privateField);
   expect(serialized).not.toContain(hidden);
 });

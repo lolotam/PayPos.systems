@@ -3,6 +3,7 @@ import { attendanceDecimalHours, attendanceHoursMinutes } from '@pospay/domain';
 import { t, type MessageKey } from '@pospay/i18n';
 
 const HEADER_KEYS = [
+  'attendanceReport.employeeNumber',
   'attendanceReport.employeeName',
   'attendanceReport.daysPresent',
   'attendanceReport.workedHours',
@@ -37,7 +38,7 @@ function csvRow(row: AttendanceMonthlyReportRow) {
   const safeName = /^[=+@\-\t\r\n]/.test(name) ? `'${name}` : name;
   const hours = [row.worked_minutes, row.scheduled_minutes, row.contracted_minutes, row.difference_minutes]
     .flatMap((minutes) => [attendanceHoursMinutes(minutes), attendanceDecimalHours(minutes)]);
-  return [safeName, row.days_present, ...hours, row.late_count, row.late_minutes,
+  return [row.employee_number ?? '\u2014', safeName, row.days_present, ...hours, row.late_count, row.late_minutes,
     row.missing_clock_out, row.manual_days,
     ...row.leave.flatMap((leave) => [leave.days, attendanceDecimalHours(leave.partial_minutes)])]
     .map(quote).join(',');

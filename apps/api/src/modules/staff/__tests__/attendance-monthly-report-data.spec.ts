@@ -56,7 +56,7 @@ it('AB-Q7 all sums branch hours/contracts in one employee row, with distinct wor
 it('result-shape projects internal branch inputs, excludes private fields and has a negative tenant isolation proof', async () => {
   const rows = await f.db.withTenant(f.company,(tx) => attendanceMonthlyInputs(tx,f.company,scope(),'2026-10-01','2026-10-31'));
   expect(rows).toHaveLength(1);
-  expect(Object.keys(rows[0] ?? {}).sort()).toEqual(['branches','employee_id','name_ar','name_en']);
+  expect(Object.keys(rows[0] ?? {}).sort()).toEqual(['branches','employee_id','employee_number','name_ar','name_en']);
   expect(attendanceReportBranchInputs.safeParse(rows[0]?.branches[0]).success).toBe(true);
   expect(rows[0]?.branches[0]?.sessions).toHaveLength(5);
   const foreign = await f.db.withTenant(f.otherCompany,(tx) => attendanceMonthlyInputs(tx,f.company,scope(),'2026-10-01','2026-10-31'));

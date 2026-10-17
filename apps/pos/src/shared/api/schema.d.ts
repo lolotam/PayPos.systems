@@ -28,7 +28,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, names only. One audit per successful export. */
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, employee number and names only. One audit per successful export. */
         get: operations["attendanceMonthlyReportCsv"];
         put?: never;
         post?: never;
@@ -62,7 +62,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Every active branch of this business must have a covering grant and no covering DENY. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, names only. One audit per successful export. */
+        /** @description Human read:attendance:branch, staff feature, tenant membership. Minutes are integers; open and voided sessions excluded. Scope refusal is NOT_FOUND. Every active branch of this business must have a covering grant and no covering DENY. Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, employee number and names only. One audit per successful export. */
         get: operations["attendanceMonthlyReportAllCsv"];
         put?: never;
         post?: never;
@@ -3661,6 +3661,21 @@ export interface components {
                     discount: components["schemas"]["SessionMoney"];
                     net: components["schemas"]["SessionMoney"];
                 };
+            } | {
+                /** @enum {string} */
+                kind: "LINE_CANCELLED";
+                /** Format: date-time */
+                changed_at: string;
+                /** Format: uuid */
+                changed_by: string;
+                /** Format: uuid */
+                changed_by_membership_id: string;
+                previous: {
+                    revision: number;
+                    price: components["schemas"]["SessionMoney"];
+                    discount: components["schemas"]["SessionMoney"];
+                    net: components["schemas"]["SessionMoney"];
+                };
             };
         };
         RecordedServiceLine: {
@@ -3875,6 +3890,72 @@ export interface components {
                 } | {
                     /** @enum {string} */
                     name: "editor_name_en";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                })[];
+            }[];
+        };
+        ServiceLineCancelNoticeRequested: {
+            /** @enum {number} */
+            schema_version: 1;
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            line_id: string;
+            revision: number;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: date */
+            business_date: string;
+            business_timezone: string;
+            notification_recipients: {
+                /** @enum {string} */
+                channel: "IN_APP";
+                /** Format: uuid */
+                user_id: string;
+                /** @enum {string} */
+                locale: "ar";
+                /** @enum {number} */
+                template_revision: 1;
+                /** @enum {string} */
+                template_key: "service_line_cancelled";
+                safe_parameters: ({
+                    /** @enum {string} */
+                    name: "service_name_ar";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "service_name_en";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "branch_name_ar";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "branch_name_en";
+                    /** @enum {string} */
+                    type: "text";
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "business_date";
+                    /** @enum {string} */
+                    type: "text";
+                    /** Format: date */
+                    value: string;
+                } | {
+                    /** @enum {string} */
+                    name: "cancelled_net";
                     /** @enum {string} */
                     type: "text";
                     value: string;
@@ -4270,6 +4351,65 @@ export interface components {
             } | {
                 /** @enum {string} */
                 name: "editor_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "service_line_cancelled";
+            safe_parameters: ({
+                /** @enum {string} */
+                name: "service_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "service_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_ar";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "branch_name_en";
+                /** @enum {string} */
+                type: "text";
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "business_date";
+                /** @enum {string} */
+                type: "text";
+                /** Format: date */
+                value: string;
+            } | {
+                /** @enum {string} */
+                name: "cancelled_net";
                 /** @enum {string} */
                 type: "text";
                 value: string;
@@ -4858,6 +4998,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
+                            employee_number: number | null;
                             days_present: number;
                             worked_minutes: number;
                             scheduled_minutes: number;
@@ -4955,6 +5096,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
+                            employee_number: number | null;
                             days_present: number;
                             worked_minutes: number;
                             scheduled_minutes: number;
@@ -6666,6 +6808,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
+                            employee_number: number | null;
                             /** Format: date-time */
                             clock_in: string;
                             /** @enum {string} */
@@ -6680,6 +6823,7 @@ export interface operations {
                             employee_id: string;
                             name_ar: string | null;
                             name_en: string;
+                            employee_number: number | null;
                             own: boolean;
                             /** Format: date-time */
                             clock_in: string;

@@ -10,7 +10,8 @@ type ReportAudit = (tx: Tx) => AuditTrail;
 type ReportAccess = (tx: Tx, companyId: string, userId: string, businessId: string, branchId: string, month: string) =>
   Promise<Scope | 'NOT_FOUND' | 'FEATURE_DISABLED'>;
 type ReportInputs = (tx: Tx, companyId: string, scope: Scope, from: string, to: string) => Promise<readonly {
-  employee_id: string; name_ar: string | null; name_en: string; branches: AttendanceReportBranchInputs[];
+  employee_id: string; name_ar: string | null; name_en: string; employee_number: number | null;
+  branches: AttendanceReportBranchInputs[];
 }[]>;
 
 export function createAttendanceReportTransactions(database: TenantWrappers, audit: ReportAudit,
@@ -33,7 +34,7 @@ async function readReport(tx: Tx, request: AttendanceReportRequest, scope: Scope
   const rows = await inputs(tx, request.companyId, scope, from, to);
   return attendanceMonthlyReport.parse({ business_id: scope.businessId, branch_id: request.branchId, month: request.month,
     rows: rows.map((row) => ({ employee_id: row.employee_id, name_ar: row.name_ar, name_en: row.name_en,
-      ...computeAttendanceMonthlyReport(row.branches, request.month) })) });
+      employee_number: row.employee_number, ...computeAttendanceMonthlyReport(row.branches, request.month) })) });
 }
 
 export function createAttendanceReportReader(transactions: AttendanceReportTransactions) {

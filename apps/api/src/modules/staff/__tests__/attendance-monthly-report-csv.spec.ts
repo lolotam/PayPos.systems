@@ -6,17 +6,18 @@ beforeAll(async () => { f = await monthlyReportFixture(); await reportSession(f)
 afterAll(async () => { await f?.db.close(); await f?.h.close(); });
 const get = (branch = f.branch, csv = true) => f.h.app.inject({method:'GET',url:reportUrl(f,branch,csv),headers:reportHeaders(f)});
 
-it('AB-Q9d/e/f returns UTF-8 BOM, Arabic RFC 4180 CSV with h:mm and decimals; no private fields or employee number', async () => {
+it('AB-Q9d/e/f returns UTF-8 BOM, Arabic RFC 4180 CSV with h:mm, decimals and the employee number first; no private fields', async () => {
   await f.h.owner`UPDATE employees SET name_en='Synthetic, "quoted"'||chr(10)||'employee' WHERE company_id=${f.company} AND id=${f.employee.id}`;
   const response = await get();
   expect(response.statusCode).toBe(200);
   expect(response.headers['content-type']).toBe('text/csv; charset=utf-8');
   expect(response.rawPayload.subarray(0,3)).toEqual(Buffer.from([0xef,0xbb,0xbf]));
+  expect(response.payload.replace(/^\uFEFF/, '').startsWith('"رقم الموظف",')).toBe(true);
   expect(response.payload).toContain('اسم الموظفة');
   expect(response.payload).toContain('"Synthetic, ""quoted""\nemployee"');
   expect(response.payload).toContain('"8:00","8.00"');
   expect(response.payload).toContain('"-220:00","-220.00"');
-  expect(response.payload).not.toMatch(/phone|salary|iban|employee_id|employee_number|تليفون|رقم الموظف/i);
+  expect(response.payload).not.toMatch(/phone|salary|iban|employee_id|تليفون/i);
   expect(response.headers['cache-control']).toBe('private, no-store');
 });
 it('writes exactly one audit per successful download with actor, timestamp, business, scope and month; JSON writes none', async () => {
