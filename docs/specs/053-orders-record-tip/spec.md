@@ -46,7 +46,7 @@ scheduling, payments and printing (Phase 2).
 | TP-Q3 | A wrong tip is **replaced** with a **written reason** and the change is **logged in the audit with no bell notice**. No deleting of money rows. |
 | TP-Q4 | For a visit with several services by several employees, the suggested split is **by each employee's share of the whole visit net** (example: 6 and 2); the cashier edits it. |
 | TP-Q5 | **No reason on the first entry**; a written reason is required when replacing an existing tip (the first record is normal work and the cashier is in a hurry; replacing is what needs a justification). Batch 29. |
-| TP-Q6 | If the performer's service is later cancelled (row 37) or moved to another employee (37b), the tip **stays recorded** (the money was actually paid); only a holder of the record permission can remove or replace it, with a written reason. Batch 29. |
+| TP-Q6 | If the performer's service is later cancelled (row 37) or moved to another employee (37b), the tip **stays recorded** (the money was actually paid); only a holder of the record permission can remove or replace it, with a written reason. Batch 29. **Scope (precedence kept from spec 054 §3.2):** TP-Q6 means the system **never removes a tip by itself** (the money was paid). On the **cancel path** (row 37) CX-Q4 stops the cancellation of a performer's last active line until a holder of the record permission removes or replaces the tip by hand with a written reason; on the **reassignment path** (37b) the tip stays recorded and untouched. |
 | TP-Q7 | **No hard ceiling** on a tip, but the screen warns when the tip is larger than the visit net (big mistakes are rare and blocking could annoy a truly generous customer; the warning catches the slip). Batch 29. |
 | TP-Q8 | The suggested split gives each employee the whole-mill part of her share, then the leftover mills one each to the largest fractional remainders (a tie goes to the smaller internal employee id, the same order as the commission split), so no amount is negative. An employee whose share is zero mills is left out of the suggestion. A visit whose net is zero is split equally. The total always equals the tip exactly and the cashier may edit the suggestion anyway. Batch 29. |
 
@@ -83,7 +83,7 @@ effects, business timezone, UUID v7, no `Date.now`/`randomUUID` in use cases).
 - Removing a tip is a revision, never a delete. Revisions are insert-only (`SELECT`/`INSERT` grants).
 - The recording time and revision time come from the injected `Clock`; ids from the injected `IdGenerator`.
 - A closed company is refused like every orders write. The `orders` feature flag applies.
-- Tips on a CANCELLED visit and on performers removed later: they **stay recorded** (TP-Q6); only a holder of the
+- Tips on a CANCELLED visit and on performers removed later: they **stay recorded** (TP-Q6: the system never removes a tip by itself; on the cancel path CX-Q4 stops cancelling a performer's last active line until the tip is removed by hand); only a holder of the
   record permission removes or replaces them, with a written reason, **unless TP-04 refuses that entry** (self, or unresolved identity); the commission side never recomputes them away.
 
 ## 5. Slice design
@@ -130,8 +130,10 @@ effects, business timezone, UUID v7, no `Date.now`/`randomUUID` in use cases).
 ### 5.2 Rules from the answers TP-Q5…TP-Q8
 
 - TP-Q5: no reason on the first entry; a reason when replacing.
-- TP-Q6: the tip stays recorded when lines are cancelled or reassigned (the money was given); only a holder of the record
-  permission can remove or replace it, with a written reason (TP-04 refusals still take precedence). **TP-05, BR-02 and the edge cases follow this answer.**
+- TP-Q6: the system never removes a tip by itself (the money was given); only a holder of the record permission can remove or
+  replace it, with a written reason (TP-04 refusals still take precedence). On the cancel path (row 37) CX-Q4 (spec 054 §3.2)
+  stops the cancellation of a performer's last active line until the tip is removed or replaced by hand; on the reassignment
+  path (37b) the tip stays recorded and untouched. **TP-05, BR-02 and the edge cases follow this answer.**
 - TP-Q7: no hard ceiling; the screen warns when a tip exceeds the visit net.
 - TP-Q8: **largest-remainder** allocation in mills: every performer first gets the floor of her exact share, then the remaining mills are given one each to the largest fractional remainders (ties: ascending `employee_id`, the same order as the line shares of SPEC §5.2 in BR-05). No allocation can be negative. A performer whose allocation is 0 is left out of the suggestion (amounts must be greater than zero). A visit whose net is zero is split equally by the same method.
 
