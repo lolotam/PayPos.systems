@@ -47,7 +47,7 @@ payment, printing or sync.
 | D-6 | The edit does not join the ADR-0042 recovery proof | widening `service_session_recoveries.operation` |
 | D-7 | The typed reason is stored in the history row only: not in the event, the bell, the audit entry or any log | copying it into the audit entry |
 | D-8 | `expected_revision` is required (compare-and-set) | last-write-wins |
-| D-9 | An editor membership is eligible when it is active, covers the branch and **itself** grants `edit:service-line-prices:branch` (not denied); the edit is attributed to it and its limit applies. One eligible membership is picked automatically; several without `editor_membership_id` → `SESSION_EDITOR_MEMBERSHIP_REQUIRED`; none, or a supplied one that is not eligible → uniform 403 | the principal-wide permission of recording (it would let a membership without the grant lend its higher limit) |
+| D-9 | An editor membership is eligible when it is active, covers the branch and **itself** grants `edit:service-line-prices:branch` (by that membership's own grants and overrides; a covering DENY on any other membership of the principal still refuses the edit, FR-013/FR-014); the edit is attributed to it and its limit applies. One eligible membership is picked automatically; several without `editor_membership_id` → `SESSION_EDITOR_MEMBERSHIP_REQUIRED`; none, or a supplied one that is not eligible → uniform 403 | the principal-wide permission of recording (it would let a membership without the grant lend its higher limit) |
 | D-10 | The use case checks `expected_revision` against the loaded line **before** preparation, so two identical racing edits give the loser `SESSION_LINE_REVISION_STALE` and not `SESSION_EDIT_NO_CHANGE` (the CAS `UPDATE` still guards the write). Refusal order: authority, scope, performer identity, stale revision, cancelled, window, reason, discount shape, no change, limit, total. The idempotent response is stored in full with status 200 and projected by the caller's read permission on every return, replays included; the edit does not create a recovery proof | late revision check; storing the projected body |
 
 ## 2. User scenarios and testing *(mandatory)*
@@ -237,7 +237,10 @@ the outbox.
   the rest of the admin API uses, not an aggregation of raw denials): an ALLOW on any membership counts, a covering DENY wins,
   **except** that owner protection applies first. For an active owner every DENY other than `login:staff:branch` is ignored by
   the decision (`protectOwnerAccess` in `identity`, the owner immunity of [spec 019](../019-identity-role-default-grants/spec.md); the stored rows are not changed), so an active owner is never given the restricted
-  shape, and is never refused the edit, because of a legacy sibling DENY. The same protected decision serves the edit permission's DENY check (FR-013). It is read in the same
+  shape, and is never refused the edit, because of a legacy sibling DENY. Owner protection applies the same way to the edit permission's DENY check: a covering DENY of `edit:service-line-prices:branch` on
+  **any** active membership of the principal refuses the edit (the principal-wide DENY check of FR-013, unchanged by D-9), unless
+  owner protection drops it; D-9's per-membership rule is a separate, additional test of which membership may be the editor.
+  Only the `read:service-sessions:branch` projection is an ALLOW-on-any-membership decision. It is read in the same
   locked transaction through `SessionEditAccessPort`. The selected editor membership is used
   only for edit attribution, the edit permission and the discount limit, never for this decision. With the permission: the current saved line plus `edited` and the visit
   total. Without it: **no figures at all** (ED-Q14, option 2): the response says only that the edit was saved and carries the `edited`
