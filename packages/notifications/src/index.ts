@@ -22,6 +22,7 @@ export { genericNotice, validInAppTemplate } from './templates/generic-notice.ts
 export { lateServiceSession } from './templates/late-service-session.ts';
 export { serviceLinePriceEdited } from './templates/service-line-price-edited.ts';
 export { serviceLineCancelled } from './templates/service-line-cancelled.ts';
+export { serviceLinePerformersChanged } from './templates/service-line-performers-changed.ts';
 export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { breakNotReturned } from './templates/break-not-returned.ts';
 export { validateParameters, templateComponents } from './templates/definition.ts';

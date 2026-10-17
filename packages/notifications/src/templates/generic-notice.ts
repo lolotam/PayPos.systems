@@ -2,6 +2,7 @@ import { validateParameters, type SafeParameter, type TemplateDefinition } from 
 import { breakNotReturned } from './break-not-returned.ts';
 import { lateServiceSession } from './late-service-session.ts';
 import { serviceLineCancelled } from './service-line-cancelled.ts';
+import { serviceLinePerformersChanged } from './service-line-performers-changed.ts';
 import { serviceLinePriceEdited } from './service-line-price-edited.ts';
 import { shiftNotClockedIn } from './shift-not-clocked-in.ts';
 import { attendanceChangeRequested } from './attendance-change-requested.ts';
@@ -40,6 +41,7 @@ export function validInAppTemplate(
       lateServiceSession,
       serviceLinePriceEdited,
       serviceLineCancelled,
+      serviceLinePerformersChanged,
       shiftNotClockedIn,
       breakNotReturned,
       breakReturnedOtherBranch,

@@ -101,6 +101,21 @@ export const serviceLineCancelledRecipient = z.strictObject({
   template_key: z.literal('service_line_cancelled'),
   safe_parameters: serviceLineCancelledParameters,
 });
+/** ترتيب القالب ثابت؛ المبلغ ليس displayName لأن 1250.000 يُرفض كاسم، والجرس بلا سبب وبلا اسم منفّذ وبلا هوية من غيّر. */
+export const serviceLinePerformersChangedParameters = z.tuple([
+  displayParameter('service_name_ar'),
+  displayParameter('service_name_en'),
+  displayParameter('branch_name_ar'),
+  displayParameter('branch_name_en'),
+  z.strictObject({ name: z.literal('business_date'), type: z.literal('text'), value: z.iso.date() }),
+  moneyParameter('line_net'),
+]);
+/** مراجعة القالب 1 لأن نص تغيير المنفّذين ثابت؛ تغيير النص لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
+export const serviceLinePerformersChangedRecipient = z.strictObject({
+  ...inAppBase,
+  template_key: z.literal('service_line_performers_changed'),
+  safe_parameters: serviceLinePerformersChangedParameters,
+});
 const changeParameter = z.strictObject({
   name: z.literal('change'),
   type: z.literal('text'),
@@ -126,6 +141,7 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   lateServiceSessionRecipient,
   serviceLinePriceEditedRecipient,
   serviceLineCancelledRecipient,
+  serviceLinePerformersChangedRecipient,
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('break_returned_other_branch'),
@@ -183,6 +199,11 @@ export const inAppNotification = z
       ...inAppNotificationBase,
       template_key: z.literal('service_line_cancelled'),
       safe_parameters: serviceLineCancelledParameters,
+    }),
+    z.strictObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('service_line_performers_changed'),
+      safe_parameters: serviceLinePerformersChangedParameters,
     }),
     z.strictObject({
       ...inAppNotificationBase,

@@ -1,20 +1,10 @@
 import type { InAppNotification } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 
-/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
+/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
 export function renderNotification(item: InAppNotification, viewerLocale?: Locale): string {
-  if (item.template_key === 'service_line_price_edited') {
-    return fill(
-      t(viewerLocale ?? item.locale, 'inApp.service_line_price_edited'),
-      priceEditValues(item.safe_parameters),
-    );
-  }
-  if (item.template_key === 'service_line_cancelled') {
-    return fill(
-      t(viewerLocale ?? item.locale, 'inApp.service_line_cancelled'),
-      cancelledLineValues(item.safe_parameters),
-    );
-  }
+  const serviceLine = renderServiceLineNotice(item, viewerLocale);
+  if (serviceLine !== null) return serviceLine;
   if (item.template_key === 'late_service_session') {
     const values = Object.fromEntries(
       item.safe_parameters.map((parameter) => [parameter.name, parameter.value]),
@@ -62,6 +52,28 @@ export function renderNotification(item: InAppNotification, viewerLocale?: Local
   );
 }
 
+function renderServiceLineNotice(item: InAppNotification, viewerLocale?: Locale): string | null {
+  if (item.template_key === 'service_line_price_edited') {
+    return fill(
+      t(viewerLocale ?? item.locale, 'inApp.service_line_price_edited'),
+      priceEditValues(item.safe_parameters),
+    );
+  }
+  if (item.template_key === 'service_line_cancelled') {
+    return fill(
+      t(viewerLocale ?? item.locale, 'inApp.service_line_cancelled'),
+      cancelledLineValues(item.safe_parameters),
+    );
+  }
+  if (item.template_key === 'service_line_performers_changed') {
+    return fill(
+      t(viewerLocale ?? item.locale, 'inApp.service_line_performers_changed'),
+      performersChangedValues(item.safe_parameters),
+    );
+  }
+  return null;
+}
+
 function priceEditValues(parameters: InAppNotification['safe_parameters']): Record<string, string> {
   const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
   const arabic = (name: string, english: string) => {
@@ -101,6 +113,26 @@ function cancelledLineValues(
     branch_name_ar: arabic('branch_name_ar', branchEn),
     business_date: read('business_date'),
     cancelled_net: read('cancelled_net'),
+  };
+}
+
+function performersChangedValues(
+  parameters: InAppNotification['safe_parameters'],
+): Record<string, string> {
+  const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
+  const arabic = (name: string, english: string) => {
+    const value = read(name).trim();
+    return value.length > 0 ? value : english;
+  };
+  const serviceEn = read('service_name_en');
+  const branchEn = read('branch_name_en');
+  return {
+    service_name_en: serviceEn,
+    service_name_ar: arabic('service_name_ar', serviceEn),
+    branch_name_en: branchEn,
+    branch_name_ar: arabic('branch_name_ar', branchEn),
+    business_date: read('business_date'),
+    line_net: read('line_net'),
   };
 }
 
