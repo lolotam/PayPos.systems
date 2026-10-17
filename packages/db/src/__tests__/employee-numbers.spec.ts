@@ -98,6 +98,19 @@ it('EN-02 is idempotent: a second run assigns nothing and changes no number', as
   expect(await counter(A)).toBe(3);
 });
 
+it('numbers across several small batches in the same order, skipping a hand number and applying each batch in one statement', async () => {
+  await insert(A, { name: 'E', hire: '2025-05-01' });
+  await insert(A, { name: 'Hand', hire: '2025-01-01', number: 2 });
+  await insert(A, { name: 'C', hire: '2025-03-01' });
+  await insert(A, { name: 'A', hire: '2025-01-02' });
+  await insert(A, { name: 'D', hire: '2025-04-01' });
+  await insert(A, { name: 'B', hire: '2025-02-01' });
+  const counts = await assignEmployeeNumbers(owner, app, 2);
+  expect(counts).toMatchObject({ read: 5, assigned: 5, exhausted: 0 });
+  expect(await numbers(A)).toEqual({ A: 1, Hand: 2, B: 3, C: 4, D: 5, E: 6 });
+  expect(await counter(A)).toBe(7);
+});
+
 it('skips a hand-typed number without letting it move the counter', async () => {
   await insert(A, { name: 'Hand', hire: '2025-01-01', number: 1050 });
   await insert(A, { name: 'One', hire: '2025-02-01' });

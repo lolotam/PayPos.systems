@@ -103,21 +103,24 @@ async function numberOneBatch(tx: Tx, companyId: string, batchSize: number) {
       WHERE company_id = ${companyId} AND employee_number >= ${startAt} ORDER BY employee_number`)
   ).map((row) => row.employee_number);
   let counter = startAt;
-  let assigned = 0;
   let exhausted = 0;
+  const assignments: { id: string; n: number }[] = [];
   for (const row of rows) {
     const number = firstFreeEmployeeNumber(counter, used);
     if (number === null) {
       exhausted++;
       continue;
     }
-    await tx.execute(
-      sql`UPDATE employees SET employee_number = ${number} WHERE company_id = ${companyId} AND id = ${row.id}`,
-    );
+    assignments.push({ id: row.id, n: number });
     used.push(number);
     counter = number + 1;
-    assigned++;
   }
+  const assigned = assignments.length;
+  if (assigned > 0)
+    await tx.execute(sql`
+      UPDATE employees e SET employee_number = v.n
+      FROM jsonb_to_recordset(${JSON.stringify(assignments)}::jsonb) AS v(id uuid, n integer)
+      WHERE e.company_id = ${companyId} AND e.id = v.id`);
   await tx.execute(
     sql`UPDATE employee_number_sequences SET next_number = GREATEST(next_number, ${Math.min(counter, 1_000_000)}), updated_at = now() WHERE company_id = ${companyId}`,
   );

@@ -967,6 +967,34 @@
       "when": 1792193093911,
       "tag": "0139_2026-10-16_performer-linked-user-index",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1792200337094,
+      "tag": "0140_2026-10-17_employee-number-column-and-sequence",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1792200371194,
+      "tag": "0141_2026-10-17_employee-number-unique-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1792200374399,
+      "tag": "0142_2026-10-17_employee-number-sequences-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1792200377547,
+      "tag": "0143_2026-10-17_employee-number-backfill",
+      "breakpoints": true
     }
   ]
 }
