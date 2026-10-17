@@ -119,3 +119,19 @@ four scoped manager roles, and the canceller is not excluded. The bell (`service
 service, the branch, the business date and the cancelled net. It never carries the cancellation reason or the
 canceller's identity; identity is readable only through the guarded history read. No new import arrow.
 `notifications` only stores the in-app row and does not consume `ServiceLineChanged`.
+
+## Addendum (row 37b, performers-change bell)
+
+`ServiceLineChanged` stays one event and gains the additive change kind `PERFORMERS_CHANGE`. The refinement is
+kind-dependent: `PERFORMERS_CHANGE` requires `status ACTIVE` and `revision = change.previous.revision + 1`, and its
+`previous` is `{revision, performers}` instead of `{revision, price, discount, net}`. `PRICE_DISCOUNT_EDIT` still
+requires `status ACTIVE`; `LINE_CANCELLED` still requires `status CANCELLED`. A sibling worker `orders` consumer
+`orders.line-performers-notice-v1` handles only `PERFORMERS_CHANGE`. The price-edit consumer
+`orders.price-edit-notice-v1` and the cancel consumer `orders.line-cancel-notice-v1` keep ignoring every other kind.
+
+The bell is a separate event, `ServiceLinePerformersNoticeRequested`, with a separate insert-only ledger keyed
+`(company_id, line_id, revision)`: one notice per changed line, in groups of at most 100. Recipients are the same
+four scoped manager roles, and the changer is not excluded. The bell (`service_line_performers_changed`, ar/en)
+shows the service, the branch, the business date and the line net. It never carries the reason, a performer's name,
+or the changer's identity; identity is readable only through the guarded history read (spec 055 FR-016). No new
+import arrow. `notifications` only stores the in-app row and does not consume `ServiceLineChanged`.

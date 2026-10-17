@@ -299,3 +299,36 @@ it('renders a cancellation in the viewer locale and falls back to English names'
     ),
   ).toBe('أُلغيت خدمة Cut في فرع Salmiya بتاريخ 2026-10-16: كان صافي السطر 20.000 دينار.');
 });
+
+it('renders a performers change in the viewer locale and falls back to English names', () => {
+  const parameters = [
+    { name: 'service_name_ar', type: 'text', value: 'قص' },
+    { name: 'service_name_en', type: 'text', value: 'Cut' },
+    { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
+    { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
+    { name: 'business_date', type: 'text', value: '2026-10-16' },
+    { name: 'line_net', type: 'text', value: '20.000' },
+  ];
+  const item = {
+    ...shift('ar'),
+    template_key: 'service_line_performers_changed',
+    safe_parameters: parameters,
+  } as InAppNotification;
+  expect(renderNotification(item, 'ar')).toBe(
+    'تغيّر منفّذو خدمة قص في فرع السالمية بتاريخ 2026-10-16: صافي السطر 20.000 دينار.',
+  );
+  expect(renderNotification(item, 'en')).toBe(
+    'The performers of Cut at Salmiya dated 2026-10-16 were changed: the line net is 20.000 KWD.',
+  );
+  expect(
+    renderNotification(
+      {
+        ...item,
+        safe_parameters: parameters.map((parameter) =>
+          parameter.name.endsWith('_ar') ? { ...parameter, value: '   ' } : parameter,
+        ),
+      } as InAppNotification,
+      'ar',
+    ),
+  ).toBe('تغيّر منفّذو خدمة Cut في فرع Salmiya بتاريخ 2026-10-16: صافي السطر 20.000 دينار.');
+});

@@ -19,6 +19,8 @@ export const inAppEn = {
     '{{editor_name_en}} edited {{service_name_en}} at {{branch_name_en}} dated {{business_date}}: the net was {{previous_net}} KWD and is now {{new_net}} KWD.',
   service_line_cancelled:
     '{{service_name_en}} was cancelled at {{branch_name_en}} dated {{business_date}}: the line net was {{cancelled_net}} KWD.',
+  service_line_performers_changed:
+    'The performers of {{service_name_en}} at {{branch_name_en}} dated {{business_date}} were changed: the line net is {{line_net}} KWD.',
   editor_role_owner: 'Owner',
   editor_role_manager: 'Manager',
   editor_generic: 'User',
@@ -48,6 +50,8 @@ export const inAppAr = {
     'عدّل {{editor_name_ar}} خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: كان الصافي {{previous_net}} دينار وأصبح {{new_net}} دينار.',
   service_line_cancelled:
     'أُلغيت خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: كان صافي السطر {{cancelled_net}} دينار.',
+  service_line_performers_changed:
+    'تغيّر منفّذو خدمة {{service_name_ar}} في فرع {{branch_name_ar}} بتاريخ {{business_date}}: صافي السطر {{line_net}} دينار.',
   editor_role_owner: 'المالك',
   editor_role_manager: 'المدير',
   editor_generic: 'مستخدم',

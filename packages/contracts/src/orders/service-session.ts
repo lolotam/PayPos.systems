@@ -4,6 +4,7 @@ import { timestamp } from '../scalars/timestamp.js';
 import { lateServiceSessionNoticeRequested } from './late-service-session-notice.js';
 import { serviceLineCancelNoticeRequested } from './service-line-cancel-notice.js';
 import { serviceLineEditNoticeRequested } from './service-line-edit-notice.js';
+import { serviceLinePerformersNoticeRequested } from './service-line-performers-notice.js';
 import { serviceCommissionRule } from '../catalog/service.js';
 const id = sharedId.toLowerCase();
 
@@ -93,6 +94,16 @@ const serviceLineChangeFields = {
 };
 const serviceLinePriceEdit = z.strictObject({ kind: z.literal('PRICE_DISCOUNT_EDIT'), ...serviceLineChangeFields });
 const serviceLineCancel = z.strictObject({ kind: z.literal('LINE_CANCELLED'), ...serviceLineChangeFields });
+const serviceLinePerformersChange = z.strictObject({
+  kind: z.literal('PERFORMERS_CHANGE'),
+  changed_at: timestamp,
+  changed_by: id,
+  changed_by_membership_id: id,
+  previous: z.strictObject({
+    revision: z.number().int().positive(),
+    performers: z.array(z.strictObject({ employee_id: id, share_bps: bps.min(1) })).min(1).max(4),
+  }),
+});
 const serviceLineChangedObject = z.strictObject({
   line_id: id, session_id: id, service_id: id, branch_id: id, business_id: id, customer_id: id,
   status: z.enum(['ACTIVE', 'CANCELLED']), occurred_at: timestamp, recorded_at: timestamp,
@@ -100,11 +111,12 @@ const serviceLineChangedObject = z.strictObject({
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
   performers: z.array(z.strictObject({ employee_id: id, share_bps: bps.min(1) })).min(1).max(4),
   rule_snapshot: serviceCommissionRule, counts_snapshot: z.boolean(), package: z.null(), revision: z.number().int().positive(),
-  change: z.discriminatedUnion('kind', [serviceLinePriceEdit, serviceLineCancel]).optional(),
+  change: z.discriminatedUnion('kind', [serviceLinePriceEdit, serviceLineCancel, serviceLinePerformersChange]).optional(),
 });
 /**
  * التغيير اختياري لأن لقطات التسجيل المنشورة صارمة ومن غير المفتاح.
- * تعديل السعر يبقى ACTIVE بالنسخة التالية؛ والإلغاء يحمل حالة السطر كاملة بحالة CANCELLED والنسخة التالية، حتى لا يُقرأ كتعديل سعر.
+ * تعديل السعر وتغيير المنفّذين يبقيان ACTIVE بالنسخة التالية؛ والإلغاء يحمل حالة السطر كاملة بحالة CANCELLED والنسخة التالية.
+ * السابق في تغيير المنفّذين هو المنفّذون لا السعر، حتى لا يُقرأ كتعديل سعر أو كإلغاء.
  */
 export const serviceLineChanged = serviceLineChangedObject
   .refine((line) => {
@@ -131,7 +143,7 @@ export const serviceSessionLinesAdded = z.strictObject(eventFields).meta({ id: '
 export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessionLineInput, recordServiceSessionInput,
   appendServiceSessionLinesInput, sessionPerformer, savedServiceLine, serviceSession, rejectedServiceLine,
   recordServiceSessionResponse, appendServiceSessionLinesResponse, editServiceLineInput, editServiceLineResponseFull,
-  editServiceLineResponseNarrow, editServiceLineResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested, serviceLineCancelNoticeRequested];
+  editServiceLineResponseNarrow, editServiceLineResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested, serviceLineCancelNoticeRequested, serviceLinePerformersNoticeRequested];
 export type RecordServiceSessionInput = z.infer<typeof recordServiceSessionInput>;
 export type AppendServiceSessionLinesInput = z.infer<typeof appendServiceSessionLinesInput>;
 export type RecordServiceSessionResponse = z.infer<typeof recordServiceSessionResponse>;

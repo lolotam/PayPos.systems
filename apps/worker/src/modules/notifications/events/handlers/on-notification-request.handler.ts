@@ -20,6 +20,7 @@ export const NOTIFICATION_SOURCE_EVENTS = [
   'LateServiceSessionNoticeRequested',
   'ServiceLineEditNoticeRequested',
   'ServiceLineCancelNoticeRequested',
+  'ServiceLinePerformersNoticeRequested',
   'AttendanceChangeRequested',
   'AttendanceChangeDecided',
   'PaymentFailed',
