@@ -38,6 +38,9 @@ type Edit = {
   editorNameAr?: string | null;
   editorNameEn?: string | null;
   editorRole?: string | null;
+  roleIsSystem?: boolean | null;
+  roleNameAr?: string | null;
+  roleNameEn?: string | null;
 };
 type SqlQuery = ReturnType<typeof sql>;
 
@@ -71,17 +74,23 @@ function edit(input: Edit = {}) {
   const previous = input.previousRevision ?? revision - 1;
   const newLimit = input.newLimit === undefined ? 5000 : input.newLimit;
   const role = input.editorRole === undefined ? 'owner' : input.editorRole;
+  const snapshot = (value: unknown, fallback: unknown) => (value !== undefined ? value : role === null ? null : fallback);
+  const roleIsSystem = snapshot(input.roleIsSystem, true) as boolean | null;
+  const roleNameAr = input.roleNameAr ?? null;
+  const roleNameEn = snapshot(input.roleNameEn, 'Role') as string | null;
   return sql`INSERT INTO service_line_edits(company_id,id,business_id,line_id,revision,previous_revision,
     previous_price,previous_discount,previous_net,new_price,new_discount,new_net,
     previous_effective_discount_bps,previous_limit_bps_applied,previous_limit_source,
     new_effective_discount_bps,new_limit_bps_applied,new_limit_source,reason,changed_at,changed_by,
-    changed_by_membership_id,editor_name_ar,editor_name_en,editor_role)
+    changed_by_membership_id,editor_name_ar,editor_name_en,editor_role,
+    editor_role_is_system,editor_role_name_ar,editor_role_name_en)
     VALUES(${company},${input.id ?? ids.newId()},${business},
       ${input.line ?? ORDER_IDS.line},${revision},${previous},1.000,0.000,1.000,
       ${input.newPrice ?? '2.000'},${input.newDiscount ?? '0.500'},${input.newNet ?? '1.500'},
       0,NULL,'OWNER',${input.newBps ?? 2500},${newLimit},${input.newSource ?? 'PERSON'},
       ${input.reason ?? 'Corrected price'},clock_timestamp(),${input.changedBy ?? USER},${ORDER_IDS.membership},
-      ${input.editorNameAr ?? null},${input.editorNameEn ?? null},${role})`;
+      ${input.editorNameAr ?? null},${input.editorNameEn ?? null},${role},
+      ${roleIsSystem},${roleNameAr},${roleNameEn})`;
 }
 
 async function rejected(work: Promise<unknown>, code: string, constraint?: string) {
@@ -210,7 +219,15 @@ const badRows: Array<[Edit, string]> = [
   [{ revision: 34, reason: 'x'.repeat(501) }, 'service_line_edits_reason'],
   [{ revision: 38, reason: `x${' '.repeat(500)}` }, 'service_line_edits_reason'],
   [{ revision: 39, reason: '\t\n \r\n' }, 'service_line_edits_reason'],
-  [{ revision: 35, editorRole: 'cashier' }, 'service_line_edits_editor_role'],
+  [{ revision: 35, editorRole: 'Owner' }, 'service_line_edits_editor_role'],
+  [{ revision: 40, editorRole: 'owner'.padEnd(65, 'x') }, 'service_line_edits_editor_role'],
+  [{ revision: 41, editorRole: 'senior_stylist', roleIsSystem: false, roleNameEn: null }, 'service_line_edits_editor_role_snapshot'],
+  [{ revision: 42, editorRole: 'owner', roleIsSystem: null }, 'service_line_edits_editor_role_snapshot'],
+  [{ revision: 43, editorRole: null, editorNameEn: 'Editor', roleNameEn: 'Role' }, 'service_line_edits_editor_role_snapshot'],
+  [{ revision: 44, editorRole: null, editorNameEn: 'Editor', roleNameAr: 'دور' }, 'service_line_edits_editor_role_snapshot'],
+  [{ revision: 45, editorRole: null }, 'service_line_edits_editor_identity'],
+  [{ revision: 46, editorRole: 'owner', roleNameEn: 'x'.repeat(256) }, 'service_line_edits_editor_name_length'],
+  [{ revision: 47, editorRole: null, editorNameEn: 'x'.repeat(256) }, 'service_line_edits_editor_name_length'],
   [{ revision: 36, editorNameAr: 'اسم', editorNameEn: null }, 'service_line_edits_editor_names'],
   [{ revision: 37, newSource: 'NOT_CONFIGURED', newLimit: 5 }, 'service_line_edits_new_limit'],
 ];
@@ -223,6 +240,12 @@ it('keeps a role label without names, and names without a role label', async () 
   expect(
     await asA(sql`${edit({ revision: 3, editorRole: 'manager' })} RETURNING editor_role, editor_name_ar, editor_name_en`),
   ).toEqual([{ editor_role: 'manager', editor_name_ar: null, editor_name_en: null }]);
+  expect(
+    await asA(
+      sql`${edit({ revision: 5, editorRole: 'senior_stylist', roleIsSystem: false, roleNameAr: 'مصففة أولى', roleNameEn: 'x'.repeat(255) })}
+        RETURNING editor_role, editor_role_is_system, editor_role_name_ar, char_length(editor_role_name_en) AS name_length`,
+    ),
+  ).toEqual([{ editor_role: 'senior_stylist', editor_role_is_system: false, editor_role_name_ar: 'مصففة أولى', name_length: 255 }]);
   expect(
     await asA(
       sql`${edit({ revision: 4, editorRole: null, editorNameAr: 'محرر', editorNameEn: 'Editor' })} RETURNING editor_role, editor_name_en`,

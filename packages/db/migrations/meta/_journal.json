@@ -953,6 +953,20 @@
       "when": 1792181084486,
       "tag": "0137_2026-10-16_service-line-edit-notices",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1792193090421,
+      "tag": "0138_2026-10-16_performer-identity-snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1792193093911,
+      "tag": "0139_2026-10-16_performer-linked-user-index",
+      "breakpoints": true
     }
   ]
 }

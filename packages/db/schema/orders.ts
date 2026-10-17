@@ -140,9 +140,12 @@ export const serviceLineEdits = pgTable('service_line_edits', {
   // لقطة اسم الموظف وقت الحفظ؛ تبقى فارغة إذا لم يرتبط المحرر بموظف.
   editorNameAr: text('editor_name_ar'),
   editorNameEn: text('editor_name_en'),
-  // لقطة الدور للجرس عند غياب الاسم. تبقى فارغة عمداً؛ هوية المحرر الدائمة هي changed_by و changed_by_membership_id.
-  // TODO(spec): وسم المحرر المفوَّض الذي ليس مالكاً ولا مديراً ولا موظفاً مربوطاً لم يُحسم بعد (issue #255).
+  // لقطة دور العضوية التي تمّ التعديل تحتها (ADR-0045 §2): كود الدور، وهل هو دور نظام، واسماه وقت الحفظ.
+  // الاسم لا يُعاد قراءته من جدول الأدوار، لأن تغيير اسم الدور بعدها لا يجب أن يغيّر صفاً التُزم به.
   editorRole: text('editor_role'),
+  editorRoleIsSystem: boolean('editor_role_is_system'),
+  editorRoleNameAr: text('editor_role_name_ar'),
+  editorRoleNameEn: text('editor_role_name_en'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.companyId, t.id] }),
@@ -163,7 +166,10 @@ export const serviceLineEdits = pgTable('service_line_edits', {
   check('service_line_edits_new_limit_presence', sql`(${t.newLimitSource}='OWNER')=(${t.newLimitBpsApplied} IS NULL)`),
   check('service_line_edits_reason', sql`char_length(${t.reason}) <= 500 AND btrim(${t.reason}, chr(9) || chr(10) || chr(13) || chr(32)) <> ''`),
   check('service_line_edits_editor_names', sql`${t.editorNameAr} IS NULL OR ${t.editorNameEn} IS NOT NULL`),
-  check('service_line_edits_editor_role', sql`${t.editorRole} IN ('owner','manager')`),
+  check('service_line_edits_editor_role', sql`${t.editorRole} ~ '^[a-z][a-z_]{0,63}$'`),
+  check('service_line_edits_editor_role_snapshot', sql`(${t.editorRole} IS NULL) = (${t.editorRoleIsSystem} IS NULL) AND (${t.editorRole} IS NULL) = (${t.editorRoleNameEn} IS NULL) AND (${t.editorRoleNameAr} IS NULL OR ${t.editorRoleNameEn} IS NOT NULL)`),
+  check('service_line_edits_editor_name_length', sql`char_length(${t.editorNameAr}) <= 255 AND char_length(${t.editorNameEn}) <= 255 AND char_length(${t.editorRoleNameAr}) <= 255 AND char_length(${t.editorRoleNameEn}) <= 255`),
+  check('service_line_edits_editor_identity', sql`${t.editorNameEn} IS NOT NULL OR ${t.editorRole} IS NOT NULL`),
 ]);
 
 export const serviceLineEditNotices = pgTable('service_line_edit_notices', {
@@ -190,6 +196,10 @@ export const linePerformers = pgTable('line_performers', {
   ...scope(), lineId: uuid('line_id').notNull(), employeeId: uuid('employee_id').notNull(), performerOrdinal: integer('performer_ordinal').notNull(),
   shareBps: integer('share_bps').notNull(), nameEn: text('name_en').notNull(), nameAr: text('name_ar'),
   notClockedInWarning: boolean('not_clocked_in_warning').notNull(), approvedLeaveWarning: boolean('approved_leave_warning').notNull(),
+  // المستخدم المرتبط بالموظف لحظة تسجيل البند (ADR-0045 §1)، لا الرابط الحالي؛ لا يتغير بعد الإدخال ولا منحة UPDATE عليه.
+  linkedUserId: uuid('linked_user_id').references(() => user.id),
+  // false يعني أن الصف سُجّل قبل وجود اللقطة أو بنسخة قديمة أثناء النشر؛ التعديل يرفض البند عندها لأن هوية المنفذ لا تُثبَت.
+  linkedUserSnapshotted: boolean('linked_user_snapshotted').notNull().default(false),
 }, (t) => [
   primaryKey({ columns: [t.companyId, t.id] }), unique('line_performers_employee_key').on(t.companyId, t.lineId, t.employeeId),
   unique('line_performers_ordinal_key').on(t.companyId, t.lineId, t.performerOrdinal),
@@ -197,5 +207,7 @@ export const linePerformers = pgTable('line_performers', {
   foreignKey({ name: 'line_performers_employee_fk', columns: [t.companyId, t.businessId, t.employeeId], foreignColumns: [employees.companyId, employees.businessId, employees.id] }),
   index('line_performers_line_fk_idx').on(t.companyId, t.businessId, t.lineId),
   index('line_performers_employee_idx').on(t.companyId, t.businessId, t.employeeId, t.lineId),
+  index('line_performers_linked_user_idx').on(t.linkedUserId).where(sql`${t.linkedUserId} IS NOT NULL`),
+  check('line_performers_linked_user_snapshot', sql`${t.linkedUserId} IS NULL OR ${t.linkedUserSnapshotted}`),
   check('line_performers_share', sql`${t.shareBps} BETWEEN 1 AND 10000 AND ${t.performerOrdinal} BETWEEN 1 AND 4`),
 ]);
