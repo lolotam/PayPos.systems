@@ -122,7 +122,7 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
 4. **No logo-specific cap (BI-Q3 = 10 MiB).** The generic file policy and the DB checks apply unchanged, and the
    verification worker re-encodes the logo like any image. `request-upload`, the verification worker and the bind add
    nothing for size, and the employee-document images are unaffected. No new pixel rule: sharp's existing
-   16 M-pixel input cap bounds memory. The renderer (27i) reads at most the generic file cap.
+   16 M-pixel input cap bounds memory. The renderer (27i) reads at most the generic file cap, with a bounded read: a stored logo larger than the cap (rare; a PNG can grow when re-encoded) is treated as "no usable logo" (§4 edge cases) and the statement prints the name only, so a header is never blocked.
 5. **Replace and remove.** The bind use case writes `BusinessLogoChanged { business_id, previous_file_id,
    file_id | null }` to the outbox in the same transaction. The **`files`-owned worker consumer** (27h-3, shipped before this producer so no event is ever emitted without a consumer) retires the
    previous file in **two durable steps**, because an outbox consumer runs inside one tenant transaction together with its
