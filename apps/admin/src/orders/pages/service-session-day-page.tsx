@@ -17,6 +17,11 @@ import { ServiceSessionDayVisit } from '../ui/service-session-day-visit';
 
 type Visit = DayPage['items'][number];
 
+// اكتمال حفظ سطر ما يمسحش مسودة سطر اتفتحت بعده.
+function releaseLine(key: string) {
+  return (current: string | null) => (current === key ? null : current);
+}
+
 function findLine(visits: Visit[], key: string | null) {
   if (!key) return null;
   for (const visit of visits) {
@@ -48,14 +53,15 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
     {query.isSuccess && visits.length === 0 ? <p>{t(locale, 'serviceLineEdit.empty')}</p> : null}
     {visits.map((visit) => {
       const historyLineId = history?.startsWith(`${visit.id}:`) ? history.slice(visit.id.length + 1) : null;
+      const lineKey = target?.visit.id === visit.id ? `${visit.id}:${target.line.id}` : null;
       return <ServiceSessionDayVisit key={visit.id} visit={visit} locale={locale} activeLineId={target?.visit.id === visit.id ? target.line.id : null} historyLineId={historyLineId}
         onEdit={(lineId) => { setNotice(null); setEditing(`${visit.id}:${lineId}`); }}
         onToggleHistory={(lineId) => setHistory((current) => current === `${visit.id}:${lineId}` ? null : `${visit.id}:${lineId}`)}
-        editor={target?.visit.id === visit.id ? <EditServiceLineForm key={target.line.id} scope={scope} sessionId={visit.id} line={target.line} online={online}
-          onSaved={() => { setEditing(null); setNotice(t(locale, 'serviceLineEdit.saved')); }}
+        editor={lineKey && target ? <EditServiceLineForm key={target.line.id} scope={scope} sessionId={visit.id} line={target.line} online={online}
+          onSaved={() => { setEditing(releaseLine(lineKey)); setNotice(t(locale, 'serviceLineEdit.saved')); }}
           onStale={() => { void query.refetch(); }}
-          onForbidden={(message) => { setEditing(null); setNotice(message); }}
-          onClose={() => setEditing(null)} /> : null}
+          onForbidden={(message) => { setEditing(releaseLine(lineKey)); setNotice(message); }}
+          onClose={() => { setEditing(releaseLine(lineKey)); }} /> : null}
         historyPanel={historyLineId ? <ServiceLineEditHistory scope={scope} sessionId={visit.id} lineId={historyLineId} timezone={visit.business_timezone} /> : null} />;
     })}
     {query.hasNextPage ? <Button type="button" variant="outline" onClick={() => { void query.fetchNextPage(); }}>{t(locale, 'serviceLineEdit.loadMore')}</Button> : null}

@@ -4,6 +4,7 @@ import { formatKwd, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
+import { resolveEditLine } from '../model/edit-service-line-values';
 import { id, instant, scope } from '../model/session-recording-result.fixture';
 import { EditServiceLineForm } from './edit-service-line-form';
 
@@ -61,15 +62,39 @@ it('previews the net with lineNet and discountFromPercent', () => {
   expect(screen.getByText(t('en', 'serviceLineEdit.preview'), { exact: false }).textContent).toContain(formatKwd(lineNet(price, discount)));
 });
 
+it('sends the revision the form opened with when the line changes in the background', async () => {
+  state.patch.mockReset(); state.patch.mockResolvedValue(saved);
+  const view = shown(); fill('because', '12.000', '1.000');
+  view.rerender(view.ui(dayLine(4))); save();
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
+  expect(bodyOf(0).expected_revision).toBe(1);
+  expect(view.onStale).not.toHaveBeenCalled();
+});
+
 it('shows a stale revision, refetches once, and waits for a second save', async () => {
   state.patch.mockReset(); state.patch.mockResolvedValue(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 2 }));
   const view = shown(); fill('because', '12.000', '1.000'); save();
   await waitFor(() => expect(view.onStale).toHaveBeenCalledTimes(1));
   expect(state.patch).toHaveBeenCalledTimes(1);
   expect((screen.getByLabelText(t('en', 'serviceSessions.price')) as HTMLInputElement).value).toBe('12.000');
-  view.rerender(view.ui(dayLine(2))); save();
+  const refreshed = { ...dayLine(2), price: '11.000', discount: '0.500', net: '10.500' };
+  view.rerender(view.ui(refreshed));
+  expect(screen.getByText(t('en', 'serviceLineEdit.current'), { exact: false }).textContent).toContain(formatKwd(parseMoney('11.000')));
+  save();
   await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(2));
   expect(bodyOf(0).expected_revision).toBe(1); expect(bodyOf(1).expected_revision).toBe(2); expect(keyOf(0)).not.toBe(keyOf(1));
+});
+
+it('rejects an amount discount above the price before submit', async () => {
+  state.patch.mockReset();
+  const resolved = await resolveEditLine({
+    price: '5.000', discount_kind: 'AMOUNT', discount_value: '6.000', reason: 'because', expected_revision: 1, editor_membership_id: '',
+  }, undefined, { fields: {}, shouldUseNativeValidation: false });
+  expect(resolved.errors.discount_value?.message).toBe('discount');
+  expect(resolved.values).toEqual({});
+  shown(); fill('because', '5.000', '6.000'); save();
+  expect(await screen.findByText(t('en', 'serviceSessions.invalidDiscount'))).toBeTruthy();
+  expect(state.patch).not.toHaveBeenCalled();
 });
 
 it('shows the discount ceiling and accepts a narrow saved body', async () => {

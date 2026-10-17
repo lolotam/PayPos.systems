@@ -2,13 +2,13 @@ import type { ReactNode } from 'react';
 import type { ServiceSessionDayPage as DayPage } from '@pospay/contracts';
 import { formatInstant, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { id, instant, scope } from '../model/session-recording-result.fixture';
 import { ServiceSessionDayPage } from './service-session-day-page';
 
-const state = vi.hoisted(() => ({ get: vi.fn(), online: true as boolean | null, locale: 'en' as 'ar' | 'en' }));
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get }) }));
+const state = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn(), online: true as boolean | null, locale: 'en' as 'ar' | 'en' }));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, PATCH: state.patch }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 vi.mock('../model/use-browser-connectivity', () => ({ useBrowserConnectivity: () => state.online }));
 type Line = DayPage['items'][number]['lines'][number];
@@ -60,6 +60,29 @@ it('retries a failed history read and pauses the list while offline', async () =
   view.unmount(); state.online = false; state.get.mockClear(); renderPage();
   expect(screen.getByText(t('en', 'serviceSessions.offline'))).toBeTruthy();
   expect(state.get).not.toHaveBeenCalled();
+});
+
+it('keeps the other line draft when an earlier save settles', async () => {
+  state.online = true; state.locale = 'en'; state.get.mockReset(); state.patch.mockReset();
+  state.get.mockResolvedValue(day);
+  let settle: (value: { data: { saved: true; edited: true }; response: { status: 200 } }) => void = () => undefined;
+  state.patch.mockReturnValue(new Promise((resolve) => { settle = resolve; }));
+  renderPage();
+  await screen.findByText('Synthetic customer');
+  const edit = t('en', 'serviceLineEdit.edit');
+  const buttons = screen.getAllByRole('button', { name: edit });
+  const first = buttons[0];
+  const second = buttons[1];
+  if (!first || !second) throw new Error('missing edit buttons');
+  fireEvent.click(first);
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'from a' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
+  fireEvent.click(second);
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'from b' } });
+  await act(async () => { settle({ data: { saved: true, edited: true }, response: { status: 200 } }); });
+  expect(await screen.findByText(t('en', 'serviceLineEdit.saved'))).toBeTruthy();
+  expect((screen.getByLabelText(t('en', 'serviceLineEdit.reason')) as HTMLInputElement).value).toBe('from b');
 });
 
 it('uses the locale direction on the day list', async () => {

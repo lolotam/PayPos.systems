@@ -30,12 +30,23 @@ function discountOf(kind: EditLineFormInput['discount_kind'], text: string): Edi
   return bps.success ? { kind: 'PERCENT', bps: bps.data } : null;
 }
 
+function fitsPrice(price: string, discount: NonNullable<ReturnType<typeof discountOf>>): boolean {
+  try {
+    const priceMoney = parseMoney(price);
+    const discountMoney = discount.kind === 'AMOUNT' ? parseMoney(discount.amount) : discountFromPercent(priceMoney, discount.bps);
+    lineNet(priceMoney, discountMoney);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function editLineBody(value: EditLineFormInput): EditServiceLineInput | null {
   const price = sessionMoney.safeParse(normalizeKwdInput(value.price));
   const reason = editReason(value.reason);
   const length = Array.from(reason).length;
   const discount = discountOf(value.discount_kind, value.discount_value);
-  if (!price.success || !discount || length < 1 || length > 500) return null;
+  if (!price.success || !discount || length < 1 || length > 500 || !fitsPrice(price.data, discount)) return null;
   const parsed = editServiceLineInput.safeParse({
     price: price.data, discount, reason, expected_revision: value.expected_revision,
     ...(value.editor_membership_id ? { editor_membership_id: value.editor_membership_id } : {}),
@@ -47,7 +58,7 @@ function issue(message: string) {
   return { type: 'custom' as const, message };
 }
 
-// السبب بيتقص أطرافه ويتعد بالحروف، والجسم النهائي لازم يعدي عقد editServiceLineInput نفسه.
+// السبب بيتقص أطرافه ويتعد بالحروف. لو الجسم سقط والعقد الشكلي عدّى، الخطأ على الخصم عشان الأخطاء الفاضية بتعدي كإرسال.
 export const resolveEditLine: Resolver<EditLineFormInput, unknown, EditServiceLineInput> = (value) => {
   const errors: FieldErrors<EditLineFormInput> = {};
   const length = editReasonLength(value.reason);
@@ -55,6 +66,7 @@ export const resolveEditLine: Resolver<EditLineFormInput, unknown, EditServiceLi
   if (!sessionMoney.safeParse(normalizeKwdInput(value.price)).success) errors.price = issue('price');
   if (!discountOf(value.discount_kind, value.discount_value)) errors.discount_value = issue('discount');
   const body = editLineBody(value);
+  if (!body && !errors.reason && !errors.price && !errors.discount_value) errors.discount_value = issue('discount');
   if (!body || errors.reason || errors.price || errors.discount_value) return { values: {}, errors };
   return { values: body, errors: {} };
 };
