@@ -4080,6 +4080,43 @@ export interface components {
                 })[];
             }[];
         };
+        SessionTipEntry: {
+            /** Format: uuid */
+            employee_id: string;
+            /** @enum {string} */
+            method: "CASH" | "CARD";
+            amount: components["schemas"]["SessionMoney"];
+        };
+        RecordSessionTipsInput: {
+            expected_revision: number;
+            tips: components["schemas"]["SessionTipEntry"][];
+            reason?: string;
+            /** Format: uuid */
+            recorder_membership_id?: string;
+        };
+        SessionTips: {
+            revision: number;
+            tips: components["schemas"]["SessionTipEntry"][];
+            total_cash: components["schemas"]["SessionMoney"];
+            total_card: components["schemas"]["SessionMoney"];
+        };
+        SessionTipsChanged: {
+            /** Format: uuid */
+            session_id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            business_date: string;
+            revision: number;
+            /** Format: date-time */
+            changed_at: string;
+            tips: components["schemas"]["SessionTipEntry"][];
+            /** @enum {number} */
+            schema_version: 1;
+        };
         ServiceSessionDayQuery: {
             cursor?: string;
             /** @default 20 */

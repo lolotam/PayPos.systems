@@ -12,6 +12,7 @@ const expectedSchemas = [
   'EditServiceLineInput', 'EditServiceLineResponseFull', 'EditServiceLineResponseNarrow', 'EditServiceLineResponse',
   'RejectedServiceLine', 'RecordServiceSessionResponse', 'AppendServiceSessionLinesResponse',
   'ServiceLineChanged', 'RecordedServiceLine', 'ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'LateServiceSessionNoticeRequested', 'ServiceLineEditNoticeRequested', 'ServiceLineCancelNoticeRequested', 'ServiceLinePerformersNoticeRequested',
+  'SessionTipEntry', 'RecordSessionTipsInput', 'SessionTips', 'SessionTipsChanged',
   'CreateDocumentTypeInput',
   'DocumentType',
   'DocumentTypeList',
