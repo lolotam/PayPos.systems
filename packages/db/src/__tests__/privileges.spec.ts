@@ -68,6 +68,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'employee_documents:SELECT',
     'employee_ibans:INSERT',
     'employee_ibans:SELECT',
+    'employee_number_sequences:INSERT',
+    'employee_number_sequences:SELECT',
     'employee_passkeys:INSERT',
     'employee_passkeys:SELECT',
     'employee_salaries:INSERT',

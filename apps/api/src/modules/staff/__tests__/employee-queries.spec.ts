@@ -45,6 +45,7 @@ it('employee detail projects the contract shape and uses tenant/business index',
     input: termsFor(f),
   });
   expect(await detailFor(f, f.company, f.business, created.id)).toMatchObject(created);
+  await f.h.owner`ANALYZE employees`;
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(sql`EXPLAIN (ANALYZE,FORMAT JSON) SELECT id,business_id,primary_branch_id,user_id,name_ar,name_en,role_code,

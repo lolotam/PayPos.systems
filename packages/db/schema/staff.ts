@@ -76,10 +76,16 @@ export const employees = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     // عداد تعديل الموارد البشرية يمنع مديرين من الكتابة فوق نفس النسخة.
     revision: integer('revision').notNull().default(1),
+    // الرقم الوظيفي فريد داخل الشركة كلها ويشمل المحذوفين (قرارا المالك EN-Q1 وEN-Q4)؛ يبقى فارغاً حتى مرحلة الإحكام.
+    employeeNumber: integer('employee_number'),
   },
   (t) => [
     primaryKey({ name: 'employees_pkey', columns: [t.companyId, t.id] }),
     check('employees_revision_positive', sql`${t.revision} > 0`),
+    check(
+      'employees_employee_number_range',
+      sql`${t.employeeNumber} IS NULL OR ${t.employeeNumber} BETWEEN 1 AND 999999`,
+    ),
     check('employees_name_en_key_present', sql`${t.nameEnKey} IS NOT NULL`),
     unique('employees_company_business_id_key').on(t.companyId, t.businessId, t.id),
     foreignKey({
@@ -96,6 +102,8 @@ export const employees = pgTable(
     index('employees_company_business_name_en_key_idx').on(t.companyId, t.businessId, t.nameEnKey),
     index('employees_company_business_name_ar_key_idx').on(t.companyId, t.businessId, t.nameArKey),
     index('employees_company_primary_branch_idx').on(t.companyId, t.primaryBranchId, t.id),
+    // غير جزئي عمداً: صفوف المحذوفين تحجز أرقامها (EN-Q4). الفهرس يبنى CONCURRENTLY في migration مستقلة.
+    uniqueIndex('employees_company_employee_number_key').on(t.companyId, t.employeeNumber),
     index('employees_company_user_idx').on(t.companyId, t.userId, t.businessId),
     index('employees_user_id_idx').on(t.userId),
     // قرار المالك 2026-10-03: المستخدم قد يعمل في أنشطة مختلفة، لكن له موظف نشط واحد فقط داخل النشاط.

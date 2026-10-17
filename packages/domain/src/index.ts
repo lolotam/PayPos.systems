@@ -29,3 +29,4 @@ export * from './attendance-report-types.js';
 export * from './attendance-worked-minutes.js';
 export * from './attendance-contracted-minutes.js';
 export { computeAttendanceMonthlyReport } from './attendance-monthly-report.js';
+export { EMPLOYEE_NUMBER_MAX, firstFreeEmployeeNumber } from './employee-number.js';

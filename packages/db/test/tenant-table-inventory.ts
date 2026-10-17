@@ -31,6 +31,7 @@ export const TENANT_TABLES = [
   'employee_salaries',
   'employee_ibans',
   'employee_default_shifts',
+  'employee_number_sequences',
   'in_app_notifications',
   'notification_attempts',
   'companies',

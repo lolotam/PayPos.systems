@@ -2,6 +2,11 @@ import { systemUuidV7 } from '@pospay/ids';
 import type postgres from 'postgres';
 
 import { createDatabase } from '../client.ts';
+import {
+  assignEmployeeNumbers,
+  EmployeeNumbersExhaustedError,
+  EmployeeNumbersRoleRefusedError,
+} from './employee-numbers.ts';
 import { MigrationRoleRefusedError, rekeyEmployeeNameKeys } from './employee-name-keys.ts';
 
 /**
@@ -21,7 +26,12 @@ export function appDatabaseUrl(ownerUrl: string, appPassword: string): string {
  * رفض دور الترحيل نصه ثابت ومن غير بيانات، فبيطلع زي ما هو عشان المشغّل يعرف يصلح إيه.
  */
 export function sanitizedStepError(step: string, error: unknown): Error {
-  if (error instanceof MigrationRoleRefusedError) return error;
+  if (
+    error instanceof MigrationRoleRefusedError ||
+    error instanceof EmployeeNumbersRoleRefusedError ||
+    error instanceof EmployeeNumbersExhaustedError
+  )
+    return error;
   const codeOf = (value: unknown): unknown =>
     typeof value === 'object' && value !== null && 'code' in value ? value.code : undefined;
   const cause =
@@ -34,6 +44,23 @@ export function sanitizedStepError(step: string, error: unknown): Error {
 /** يربط علامات الترحيل بخطوات بيانات معزولة، ويغلق اتصال التطبيق حتى عند فشل الخطوة. */
 export function migrationDataSteps(ownerUrl: string, appPassword: string) {
   return {
+    'employee-numbers': async (owner: postgres.Sql): Promise<void> => {
+      const app = createDatabase({
+        url: appDatabaseUrl(ownerUrl, appPassword),
+        ids: systemUuidV7(),
+        maxConnections: 1,
+      });
+      try {
+        const { companies, read, assigned, exhausted } = await assignEmployeeNumbers(owner, app);
+        console.log(
+          `companies=${companies} read=${read} assigned=${assigned} exhausted=${exhausted}`,
+        );
+      } catch (error) {
+        throw sanitizedStepError('employee-numbers', error);
+      } finally {
+        await app.close();
+      }
+    },
     'employee-name-keys': async (owner: postgres.Sql): Promise<void> => {
       const app = createDatabase({
         url: appDatabaseUrl(ownerUrl, appPassword),

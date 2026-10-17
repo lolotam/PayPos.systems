@@ -177,7 +177,7 @@ the numbers back.
 - **FR-003**: A hand-typed or hand-edited number MUST NOT move the counter; assignment MUST skip every used number
   (EN-Q6).
 - **FR-004**: The migration MUST number all existing employees, deleted included, per company, ordered by hire date,
-  then creation time, then id (EN-Q1, EN-Q7), and set each company's counter to the highest number plus one. It MUST
+  then creation time, then id (EN-Q1, EN-Q7), and leave each company's counter just after the last number the migration assigned (never lowered, never moved by a hand-typed number). It MUST
   be idempotent.
 - **FR-005**: A number MUST NEVER be given to another employee after its employee was **deleted** (EN-Q4).
   `TODO(spec)` EN-Q14 (recommended option written): a number freed because the owner edited its employee to another
@@ -229,7 +229,7 @@ the numbers back.
   0101/0102 pattern). The migration owner reads only `companies.id`; for each company the step runs `withTenant(companyId, …)` on
   `pospay_app`, locks the company's sequence row, numbers the rows that still have `NULL` ordered by
   `hire_date, created_at, id` (UUID v7 ids are time-ordered, the last tie-break for rows created in one
-  transaction), deleted included, and sets `next_number` to the highest number plus one. No runtime role gains
+  transaction), deleted included, and raises `next_number` to the last number it assigned plus one, never lowering it and never reading a hand-typed number as the counter (so a re-run or the 8c-11 straggler pass cannot move it). No runtime role gains
   `BYPASSRLS` and no new grant is added. The step is registered in the migration runner per ADR-0038 §1; no new ADR.
 - **TD-11 Three migrations, because `CREATE UNIQUE INDEX CONCURRENTLY` cannot follow other DDL** (the runner in
   `packages/db/src/concurrent-migrations.ts` accepts it only as the first statement of its own migration, ADR-0033):
