@@ -4,10 +4,10 @@
 
 **Created**: 2026-10-17
 
-**Status**: Draft — owner answers EN-Q1 … EN-Q9 are final (batches 14 and 17, Waleed 2026-10-12/13; Abu Salem's pick
-on EN-Q1…Q4 is the same as Waleed's). Five points are still open and sit in
-[owner-questions.ar.md](owner-questions.ar.md) as `PENDING` (EN-Q10 … EN-Q14). They block only the sub-PRs marked
-"blocked" in §1; 8c-1 and 8c-5 can start now.
+**Status**: Draft — owner answers EN-Q1 … EN-Q14 are final (batches 14 and 17, Waleed 2026-10-12/13; batch 27, Waleed
+2026-10-17). Abu Salem's pick on EN-Q1…Q4 is the same as Waleed's; he has not answered EN-Q10 … EN-Q14, and if his pick
+differs later it replaces these (Waleed's ruling, 2026-10-10). No owner question is open: no sub-PR in §1 waits on an
+answer.
 
 **Input**: User description: "staff-employee-number — every employee gets a number that appears in the profile, the
 staff list, the attendance board, the monthly report, the CSV and the official statement (Abu Salem's AB-Q10 pick,
@@ -18,7 +18,7 @@ row 27a/27b (spec `docs/specs/049-staff-attendance-board-report/spec.md`, AB-Q9e
 performer picker, ADR-0041). **Consumed by** row 27g (the official attendance statement, which prints the number) —
 27g, 27h and 27i have their own specs; nothing of them is built here.
 
-## Owner decisions already taken (binding — not asked again)
+## Owner decisions already taken (binding — not asked again; EN-Q10 … EN-Q14 are Waleed's picks, Abu Salem has not answered them)
 
 | ID    | Question                                         | Decision                                                                                                                                                                             |
 | ----- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -31,20 +31,11 @@ performer picker, ADR-0041). **Consumed by** row 27g (the official attendance st
 | EN-Q7 | Existing employees: ties, and the deleted        | Same hire date → the one **added to the system first** gets the smaller number. **Deleted employees get numbers too**, so old reports stay consistent.                              |
 | EN-Q8 | Format                                           | A whole number from **1 to 999999**, no leading zeros («007» is saved as «7»).                                                                                                       |
 | EN-Q9 | Typing it when adding, and searching             | Both: the owner **types it or leaves it blank** (the system gives one); search by number in the **staff list** and in the **reception performer picker**.                            |
-
-## Open owner questions (batch pending — see `owner-questions.ar.md`)
-
-| ID     | Question                                                                          | Recommended (⭐)                                                                                  | Blocks               |
-| ------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------- |
-| EN-Q10 | What the one-time starting number does to employees that already have numbers    | Existing numbers stay; the start only moves the counter forward for **new** employees (rule BR-6) | 8c-8                 |
-| EN-Q11 | Who may type or change a number, and who sets the starting number                | New permission `manage:employee-number:company`, owner by default, grantable by the owner         | 8c-6, 8c-7, 8c-8     |
-| EN-Q12 | Does the Excel import template get an optional employee-number column            | No — imported employees get numbers automatically in file order (BR-8)                           | 8c-3                 |
-| EN-Q13 | Confirm the derived rules D-1, D-2, D-3, D-5, D-7, D-8 (§ Derived rules) | Confirmed as written | 8c-2 (D-7), 8c-4 (D-3), 8c-6, 8c-7, 8c-8 (D-1, D-8), 8c-9 (D-2) |
-| EN-Q14 | May a number freed by a hand edit (not by deletion) be given again, by the counter or by hand | Yes — it is an ordinary unused number again; no record of retired numbers (FR-005, BR-3) | 8c-2, 8c-6 |
-
-Until Waleed and Abu Salem answer, the rules below that depend on these five are marked **`TODO(spec)`** and written
-at the recommended option only so the design is complete; **no code that depends on a `TODO(spec)` rule starts**. The derived rules D-1, D-2, D-3, D-5, D-7 and D-8 are
-also `TODO(spec)` until EN-Q13 is answered (a one-word confirmation).
+| EN-Q10 | What the one-time starting number does to employees that already have numbers | Numbers already given stay as they are (1, 2, 3); the starting number affects **new** employees only, so the first new employee gets 1000. The counter never goes back, and the choice is made once (BR-6). Batch 27, Waleed 2026-10-17. |
+| EN-Q11 | Who may type or change a number, and who sets the starting number | New permission `manage:employee-number:company`: the owner holds it by default and can grant it to anyone. A person without it still adds employees (the number is automatic), but typing or changing a number is refused clearly (BR-7, D-8). Batch 27, Waleed 2026-10-17. |
+| EN-Q12 | Does the Excel import template get an «employee number» column | **No**, not in this batch: imported employees get automatic numbers in file-row order and the owner edits any by hand afterwards. It can be added later without breaking anything (BR-8). Batch 27, Waleed 2026-10-17. |
+| EN-Q13 | Confirm the derived rules D-1, D-2, D-3, D-5, D-7, D-8 | Confirmed as written, all of them (§ Derived rules). Batch 27, Waleed 2026-10-17. |
+| EN-Q14 | May a number freed by a hand edit (not by deletion) be given again | **Yes**: it is an ordinary unused number again. The owner may type it by hand for any employee and the counter gives it if it is at or above the counter and reaches it. No record of old numbers is kept (FR-005, BR-3). Known downside: a statement printed with Sara's old number could be confused with an employee who later takes the same number. Batch 27, Waleed 2026-10-17. |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -86,7 +77,7 @@ the numbers back.
 4. **Given** a back-dated hire date, **When** the employee is added, **Then** her number follows the counter, not her
    hire date (hire date orders only the one-time migration, D-7).
 5. **Given** an employee added by the Excel import, **When** the import commits, **Then** each imported employee gets
-   the next number in file-row order (BR-8, `TODO(spec)` EN-Q12).
+   the next number in file-row order (BR-8, EN-Q12).
 
 ---
 
@@ -94,7 +85,7 @@ the numbers back.
 
 **Independent Test**: type 1050 for Noor; add Lana; check Lana's number and that 1050 is protected.
 
-**Acceptance Scenarios** (all `TODO(spec)` until EN-Q11 is answered; scenario 4 also until EN-Q14):
+**Acceptance Scenarios** (EN-Q11; scenario 4 is EN-Q14):
 
 1. **Given** the owner, **When** she adds Mona and types 1050, **Then** Mona gets 1050 and the counter does not move
    (EN-Q6, EN-Q9).
@@ -102,7 +93,7 @@ the numbers back.
    employee), **Then** it is refused with `EMPLOYEE_NUMBER_TAKEN` and nothing changes (EN-Q1, EN-Q4).
 3. **Given** the counter is at 1002 and 1050 is used, **When** employees are added until the counter reaches 1050,
    **Then** the one after 1049 gets 1051 (EN-Q6: skips a used number).
-4. **Given** (`TODO(spec)` EN-Q14, recommended option) Noor's old number 4 was freed by editing her to 1050 and the counter is already at 5, **When** a new
+4. **Given** (EN-Q14) Noor's old number 4 was freed by editing her to 1050 and the counter is already at 5, **When** a new
    employee is added, **Then** she does not get 4 — the counter passed it. The owner can still type 4 by hand. A freed
    number at or above the counter (the owner typed 100 while the counter was 4, then changed it to 101) is simply an
    unused number again and the counter reaches it normally; the system keeps no list of retired numbers.
@@ -120,7 +111,7 @@ the numbers back.
 
 **Independent Test**: set 1000 on a company with employees 1–3 and add a new employee.
 
-**Acceptance Scenarios** (all `TODO(spec)` until EN-Q10 and EN-Q11 are answered; written at the recommended option):
+**Acceptance Scenarios** (EN-Q10, EN-Q11):
 
 1. **Given** Sara 1, Heba 2, Reem 3 and the counter at 4, **When** the owner sets the start to 1000, **Then** they keep
    1, 2, 3 and the next new employee gets 1000 (BR-6).
@@ -180,13 +171,13 @@ the numbers back.
   then creation time, then id (EN-Q1, EN-Q7), and leave each company's counter just after the last number the migration assigned (never lowered, never moved by a hand-typed number). It MUST
   be idempotent.
 - **FR-005**: A number MUST NEVER be given to another employee after its employee was **deleted** (EN-Q4).
-  `TODO(spec)` EN-Q14 (recommended option written): a number freed because the owner edited its employee to another
+  EN-Q14: a number freed because the owner edited its employee to another
   number is an ordinary unused number again — the counter assigns it only if it is at or above the counter when it
   gets there, and the owner may type it by hand for anyone (BR-3). EN-Q4 covers deletion only.
-- **FR-006** (`TODO(spec)` EN-Q11): typing a number when adding an employee, changing a number, and setting the
+- **FR-006** (EN-Q11): typing a number when adding an employee, changing a number, and setting the
   starting number MUST require `manage:employee-number:company`; the owner holds it by default and can grant it to any
   human role, never a device (pattern of DH-Q5, spec 048).
-- **FR-007** (`TODO(spec)` EN-Q10): the owner MUST be able to set the starting number once; it moves the counter
+- **FR-007** (EN-Q10): the owner MUST be able to set the starting number once; it moves the counter
   forward only and never changes an existing employee's number (BR-6).
 - **FR-008**: The number MUST appear in the employee detail, the staff list, the attendance board, the monthly report
   (single branch and all branches), the CSV and the reception performer picker (EN-Q3, AB-Q9e). It MUST NOT widen
@@ -257,21 +248,21 @@ the numbers back.
 - **BR-2** (EN-Q1, EN-Q6): automatic assignment = the first unused number at or above the counter; the counter becomes
   that number + 1. Example: start 1000, Dana 1000, Lina 1001; the owner edits Lina to 1050; the next employee gets 1002
   (not 1051); when the counter reaches 1050 it jumps to 1051.
-- **BR-3** (EN-Q6; second sentence `TODO(spec)` EN-Q14): a hand number never moves the counter, and the counter never goes back: a number freed below the
+- **BR-3** (EN-Q6; second sentence EN-Q14): a hand number never moves the counter, and the counter never goes back: a number freed below the
   counter is not revisited. A number freed at or above the counter is just unused and is assigned when the counter
   reaches it; no record of retired numbers is kept.
 - **BR-4** (EN-Q4): a number is never reassigned after its employee is deleted; deleted employees keep theirs and
   nobody may edit it (D-5). A number freed by a hand edit is not covered by this rule (FR-005, BR-3).
 - **BR-5** (EN-Q1, EN-Q7): the migration orders by hire date, then creation time, then id, deleted included; later
-  employees are numbered by creation order, not hire date (D-7, `TODO(spec)` EN-Q13).
-- **BR-6** (`TODO(spec)` EN-Q10, recommended A): the starting number is set once; the counter becomes
+  employees are numbered by creation order, not hire date (D-7, EN-Q13).
+- **BR-6** (EN-Q10): the starting number is set once; the counter becomes
   `max(counter, start)`; no existing number changes. Example: 1, 2, 3 exist, counter 4, start 1000 → next new = 1000.
-- **BR-7** (`TODO(spec)` EN-Q11, recommended A): typing, editing and setting the start need
+- **BR-7** (EN-Q11): typing, editing and setting the start need
   `manage:employee-number:company`.
-- **BR-8** (`TODO(spec)` EN-Q12, recommended A): imported employees get automatic numbers, in file-row order, one
+- **BR-8** (EN-Q12): imported employees get automatic numbers, in file-row order, one
   after the other.
 
-### Derived rules (no owner question of their own — `TODO(spec)` until confirmed together as EN-Q13)
+### Derived rules (no owner question of their own — confirmed together as EN-Q13)
 
 | ID  | Rule                                                                                                                                                                  |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -297,14 +288,14 @@ the numbers back.
 - The backfill and the counter seed are the `employee-numbers` data step on migration C (TD-5, TD-11). Migration numbers: next free on `origin/main` at
   implementation, renumbered at merge. No destructive statement.
 - Permission migration (8c-6): `INSERT` `manage:employee-number:company` into `permissions` and into the owner role
-  default (pattern of migration 0128) — `TODO(spec)` EN-Q11.
+  default (pattern of migration 0128) — EN-Q11.
 
 ### API contract
 
 All routes under `/v1`, feature flag `staff`, standard error envelope.
 
 - `POST /v1/businesses/{businessId}/employees` (existing) — `CreateEmployeeInput` gains optional
-  `employee_number` (integer 1…999999, **8c-7**, `TODO(spec)` EN-Q11); response `Employee` gains
+  `employee_number` (integer 1…999999, **8c-7**, EN-Q11); response `Employee` gains
   `employee_number: integer | null` (8c-2, automatic number returned).
 - `GET /v1/businesses/{businessId}/employees/{employeeId}` and the list items (existing) gain
   `employee_number: integer | null` (8c-4).
@@ -314,12 +305,12 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 - Attendance board (`in_now[]` and `sessions[]`) and monthly report rows gain `employee_number: integer | null`; the
   CSV gets a first column (8c-5).
 - `PUT /v1/businesses/{businessId}/employees/{employeeId}/employee-number` · `@Require('manage:employee-number:company')`
-  (8c-6, `TODO(spec)` EN-Q11) · body `{ employee_number: integer 1…999999 }` →
+  (8c-6, EN-Q11) · body `{ employee_number: integer 1…999999 }` →
   `{ employee_id, employee_number }`. `Idempotency-Key`: not required (no money or stock effect; the same value twice
   is a no-op).
 - `GET /v1/employee-numbering` → `{ next_number, start_number | null, start_set_at | null, can_manage }` and
   `PUT /v1/employee-numbering/start` · `@Require('manage:employee-number:company')` · body
-  `{ start_number: integer 1…999999 }` (8c-8, `TODO(spec)` EN-Q10, EN-Q11). The GET needs the same permission.
+  `{ start_number: integer 1…999999 }` (8c-8, EN-Q10, EN-Q11). The GET needs the same permission.
 - Zod: `packages/contracts/src/staff/employee.ts` (+ `update-employee.ts`) and a new
   `packages/contracts/src/staff/employee-number.ts`, registered in OpenAPI; the generated client is regenerated in the
   same PR as each contract change.
@@ -330,7 +321,7 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 ### Permissions
 
 - Reading the number follows each surface's existing read rule; nothing is widened (FR-008).
-- New `manage:employee-number:company` (`TODO(spec)` EN-Q11): `ROLE_DEFAULTS = ['owner']`, added to
+- New `manage:employee-number:company` (EN-Q11): `ROLE_DEFAULTS = ['owner']`, added to
   `OWNER_GRANTED_PERMISSIONS` (db and identity lists) and the i18n permission catalogs; grantable by the company owner
   to any human role, never a device.
 
@@ -399,15 +390,15 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 | PR    | What                                                                                                       | Subtasks                                                                                                                                | Needs            | State                  |
 | ----- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------------- |
 | 8c-1  | Database foundation                                                                                        | (1) migrations A and B: column, sequence table with RLS and grants, then the concurrent unique index (2) Drizzle schema, privileges allowlist, and migration C with the `employee-numbers` data step (3) RLS negative and backfill tests (`EN-01`, `EN-02`) | —                | ready                  |
-| 8c-2  | `create-employee` gives the next number                                                                    | (1) `firstFreeEmployeeNumber` + unit tests (2) assign port and Drizzle adapter, counter lock (3) use case, `Employee` contract field, `EN-03`…`EN-05`, `EN-12` | 8c-1             | blocked on EN-Q13 (D-7), EN-Q14; advisors first (TD-4) |
-| 8c-3  | `commit-employee-import` gives numbers in file order                                                       | (1) import commit uses the assign port (2) `EN-13`                                                                                      | 8c-2             | blocked on EN-Q12      |
-| 8c-4  | Reads: employee detail, staff list, performer picker                                                       | (1) contracts and queries add the field (2) exact-number filter and digit match (3) result-shape and `EXPLAIN` tests, `EN-14`          | 8c-1             | blocked on EN-Q13 (D-3) |
+| 8c-2  | `create-employee` gives the next number                                                                    | (1) `firstFreeEmployeeNumber` + unit tests (2) assign port and Drizzle adapter, counter lock (3) use case, `Employee` contract field, `EN-03`…`EN-05`, `EN-12` | 8c-1             | ready; advisors first (TD-4) |
+| 8c-3  | `commit-employee-import` gives numbers in file order                                                       | (1) import commit uses the assign port (2) `EN-13`                                                                                      | 8c-2             | ready |
+| 8c-4  | Reads: employee detail, staff list, performer picker                                                       | (1) contracts and queries add the field (2) exact-number filter and digit match (3) result-shape and `EXPLAIN` tests, `EN-14`          | 8c-1             | ready |
 | 8c-5  | Reads: attendance board, monthly report, CSV                                                               | (1) board contract and query (2) report contract, query and CSV first column (3) update the two "number is absent" tests, `EN-15`      | 8c-1             | ready                  |
-| 8c-6  | `set-employee-number` (hand edit)                                                                          | (1) `parseEmployeeNumber` + unit tests (2) permission migration and use case with audit (3) route, contract, `EN-06`…`EN-10`           | 8c-2             | blocked on EN-Q11, EN-Q13 (D-1, D-8), EN-Q14 |
-| 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field and permission check (2) `EN-06` for create, `EN-07`, `EN-09`                                                           | 8c-2, 8c-6       | blocked on EN-Q11, EN-Q13 (D-8) |
-| 8c-8  | `set-employee-number-start`                                                                                | (1) use case, `GET`/`PUT /v1/employee-numbering` (2) audit and once-only rule (3) `EN-11`                                               | 8c-2, 8c-6       | blocked on EN-Q10, EN-Q11, EN-Q13 (D-1, D-8) |
-| 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-5       | blocked on EN-Q13 (D-2) |
-| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (2) edit action on the profile (3) "Start numbering from" dialog                                                 | 8c-7, 8c-8, 8c-9 | blocked on EN-Q10, EN-Q11, EN-Q13 (D-2, D-8) |
+| 8c-6  | `set-employee-number` (hand edit)                                                                          | (1) `parseEmployeeNumber` + unit tests (2) permission migration and use case with audit (3) route, contract, `EN-06`…`EN-10`           | 8c-2             | ready |
+| 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field and permission check (2) `EN-06` for create, `EN-07`, `EN-09`                                                           | 8c-2, 8c-6       | ready |
+| 8c-8  | `set-employee-number-start`                                                                                | (1) use case, `GET`/`PUT /v1/employee-numbering` (2) audit and once-only rule (3) `EN-11`                                               | 8c-2, 8c-6       | ready |
+| 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-5       | ready |
+| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (2) edit action on the profile (3) "Start numbering from" dialog                                                 | 8c-7, 8c-8, 8c-9 | ready |
 | 8c-11 | Contract: numbers for stragglers, then `NOT NULL`                                                          | (1) straggler backfill migration (2) `CHECK … NOT VALID` then `VALIDATE`; readers drop the `NULL` branch                               | 8c-2, 8c-3 in a released image | later release |
 
 Parallel work follows the pipeline's file-disjoint rule: 8c-4 and 8c-5 touch different queries and can run together;
