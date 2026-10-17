@@ -1,6 +1,7 @@
 import { serviceSessionRecoveryPage } from '@pospay/contracts';
 import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 import { recoveryKeyHash } from '../persistence/session-recovery.adapter.ts';
+import { cancelServiceLine } from '../../../../../../packages/db/test/service-line-cancellation.ts';
 import { AT, ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
 
 let f: SessionFixture;
@@ -31,12 +32,13 @@ function cursorFor(proof: string, at: string, id: string, operation = 'record-se
 }
 async function cloneLine(source: string, session: string, ordinal: number, inputIndex: number, status: string, nameEn: string, recordedBy: string, membership: string) {
   const line = ids.newId();
-  // القيد المؤجّل يرفض البند قبل الـ commit لو مجموعة المؤدين ناقصة.
+  const stored = status === 'CANCELLED' ? 'ACTIVE' : status;
+  // القيد المؤجّل يرفض البند قبل الـ commit لو مجموعة المؤدين ناقصة، وحارس الإلغاء يرفض إدراج بند ملغي.
   await f.h.owner.begin(async (tx) => {
     await tx`INSERT INTO service_lines(company_id,id,business_id,session_id,service_id,ordinal,input_index,status,revision,
         list_price,price,discount,net,effective_discount_bps,limit_bps_applied,limit_source,name_en,name_ar,catalog_revision,
         rule_kind,rule_pct_bps,rule_fixed_amount,counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late)
-      SELECT company_id,${line},business_id,${session},service_id,${ordinal},${inputIndex},${status},revision,
+      SELECT company_id,${line},business_id,${session},service_id,${ordinal},${inputIndex},${stored},revision,
         list_price,price,discount,net,effective_discount_bps,limit_bps_applied,limit_source,${nameEn},name_ar,catalog_revision,
         rule_kind,rule_pct_bps,rule_fixed_amount,counts_toward_threshold,has_performer_warning,${recordedBy},${membership},recorded_at,late
       FROM service_lines WHERE company_id=${f.company} AND id=${source}`;
@@ -44,6 +46,12 @@ async function cloneLine(source: string, session: string, ordinal: number, input
       SELECT company_id,gen_random_uuid(),business_id,${line},employee_id,performer_ordinal,share_bps,name_en,name_ar,not_clocked_in_warning,approved_leave_warning
       FROM line_performers WHERE company_id=${f.company} AND line_id=${source}`;
   });
+  if (status !== 'CANCELLED') return;
+  const [row] = await f.h.owner`SELECT revision FROM service_lines WHERE company_id=${f.company} AND id=${line}`;
+  await f.db.withTenant(f.company, (tx) => cancelServiceLine(tx, {
+    companyId: f.company, lineId: line, expectedRevision: Number(must(row)['revision']),
+    cancelledBy: recordedBy, membershipId: membership, cancellationId: ids.newId(),
+  }), { userId: recordedBy });
 }
 
 it('lists a back-dated cross-month visit on the proof date', async () => {

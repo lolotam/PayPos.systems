@@ -11,6 +11,7 @@ const expectations: Record<string, readonly string[]> = {
   general_manager: [
     'edit:service-line-prices:branch',
     'change:service-line-performers:branch',
+    'cancel:service-lines:branch',
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'read:passkeys:branch',
@@ -43,6 +44,7 @@ const expectations: Record<string, readonly string[]> = {
   business_manager: [
     'edit:service-line-prices:branch',
     'change:service-line-performers:branch',
+    'cancel:service-lines:branch',
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'read:passkeys:branch',
@@ -74,6 +76,7 @@ const expectations: Record<string, readonly string[]> = {
   branch_manager: [
     'edit:service-line-prices:branch',
     'change:service-line-performers:branch',
+    'cancel:service-lines:branch',
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'read:passkeys:branch',
@@ -147,6 +150,28 @@ it.each(SYSTEM_ROLES)(
 );
 it('DH-Q5 employee hours default to owner only', () => {
   expect(ROLE_DEFAULTS['manage:employee-hours:business']).toEqual(['owner']);
+});
+
+it('cancel:service-lines:branch defaults to the four managers and a device cannot hold it', () => {
+  const defaults = ['owner', 'general_manager', 'business_manager', 'branch_manager'];
+  const holders: readonly string[] = ROLE_DEFAULTS['cancel:service-lines:branch'];
+  expect(holders).toEqual(defaults);
+  for (const role of SYSTEM_ROLES) {
+    expect(holders.includes(role.code)).toBe(defaults.includes(role.code));
+    expect(
+      systemRolePolicy(role.id, 'global')?.permissions.includes('cancel:service-lines:branch'),
+    ).toBe(role.code !== 'device');
+  }
+  const staff = SYSTEM_ROLES.find((role) => role.code === 'staff');
+  const staffPolicy = systemRolePolicy(staff?.id ?? '', 'global')?.permissions ?? [];
+  expect(staffPolicy.includes('cancel:service-lines:branch')).toBe(true);
+  expect((ROLE_DEFAULTS['read:service-sessions:branch'] as readonly string[]).includes('staff')).toBe(
+    false,
+  );
+  expect(staffPolicy.filter((code) => code === 'cancel:service-lines:branch' || code === 'read:service-sessions:branch')).toEqual([
+    'read:service-sessions:branch',
+    'cancel:service-lines:branch',
+  ]);
 });
 
 it('change:service-line-performers:branch defaults to the four managers and devices cannot hold it', () => {

@@ -116,6 +116,22 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=pg_catalog, public'],
   },
   {
+    proname: 'service_lines_cancel_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'line_performers_cancel_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'slc_validate_line',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  { proname: 'slc_complete', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  {
     proname: 'session_tip_revisions_begin',
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],

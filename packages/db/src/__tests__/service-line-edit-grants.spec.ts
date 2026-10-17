@@ -54,7 +54,6 @@ it('updates price, the limit trio and revision on the tenant line', async () => 
 
 const forbidden: SqlQuery[] = [
   sql`UPDATE service_lines SET list_price=2.000 WHERE id=${line}`,
-  sql`UPDATE service_lines SET status='ACTIVE' WHERE id=${line}`,
   sql`UPDATE service_lines SET recorded_by=${USER} WHERE id=${line}`,
   sql`UPDATE service_lines SET recorded_by_membership_id=${ORDER_IDS.membership} WHERE id=${line}`,
   sql`UPDATE service_lines SET session_id=${ORDER_IDS.session} WHERE id=${line}`,
@@ -95,4 +94,18 @@ it('still rejects a net that is not price minus discount', async () => {
   const cause = (error as Error & { cause?: { code?: string; constraint_name?: string } }).cause;
   expect(cause?.code).toBe('23514');
   expect(cause?.constraint_name).toBe('service_lines_amounts');
+});
+
+it('grants a same-status update and refuses an unjustified cancellation', async () => {
+  expect(
+    await asA(sql`UPDATE service_lines SET status='ACTIVE' WHERE id=${line} RETURNING status`),
+  ).toEqual([{ status: 'ACTIVE' }]);
+  const error = await asA(sql`UPDATE service_lines SET status='CANCELLED' WHERE id=${line}`).then(
+    () => null,
+    (caught: unknown) => caught,
+  );
+  expect(error).toBeInstanceOf(Error);
+  const cause = (error as Error & { cause?: { code?: string; constraint_name?: string } }).cause;
+  expect(cause?.code).toBe('23514');
+  expect(cause?.constraint_name).toBe('service_lines_cancel_guard');
 });

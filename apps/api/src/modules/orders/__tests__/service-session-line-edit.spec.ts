@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { serviceLineChanged } from '@pospay/contracts';
+import { cancelServiceLine } from '../../../../../../packages/db/test/service-line-cancellation.ts';
 import { AT, ids, must, editFixture, type EditFixture } from './session.fixture.ts';
 import { editBody, editRows, quietCounts, recorded, runEdit } from './line-edit.helpers.ts';
 
@@ -63,8 +64,10 @@ it('an unchanged price and discount writes nothing', async () => {
 it('a cancelled line is not editable and writes nothing', async () => {
   const visit = await recorded(f, '25.000', '0.000');
   const key = ids.newId();
-  await f.h.owner`UPDATE service_lines SET status='CANCELLED' WHERE company_id=${f.company} AND id=${visit.lineId}`;
-  await expect(runEdit(f, visit.sessionId, visit.lineId, editBody({ price: '26.000', discount: { kind: 'AMOUNT', amount: '0.000' } }), { key })).rejects.toThrow('SESSION_LINE_NOT_EDITABLE');
+  await f.db.withTenant(f.company, (tx) => cancelServiceLine(tx, {
+    companyId: f.company, lineId: visit.lineId, expectedRevision: 1, cancelledBy: f.userId, membershipId: f.membership, cancellationId: ids.newId(),
+  }), { userId: f.userId });
+  await expect(runEdit(f, visit.sessionId, visit.lineId, editBody({ price: '26.000', discount: { kind: 'AMOUNT', amount: '0.000' }, expected_revision: 2 }), { key })).rejects.toThrow('SESSION_LINE_NOT_EDITABLE');
   expect(await quietCounts(f, visit.sessionId, visit.lineId, key)).toEqual({ edits: 0, audits: 0, events: 0, keys: 0 });
 });
 
