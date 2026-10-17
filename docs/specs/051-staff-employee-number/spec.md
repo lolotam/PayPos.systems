@@ -176,7 +176,7 @@ the numbers back.
   gets there, and the owner may type it by hand for anyone (BR-3). EN-Q4 covers deletion only.
 - **FR-006** (EN-Q11): typing a number when adding an employee, changing a number, and setting the
   starting number MUST require `manage:employee-number:company`; the owner holds it by default and can grant it to any
-  human role, never a device (pattern of DH-Q5, spec 048).
+  human role, never a device (pattern of DH-Q5, spec 048). `TODO(spec)` EN-Q15 (`PENDING`): whether a holder may change the number of an employee in a business they cannot otherwise manage; 8c-6 waits for it.
 - **FR-007** (EN-Q10): the owner MUST be able to set the starting number once; it moves the counter
   forward only and never changes an existing employee's number (BR-6).
 - **FR-008**: The number MUST appear in the employee detail, the staff list, the attendance board, the monthly report
