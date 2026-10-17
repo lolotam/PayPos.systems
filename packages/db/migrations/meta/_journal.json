@@ -1002,6 +1002,13 @@
       "when": 1792223833875,
       "tag": "0144_2026-10-17_service-line-performer-changes",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1792231897857,
+      "tag": "0145_2026-10-17_session-tips",
+      "breakpoints": true
     }
   ]
 }

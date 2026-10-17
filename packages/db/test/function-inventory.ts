@@ -115,4 +115,14 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
+  {
+    proname: 'session_tip_revisions_begin',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'session_tips_insert_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
 ].sort((a, b) => a.proname.localeCompare(b.proname));
