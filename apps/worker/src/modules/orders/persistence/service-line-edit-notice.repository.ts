@@ -9,7 +9,9 @@ import type {
   PriceEditSnapshot,
 } from '../ports/price-edit-notice.port.ts';
 
-export const lineNoticeMatchStatement = (line: PriceEditNoticeLine) => sql`SELECT l.id FROM service_lines l
+export const lineNoticeMatchStatement = (
+  line: PriceEditNoticeLine,
+) => sql`SELECT l.id FROM service_lines l
   JOIN service_sessions s ON s.company_id = l.company_id AND s.business_id = l.business_id AND s.id = l.session_id
   WHERE l.company_id = ${line.companyId} AND l.id = ${line.lineId} AND l.business_id = ${line.businessId}
     AND l.session_id = ${line.sessionId} AND s.branch_id = ${line.branchId} AND l.revision >= ${line.revision}`;
@@ -23,7 +25,9 @@ export const editSnapshotStatement = (companyId: string, lineId: string, revisio
   FROM service_line_edits
   WHERE company_id = ${companyId} AND line_id = ${lineId} AND revision = ${revision}`;
 
-export const lineContextStatement = (line: PriceEditNoticeLine) => sql`SELECT l.name_ar, l.name_en, s.business_timezone
+export const lineContextStatement = (
+  line: PriceEditNoticeLine,
+) => sql`SELECT l.name_ar, l.name_en, s.business_timezone
   FROM service_lines l
   JOIN service_sessions s ON s.company_id = l.company_id AND s.business_id = l.business_id AND s.id = l.session_id
   WHERE l.company_id = ${line.companyId} AND l.id = ${line.lineId} AND l.business_id = ${line.businessId}
@@ -44,7 +48,9 @@ export function priceEditRepository(tx: Tx): PriceEditNoticeRepository {
   return {
     matchesLine: async (line) => (await tx.execute(lineNoticeMatchStatement(line))).length === 1,
     readEditSnapshot: async (companyId, lineId, revision) => {
-      const [row] = await tx.execute<SnapshotRow>(editSnapshotStatement(companyId, lineId, revision));
+      const [row] = await tx.execute<SnapshotRow>(
+        editSnapshotStatement(companyId, lineId, revision),
+      );
       return row === undefined ? null : toSnapshot(row);
     },
     readLineContext: async (line) => {

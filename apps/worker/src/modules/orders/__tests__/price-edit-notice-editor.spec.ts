@@ -1,5 +1,5 @@
 import type { Tx } from '@pospay/db';
-import { t } from '@pospay/i18n';
+import { editorLabel, safeDisplayName, t } from '@pospay/i18n';
 import { createLogger } from '@pospay/observability';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { USER, TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
@@ -46,7 +46,11 @@ it('test 6: the editor is notified when they are the only eligible person, and o
 
 it('test 6: a nameless owner or manager editor keeps the fixed role label from the history row', async () => {
   const owner = await f.edit({ editorNameAr: null, editorNameEn: null, editorRole: 'owner' });
-  const manager = await f.edit({ editorNameAr: null, editorNameEn: null, editorRole: 'branch_manager' });
+  const manager = await f.edit({
+    editorNameAr: null,
+    editorNameEn: null,
+    editorRole: 'branch_manager',
+  });
   await f.deliver(owner.event);
   await f.deliver(manager.event);
   expect(parameter(await f.requests(owner.sessionId), 'editor_name_ar')).toBe('المالك');
@@ -56,7 +60,11 @@ it('test 6: a nameless owner or manager editor keeps the fixed role label from t
 });
 
 it('LE-22: other system roles and company roles show their own role label, not a stored id', async () => {
-  const accountant = await f.edit({ editorNameAr: null, editorNameEn: null, editorRole: 'accountant' });
+  const accountant = await f.edit({
+    editorNameAr: null,
+    editorNameEn: null,
+    editorRole: 'accountant',
+  });
   const company = await f.edit({
     editorNameAr: null,
     editorNameEn: null,
@@ -74,7 +82,11 @@ it('LE-22: other system roles and company roles show their own role label, not a
 });
 
 it('LE-21: an employee name snapshot wins over the role label', async () => {
-  const named = await f.edit({ editorNameAr: 'منى', editorNameEn: 'Mona', editorRole: 'branch_manager' });
+  const named = await f.edit({
+    editorNameAr: 'منى',
+    editorNameEn: 'Mona',
+    editorRole: 'branch_manager',
+  });
   await f.deliver(named.event);
   expect(parameter(await f.requests(named.sessionId), 'editor_name_ar')).toBe('منى');
   expect(parameter(await f.requests(named.sessionId), 'editor_name_en')).toBe('Mona');
@@ -89,7 +101,10 @@ it('LE-23: renaming a company role after the commit does not change the delivere
     editorRoleNameAr: 'مصففة أولى',
     editorRoleNameEn: 'Lead stylist',
   });
-  await f.owner`UPDATE roles SET name_en='Renamed role' WHERE company_id=${prepared.companyId} AND code='senior_stylist'`;
+  await f.owner`INSERT INTO roles(id,company_id,code,name_en) VALUES(${f.ids.newId()},${prepared.companyId},'senior_stylist','Lead stylist')`;
+  const renamed =
+    await f.owner`UPDATE roles SET name_en='Renamed role' WHERE company_id=${prepared.companyId} AND code='senior_stylist' RETURNING id`;
+  expect(renamed).toHaveLength(1);
   await f.deliver(prepared.event);
   expect(parameter(await f.requests(prepared.sessionId), 'editor_name_en')).toBe('Lead stylist');
 });
@@ -144,7 +159,16 @@ it('test 6: a stored editor name rejected as unsafe uses the generic employee la
 function withoutManagers() {
   return createDeliverer(
     f.db,
-    [{ ...f.consumer, handle: (tx, event) => onServiceLineChanged(useCase(tx, async () => []), event) }],
+    [
+      {
+        ...f.consumer,
+        handle: (tx, event) =>
+          onServiceLineChanged(
+            useCase(tx, async () => []),
+            event,
+          ),
+      },
+    ],
     createLogger('silent'),
     { knownEventTypes: f.consumer.eventTypes },
   );
@@ -166,6 +190,8 @@ function catalogFallback(): PriceEditNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    safeName: safeDisplayName,
+    editorText: editorLabel,
   };
 }
 function recipientIds(rows: Record<string, unknown>[]): string[] {
@@ -179,7 +205,9 @@ function parameter(rows: Record<string, unknown>[], name: string): string {
   const payload = rows[0]?.['payload'] as {
     notification_recipients: { safe_parameters: { name: string; value: string }[] }[];
   };
-  const found = payload.notification_recipients[0]?.safe_parameters.find((item) => item.name === name);
+  const found = payload.notification_recipients[0]?.safe_parameters.find(
+    (item) => item.name === name,
+  );
   if (!found) throw new Error(`missing ${name}`);
   return found.value;
 }

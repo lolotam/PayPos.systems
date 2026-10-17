@@ -1,5 +1,5 @@
 import type { ClaimedEvent, Tx } from '@pospay/db';
-import { t } from '@pospay/i18n';
+import { editorLabel, safeDisplayName, t } from '@pospay/i18n';
 import { createLogger } from '@pospay/observability';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 import { TENANT } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
@@ -102,9 +102,7 @@ it('test 8: a missing branch place is invalid and rolls the ledger back', async 
 });
 
 it('test 8: a history row with no name and no role is invalid', async () => {
-  await expectInvalid(
-    await f.edit({ editorNameAr: null, editorNameEn: null, editorRole: null }),
-  );
+  await expectInvalid(await f.edit({ editorNameAr: null, editorNameEn: null, editorRole: null }));
 });
 
 async function expectInvalid(prepared: PreparedEdit, event: ClaimedEvent = prepared.event) {
@@ -132,5 +130,7 @@ function catalogFallback(): PriceEditNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    safeName: safeDisplayName,
+    editorText: editorLabel,
   };
 }

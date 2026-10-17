@@ -1,14 +1,16 @@
-import { editorLabel, safeDisplayName } from '@pospay/i18n';
-
 /** القاعدة المؤقتة حتى يضيف البند 62 مفاتيح تعطيل التنبيه؛ المحرر لا يُستثنى (ED-Q10). */
 export interface PriceEditNoticeRule {
   readonly channel: 'IN_APP';
   readonly roles: readonly string[];
 }
-/** تسميات الكتالوج المحقونة للخدمة والفرع عند رفض اسمهما؛ تسمية المحرر تأتي من editorLabel. */
+/**
+ * تسميات الكتالوج ودالتا العرض المحقونتان؛ domain لا يستورد i18n فتُحقن editorLabel وsafeDisplayName من التوصيل.
+ */
 export interface PriceEditNameFallback {
   readonly service: { readonly ar: string; readonly en: string };
   readonly branch: { readonly ar: string; readonly en: string };
+  readonly safeName: (value: string | null) => string | null;
+  readonly editorText: (locale: 'ar' | 'en', editor: PriceEditEditorSnapshot) => string;
 }
 /** ترتيب ED-Q11 ثابت؛ المبلغ نص بثلاث خانات وليس ناتج تحويل رقمي. */
 export type PriceEditParameters = [
@@ -80,8 +82,18 @@ export function priceEditRecipientGroups(userIds: readonly string[]): {
  */
 export function priceEditNoticeParameters(input: PriceEditParameterInput): PriceEditParameters {
   assertPriceEditEventValues(input);
-  const service = bilingual(input.service.nameAr, input.service.nameEn, input.fallback.service);
-  const branch = bilingual(input.branch.nameAr, input.branch.nameEn, input.fallback.branch);
+  const service = bilingual(
+    input.service.nameAr,
+    input.service.nameEn,
+    input.fallback.service,
+    input.fallback.safeName,
+  );
+  const branch = bilingual(
+    input.branch.nameAr,
+    input.branch.nameEn,
+    input.fallback.branch,
+    input.fallback.safeName,
+  );
   return [
     { name: 'service_name_ar', type: 'text', value: service.ar },
     { name: 'service_name_en', type: 'text', value: service.en },
@@ -98,10 +110,11 @@ function bilingual(
   nameAr: string | null,
   nameEn: string | null,
   fallback: { readonly ar: string; readonly en: string },
+  safeName: (value: string | null) => string | null,
 ) {
   return {
-    ar: safeDisplayName(nameAr) ?? safeDisplayName(nameEn) ?? fallback.ar,
-    en: safeDisplayName(nameEn) ?? fallback.en,
+    ar: safeName(nameAr) ?? safeName(nameEn) ?? fallback.ar,
+    en: safeName(nameEn) ?? fallback.en,
   };
 }
 /**
@@ -109,12 +122,16 @@ function bilingual(
  * حتى لا يظهر محرر مجهول في الجرس.
  *
  * @param editor الاسمان ولقطة الدور كما خُزنت وقت الحفظ
+ * @param fallback دالة editorLabel المحقونة
  * @returns الاسم العربي والإنجليزي الجاهزين لمعاملات القالب
  */
-export function priceEditEditorLabel(editor: PriceEditEditorSnapshot): PriceEditEditorLabel {
+export function priceEditEditorLabel(
+  editor: PriceEditEditorSnapshot,
+  fallback: Pick<PriceEditNameFallback, 'editorText'>,
+): PriceEditEditorLabel {
   const hasName = [editor.nameAr, editor.nameEn].some((name) => (name?.trim() ?? '') !== '');
   if (!hasName && editor.role === null) throw new Error('PRICE_EDIT_EVENT_INVALID');
-  return { ar: editorLabel('ar', editor), en: editorLabel('en', editor) };
+  return { ar: fallback.editorText('ar', editor), en: fallback.editorText('en', editor) };
 }
 /**
  * يرفض تاريخًا غير تقويمي أو مبلغًا غير قانوني قبل حجز دفتر الجرس، حتى لا يُحجز صف لحدث فاسد.

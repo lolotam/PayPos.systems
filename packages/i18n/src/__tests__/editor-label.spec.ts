@@ -35,12 +35,19 @@ describe('editorLabel: role when there is no employee name (LE-22)', () => {
     expect(label({ role: 'cashier' }).ar).toBe('كاشير');
   });
   it('shows a company role with its own stored name, even when its code equals a system role', () => {
-    const company = { role: 'cashier', roleIsSystem: false, roleNameAr: 'أمينة الصندوق', roleNameEn: 'Till lead' };
+    const company = {
+      role: 'cashier',
+      roleIsSystem: false,
+      roleNameAr: 'أمينة الصندوق',
+      roleNameEn: 'Till lead',
+    };
     expect(label(company)).toEqual({ ar: 'أمينة الصندوق', en: 'Till lead' });
     expect(label({ ...company, roleNameAr: null })).toEqual({ ar: 'Till lead', en: 'Till lead' });
   });
   it('reads rows written before the role snapshot: owner and manager still map', () => {
-    expect(label({ role: 'manager', roleIsSystem: null, roleNameAr: null, roleNameEn: null })).toEqual({
+    expect(
+      label({ role: 'manager', roleIsSystem: null, roleNameAr: null, roleNameEn: null }),
+    ).toEqual({
       ar: 'المدير',
       en: 'Manager',
     });
@@ -49,14 +56,28 @@ describe('editorLabel: role when there is no employee name (LE-22)', () => {
 
 describe('editorLabel: generic labels', () => {
   it('uses the generic user label when a company role name is unsafe', () => {
-    const unsafe = { role: 'x', roleIsSystem: false, roleNameAr: null, roleNameEn: 'https://example.test' };
+    const unsafe = {
+      role: 'x',
+      roleIsSystem: false,
+      roleNameAr: null,
+      roleNameEn: 'https://example.test',
+    };
     expect(label(unsafe)).toEqual({ ar: 'مستخدم', en: 'User' });
   });
   it('uses the generic employee label when a stored name is unsafe and no role is usable', () => {
-    const unsafe = { nameEn: '12345678', role: null, roleIsSystem: null, roleNameAr: null, roleNameEn: null };
+    const unsafe = {
+      nameEn: '12345678',
+      role: null,
+      roleIsSystem: null,
+      roleNameAr: null,
+      roleNameEn: null,
+    };
     expect(label(unsafe)).toEqual({ ar: 'موظف', en: 'Employee' });
   });
   it('prefers the role over the generic employee label when only the name is unsafe', () => {
-    expect(label({ nameEn: 'https://example.test', role: 'branch_manager' })).toEqual({ ar: 'المدير', en: 'Manager' });
+    expect(label({ nameEn: 'https://example.test', role: 'branch_manager' })).toEqual({
+      ar: 'المدير',
+      en: 'Manager',
+    });
   });
 });
