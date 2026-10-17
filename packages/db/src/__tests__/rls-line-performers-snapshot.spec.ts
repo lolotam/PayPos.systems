@@ -81,21 +81,22 @@ it('hides the snapshot columns from the other company', async () => {
   expect((await as(A.company, query)).length).toBeGreaterThan(0);
 });
 
-it('keeps the snapshot immutable: no UPDATE grant on the table or its columns, DELETE refused', async () => {
+it('keeps the snapshot immutable: no UPDATE grant, and an unjustified DELETE cannot commit', async () => {
   for (const statement of [
     sql`UPDATE line_performers SET linked_user_id=NULL`,
     sql`UPDATE line_performers SET linked_user_snapshotted=true`,
-    sql`DELETE FROM line_performers`,
   ]) {
     const error = await as(A.company, statement).then(() => null, (caught: unknown) => caught);
     expect((error as Error & { cause?: Error }).cause?.message).toMatch(/permission denied/);
   }
+  const deleted = await as(A.company, sql`DELETE FROM line_performers`).then(() => null, (caught: unknown) => caught);
+  expect((deleted as Error & { cause?: Error }).cause?.message).toMatch(/change header/);
   const [grants] = await owner`SELECT
     has_table_privilege('pospay_app','line_performers','SELECT') AS can_select,
     has_table_privilege('pospay_app','line_performers','INSERT') AS can_insert,
     has_any_column_privilege('pospay_app','line_performers','UPDATE') AS can_update_any_column,
     has_table_privilege('pospay_app','line_performers','DELETE') AS can_delete`;
-  expect(grants).toEqual({ can_select: true, can_insert: true, can_update_any_column: false, can_delete: false });
+  expect(grants).toEqual({ can_select: true, can_insert: true, can_update_any_column: false, can_delete: true });
 });
 
 it('indexes the linked user for the foreign key, partially', async () => {

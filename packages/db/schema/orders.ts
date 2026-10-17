@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, date, foreignKey, index, integer, numeric, pgTable, primaryKey, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
+import { boolean, check, customType, date, foreignKey, index, integer, numeric, pgTable, primaryKey, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 import { companies, branches } from './tenancy.ts';
 import { customers } from './customers.ts';
 import { services } from './catalog.ts';
@@ -8,6 +8,8 @@ import { memberships } from './identity-access.ts';
 import { user } from './identity-auth.ts';
 
 const scope = () => ({ companyId: uuid('company_id').notNull().references(() => companies.id), id: uuid('id').notNull(), businessId: uuid('business_id').notNull() });
+// معرّف المعاملة ليس قيمة يرسلها العميل؛ التريغر يستبدله دائماً لأن القيمة الافتراضية وحدها تُزوَّر.
+const xid8 = customType<{ data: string }>({ dataType: () => 'xid8' });
 const recorder = () => ({ recordedBy: uuid('recorded_by').notNull().references(() => user.id), recordedByMembershipId: uuid('recorded_by_membership_id').notNull(), recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(), late: boolean('late').notNull() });
 const money = (name: string) => numeric(name, { precision: 14, scale: 3 });
 
@@ -210,4 +212,79 @@ export const linePerformers = pgTable('line_performers', {
   index('line_performers_linked_user_idx').on(t.linkedUserId).where(sql`${t.linkedUserId} IS NOT NULL`),
   check('line_performers_linked_user_snapshot', sql`${t.linkedUserId} IS NULL OR ${t.linkedUserSnapshotted}`),
   check('line_performers_share', sql`${t.shareBps} BETWEEN 1 AND 10000 AND ${t.performerOrdinal} BETWEEN 1 AND 4`),
+]);
+
+export const serviceLinePerformerChanges = pgTable('service_line_performer_changes', {
+  companyId: uuid('company_id').notNull(),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  // السطر هو مرساة الصف الوحيدة؛ الجلسة تُقرأ منه حتى لا يسمي التاريخ سطراً من زيارة أخرى.
+  lineId: uuid('line_id').notNull(),
+  revision: integer('revision').notNull(),
+  previousRevision: integer('previous_revision').notNull(),
+  reason: text('reason').notNull(),
+  changedAt: timestamp('changed_at', { withTimezone: true }).notNull(),
+  changedBy: uuid('changed_by').notNull(),
+  changedByMembershipId: uuid('changed_by_membership_id').notNull(),
+  changerNameAr: text('changer_name_ar'),
+  changerNameEn: text('changer_name_en'),
+  // لقطة دور العضوية وقت التغيير، بنفس قاعدة 35d-3b: الكود والأسماء لا تُعاد قراءتها من جدول الأدوار.
+  changerRole: text('changer_role'),
+  changerRoleIsSystem: boolean('changer_role_is_system'),
+  changerRoleNameAr: text('changer_role_name_ar'),
+  changerRoleNameEn: text('changer_role_name_en'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  writeXid: xid8('write_xid').notNull(),
+}, (t) => [
+  primaryKey({ name: 'slpc_pk', columns: [t.companyId, t.id] }),
+  unique('slpc_line_revision_uq').on(t.companyId, t.lineId, t.revision),
+  unique('slpc_business_id_uq').on(t.companyId, t.businessId, t.id),
+  unique('slpc_line_xid_uq').on(t.companyId, t.lineId, t.writeXid),
+  foreignKey({ name: 'slpc_company_fk', columns: [t.companyId], foreignColumns: [companies.id] }),
+  foreignKey({ name: 'slpc_line_fk', columns: [t.companyId, t.businessId, t.lineId], foreignColumns: [serviceLines.companyId, serviceLines.businessId, serviceLines.id] }),
+  foreignKey({ name: 'slpc_membership_fk', columns: [t.companyId, t.changedBy, t.changedByMembershipId], foreignColumns: [memberships.companyId, memberships.userId, memberships.id] }),
+  foreignKey({ name: 'slpc_actor_fk', columns: [t.changedBy], foreignColumns: [user.id] }),
+  index('slpc_history_idx').on(t.companyId, t.businessId, t.lineId, t.revision.desc()),
+  index('slpc_membership_idx').on(t.companyId, t.changedBy, t.changedByMembershipId),
+  index('slpc_actor_idx').on(t.changedBy),
+  check('slpc_revision_ck', sql`${t.previousRevision} >= 1 AND ${t.revision} = ${t.previousRevision} + 1`),
+  check('slpc_reason_ck', sql`${t.reason} = btrim(${t.reason}, chr(9) || chr(10) || chr(13) || chr(32)) AND char_length(${t.reason}) BETWEEN 1 AND 500`),
+  check('slpc_changer_names_ck', sql`${t.changerNameAr} IS NULL OR ${t.changerNameEn} IS NOT NULL`),
+  check('slpc_changer_role_ck', sql`${t.changerRole} ~ '^[a-z][a-z_]{0,63}$'`),
+  check('slpc_changer_role_snapshot_ck', sql`(${t.changerRole} IS NULL) = (${t.changerRoleIsSystem} IS NULL) AND (${t.changerRole} IS NULL) = (${t.changerRoleNameEn} IS NULL) AND (${t.changerRoleNameAr} IS NULL OR ${t.changerRoleNameEn} IS NOT NULL)`),
+  check('slpc_changer_identity_ck', sql`${t.changerNameEn} IS NOT NULL OR ${t.changerRole} IS NOT NULL`),
+  check('slpc_changer_lengths_ck', sql`char_length(${t.changerNameAr}) <= 255 AND char_length(${t.changerNameEn}) <= 255 AND char_length(${t.changerRoleNameAr}) <= 255 AND char_length(${t.changerRoleNameEn}) <= 255`),
+]);
+
+export const serviceLinePerformerChangeRows = pgTable('service_line_performer_change_rows', {
+  companyId: uuid('company_id').notNull(),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  changeId: uuid('change_id').notNull(),
+  // لا line_id هنا: الرأس يسمي سطراً واحداً، وتكرار السطر يفتح صفاً يخالف رأسه.
+  side: text('side').notNull(),
+  employeeId: uuid('employee_id').notNull(),
+  performerOrdinal: integer('performer_ordinal').notNull(),
+  shareBps: integer('share_bps').notNull(),
+  nameEn: text('name_en').notNull(),
+  nameAr: text('name_ar'),
+  linkedUserId: uuid('linked_user_id'),
+  linkedUserSnapshotted: boolean('linked_user_snapshotted').notNull(),
+  // التحذيران جزء من مجموعة المقارنة؛ NULL كان سيخفي فرقاً بين الصف الحي والتاريخ.
+  notClockedInWarning: boolean('not_clocked_in_warning').notNull(),
+  approvedLeaveWarning: boolean('approved_leave_warning').notNull(),
+}, (t) => [
+  primaryKey({ name: 'slpcr_pk', columns: [t.companyId, t.id] }),
+  unique('slpcr_employee_uq').on(t.companyId, t.changeId, t.side, t.employeeId),
+  unique('slpcr_ordinal_uq').on(t.companyId, t.changeId, t.side, t.performerOrdinal),
+  foreignKey({ name: 'slpcr_company_fk', columns: [t.companyId], foreignColumns: [companies.id] }),
+  foreignKey({ name: 'slpcr_change_fk', columns: [t.companyId, t.businessId, t.changeId], foreignColumns: [serviceLinePerformerChanges.companyId, serviceLinePerformerChanges.businessId, serviceLinePerformerChanges.id] }),
+  foreignKey({ name: 'slpcr_employee_fk', columns: [t.companyId, t.businessId, t.employeeId], foreignColumns: [employees.companyId, employees.businessId, employees.id] }),
+  foreignKey({ name: 'slpcr_user_fk', columns: [t.linkedUserId], foreignColumns: [user.id] }),
+  index('slpcr_change_fk_idx').on(t.companyId, t.businessId, t.changeId),
+  index('slpcr_employee_idx').on(t.companyId, t.businessId, t.employeeId),
+  index('slpcr_user_idx').on(t.linkedUserId).where(sql`${t.linkedUserId} IS NOT NULL`),
+  check('slpcr_side_ck', sql`${t.side} IN ('BEFORE','AFTER')`),
+  check('slpcr_share_ordinal_ck', sql`${t.shareBps} BETWEEN 1 AND 10000 AND ${t.performerOrdinal} BETWEEN 1 AND 4`),
+  check('slpcr_snapshot_ck', sql`${t.linkedUserId} IS NULL OR ${t.linkedUserSnapshotted}`),
 ]);

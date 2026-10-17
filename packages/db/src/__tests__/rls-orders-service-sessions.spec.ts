@@ -55,7 +55,7 @@ describe.each(tables)('%s forced isolation and insert-only privileges', (table) 
   });
   it('UPDATE/DELETE/TRUNCATE are refused by actual runtime grants', async () => {
     await rejected(asA(sql`UPDATE ${sql.identifier(table)} SET business_id=${B.business}`), /permission denied/);
-    await rejected(asA(sql`DELETE FROM ${sql.identifier(table)}`), /permission denied/);
+    await rejected(asA(sql`DELETE FROM ${sql.identifier(table)}`), table === 'line_performers' ? /change header/ : /permission denied/);
     await rejected(asA(sql`TRUNCATE ${sql.identifier(table)}`), /permission denied/);
   });
   it('same-company parents in another business are refused by the qualified FK', async () => {

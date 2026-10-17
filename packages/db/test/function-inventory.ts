@@ -78,4 +78,41 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
+  {
+    proname: 'line_performers_change_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'service_lines_performer_transition',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  { proname: 'slpc_begin', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  {
+    proname: 'slpc_change_complete',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  { proname: 'slpc_same_tuple', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  {
+    proname: 'slpc_side_shape_ok',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'slpc_tuple_matches',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'slpc_validate_change',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
+  {
+    proname: 'slpcr_insert_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
 ].sort((a, b) => a.proname.localeCompare(b.proname));

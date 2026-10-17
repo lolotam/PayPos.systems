@@ -60,6 +60,8 @@ export const ROLE_DEFAULTS = {
   'record:service-sessions:branch': [...managers, 'branch_manager', 'cashier'],
   'read:service-sessions:branch': [...managers, 'branch_manager'],
   'edit:service-line-prices:branch': [...managers, 'branch_manager'],
+  // spec 055: المديرون الأربعة افتراضياً؛ التفويض لباقي البشر والجهاز يُحسمان في system-role-policy.
+  'change:service-line-performers:branch': [...managers, 'branch_manager'],
   // قرار المالك 2026-10-04 (UNB-Q1): المديرون الأربعة فقط افتراضياً ضمن نطاقاتهم؛ تفويض الأدوار المخصصة يبقى كما هو.
   'read:passkeys:branch': [...managers, 'branch_manager'],
   'unbind:passkeys:branch': [...managers, 'branch_manager'],

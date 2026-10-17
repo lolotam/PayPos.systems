@@ -74,3 +74,7 @@ the wording of the two labels it names; a company role's name is whatever its ow
 - No module-map change: the role snapshot is returned by the identity read `SessionEditAccessPort` already performs; if that
   needs a new export symbol, 35d-4 declares its §6 entry.
 - The catalogs say «المالك» (bell) and «صاحب الشركة» (permissions screen) for the owner role; unifying is a copy change.
+
+## Addendum (row 37b-2, performer change storage)
+
+`line_performers` now also carries `DELETE` for `pospay_app`, but only through a performer change: a `BEFORE DELETE` trigger refuses any row that has no field-for-field matching `BEFORE` row (identity, snapshot flag and warnings included) under a history header created by the same transaction at the line's target revision, and deferred completion checks refuse the commit unless the `AFTER` rows equal the live set and a kept performer keeps her recording-time snapshot. The column `linked_user_id` is still never `UPDATE`d; a removed performer's recorded identity survives in the `BEFORE` rows (`service_line_performer_change_rows`, insert-only), which the retained-identity read of 37b-4d unions with the live rows so the self rule keeps blocking every writer of the line. See spec 055 §6.

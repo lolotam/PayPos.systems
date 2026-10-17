@@ -13,6 +13,7 @@ const deviceForbidden = [
   'record:service-sessions:branch',
   'read:service-sessions:branch',
   'edit:service-line-prices:branch',
+  'change:service-line-performers:branch',
   'read:passkeys:branch',
   'unbind:passkeys:branch',
   ...LEAVE_PERMISSIONS,
@@ -85,6 +86,7 @@ export function systemRolePolicy(roleId: string, ownerKey: string) {
           code === 'record:service-sessions:branch' ||
           code === 'read:service-sessions:branch' ||
           code === 'edit:service-line-prices:branch' ||
+          code === 'change:service-line-performers:branch' ||
           optional[role.code]?.includes(code),
     ),
   };

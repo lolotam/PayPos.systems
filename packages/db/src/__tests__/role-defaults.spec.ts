@@ -10,6 +10,7 @@ const expectations: Record<string, readonly string[]> = {
   ),
   general_manager: [
     'edit:service-line-prices:branch',
+    'change:service-line-performers:branch',
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'read:passkeys:branch',
@@ -41,6 +42,7 @@ const expectations: Record<string, readonly string[]> = {
   ],
   business_manager: [
     'edit:service-line-prices:branch',
+    'change:service-line-performers:branch',
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'read:passkeys:branch',
@@ -71,6 +73,7 @@ const expectations: Record<string, readonly string[]> = {
   accountant: ['read:businesses:company', 'read:branches:branch', 'read:attendance:branch'],
   branch_manager: [
     'edit:service-line-prices:branch',
+    'change:service-line-performers:branch',
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'read:passkeys:branch',
@@ -144,6 +147,20 @@ it.each(SYSTEM_ROLES)(
 );
 it('DH-Q5 employee hours default to owner only', () => {
   expect(ROLE_DEFAULTS['manage:employee-hours:business']).toEqual(['owner']);
+});
+
+it('change:service-line-performers:branch defaults to the four managers and devices cannot hold it', () => {
+  const defaults = ['owner', 'general_manager', 'business_manager', 'branch_manager'];
+  const holders: readonly string[] = ROLE_DEFAULTS['change:service-line-performers:branch'];
+  expect(holders).toEqual(defaults);
+  for (const role of SYSTEM_ROLES) {
+    expect(holders.includes(role.code)).toBe(defaults.includes(role.code));
+    expect(
+      systemRolePolicy(role.id, 'global')?.permissions.includes(
+        'change:service-line-performers:branch',
+      ),
+    ).toBe(role.code !== 'device');
+  }
 });
 
 it('edit:service-line-prices:branch defaults to the four managers and stays off for everyone else', () => {
