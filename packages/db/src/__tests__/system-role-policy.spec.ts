@@ -46,6 +46,7 @@ for (const entry of SYSTEM_ROLES) {
     'read:service-sessions:branch',
     'edit:service-line-prices:branch',
     'change:service-line-performers:branch',
+    'cancel:service-lines:branch',
     'read:files:business',
     'manage:files:business',
     'manage:document-types:company',
@@ -92,6 +93,7 @@ it.each([
   'manage:discount-limits:business',
   'manage:document-types:company',
   'correct:attendance:branch',
+  'cancel:service-lines:branch',
 ])('Device cannot acquire spec 009 forbidden %s', (permission) => {
   expect(
     systemRolePolicy(role('device'), 'global')?.permissions.some((code) => code === permission),

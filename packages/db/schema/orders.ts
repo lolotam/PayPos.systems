@@ -289,6 +289,51 @@ export const serviceLinePerformerChangeRows = pgTable('service_line_performer_ch
   check('slpcr_snapshot_ck', sql`${t.linkedUserId} IS NULL OR ${t.linkedUserSnapshotted}`),
 ]);
 
+export const serviceLineCancellations = pgTable('service_line_cancellations', {
+  companyId: uuid('company_id').notNull(),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  // السطر هو مرساة الصف الوحيدة؛ الجلسة تُقرأ منه حتى لا يسمي الإلغاء زيارة غير زيارة سطره.
+  lineId: uuid('line_id').notNull(),
+  revision: integer('revision').notNull(),
+  previousRevision: integer('previous_revision').notNull(),
+  // نسخة أرقام السطر وقت الإلغاء؛ البند الملغي لا يتغير بعدها فالمطابقة تبقى صحيحة بعد الاستعادة.
+  previousPrice: money('previous_price').notNull(),
+  previousDiscount: money('previous_discount').notNull(),
+  previousNet: money('previous_net').notNull(),
+  cancelledBy: uuid('cancelled_by').notNull(),
+  cancelledByMembershipId: uuid('cancelled_by_membership_id').notNull(),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }).notNull(),
+  reason: text('reason').notNull(),
+  cancellerNameAr: text('canceller_name_ar'),
+  cancellerNameEn: text('canceller_name_en'),
+  // لقطة دور العضوية وقت الإلغاء، بنفس قاعدة 35d-3b: الكود والأسماء لا تُعاد قراءتها من جدول الأدوار.
+  cancellerRole: text('canceller_role'),
+  cancellerRoleIsSystem: boolean('canceller_role_is_system'),
+  cancellerRoleNameAr: text('canceller_role_name_ar'),
+  cancellerRoleNameEn: text('canceller_role_name_en'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ name: 'slc_pk', columns: [t.companyId, t.id] }),
+  unique('slc_line_uq').on(t.companyId, t.lineId),
+  foreignKey({ name: 'slc_company_fk', columns: [t.companyId], foreignColumns: [companies.id] }),
+  foreignKey({ name: 'slc_line_fk', columns: [t.companyId, t.businessId, t.lineId], foreignColumns: [serviceLines.companyId, serviceLines.businessId, serviceLines.id] }),
+  foreignKey({ name: 'slc_membership_fk', columns: [t.companyId, t.cancelledBy, t.cancelledByMembershipId], foreignColumns: [memberships.companyId, memberships.userId, memberships.id] }),
+  foreignKey({ name: 'slc_actor_fk', columns: [t.cancelledBy], foreignColumns: [user.id] }),
+  index('slc_line_fk_idx').on(t.companyId, t.businessId, t.lineId),
+  index('slc_membership_idx').on(t.companyId, t.cancelledBy, t.cancelledByMembershipId),
+  index('slc_actor_idx').on(t.cancelledBy),
+  check('slc_revision_ck', sql`${t.previousRevision} >= 1 AND ${t.revision} = ${t.previousRevision} + 1`),
+  // الحد الأعلى سقف numeric لرفض NaN، مش سقفاً تجارياً.
+  check('slc_previous_amounts_ck', sql`${t.previousPrice} >= 0 AND ${t.previousPrice} <= 99999999999.999 AND ${t.previousDiscount} BETWEEN 0 AND ${t.previousPrice} AND ${t.previousNet} = ${t.previousPrice} - ${t.previousDiscount}`),
+  check('slc_reason_ck', sql`${t.reason} = btrim(${t.reason}, chr(9) || chr(10) || chr(13) || chr(32)) AND char_length(${t.reason}) BETWEEN 1 AND 500`),
+  check('slc_canceller_names_ck', sql`${t.cancellerNameAr} IS NULL OR ${t.cancellerNameEn} IS NOT NULL`),
+  check('slc_canceller_role_ck', sql`${t.cancellerRole} ~ '^[a-z][a-z_]{0,63}$'`),
+  check('slc_canceller_role_snapshot_ck', sql`(${t.cancellerRole} IS NULL) = (${t.cancellerRoleIsSystem} IS NULL) AND (${t.cancellerRole} IS NULL) = (${t.cancellerRoleNameEn} IS NULL) AND (${t.cancellerRoleNameAr} IS NULL OR ${t.cancellerRoleNameEn} IS NOT NULL)`),
+  check('slc_canceller_identity_ck', sql`${t.cancellerNameEn} IS NOT NULL OR ${t.cancellerRole} IS NOT NULL`),
+  check('slc_canceller_lengths_ck', sql`char_length(${t.cancellerNameAr}) <= 255 AND char_length(${t.cancellerNameEn}) <= 255 AND char_length(${t.cancellerRoleNameAr}) <= 255 AND char_length(${t.cancellerRoleNameEn}) <= 255`),
+]);
+
 export const sessionTipRevisions = pgTable('session_tip_revisions', {
   companyId: uuid('company_id').notNull(),
   id: uuid('id').notNull(),
