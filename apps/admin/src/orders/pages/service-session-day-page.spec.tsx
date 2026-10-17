@@ -85,6 +85,30 @@ it('keeps the other line draft when an earlier save settles', async () => {
   expect((screen.getByLabelText(t('en', 'serviceLineEdit.reason')) as HTMLInputElement).value).toBe('from b');
 });
 
+it('keeps a reopened line draft when its earlier save settles', async () => {
+  state.online = true; state.locale = 'en'; state.get.mockReset(); state.patch.mockReset();
+  state.get.mockResolvedValue(day);
+  let settle: (value: { data: { saved: true; edited: true }; response: { status: 200 } }) => void = () => undefined;
+  state.patch.mockReturnValue(new Promise((resolve) => { settle = resolve; }));
+  renderPage();
+  await screen.findByText('Synthetic customer');
+  const editName = t('en', 'serviceLineEdit.edit');
+  const first = screen.getAllByRole('button', { name: editName })[0];
+  if (!first) throw new Error('missing edit button');
+  fireEvent.click(first);
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'from a' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.close') }));
+  const reopened = screen.getAllByRole('button', { name: editName })[0];
+  if (!reopened) throw new Error('missing edit button');
+  fireEvent.click(reopened);
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'reopened' } });
+  await act(async () => { settle({ data: { saved: true, edited: true }, response: { status: 200 } }); });
+  expect(await screen.findByText(t('en', 'serviceLineEdit.saved'))).toBeTruthy();
+  expect((screen.getByLabelText(t('en', 'serviceLineEdit.reason')) as HTMLInputElement).value).toBe('reopened');
+});
+
 it('uses the locale direction on the day list', async () => {
   state.online = true; state.locale = 'ar'; state.get.mockReset();
   state.get.mockResolvedValue({ data: { items: [], next_cursor: null }, response: { status: 200 } });

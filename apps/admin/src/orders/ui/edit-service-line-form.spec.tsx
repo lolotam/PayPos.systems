@@ -85,6 +85,21 @@ it('shows a stale revision, refetches once, and waits for a second save', async 
   expect(bodyOf(0).expected_revision).toBe(1); expect(bodyOf(1).expected_revision).toBe(2); expect(keyOf(0)).not.toBe(keyOf(1));
 });
 
+it('adopts one refreshed revision after a stale save and ignores the next background change', async () => {
+  state.patch.mockReset();
+  state.patch.mockResolvedValueOnce(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 2 })).mockResolvedValue(saved);
+  const view = shown(); fill('because', '12.000', '1.000'); save();
+  await waitFor(() => expect(view.onStale).toHaveBeenCalledTimes(1));
+  const refreshed = { ...dayLine(2), price: '11.000', discount: '0.500', net: '10.500' };
+  view.rerender(view.ui(refreshed));
+  expect(screen.getByText(t('en', 'serviceLineEdit.current'), { exact: false }).textContent).toContain(formatKwd(parseMoney('11.000')));
+  view.rerender(view.ui({ ...refreshed, revision: 5, price: '13.000', discount: '0.000', net: '13.000' }));
+  save();
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(2));
+  expect(bodyOf(0).expected_revision).toBe(1);
+  expect(bodyOf(1).expected_revision).toBe(2);
+});
+
 it('rejects an amount discount above the price before submit', async () => {
   state.patch.mockReset();
   const resolved = await resolveEditLine({

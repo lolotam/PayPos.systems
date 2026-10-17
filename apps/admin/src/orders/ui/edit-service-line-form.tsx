@@ -1,8 +1,8 @@
 'use client';
 import type { EditServiceLineInput, ServiceSessionDayPage } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
-import type { Dispatch, KeyboardEvent, SetStateAction } from 'react';
-import { useEffect, useState } from 'react';
+import type { KeyboardEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEditServiceLine } from '../api/use-edit-service-line';
@@ -27,14 +27,15 @@ function submitOnEnter(online: boolean, pending: boolean) {
   };
 }
 
-function applyEditError(error: unknown, locale: Locale, form: UseFormReturn<EditLineFormInput, unknown, EditServiceLineInput>, setRoot: (message: string) => void, setLimit: (details: EditLimitDetails | null) => void, setMemberships: (ids: string[]) => void, setStaleSeen: Dispatch<SetStateAction<boolean>>, props: EditServiceLineFormProps) {
+function applyEditError(error: unknown, locale: Locale, form: UseFormReturn<EditLineFormInput, unknown, EditServiceLineInput>, setRoot: (message: string) => void, setLimit: (details: EditLimitDetails | null) => void, setMemberships: (ids: string[]) => void, props: EditServiceLineFormProps) {
   const failure = classifyEditError(error, locale);
-  if (failure.kind === 'stale') { setRoot(failure.message); setStaleSeen(true); props.onStale(); return; }
-  if (failure.kind === 'forbidden') { props.onForbidden(failure.message); props.onClose(); return; }
-  if (failure.kind === 'field') { form.setError(failure.field, { message: failure.message }); return; }
-  if (failure.kind === 'limit') { setLimit(failure.details); setRoot(failure.message); return; }
-  if (failure.kind === 'membership') { setMemberships(failure.ids); setRoot(failure.message); return; }
+  if (failure.kind === 'stale') { setRoot(failure.message); props.onStale(); return form.getValues('expected_revision'); }
+  if (failure.kind === 'forbidden') { props.onForbidden(failure.message); props.onClose(); return null; }
+  if (failure.kind === 'field') { form.setError(failure.field, { message: failure.message }); return null; }
+  if (failure.kind === 'limit') { setLimit(failure.details); setRoot(failure.message); return null; }
+  if (failure.kind === 'membership') { setMemberships(failure.ids); setRoot(failure.message); return null; }
   setRoot(failure.message);
+  return null;
 }
 
 export function EditServiceLineForm(props: EditServiceLineFormProps) {
@@ -43,14 +44,19 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
   const [root, setRoot] = useState<string | null>(null);
   const [limit, setLimit] = useState<EditLimitDetails | null>(null);
   const [memberships, setMemberships] = useState<string[]>([]);
-  const [staleSeen, setStaleSeen] = useState(false);
+  const [staleFrom, setStaleFrom] = useState<number | null>(null);
+  const usedFrom = useRef<number | null>(null);
   const form = useForm<EditLineFormInput, unknown, EditServiceLineInput>({
     resolver: resolveEditLine,
     defaultValues: { price: props.line.price, discount_kind: 'AMOUNT', discount_value: props.line.discount, reason: '', expected_revision: props.line.revision, editor_membership_id: '' },
   });
   const { setValue, control } = form;
-  // المراجعة بتتجمد على قيمة الفتح؛ بتتقدم بس بعد 409 عشان إعادة الجلب في الخلفية ما تعدّيش مقارنة النسخة.
-  useEffect(() => { if (staleSeen) setValue('expected_revision', props.line.revision); }, [staleSeen, props.line.revision, setValue]);
+  // بعد 409 بننسخ المراجعة الأكبر من المرفوضة مرة واحدة، وبعدين بنقفل الباب عشان الجلب التالي ما يبدّلش النسخة المخفية.
+  useEffect(() => {
+    if (staleFrom === null || props.line.revision <= staleFrom || usedFrom.current === staleFrom) return;
+    setValue('expected_revision', props.line.revision);
+    usedFrom.current = staleFrom;
+  }, [staleFrom, props.line.revision, setValue]);
   const watched = useWatch({ control });
   const pending = mutation.isPending;
   const submit = form.handleSubmit(async (body) => {
@@ -60,7 +66,10 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
     try {
       await mutation.mutateAsync({ sessionId: props.sessionId, lineId: props.line.id, body });
       props.onSaved();
-    } catch (error) { applyEditError(error, locale, form, setRoot, setLimit, setMemberships, setStaleSeen, props); }
+    } catch (error) {
+      const refused = applyEditError(error, locale, form, setRoot, setLimit, setMemberships, props);
+      if (refused !== null) setStaleFrom(refused);
+    }
   });
   return <form className="grid gap-3 text-start" onSubmit={(event) => { void submit(event); }} onKeyDown={submitOnEnter(props.online, pending)}>
     {root ? <p role="alert">{root}</p> : null}
