@@ -90,7 +90,10 @@ mark and the edit response carries no history fields to a caller without that pe
 The edit commits a financial change, so the HTTP guard's decision is not enough. The 35d-4 use case rechecks the selected
 editor membership, the new permission, DENY state and feature through an orders-owned `SessionEditAccessPort`
 (`lock()` then `read()`, mirroring recording's access port), after all line and performer waits and before an
-idempotency replay returns; the editor's effective discount limit is read fresh in the same transaction
+idempotency replay returns (`lock()` is recording's access lock over the company's memberships, so the principal's effective
+branch-read decision that projects the response is read under the same locks, through the protected effective-access
+decision with owner immunity: [spec-35d](../specs/050-orders-record-service-session/spec-35d.md) FR-013/FR-014); the
+editor's effective discount limit is read fresh in the same transaction
 (`DiscountLimitPort.read`, ED-Q2). The exact §6 read entries are declared with this ADR.
 
 ## Consequences

@@ -121,7 +121,7 @@ the outbox.
 **Acceptance Scenarios**:
 
 - **LE-14** The edit response and every receptionist-visible payload carry the boolean
-  `edited` (optional, default `false`, on record/append; true when at least one price/discount edit exists for the line), and **none** of: previous price/discount/net, the editor's identity (user, membership, name,
+  `edited` (on record/append an optional field where absent means `false`, LE-16 and FR-019; `true` when at least one price/discount edit exists for the line), and **none** of: previous price/discount/net, the editor's identity (user, membership, name,
   role), the edit time, the reason. A caller holding the edit permission but not `read:service-sessions:branch` gets
   none of those fields (acceptance test of plan-35d §8) and, in the **edit response** itself (ED-Q14, FR-014), also none of the
   line's current price, discount, net or the visit total: only that the edit was saved and `edited`. The integration test asserts
@@ -131,8 +131,11 @@ the outbox.
 - **LE-16** The day list and the edit response always carry the boolean `edited`; the record and append responses carry it
   as an optional field that reads as `false` when absent (a replayed pre-35d-4 response, FR-019). It is derived
   server-side from the existence of a `service_line_edits` row for the line — **not** from `revision`, which cancel (37) and
-  performer changes (37b) also bump (a performer reassignment must not show the badge with an empty history). It is `false` in
-  the recording and append responses.
+  performer changes (37b) also bump (a performer reassignment must not show the badge with an empty history). In the **record**
+  response every line is new, so `edited` is `false`. The **append** response returns the whole visit (`session.lines`, not only
+  the added lines), so the writer derives `edited` for every line already on the visit with the same existence test over
+  `service_line_edits` as the day list; only the lines that very request added are known to be `false` without a lookup. A line
+  edited earlier never reads `false` in a freshly built append response.
 
 ### User Story 5 — Retries, races and authority (Priority: P2)
 
@@ -201,7 +204,8 @@ the outbox.
   `linked_user_id` snapshot of any performer of the line, **or** the current `employees.user_id` of any performer
   (read through `PerformerCheckPort` after `lock(employeeIds)`, `FOR SHARE`). The comparison is one pure orders domain
   function; null never matches (an unlinked performer cannot be detected as the editor, as in SS-25). Before comparing, if
-  any performer row has `linked_user_snapshotted = false`, refuse with `SESSION_EDIT_IDENTITY_UNKNOWN` (LE-13b).
+  any performer row has `linked_user_snapshotted = false`, refuse with `SESSION_EDIT_IDENTITY_UNKNOWN` (LE-13b). Performers a
+  later row-37b change removed from the line keep blocking through their retained identity (BR-002, BR-002b).
 - **FR-008** ED-Q5: `reason` is required, trimmed of leading/trailing space, tab, CR and LF, then 1…500 characters.
   The database `CHECK service_line_edits_reason` of 35d-3 already enforces the same rule; the domain function mirrors it
   and is the unit-tested source (D-7).
@@ -221,11 +225,20 @@ the outbox.
   (names first, then role per LE-22), used by the worker bell (35d-2b) and by the history read (35d-5). A label that fails the
   display-name filter falls back to the generic label (Assumptions).
 - **FR-013** Authority is rechecked inside the locked transaction through `SessionEditAccessPort` (`lock()` then `read()`),
-  before an idempotency replay returns, after every line and performer wait (plan-35d §8).
+  before an idempotency replay returns, after every line and performer wait (plan-35d §8). `lock()` is the recording access
+  lock (the company row, then the company's membership rows in id order, all `FOR SHARE`, the same catalog order as recording),
+  so it covers **every** active membership of the principal, not only the selected editor's. `read()` then evaluates, under
+  those same locks and at one fresh instant: the eligible editor memberships (D-9), the edit permission's DENY state, the
+  `orders` feature and the principal's effective `read:service-sessions:branch` decision that FR-014 projects with. The edit
+  permission and the response projection can therefore never be read under different lock states.
 - **FR-014** (ED-Q14 answered, [owner-questions.ar.md](owner-questions.ar.md) item 34). The response is stored in full
   and **projected on every return, including a replay**, by the caller's **effective** `read:service-sessions:branch` at that moment — evaluated for the principal across **all** their
-  active memberships covering the branch, with the repository's usual semantics (any covering DENY wins, an ALLOW on any
-  membership counts), read in the same locked transaction through `SessionEditAccessPort`. The selected editor membership is used
+  active memberships covering the branch, through the repository's **protected effective-access decision** (the same evaluation
+  the rest of the admin API uses, not an aggregation of raw denials): an ALLOW on any membership counts, a covering DENY wins,
+  **except** that owner protection applies first. For an active owner every DENY other than `login:staff:branch` is ignored by
+  the decision (`protectOwnerAccess` in `identity`, the owner immunity of [spec 019](../019-identity-role-default-grants/spec.md); the stored rows are not changed), so an active owner is never given the restricted
+  shape, and is never refused the edit, because of a legacy sibling DENY. The same protected decision serves the edit permission's DENY check (FR-013). It is read in the same
+  locked transaction through `SessionEditAccessPort`. The selected editor membership is used
   only for edit attribution, the edit permission and the discount limit, never for this decision. With the permission: the current saved line plus `edited` and the visit
   total. Without it: **no figures at all** (ED-Q14, option 2): the response says only that the edit was saved and carries the `edited`
   mark, with no price, discount, net, previous value, editor, time or visit total, and no number at all (the owner's wording of
@@ -240,11 +253,13 @@ the outbox.
 - **FR-018** History read (35d-5): newest first, by `(company, business, line)` and ordered by revision, cursor on revision,
   `limit` default 50 max 200, under `read:service-sessions:branch` with the `orders` feature; route business/branch/session/line
   mismatch → uniform 403.
-- **FR-019** The mark: `edited` is an additive boolean on the saved-line contract (35d-4 adds it to the line snapshot, always
-  `false` on record/append, true after an edit), and the day-list query of 35d-5 computes it with an `EXISTS` over
+- **FR-019** The mark: `edited` is an additive boolean on the saved-line contract (35d-4 adds it to the line snapshot: `true` in the edit response;
+  `false` for every line of a record response; in an append response derived per line from `service_line_edits`, because that
+  response carries the whole visit, so a line edited earlier is `true` and only the lines added by that request are `false`, LE-16),
+  and the day-list query of 35d-5 computes it with an `EXISTS` over
   `service_line_edits` (index `service_line_edits_line_fk_idx`, covered by the 35d-5 `EXPLAIN` test). Clients never derive it from `revision`.
   Stored idempotent responses of record/append written before 35d-4 (or by an old instance during a rolling deploy) have no
-  `edited` key and are replayed byte for byte: the response contract therefore declares `edited` optional on the record and append responses, where **absent means `false`** (a reader tests `line.edited === true`; a replay never recomputes it), while the edit response always carries it. It is deliberately **not** a Zod `.default(false)`: a default makes the parsed type require the key from every producer (the record and append use cases, the admin and POS fixtures) and would rewrite stored bodies on re-parse.
+  `edited` key and are replayed byte for byte: the response contract therefore declares `edited` optional on the record and append responses, where **absent means `false`** (a reader tests `line.edited === true`; a replay never recomputes it, so it returns the answer as first given), while the edit response always carries it. It is deliberately **not** a Zod `.default(false)`: a default makes the parsed type require the key from every producer (the record and append use cases, the admin and POS fixtures) and would rewrite stored bodies on re-parse.
   The reception screen (35d-6) uses the edit endpoint and shows only the mark (ED-Q12).
 
 ### Key entities
@@ -262,7 +277,8 @@ the outbox.
 - **BR-001** The editor's limit applies to the *result*. Example: list 25.000, edit to price 25.000 / discount 5.000 → net
   20.000 → 2000 bps; allowed at a limit of 2000, refused at 1999 (`ceil` never rounds an excess down).
 - **BR-002** The editor must not be (now, or when the line was recorded) a performer of that line, whatever the role
-  (SS-25 extended in time). A false refusal is accepted: a user who *was* a performer and was later moved off
+  (SS-25 extended in time), subject to BR-002b for performers a row-37b change removed from the line later: BR-002b
+  keeps them blocking too. A false refusal is accepted: a user who *was* a performer and was later moved off
   the employee record cannot edit that old line; another manager can.
 - **BR-002b** The rule looks at the performers attached to the line **at edit time** (their snapshot and their current link) **and** at the performers a later row-37b change removed from it: their recorded identity is retained in the change history and keeps blocking edits, never deleted
   (decided in [spec 055](../055-orders-change-line-performers/spec.md) D-3; the shared read is wired into this writer by 37b-4d, spec 055 FR-017).
@@ -334,7 +350,11 @@ so no deployment window can create an editable line without a snapshot.
   use its own name), name present, name absent, label failing the display-name filter.
 - **Integration (real Postgres, T2 stack)**: `LE-01…LE-23`, each as a named test; plus: stale/no-change/cancelled each leave
   zero outbox, history and audit rows; replay after revocation → 403; limit change while waiting; two-business editor;
-  snapshot unchanged after the employee is deactivated; concurrent edit of the same line (one winner); concurrent edit +
+  snapshot unchanged after the employee is deactivated; an append response over a visit that holds an earlier-edited line shows
+  `edited` true for it and false for the added lines (LE-16, FR-019); **LE-19b** the `read:service-sessions:branch` grant is
+  revoked, expired or denied on a membership other than the selected editor's while the request waits for the access lock → the
+  response is the narrow shape (FR-014, FR-013); an active owner with a legacy sibling DENY of the read gets the full shape and one
+  with a sibling DENY of the edit is not refused (FR-014); concurrent edit of the same line (one winner); concurrent edit +
   append on the same visit serialise on the visit lock; total-too-large; end-to-end through the dispatcher (plan-35d test 10).
 - **Concurrency / lock order** (copy of the append order, line lock added last): idempotency claim → `access.lock()` → visit
   advisory lock → load the line `FOR UPDATE` → `performers.lock(employeeIds)` → `access.read` + `discount.read(editorMembershipId)`
