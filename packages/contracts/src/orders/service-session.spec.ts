@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import { appendServiceSessionLinesInput, recordServiceSessionInput, recordedServiceLine, serviceLineChanged, serviceSessionLinesAdded, serviceSessionRecorded, sessionMoney } from './service-session.js';
+import {
+  appendServiceSessionLinesInput, appendServiceSessionLinesResponse, editServiceLineInput, editServiceLineResponse,
+  editServiceLineResponseFull, editServiceLineResponseNarrow, recordServiceSessionInput, recordServiceSessionResponse,
+  recordedServiceLine, savedServiceLine, serviceLineChanged, serviceSession, serviceSessionLinesAdded, serviceSessionRecorded, sessionMoney,
+} from './service-session.js';
 const id = '01920000-0000-7000-8000-000000004001';
 const other = '01920000-0000-7000-8000-000000004002';
 const line = { service_id: id, price: '7.125', discount: { kind: 'PERCENT', bps: 1000 }, performers: [{ employee_id: id }] };
@@ -107,4 +111,52 @@ it('recorded batches stay without a change block', () => {
   expect(serviceSessionLinesAdded.safeParse(recorded).success).toBe(true);
   expect(serviceSessionRecorded.safeParse({ ...recorded, lines: [{ ...saved, change: priceEdit }] }).success).toBe(false);
   expect(serviceSessionLinesAdded.safeParse({ ...recorded, lines: [{ ...saved, change: priceEdit }] }).success).toBe(false);
+});
+const performer = { id, employee_id: id, performer_ordinal: 1, share_bps: 10000, name_en: 'Mona', name_ar: null, not_clocked_in_warning: false, approved_leave_warning: false };
+const persistedLine = {
+  id, session_id: id, service_id: id, input_index: 0, ordinal: 1, name_en: 'Colour', name_ar: null,
+  list_price: '25.000', price: '25.000', discount: '2.500', net: '22.500', effective_discount_bps: 1000,
+  limit_bps_applied: 1000, limit_source: 'PERSON' as const, status: 'ACTIVE' as const, revision: 1,
+  rule_snapshot: { kind: 'ZERO' as const }, counts_snapshot: true, catalog_revision: 1, has_performer_warning: false,
+  performers: [performer], recorded_by: id, recorded_by_membership_id: id, recorded_at: '2026-10-12T10:00:00.000Z', late: false,
+};
+const persistedSession = {
+  id, business_id: id, branch_id: id, customer: { id, name: 'Customer', phone_masked: '***123' },
+  recorded_by: id, recorded_by_membership_id: id, occurred_at: '2026-10-12T10:00:00.000Z', recorded_at: '2026-10-12T10:00:00.000Z',
+  business_date: '2026-10-12', business_timezone: 'Asia/Kuwait', late: false, total_net: '22.500', lines: [persistedLine],
+};
+const editInput = { price: '25.000', discount: { kind: 'AMOUNT' as const, amount: '5.000' }, expected_revision: 1 };
+it('keeps every payload published before the edit contract parseable without injecting edited', () => {
+  expect(Object.hasOwn(savedServiceLine.parse(persistedLine), 'edited')).toBe(false);
+  expect(savedServiceLine.parse({ ...persistedLine, edited: false }).edited).toBe(false);
+  expect(savedServiceLine.parse({ ...persistedLine, edited: true }).edited).toBe(true);
+  expect(Object.hasOwn(serviceSession.parse(persistedSession).lines[0] ?? {}, 'edited')).toBe(false);
+  const recorded = recordServiceSessionResponse.parse({ outcome: 'COMPLETE', session: persistedSession, rejected_lines: [] });
+  expect(Object.hasOwn(recorded.session.lines[0] ?? {}, 'edited')).toBe(false);
+  const appended = appendServiceSessionLinesResponse.parse({ outcome: 'PARTIAL', session: persistedSession, rejected_lines: [], added_lines: [persistedLine] });
+  expect(Object.hasOwn(appended.added_lines[0] ?? {}, 'edited')).toBe(false);
+});
+it('rejects unknown edit-input keys and still accepts a missing reason', () => {
+  expect(editServiceLineInput.safeParse({ ...editInput, limit_bps: 2000 }).success).toBe(false);
+  expect(editServiceLineInput.safeParse({ ...editInput, net: '20.000' }).success).toBe(false);
+  const parsed = editServiceLineInput.parse(editInput);
+  expect(parsed).not.toHaveProperty('reason');
+  expect(editServiceLineInput.parse({ ...editInput, reason: '', discount: { kind: 'PERCENT', bps: 1000 }, editor_membership_id: id.toUpperCase() }).editor_membership_id).toBe(id);
+  expect(editServiceLineInput.safeParse({ ...editInput, expected_revision: 0 }).success).toBe(false);
+});
+it('requires edited true on the full edit response', () => {
+  const session = { id, total_net: '20.000' };
+  expect(editServiceLineResponseFull.safeParse({ line: persistedLine, session }).success).toBe(false);
+  expect(editServiceLineResponseFull.safeParse({ line: { ...persistedLine, edited: false }, session }).success).toBe(false);
+  expect(editServiceLineResponseFull.parse({ line: { ...persistedLine, edited: true }, session }).line.edited).toBe(true);
+  expect(editServiceLineResponseFull.safeParse({ line: { ...persistedLine, edited: true, extra: true }, session }).success).toBe(false);
+  expect(editServiceLineResponseFull.safeParse({ line: { ...persistedLine, edited: true }, session, price: '1.000' }).success).toBe(false);
+});
+it('rejects any extra key on the narrow edit response', () => {
+  const narrow = { saved: true, edited: true };
+  expect(editServiceLineResponse.parse(narrow)).toEqual(narrow);
+  for (const extra of [{ price: '20.000' }, { revision: 2 }, { session: { id, total_net: '20.000' } }, { line: persistedLine }]) {
+    expect(editServiceLineResponseNarrow.safeParse({ ...narrow, ...extra }).success).toBe(false);
+    expect(editServiceLineResponse.safeParse({ ...narrow, ...extra }).success).toBe(false);
+  }
 });

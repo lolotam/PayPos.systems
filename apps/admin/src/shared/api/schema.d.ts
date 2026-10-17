@@ -3477,6 +3477,7 @@ export interface components {
             /** Format: date-time */
             recorded_at: string;
             late: boolean;
+            edited?: boolean;
         };
         ServiceSession: {
             /** Format: uuid */
@@ -3539,6 +3540,73 @@ export interface components {
             rejected_lines: components["schemas"]["RejectedServiceLine"][];
             added_lines: components["schemas"]["SavedServiceLine"][];
         };
+        EditServiceLineInput: {
+            price: components["schemas"]["SessionMoney"];
+            discount: {
+                /** @enum {string} */
+                kind: "AMOUNT";
+                amount: components["schemas"]["SessionMoney"];
+            } | {
+                /** @enum {string} */
+                kind: "PERCENT";
+                bps: number;
+            };
+            reason?: string;
+            expected_revision: number;
+            /** Format: uuid */
+            editor_membership_id?: string;
+        };
+        EditServiceLineResponseFull: {
+            line: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                session_id: string;
+                /** Format: uuid */
+                service_id: string;
+                input_index: number;
+                ordinal: number;
+                name_en: string;
+                name_ar: string | null;
+                list_price: components["schemas"]["SessionMoney"];
+                price: components["schemas"]["SessionMoney"];
+                discount: components["schemas"]["SessionMoney"];
+                net: components["schemas"]["SessionMoney"];
+                effective_discount_bps: number;
+                limit_bps_applied: number | null;
+                /** @enum {string} */
+                limit_source: "OWNER" | "PERSON" | "BUSINESS" | "NOT_CONFIGURED";
+                /** @enum {string} */
+                status: "ACTIVE" | "CANCELLED";
+                revision: number;
+                rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+                counts_snapshot: boolean;
+                catalog_revision: number;
+                has_performer_warning: boolean;
+                performers: components["schemas"]["SessionPerformer"][];
+                /** Format: uuid */
+                recorded_by: string;
+                /** Format: uuid */
+                recorded_by_membership_id: string;
+                /** Format: date-time */
+                recorded_at: string;
+                late: boolean;
+                /** @enum {boolean} */
+                edited: true;
+            };
+            session: {
+                /** Format: uuid */
+                id: string;
+                total_net: components["schemas"]["SessionMoney"];
+            };
+        };
+        EditServiceLineResponseNarrow: {
+            /** @enum {boolean} */
+            saved: true;
+            /** @enum {boolean} */
+            edited: true;
+        };
+        EditServiceLineResponse: components["schemas"]["EditServiceLineResponseFull"] | components["schemas"]["EditServiceLineResponseNarrow"];
         ServiceLineChanged: {
             /** Format: uuid */
             line_id: string;
