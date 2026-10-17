@@ -29,11 +29,11 @@ the name text.
 | **27h-0** | This spec + ADR-0046 + owner questions (docs-only PR) | spec, ADR, plan row | — |
 | **27h-1** | `update-business-identity-names` | (a) migration: 3 columns + CHECKs + composite FK + partial unique index, `privileges.spec.ts` check, RLS negative test; (b) contract + use case + audit + cache-guard fix; (c) integration + query-shape tests | 27h-0 answered |
 | **27h-2** | files side (no new endpoint) | (a) `validateStoredPermission`: `settings` ⇒ `read:settings:business`; (b) per-owner-module upload cap at `request-upload`; (c) `purge_started` added to the file facts read + tests | 27h-0 answered |
-| **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with a database-only idempotent consumer, and the module-map event arrow; (b) re-check through a port + `purge_started_at` handoff + the `retired` kind in the retention worker (storage delete outside transactions, tombstone, system audit); (c) race, crash-between-steps and replay tests with synthetic events | 27h-1, 27h-2 |
+| **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with a database-only idempotent consumer, the module-map event arrow **and the reverse port arrow `files → settings` (logo-reference read)**; (b) lock, re-check through that port, `purge_started_at` handoff, the `retired` kind in the retention worker (storage delete outside transactions, tombstone, system audit) and the schedule bootstrap of §5.1 item 5; (c) race, crash-between-steps and replay tests with synthetic events | 27h-1 (needs `business_settings.logo_file_id` for the reference check), 27h-2 (needs the `purge_started` flag) |
 | **27h-4** | `set-business-logo` (bind or remove; the event producer) | (a) domain `validateLogoFile` + port + adapter (`settings → files` read) + module-map line; (b) use case + `PUT /v1/businesses/:businessId/settings/logo` + audit + `BusinessLogoChanged` emit; (c) `readBusinessIdentity` + pure `statementIdentity` exports + tests | 27h-1, 27h-2, 27h-3 |
 | **27h-5** | Admin screen (names, upload with status, preview, replace, remove) | (a) names form; (b) logo upload flow (files endpoints, poll status); (c) preview through the audited download + i18n | 27h-1, 27h-4 |
 
-Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, and the binding surface); plan row 27i lists `27, 27h-4`. Not here: the statement itself (27g), the PDF renderer (27i), the files-side bytes reader for the renderer (27i), the
+Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, and the binding surface); plan row 27i lists `27, 27h-4` (also stated in the 27i row so 27i cannot start before the binding exists). Not here: the statement itself (27g), the PDF renderer (27i), the files-side bytes reader for the renderer (27i), the
 `staff → settings` import arrow (27g's ADR). Other documents (receipts, invoices) may reuse the identity later; out of scope.
 
 ## 3. Owner rules (final) and pending
@@ -67,7 +67,7 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
 | BI-02 | A name longer than 255 characters, or blank after trimming, is refused with a bilingual validation error; nothing is saved or audited. |
 | BI-03 | The owner uploads a PNG through the existing files flow (request, PUT, confirm, poll). When the file is READY, binding it saves `logo_file_id`. Binding a PENDING or VERIFYING file is refused with `FILE_NOT_READY`. |
 | BI-04 | A PDF, XLSX, or any file that is not PNG/JPEG cannot be bound as a logo, even if it is READY and uploaded by the same user. |
-| BI-05 | A file uploaded by someone else, for another business, for another owner module, by another company, or one whose purge has started cannot be bound: all answer `FILE_NOT_FOUND`, identical to an unknown id. |
+| BI-05 | A file uploaded by someone else, for another business, for another owner module, by another company, or one whose purge has started **or completed** cannot be bound: all answer `FILE_NOT_FOUND`, identical to an unknown id. |
 | BI-06 | Binding a new logo replaces the old one; an outbox event `BusinessLogoChanged` carries the previous and new ids; the old file is retired by the worker (27h-3), never inside the request. |
 | BI-07 | Removing the logo (`file_id: null`) clears the reference, audits it, and emits the same event; the statement falls back to the name only. |
 | BI-08 | Two concurrent binds of the same file, or of two files, leave exactly one reference and a continuous audit chain. |
@@ -111,13 +111,18 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
 5. **Replace and remove.** The bind use case writes `BusinessLogoChanged { business_id, previous_file_id,
    file_id | null }` to the outbox in the same transaction. The **`files`-owned worker consumer** (27h-3, shipped before this producer so no event is ever emitted without a consumer) retires the
    previous file in **two durable steps**, because an outbox consumer runs inside one tenant transaction together with its
-   dedupe write and may do database work only (ADR-0018). Step 1, the consumer (database only): re-check, through a port
-   wired at the composition root (no `files → settings` import), that the file is no longer referenced, then set
-   `purge_started_at` under the same business lock that binding takes (so a later bind of that file is refused); this
-   commit is the durable handoff and is idempotent on replay. Step 2, the existing hourly retention worker
+   dedupe write and may do database work only (ADR-0018). Step 1, the consumer (database only): take the same business
+   lock that binding takes, **then** re-check, through a port wired at the composition root (no `files → settings`
+   import; the port is a declared arrow, §5.6), that the file is no longer referenced, **then** set `purge_started_at`
+   (so a later bind of that file is refused); reference check and marker run under one lock, so a concurrent re-bind
+   cannot slip between them. This commit is the durable handoff and is idempotent on replay. Step 2, the existing hourly retention worker
    (ADR-0022: bounded batches, recoverable leases, fencing) gains a third eligibility kind, `retired` (`purge_started_at`
    set, `purged_at` null, not bound), deletes the object outside any DB transaction and writes the tombstone and system
-   audit. A crash between the steps loses nothing: the next retention run picks the row up.
+   audit. A crash between the steps loses nothing: the next retention run picks the row up. **Schedule bootstrap:** the hourly
+   retention schedules are registered per tenant only when a `FileUploadRequested` is delivered, so a tenant whose last
+   such event predates 27h-3 would never run the `retired` kind. After its commit the consumer's post-commit step (outside
+   `OutboxConsumer.handle`, as ADR-0018) therefore idempotently upserts that company's two hourly schedules through the
+   same registration used by `files.deliver`; nothing runs at worker start.
    Rejected: an in-transaction retire export (a cross-module write plus storage IO in a transaction), and keeping files
    forever (contradicts BR-06). Because 27h-3 merges first, the event type is known and handled before 27h-4 can emit it; no emitted event is parked or silently acknowledged.
 6. **Seam for 27g/27i.** `settings/index.ts` exports `readBusinessIdentity(tx, companyId, businessId)` returning
@@ -179,7 +184,7 @@ actual choice is BI-Q1; options that need a new permission or a files rule chang
 Two new arrows, both declared in `docs/module-map.md` by the PR that introduces them (ADR-0046, this PR, is the decision):
 the event arrow `settings ⇒ files` (`BusinessLogoChanged`, consumed by the retire consumer) in 27h-3, and the read arrow
 `settings → files` (`documentFileFacts`, mirroring ADR-0031's `staff → files`) in 27h-4. `files` imports only `tenancy`
-today, so there is no cycle. The retire consumer's reference check is a port wired at the composition root, not an import. The later `staff → settings` arrow belongs to 27g.
+today, so there is no cycle. The retire consumer's reference check is a **reverse read port arrow `files → settings`** (is this file still the business's logo), declared in `docs/module-map.md` in 27h-3 (table and YAML) beside the event arrow and wired at the composition root, so there is no compile-time import and no cycle. The later `staff → settings` arrow belongs to 27g.
 
 ### 5.7 Test plan
 
