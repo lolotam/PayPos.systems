@@ -69,7 +69,7 @@ already follow the recommended TP-Q6 so the spec has no internal contradiction; 
 | TP-01 | منى (cashier, holds the record permission) records CARD 6.000 for سارة and CARD 2.000 for هبة on نورة's visit; one revision (1) is stored, one audit entry and one `SessionTipsChanged` event with both entries are written in the same transaction. |
 | TP-02 | The screen suggests 6.000 / 2.000 for a tip of 8.000 over the nets 60.000 and 20.000 (TP-Q4); منى changes it to 5.000 / 3.000 and the saved values are exactly hers. |
 | TP-03 | A user without the record permission, or outside the branch scope, gets the same refusal as an unknown session; nothing is written. |
-| TP-04 | An employee cannot record or change a tip for **herself**: a request that adds, changes or removes an entry of an employee linked to the actor — by the performer's recorded snapshot `line_performers.linked_user_id` (ADR-0045) **or** by her current user link — is refused `TIP_SELF_FORBIDDEN` (her existing entries must be sent unchanged). **Fail closed only when the actor–performer identity cannot be resolved (ADR-0045):** it cannot be resolved for an entry only when **both** hold — a performer row of that entry's employee on a line of the visit has `linked_user_snapshotted = false` (lines created before 35d-3b or by an old instance, never backfilled), **and** the actor is herself linked to an employee of this business (through the existing staff identity port), so the snapshot cannot rule out that the actor is that performer. Then adding, changing or removing that entry is refused `TIP_IDENTITY_UNKNOWN`. **Every other case is unaffected:** an actor with no employee link in the business (owner or manager account without a staff profile) is never blocked by an unsnapshotted row, and entries of employees whose rows are all snapshotted are checked by the snapshot as above. |
+| TP-04 | An employee cannot record or change a tip for **herself**: a request that adds, changes or removes an entry of an employee linked to the actor — by the performer's recorded snapshot `line_performers.linked_user_id` (ADR-0045) **or** by her current user link — is refused `TIP_SELF_FORBIDDEN` (her existing entries must be sent unchanged). **Fail closed only for an entry whose actor–performer identity cannot be resolved (ADR-0045):** when a performer row of that entry's employee on a line of the visit has `linked_user_snapshotted = false` (lines created before 35d-3b or by an old instance, never backfilled), neither the snapshot nor the current link can prove that the actor was *not* that performer at the time of the visit (a link may have been removed since), so adding, changing or removing **that entry** is refused `TIP_IDENTITY_UNKNOWN` for every actor, including a manager. Nothing else is affected: entries of employees whose rows are all snapshotted are checked by the snapshot as above, and the other entries of the same visit stay editable. No "unlinked actor" exemption exists because current data cannot prove historical non-identity; such an entry becomes editable only when the row is snapshotted by a later slice (37b or a backfill) — rows of this kind exist only for visits recorded before 35d-3b. |
 | TP-05 | An entry that is **added or changed** (a new (employee, method) pair, or the same pair with another amount) for an employee who is not a performer of any ACTIVE line of the visit is refused `TIP_EMPLOYEE_NOT_PERFORMER`. Following the recommended **TP-Q6** (the tip is money already given and stays recorded), an entry **carried unchanged** from the current revision (same employee, method and amount) is **not** re-checked against ACTIVE lines, so cancelling (row 37) or reassigning (37b) a line never blocks keeping or replacing the other entries, and removing any entry is always allowed. A visit with no ACTIVE line accepts only unchanged carried entries or removals. If the owners answer TP-Q6 differently this row changes. |
 | TP-06 | A session whose business date is older than the first of the previous month (business timezone) is refused `TIP_WINDOW_CLOSED`; a session inside the window is accepted even when its period is already approved (the consumer posts the correction). |
 | TP-07 | Replacing an existing tip set needs `expected_revision` equal to the current revision and a reason; a stale revision is refused `TIP_REVISION_CONFLICT` (409) and nothing is written. |
@@ -80,7 +80,7 @@ already follow the recommended TP-Q6 so the spec has no internal contradiction; 
 | TP-12 | Amounts must be greater than zero, canonical three-decimal KWD strings, and within `numeric(14,3)`; **the totals `total_cash` and `total_card` must also stay within `MONEY_MAX`** (the aggregate is checked before writing and refused `TIP_TOTAL_TOO_LARGE`, like `SESSION_TOTAL_TOO_LARGE` in spec 050); one entry per (employee, method) per revision; ⟨TP-Q7⟩ ceiling behaviour. |
 | TP-13 | The event and the audit contain no phone, no customer name and no reason; money fields are canonical strings. |
 | TP-14 | A user of another company cannot read or write another company's tips (RLS), and a tenant-qualified foreign key rejects a cross-tenant session or employee. |
-| TP-15 | **Bootstrap (BR-08).** Tips recorded while no consumer exists are not lost: orders' public reader `listCurrentSessionTips` returns, for every session of the company/business that has tips, its **latest revision** and full current set (including a latest revision with no entries), in stable keyset pages; row 50 applies each only if the revision is newer than the one it holds, so a later live `SessionTipsChanged` of the same or a lower revision is ignored and no tip is counted twice. |
+| TP-15 | **Bootstrap (BR-08).** Tips recorded while no consumer exists are not lost: orders' public reader `listCurrentSessionTips` returns, for every session of the company/business that has tips, its **latest revision** and full current set (including a latest revision with no entries), in stable keyset pages; row 50 applies each only if the revision is newer than the one it holds, so a later live `SessionTipsChanged` of the same or a lower revision is ignored and no tip is counted twice. The consumer is live **before** the first page is read, and a revision written between a page read and the consumer's first delivery still ends up in the projection (race test). |
 
 ### Edge cases
 
@@ -116,15 +116,18 @@ already follow the recommended TP-Q6 so the spec has no internal contradiction; 
 - **BR-06 (D-36)** A tip is never part of a line's net, a threshold, or a commission base; orders computes none of that.
 - **BR-07** All arithmetic lives in `orders/domain` pure functions; the use case calls them and does no arithmetic.
 - **BR-08 (bootstrap, money)** `SessionTipsChanged` is registered in the worker's known-event registry before its consumer exists
-  (the `SalaryChanged` precedent), and spec 050 §11 states that *published-with-no-consumer does not imply automatic future replay*.
+  (the `SalaryChanged` precedent), and spec 050 §11 / ADR-0041 §6 state that *published-with-no-consumer does not imply automatic future replay*.
   So tips recorded before row 50 ships are **not** recoverable from events alone, and a missed tip means a wrong statement and wrong
   payroll. Therefore orders publishes a read-only public reader, **`listCurrentSessionTips`** (36-5): for a company, business and
   `business_date` range it returns per session the **latest revision** and the full current set (an empty set included), in
-  keyset pages. Row 50 **must**, before approval/payroll opens, bootstrap every session with a tip from this reader and apply a
-  revision only if it is newer than the one it holds (the same revision guard it uses for line events), so a live event of the
-  same or a lower revision never double-counts. Coverage is proven by a test that records tips before the consumer starts and
-  asserts the projection afterwards includes them (row 50's test plan lists it). No new import arrow: this is the orders reader
-  that row 50 already needs for lines (spec 050 §11).
+  keyset pages. **No new module-map arrow (ADR-0041 §6):** commissions never imports orders; row 50 declares a commissions-owned
+  port (for example `SessionTipsBootstrapPort` in `commissions/ports/`) and the **composition root binds** orders' paged reader to it, exactly as ADR-0041 §6 prescribes
+  for the line state ("an orders-owned paged reader bound at the root"); `docs/module-map.md` row `commissions ← staff` stays as is, and 36-5/row 50 each keep `pnpm module-map:check` green. If the root binding
+  proves impossible without an import, the PR stops and adds an ADR plus the map entry first; it does not import orders.
+  **Order of operations (closes the start gap):** (1) the row 50 `SessionTipsChanged` consumer is registered and live; (2) only then the bootstrap pages are read and applied; (3) a
+  revision is applied only if it is newer than the one the projection holds (the revision guard used for line events), so the overlap is safe and a revision committed
+  after the first read is still delivered by the live consumer, never lost; (4) approval/payroll stays closed until the coverage count (sessions with tips in the reader = sessions
+  with tips in the projection) matches. The consumer-start/live-write race is a named test (TP-15).
 
 ### 5.2 Recommendations awaiting the owner
 
@@ -194,7 +197,7 @@ the staff-app rows, not here.
 ### 5.7 Module map
 
 No new import arrow: orders already reads staff (performer eligibility, employee identity), identity (authority) and
-tenancy through the ports of ADR-0041. The self-tip check uses the recorded snapshot `line_performers.linked_user_id` (written by orders itself, ADR-0045) and, in addition, the existing staff identity port for the employee's current user link, and the same port answers whether the **actor** is linked to an employee of the business (the narrow fail-closed case of TP-04); if a new read symbol is needed it is added to that port, not a new arrow. The bootstrap reader `listCurrentSessionTips` (36-5) is an orders export read by commissions, the same orders reader surface that row 50 needs for lines (spec 050 §11); it adds no arrow.
+tenancy through the ports of ADR-0041. The self-tip check uses the recorded snapshot `line_performers.linked_user_id` (written by orders itself, ADR-0045) and, in addition, the existing staff identity port for the employee's current user link, if a new read symbol is needed it is added to that port, not a new arrow. The bootstrap reader `listCurrentSessionTips` (36-5) is an orders export read by commissions, the same orders reader surface that row 50 needs for lines (spec 050 §11); it adds no arrow.
 
 ### 5.8 Test plan
 
@@ -203,13 +206,13 @@ tenancy through the ports of ADR-0041. The self-tip check uses the recorded snap
   (month boundary, timezone, injected clock).
 - **Integration (real Postgres, one cloned DB per spec file):** TP-01…TP-14; concurrent replacements; retry with the same
   key; stale `expected_revision`; permission revoked during the lock wait; closed company; storage of insert-only revisions;
-  TP-04 narrow identity cases (unsnapshotted row + linked actor refused `TIP_IDENTITY_UNKNOWN`; unsnapshotted row + actor with no
-  employee link accepted; snapshotted rows unaffected); TP-05 with TP-Q6 (cancel/reassign a line, then keep the entry, replace
+  TP-04 identity cases (an unsnapshotted row refuses add/change/removal of **that entry only** for any actor, linked or not, with `TIP_IDENTITY_UNKNOWN`; other entries of the same visit and snapshotted rows unaffected); TP-05 with TP-Q6 (cancel/reassign a line, then keep the entry, replace
   the others, remove it, and an added entry for a non-performer still refused).
 - **Bootstrap (36-5, TP-15; also listed in row 50's test plan):** tips recorded before any consumer exists are all returned by
   `listCurrentSessionTips` at their latest revision (empty latest set included); paging is stable under concurrent writes; the
   row 50 projection built only from the reader equals the one built from events; a live event with the same or a lower
-  revision after the bootstrap changes nothing.
+  revision after the bootstrap changes nothing; **consumer-start/live-write race:** a revision committed between a page read and the consumer's first delivery
+  still reaches the projection, and the coverage count matches before approval opens.
 - **RLS negative:** both tables — cross-tenant read = 0 rows, write = error, foreign-tenant session or employee rejected by FK.
 - **Queries:** result-shape test and `EXPLAIN` index assertion for the current-set read.
 - **Contracts:** strict body, money strings, `expected_revision`, OpenAPI route and `pnpm contracts:openapi` fresh.
