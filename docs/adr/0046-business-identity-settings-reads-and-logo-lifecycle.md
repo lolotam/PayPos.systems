@@ -1,7 +1,7 @@
 # ADR-0046 — Business identity: settings stores a file reference, reads `files`, and the logo is retired asynchronously
 
-Date: 2026-10-17. Status: Proposed for Phase 1 row 27h (spec 052). Becomes Accepted when the owner answers BI-Q1…BI-Q4
-and the first code PR lands.
+Date: 2026-10-17. Status: Proposed for Phase 1 row 27h (spec 052). The owner answered BI-Q1…BI-Q4 on 2026-10-17
+(batch 28); it becomes Accepted when the first code PR lands.
 
 ## Context
 
@@ -19,9 +19,9 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
    the existing `files.documentFileFacts` export (extended additively with a `purge_started` flag). This adds one import
    arrow, `settings → files` (read only), declared in `docs/module-map.md` by the first code PR. `files` imports only
    `tenancy`, so there is no cycle. No write crosses modules.
-3. **`files` gains two small rules**: `validateStoredPermission` pins `settings` files to `read:settings:business`, and
-   `request-upload` applies a per-owner-module size cap (the logo cap, BI-Q3) as an early refusal, while verification enforces the same
-   cap on the re-encoded output so that every READY logo can be bound. The generic policy and the DB checks stay.
+3. **`files` gains one small rule**: `validateStoredPermission` pins `settings` files to `read:settings:business`.
+   There is no logo-specific size cap (BI-Q3 = 10 MiB, the generic policy), so `request-upload` and verification are
+   unchanged and every READY logo can be bound. The generic policy and the DB checks stay.
 4. **Replacement and removal** emit `BusinessLogoChanged` through the outbox in the binding transaction. A `files`-owned
    outbox consumer (database only, as ADR-0018 requires) takes the same business lock as binding, then re-checks the current reference through a reverse read port
    (`files → settings`, wired at the composition root, declared in the module map), then sets `purge_started_at`; that commit is the durable
