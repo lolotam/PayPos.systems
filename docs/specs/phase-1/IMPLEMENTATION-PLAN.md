@@ -115,7 +115,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | 48a | statements table + the period lock helper (every period writer uses it)                                             | S            | 30                 |
 | 48  | plan versions + builder screen + validation                                                                         | M            | 48a                |
 | 49  | service overrides                                                                                                   | S            | 48                 |
-| 50  | projection consumer (lines, sales, tips, salaries) + estimate on read; **tips bootstrap from 36-5 `listCurrentSessionTips` with revision guards and a coverage test, before approval opens** | M            | 10, 35, 36, **36-5**, 42, 48 |
+| 50  | projection consumer (lines, sales, tips, salaries) + estimate on read; **tips bootstrap from 36-5 `listCurrentSessionTips` with revision guards, discharge of the covered outbox events in `consumed_events`, a per-session revision freshness check and a coverage test, before approval opens** | M            | 10, 35, 36, **36-5**, 42, 48 |
 | 51  | `generate-statement` + fingerprint                                                                                  | M            | 50                 |
 | 52  | `review-statement`                                                                                                  | S            | 51                 |
 | 53  | `approve-statement` (atomic)                                                                                        | M            | 52, 55b, G2        |
