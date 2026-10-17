@@ -1,8 +1,8 @@
 # Spec 053 — Record the tip of a service visit (Phase 1 row 36)
 
-> **Status:** Draft · 2026-10-17 · docs-only PR. Owner answers TP-Q1…TP-Q4 (batch 26, Waleed's picks) are recorded in
-> [owner-questions.ar.md](owner-questions.ar.md); the rules they do not cover wait on TP-Q5…TP-Q8, all `PENDING`.
-> **No code starts before they are answered.** Abu Salem has not answered batch 26 yet; if his pick differs from
+> **Status:** Draft · 2026-10-17 · docs-only PR. Owner answers TP-Q1…TP-Q4 (batch 26) and TP-Q5…TP-Q8 (batch 29), all
+> Waleed's picks, are recorded in [owner-questions.ar.md](owner-questions.ar.md); no question is open.
+> Abu Salem has not answered batches 26 or 29 yet; if his pick differs from
 > Waleed's, his pick binds and the rule changes in a follow-up (`CLAUDE.md` §1 5b).
 > **Depends on:** row 35 (`record-service-session`, spec 050) — merged. **Consumed later by:** row 50 (projection),
 > row 55 (corrections of kind TIP), the statement's card-tips column.
@@ -25,8 +25,8 @@ touches her commission, which is computed on 60.000.
 | Part | Content | Subtasks | Depends on |
 |------|---------|----------|-----------|
 | **36-0** | This spec + owner questions + plan row (docs-only PR) | spec, owner file, plan row | — |
-| **36-1** | Storage | (a) migration: `session_tip_revisions` (with `event_id`) and `session_tips`, constraints, RLS, grants, `privileges.spec.ts` allowlist; (b) RLS negative isolation tests; (c) constraint tests (revision chain, uniqueness, amount bounds) | 36-0 answered |
-| **36-2** | Pure domain | (a) `suggestTipSplit` (TP-Q4) with the rounding rule of TP-Q8; (b) `validateTipSet` (entries, bounds, performers, self rule); (c) `tipWindowOpen` (TP-Q2, reuses the recording window helper) and exhaustive unit tests | 36-0 answered |
+| **36-1** | Storage | (a) migration: `session_tip_revisions` (with `event_id`) and `session_tips`, constraints, RLS, grants, `privileges.spec.ts` allowlist; (b) RLS negative isolation tests; (c) constraint tests (revision chain, uniqueness, amount bounds) | 36-0 |
+| **36-2** | Pure domain | (a) `suggestTipSplit` (TP-Q4) with the rounding rule of TP-Q8; (b) `validateTipSet` (entries, bounds, performers, self rule); (c) `tipWindowOpen` (TP-Q2, reuses the recording window helper) and exhaustive unit tests | 36-0 |
 | **36-3** | Use case `record-session-tips` | (a) contract + `PUT …/service-sessions/:sessionId/tips` + guard + idempotency; (b) use case: lock, revision check, insert, audit, outbox `SessionTipsChanged`; (c) integration tests TP-01…TP-14 and the read of the current set | 36-1, 36-2 |
 | **36-4** | Reception screen | (a) tip entry with the suggested split; (b) edit with the written reason; (c) i18n ar/en, RTL, error messages | 36-3 (and the merged 35c screen) |
 | **36-5** | Public reader for the row 50 bootstrap (BR-08) | (a) `queries/` read of the **latest revision per session** plus the `event_id` of every revision up to it, with keyset paging; (b) the read-only export in orders' `index.ts` (`listCurrentSessionTips`), module-map check; (c) result-shape, `EXPLAIN`, paging and revision tests | 36-1, 36-3 — **and row 50 depends on 36-5** |
@@ -37,7 +37,7 @@ scheduling, payments and printing (Phase 2).
 
 ## 3. Owner rules
 
-**Final (owner answers, batch 26 — Waleed's picks; Abu Salem's may replace them later):**
+**Final (owner answers, batches 26 and 29 — Waleed's picks; Abu Salem's may replace them later):**
 
 | ID | Rule |
 |----|------|
@@ -45,22 +45,16 @@ scheduling, payments and printing (Phase 2).
 | TP-Q2 | A tip can be recorded or changed for the **same period as recording a visit** (back to the first day of the previous month); once the period is approved, a change becomes a **correction** (rows 50/55 post it). |
 | TP-Q3 | A wrong tip is **replaced** with a **written reason** and the change is **logged in the audit with no bell notice**. No deleting of money rows. |
 | TP-Q4 | For a visit with several services by several employees, the suggested split is **by each employee's share of the whole visit net** (example: 6 and 2); the cashier edits it. |
+| TP-Q5 | **No reason on the first entry**; a written reason is required when replacing an existing tip (the first record is normal work and the cashier is in a hurry; replacing is what needs a justification). Batch 29. |
+| TP-Q6 | If the performer's service is later cancelled (row 37) or moved to another employee (37b), the tip **stays recorded** (the money was actually paid); only a holder of the record permission can remove or replace it, with a written reason. Batch 29. **Scope (precedence kept from spec 054 §3.2):** TP-Q6 means the system **never removes a tip by itself** (the money was paid). On the **cancel path** (row 37) CX-Q4 stops the cancellation of a performer's last active line until a holder of the record permission removes or replaces the tip by hand with a written reason; on the **reassignment path** (37b) the tip stays recorded and untouched. |
+| TP-Q7 | **No hard ceiling** on a tip, but the screen warns when the tip is larger than the visit net (big mistakes are rare and blocking could annoy a truly generous customer; the warning catches the slip). Batch 29. |
+| TP-Q8 | The suggested split gives each employee the whole-mill part of her share, then the leftover mills one each to the largest fractional remainders (a tie goes to the smaller internal employee id, the same order as the commission split), so no amount is negative. An employee whose share is zero mills is left out of the suggestion. A visit whose net is zero is split equally. The total always equals the tip exactly and the cashier may edit the suggestion anyway. Batch 29. |
 
 **From earlier decisions (not new questions):** D-36 (per employee, method, in full, outside net/thresholds/commission,
 card tips as a statement column); SPEC §3 (`Tip`, event `SessionTipsChanged` with a per-session `revision`); SPEC §6 (a
 tip changed for a closed period becomes a correction of kind TIP; the consumer, not orders, reads statement status);
 spec 050 (money as canonical three-decimal KWD strings and bigint mills, back-dating window, Idempotency-Key on money
 effects, business timezone, UUID v7, no `Date.now`/`randomUUID` in use cases).
-
-**Pending (each is `PENDING` in [owner-questions.ar.md](owner-questions.ar.md); nothing below is implemented until answered):**
-
-- **TODO(spec) TP-Q5** — is a written reason also required on the **first** entry, or only when an existing tip is replaced?
-- **TODO(spec) TP-Q6** — what happens to a tip when the performer's lines are later cancelled (row 37) or reassigned (37b)?
-- **TODO(spec) TP-Q7** — is there a ceiling on a tip (block, warn, or none)?
-- **TODO(spec) TP-Q8** — the rounding of the suggested split (remainder mills) and the all-zero-net visit.
-
-Until they are answered, §5.2 items marked ⟨TP-Q5…Q8⟩ are **recommendations, not rules**, except that TP-05, BR-02 and the edge cases
-already follow the recommended TP-Q6 so the spec has no internal contradiction; they change if the owners pick another option.
 
 ## 4. User scenarios and acceptance criteria
 
@@ -70,14 +64,14 @@ already follow the recommended TP-Q6 so the spec has no internal contradiction; 
 | TP-02 | The screen suggests 6.000 / 2.000 for a tip of 8.000 over the nets 60.000 and 20.000 (TP-Q4); منى changes it to 5.000 / 3.000 and the saved values are exactly hers. |
 | TP-03 | A user without the record permission, or outside the branch scope, gets the same refusal as an unknown session; nothing is written. |
 | TP-04 | An employee cannot record or change a tip for **herself**: a request that adds, changes or removes an entry of an employee linked to the actor — by the performer's recorded snapshot `line_performers.linked_user_id` (ADR-0045) **or** by her current user link (including a performer later removed from the line by row 37b, whose identity is retained in the change history: spec 055 D-3 and FR-017) — is refused `TIP_SELF_FORBIDDEN` (her existing entries must be sent unchanged). **Fail closed only for an entry whose actor–performer identity cannot be resolved (ADR-0045):** when a performer row of that entry's employee on a line of the visit has `linked_user_snapshotted = false` (lines created before 35d-3b or by an old instance, never backfilled), neither the snapshot nor the current link can prove that the actor was *not* that performer at the time of the visit (a link may have been removed since), so adding, changing or removing **that entry** is refused `TIP_IDENTITY_UNKNOWN` for every actor, including a manager. Nothing else is affected: entries of employees whose rows are all snapshotted are checked by the snapshot as above, and the other entries of the same visit stay editable. No "unlinked actor" exemption exists because current data cannot prove historical non-identity; such an entry stays refused for every actor, permanently: no slice snapshots an old row (ADR-0045 rejects a backfill and spec 055 PC-12 refuses to change such a line) — rows of this kind exist only for visits recorded before 35d-3b (staging test data; Phase 1 has no production data). |
-| TP-05 | An entry that is **added or changed** (a new (employee, method) pair, or the same pair with another amount) for an employee who is not a performer of any ACTIVE line of the visit is refused `TIP_EMPLOYEE_NOT_PERFORMER`. Following the recommended **TP-Q6** (the tip is money already given and stays recorded), an entry **carried unchanged** from the current revision (same employee, method and amount) is **not** re-checked against ACTIVE lines, so cancelling (row 37) or reassigning (37b) a line never blocks keeping or replacing the other entries, and removing an entry is allowed, **except where TP-04 refuses it** (`TIP_SELF_FORBIDDEN`, `TIP_IDENTITY_UNKNOWN`), which always wins. A visit with no ACTIVE line accepts only unchanged carried entries or removals. If the owners answer TP-Q6 differently this row changes. |
+| TP-05 | An entry that is **added or changed** (a new (employee, method) pair, or the same pair with another amount) for an employee who is not a performer of any ACTIVE line of the visit is refused `TIP_EMPLOYEE_NOT_PERFORMER`. Following **TP-Q6** (the tip is money already given and stays recorded), an entry **carried unchanged** from the current revision (same employee, method and amount) is **not** re-checked against ACTIVE lines, so cancelling (row 37) or reassigning (37b) a line never blocks keeping or replacing the other entries, and removing an entry is allowed, **except where TP-04 refuses it** (`TIP_SELF_FORBIDDEN`, `TIP_IDENTITY_UNKNOWN`), which always wins. A visit with no ACTIVE line accepts only unchanged carried entries or removals. |
 | TP-06 | A session whose business date is older than the first of the previous month (business timezone) is refused `TIP_WINDOW_CLOSED`; a session inside the window is accepted even when its period is already approved (the consumer posts the correction). |
 | TP-07 | Replacing an existing tip set needs `expected_revision` equal to the current revision and a reason; a stale revision is refused `TIP_REVISION_CONFLICT` (409) and nothing is written. |
-| TP-08 | A reason is required to replace an existing set (`TIP_REASON_REQUIRED`); ⟨TP-Q5⟩ whether the first entry needs one. The reason is trimmed, 1…500 characters, and lives only in the revision row (not in the event, audit or logs; same convention as spec 035d). |
+| TP-08 | A reason is required to replace an existing set (`TIP_REASON_REQUIRED`); the first entry needs none (TP-Q5). The reason is trimmed, 1…500 characters, and lives only in the revision row (not in the event, audit or logs; same convention as spec 035d). |
 | TP-09 | Replacing with an empty set removes all tips of the visit as a new revision (the old revisions stay); the event carries an empty `tips` list. |
 | TP-10 | Retrying the same request with the same `Idempotency-Key` returns the original result and writes nothing; the same key with another body is refused. |
 | TP-11 | Two concurrent replacements of the same visit leave exactly one winner per revision and a continuous revision chain; the loser gets `TIP_REVISION_CONFLICT`. |
-| TP-12 | Amounts must be greater than zero, canonical three-decimal KWD strings, and within `numeric(14,3)`; **the totals `total_cash` and `total_card` must also stay within `MONEY_MAX`** (the aggregate is checked before writing and refused `TIP_TOTAL_TOO_LARGE`, like `SESSION_TOTAL_TOO_LARGE` in spec 050); one entry per (employee, method) per revision; ⟨TP-Q7⟩ ceiling behaviour. |
+| TP-12 | Amounts must be greater than zero, canonical three-decimal KWD strings, and within `numeric(14,3)`; **the totals `total_cash` and `total_card` must also stay within `MONEY_MAX`** (the aggregate is checked before writing and refused `TIP_TOTAL_TOO_LARGE`, like `SESSION_TOTAL_TOO_LARGE` in spec 050); one entry per (employee, method) per revision; no hard ceiling: the screen warns when a tip exceeds the visit net (TP-Q7). |
 | TP-13 | The event and the audit contain no phone, no customer name and no reason; money fields are canonical strings. |
 | TP-14 | A user of another company cannot read or write another company's tips (RLS), and a tenant-qualified foreign key rejects a cross-tenant session or employee. |
 | TP-15 | **Bootstrap (BR-08).** Tips recorded while no consumer exists are not lost: orders' public reader `listCurrentSessionTips` returns, for every session of the company/business that has tips, its **latest revision** and full current set (including a latest revision with no entries), in stable keyset pages; row 50 applies each only if the revision is newer than the one it holds, so a later live `SessionTipsChanged` of the same or a lower revision is ignored and no tip is counted twice. The consumer is live **before** the first page is read, and a revision written between a page read and the consumer's first delivery still ends up in the projection (race test). |
@@ -89,7 +83,7 @@ already follow the recommended TP-Q6 so the spec has no internal contradiction; 
 - Removing a tip is a revision, never a delete. Revisions are insert-only (`SELECT`/`INSERT` grants).
 - The recording time and revision time come from the injected `Clock`; ids from the injected `IdGenerator`.
 - A closed company is refused like every orders write. The `orders` feature flag applies.
-- Tips on a CANCELLED visit and on performers removed later: they **stay recorded** (recommended TP-Q6); only a holder of the
+- Tips on a CANCELLED visit and on performers removed later: they **stay recorded** (TP-Q6: the system never removes a tip by itself; on the cancel path CX-Q4 stops cancelling a performer's last active line until the tip is removed by hand); only a holder of the
   record permission removes or replaces them, with a written reason, **unless TP-04 refuses that entry** (self, or unresolved identity); the commission side never recomputes them away.
 
 ## 5. Slice design
@@ -104,15 +98,15 @@ already follow the recommended TP-Q6 so the spec has no internal contradiction; 
 - **BR-03 (TP-Q2)** The window is the one of spec 050 FR-014/FR-020: the session's persisted `business_date` must be on or
   after the first day of the previous calendar month in the business timezone at the injected `now`.
 - **BR-04 (TP-Q3)** Replace, never delete: each change is a new revision holding the full current set; the previous
-  revisions remain. A reason is required when replacing an existing set (⟨TP-Q5⟩ for the first entry).
+  revisions remain. A reason is required when replacing an existing set (not for the first entry, TP-Q5).
 - **BR-05 (TP-Q4)** Suggested split: for each performer, `employee_net = Σ over ACTIVE lines of the employee's share of that line`, where the share is the
   one of SPEC §5.2 (`net × share_bps / 10000` floored to mills, remainder mills one each to the performers in ascending
   `employee_id` order), so the weights are whole mills and sum to the visit net; `suggestion = tip_total × employee_net / visit_net`. **One remainder order everywhere: ascending `employee_id`** — both for the line shares above (SPEC §5.2)
-  and for the tie-break of the largest-remainder step of ⟨TP-Q8⟩. *Worked example in mills:* a line of 0.001 KWD
+  and for the tie-break of the largest-remainder step of TP-Q8. *Worked example in mills:* a line of 0.001 KWD
   (1 mill) shared 50/50 by A and B gives A = 1 mill and B = 0 (remainder to the lower `employee_id`); a tip of 0.010
   over the weights A = 1, B = 0 gives A = 10 mills and B is left out. Three performers with equal weights 1.000 each and a
   tip of 0.100 (100 mills) have exact shares 33.333 each: floors 33/33/33, one mill left, all remainders tie, so the lower
-  `employee_id` first: A = 34, B = 33, C = 33. Rounding of remainder mills and a zero-net visit: ⟨TP-Q8⟩. The suggestion is advice only; the server stores exactly what the cashier sends.
+  `employee_id` first: A = 34, B = 33, C = 33. Rounding of remainder mills and a zero-net visit: TP-Q8. The suggestion is advice only; the server stores exactly what the cashier sends.
 - **BR-06 (D-36)** A tip is never part of a line's net, a threshold, or a commission base; orders computes none of that.
 - **BR-07** All arithmetic lives in `orders/domain` pure functions; the use case calls them and does no arithmetic.
 - **BR-08 (bootstrap, money)** `SessionTipsChanged` is registered in the worker's known-event registry before its consumer exists
@@ -133,14 +127,15 @@ already follow the recommended TP-Q6 so the spec has no internal contradiction; 
   projection's applied revision is ≥ the revision the reader reports (a per-session revision comparison, never a count of sessions, so a revision committed after the read cannot hide behind equal counts).
   The consumer-start/live-write race is a named test (TP-15).
 
-### 5.2 Recommendations awaiting the owner
+### 5.2 Rules from the answers TP-Q5…TP-Q8
 
-- ⟨TP-Q5⟩ No reason on the first entry; a reason when replacing.
-- ⟨TP-Q6⟩ The tip stays recorded when lines are cancelled or reassigned (the money was given); only a holder of the record
-  permission can remove or replace it, with a written reason (TP-04 refusals still take precedence). **TP-05, BR-02 and the edge cases already follow this recommended
-  answer**; if the owners pick another option they change.
-- ⟨TP-Q7⟩ No hard ceiling; the screen warns when a tip exceeds the visit net.
-- ⟨TP-Q8⟩ **Largest-remainder** allocation in mills: every performer first gets the floor of her exact share, then the remaining mills are given one each to the largest fractional remainders (ties: ascending `employee_id`, the same order as the line shares of SPEC §5.2 in BR-05). No allocation can be negative. A performer whose allocation is 0 is left out of the suggestion (amounts must be greater than zero). A visit whose net is zero is split equally by the same method.
+- TP-Q5: no reason on the first entry; a reason when replacing.
+- TP-Q6: the system never removes a tip by itself (the money was given); only a holder of the record permission can remove or
+  replace it, with a written reason (TP-04 refusals still take precedence). On the cancel path (row 37) CX-Q4 (spec 054 §3.2)
+  stops the cancellation of a performer's last active line until the tip is removed or replaced by hand; on the reassignment
+  path (37b) the tip stays recorded and untouched. **TP-05, BR-02 and the edge cases follow this answer.**
+- TP-Q7: no hard ceiling; the screen warns when a tip exceeds the visit net.
+- TP-Q8: **largest-remainder** allocation in mills: every performer first gets the floor of her exact share, then the remaining mills are given one each to the largest fractional remainders (ties: ascending `employee_id`, the same order as the line shares of SPEC §5.2 in BR-05). No allocation can be negative. A performer whose allocation is 0 is left out of the suggestion (amounts must be greater than zero). A visit whose net is zero is split equally by the same method.
 
 ### 5.3 Schema changes (36-1)
 
