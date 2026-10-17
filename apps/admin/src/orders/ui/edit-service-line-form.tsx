@@ -14,7 +14,8 @@ import { EditServiceLinePreview } from './edit-service-line-preview';
 type DayLine = ServiceSessionDayPage['items'][number]['lines'][number];
 export type EditServiceLineFormProps = {
   scope: SessionServiceScope; sessionId: string; line: DayLine; online: boolean;
-  onSaved: () => void; onStale: () => Promise<number | null> | undefined; onForbidden: (message: string) => void; onClose: () => void;
+  onSaved: () => void; onStale: () => Promise<number | null> | undefined; onForbidden: (message: string) => void;
+  onUnauthenticated?: (message: string) => void; onClose: () => void;
 };
 
 function submitOnEnter(online: boolean, pending: boolean) {
@@ -31,6 +32,7 @@ function applyEditError(error: unknown, locale: Locale, form: UseFormReturn<Edit
   const failure = classifyEditError(error, locale);
   if (failure.kind === 'stale') { setRoot(failure.message); return true; }
   if (failure.kind === 'forbidden') { props.onForbidden(failure.message); props.onClose(); return false; }
+  if (failure.kind === 'unauthenticated') { (props.onUnauthenticated ?? props.onForbidden)(failure.message); props.onClose(); return false; }
   if (failure.kind === 'field') { form.setError(failure.field, { message: failure.message }); return false; }
   if (failure.kind === 'limit') { setLimit(failure.details); setRoot(failure.message); return false; }
   if (failure.kind === 'membership') { setMemberships(failure.ids); setRoot(failure.message); return false; }

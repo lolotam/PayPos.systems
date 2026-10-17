@@ -33,6 +33,20 @@ function renderPage() {
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { client, ...render(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />, { wrapper }) };
 }
+function reads(edits: boolean) {
+  return state.get.mock.calls.filter((call) => String(call[0]).includes('/edits') === edits).length;
+}
+function shake(view: { rerender: (node: ReactNode) => void }) {
+  view.rerender(<ServiceSessionDayPage scope={{ ...scope }} timezone="Asia/Riyadh" />);
+  state.online = false;
+  view.rerender(<ServiceSessionDayPage scope={{ ...scope }} timezone="Asia/Riyadh" />);
+}
+function clickEdit(index = 0) {
+  const button = screen.getAllByRole('button', { name: t('en', 'serviceLineEdit.edit') })[index];
+  if (!button) throw new Error('missing edit button');
+  fireEvent.click(button);
+}
+const serverDown = { error: { code: 'INTERNAL', message_ar: 'Down AR', message_en: 'Down EN' }, response: { status: 500 } };
 
 it('marks a line only when edited is true, hides edit on a cancelled line, and shows history in the locale', async () => {
   state.online = true; state.locale = 'en'; state.get.mockReset();
@@ -73,16 +87,11 @@ it('keeps the other line draft when an earlier save settles', async () => {
   state.patch.mockReturnValue(new Promise((resolve) => { settle = resolve; }));
   renderPage();
   await screen.findByText('Synthetic customer');
-  const edit = t('en', 'serviceLineEdit.edit');
-  const buttons = screen.getAllByRole('button', { name: edit });
-  const first = buttons[0];
-  const second = buttons[1];
-  if (!first || !second) throw new Error('missing edit buttons');
-  fireEvent.click(first);
+  clickEdit(0);
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'from a' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
   await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
-  fireEvent.click(second);
+  clickEdit(1);
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'from b' } });
   await act(async () => { settle({ data: { saved: true, edited: true }, response: { status: 200 } }); });
   expect(await screen.findByText(t('en', 'serviceLineEdit.saved'))).toBeTruthy();
@@ -96,17 +105,12 @@ it('keeps a reopened line draft when its earlier save settles', async () => {
   state.patch.mockReturnValue(new Promise((resolve) => { settle = resolve; }));
   renderPage();
   await screen.findByText('Synthetic customer');
-  const editName = t('en', 'serviceLineEdit.edit');
-  const first = screen.getAllByRole('button', { name: editName })[0];
-  if (!first) throw new Error('missing edit button');
-  fireEvent.click(first);
+  clickEdit();
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'from a' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
   await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.close') }));
-  const reopened = screen.getAllByRole('button', { name: editName })[0];
-  if (!reopened) throw new Error('missing edit button');
-  fireEvent.click(reopened);
+  clickEdit();
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'reopened' } });
   await act(async () => { settle({ data: { saved: true, edited: true }, response: { status: 200 } }); });
   expect(await screen.findByText(t('en', 'serviceLineEdit.saved'))).toBeTruthy();
@@ -120,16 +124,11 @@ it('closes the open form when the same edit button is clicked during a pending s
   state.patch.mockReturnValue(new Promise((resolve) => { settle = resolve; }));
   renderPage();
   await screen.findByText('Synthetic customer');
-  const editName = t('en', 'serviceLineEdit.edit');
-  const first = screen.getAllByRole('button', { name: editName })[0];
-  if (!first) throw new Error('missing edit button');
-  fireEvent.click(first);
+  clickEdit();
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'from a' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
   await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
-  const again = screen.getAllByRole('button', { name: editName })[0];
-  if (!again) throw new Error('missing edit button');
-  fireEvent.click(again);
+  clickEdit();
   expect((screen.getByLabelText(t('en', 'serviceLineEdit.reason')) as HTMLInputElement).value).toBe('from a');
   await act(async () => { settle({ data: { saved: true, edited: true }, response: { status: 200 } }); });
   expect(await screen.findByText(t('en', 'serviceLineEdit.saved'))).toBeTruthy();
@@ -152,10 +151,7 @@ it('sends the revision from the stale refetch on the next save', async () => {
   });
   renderPage();
   await screen.findByText('Synthetic customer');
-  const editName = t('en', 'serviceLineEdit.edit');
-  const first = screen.getAllByRole('button', { name: editName })[0];
-  if (!first) throw new Error('missing edit button');
-  fireEvent.click(first);
+  clickEdit();
   fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'because' } });
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.price')), { target: { value: '12.000' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
@@ -175,10 +171,7 @@ it('hides the loaded day when a refetch returns 403', async () => {
   const view = renderPage();
   await screen.findByText('Synthetic customer');
   expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.loadMore') })).toBeTruthy();
-  const editName = t('en', 'serviceLineEdit.edit');
-  const first = screen.getAllByRole('button', { name: editName })[0];
-  if (!first) throw new Error('missing edit button');
-  fireEvent.click(first);
+  clickEdit();
   expect(screen.getByLabelText(t('en', 'serviceLineEdit.reason'))).toBeTruthy();
   gate = 'denied';
   await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
@@ -253,36 +246,48 @@ it('hides the loaded day when a refetch returns FEATURE_DISABLED', async () => {
   expect(screen.getByRole('alert').textContent).toContain('Disabled EN');
 });
 
-it('keeps the day hidden when a retry after 403 fails with 500', async () => {
+it.each([403, 401] as const)('keeps the day hidden when a retry after %s fails with 500', async (status) => {
   state.online = true; state.locale = 'en'; state.get.mockReset();
   let phase: 'ok' | 'denied' | 'down' = 'ok';
+  const code = status === 401 ? 'UNAUTHENTICATED' : 'FORBIDDEN';
   state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? historyPage
-    : phase === 'ok' ? day
-    : phase === 'denied' ? denial(403, 'Denied EN')
-    : { error: { code: 'INTERNAL', message_ar: 'Down AR', message_en: 'Down EN' }, response: { status: 500 } }));
+    : phase === 'ok' ? day : phase === 'denied' ? denial(status, 'Denied EN', code) : serverDown));
   const view = renderPage();
   await screen.findByText('Synthetic customer');
+  const editName = t('en', 'serviceLineEdit.edit');
+  clickEdit();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.history') }));
+  expect(await screen.findByText('Wrong price')).toBeTruthy();
   phase = 'denied';
   await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
   await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
+  const before = reads(false);
+  shake(view);
+  expect(reads(false)).toBe(before);
+  expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') })).toBeTruthy();
+  expect(screen.queryByText('Wrong price')).toBeNull();
+  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason'))).toBeNull();
+  state.online = true;
+  view.rerender(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />);
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Denied EN'));
   phase = 'down';
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Down EN'));
-  expect(screen.queryByText('Synthetic customer')).toBeNull();
-  for (const text of ['10.000', '1.000', '9.000']) expect(screen.queryByText(text)).toBeNull();
-  expect(screen.queryByRole('button', { name: t('en', 'serviceLineEdit.edit') })).toBeNull();
+  for (const text of ['Synthetic customer', '10.000', '1.000', '9.000', 'Wrong price']) expect(screen.queryByText(text)).toBeNull();
+  expect(screen.queryByRole('button', { name: editName })).toBeNull();
   phase = 'ok';
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
   expect(await screen.findByText('Synthetic customer')).toBeTruthy();
   expect(screen.getAllByText('10.000').length).toBeGreaterThan(0);
-  expect(screen.getAllByRole('button', { name: t('en', 'serviceLineEdit.edit') }).length).toBeGreaterThan(0);
+  expect(screen.getAllByRole('button', { name: editName }).length).toBeGreaterThan(0);
 });
 
-it('keeps history edits hidden when a retry after 403 fails with 500', async () => {
+it.each([403, 401] as const)('keeps history edits hidden when a retry after %s fails with 500', async (status) => {
   state.online = true; state.locale = 'en'; state.get.mockReset();
   let phase: 'ok' | 'denied' | 'down' = 'ok';
+  const code = status === 401 ? 'UNAUTHENTICATED' : 'FORBIDDEN';
   state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits')
-    ? phase === 'ok' ? historyPage : phase === 'denied' ? denial(403, 'History denied EN') : { error: { code: 'INTERNAL', message_ar: 'Down AR', message_en: 'Hist down EN' }, response: { status: 500 } }
+    ? phase === 'ok' ? historyPage : phase === 'denied' ? denial(status, 'History denied EN', code) : { ...serverDown, error: { ...serverDown.error, message_en: 'Hist down EN' } }
     : day));
   const view = renderPage();
   await screen.findByText('Synthetic customer');
@@ -291,12 +296,25 @@ it('keeps history edits hidden when a retry after 403 fails with 500', async () 
   phase = 'denied';
   await act(async () => { await view.client.refetchQueries({ queryKey: ['service-line-edits'] }); });
   await waitFor(() => expect(screen.queryByText('Wrong price')).toBeNull());
+  const before = reads(true);
+  shake(view);
+  expect(reads(true)).toBe(before);
+  expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') })).toBeTruthy();
+  expect(screen.getByText('Synthetic customer')).toBeTruthy();
+  state.online = true;
+  view.rerender(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />);
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('History denied EN'));
   phase = 'down';
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Hist down EN'));
   expect(screen.queryByText('Wrong price')).toBeNull();
   expect(screen.queryByText('8.000')).toBeNull();
+  expect(screen.queryByText('Label EN')).toBeNull();
   expect(screen.getByText('Synthetic customer')).toBeTruthy();
+  phase = 'ok';
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
+  expect(await screen.findByText('Wrong price')).toBeTruthy();
+  expect(screen.getAllByText('8.000').length).toBeGreaterThan(0);
 });
 
 it('hides the loaded day when a refetch returns 401', async () => {
@@ -307,9 +325,7 @@ it('hides the loaded day when a refetch returns 401', async () => {
   const view = renderPage();
   await screen.findByText('Synthetic customer');
   const editName = t('en', 'serviceLineEdit.edit');
-  const first = screen.getAllByRole('button', { name: editName })[0];
-  if (!first) throw new Error('missing edit button');
-  fireEvent.click(first);
+  clickEdit();
   expect(screen.getByLabelText(t('en', 'serviceLineEdit.reason'))).toBeTruthy();
   gate = 'expired';
   await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
@@ -338,6 +354,59 @@ it('hides an open history panel when a refetch returns 401', async () => {
   expect(screen.getByRole('alert').textContent).toContain('History signed out EN');
   expect(screen.getByText('Synthetic customer')).toBeTruthy();
   expect(screen.getAllByText('10.000').length).toBeGreaterThan(0);
+});
+
+it('shows the selected day when the date or late filter changes after a denial', async () => {
+  state.online = true; state.locale = 'en'; state.get.mockReset();
+  let denied = false;
+  state.get.mockImplementation((path: string, init?: { params?: { query?: { date?: string; late?: string } } }) => Promise.resolve(
+    String(path).includes('/edits') ? historyPage
+      : init?.params?.query?.date === '2026-11-01' || init?.params?.query?.late === 'true' ? day
+      : denied ? denial(403, 'Denied EN') : day));
+  const view = renderPage();
+  await screen.findByText('Synthetic customer');
+  denied = true;
+  await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
+  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.date')), { target: { value: '2026-11-01' } });
+  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
+  fireEvent.click(screen.getByRole('checkbox', { name: t('en', 'serviceLineEdit.lateOnly') }));
+  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+  expect((screen.getByRole('checkbox', { name: t('en', 'serviceLineEdit.lateOnly') }) as HTMLInputElement).checked).toBe(true);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('hides cached visits and history when the edit patch returns 401', async () => {
+  state.online = true; state.locale = 'en'; state.get.mockReset(); state.patch.mockReset();
+  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? historyPage : day));
+  state.patch.mockResolvedValue(denial(401, 'Signed out EN', 'UNAUTHENTICATED')); renderPage();
+  await screen.findByText('Synthetic customer');
+  clickEdit();
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'because' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.history') }));
+  expect(await screen.findByText('Wrong price')).toBeTruthy(); fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
+  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
+  for (const text of ['10.000', '1.000', '9.000', 'Wrong price', '8.000']) expect(screen.queryByText(text)).toBeNull();
+  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason')) ?? screen.queryByRole('button', { name: t('en', 'serviceLineEdit.edit') })).toBeNull();
+  expect(screen.getByRole('alert').textContent).toContain('Signed out EN');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
+  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+});
+
+it('closes the form and keeps the day visible when the edit patch returns 403', async () => {
+  state.online = true; state.locale = 'en'; state.get.mockReset(); state.patch.mockReset();
+  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? historyPage : day));
+  state.patch.mockResolvedValue(denial(403, 'Forbidden EN')); renderPage();
+  await screen.findByText('Synthetic customer');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.history') }));
+  expect(await screen.findByText('Wrong price')).toBeTruthy(); clickEdit();
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'because' } }); fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
+  await waitFor(() => expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason'))).toBeNull());
+  expect(screen.getByRole('status').textContent).toContain('Forbidden EN');
+  for (const text of ['Synthetic customer', 'Wrong price']) expect(screen.getByText(text)).toBeTruthy();
+  expect(screen.getAllByText('10.000').length).toBeGreaterThan(0);
+  expect(screen.queryByRole('alert')).toBeNull();
 });
 
 it('uses the locale direction on the day list', async () => {

@@ -2,29 +2,29 @@
 import { parseMoney } from '@pospay/domain';
 import { formatInstant, formatKwd, t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useLineEditHistory } from '../api/use-line-edit-history';
 import type { SessionServiceScope } from '../api/use-session-services';
-import { discardDeniedLineEditHistory, serviceSessionAccessRevoked } from '../model/service-session-access';
+import { serviceSessionAccessRevoked, serviceSessionDenial } from '../model/service-session-access';
 
 const kwd = (value: string) => formatKwd(parseMoney(value));
+
+function historyAccessKey(scope: SessionServiceScope, sessionId: string, lineId: string) {
+  return [scope.companyId, scope.businessId, scope.branchId, scope.userId, sessionId, lineId].join(':');
+}
 
 export function ServiceLineEditHistory({ scope, sessionId, lineId, timezone }: {
   scope: SessionServiceScope; sessionId: string; lineId: string; timezone: string;
 }) {
   const locale = useLocale();
-  const queryClient = useQueryClient();
+  const [deniedFor, setDeniedFor] = useState<string | null>(null);
   const query = useLineEditHistory(scope, sessionId, lineId, true);
-  const revoked = serviceSessionAccessRevoked(query.error);
-  useEffect(() => {
-    if (revoked) discardDeniedLineEditHistory(queryClient, scope, sessionId, lineId);
-  }, [queryClient, revoked, scope, sessionId, lineId]);
+  const access = serviceSessionDenial(deniedFor, historyAccessKey(scope, sessionId, lineId), serviceSessionAccessRevoked(query.error), query.isSuccess && !query.isError);
+  if (access.nextKey !== deniedFor) setDeniedFor(access.nextKey);
   const failure = <p role="alert">{envelopeMessage(query.error, locale)} <Button type="button" variant="outline" onClick={() => { void query.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>;
-  // خطأ الصلاحية بيسيب صفحات السجل في الكاش؛ الرسالة بس لحد ما التأثير يمسحها، عشان إعادة محاولة فاشلة ما ترجّعش الأسباب والأسعار.
-  if (revoked) return failure;
+  if (access.denied) return failure;
   if (query.isPending) return <p>{t(locale, 'serviceLineEdit.loading')}</p>;
   if (query.isError) return failure;
   const items = query.data.pages.flatMap((page) => page.items);

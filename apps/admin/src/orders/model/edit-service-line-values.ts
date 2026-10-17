@@ -3,6 +3,7 @@ import { discountFromPercent, lineNet, parseMoney } from '@pospay/domain';
 import { formatKwd, normalizeKwdInput, type Locale } from '@pospay/i18n';
 import type { FieldErrors, Resolver } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
+import { serviceSessionAccessRevoked } from './service-session-access';
 import { normalizeSessionPercent } from './session-drafts';
 
 const EDGE = /^[\t\r\n ]+|[\t\r\n ]+$/g;
@@ -85,7 +86,7 @@ export function previewLineEdit(priceText: string, kind: EditLineFormInput['disc
 }
 
 type EditFailure =
-  | { kind: 'stale' | 'forbidden' | 'root'; message: string }
+  | { kind: 'stale' | 'forbidden' | 'unauthenticated' | 'root'; message: string }
   | { kind: 'field'; field: 'reason' | 'discount_value'; message: string }
   | { kind: 'limit'; message: string; details: EditLimitDetails }
   | { kind: 'membership'; message: string; ids: string[] };
@@ -127,6 +128,8 @@ function readMemberships(details: unknown): string[] | null {
 export function classifyEditError(error: unknown, locale: Locale): EditFailure {
   const { status, code, details } = refusal(error);
   const message = envelopeMessage(error, locale);
+  // 403 بيقفل النموذج والبيانات تفضل ظاهرة؛ 401 يعني الجلسة خلصت ولازم نفس قفل شاشة القراءة.
+  if (status === 401 && serviceSessionAccessRevoked(error)) return { kind: 'unauthenticated', message };
   if (status === 403) return { kind: 'forbidden', message };
   if (status === 409 && code === 'SESSION_LINE_REVISION_STALE') return { kind: 'stale', message };
   if (status === 422 && code === 'SESSION_EDIT_NO_CHANGE') return { kind: 'field', field: 'discount_value', message };
