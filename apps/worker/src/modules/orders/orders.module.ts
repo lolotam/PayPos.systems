@@ -19,6 +19,15 @@ import {
 } from './persistence/service-line-edit-notice.repository.ts';
 import { RequestPriceEditNotice } from './use-cases/request-price-edit-notice/request-price-edit-notice.ts';
 import { onServiceLineChanged } from './events/handlers/on-service-line-changed.handler.ts';
+import type { LineCancelNameFallback } from './domain/line-cancel-notice.ts';
+import { lineCancelRecipients } from './persistence/line-cancel-recipients.adapter.ts';
+import { lineCancelPlace } from './persistence/line-cancel-place.adapter.ts';
+import {
+  lineCancelRepository,
+  lineCancelOutbox,
+} from './persistence/service-line-cancel-notice.repository.ts';
+import { RequestLineCancelNotice } from './use-cases/request-line-cancel-notice/request-line-cancel-notice.ts';
+import { onLineCancelled } from './events/handlers/on-line-cancelled.handler.ts';
 
 export function createLateServiceSessionNoticeConsumer(
   ids: IdGenerator,
@@ -61,11 +70,37 @@ export function createPriceEditNoticeConsumer(ids: IdGenerator, clock: Clock): O
     handle: (tx, event) => onServiceLineChanged(bind(tx), event),
   };
 }
+export function createLineCancelNoticeConsumer(ids: IdGenerator, clock: Clock): OutboxConsumer {
+  const bind = (tx: Tx) =>
+    new RequestLineCancelNotice(
+      {
+        recipients: lineCancelRecipients(tx),
+        place: lineCancelPlace(tx),
+        repository: lineCancelRepository(tx),
+        outbox: lineCancelOutbox(tx),
+      },
+      ids,
+      clock,
+      lineCancelFallback(),
+    );
+  return {
+    id: 'orders.line-cancel-notice-v1',
+    eventTypes: ['ServiceLineChanged'],
+    handle: (tx, event) => onLineCancelled(bind(tx), event),
+  };
+}
 function priceEditFallback(): PriceEditNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
     safeName: safeDisplayName,
     editorText: editorLabel,
+  };
+}
+function lineCancelFallback(): LineCancelNameFallback {
+  return {
+    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
+    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    safeName: safeDisplayName,
   };
 }
