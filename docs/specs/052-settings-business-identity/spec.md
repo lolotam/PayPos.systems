@@ -103,8 +103,12 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
 3. **Bind check** inside the settings tenant transaction, after the business settings row lock, through the existing
    `files` read export (`documentFileFacts`, extended additively with `purge_started`): READY, purge neither started nor completed,
    `content_type` in PNG/JPEG, `owner_module='settings'`, `owner_entity_id` and `business_id` both equal the route's business id, no branch,
-   `required_permission='read:settings:business'`, `created_by` = the actor, `size_bytes` within the logo cap (BI-Q3).
-   PENDING/VERIFYING answers `FILE_NOT_READY`; every other mismatch answers `FILE_NOT_FOUND`.
+   `required_permission='read:settings:business'`, `created_by` = the actor. **Order matters, so that no answer discloses a
+   file the caller may not know:** (a) first every ownership and identity check above (purge, `owner_module`,
+   `owner_entity_id`, `business_id`, branch, `created_by`, `required_permission`, `content_type`); any mismatch answers
+   `FILE_NOT_FOUND`, identical to an unknown id; (b) only then the status: PENDING/VERIFYING answers `FILE_NOT_READY`;
+   (c) only for a READY file that passed (a), the stored `size_bytes` against the logo cap (BI-Q3) answers
+   `FILE_SIZE_INVALID`. `size_bytes` is therefore never part of the `FILE_NOT_FOUND` list.
 4. **One cap rule, on the bytes that are kept.** The logo cap (BI-Q3) applies to the **re-encoded** output: the
    verification worker rejects a settings logo whose encoded size exceeds it (file status `REJECTED`, code
    `FILE_SIZE_INVALID`), so a file that reaches `READY` is always within the cap and can always be bound. `request-upload`
@@ -129,9 +133,13 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
    `purged_at` are written only after both deletions are acknowledged, and a test proves that neither object exists
    afterwards. A crash between the steps loses nothing: the next retention run picks the row up. **Schedule bootstrap:** the hourly
    retention schedules are registered per tenant only when a `FileUploadRequested` is delivered, so a tenant whose last
-   such event predates 27h-3 would never run the `retired` kind. After its commit the consumer's post-commit step (outside
-   `OutboxConsumer.handle`, as ADR-0018) therefore idempotently upserts that company's two hourly schedules through the
-   same registration used by `files.deliver`; nothing runs at worker start. **Storage disabled:** registering the
+   such event predates 27h-3 would never run the `retired` kind. The schedule upsert cannot sit inside the consumer
+   transaction (BullMQ is not the database), so it is a **replay-safe post-commit step of the same outbox delivery**
+   (the ADR-0018 transport-publisher pattern: it runs outside `OutboxConsumer.handle`, after the claim commits, and the
+   event is acknowledged only once the upsert has succeeded). If the worker crashes between the commit and the upsert, the
+   event is delivered again; the consumer is idempotent through its dedupe record and `purge_started_at`, and the upsert
+   (the registration `files.deliver` uses, keyed per company) is idempotent, so the replay completes the missing upsert.
+   Nothing runs at worker start. **Storage disabled:** registering the
    consumer, the durable handoff (`purge_started_at`) and the schedules needs only the database and Redis, so 27h-3 makes
    them independent of object storage (today `startFilesWorker` returns `null` when storage is absent). The retention
    processor itself still registers, and when storage is unavailable it skips the run without claiming any row; the rows
@@ -172,7 +180,7 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
 - `PUT /v1/businesses/:businessId/settings/logo` (27h-4) · `@Require('manage:settings:business')` · body
   `{ file_id: uuid|null }`; `null` removes. 200 returns `{ logo_file_id }`. No Idempotency-Key (rebinding the current file
   is a no-op).
-- Errors reuse the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `FILE_NOT_READY`,
+- Errors reuse the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `FILE_NOT_READY`, `FILE_SIZE_INVALID`,
   `FILE_NOT_FOUND`, `NOT_READY`, `TRANSACTION_RETRY_REQUIRED`. New codes only if the existing ones do not fit.
 - Preview of the logo in admin uses the existing audited `POST files/:id/download`.
 
