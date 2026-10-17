@@ -211,9 +211,15 @@ the numbers back.
   `firstFreeEmployeeNumber(counter, usedAtOrAbove)` (first unused at or above the counter; `null` past 999999). The
   admin form and the search box call the first; the assign port calls the second. No arithmetic in a use case.
 - **TD-4 Serialization.** Every number write in a company (automatic assign, hand edit, start) takes the counter row
-  `FOR UPDATE` first; the unique index `(company_id, employee_number)` is the backstop. Where it sits in the existing
-  create-employee lock order is decided with the design advisors at the start of 8c-2 (skill §3 step 2: the slice
-  changes RLS and a locking path).
+  `FOR UPDATE` first; the unique index `(company_id, employee_number)` is the backstop. Decided with the design advisors at the start of 8c-2 (two independent reviews agree):
+  **global lock order = company (`FOR NO KEY UPDATE`) → memberships ordered by id → import preview/idempotency locks
+  (import paths only) → the counter row → employee rows → attachments and audit.** A path may skip locks but never reverses
+  two of them. In `create-employee` the counter is taken after authorization and validation and before the insert, so a
+  caller without access never touches it and a refused request never reserves a number. The allocator seeds the row
+  (`INSERT … ON CONFLICT DO NOTHING`), locks it in a separate statement, scans used numbers from the counter in bounded
+  pages (256) and moves the counter forward in the same transaction. Every future writer of a number (8c-3 import commit,
+  8c-6 hand edit, 8c-8 start, 8c-11 stragglers) MUST take the counter before locking an employee row; a hand edit reads
+  the employee without a lock, locks the counter, then locks the employee row.
 - **TD-5 Backfill is an ADR-0038 data step** (`CLAUDE.md` §5: a migration never touches tenant rows as the bypassing
   owner). A registered, idempotent step `employee-numbers` is announced by a `-- pospay:data-step employee-numbers`
   marker on a **third** migration (see TD-11), after the ones that add the column, the sequence table and the index (the
@@ -295,8 +301,9 @@ the numbers back.
 All routes under `/v1`, feature flag `staff`, standard error envelope.
 
 - `POST /v1/businesses/{businessId}/employees` (existing) — `CreateEmployeeInput` gains optional
-  `employee_number` (integer 1…999999, **8c-7**, EN-Q11); response `Employee` gains
-  `employee_number: integer | null` (8c-2, automatic number returned).
+  `employee_number` (integer 1…999999, **8c-7**, EN-Q11); the `POST` response is the new
+  `CreatedEmployee` (`Employee` plus `employee_number: integer | null`, 8c-2, automatic number returned); `Employee` and
+  `EmployeeDetail` stay unchanged until 8c-4 adds the field to the read producers.
 - `GET /v1/businesses/{businessId}/employees/{employeeId}` and the list items (existing) gain
   `employee_number: integer | null` (8c-4).
 - `GET /v1/businesses/{businessId}/employees?employee_number=N` — optional exact filter (8c-4).
@@ -390,7 +397,7 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 | PR    | What                                                                                                       | Subtasks                                                                                                                                | Needs            | State                  |
 | ----- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------------- |
 | 8c-1  | Database foundation                                                                                        | (1) migrations A and B: column, sequence table with RLS and grants, then the concurrent unique index (2) Drizzle schema, privileges allowlist, and migration C with the `employee-numbers` data step (3) RLS negative and backfill tests (`EN-01`, `EN-02`) | —                | ready                  |
-| 8c-2  | `create-employee` gives the next number                                                                    | (1) `firstFreeEmployeeNumber` + unit tests (2) assign port and Drizzle adapter, counter lock (3) use case, `Employee` contract field, `EN-03`…`EN-05`, `EN-12` | 8c-1             | ready; advisors first (TD-4) |
+| 8c-2  | `create-employee` gives the next number                                                                    | (1) `firstFreeEmployeeNumber` + unit tests (2) assign port and Drizzle adapter, counter lock (3) use case, `CreatedEmployee` contract, `EN-03`…`EN-05`, `EN-12` | 8c-1             | ready (advisors done, TD-4) |
 | 8c-3  | `commit-employee-import` gives numbers in file order                                                       | (1) import commit uses the assign port (2) `EN-13`                                                                                      | 8c-2             | ready |
 | 8c-4  | Reads: employee detail, staff list, performer picker                                                       | (1) contracts and queries add the field (2) exact-number filter and digit match (3) result-shape and `EXPLAIN` tests, `EN-14`          | 8c-1             | ready |
 | 8c-5  | Reads: attendance board, monthly report, CSV                                                               | (1) board contract and query (2) report contract, query and CSV first column (3) update the two "number is absent" tests, `EN-15`      | 8c-1             | ready                  |
