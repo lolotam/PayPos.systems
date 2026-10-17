@@ -1,6 +1,5 @@
 import { moneyToString, sumMoney } from '@pospay/domain';
-import { compareEmployeeId } from './employee-order.ts';
-import type { TipEntry } from './tip-set.ts';
+import { compareTipEntries, type TipEntry } from './tip-set.ts';
 
 /** رأس الزيارة الذي تُبنى منه حمولة الحدث؛ المنطقة الزمنية للنافذة ولا تخرج في الحدث. */
 export interface TipRevisionSession {
@@ -16,12 +15,6 @@ export interface TipRevisionSession {
 export interface TipAuditSnapshot {
   revision: number;
   entries: readonly TipEntry[];
-}
-
-function compareTipEntries(left: TipEntry, right: TipEntry): number {
-  const byEmployee = compareEmployeeId(left.employee_id, right.employee_id);
-  if (byEmployee !== 0) return byEmployee;
-  return left.method < right.method ? -1 : left.method > right.method ? 1 : 0;
 }
 
 function sortEntries(entries: readonly TipEntry[]): TipEntry[] {
@@ -90,20 +83,27 @@ export function sessionTipsChangedEvent(
 /**
  * يبني أثر تدقيق البقشيش بلا سبب وبلا هاتف.
  * المراجعة الأولى تسجيل وما بعدها استبدال، لأن الصفوف المالية لا تُحذف.
+ * المراجعة الحالية صفر تعني أنه لا صف محفوظ، فيخرج before بقيمة null.
  *
- * @param before المجموعة السابقة، أو null عند أول مراجعة
+ * @param sessionId هوية الزيارة، وتُحفظ كـ entityId مثل أثر تعديل السطر
+ * @param before المجموعة الحالية قبل الحفظ، أو null إن لم تُمرَّر لقطة
  * @param after المجموعة بعد الحفظ
  * @returns أثر service_session_tips بالمبالغ نصاً من ثلاث خانات
  */
-export function sessionTipsAudit(before: TipAuditSnapshot | null, after: TipAuditSnapshot) {
+export function sessionTipsAudit(
+  sessionId: string,
+  before: TipAuditSnapshot | null,
+  after: TipAuditSnapshot,
+) {
   const snapshot = (value: TipAuditSnapshot) => ({
     revision: value.revision,
     entries: sortEntries(value.entries).map(wireEntry),
   });
   return {
     entity: 'service_session_tips' as const,
+    entityId: sessionId,
     action: after.revision === 1 ? ('tips.recorded' as const) : ('tips.replaced' as const),
-    before: before === null ? null : snapshot(before),
+    before: before === null || before.revision === 0 ? null : snapshot(before),
     after: snapshot(after),
   };
 }

@@ -72,16 +72,32 @@ it('accepts an empty tip list and lowercases the recorder membership', () => {
   expect(parsed).not.toHaveProperty('reason');
 });
 
-it('accepts 64 entries and rejects a 65th or a method outside cash and card', () => {
-  const tips = Array.from({ length: 65 }, (_, index) => ({
+it('accepts 160 entries and rejects a 161st or a method outside cash and card', () => {
+  const tips = Array.from({ length: 161 }, (_, index) => ({
     employee_id: tipId(index + 1),
     method: 'CASH' as const,
     amount: '1.000',
   }));
-  expect(
-    recordSessionTipsInput.safeParse({ expected_revision: 0, tips: tips.slice(0, 64) }).success,
-  ).toBe(true);
+  const accepted = tips.slice(0, 160);
+  const totals = { total_cash: '0.000', total_card: '0.000' };
+  const event = {
+    session_id: employee,
+    business_id: other,
+    branch_id: employee,
+    occurred_at: '2026-10-17T12:00:00.000Z',
+    business_date: '2026-10-17',
+    revision: 1,
+    changed_at: '2026-10-17T12:00:00.000Z',
+    schema_version: 1 as const,
+  };
+  expect(recordSessionTipsInput.safeParse({ expected_revision: 0, tips: accepted }).success).toBe(
+    true,
+  );
   expect(recordSessionTipsInput.safeParse({ expected_revision: 0, tips }).success).toBe(false);
+  expect(sessionTips.safeParse({ revision: 1, tips: accepted, ...totals }).success).toBe(true);
+  expect(sessionTips.safeParse({ revision: 1, tips, ...totals }).success).toBe(false);
+  expect(sessionTipsChanged.safeParse({ ...event, tips: accepted }).success).toBe(true);
+  expect(sessionTipsChanged.safeParse({ ...event, tips }).success).toBe(false);
   expect(sessionTipEntry.safeParse({ ...entry, method: 'WALLET' }).success).toBe(false);
 });
 

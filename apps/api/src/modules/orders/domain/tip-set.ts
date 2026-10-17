@@ -55,7 +55,7 @@ function entryKey(entry: TipEntry): string {
  * @param right السطر الثاني
  * @returns ترتيب المقارنة
  */
-function compareTipEntries(left: TipEntry, right: TipEntry): number {
+export function compareTipEntries(left: TipEntry, right: TipEntry): number {
   const byEmployee = compareEmployeeId(left.employee_id, right.employee_id);
   if (byEmployee !== 0) return byEmployee;
   return left.method < right.method ? -1 : left.method > right.method ? 1 : 0;

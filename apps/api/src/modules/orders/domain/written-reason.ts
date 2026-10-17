@@ -22,6 +22,7 @@ export function normalizeWrittenReason(reason: string | undefined, code: Session
 
 /**
  * يقرر سبب مراجعة البقشيش: أول إدخال بلا سبب مقبول، والاستبدال يحتاج سبباً مكتوباً.
+ * تُستدعى بعد assertTipRevision، لأن الطلب المتأخر يُرفض بـ TIP_REVISION_CONFLICT لا بـ TIP_REASON_REQUIRED.
  * الفراغ بعد القص عند مراجعة قائمة هو TIP_REASON_REQUIRED، والنص المعطوب VALIDATION_FAILED حتى يرد النطاق 422.
  *
  * @param currentRevision رقم المراجعة المحفوظ الآن، وصفر يعني أنه لا بقشيش بعد

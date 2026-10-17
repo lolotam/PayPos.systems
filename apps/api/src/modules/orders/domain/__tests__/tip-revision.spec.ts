@@ -24,7 +24,7 @@ it('refuses a stale revision with only the current revision in the details', () 
   expect(Object.keys(error.details as object)).toEqual(['current_revision']);
 });
 
-it('reports the stored revision when the caller is still on zero', () => {
+it('reports the stored revision when the caller is on 1 and the store is on 0', () => {
   const error = thrown(() => assertTipRevision(0, 1));
   expect(error.code).toBe('TIP_REVISION_CONFLICT');
   expect(error.details).toEqual({ current_revision: 0 });
@@ -41,7 +41,7 @@ it('refuses a set that changes nothing', () => {
   expect(() => assertTipChange(true)).not.toThrow();
 });
 
-it('reports a stale revision before a no-change so identical racers conflict', () => {
+it('returns the revision conflict when the revision check runs before the no-change check', () => {
   const stale = () => {
     assertTipRevision(2, 1);
     assertTipChange(false);

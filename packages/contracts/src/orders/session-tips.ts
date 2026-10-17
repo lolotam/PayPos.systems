@@ -5,6 +5,9 @@ import { sessionMoney } from './service-session.js';
 
 const id = sharedId.toLowerCase();
 
+// 20 بنداً × 4 منفّذات × طريقتا دفع.
+const SESSION_TIP_ENTRY_LIMIT = 160;
+
 export const sessionTipEntry = z
   .strictObject({
     employee_id: id,
@@ -16,7 +19,7 @@ export const sessionTipEntry = z
 export const recordSessionTipsInput = z
   .strictObject({
     expected_revision: z.number().int().min(0),
-    tips: z.array(sessionTipEntry).max(64),
+    tips: z.array(sessionTipEntry).max(SESSION_TIP_ENTRY_LIMIT),
     // بلا حد طول حتى يصل السبب المعطوب إلى النطاق ويرد 422، كما في FR-003 لتعديل السطر.
     reason: z.string().optional(),
     recorder_membership_id: id.optional(),
@@ -26,7 +29,7 @@ export const recordSessionTipsInput = z
 export const sessionTips = z
   .strictObject({
     revision: z.number().int().min(0),
-    tips: z.array(sessionTipEntry).max(64),
+    tips: z.array(sessionTipEntry).max(SESSION_TIP_ENTRY_LIMIT),
     total_cash: sessionMoney,
     total_card: sessionMoney,
   })
@@ -41,7 +44,7 @@ export const sessionTipsChanged = z
     business_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     revision: z.number().int().positive(),
     changed_at: timestamp,
-    tips: z.array(sessionTipEntry).max(64),
+    tips: z.array(sessionTipEntry).max(SESSION_TIP_ENTRY_LIMIT),
     schema_version: z.literal(1),
   })
   .meta({ id: 'SessionTipsChanged' });

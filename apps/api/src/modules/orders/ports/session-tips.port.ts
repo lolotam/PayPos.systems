@@ -1,7 +1,7 @@
-import type { SessionAccess } from '../domain/session-authority.ts';
 import type { TipPerson } from '../domain/tip-people.ts';
 import type { TipRevisionSession } from '../domain/tip-records.ts';
 import type { TipEntry } from '../domain/tip-set.ts';
+import type { PerformerCheckPort, SessionRecordAccessPort } from './session-readers.port.ts';
 import type { SessionWriteContext } from './service-session-transactions.port.ts';
 
 /** المجموعة الحالية؛ المراجعة صفر والسطور فاضية تعني أنه لا بقشيش محفوظ بعد. */
@@ -10,7 +10,7 @@ export interface SessionTipsCurrent {
   entries: readonly TipEntry[];
 }
 
-/** صف المراجعة كاملة؛ السبب يبقى هنا ولا يخرج إلى الحدث أو التدقيق. */
+/** صف المراجعة؛ السبب يبقى هنا، وكل سطر يحمل هوية من مولّد النداء لأن session_tips.id بلا قيمة افتراضية. */
 export interface SessionTipRevisionInsert {
   id: string;
   event_id: string;
@@ -20,7 +20,7 @@ export interface SessionTipRevisionInsert {
   changed_by_membership_id: string;
   changed_at: Date;
   reason: string | null;
-  entries: readonly TipEntry[];
+  entries: readonly ({ id: string } & TipEntry)[];
 }
 
 /** أثر التدقيق الآمن؛ بلا سبب وبلا هاتف وبلا اسم عميلة. */
@@ -32,22 +32,8 @@ export interface SessionTipsAuditEntry {
   after: unknown;
 }
 
-/** سلطة التسجيل تُعاد قبل المطالبة وبعد الانتظار على إذن الزيارة نفسه. */
-export interface SessionTipsAccessPort {
-  /**
-   * يثبت الشركة ثم عضويات التسجيل بأقفال SHARE نفسها المستخدمة لتسجيل الزيارة.
-   *
-   * @returns يكتمل حيازة الأقفال حتى نهاية المعاملة
-   */
-  lock(): Promise<void>;
-  /**
-   * يعيد إذن التسجيل والمنع والميزة وعضويات الفرع عند اللحظة المحقونة.
-   *
-   * @param at اللحظة بعد الأقفال أو عند إعادة الإرسال
-   * @returns حقائق record:service-sessions:branch لاختيار عضوية المسجّلة
-   */
-  read(at: Date): Promise<SessionAccess>;
-}
+/** سلطة تسجيل البقشيش هي منفذ تسجيل الزيارة نفسه حتى لا يُنسخ القفل وإعادة الفحص. */
+export type SessionTipsAccessPort = SessionRecordAccessPort;
 
 /** تخزين مراجعات البقشيش؛ اختلاف النطاق يعيد null فيرفض النداء برفض موحّد. */
 export interface SessionTipsRepository {
@@ -69,7 +55,7 @@ export interface SessionTipsRepository {
    * يعيد صفاً لكل منفّذة على الزيارة، لا صفاً لكل موظفة، والدمج يتم في النطاق.
    *
    * @param sessionId هوية الزيارة
-   * @returns السطر الفعّال من حالة البند، والهويات من line_performers، والربط الحالي يملأه النداء لاحقاً
+   * @returns السطر الفعّال من حالة البند والهويات من line_performers، بلا دمج صفوف
    */
   loadPeople(sessionId: string): Promise<readonly TipPerson[]>;
   /**
@@ -89,9 +75,13 @@ export interface SessionTipsRepository {
   insertRevision(sessionId: string, row: SessionTipRevisionInsert): Promise<void>;
 }
 
-/** معاملة البقشيش تعيد فحص إذن التسجيل بعد القفل، وتكتب المراجعة والتدقيق والحدث معاً. */
+/** معاملة البقشيش تكتب المراجعة والتدقيق والحدث معاً. */
+/** تحت قفل الزيارة: loadPeople ثم loadCurrent. */
+/** ثم performers.lock لاتحاد هويات الناس والحالية والمطلوبة، تصاعدياً ودفعات ضمن حد المنفذ، ثم قراءة الربط الحالي. */
+/** ثم إعادة فحص الإذن الطازج قبل الكتابة. */
 export interface SessionTipsTransaction {
   access: SessionTipsAccessPort;
+  performers: PerformerCheckPort;
   tips: SessionTipsRepository;
   /**
    * يحفظ جسم الرد تحت عملية تسجيل البقشيش أو يعيد الجسم المخزون.

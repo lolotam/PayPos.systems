@@ -143,8 +143,14 @@ effects, business timezone, UUID v7, no `Date.now`/`randomUUID` in use cases).
 - **D-T4 Event.** `SessionTipsChanged` = { `session_id`, `business_id`, `branch_id`, `occurred_at` (the session's),
   `business_date`, `revision`, `changed_at`, `tips` (full current set, canonical strings), `schema_version` 1 }; its outbox id
   is the revision's `event_id`. Registered in the worker before its consumer (row 50).
-- **D-T5 Refusals.** An unknown, foreign or out-of-scope session and a failed live recheck give one `SESSION_NOT_FOUND`
-  (TP-03); `TIP_REVISION_CONFLICT` (409) carries only `current_revision`.
+- **D-T5 Refusals.** Two layers, neither of which reveals whether a session exists elsewhere (TP-03). (1) The route guard
+  (`@Require('record:service-sessions:branch')` at the route's branch) answers `FORBIDDEN` before any session is looked up,
+  so it depends only on the caller's own permission. (2) Inside the transaction, every refusal about the session or the
+  caller's live authority gives one `SESSION_NOT_FOUND` with an identical body: an unknown id, a session of another
+  company, business or branch, and a live recheck that finds the permission revoked, DENY-overridden or expired (the
+  `FORBIDDEN` of `resolveSessionRecorder` is translated to it). `FEATURE_DISABLED` and `SESSION_RECORDER_MEMBERSHIP_REQUIRED`
+  keep their own codes (they describe the caller's company or own memberships, not the session). `TIP_REVISION_CONFLICT`
+  (409) carries only `current_revision`.
 - **D-T6 Lock order.** Idempotency claim → access lock (company, memberships) → the visit advisory lock shared with
   record, append, edit and cancel (spec 054 §3.2) → read the session, lines, performer rows and current revision → the
   staff employee rows of every person involved (current links), ascending → fresh access recheck after all waits → rules →
@@ -194,16 +200,19 @@ covers indexes added to existing tables).
   at the branch · feature flag `orders` · `Idempotency-Key` required (company scope; the fingerprint binds actor and session
   as in spec 050 §8).
 - Body (strict Zod in `packages/contracts/src/orders/session-tips.ts`):
-  `{ "expected_revision": 0, "tips": [{ "employee_id": "uuid", "method": "CARD", "amount": "6.000" }], "reason": "…"? }`.
-  `expected_revision` is `0` for the first entry. Amounts are canonical three-decimal KWD strings.
+  `{ "expected_revision": 0, "tips": [{ "employee_id": "uuid", "method": "CARD", "amount": "6.000" }], "reason": "…"?, "recorder_membership_id": "uuid"? }`.
+  `expected_revision` is `0` for the first entry. Amounts are canonical three-decimal KWD strings. At most 160 entries
+  (20 lines × 4 performers × 2 methods). `recorder_membership_id` selects the membership when the actor has several (D-T2).
 - 200 returns `{ revision, tips: [...], total_cash, total_card }`.
 - `GET …/service-sessions/:sessionId/tips` returns the current revision and set (nothing else: no customer, no phone, no
   history); guard **`record:service-sessions:branch`**, so the cashier who may record a tip can always reload the current set
   and revision that the replacing PUT requires. The broader `read:service-sessions:branch` is not needed and not granted by this endpoint.
 - Errors in the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `SESSION_NOT_FOUND`
   (also for an out-of-scope or foreign session), `TIP_WINDOW_CLOSED`, `TIP_SELF_FORBIDDEN`, `TIP_IDENTITY_UNKNOWN`, `TIP_EMPLOYEE_NOT_PERFORMER`,
-  `TIP_REVISION_CONFLICT` (409), `TIP_REASON_REQUIRED`, `TIP_TOTAL_TOO_LARGE`, `TRANSACTION_RETRY_REQUIRED`. New codes are added to
-  `src/shared/errors.ts`, never inlined.
+  `TIP_REVISION_CONFLICT` (409), `TIP_REASON_REQUIRED`, `TIP_NO_CHANGE` (D-T1), `TIP_TOTAL_TOO_LARGE`,
+  `SESSION_RECORDER_MEMBERSHIP_REQUIRED` (D-T2), `FEATURE_DISABLED`, `TRANSACTION_RETRY_REQUIRED`. The codes and their ar/en
+  messages live in `SessionErrorCode` and `serviceSessionErrors`; their HTTP statuses are mapped by the orders session error
+  filter (36-3c), never inlined.
 
 ### 5.5 Permissions
 
@@ -217,7 +226,7 @@ the staff-app rows, not here.
 
 - **Published:** `SessionTipsChanged` (orders, `events/published.ts`, Arabic one-line doc), emitted in the same transaction as
   every revision: `session_id`, `business_id`, `branch_id`, `occurred_at` (the session's), `business_date`, `revision`,
-  `tips [{employee_id, amount, method}]` (the **full current set**, canonical strings), `schema_version = 1`. It is already
+  `changed_at` (the revision time, D-T4), `tips [{employee_id, amount, method}]` (the **full current set**, canonical strings), `schema_version = 1`. It is already
   declared in `docs/module-map.md` (orders ⇒ commissions); the worker's known-event registry gets it before its consumer
   (row 50), following the `SalaryChanged` precedent. No phone, customer name or reason.
 - **Audit:** entity `service_session_tips`, action `tips.recorded` (first revision) or `tips.replaced`; before/after hold

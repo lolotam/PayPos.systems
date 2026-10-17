@@ -1,5 +1,4 @@
-import type { ServiceSessionRecorded as Recorded, ServiceSessionLinesAdded as Added, ServiceLineChanged as Changed } from '@pospay/contracts';
-import type { SessionTipsChanged as TipsChanged } from '@pospay/contracts';
+import type { ServiceSessionRecorded as Recorded, ServiceSessionLinesAdded as Added, ServiceLineChanged as Changed, SessionTipsChanged as TipsChanged } from '@pospay/contracts';
 /** يصدر مرة عند إنشاء زيارة مع بنودها المقبولة بالنسخة الأولى في نفس معاملة المال. */
 export type ServiceSessionRecorded = Recorded;
 /** يصدر مرة لكل إضافة ناجحة ويحمل البنود الجديدة فقط دون إعادة إصدار الزيارة أو بنودها القديمة. */

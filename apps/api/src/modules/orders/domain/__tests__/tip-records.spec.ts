@@ -65,29 +65,35 @@ it('builds the event from the session clock and the full sorted set', () => {
 });
 
 it('records the first revision and replaces every later one without a reason', () => {
-  const recorded = sessionTipsAudit(null, { revision: 1, entries: scrambled });
+  const recorded = sessionTipsAudit(session.id, { revision: 0, entries: scrambled }, {
+    revision: 1,
+    entries: scrambled,
+  });
+  expect(recorded.entityId).toBe(session.id);
   expect(recorded.action).toBe('tips.recorded');
   expect(recorded.before).toBeNull();
   expect(recorded.after.entries).toEqual(ordered);
   const replaced = sessionTipsAudit(
+    session.id,
     { revision: 1, entries: [entry(sara, 'CARD', 6000n)] },
     { revision: 2, entries: [] },
   );
   expect(replaced).toEqual({
     entity: 'service_session_tips',
+    entityId: session.id,
     action: 'tips.replaced',
     before: { revision: 1, entries: [{ employee_id: sara, method: 'CARD', amount: '6.000' }] },
     after: { revision: 2, entries: [] },
   });
-  expect(sessionTipsAudit({ revision: 0, entries: [] }, { revision: 1, entries: [] }).action).toBe(
-    'tips.recorded',
-  );
+  expect(
+    sessionTipsAudit(session.id, null, { revision: 1, entries: [] }).before,
+  ).toBeNull();
 });
 
 it('keeps reason, phone and customer out of the response, the event and the audit', () => {
   const response = tipSetResponse(1, scrambled);
   const payload = sessionTipsChangedEvent(session, 1, changedAt, scrambled);
-  const audit = sessionTipsAudit(null, { revision: 1, entries: scrambled });
+  const audit = sessionTipsAudit(session.id, null, { revision: 1, entries: scrambled });
   const names = keysOf({ response, payload, audit });
   expect(names).not.toContain('reason');
   expect(names).not.toContain('phone');
