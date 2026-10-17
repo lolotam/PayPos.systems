@@ -43,10 +43,14 @@ export class RequestPriceEditNotice {
       snapshot.newNet !== input.newNet
     )
       throw new Error('PRICE_EDIT_EVENT_INVALID');
-    const editor = priceEditEditorLabel(
-      { nameAr: snapshot.editorNameAr, nameEn: snapshot.editorNameEn, role: snapshot.editorRole },
-      this.fallback,
-    );
+    const editor = priceEditEditorLabel({
+      nameAr: snapshot.editorNameAr,
+      nameEn: snapshot.editorNameEn,
+      role: snapshot.editorRole,
+      roleIsSystem: snapshot.editorRoleIsSystem,
+      roleNameAr: snapshot.editorRoleNameAr,
+      roleNameEn: snapshot.editorRoleNameEn,
+    });
     const { groups, recipientCount } = priceEditRecipientGroups(users);
     const won = await this.ports.repository.claim(input, {
       id: this.ids.newId(),

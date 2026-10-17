@@ -16,7 +16,8 @@ export const lineNoticeMatchStatement = (line: PriceEditNoticeLine) => sql`SELEC
 
 // numeric قد يصل كرقم؛ القالب يشترط النص القانوني بثلاث خانات دون تحويل حسابي.
 export const editSnapshotStatement = (companyId: string, lineId: string, revision: number) => sql`
-  SELECT editor_name_ar, editor_name_en, editor_role,
+  SELECT editor_name_ar, editor_name_en, editor_role, editor_role_is_system,
+    editor_role_name_ar, editor_role_name_en,
     btrim(to_char(previous_net, '99999999990.000')) AS previous_net,
     btrim(to_char(new_net, '99999999990.000')) AS new_net
   FROM service_line_edits
@@ -69,6 +70,9 @@ type SnapshotRow = Record<string, unknown> & {
   editor_name_ar: string | null;
   editor_name_en: string | null;
   editor_role: string | null;
+  editor_role_is_system: boolean | null;
+  editor_role_name_ar: string | null;
+  editor_role_name_en: string | null;
   previous_net: string;
   new_net: string;
 };
@@ -82,6 +86,9 @@ function toSnapshot(row: SnapshotRow): PriceEditSnapshot {
     editorNameAr: row.editor_name_ar,
     editorNameEn: row.editor_name_en,
     editorRole: row.editor_role,
+    editorRoleIsSystem: row.editor_role_is_system,
+    editorRoleNameAr: row.editor_role_name_ar,
+    editorRoleNameEn: row.editor_role_name_en,
     previousNet: row.previous_net,
     newNet: row.new_net,
   };

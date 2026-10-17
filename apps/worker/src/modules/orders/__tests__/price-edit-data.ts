@@ -26,6 +26,9 @@ export interface EditSpec {
   editorNameAr?: string | null;
   editorNameEn?: string | null;
   editorRole?: string | null;
+  editorRoleIsSystem?: boolean;
+  editorRoleNameAr?: string | null;
+  editorRoleNameEn?: string;
   company?: string;
   sessionId?: string;
   lineId?: string;
@@ -121,12 +124,13 @@ async function insertHistory(
     previous_price,previous_discount,previous_net,new_price,new_discount,new_net,
     previous_effective_discount_bps,previous_limit_source,new_effective_discount_bps,new_limit_source,
     reason,changed_at,changed_by,changed_by_membership_id,editor_name_ar,editor_name_en,editor_role,
-    editor_role_is_system,editor_role_name_en)
+    editor_role_is_system,editor_role_name_ar,editor_role_name_en)
     VALUES(${line.companyId},${ids.newId()},${line.businessId},${line.lineId},${revision},${revision - 1},
       ${previousNet},'0.000',${previousNet},${newNet},'0.000',${newNet},
       0,'OWNER',0,'OWNER','recorded reason',${at},${USER},${ORDER_IDS.membership},
       ${spec.editorNameAr === undefined ? null : spec.editorNameAr},${nameEn},${role},
-      ${role === null ? null : true},${role === null ? null : 'Synthetic role'})`;
+      ${role === null ? null : (spec.editorRoleIsSystem ?? true)},${spec.editorRoleNameAr ?? null},
+      ${role === null ? null : (spec.editorRoleNameEn ?? 'Synthetic role')})`;
   // صف بلا اسم ولا دور لم يعد ممكناً بعد 35d-3b؛ نكتبه بإسقاط القيد لحظياً لنختبر دفاع المستهلك أمام صف تاريخي قديم.
   const legacyShape = role === null && nameEn === null;
   await owner.begin(async (tx) => {

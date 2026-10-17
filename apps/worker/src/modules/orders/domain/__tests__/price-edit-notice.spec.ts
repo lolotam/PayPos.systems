@@ -10,9 +10,6 @@ import {
 const fallback: PriceEditParameterInput['fallback'] = {
   service: { ar: 'الخدمة', en: 'Service' },
   branch: { ar: 'فرع', en: 'Branch' },
-  owner: { ar: 'المالك', en: 'Owner' },
-  manager: { ar: 'المدير', en: 'Manager' },
-  employee: { ar: 'موظف', en: 'Employee' },
 };
 const base = {
   service: { nameAr: 'قص', nameEn: 'Cut' },
@@ -81,10 +78,10 @@ it.each([
   expect(values.slice(0, 4)).toEqual(['Cut', 'Cut', 'فرع', 'Branch']);
 });
 it('editor English does not fall back to Arabic; a missing name uses the stored role', () => {
-  expect(names({ nameAr: 'سالم', nameEn: null, role: 'manager' })).toEqual(['سالم', 'Manager']);
+  expect(names({ nameAr: 'سالم', nameEn: null, role: 'branch_manager' })).toEqual(['سالم', 'Manager']);
   expect(names({ nameAr: null, nameEn: 'Salem', role: 'owner' })).toEqual(['Salem', 'Salem']);
   expect(names({ nameAr: null, nameEn: null, role: 'owner' })).toEqual(['المالك', 'Owner']);
-  expect(names({ nameAr: null, nameEn: 'https://x.test', role: 'manager' })).toEqual([
+  expect(names({ nameAr: null, nameEn: 'https://x.test', role: 'branch_manager' })).toEqual([
     'المدير',
     'Manager',
   ]);
@@ -94,9 +91,7 @@ it('editor English does not fall back to Arabic; a missing name uses the stored 
   ]);
   expect(names({ nameAr: null, nameEn: 'https://x.test', role: null })).toEqual(['موظف', 'Employee']);
   expect(() => names({ nameAr: null, nameEn: null, role: null })).toThrow('PRICE_EDIT_EVENT_INVALID');
-  expect(() => names({ nameAr: '   ', nameEn: null, role: 'cashier' })).toThrow(
-    'PRICE_EDIT_EVENT_INVALID',
-  );
+  expect(names({ nameAr: '   ', nameEn: null, role: 'cashier' })).toEqual(['كاشير', 'Cashier']);
 });
 it('keeps a year inside a name and a real leap day', () => {
   const values = priceEditNoticeParameters({
@@ -107,7 +102,12 @@ it('keeps a year inside a name and a real leap day', () => {
   expect(values[0]).toBe('خدمة 2026');
   expect(values[4]).toBe('2024-02-29');
 });
-function names(editor: Parameters<typeof priceEditEditorLabel>[0]) {
-  const label = priceEditEditorLabel(editor, fallback);
+function names(editor: Pick<Parameters<typeof priceEditEditorLabel>[0], 'nameAr' | 'nameEn' | 'role'>) {
+  const label = priceEditEditorLabel({
+    roleIsSystem: editor.role === null ? null : true,
+    roleNameAr: null,
+    roleNameEn: editor.role === null ? null : 'Synthetic role',
+    ...editor,
+  });
   return [label.ar, label.en];
 }
