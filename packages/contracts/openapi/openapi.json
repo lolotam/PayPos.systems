@@ -9658,6 +9658,123 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/edits": {
+      "get": {
+        "operationId": "listServiceLineEdits",
+        "description": "Newest-first price-edit history for one saved line. Requires read:service-sessions:branch and the orders feature. edit:service-line-prices:branch does not grant this read. A line, session, branch or company mismatch is a uniform 403. The reason is returned only here. The scoped cursor carries the last revision.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "lineId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Edit history newest first. Money is canonical three-decimal text. next_cursor is null on the last page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceLineEditsPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query or a cursor for another company, business, branch, session or line.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform scope/authority refusal or disabled orders feature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication/readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options": {
       "get": {
         "operationId": "getServiceSessionPerformerOptions",
@@ -20494,6 +20611,9 @@
             "exclusiveMinimum": true,
             "maximum": 9007199254740991
           },
+          "edited": {
+            "type": "boolean"
+          },
           "list_price": {
             "$ref": "#/components/schemas/SessionMoney"
           },
@@ -20544,6 +20664,7 @@
           "name_en",
           "status",
           "revision",
+          "edited",
           "list_price",
           "price",
           "discount",
@@ -20659,6 +20780,124 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ServiceSessionDayItem"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceLineEditsQuery": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 50,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ServiceLineEditItem": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "previous": {
+            "type": "object",
+            "properties": {
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            },
+            "required": [
+              "price",
+              "discount",
+              "net"
+            ],
+            "additionalProperties": false
+          },
+          "new": {
+            "type": "object",
+            "properties": {
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            },
+            "required": [
+              "price",
+              "discount",
+              "net"
+            ],
+            "additionalProperties": false
+          },
+          "changed_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "editor_label_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "editor_label_en": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "revision",
+          "previous",
+          "new",
+          "changed_at",
+          "editor_label_ar",
+          "editor_label_en",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceLineEditsPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceLineEditItem"
             }
           },
           "next_cursor": {
