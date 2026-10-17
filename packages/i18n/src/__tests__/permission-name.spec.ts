@@ -29,10 +29,17 @@ it.each(['ar', 'en'] as const)(
       'manage:package-types:business',
       'correct:attendance:branch',
       'edit:service-line-prices:branch',
+      'change:service-line-performers:branch',
     ])
       expect(permissionName(locale, code)).not.toBe(code);
     expect(permissionName('ar', 'edit:service-line-prices:branch')).toBe('تعديل سعر/خصم جلسة');
     expect(permissionName('en', 'edit:service-line-prices:branch')).toBe('Edit session price/discount');
+    expect(permissionName('ar', 'change:service-line-performers:branch')).toBe(
+      'تغيير منفّذي بند الخدمة',
+    );
+    expect(permissionName('en', 'change:service-line-performers:branch')).toBe(
+      'Change service line performers',
+    );
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');
   },
 );

@@ -15,6 +15,7 @@ import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
 import { CARD_COLUMN_GRANTS } from '../../test/card-grants.ts';
 import { SERVICE_COLUMN_GRANTS, PACKAGE_TYPE_COLUMN_GRANTS } from '../../test/catalog-grants.ts';
 import { SERVICE_LINE_EDIT_COLUMN_GRANTS } from '../../test/service-line-edit-grants.ts';
+import { SERVICE_LINE_PERFORMER_COLUMN_GRANTS } from '../../test/service-line-performer-grants.ts';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -94,7 +95,8 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'late_service_session_notices:SELECT',
     'leave_requests:INSERT',
     'leave_requests:SELECT',
-    // لقطة هوية المنفذ (linked_user_id، linked_user_snapshotted) لا تتغير بعد الإدخال، فلا UPDATE هنا ولا على عمود منها (ADR-0045 §1).
+    // لقطة هوية المنفذ لا تتغير بعد الإدخال، فلا UPDATE. الحذف ممنوح، وحذف بلا رأس تغيير في نفس المعاملة لا يُثبَّت.
+    'line_performers:DELETE',
     'line_performers:INSERT',
     'line_performers:SELECT',
     'memberships:DELETE',
@@ -128,6 +130,10 @@ const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'service_line_edit_notices:SELECT',
     'service_line_edits:INSERT',
     'service_line_edits:SELECT',
+    'service_line_performer_change_rows:INSERT',
+    'service_line_performer_change_rows:SELECT',
+    'service_line_performer_changes:INSERT',
+    'service_line_performer_changes:SELECT',
     'service_lines:INSERT',
     'service_lines:SELECT',
     'service_session_recoveries:INSERT',
@@ -278,6 +284,7 @@ describe('direct privileges match the reviewed allowlist', () => {
         ...SERVICE_COLUMN_GRANTS,
         ...PACKAGE_TYPE_COLUMN_GRANTS,
         ...SERVICE_LINE_EDIT_COLUMN_GRANTS,
+        ...SERVICE_LINE_PERFORMER_COLUMN_GRANTS,
       ].sort(),
     );
   });
