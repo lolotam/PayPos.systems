@@ -322,7 +322,7 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 
 - Reading the number follows each surface's existing read rule; nothing is widened (FR-008).
 - New `manage:employee-number:company` (EN-Q11): `ROLE_DEFAULTS = ['owner']`, added to
-  `OWNER_GRANTED_PERMISSIONS` (db and identity lists) and the i18n permission catalogs; grantable by the company owner
+  `OWNER_GRANTED_PERMISSIONS` (db and identity lists), `deviceForbidden` in `packages/db/src/system-role-policy.ts` (a device is otherwise eligible for every catalog permission not listed there) and the i18n permission catalogs; grantable by the company owner
   to any human role, never a device.
 
 ### Events
