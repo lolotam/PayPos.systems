@@ -9,11 +9,12 @@ import { seedOrders, ORDER_IDS as ids } from '../../test/orders-fixture.ts';
 let testDb: TestDatabase, db: Database, owner: postgres.Sql;
 const { A, B } = TENANT;
 const NEW = {
-  line: '01920000-0000-7000-8000-000000004201',
-  performer: '01920000-0000-7000-8000-000000004202',
   employee: '01920000-0000-7000-8000-000000004203',
   stranger: '01920000-0000-7000-8000-000000004204',
+  rejected: '01920000-0000-7000-8000-000000004205',
 };
+const LINKED = { line: '01920000-0000-7000-8000-000000004201', performer: '01920000-0000-7000-8000-000000004202' };
+const UNLINKED = { line: '01920000-0000-7000-8000-000000004206', performer: '01920000-0000-7000-8000-000000004207' };
 beforeAll(async () => {
   testDb = await createTestDatabase();
   await seedTwoTenants(testDb.ownerUrl);
@@ -21,7 +22,9 @@ beforeAll(async () => {
   await seedOrders(owner);
   await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date)
     VALUES(${A.company},${NEW.employee},${A.business},${A.branch},'Synthetic linked employee','synthetic linked employee','staff','2026-01-01')`;
-  db = createDatabase({ url: testDb.appUrl, ids: { newId: () => NEW.performer } });
+  db = createDatabase({ url: testDb.appUrl, ids: { newId: () => NEW.rejected } });
+  await recordLine(LINKED, 2, USER);
+  await recordLine(UNLINKED, 3, null);
 });
 afterAll(async () => {
   await db?.close();
@@ -30,11 +33,22 @@ afterAll(async () => {
 });
 const as = (company: string, query: ReturnType<typeof sql>) => db.withTenant(company, (tx) => tx.execute(query), { userId: USER });
 
+async function recordLine(row: { line: string; performer: string }, ordinal: number, linkedUser: string | null) {
+  await db.withTenant(A.company, async (tx) => {
+    await tx.execute(sql`INSERT INTO service_lines(company_id,id,business_id,session_id,service_id,ordinal,input_index,status,revision,list_price,price,discount,net,
+      effective_discount_bps,limit_source,limit_bps_applied,name_en,catalog_revision,rule_kind,counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late)
+      VALUES(${A.company},${row.line},${A.business},${ids.session},${ids.service},${ordinal},${ordinal - 1},'ACTIVE',1,1.000,1.000,0.000,1.000,0,'OWNER',NULL,'Synthetic',1,'ZERO',true,false,${USER},${ids.membership},now(),false)`);
+    await tx.execute(sql`INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,
+      not_clocked_in_warning,approved_leave_warning,linked_user_id,linked_user_snapshotted)
+      VALUES(${A.company},${row.performer},${A.business},${row.line},${NEW.employee},1,10000,'Synthetic',false,false,${linkedUser},true)`);
+  }, { userId: USER });
+}
+
 function performer(linkedUser: string | null, snapshotted: boolean | undefined, employee = NEW.employee) {
   const columns = snapshotted === undefined ? sql`` : sql`,linked_user_id,linked_user_snapshotted`;
   const values = snapshotted === undefined ? sql`` : sql`,${linkedUser},${snapshotted}`;
   return sql`INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,
-    not_clocked_in_warning,approved_leave_warning${columns}) VALUES(${A.company},${NEW.performer},${A.business},${ids.line},${employee},2,1,'Synthetic',false,false${values})`;
+    not_clocked_in_warning,approved_leave_warning${columns}) VALUES(${A.company},${NEW.rejected},${A.business},${ids.line},${employee},2,1,'Synthetic',false,false${values})`;
 }
 async function rejected(work: Promise<unknown>, code: string, constraint: string) {
   const error = await work.then(() => null, (caught: unknown) => caught);
@@ -54,29 +68,10 @@ it('refuses a linked user without the snapshot flag, and a user that does not ex
   await rejected(as(A.company, performer(NEW.stranger, true)), '23503', 'line_performers_linked_user_id_user_id_fk');
 });
 
-it('stores an unlinked snapshot and a linked snapshot on a new line', async () => {
-  await db.withTenant(A.company, async (tx) => {
-    await tx.execute(sql`INSERT INTO service_lines(company_id,id,business_id,session_id,service_id,ordinal,input_index,status,revision,list_price,price,discount,net,
-      effective_discount_bps,limit_source,limit_bps_applied,name_en,catalog_revision,rule_kind,counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late)
-      VALUES(${A.company},${NEW.line},${A.business},${ids.session},${ids.service},2,1,'ACTIVE',1,1.000,1.000,0.000,1.000,0,'OWNER',NULL,'Synthetic',1,'ZERO',true,false,${USER},${ids.membership},now(),false)`);
-    await tx.execute(sql`INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,
-      not_clocked_in_warning,approved_leave_warning,linked_user_id,linked_user_snapshotted)
-      VALUES(${A.company},${NEW.performer},${A.business},${NEW.line},${NEW.employee},1,10000,'Synthetic',false,false,${USER},true)`);
-  }, { userId: USER });
-  expect(await as(A.company, sql`SELECT linked_user_id,linked_user_snapshotted FROM line_performers WHERE id=${NEW.performer}`)).toEqual([
-    { linked_user_id: USER, linked_user_snapshotted: true },
-  ]);
-  await db.withTenant(A.company, async (tx) => {
-    await tx.execute(sql`INSERT INTO service_lines(company_id,id,business_id,session_id,service_id,ordinal,input_index,status,revision,list_price,price,discount,net,
-      effective_discount_bps,limit_source,limit_bps_applied,name_en,catalog_revision,rule_kind,counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late)
-      VALUES(${A.company},${NEW.stranger},${A.business},${ids.session},${ids.service},3,2,'ACTIVE',1,1.000,1.000,0.000,1.000,0,'OWNER',NULL,'Synthetic',1,'ZERO',true,false,${USER},${ids.membership},now(),false)`);
-    await tx.execute(sql`INSERT INTO line_performers(company_id,id,business_id,line_id,employee_id,performer_ordinal,share_bps,name_en,
-      not_clocked_in_warning,approved_leave_warning,linked_user_id,linked_user_snapshotted)
-      VALUES(${A.company},${NEW.stranger},${A.business},${NEW.stranger},${NEW.employee},1,10000,'Synthetic',false,false,NULL,true)`);
-  }, { userId: USER });
-  expect(await as(A.company, sql`SELECT linked_user_id,linked_user_snapshotted FROM line_performers WHERE id=${NEW.stranger}`)).toEqual([
-    { linked_user_id: null, linked_user_snapshotted: true },
-  ]);
+it('stores a linked snapshot and an unlinked snapshot on recorded lines', async () => {
+  const read = (performerId: string) => as(A.company, sql`SELECT linked_user_id,linked_user_snapshotted FROM line_performers WHERE id=${performerId}`);
+  expect(await read(LINKED.performer)).toEqual([{ linked_user_id: USER, linked_user_snapshotted: true }]);
+  expect(await read(UNLINKED.performer)).toEqual([{ linked_user_id: null, linked_user_snapshotted: true }]);
 });
 
 it('hides the snapshot columns from the other company', async () => {
