@@ -67,7 +67,7 @@ Until they are answered, §5.2 items marked ⟨TP-Q5…Q8⟩ are **recommendatio
 | TP-01 | منى (cashier, holds the record permission) records CARD 6.000 for سارة and CARD 2.000 for هبة on نورة's visit; one revision (1) is stored, one audit entry and one `SessionTipsChanged` event with both entries are written in the same transaction. |
 | TP-02 | The screen suggests 6.000 / 2.000 for a tip of 8.000 over the nets 60.000 and 20.000 (TP-Q4); منى changes it to 5.000 / 3.000 and the saved values are exactly hers. |
 | TP-03 | A user without the record permission, or outside the branch scope, gets the same refusal as an unknown session; nothing is written. |
-| TP-04 | An employee cannot record or change a tip for **herself**: a request that adds, changes or removes an entry of the actor's own employee is refused `TIP_SELF_FORBIDDEN` (her existing entries must be sent unchanged). |
+| TP-04 | An employee cannot record or change a tip for **herself**: a request that adds, changes or removes an entry of an employee linked to the actor — by the performer's recorded snapshot `line_performers.linked_user_id` (ADR-0045) **or** by her current user link — is refused `TIP_SELF_FORBIDDEN` (her existing entries must be sent unchanged). |
 | TP-05 | An entry for an employee who is not a performer of any ACTIVE line of the visit is refused `TIP_EMPLOYEE_NOT_PERFORMER`. |
 | TP-06 | A session whose business date is older than the first of the previous month (business timezone) is refused `TIP_WINDOW_CLOSED`; a session inside the window is accepted even when its period is already approved (the consumer posts the correction). |
 | TP-07 | Replacing an existing tip set needs `expected_revision` equal to the current revision and a reason; a stale revision is refused `TIP_REVISION_CONFLICT` (409) and nothing is written. |
@@ -75,7 +75,7 @@ Until they are answered, §5.2 items marked ⟨TP-Q5…Q8⟩ are **recommendatio
 | TP-09 | Replacing with an empty set removes all tips of the visit as a new revision (the old revisions stay); the event carries an empty `tips` list. |
 | TP-10 | Retrying the same request with the same `Idempotency-Key` returns the original result and writes nothing; the same key with another body is refused. |
 | TP-11 | Two concurrent replacements of the same visit leave exactly one winner per revision and a continuous revision chain; the loser gets `TIP_REVISION_CONFLICT`. |
-| TP-12 | Amounts must be greater than zero, canonical three-decimal KWD strings, and within `numeric(14,3)`; one entry per (employee, method) per revision; ⟨TP-Q7⟩ ceiling behaviour. |
+| TP-12 | Amounts must be greater than zero, canonical three-decimal KWD strings, and within `numeric(14,3)`; **the totals `total_cash` and `total_card` must also stay within `MONEY_MAX`** (the aggregate is checked before writing and refused `TIP_TOTAL_TOO_LARGE`, like `SESSION_TOTAL_TOO_LARGE` in spec 050); one entry per (employee, method) per revision; ⟨TP-Q7⟩ ceiling behaviour. |
 | TP-13 | The event and the audit contain no phone, no customer name and no reason; money fields are canonical strings. |
 | TP-14 | A user of another company cannot read or write another company's tips (RLS), and a tenant-qualified foreign key rejects a cross-tenant session or employee. |
 
@@ -93,15 +93,16 @@ Until they are answered, §5.2 items marked ⟨TP-Q5…Q8⟩ are **recommendatio
 ### 5.1 Business rules
 
 - **BR-01 (TP-Q1)** Authority: `record:service-sessions:branch` at the session's branch, live recheck inside the transaction
-  after the session lock; DENY and expiry per the permission engine. The actor's own employee (if she has one) may not add,
+  after the session lock; DENY and expiry per the permission engine. The actor's own employee may not add,
   change or remove her **own** entries, but may record others'.
 - **BR-02 (D-36)** Eligible employees are the performers of ACTIVE lines of the visit. One entry per (employee, method).
 - **BR-03 (TP-Q2)** The window is the one of spec 050 FR-014/FR-020: the session's persisted `business_date` must be on or
   after the first day of the previous calendar month in the business timezone at the injected `now`.
 - **BR-04 (TP-Q3)** Replace, never delete: each change is a new revision holding the full current set; the previous
   revisions remain. A reason is required when replacing an existing set (⟨TP-Q5⟩ for the first entry).
-- **BR-05 (TP-Q4)** Suggested split: for each performer, `employee_net = Σ over ACTIVE lines of line.net × share_bps /
-  10000` (mills); `suggestion = tip_total × employee_net / visit_net`. Rounding of remainder mills and a zero-net visit:
+- **BR-05 (TP-Q4)** Suggested split: for each performer, `employee_net = Σ over ACTIVE lines of the employee's share of that line`, where the share is the
+  one of SPEC §5.2 (`net × share_bps / 10000` floored to mills, remainder mills one each to the performers in ascending
+  `employee_id` order), so the weights are whole mills and sum to the visit net; `suggestion = tip_total × employee_net / visit_net`. Rounding of remainder mills and a zero-net visit:
   ⟨TP-Q8⟩. The suggestion is advice only; the server stores exactly what the cashier sends.
 - **BR-06 (D-36)** A tip is never part of a line's net, a threshold, or a commission base; orders computes none of that.
 - **BR-07** All arithmetic lives in `orders/domain` pure functions; the use case calls them and does no arithmetic.
@@ -146,7 +147,7 @@ Expand-only: new tables, no change to existing tables. Indexes on the new tables
   and revision that the replacing PUT requires. The broader `read:service-sessions:branch` is not needed and not granted by this endpoint.
 - Errors in the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `SESSION_NOT_FOUND`
   (also for an out-of-scope or foreign session), `TIP_WINDOW_CLOSED`, `TIP_SELF_FORBIDDEN`, `TIP_EMPLOYEE_NOT_PERFORMER`,
-  `TIP_REVISION_CONFLICT` (409), `TIP_REASON_REQUIRED`, `TRANSACTION_RETRY_REQUIRED`. New codes are added to
+  `TIP_REVISION_CONFLICT` (409), `TIP_REASON_REQUIRED`, `TIP_TOTAL_TOO_LARGE`, `TRANSACTION_RETRY_REQUIRED`. New codes are added to
   `src/shared/errors.ts`, never inlined.
 
 ### 5.5 Permissions
@@ -172,8 +173,7 @@ the staff-app rows, not here.
 ### 5.7 Module map
 
 No new import arrow: orders already reads staff (performer eligibility, employee identity), identity (authority) and
-tenancy through the ports of ADR-0041. The "is this the actor's own employee" check reads the existing staff identity
-port; if a new read symbol is needed it is added to that port, not a new arrow.
+tenancy through the ports of ADR-0041. The self-tip check uses the recorded snapshot `line_performers.linked_user_id` (written by orders itself, ADR-0045) and, in addition, the existing staff identity port for the employee's current user link; if a new read symbol is needed it is added to that port, not a new arrow.
 
 ### 5.8 Test plan
 
