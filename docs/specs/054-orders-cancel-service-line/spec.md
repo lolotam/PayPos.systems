@@ -98,7 +98,7 @@ Named tests; each is an integration test against real Postgres (T2 stack) unless
   `CANCELLED` with `revision` 2 (compare-and-set), one `service_line_cancellations` row is inserted, one audit entry is
   written, one `ServiceLineChanged` is appended with `change.kind = 'LINE_CANCELLED'`, `change.previous = {revision 1,
   price, discount, net}` and `change.changed_by` = ليلى (not منى), and the idempotent response is stored. The visit
-  `total_net` goes from 80.000 to 60.000 (cancelled lines are already excluded from the total).
+  `total_net` goes from 80.000 to 60.000 with no write of its own: `total_net` is **derived on every read** from the ACTIVE lines only (it is not a stored column, `session-snapshot.ts` and `session-write.ts` sum `status = 'ACTIVE'` lines), so the status change alone moves it, and no grant or step exists for it.
 - **LC-02** The cancelled line keeps `price`, `discount`, `net`, `recorded_by`, performers and shares unchanged, stays on the day
   list, and still counts toward the 20 persisted lines of the visit.
 - **LC-03** The event is the full line state with `status = CANCELLED`, so row 50 removes the commission in a DRAFT month and
@@ -176,10 +176,11 @@ Named tests; each is an integration test against real Postgres (T2 stack) unless
 - **FR-003** Body (strict Zod): `{ reason?: string, expected_revision: int ≥ 1, canceller_membership_id?: uuid }` (`reason` is optional **in the Zod schema on purpose**, like the edit contract: a missing or blank value must reach the domain rule and return 422 `SESSION_CANCEL_REASON_INVALID`, not a 400 `VALIDATION_FAILED` from the pipe). No client field names
   the canceller, the time or the status.
 - **FR-004** The single transaction, in the 35d lock order with the tip read added: idempotency claim → `access.lock()` → visit advisory
-  lock → load the line `FOR UPDATE` → `performers.lock(employeeIds)` → `access.read` at the fresh instant → window → performer snapshot and
-  current links → tip guard (reads the visit's current tip set under the visit lock) → prepare → CAS `UPDATE` of `status` and `revision` →
-  history row → audit → emit → store the response. Any failure rolls all of it back.
-- **FR-005** `revision` increments by one; `status` goes to `CANCELLED`; no money column changes. The `UPDATE` column grant on `service_lines`
+  lock → load the line `FOR UPDATE` → `performers.lock(employeeIds)` → `access.read` at the fresh instant → **load, without judging**: the performer
+  snapshot and current links, and the visit's current tip set (under the visit lock) → evaluate the rules in **one** place, the FR-011 order
+  (pure functions, no I/O) → CAS `UPDATE` of `status` and `revision` → history row → audit → emit → store the response. This list is the order of
+  locks and reads; **FR-011 is the single authoritative order of refusals**. Any failure rolls all of it back.
+- **FR-005** `revision` increments by one; `status` goes to `CANCELLED`; no money column changes and nothing is written to `service_sessions`: the visit total is derived from the ACTIVE lines on read, never stored. The `UPDATE` column grant on `service_lines`
   gains **only** `status` (it already has `revision`).
 - **FR-006** (CX-Q1) The self-cancel rule is the **same pure domain function** as the self-edit rule of 35d (`selfEditForbidden`, snapshot ∪ current
   link, null never matches, fail closed on `linked_user_snapshotted = false`); it is not re-implemented.
@@ -196,7 +197,7 @@ Named tests; each is an integration test against real Postgres (T2 stack) unless
   before preparation, so two racing identical requests give the loser the stale refusal.
 - **FR-012** The history row stores the canceller's user and membership, the active employee's names **in the line's business** when one exists, the role
   snapshot of the membership used, the previous revision and figures, `cancelled_at`, and the reason. The label shown to a human comes from the 35d
-  `editorLabel` function (names first, then role per LE-22), used by the bell and by the history read.
+  `editorLabel` function (names first, then role per LE-22), used **only by the guarded history read** (FR-016); the bell never carries the canceller's identity.
 - **FR-013** (CX-Q3) Event `ServiceLineChanged` with `change.kind = 'LINE_CANCELLED'`, emitted once per cancelled line in the cancel transaction. Row 50/59 consume it as
   the full line state with the increased per-line revision (ADR-0041 §4). The consumer-side bell is §7.
 - **FR-014** Audit entry `service_line.cancelled` on entity `service_line`: session, line, cancellation id, revision before/after, canceller user and membership,
@@ -228,8 +229,8 @@ With `read:service-sessions:branch`, evaluated across all the principal's active
 | Table | Change | Notes |
 |---|---|---|
 | `service_lines` | grant `UPDATE (status)` to `pospay_app` (in addition to the seven columns of 35d-3); a `BEFORE UPDATE` trigger (SECURITY INVOKER) refuses any change of a `CANCELLED` row and any `status` change other than `ACTIVE → CANCELLED` | grant allowlist and `privileges.spec.ts` updated; a negative test per refusal |
-| `service_line_cancellations` (new) | `company_id`, `id` (UUID v7), `business_id`, `session_id`, `line_id`, `revision` (the revision written), `previous_revision`, `previous_price`, `previous_discount`, `previous_net`, `cancelled_by` (user), `cancelled_by_membership_id`, `cancelled_at timestamptz`, `reason text`, `canceller_name_ar/en` (nullable), the role snapshot columns of 35d-3b (`canceller_role`, `canceller_role_is_system`, `canceller_role_name_ar`, `canceller_role_name_en`) | PK `(company_id, id)`; `UNIQUE (company_id, line_id)` (terminal); `CHECK` on the reason (trimmed 1…500) and the all-or-nothing role snapshot, and `canceller_name_en IS NOT NULL OR canceller_role IS NOT NULL`; tenant-qualified FKs to `service_lines` (`service_lines_business_id_key`) and `memberships`; `FORCE` RLS; `SELECT, INSERT` grants only; allowlist, tenant-table inventory, negative isolation test |
-| `service_line_cancel_notices` (new, consumer PR) | the insert-only ledger of the bell: `company_id`, `id`, `business_id`, `session_id`, `line_id`, `revision` (the line revision the cancel event carries), `source_event_id`, `decided_at`, `recipient_count >= 0` | `UNIQUE (company_id, line_id, revision)`: one bell per cancel event, valid whether a cancellation is final or CX-Q5 later allows cancelling again after a reinstatement (a new cancel carries a higher revision); same shape as `service_line_edit_notices` of 35d-2 |
+| `service_line_cancellations` (new) | `company_id`, `id` (UUID v7), `business_id`, `line_id` (the session is derived from `service_lines`, as `service_line_edits` does; no stored `session_id`, so it cannot disagree with the line), `revision` (the revision written), `previous_revision`, `previous_price`, `previous_discount`, `previous_net`, `cancelled_by` (user), `cancelled_by_membership_id`, `cancelled_at timestamptz`, `reason text`, `canceller_name_ar/en` (nullable), the role snapshot columns of 35d-3b (`canceller_role`, `canceller_role_is_system`, `canceller_role_name_ar`, `canceller_role_name_en`) | PK `(company_id, id)`; `UNIQUE (company_id, line_id)` (terminal); `CHECK` on the reason (trimmed 1…500) and the all-or-nothing role snapshot, and `canceller_name_en IS NOT NULL OR canceller_role IS NOT NULL`; tenant-qualified FKs to `service_lines` (`service_lines_business_id_key`) and `memberships`; `FORCE` RLS; `SELECT, INSERT` grants only; allowlist, tenant-table inventory, negative isolation test |
+| `service_line_cancel_notices` (new, consumer PR) | the insert-only ledger of the bell: `company_id`, `id`, `business_id`, `line_id` (no stored `session_id`, derived from `service_lines`), `revision` (the line revision the cancel event carries), `source_event_id`, `decided_at`, `recipient_count >= 0` | `UNIQUE (company_id, line_id, revision)`: one bell per cancel event, valid whether a cancellation is final or CX-Q5 later allows cancelling again after a reinstatement (a new cancel carries a higher revision); same shape as `service_line_edit_notices` of 35d-2 |
 
 Expand-only: new tables, one added column grant and one trigger, no change to existing data. Indexes on the new tables are created with them.
 
@@ -241,7 +242,7 @@ Expand-only: new tables, one added column grant and one trigger, no change to ex
   recipients (`identity.branchManagerRecipients`, the four scoped roles, the canceller **not** excluded), claims the ledger row, and appends one `ServiceLineCancelNoticeRequested` per group of at most 100
   recipients to `notifications` (an **event** arrow like `ServiceLineEditNoticeRequested`, never an import). The module-map §4 row, the consumer-owned port rows and the exact §6 reads
   (separate adapter files) and an **ADR-0044 addendum** ship with the first code sub-PR (37-1), ahead of any behaviour, as 35d did. No new import arrow.
-- **Bell content (proposed copy; fixed in 37-1):** service name, the cancelled line's net, branch, date, and the canceller's label; never the reason. Template key `service_line_cancelled`, ar and en,
+- **Bell content (proposed copy; fixed in 37-1):** service name, the cancelled line's net, branch and date; never the reason and never the canceller's identity (that is readable only through the guarded history read, FR-016). Template key `service_line_cancelled`, ar and en,
   money through the strict money parameter of 35d-1.
 - **Recovery (ADR-0041 §6):** no `LINE_CANCELLED` exists before its consumer (the order of §7), so the bell has no recovery obligation; rows 50 and 59 keep theirs.
 
