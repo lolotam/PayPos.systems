@@ -5972,7 +5972,7 @@
     "/v1/businesses/{businessId}/employees": {
       "get": {
         "operationId": "listEmployees",
-        "description": "Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature.",
+        "description": "Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope.",
         "parameters": [
           {
             "in": "header",
@@ -6008,6 +6008,17 @@
               "minimum": 1,
               "maximum": 100,
               "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "employee_number",
+            "description": "Exact employee number: digits only, leading zeros ignored, 1..999999; anything else is 400.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "minLength": 1,
+              "maxLength": 50
             }
           }
         ],
@@ -9661,7 +9672,7 @@
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options": {
       "get": {
         "operationId": "getServiceSessionPerformerOptions",
-        "description": "Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE \"und-x-icu\", then id. Opaque base64url cursor contains the exact displayed name, id, lang, hash of normalized q, canonical requested_at, first-page effective_at and hash of company/business/branch scope. Later pages keep the requested instant unchanged and reuse effective_at after rechecking the recording window; malformed or mismatched cursors return 400. Case-insensitive search matches either name. No private HR fields or wider staff permission.",
+        "description": "Admin recording-form dated eligible employee names and missing-clock/approved-leave booleans only (SS-Q13). Requires record:service-sessions:branch and orders feature; business/branch ownership rechecked on every page. Uses the POST time window and future-tolerance normalization. Required UI lang orders globally by the displayed name (selected language with fallback to the other name) COLLATE \"und-x-icu\", then id. Opaque base64url cursor contains the exact displayed name, id, lang, hash of normalized q, canonical requested_at, first-page effective_at and hash of company/business/branch scope. Later pages keep the requested instant unchanged and reuse effective_at after rechecking the recording window; malformed or mismatched cursors return 400. Case-insensitive search matches either name. A digits-only q also matches the employee number exactly (number OR name). No private HR fields or wider staff permission.",
         "parameters": [
           {
             "in": "header",
@@ -9716,7 +9727,7 @@
             "in": "query",
             "name": "q",
             "required": false,
-            "description": "Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal; NUL is rejected with 400.",
+            "description": "Trimmed, literal substring of name_ar or name_en, case-folded with ICU; percent and underscore are literal; NUL is rejected with 400. A digits-only q also matches the employee number exactly (number OR name).",
             "schema": {
               "type": "string",
               "minLength": 1,
@@ -15721,6 +15732,12 @@
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
           },
+          "employee_number": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          },
           "revision": {
             "type": "integer",
             "minimum": 0,
@@ -15749,6 +15766,7 @@
           "contract_end",
           "user_id",
           "created_at",
+          "employee_number",
           "revision",
           "branch_ids"
         ]
@@ -15782,6 +15800,12 @@
           },
           "hire_date": {
             "$ref": "#/components/schemas/EmployeeDate"
+          },
+          "employee_number": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
           }
         },
         "required": [
@@ -15790,7 +15814,8 @@
           "name_en",
           "role_code",
           "primary_branch_id",
-          "hire_date"
+          "hire_date",
+          "employee_number"
         ]
       },
       "EmployeePage": {
@@ -15825,6 +15850,11 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "employee_number": {
+            "type": "string",
+            "maxLength": 50,
+            "pattern": "^[0-9]+$"
           }
         },
         "additionalProperties": false
@@ -16425,6 +16455,12 @@
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "employee_number": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
           }
         },
         "required": [
@@ -16437,7 +16473,8 @@
           "hire_date",
           "contract_end",
           "user_id",
-          "created_at"
+          "created_at",
+          "employee_number"
         ]
       },
       "CreatedEmployee": {
@@ -20998,6 +21035,12 @@
             "minLength": 1,
             "maxLength": 255
           },
+          "employee_number": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          },
           "not_clocked_in_warning": {
             "type": "boolean"
           },
@@ -21009,6 +21052,7 @@
           "id",
           "name_ar",
           "name_en",
+          "employee_number",
           "not_clocked_in_warning",
           "approved_leave_warning"
         ],

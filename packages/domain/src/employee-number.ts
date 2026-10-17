@@ -32,3 +32,19 @@ export function firstFreeEmployeeNumber(
 export function nextEmployeeNumberCounter(assigned: number): number {
   return Math.min(assigned + 1, 1_000_000);
 }
+
+/**
+ * يحوّل نصًا مكتوبًا إلى رقم وظيفي، أو null لو مش رقم وظيفي صالح.
+ * القاعدة (TD-3، EN-Q8): أرقام فقط بلا مسافة أو إشارة أو فاصلة أو صيغة علمية، والأصفار البادئة تُشال
+ * («007» = 7)، والقيمة من 1 إلى 999999. مَن يستدعيها يقص المسافات قبلها لو النص جاي من خانة بحث.
+ *
+ * @param text النص كما كتبه المستخدم
+ * @returns الرقم من 1 إلى 999999، أو null
+ */
+export function parseEmployeeNumber(text: string): number | null {
+  if (!/^[0-9]+$/.test(text)) return null;
+  const digits = text.replace(/^0+/, '');
+  if (digits.length === 0 || digits.length > 6) return null;
+  const value = Number(digits);
+  return value >= 1 && value <= EMPLOYEE_NUMBER_MAX ? value : null;
+}

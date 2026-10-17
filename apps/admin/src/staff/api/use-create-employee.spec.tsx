@@ -22,6 +22,7 @@ const record = {
   contract_end: null,
   user_id: null,
   created_at: '2026-10-03T00:00:00Z',
+  employee_number: null,
 };
 function wrapper({ children }: { children: ReactNode }) {
   return (
