@@ -21,8 +21,8 @@ function dayLine(revision = 1): Line {
 function refused(status: number, code: string, details?: unknown) {
   return { error: { code, message_ar: `${code} AR`, message_en: `${code} EN`, details }, response: { status } };
 }
-function shown(line = dayLine(), online = true, onUnauthenticated?: (message: string) => void) {
-  const handlers = { onSaved: vi.fn(), onStale: vi.fn(), onForbidden: vi.fn(), onClose: vi.fn(), ...(onUnauthenticated ? { onUnauthenticated } : {}) };
+function shown(line = dayLine(), online = true, onAccessDenied?: (message: string) => void) {
+  const handlers = { onSaved: vi.fn(), onStale: vi.fn(), onForbidden: vi.fn(), onClose: vi.fn(), ...(onAccessDenied ? { onAccessDenied } : {}) };
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   const ui = (next: Line) => <QueryClientProvider client={client}><EditServiceLineForm scope={scope} sessionId={id(12)} line={next} online={online} {...handlers} /></QueryClientProvider>;
   return { client, ui, ...render(ui(line)), ...handlers };
@@ -198,17 +198,20 @@ it('closes the editor when the server forbids the edit', async () => {
   expect(view.onClose).toHaveBeenCalled();
 });
 
-it('closes through onUnauthenticated when the edit patch returns 401', async () => {
-  state.patch.mockReset(); state.patch.mockResolvedValue(refused(401, 'UNAUTHENTICATED'));
-  const onUnauthenticated = vi.fn();
-  const view = shown(dayLine(), true, onUnauthenticated);
+it.each([
+  [401, 'UNAUTHENTICATED'],
+  [403, 'FEATURE_DISABLED'],
+] as const)('closes through onAccessDenied when the edit patch returns %s %s', async (status, code) => {
+  state.patch.mockReset(); state.patch.mockResolvedValue(refused(status, code));
+  const onAccessDenied = vi.fn();
+  const view = shown(dayLine(), true, onAccessDenied);
   fill(); save();
-  await waitFor(() => expect(onUnauthenticated).toHaveBeenCalledWith('UNAUTHENTICATED EN'));
+  await waitFor(() => expect(onAccessDenied).toHaveBeenCalledWith(`${code} EN`));
   expect(view.onForbidden).not.toHaveBeenCalled();
   expect(view.onClose).toHaveBeenCalled();
 });
 
-it('closes through the forbidden callback when a 401 has no unauthenticated handler', async () => {
+it('closes through the forbidden callback when a 401 has no access handler', async () => {
   state.patch.mockReset(); state.patch.mockResolvedValue(refused(401, 'UNAUTHENTICATED'));
   const view = shown(); fill(); save();
   await waitFor(() => expect(view.onForbidden).toHaveBeenCalledWith('UNAUTHENTICATED EN'));

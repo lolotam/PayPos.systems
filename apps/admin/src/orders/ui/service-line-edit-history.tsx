@@ -2,31 +2,28 @@
 import { parseMoney } from '@pospay/domain';
 import { formatInstant, formatKwd, t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useLineEditHistory } from '../api/use-line-edit-history';
 import type { SessionServiceScope } from '../api/use-session-services';
-import { serviceSessionAccessRevoked, serviceSessionDenial } from '../model/service-session-access';
+import { serviceSessionAccessRevoked } from '../model/service-session-access';
 
 const kwd = (value: string) => formatKwd(parseMoney(value));
 
-function historyAccessKey(scope: SessionServiceScope, sessionId: string, lineId: string) {
-  return [scope.companyId, scope.businessId, scope.branchId, scope.userId, sessionId, lineId].join(':');
-}
-
-export function ServiceLineEditHistory({ scope, sessionId, lineId, timezone }: {
-  scope: SessionServiceScope; sessionId: string; lineId: string; timezone: string;
+export function ServiceLineEditHistory({ scope, sessionId, lineId, timezone, onAccessDenied }: {
+  scope: SessionServiceScope; sessionId: string; lineId: string; timezone: string; onAccessDenied: (message: string) => void;
 }) {
   const locale = useLocale();
-  const [deniedFor, setDeniedFor] = useState<string | null>(null);
   const query = useLineEditHistory(scope, sessionId, lineId, true);
-  const access = serviceSessionDenial(deniedFor, historyAccessKey(scope, sessionId, lineId), serviceSessionAccessRevoked(query.error), query.isSuccess && !query.isError);
-  if (access.nextKey !== deniedFor) setDeniedFor(access.nextKey);
-  const failure = <p role="alert">{envelopeMessage(query.error, locale)} <Button type="button" variant="outline" onClick={() => { void query.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>;
-  if (access.denied) return failure;
+  const revoked = serviceSessionAccessRevoked(query.error);
+  // خطأ الصلاحية بيقفل الصفحة كلها؛ لو اللوحة بس اختفت سجل الأسعار يفضل ظاهر في الكاش جنب الزيارات.
+  useEffect(() => {
+    if (revoked) onAccessDenied(envelopeMessage(query.error, locale));
+  }, [revoked, query.error, locale, onAccessDenied]);
+  if (revoked) return <p role="alert">{envelopeMessage(query.error, locale)}</p>;
   if (query.isPending) return <p>{t(locale, 'serviceLineEdit.loading')}</p>;
-  if (query.isError) return failure;
+  if (query.isError) return <p role="alert">{envelopeMessage(query.error, locale)} <Button type="button" variant="outline" onClick={() => { void query.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>;
   const items = query.data.pages.flatMap((page) => page.items);
   if (!items.length) return <p>{t(locale, 'serviceLineEdit.historyEmpty')}</p>;
   return <div className="grid gap-2 text-start">

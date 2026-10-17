@@ -5,10 +5,9 @@ export function serviceSessionAccessRevoked(error: unknown): boolean {
   return body.status === 401 || body.status === 403 || body.code === 'FEATURE_DISABLED';
 }
 
-// مسح الكاش من تحت مراقب شغال كان بيخلّي TanStack يبني استعلام فاضي ويطلبه من غير زر.
-// القفل بيتساب على مفتاح القراءة لحد نجاحه، فتغيير التاريخ أو التأخير ما يخبّيش مفتاح ناجح تاني.
-export function serviceSessionDenial(latchedKey: string | null, viewKey: string, revoked: boolean, succeeded: boolean) {
-  const denied = revoked || (latchedKey === viewKey && !succeeded);
-  const nextKey = denied ? viewKey : latchedKey === viewKey ? null : latchedKey;
-  return { denied, nextKey };
+// رفض التعديل العادي (403) بيسيب قائمة اليوم ظاهرة؛ 401 أو إيقاف الميزة بيقفل الوصول نفسه.
+export function editAccessRevoked(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const body = error as { status?: unknown; code?: unknown };
+  return body.status === 401 || (body.status === 403 && body.code === 'FEATURE_DISABLED');
 }

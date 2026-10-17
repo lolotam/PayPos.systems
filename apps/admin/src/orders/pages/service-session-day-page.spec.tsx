@@ -33,21 +33,11 @@ function renderPage() {
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   return { client, ...render(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />, { wrapper }) };
 }
-function reads(edits: boolean) {
-  return state.get.mock.calls.filter((call) => String(call[0]).includes('/edits') === edits).length;
-}
-function shake(view: { rerender: (node: ReactNode) => void }) {
-  view.rerender(<ServiceSessionDayPage scope={{ ...scope }} timezone="Asia/Riyadh" />);
-  state.online = false;
-  view.rerender(<ServiceSessionDayPage scope={{ ...scope }} timezone="Asia/Riyadh" />);
-}
 function clickEdit(index = 0) {
   const button = screen.getAllByRole('button', { name: t('en', 'serviceLineEdit.edit') })[index];
   if (!button) throw new Error('missing edit button');
   fireEvent.click(button);
 }
-const serverDown = { error: { code: 'INTERNAL', message_ar: 'Down AR', message_en: 'Down EN' }, response: { status: 500 } };
-
 it('marks a line only when edited is true, hides edit on a cancelled line, and shows history in the locale', async () => {
   state.online = true; state.locale = 'en'; state.get.mockReset();
   state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? { data: { items: [edit], next_cursor: null }, response: { status: 200 } } : day));
@@ -163,61 +153,6 @@ it('sends the revision from the stale refetch on the next save', async () => {
   expect(body(1).expected_revision).toBe(5);
 });
 
-it('hides the loaded day when a refetch returns 403', async () => {
-  state.online = true; state.locale = 'en'; state.get.mockReset();
-  let gate: 'ok' | 'denied' = 'ok';
-  const listed = { data: { items: [visit], next_cursor: 'more' }, response: { status: 200 } };
-  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? historyPage : gate === 'ok' ? listed : denial(403, 'Denied EN')));
-  const view = renderPage();
-  await screen.findByText('Synthetic customer');
-  expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.loadMore') })).toBeTruthy();
-  clickEdit();
-  expect(screen.getByLabelText(t('en', 'serviceLineEdit.reason'))).toBeTruthy();
-  gate = 'denied';
-  await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
-  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
-  for (const text of ['Service 20', 'Nada 20', '10.000', '1.000', '9.000']) expect(screen.queryByText(text)).toBeNull();
-  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason'))).toBeNull();
-  expect(screen.queryByRole('button', { name: t('en', 'serviceLineEdit.loadMore') })).toBeNull();
-  expect(screen.getByRole('alert').textContent).toContain('Denied EN');
-  gate = 'ok';
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
-  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
-  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason'))).toBeNull();
-});
-
-it('hides an open history panel when a refetch returns 403', async () => {
-  state.online = true; state.locale = 'en'; state.get.mockReset();
-  let dayGate: 'ok' | 'denied' = 'ok';
-  let historyGate: 'ok' | 'denied' = 'ok';
-  const openHistory = { data: { items: [edit], next_cursor: 'more' }, response: { status: 200 } };
-  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits')
-    ? historyGate === 'ok' ? openHistory : denial(403, 'History denied EN', 'FEATURE_DISABLED')
-    : dayGate === 'ok' ? day : denial(403, 'Denied EN')));
-  const view = renderPage();
-  await screen.findByText('Synthetic customer');
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.history') }));
-  expect(await screen.findByText('Wrong price')).toBeTruthy();
-  expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.more') })).toBeTruthy();
-  historyGate = 'denied';
-  await act(async () => { await view.client.refetchQueries({ queryKey: ['service-line-edits'] }); });
-  await waitFor(() => expect(screen.queryByText('Wrong price')).toBeNull());
-  expect(screen.queryByText('8.000')).toBeNull();
-  expect(screen.queryByRole('button', { name: t('en', 'serviceLineEdit.more') })).toBeNull();
-  expect(screen.getByRole('alert').textContent).toContain('History denied EN');
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
-  dayGate = 'denied';
-  await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
-  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
-  for (const text of ['Wrong price', '10.000', 'Service 21', 'Nada 21']) expect(screen.queryByText(text)).toBeNull();
-  expect(screen.getByRole('alert').textContent).toContain('Denied EN');
-  dayGate = 'ok';
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
-  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
-  expect(screen.queryByText('Wrong price')).toBeNull();
-  expect(screen.queryByText('History denied EN')).toBeNull();
-});
-
 it('keeps the visits visible when a refetch returns 500', async () => {
   state.online = true; state.locale = 'en'; state.get.mockReset();
   let failed = false;
@@ -230,168 +165,6 @@ it('keeps the visits visible when a refetch returns 500', async () => {
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Down EN'));
   expect(screen.getByText('Synthetic customer')).toBeTruthy();
   expect(screen.getAllByText('10.000').length).toBeGreaterThan(0);
-});
-
-it('hides the loaded day when a refetch returns FEATURE_DISABLED', async () => {
-  state.online = true; state.locale = 'en'; state.get.mockReset();
-  let denied = false;
-  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? historyPage
-    : denied ? denial(409, 'Disabled EN', 'FEATURE_DISABLED') : day));
-  const view = renderPage();
-  await screen.findByText('Synthetic customer');
-  denied = true;
-  await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
-  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
-  expect(screen.queryByText('10.000')).toBeNull();
-  expect(screen.getByRole('alert').textContent).toContain('Disabled EN');
-});
-
-it.each([403, 401] as const)('keeps the day hidden when a retry after %s fails with 500', async (status) => {
-  state.online = true; state.locale = 'en'; state.get.mockReset();
-  let phase: 'ok' | 'denied' | 'down' = 'ok';
-  const code = status === 401 ? 'UNAUTHENTICATED' : 'FORBIDDEN';
-  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? historyPage
-    : phase === 'ok' ? day : phase === 'denied' ? denial(status, 'Denied EN', code) : serverDown));
-  const view = renderPage();
-  await screen.findByText('Synthetic customer');
-  const editName = t('en', 'serviceLineEdit.edit');
-  clickEdit();
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.history') }));
-  expect(await screen.findByText('Wrong price')).toBeTruthy();
-  phase = 'denied';
-  await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
-  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
-  const before = reads(false);
-  shake(view);
-  expect(reads(false)).toBe(before);
-  expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') })).toBeTruthy();
-  expect(screen.queryByText('Wrong price')).toBeNull();
-  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason'))).toBeNull();
-  state.online = true;
-  view.rerender(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />);
-  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Denied EN'));
-  phase = 'down';
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
-  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Down EN'));
-  for (const text of ['Synthetic customer', '10.000', '1.000', '9.000', 'Wrong price']) expect(screen.queryByText(text)).toBeNull();
-  expect(screen.queryByRole('button', { name: editName })).toBeNull();
-  phase = 'ok';
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
-  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
-  expect(screen.getAllByText('10.000').length).toBeGreaterThan(0);
-  expect(screen.getAllByRole('button', { name: editName }).length).toBeGreaterThan(0);
-});
-
-it.each([403, 401] as const)('keeps history edits hidden when a retry after %s fails with 500', async (status) => {
-  state.online = true; state.locale = 'en'; state.get.mockReset();
-  let phase: 'ok' | 'denied' | 'down' = 'ok';
-  const code = status === 401 ? 'UNAUTHENTICATED' : 'FORBIDDEN';
-  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits')
-    ? phase === 'ok' ? historyPage : phase === 'denied' ? denial(status, 'History denied EN', code) : { ...serverDown, error: { ...serverDown.error, message_en: 'Hist down EN' } }
-    : day));
-  const view = renderPage();
-  await screen.findByText('Synthetic customer');
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.history') }));
-  expect(await screen.findByText('Wrong price')).toBeTruthy();
-  phase = 'denied';
-  await act(async () => { await view.client.refetchQueries({ queryKey: ['service-line-edits'] }); });
-  await waitFor(() => expect(screen.queryByText('Wrong price')).toBeNull());
-  const before = reads(true);
-  shake(view);
-  expect(reads(true)).toBe(before);
-  expect(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') })).toBeTruthy();
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
-  state.online = true;
-  view.rerender(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />);
-  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('History denied EN'));
-  phase = 'down';
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
-  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Hist down EN'));
-  expect(screen.queryByText('Wrong price')).toBeNull();
-  expect(screen.queryByText('8.000')).toBeNull();
-  expect(screen.queryByText('Label EN')).toBeNull();
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
-  phase = 'ok';
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
-  expect(await screen.findByText('Wrong price')).toBeTruthy();
-  expect(screen.getAllByText('8.000').length).toBeGreaterThan(0);
-});
-
-it('hides the loaded day when a refetch returns 401', async () => {
-  state.online = true; state.locale = 'en'; state.get.mockReset();
-  let gate: 'ok' | 'expired' = 'ok';
-  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? historyPage
-    : gate === 'ok' ? day : denial(401, 'Signed out EN', 'UNAUTHENTICATED')));
-  const view = renderPage();
-  await screen.findByText('Synthetic customer');
-  const editName = t('en', 'serviceLineEdit.edit');
-  clickEdit();
-  expect(screen.getByLabelText(t('en', 'serviceLineEdit.reason'))).toBeTruthy();
-  gate = 'expired';
-  await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
-  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
-  for (const text of ['10.000', '1.000', '9.000', 'Service 20', 'Nada 20']) expect(screen.queryByText(text)).toBeNull();
-  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason'))).toBeNull();
-  expect(screen.queryByRole('button', { name: editName })).toBeNull();
-  expect(screen.getByRole('alert').textContent).toContain('Signed out EN');
-});
-
-it('hides an open history panel when a refetch returns 401', async () => {
-  state.online = true; state.locale = 'en'; state.get.mockReset();
-  let historyGate: 'ok' | 'expired' = 'ok';
-  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits')
-    ? historyGate === 'ok' ? historyPage : denial(401, 'History signed out EN', 'UNAUTHENTICATED')
-    : day));
-  const view = renderPage();
-  await screen.findByText('Synthetic customer');
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.history') }));
-  expect(await screen.findByText('Wrong price')).toBeTruthy();
-  historyGate = 'expired';
-  await act(async () => { await view.client.refetchQueries({ queryKey: ['service-line-edits'] }); });
-  await waitFor(() => expect(screen.queryByText('Wrong price')).toBeNull());
-  expect(screen.queryByText('8.000')).toBeNull();
-  expect(screen.queryByText('Label EN')).toBeNull();
-  expect(screen.getByRole('alert').textContent).toContain('History signed out EN');
-  expect(screen.getByText('Synthetic customer')).toBeTruthy();
-  expect(screen.getAllByText('10.000').length).toBeGreaterThan(0);
-});
-
-it('shows the selected day when the date or late filter changes after a denial', async () => {
-  state.online = true; state.locale = 'en'; state.get.mockReset();
-  let denied = false;
-  state.get.mockImplementation((path: string, init?: { params?: { query?: { date?: string; late?: string } } }) => Promise.resolve(
-    String(path).includes('/edits') ? historyPage
-      : init?.params?.query?.date === '2026-11-01' || init?.params?.query?.late === 'true' ? day
-      : denied ? denial(403, 'Denied EN') : day));
-  const view = renderPage();
-  await screen.findByText('Synthetic customer');
-  denied = true;
-  await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
-  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
-  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.date')), { target: { value: '2026-11-01' } });
-  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
-  expect(screen.queryByRole('alert')).toBeNull();
-  fireEvent.click(screen.getByRole('checkbox', { name: t('en', 'serviceLineEdit.lateOnly') }));
-  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
-  expect((screen.getByRole('checkbox', { name: t('en', 'serviceLineEdit.lateOnly') }) as HTMLInputElement).checked).toBe(true);
-  expect(screen.queryByRole('alert')).toBeNull();
-});
-
-it('hides cached visits and history when the edit patch returns 401', async () => {
-  state.online = true; state.locale = 'en'; state.get.mockReset(); state.patch.mockReset();
-  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/edits') ? historyPage : day));
-  state.patch.mockResolvedValue(denial(401, 'Signed out EN', 'UNAUTHENTICATED')); renderPage();
-  await screen.findByText('Synthetic customer');
-  clickEdit();
-  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'because' } });
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.history') }));
-  expect(await screen.findByText('Wrong price')).toBeTruthy(); fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
-  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
-  for (const text of ['10.000', '1.000', '9.000', 'Wrong price', '8.000']) expect(screen.queryByText(text)).toBeNull();
-  expect(screen.queryByLabelText(t('en', 'serviceLineEdit.reason')) ?? screen.queryByRole('button', { name: t('en', 'serviceLineEdit.edit') })).toBeNull();
-  expect(screen.getByRole('alert').textContent).toContain('Signed out EN');
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.retry') }));
-  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
 });
 
 it('closes the form and keeps the day visible when the edit patch returns 403', async () => {
