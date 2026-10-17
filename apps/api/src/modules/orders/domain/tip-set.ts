@@ -151,7 +151,7 @@ function assertTipIdentity(
     }
     if (
       person.current_user_conflict ||
-      person.identities.length === 0 ||
+      person.missing_identity ||
       person.identities.some((row) => row.linked_user_snapshotted === false)
     ) {
       throw new SessionError('TIP_IDENTITY_UNKNOWN');

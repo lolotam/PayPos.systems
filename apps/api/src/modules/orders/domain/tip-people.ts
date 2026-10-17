@@ -21,6 +21,7 @@ export interface IndexedTipPerson {
   identities: readonly TipIdentity[];
   current_user_id: string | null;
   current_user_conflict: boolean;
+  missing_identity: boolean;
 }
 
 /**
@@ -44,7 +45,7 @@ function mergeCurrentUser(
 }
 
 /**
- * يجمع صفّين لنفس الموظفة: اتحاد اللقطات، وسطر فعّال لو أيهما فعّال.
+ * يجمع صفّين لنفس الموظفة: اتحاد اللقطات، وسطر فعّال لو أيهما فعّال، وصف بلا لقطة يبقى أثره بعد الدمج.
  *
  * @param previous الصف المدمج
  * @param person الصف التالي
@@ -57,6 +58,7 @@ function combineTipPeople(previous: IndexedTipPerson, person: TipPerson): Indexe
     identities: [...previous.identities, ...person.identities],
     current_user_id: current.current_user_id,
     current_user_conflict: current.conflict,
+    missing_identity: previous.missing_identity || person.identities.length === 0,
   };
 }
 
@@ -80,6 +82,7 @@ export function indexTipPeople(people: readonly TipPerson[]): ReadonlyMap<string
             identities: person.identities,
             current_user_id: person.current_user_id,
             current_user_conflict: false,
+            missing_identity: person.identities.length === 0,
           }
         : combineTipPeople(previous, person),
     );
