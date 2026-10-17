@@ -67,7 +67,7 @@ Until they are answered, §5.2 items marked ⟨TP-Q5…Q8⟩ are **recommendatio
 | TP-01 | منى (cashier, holds the record permission) records CARD 6.000 for سارة and CARD 2.000 for هبة on نورة's visit; one revision (1) is stored, one audit entry and one `SessionTipsChanged` event with both entries are written in the same transaction. |
 | TP-02 | The screen suggests 6.000 / 2.000 for a tip of 8.000 over the nets 60.000 and 20.000 (TP-Q4); منى changes it to 5.000 / 3.000 and the saved values are exactly hers. |
 | TP-03 | A user without the record permission, or outside the branch scope, gets the same refusal as an unknown session; nothing is written. |
-| TP-04 | An employee cannot record or change a tip for **herself**: a request that adds, changes or removes an entry of an employee linked to the actor — by the performer's recorded snapshot `line_performers.linked_user_id` (ADR-0045) **or** by her current user link — is refused `TIP_SELF_FORBIDDEN` (her existing entries must be sent unchanged). |
+| TP-04 | An employee cannot record or change a tip for **herself**: a request that adds, changes or removes an entry of an employee linked to the actor — by the performer's recorded snapshot `line_performers.linked_user_id` (ADR-0045) **or** by her current user link — is refused `TIP_SELF_FORBIDDEN` (her existing entries must be sent unchanged). **Fail closed (ADR-0045):** when a performer row of that employee on an ACTIVE line of the visit has `linked_user_snapshotted = false` (lines created before 35d-3b or by an old instance, never backfilled), the snapshot cannot prove who she was, so any add, change or removal of her entry is refused `TIP_IDENTITY_UNKNOWN`; entries of employees whose rows are all snapshotted are unaffected. |
 | TP-05 | An entry for an employee who is not a performer of any ACTIVE line of the visit is refused `TIP_EMPLOYEE_NOT_PERFORMER`. |
 | TP-06 | A session whose business date is older than the first of the previous month (business timezone) is refused `TIP_WINDOW_CLOSED`; a session inside the window is accepted even when its period is already approved (the consumer posts the correction). |
 | TP-07 | Replacing an existing tip set needs `expected_revision` equal to the current revision and a reason; a stale revision is refused `TIP_REVISION_CONFLICT` (409) and nothing is written. |
@@ -102,8 +102,12 @@ Until they are answered, §5.2 items marked ⟨TP-Q5…Q8⟩ are **recommendatio
   revisions remain. A reason is required when replacing an existing set (⟨TP-Q5⟩ for the first entry).
 - **BR-05 (TP-Q4)** Suggested split: for each performer, `employee_net = Σ over ACTIVE lines of the employee's share of that line`, where the share is the
   one of SPEC §5.2 (`net × share_bps / 10000` floored to mills, remainder mills one each to the performers in ascending
-  `employee_id` order), so the weights are whole mills and sum to the visit net; `suggestion = tip_total × employee_net / visit_net`. Rounding of remainder mills and a zero-net visit:
-  ⟨TP-Q8⟩. The suggestion is advice only; the server stores exactly what the cashier sends.
+  `employee_id` order), so the weights are whole mills and sum to the visit net; `suggestion = tip_total × employee_net / visit_net`. **One remainder order everywhere: ascending `employee_id`** — both for the line shares above (SPEC §5.2)
+  and for the tie-break of the largest-remainder step of ⟨TP-Q8⟩. *Worked example in mills:* a line of 0.001 KWD
+  (1 mill) shared 50/50 by A and B gives A = 1 mill and B = 0 (remainder to the lower `employee_id`); a tip of 0.010
+  over the weights A = 1, B = 0 gives A = 10 mills and B is left out. Three performers with equal weights 1.000 each and a
+  tip of 0.100 (100 mills) have exact shares 33.333 each: floors 33/33/33, one mill left, all remainders tie, so the lower
+  `employee_id` first: A = 34, B = 33, C = 33. Rounding of remainder mills and a zero-net visit: ⟨TP-Q8⟩. The suggestion is advice only; the server stores exactly what the cashier sends.
 - **BR-06 (D-36)** A tip is never part of a line's net, a threshold, or a commission base; orders computes none of that.
 - **BR-07** All arithmetic lives in `orders/domain` pure functions; the use case calls them and does no arithmetic.
 
@@ -113,7 +117,7 @@ Until they are answered, §5.2 items marked ⟨TP-Q5…Q8⟩ are **recommendatio
 - ⟨TP-Q6⟩ The tip stays recorded when lines are cancelled or reassigned (the money was given); only a manager with the record
   permission can remove it, with a reason.
 - ⟨TP-Q7⟩ No hard ceiling; the screen warns when a tip exceeds the visit net.
-- ⟨TP-Q8⟩ **Largest-remainder** allocation in mills: every performer first gets the floor of her exact share, then the remaining mills are given one each to the largest fractional remainders (ties: first in performer order, as spec 050 SS-Q7 does for shares). No allocation can be negative. A performer whose allocation is 0 is left out of the suggestion (amounts must be greater than zero). A visit whose net is zero is split equally by the same method.
+- ⟨TP-Q8⟩ **Largest-remainder** allocation in mills: every performer first gets the floor of her exact share, then the remaining mills are given one each to the largest fractional remainders (ties: ascending `employee_id`, the same order as the line shares of SPEC §5.2 in BR-05). No allocation can be negative. A performer whose allocation is 0 is left out of the suggestion (amounts must be greater than zero). A visit whose net is zero is split equally by the same method.
 
 ### 5.3 Schema changes (36-1)
 
@@ -146,7 +150,7 @@ Expand-only: new tables, no change to existing tables. Indexes on the new tables
   history); guard **`record:service-sessions:branch`**, so the cashier who may record a tip can always reload the current set
   and revision that the replacing PUT requires. The broader `read:service-sessions:branch` is not needed and not granted by this endpoint.
 - Errors in the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `SESSION_NOT_FOUND`
-  (also for an out-of-scope or foreign session), `TIP_WINDOW_CLOSED`, `TIP_SELF_FORBIDDEN`, `TIP_EMPLOYEE_NOT_PERFORMER`,
+  (also for an out-of-scope or foreign session), `TIP_WINDOW_CLOSED`, `TIP_SELF_FORBIDDEN`, `TIP_IDENTITY_UNKNOWN`, `TIP_EMPLOYEE_NOT_PERFORMER`,
   `TIP_REVISION_CONFLICT` (409), `TIP_REASON_REQUIRED`, `TIP_TOTAL_TOO_LARGE`, `TRANSACTION_RETRY_REQUIRED`. New codes are added to
   `src/shared/errors.ts`, never inlined.
 
