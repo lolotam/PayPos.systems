@@ -77,3 +77,28 @@ it('publishes the tip errors from spec 053', () => {
     expect(serviceSessionErrors[code]).toEqual(tipMessages[code]);
   }
 });
+
+const recordTipMessages = {
+  SESSION_NOT_FOUND: {
+    message_ar: 'الزيارة دي مش موجودة.',
+    message_en: 'Visit not found.',
+  },
+  TIP_REVISION_CONFLICT: {
+    message_ar: 'البقشيش اتغيّر من حد تاني. حدّثي الصفحة وحاولي تاني.',
+    message_en: 'The tips were changed by someone else. Refresh and try again.',
+  },
+  TIP_REASON_REQUIRED: {
+    message_ar: 'اكتبي سبب تغيير البقشيش.',
+    message_en: 'Enter the reason for changing the tips.',
+  },
+  TIP_NO_CHANGE: {
+    message_ar: 'البقشيش زي ما هو، مفيش تغيير يتحفظ.',
+    message_en: 'The tips are unchanged; nothing to save.',
+  },
+} as const;
+
+it('publishes the record-tip errors from task 36-3a', () => {
+  for (const code of Object.keys(recordTipMessages) as (keyof typeof recordTipMessages)[]) {
+    expect(serviceSessionErrors[code]).toEqual(recordTipMessages[code]);
+  }
+});

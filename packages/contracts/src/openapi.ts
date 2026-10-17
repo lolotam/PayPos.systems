@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { serviceSessionSchemas } from './orders/service-session.js';
+import { sessionTipsSchemas } from './orders/session-tips.js';
 import { serviceSessionFormPaths, serviceSessionFormSchemas } from './orders/service-session-form-openapi.js';
 import { serviceSessionDaySchemas } from './orders/service-session-day.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
@@ -29,12 +30,7 @@ import { employeeCardSchemas } from './staff/employee-cards.js';
 import { employeeCardPaths } from './staff/employee-cards-openapi.js';
 import { passkeyPaths } from './staff/passkeys-openapi.js';
 import { scheduleSchemas } from './staff/schedules.js';
-import {
-  setSalaryInput,
-  employeeSalary,
-  salaryHistoryQuery,
-  salaryHistoryPage,
-} from './staff/salary.js';
+import { setSalaryInput, employeeSalary, salaryHistoryQuery, salaryHistoryPage } from './staff/salary.js';
 import { settingsPaths } from './settings/settings-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
@@ -162,7 +158,7 @@ const SCHEMAS = [
   customer,
   findOrCreateCustomerInput,
   ...catalogSchemas,
-  ...serviceSessionSchemas, ...serviceSessionDaySchemas, ...serviceSessionFormSchemas, ...serviceSessionRecoverySchemas,
+  ...serviceSessionSchemas, ...sessionTipsSchemas, ...serviceSessionDaySchemas, ...serviceSessionFormSchemas, ...serviceSessionRecoverySchemas,
   attendanceQrToken,
   attendanceQrBranch,
   attendanceQrIssue,

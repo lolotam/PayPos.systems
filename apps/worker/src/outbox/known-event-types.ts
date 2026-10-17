@@ -2,6 +2,8 @@ export const KNOWN_EVENT_TYPES = [
   'ServiceSessionRecorded',
   'ServiceSessionLinesAdded',
   'ServiceLineChanged',
+  // spec 053 BR-08: يُسجَّل قبل المستهلك حتى لا يُعاد محاولة حدث نُشر قبل صف 50.
+  'SessionTipsChanged',
   'AttendanceChangeRequested',
   'AttendanceChangeDecided',
   // قرار Waleed في 2026-10-08: PR 50 سيعالج SalaryChanged المنشور قبل المستهلك؛ بوابة ADR-0012 تظل مغلقة حتى المعالجة.

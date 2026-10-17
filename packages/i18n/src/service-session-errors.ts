@@ -28,5 +28,9 @@ export const serviceSessionErrors = {
   TIP_IDENTITY_UNKNOWN: { message_ar: 'البقشيش ده مايتعدّلش لأن هوية الموظفة في الزيارة مش معروفة.', message_en: "This tip cannot be changed because the performer's identity on this visit is unknown." },
   TIP_EMPLOYEE_NOT_PERFORMER: { message_ar: 'الموظفة دي مش منفّذة لخدمة فعّالة في الزيارة.', message_en: 'This employee does not perform an active service on this visit.' },
   TIP_TOTAL_TOO_LARGE: { message_ar: 'إجمالي البقشيش أكبر من الحد المسموح.', message_en: 'The tip total is above the allowed limit.' },
+  SESSION_NOT_FOUND: { message_ar: 'الزيارة دي مش موجودة.', message_en: 'Visit not found.' },
+  TIP_REVISION_CONFLICT: { message_ar: 'البقشيش اتغيّر من حد تاني. حدّثي الصفحة وحاولي تاني.', message_en: 'The tips were changed by someone else. Refresh and try again.' },
+  TIP_REASON_REQUIRED: { message_ar: 'اكتبي سبب تغيير البقشيش.', message_en: 'Enter the reason for changing the tips.' },
+  TIP_NO_CHANGE: { message_ar: 'البقشيش زي ما هو، مفيش تغيير يتحفظ.', message_en: 'The tips are unchanged; nothing to save.' },
 } as const;
 export type ServiceSessionErrorCode = keyof typeof serviceSessionErrors;

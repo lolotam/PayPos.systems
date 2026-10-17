@@ -27,7 +27,9 @@ touches her commission, which is computed on 60.000.
 | **36-0** | This spec + owner questions + plan row (docs-only PR) | spec, owner file, plan row | — |
 | **36-1** | Storage | (a) migration: `session_tip_revisions` (with `event_id`) and `session_tips`, constraints, RLS, grants, `privileges.spec.ts` allowlist; (b) RLS negative isolation tests; (c) constraint tests (revision chain, uniqueness, amount bounds) | 36-0 |
 | **36-2** | Pure domain | (a) `suggestTipSplit` (TP-Q4) with the rounding rule of TP-Q8; (b) `validateTipSet` (entries, bounds, performers, self rule); (c) `tipWindowOpen` (TP-Q2, reuses the recording window helper) and exhaustive unit tests | 36-0 |
-| **36-3** | Use case `record-session-tips` | (a) contract + `PUT …/service-sessions/:sessionId/tips` + guard + idempotency; (b) use case: lock, revision check, insert, audit, outbox `SessionTipsChanged`; (c) integration tests TP-01…TP-14 and the read of the current set | 36-1, 36-2 |
+| **36-3a** | Contracts, error codes, pure rules, event type, ports (no behaviour) | (a) `RecordSessionTipsInput` (with optional `recorder_membership_id`, D-T2), `SessionTips` (PUT and GET body), `SessionTipsChanged` event contract, OpenAPI schemas; (b) error codes `SESSION_NOT_FOUND`, `TIP_REVISION_CONFLICT`, `TIP_REASON_REQUIRED`, `TIP_NO_CHANGE` with ar/en messages; (c) pure `written-reason`, `tip-revision`, `tip-records` builders, the event type in `events/published.ts` and the worker known-type registration, `session-tips.port.ts` | 36-2 |
+| **36-3b** | Use case `record-session-tips` and its storage access | (a) adapters behind the 36-3a ports (access, visit lock, people from `line_performers`, current revision, revision + entries insert); (b) use case: authorize, idempotency, lock order of D-T6, revision check, window, reason, `validateTipSet`, insert, audit, outbox `SessionTipsChanged` in the same transaction; (c) integration tests TP-01, TP-04…TP-13 at use-case level | 36-1, 36-3a |
+| **36-3c** | HTTP and the current-set read | (a) `PUT` and `GET …/tips` routes, guard, error filter mapping, OpenAPI paths and generated clients; (b) the current-set read in `queries/` with result-shape and `EXPLAIN` tests; (c) HTTP tests TP-03 (byte-identical refusal for foreign and unknown sessions), TP-10 over HTTP, TP-14 | 36-3b |
 | **36-4** | Reception screen | (a) tip entry with the suggested split; (b) edit with the written reason; (c) i18n ar/en, RTL, error messages | 36-3 (and the merged 35c screen) |
 | **36-5** | Public reader for the row 50 bootstrap (BR-08) | (a) `queries/` read of the **latest revision per session** plus the `event_id` of every revision up to it, with keyset paging; (b) the read-only export in orders' `index.ts` (`listCurrentSessionTips`), module-map check; (c) result-shape, `EXPLAIN`, paging and revision tests | 36-1, 36-3 — **and row 50 depends on 36-5** |
 
@@ -126,6 +128,30 @@ effects, business timezone, UUID v7, no `Date.now`/`randomUUID` in use cases).
   after the first read is still delivered by the live consumer, never lost; (4) approval/payroll stays closed until **both** hold: no `SessionTipsChanged` outbox event lacks a consumption row (the ADR-0041 §6 pending-input count), **and** for every session the
   projection's applied revision is ≥ the revision the reader reports (a per-session revision comparison, never a count of sessions, so a revision committed after the read cannot hide behind equal counts).
   The consumer-start/live-write race is a named test (TP-15).
+
+### 5.1b Technical decisions of 36-3 (design advisors, 2026-10-17; none is an owner question)
+
+- **D-T1 No change.** A replacement whose requested set equals the current set, and a first entry with an empty set, are
+  refused 422 `TIP_NO_CHANGE` and nothing is written (precedents: 35d D-3, spec 055 no-change). The revision is compared
+  **before** the set rules, so two identical racing requests give the loser `TIP_REVISION_CONFLICT` (35d D-10).
+- **D-T2 Membership.** The body carries an optional `recorder_membership_id`; the writer reuses `resolveSessionRecorder`
+  without the original-recorder exemption, so an actor with several eligible memberships must choose
+  (`SESSION_RECORDER_MEMBERSHIP_REQUIRED`). The chosen membership is stored in `changed_by_membership_id`.
+- **D-T3 Reason.** One shared normalizer (`written-reason.ts`) for the edit reason and the tip reason. A replacement with a
+  missing or blank reason is refused `TIP_REASON_REQUIRED`; an invalid reason is `VALIDATION_FAILED`; a reason on revision 1
+  is optional and stored if given.
+- **D-T4 Event.** `SessionTipsChanged` = { `session_id`, `business_id`, `branch_id`, `occurred_at` (the session's),
+  `business_date`, `revision`, `changed_at`, `tips` (full current set, canonical strings), `schema_version` 1 }; its outbox id
+  is the revision's `event_id`. Registered in the worker before its consumer (row 50).
+- **D-T5 Refusals.** An unknown, foreign or out-of-scope session and a failed live recheck give one `SESSION_NOT_FOUND`
+  (TP-03); `TIP_REVISION_CONFLICT` (409) carries only `current_revision`.
+- **D-T6 Lock order.** Idempotency claim → access lock (company, memberships) → the visit advisory lock shared with
+  record, append, edit and cancel (spec 054 §3.2) → read the session, lines, performer rows and current revision → the
+  staff employee rows of every person involved (current links), ascending → fresh access recheck after all waits → rules →
+  insert. No row lock on `service_lines` is needed: every writer of a line takes the visit lock. The write uses the 36-1
+  seal as it is (one revision insert, then its entries, same transaction) and adds nothing to it (issue #338).
+- **D-T7 Retained identities.** 36-3 reads the performer rows of the visit's current lines. Performers removed by row 37b
+  join the people facts in 37b-4d (spec 055 FR-017), which must land before any removal route exists.
 
 ### 5.2 Rules from the answers TP-Q5…TP-Q8
 
