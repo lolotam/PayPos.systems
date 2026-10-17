@@ -68,7 +68,7 @@ export async function assignEmployeeNumbers(
       counts.read += batch.read;
       counts.assigned += batch.assigned;
       counts.exhausted += batch.exhausted;
-      if (batch.read < batchSize || batch.assigned === 0) break;
+      if (batch.read < batchSize || batch.exhausted > 0) break;
     }
   }
   if (counts.exhausted > 0) throw new EmployeeNumbersExhaustedError();
@@ -77,6 +77,8 @@ export async function assignEmployeeNumbers(
 
 /**
  * معاملة واحدة لدفعة واحدة: تقفل العدّاد، وتقرأ الأرقام المستخدمة من مكان العدّاد فما فوق، وترقّم الدفعة بالترتيب.
+ * التحديث يكرر شرط `employee_number IS NULL` ويعدّ الصفوف التي تغيّرت فعلاً، لأن معاملة أخرى قد تكون كتبت رقماً
+ * لموظف بعد قراءة الدفعة (READ COMMITTED)، ولا يجوز أن نمحوه.
  *
  * @param tx معاملة الشركة
  * @param companyId الشركة الجارية
@@ -97,30 +99,35 @@ async function numberOneBatch(tx: Tx, companyId: string, batchSize: number) {
   if (rows.length === 0 || sequence === undefined)
     return { read: rows.length, assigned: 0, exhausted: 0 };
   const startAt = sequence.next_number;
-  const used = (
-    await tx.execute<{ employee_number: number }>(sql`
+  const used = new Set(
+    (
+      await tx.execute<{ employee_number: number }>(sql`
       SELECT employee_number FROM employees
-      WHERE company_id = ${companyId} AND employee_number >= ${startAt} ORDER BY employee_number`)
-  ).map((row) => row.employee_number);
+      WHERE company_id = ${companyId} AND employee_number >= ${startAt}`)
+    ).map((row) => row.employee_number),
+  );
   let counter = startAt;
   let exhausted = 0;
   const assignments: { id: string; n: number }[] = [];
-  for (const row of rows) {
+  for (const [index, row] of rows.entries()) {
     const number = firstFreeEmployeeNumber(counter, used);
     if (number === null) {
-      exhausted++;
-      continue;
+      exhausted = rows.length - index;
+      break;
     }
     assignments.push({ id: row.id, n: number });
-    used.push(number);
+    used.add(number);
     counter = number + 1;
   }
-  const assigned = assignments.length;
-  if (assigned > 0)
-    await tx.execute(sql`
+  const updated =
+    assignments.length === 0
+      ? []
+      : await tx.execute<{ id: string }>(sql`
       UPDATE employees e SET employee_number = v.n
       FROM jsonb_to_recordset(${JSON.stringify(assignments)}::jsonb) AS v(id uuid, n integer)
-      WHERE e.company_id = ${companyId} AND e.id = v.id`);
+      WHERE e.company_id = ${companyId} AND e.id = v.id AND e.employee_number IS NULL
+      RETURNING e.id`);
+  const assigned = updated.length;
   await tx.execute(
     sql`UPDATE employee_number_sequences SET next_number = GREATEST(next_number, ${Math.min(counter, 1_000_000)}), updated_at = now() WHERE company_id = ${companyId}`,
   );

@@ -6,15 +6,16 @@ export const EMPLOYEE_NUMBER_MAX = 999999;
  * القاعدة: التخطي يشمل كل رقم مستخدم (EN-Q6)، والرقم المكتوب بالإيد لا يحرّك العدّاد.
  *
  * @param counter أول رقم يُفحص (يبدأ من 1 أو من رقم البداية الذي اختاره المالك)
- * @param usedAtOrAbove الأرقام المستخدمة فعلاً داخل الشركة، من العدّاد فما فوق، وليس شرطاً أن تكون مرتبة
+ * @param usedAtOrAbove الأرقام المستخدمة فعلاً داخل الشركة، من العدّاد فما فوق، مصفوفة غير مرتبة أو Set جاهز؛
+ *   مَن يستدعي الدالة لكل صف في دفعة يبني الـ Set مرة واحدة ويمرّره حتى لا يُعاد بناؤه مع كل موظف
  * @returns أول رقم حر، أو null إذا كان العدّاد خارج النطاق أو لم يبق رقم حر حتى 999999
  */
 export function firstFreeEmployeeNumber(
   counter: number,
-  usedAtOrAbove: readonly number[],
+  usedAtOrAbove: ReadonlySet<number> | readonly number[],
 ): number | null {
   if (!Number.isInteger(counter) || counter < 1) return null;
-  const used = new Set(usedAtOrAbove);
+  const used: ReadonlySet<number> = 'has' in usedAtOrAbove ? usedAtOrAbove : new Set(usedAtOrAbove);
   for (let candidate = counter; candidate <= EMPLOYEE_NUMBER_MAX; candidate++) {
     if (!used.has(candidate)) return candidate;
   }

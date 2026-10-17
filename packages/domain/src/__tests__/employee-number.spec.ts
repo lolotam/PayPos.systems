@@ -24,6 +24,14 @@ describe('firstFreeEmployeeNumber', () => {
     expect(firstFreeEmployeeNumber(counter, used)).toBe(1051);
   });
 
+  it('accepts a prebuilt Set and gives the same answer as the array', () => {
+    const used = new Set([4, 5, 6, 8]);
+    expect(firstFreeEmployeeNumber(4, used)).toBe(7);
+    expect(firstFreeEmployeeNumber(4, used)).toBe(firstFreeEmployeeNumber(4, [4, 5, 6, 8]));
+    used.add(7);
+    expect(firstFreeEmployeeNumber(4, used)).toBe(9);
+  });
+
   it('does not need the used list to be sorted or free of smaller numbers', () => {
     expect(firstFreeEmployeeNumber(10, [12, 3, 10, 11, 1])).toBe(13);
   });

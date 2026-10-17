@@ -111,6 +111,39 @@ it('numbers across several small batches in the same order, skipping a hand numb
   expect(await counter(A)).toBe(7);
 });
 
+it('does not overwrite a number written after the batch was read, and keeps going while null rows remain', async () => {
+  await insert(A, { name: 'Raced', hire: '2025-01-01' });
+  await insert(A, { name: 'After', hire: '2025-02-01' });
+  const locker = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  try {
+    let locked!: () => void;
+    let release!: () => void;
+    const lockTaken = new Promise<void>((resolve) => (locked = resolve));
+    const mayCommit = new Promise<void>((resolve) => (release = resolve));
+    const writer = locker.begin(async (tx) => {
+      await tx`UPDATE employees SET employee_number = 500 WHERE company_id = ${A.company} AND name_en = 'Raced'`;
+      locked();
+      await mayCommit;
+    });
+    await lockTaken;
+    const run = assignEmployeeNumbers(owner, app, 1);
+    for (let waits = 0; waits < 200; waits++) {
+      const [blocked] = await owner<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+      if ((blocked?.n ?? 0) > 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    release();
+    await writer;
+    const counts = await run;
+    expect(counts).toMatchObject({ read: 2, assigned: 1, exhausted: 0 });
+  } finally {
+    await locker.end();
+  }
+  expect(await numbers(A)).toEqual({ Raced: 500, After: 2 });
+});
+
 it('skips a hand-typed number without letting it move the counter', async () => {
   await insert(A, { name: 'Hand', hire: '2025-01-01', number: 1050 });
   await insert(A, { name: 'One', hire: '2025-02-01' });
