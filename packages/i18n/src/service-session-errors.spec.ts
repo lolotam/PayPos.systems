@@ -3,8 +3,8 @@ import { serviceSessionErrors } from './service-session-errors.js';
 
 const added = {
   SESSION_LINE_REVISION_STALE: {
-    message_ar: 'اتغيّر السطر من حد تاني. افتحه تاني وراجع الأرقام الجديدة.',
-    message_en: 'The line was changed by someone else. Reopen it and review the new figures.',
+    message_ar: 'اتغيّر السطر من حد تاني. حدّثي الصفحة وحاولي تاني.',
+    message_en: 'The line was changed by someone else. Refresh and try again.',
   },
   SESSION_EDIT_NO_CHANGE: {
     message_ar: 'السعر والخصم زي ما هما، مفيش تعديل يتحفظ.',

@@ -62,3 +62,28 @@ it('rejects 501 emoji', () => {
     'SESSION_EDIT_REASON_INVALID',
   );
 });
+
+it('rejects an over-long mixed-whitespace body in well under a second', () => {
+  const body = ('a' + ' '.repeat(100_000)).repeat(8) + 'b';
+  const started = Date.now();
+  expect(thrown(() => normalizeEditReason(body)).code).toBe('SESSION_EDIT_REASON_INVALID');
+  expect(Date.now() - started).toBeLessThan(1_000);
+}, 2_000);
+
+it('rejects a NUL inside the reason', () => {
+  expect(thrown(() => normalizeEditReason('سبب\u0000التعديل')).code).toBe(
+    'SESSION_EDIT_REASON_INVALID',
+  );
+});
+
+it('rejects a lone high surrogate', () => {
+  expect(thrown(() => normalizeEditReason('سبب\uD800')).code).toBe('SESSION_EDIT_REASON_INVALID');
+});
+
+it('rejects a lone low surrogate', () => {
+  expect(thrown(() => normalizeEditReason('\uDC00سبب')).code).toBe('SESSION_EDIT_REASON_INVALID');
+});
+
+it('accepts a valid emoji surrogate pair', () => {
+  expect(normalizeEditReason('تعديل 😀')).toBe('تعديل 😀');
+});

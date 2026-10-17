@@ -80,6 +80,27 @@ it('refuses when any of several performers matches by either source', () => {
   expect(error.code).toBe('SESSION_PERFORMER_SELF_FORBIDDEN');
 });
 
+it('refuses a user id that differs only by letter case', () => {
+  const error = thrown(() =>
+    assertEditorIsNotPerformer('AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE', [
+      performer({
+        linked_user_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        current_user_id: 'someone-else',
+      }),
+    ]),
+  );
+  expect(error.code).toBe('SESSION_PERFORMER_SELF_FORBIDDEN');
+  const current = thrown(() =>
+    assertEditorIsNotPerformer('AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE', [
+      performer({
+        linked_user_id: 'someone-else',
+        current_user_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      }),
+    ]),
+  );
+  expect(current.code).toBe('SESSION_PERFORMER_SELF_FORBIDDEN');
+});
+
 it('allows an editor who matches neither snapshot nor current link', () => {
   expect(() =>
     assertEditorIsNotPerformer('u3', [

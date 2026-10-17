@@ -54,6 +54,7 @@ export function assertLineEditable(line: EditableServiceLine, expectedRevision: 
 /**
  * يحوّل الخصم المطلوب إلى مبلغ مخزّن ثم يفحص «لا تغيير» وحد المحررة وإجمالي الزيارة.
  * النسبة تُحسب على السعر المطلوب، وتغيّر الحد وحده ليس تعديلاً يستحق نسخة جديدة.
+ * تفاصيل تجاوز الحد تسمّي الحد المطبَّق limit_bps_applied كما سمّاه LE-05.
  *
  * @param input القائمة والسعر الحالي والمطلوب وحد المحررة وصوافي البنود الأخرى
  * @returns السعر والخصم والصافي ونسبة الخصم الفعلي والحد كما وصل
@@ -91,7 +92,7 @@ function refuseAboveLimit(
     discount: moneyToString(discount),
     net: moneyToString(net),
     effective_discount_bps: effectiveDiscountBpsValue,
-    limit_bps: limit.bps,
+    limit_bps_applied: limit.bps,
     limit_source: limit.source,
     minimum_net: moneyToString(amounts.minimum_net),
     max_discount_amount: moneyToString(amounts.max_discount_amount),

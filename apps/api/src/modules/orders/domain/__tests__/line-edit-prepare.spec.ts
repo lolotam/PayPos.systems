@@ -84,7 +84,7 @@ it('LE-05 refuses 5.500 off a 25.000 list when the ceiling is 2000', () => {
     discount: '5.500',
     net: '19.500',
     effective_discount_bps: 2200,
-    limit_bps: 2000,
+    limit_bps_applied: 2000,
     limit_source: 'PERSON',
     minimum_net: '20.000',
     max_discount_amount: '5.000',
@@ -108,7 +108,7 @@ it('LE-06 refuses a half-up percent that lands one basis point over the limit', 
     discount: '0.713',
     net: '6.412',
     effective_discount_bps: 1001,
-    limit_bps: 1000,
+    limit_bps_applied: 1000,
     limit_source: 'PERSON',
     minimum_net: '6.413',
     max_discount_amount: '0.712',
@@ -136,7 +136,7 @@ it('LE-07 saves only a zero effective discount when the limit is not configured'
   );
   expect(error.code).toBe('SESSION_DISCOUNT_ABOVE_LIMIT');
   expect(error.details).toMatchObject({
-    limit_bps: 0,
+    limit_bps_applied: 0,
     limit_source: 'NOT_CONFIGURED',
     effective_discount_bps: 1,
   });

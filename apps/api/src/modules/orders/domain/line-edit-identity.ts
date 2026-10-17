@@ -10,6 +10,7 @@ export interface LineEditPerformer {
 /**
  * يمنع تعديل سطر نفّذته نفس المستخدمة، باللقطة أو بالربط الحالي.
  * سطر بلا لقطة، أو بلا منفّذات، يُرفض قبل المقارنة لأن الهوية لا تُثبَت وفراغ لا يطابق أحداً.
+ * المقارنة بعد تصغير الحالتين حتى لا يفلت معرّف مكتوب بحروف مختلفة.
  *
  * @param editorUserId مستخدمة التعديل
  * @param performers منفّذات السطر وقت التعديل
@@ -25,7 +26,9 @@ export function assertEditorIsNotPerformer(
   ) {
     throw new SessionError('SESSION_EDIT_IDENTITY_UNKNOWN');
   }
-  const sameUser = (candidate: string | null) => candidate !== null && candidate === editorUserId;
+  const editorKey = editorUserId.toLowerCase();
+  const sameUser = (candidate: string | null) =>
+    candidate !== null && candidate.toLowerCase() === editorKey;
   if (
     performers.some(
       (performer) => sameUser(performer.linked_user_id) || sameUser(performer.current_user_id),
