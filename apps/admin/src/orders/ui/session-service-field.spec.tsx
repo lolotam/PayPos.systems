@@ -84,7 +84,7 @@ it.each(['ar', 'en'] as const)('shows a recovered rejected selection outside the
     <SessionServiceField scope={scope} value={restored.service} onChange={onChange} /></QueryClientProvider>);
   await screen.findByRole('option', { name: option.name_en });
   const select = screen.getByRole('combobox') as HTMLSelectElement;
-  expect(select.value).toBe(restored.service_id); expect(select.selectedOptions[0]?.textContent).toBe(t(locale, 'serviceSessions.loadingService'));
+  expect(select.value).toBe(restored.service_id); expect(select.selectedOptions[0]?.textContent).toBe(restored.service_id);
   expect(screen.queryByText(t(locale, 'serviceSessions.listPrice'))).toBeNull();
   const partial = transition(pending, { type: 'RECORDED', attempt: recordAttempt, response }), rejected = partial.drafts.lines[0];
   if (!rejected?.service) throw new Error('Missing rejected selection');
@@ -100,4 +100,14 @@ it.each(['ar', 'en'] as const)('labels a recovered service while the options loa
   const select = screen.getByRole('combobox') as HTMLSelectElement;
   expect(select.selectedOptions[0]?.textContent).toBe(t(locale, 'serviceSessions.loadingService'));
   expect(select.value).toBe(draft.service_id); expect(screen.queryByText(draft.service_id)).toBeNull();
+});
+it.each(['ar', 'en'] as const)('makes no loading claim for a recovered service when the options do not load in %s', async (locale) => {
+  state.locale = locale; state.get.mockReset();
+  const pending = transition(emptySessionRecordingResult(), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: recordAttempt } });
+  const draft = pending.drafts.lines[0]; if (!draft?.service) throw new Error('Missing recovered service');
+  render(<QueryClientProvider client={new QueryClient()}><SessionServiceField scope={scope} value={draft.service} onChange={vi.fn()} disabled /></QueryClientProvider>);
+  const select = screen.getByRole('combobox') as HTMLSelectElement;
+  expect(state.get).not.toHaveBeenCalled();
+  expect(select.value).toBe(draft.service_id);
+  expect(select.selectedOptions[0]?.textContent).not.toBe(t(locale, 'serviceSessions.loadingService'));
 });
