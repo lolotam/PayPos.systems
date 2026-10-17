@@ -1,4 +1,4 @@
-import type { TipPerson } from '../domain/tip-people.ts';
+import type { TipPerformerRow } from '../domain/tip-people-links.ts';
 import type { TipRevisionSession } from '../domain/tip-records.ts';
 import type { TipEntry } from '../domain/tip-set.ts';
 import type { PerformerCheckPort, SessionRecordAccessPort } from './session-readers.port.ts';
@@ -52,12 +52,12 @@ export interface SessionTipsRepository {
    */
   loadSession(sessionId: string): Promise<TipRevisionSession | null>;
   /**
-   * يعيد صفاً لكل منفّذة على الزيارة، لا صفاً لكل موظفة، والدمج يتم في النطاق.
+   * يعيد صفاً لكل منفّذة من line_performers فقط، بلا current_user_id.
    *
    * @param sessionId هوية الزيارة
-   * @returns السطر الفعّال من حالة البند والهويات من line_performers، بلا دمج صفوف
+   * @returns الهوية وحالة السطر ولقطات الهوية، بلا دمج وبلا ربط حالي
    */
-  loadPeople(sessionId: string): Promise<readonly TipPerson[]>;
+  loadPeople(sessionId: string): Promise<readonly TipPerformerRow[]>;
   /**
    * يعيد أعلى مراجعة وسطورها للمقارنة مع النسخة المتوقعة.
    *
@@ -75,10 +75,11 @@ export interface SessionTipsRepository {
   insertRevision(sessionId: string, row: SessionTipRevisionInsert): Promise<void>;
 }
 
-/** معاملة البقشيش تكتب المراجعة والتدقيق والحدث معاً. */
-/** تحت قفل الزيارة: loadPeople ثم loadCurrent. */
-/** ثم performers.lock لاتحاد هويات الناس والحالية والمطلوبة، تصاعدياً ودفعات ضمن حد المنفذ، ثم قراءة الربط الحالي. */
-/** ثم إعادة فحص الإذن الطازج قبل الكتابة. */
+/**
+ * ترتيب D-T6: مطالبة idempotent ثم access.lock ثم lockVisit ثم loadSession و loadPeople و loadCurrent،
+ * ثم performers.lock لاتحاد هويات الناس والحالية والمطلوبة تصاعدياً ودفعات لا تزيد عن 80 لأن قارئ الموارد البشرية يرفض الأكثر،
+ * ثم performers.read ثم withCurrentLinks لهويات الناس والحالية فقط ثم access.read الطازج ثم القواعد ثم insertRevision ثم audit ثم emit.
+ */
 export interface SessionTipsTransaction {
   access: SessionTipsAccessPort;
   performers: PerformerCheckPort;

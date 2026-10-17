@@ -5,7 +5,7 @@ import { sessionMoney } from './service-session.js';
 
 const id = sharedId.toLowerCase();
 
-// 20 بنداً × 4 منفّذات × طريقتا دفع.
+// 20 بنداً × 4 منفّذات × طريقتا دفع للمنفّذات الحاليات؛ إبقاء هويات المحذوفات في 37b-4d (TP-Q6) يعيد النظر في السقف.
 const SESSION_TIP_ENTRY_LIMIT = 160;
 
 export const sessionTipEntry = z
