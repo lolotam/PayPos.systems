@@ -137,13 +137,22 @@ describe('suggestTipSplit remainders', () => {
     ]);
   });
 
-  it('refuses a zero or negative tip and returns nothing when nobody has a weight', () => {
+  it('refuses a zero or negative tip and returns no suggestion when nobody can receive one', () => {
     expect(() => suggestTipSplit(0n, [])).toThrow(
       expect.objectContaining({ code: 'VALIDATION_FAILED' }),
     );
     expect(() => suggestTipSplit(-1n, [{ employee_id: 'a', weight: 1n }])).toThrow(SessionError);
     expect(suggestTipSplit(100n, [])).toEqual([]);
     expect(performerNetWeights([])).toEqual([]);
+  });
+
+  it('refuses a negative weight', () => {
+    expect(() =>
+      suggestTipSplit(10n, [
+        { employee_id: 'a', weight: -1n },
+        { employee_id: 'b', weight: 5n },
+      ]),
+    ).toThrow(expect.objectContaining({ code: 'VALIDATION_FAILED' }));
   });
 });
 
@@ -214,8 +223,32 @@ describe('suggestTipSplit near the money limit', () => {
   });
 });
 
+function withinOneMill(amount: bigint, tip: bigint, weight: bigint, divisor: bigint): boolean {
+  const delta = amount * divisor - tip * weight;
+  const distance = delta < 0n ? -delta : delta;
+  return distance < divisor;
+}
+
+function assertExactSplit(
+  tip: bigint,
+  weights: readonly { employee_id: string; weight: bigint }[],
+): void {
+  const result = suggestTipSplit(tip, weights);
+  expect(result.reduce((sum, row) => sum + row.amount, 0n)).toBe(tip);
+  for (const row of result) expect(row.amount > 0n).toBe(true);
+  const total = weights.reduce((sum, row) => sum + row.weight, 0n);
+  const divisor = total === 0n ? BigInt(weights.length) : total;
+  const byId = new Map(result.map((row) => [row.employee_id, row.amount]));
+  for (const row of weights) {
+    const amount = byId.get(row.employee_id) ?? 0n;
+    const weight = total === 0n ? 1n : row.weight;
+    expect(withinOneMill(amount, tip, weight, divisor)).toBe(true);
+    if (total > 0n && row.weight === 0n) expect(amount).toBe(0n);
+  }
+}
+
 describe('suggestTipSplit seeded properties', () => {
-  it('keeps a few hundred seeded splits exact, positive and within one mill', () => {
+  it('keeps seeded splits exact, including zero weights and a tip smaller than the performer count', () => {
     const state = { value: 0x3602 };
     const next = () => {
       state.value = (Math.imul(state.value, 1664525) + 1013904223) >>> 0;
@@ -225,19 +258,12 @@ describe('suggestTipSplit seeded properties', () => {
       const count = (index % 8) + 1;
       const weights = Array.from({ length: count }, (_, employee) => ({
         employee_id: `e${employee}`,
-        weight: (next() % 50_000n) + 1n,
+        weight:
+          index % 5 === 0 || (index % 5 === 1 && employee === 0) ? 0n : (next() % 50_000n) + 1n,
       }));
-      const tip = (next() % 20_000n) + 1n;
-      const result = suggestTipSplit(tip, weights);
-      expect(result.reduce((sum, row) => sum + row.amount, 0n)).toBe(tip);
-      for (const row of result) expect(row.amount > 0n).toBe(true);
-      const total = weights.reduce((sum, row) => sum + row.weight, 0n);
-      const byId = new Map(result.map((row) => [row.employee_id, row.amount]));
-      for (const row of weights) {
-        const amount = byId.get(row.employee_id) ?? 0n;
-        const delta = amount * total - tip * row.weight;
-        expect((delta < 0n ? -delta : delta) < total).toBe(true);
-      }
+      const tip =
+        index % 4 === 0 && count > 1 ? (next() % BigInt(count - 1)) + 1n : (next() % 20_000n) + 1n;
+      assertExactSplit(tip, weights);
     }
   });
 });

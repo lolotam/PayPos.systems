@@ -1,3 +1,4 @@
+import { compareEmployeeId } from './employee-order.ts';
 import { SessionError } from './session-error.ts';
 
 /** بند زيارة يساهم في وزن البقشيش بصافيه وحصص منفّذاته. */
@@ -20,22 +21,31 @@ export interface TipSuggestion {
 }
 
 /**
- * يرتّب هويات الموظفات تصاعدياً بعد توحيد حالة الأحرف.
- * المعرّف نفسه بحروف مختلفة هو موظفة واحدة، والترتيب يطابق تقسيم العمولة.
+ * يرفض البند الفعّال الذي يخرج عن عقد نصيب السطر.
+ * الحصة لازم تكون عدداً صحيحاً موجباً والهويات فريدة ومجموعها 10000، وإلا اختلف التوزيع صامتاً عن نصيب العمولة.
  *
- * @param left هوية الموظفة الأولى
- * @param right هوية الموظفة الثانية
- * @returns سالب لو الأولى أصغر، وصفر عند التساوي، وموجب لو الثانية أصغر
+ * @param line بند فعّال بصافيه وحصصه
+ * @returns لا شيء؛ الخروج عن العقد يرفض
  */
-function compareEmployeeId(left: string, right: string): number {
-  const lowerLeft = left.toLowerCase();
-  const lowerRight = right.toLowerCase();
-  return lowerLeft < lowerRight ? -1 : lowerLeft > lowerRight ? 1 : 0;
+function assertActiveShare(line: TipWeightLine): void {
+  if (line.net < 0n) throw new SessionError('VALIDATION_FAILED');
+  const seen = new Set<string>();
+  let shareSum = 0;
+  for (const performer of line.performers) {
+    const share = performer.share_bps;
+    if (!Number.isInteger(share) || share <= 0) throw new SessionError('VALIDATION_FAILED');
+    const employeeId = performer.employee_id.toLowerCase();
+    if (seen.has(employeeId)) throw new SessionError('VALIDATION_FAILED');
+    seen.add(employeeId);
+    shareSum += share;
+  }
+  if (shareSum !== 10000) throw new SessionError('VALIDATION_FAILED');
 }
 
 /**
  * يوزّع صافي بند واحد بالفلس: أرضية كل حصة ثم باقي الفلس للهوية الأصغر.
  * نفس قاعدة نصيب السطر في المواصفة، معاد تنفيذها هنا حتى لا يستورد الطلباتُ العمولات.
+ * يُستدعى بعد فحص العقد، فالهويات فريدة والحصص أعداد صحيحة.
  *
  * @param net صافي البند بالفلس
  * @param performers حصص المنفّذات على البند
@@ -45,20 +55,22 @@ function allocateLineMills(
   net: bigint,
   performers: readonly { employee_id: string; share_bps: number }[],
 ): Map<string, bigint> {
-  const ordered = [...performers].sort((left, right) =>
-    compareEmployeeId(left.employee_id, right.employee_id),
+  const ordered = [...performers]
+    .map((performer) => ({
+      employee_id: performer.employee_id.toLowerCase(),
+      share_bps: performer.share_bps,
+    }))
+    .sort((left, right) => compareEmployeeId(left.employee_id, right.employee_id));
+  const shares = new Map(
+    ordered.map((performer) => [
+      performer.employee_id,
+      (net * BigInt(performer.share_bps)) / 10000n,
+    ]),
   );
-  const shares = new Map<string, bigint>();
+  let remainder = net - [...shares.values()].reduce((sum, share) => sum + share, 0n);
   for (const performer of ordered) {
-    const employeeId = performer.employee_id.toLowerCase();
-    const floorShare = (net * BigInt(performer.share_bps)) / 10000n;
-    shares.set(employeeId, (shares.get(employeeId) ?? 0n) + floorShare);
-  }
-  let remainder = net;
-  for (const share of shares.values()) remainder -= share;
-  for (const employeeId of shares.keys()) {
-    if (remainder <= 0n) break;
-    shares.set(employeeId, (shares.get(employeeId) ?? 0n) + 1n);
+    if (remainder === 0n) break;
+    shares.set(performer.employee_id, (shares.get(performer.employee_id) ?? 0n) + 1n);
     remainder -= 1n;
   }
   return shares;
@@ -67,6 +79,7 @@ function allocateLineMills(
 /**
  * يجمع وزن كل موظفة من صافي البنود الفعّالة فقط.
  * البند الملغي لا يدخل لأن الخدمة لم تُقدَّم، والموظفة على أكثر من بند تُحسب مرة بمجموع أنصبتها.
+ * البند الفعّال خارج عقد الحصص يُرفض حتى لا يختلف الوزن عن نصيب العمولة.
  *
  * @param lines بنود الزيارة بحالتها وصافيها وحصص المنفّذات
  * @returns الأوزان بالفلس مرتبة بهوية الموظفة، والصفر يبقى ظاهراً حتى ينفع التقسيم المتساوي
@@ -75,6 +88,7 @@ export function performerNetWeights(lines: readonly TipWeightLine[]): TipWeight[
   const totals = new Map<string, bigint>();
   for (const line of lines) {
     if (line.status !== 'ACTIVE') continue;
+    assertActiveShare(line);
     for (const [employeeId, share] of allocateLineMills(line.net, line.performers)) {
       totals.set(employeeId, (totals.get(employeeId) ?? 0n) + share);
     }
@@ -153,13 +167,17 @@ function largestRemainder(
 /**
  * يقترح تقسيم البقشيش على أوزان صافي الزيارة بحيث يساوي المجموع البقشيش بالظبط.
  * كل موظفة تأخذ أرضية نصيبها والفلس الباقي لأكبر الكسور، والتعادل للهوية الأصغر؛ والزيارة ذات الصافي صفر تُقسَم بالتساوي.
+ * القائمة الفارغة تعني أنه لا توجد منفّذة فعّالة تستلم بقشيشاً، وقاعدة المنفّذة ترفض أي سطر، فلا يوجد اقتراح.
+ * ضمان المجموع المطابق للبقشيش يسري كلما كانت القائمة غير فارغة، والوزن السالب يُرفض لأن إسقاطه يكسر هذا الضمان.
  *
  * @param tip البقشيش المطلوب تقسيمه بالفلس، وأصغر قيمة مقبولة فلس واحد
  * @param weights أوزان الموظفات من صافي الزيارة؛ كلها صفر تعني زيارة صافيها صفر
  * @returns مبالغ الاقتراح بالفلس مرتبة بهوية الموظفة، ومن غير أي مبلغ صفر
  */
 export function suggestTipSplit(tip: bigint, weights: readonly TipWeight[]): TipSuggestion[] {
-  if (tip <= 0n) throw new SessionError('VALIDATION_FAILED');
+  if (tip <= 0n || weights.some((row) => row.weight < 0n)) {
+    throw new SessionError('VALIDATION_FAILED');
+  }
   const merged = mergeWeights(weights);
   if (merged.length === 0) return [];
   const total = merged.reduce((sum, row) => sum + row.weight, 0n);

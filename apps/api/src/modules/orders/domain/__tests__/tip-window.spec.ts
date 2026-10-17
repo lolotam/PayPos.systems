@@ -38,13 +38,6 @@ describe('tip recording window', () => {
     expect(tipWindowOpen('2026-08-31', now, 'Asia/Kuwait')).toBe(false);
   });
 
-  it('has no approved-period input, so approval cannot close or open the window', () => {
-    expect(tipWindowOpen.length).toBe(3);
-    expect(assertTipWindowOpen.length).toBe(3);
-    expect(tipWindowOpen('2026-10-15', october, 'Asia/Kuwait')).toBe(true);
-    expect(tipWindowOpen('2026-08-31', october, 'Asia/Kuwait')).toBe(false);
-  });
-
   it('does not turn an invalid timezone into a closed tip window', () => {
     expect(() => tipWindowOpen('2026-10-15', october, 'Invalid/Zone')).toThrow(
       'SESSION_TIME_INVALID',

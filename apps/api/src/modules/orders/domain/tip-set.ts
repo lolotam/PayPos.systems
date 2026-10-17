@@ -1,28 +1,15 @@
 import { MONEY_MAX, sumMoney } from '@pospay/domain';
+import { compareEmployeeId } from './employee-order.ts';
 import { SessionError } from './session-error.ts';
+import { actorMatches, indexTipPeople, type IndexedTipPerson, type TipPerson } from './tip-people.ts';
+
+export type { TipIdentity, TipPerson } from './tip-people.ts';
 
 /** سطر بقشيش لموظفة واحدة بطريقة دفع واحدة. */
 export interface TipEntry {
   employee_id: string;
   method: 'CASH' | 'CARD';
   amount: bigint;
-}
-
-/** لقطة هوية منفّذة؛ الربط الفارغ لا يطابق أحداً. */
-export interface TipIdentity {
-  linked_user_id: string | null;
-  linked_user_snapshotted: boolean;
-}
-
-/**
- * موظفة نفّذت على الزيارة أو أُزيلت لاحقاً وهويتها ما زالت محفوظة.
- * الصف الذي لم تُلتقط هويته يُغلق التعديل عليها لكل الفاعلين.
- */
-export interface TipPerson {
-  employee_id: string;
-  has_active_line: boolean;
-  identities: readonly TipIdentity[];
-  current_user_id: string | null;
 }
 
 /** المجموعة الحالية والمجموعة المطلوبة والفاعل ومنفّذات الزيارة. */
@@ -49,19 +36,6 @@ interface TipGroups {
   changed: TipEntry[];
   removed: TipEntry[];
   carried: TipEntry[];
-}
-
-/**
- * يرتّب هويات الموظفات تصاعدياً بعد توحيد حالة الأحرف.
- *
- * @param left هوية الموظفة الأولى
- * @param right هوية الموظفة الثانية
- * @returns سالب لو الأولى أصغر، وصفر عند التساوي، وموجب لو الثانية أصغر
- */
-function compareEmployeeId(left: string, right: string): number {
-  const lowerLeft = left.toLowerCase();
-  const lowerRight = right.toLowerCase();
-  return lowerLeft < lowerRight ? -1 : lowerLeft > lowerRight ? 1 : 0;
 }
 
 /**
@@ -152,33 +126,8 @@ function classifyTipEntries(
 }
 
 /**
- * يفهرس منفّذات الزيارة بهوية صغيرة حتى تتطابق الحروف المختلفة.
- *
- * @param people منفّذات الزيارة الحاليات واللاتي أُزيلن
- * @returns خريطة الهوية إلى صف الموظفة
- */
-function indexTipPeople(people: readonly TipPerson[]): ReadonlyMap<string, TipPerson> {
-  return new Map(people.map((person) => [person.employee_id.toLowerCase(), person]));
-}
-
-/**
- * هل الفاعل هو هذه الموظفة باللقطة أو بالربط الحالي.
- * القيمة الفارغة لا تطابق أحداً، والمقارنة بعد تصغير الحروف.
- *
- * @param actorKey هوية الفاعل بحروف صغيرة
- * @param person صف الموظفة
- * @returns هل الفاعل هي صاحبة السطر
- */
-function actorMatches(actorKey: string, person: TipPerson): boolean {
-  if (person.current_user_id !== null && person.current_user_id.toLowerCase() === actorKey)
-    return true;
-  return person.identities.some(
-    (row) => row.linked_user_id !== null && row.linked_user_id.toLowerCase() === actorKey,
-  );
-}
-
-/**
  * يرفض لمس سطر لا تُثبَت هوية صاحبته، أو سطر الفاعل نفسها.
+ * صف بلا لقطات، أو لقطة لم تُلتقط، أو ربطان حاليان مختلفان، يُغلق قبل المقارنة لأن الهوية لا تُثبَت.
  * الحذف لموظفة غائبة عن القائمة يُغلق لأننا لا نستطيع نفي أنها الفاعل.
  *
  * @param actorUserId مستخدمة الطلب
@@ -189,7 +138,7 @@ function actorMatches(actorKey: string, person: TipPerson): boolean {
 function assertTipIdentity(
   actorUserId: string,
   groups: TipGroups,
-  people: ReadonlyMap<string, TipPerson>,
+  people: ReadonlyMap<string, IndexedTipPerson>,
 ): void {
   const actorKey = actorUserId.toLowerCase();
   const removedKeys = new Set(groups.removed.map((entry) => entryKey(entry)));
@@ -200,7 +149,11 @@ function assertTipIdentity(
       if (removedKeys.has(entryKey(entry))) throw new SessionError('TIP_IDENTITY_UNKNOWN');
       continue;
     }
-    if (person.identities.some((row) => row.linked_user_snapshotted === false)) {
+    if (
+      person.current_user_conflict ||
+      person.identities.length === 0 ||
+      person.identities.some((row) => row.linked_user_snapshotted === false)
+    ) {
       throw new SessionError('TIP_IDENTITY_UNKNOWN');
     }
     if (actorMatches(actorKey, person)) throw new SessionError('TIP_SELF_FORBIDDEN');
@@ -214,7 +167,10 @@ function assertTipIdentity(
  * @param people منفّذات الزيارة
  * @returns لا شيء؛ موظفة بلا سطر فعّال أو غائبة عن الزيارة ترفض
  */
-function assertActivePerformers(groups: TipGroups, people: ReadonlyMap<string, TipPerson>): void {
+function assertActivePerformers(
+  groups: TipGroups,
+  people: ReadonlyMap<string, IndexedTipPerson>,
+): void {
   for (const entry of sortEntries([...groups.added, ...groups.changed])) {
     const person = people.get(entry.employee_id.toLowerCase());
     if (person === undefined || person.has_active_line === false) {
@@ -235,15 +191,18 @@ function tipTotals(requested: readonly TipEntry[]): { total_cash: bigint; total_
     requested.filter((entry) => entry.method === method).map((entry) => entry.amount);
   try {
     return { total_cash: sumMoney(amounts('CASH')), total_card: sumMoney(amounts('CARD')) };
-  } catch {
-    throw new SessionError('TIP_TOTAL_TOO_LARGE');
+  } catch (error) {
+    if (error instanceof RangeError) throw new SessionError('TIP_TOTAL_TOO_LARGE');
+    throw error;
   }
 }
 
 /**
  * يفحص مجموعة البقشيش المطلوبة ويرجع فرقها عن المراجعة الحالية.
- * ترتيب الرفض ثابت: شكل المبلغ والتكرار، ثم الهوية (لقطة ناقصة ثم النفس، وحذف الغائبة يُغلق)، ثم أن الإضافة أو التغيير لمنفّذة فعّالة، ثم سقف إجمالي النقد وسقف إجمالي البطاقة.
+ * ترتيب الرفض ثابت: شكل المبلغ والتكرار، ثم الهوية (صف فاضي أو لقطة ناقصة أو ربطان حاليان مختلفان أو حذف غائبة، ثم النفس)، ثم أن الإضافة أو التغيير لمنفّذة فعّالة، ثم سقف إجمالي النقد وسقف إجمالي البطاقة.
  * السطور المنقولة كما هي لا تُفحص، حتى يبقى بقشيش دُفع قابلاً للبقاء بعد إلغاء السطر أو نقله.
+ * قائمة people تضم كل موظفة ظهرت في المجموعة الحالية أو المطلوبة وكانت نفّذت على الزيارة، بما فيهن من أُزلن في 37b.
+ * الغائبة عن القائمة هوية مجهولة عند الحذف، وليست منفّذة عند الإضافة.
  *
  * @param input الفاعل والمجموعة الحالية والمجموعة المطلوبة وهويات منفّذات الزيارة
  * @returns الإضافات والتغييرات والحذف والمنقول وإجمالي كل طريقة وراية وجود فرق
