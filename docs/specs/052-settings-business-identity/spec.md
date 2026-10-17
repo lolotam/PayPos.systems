@@ -1,8 +1,11 @@
 # Spec 052 — Business identity settings: official name and logo (Phase 1 row 27h)
 
 > **Status:** Draft · 2026-10-17 · docs-only PR. Owner answer ST-Q1 (batch 14) is recorded in
-> [spec 051 owner-questions](../051-staff-employee-number/owner-questions.ar.md); the remaining rules wait on BI-Q1…BI-Q4 in
-> [owner-questions.ar.md](owner-questions.ar.md) (all `PENDING`). **No code starts before they are answered.**
+> [spec 051 owner-questions](../051-staff-employee-number/owner-questions.ar.md); BI-Q1…BI-Q4 (batch 28, Waleed's picks,
+> 2026-10-17) are recorded in [owner-questions.ar.md](owner-questions.ar.md); no question is open. Abu Salem has not
+> answered batch 28; if his pick differs, his pick binds and the rule changes in a follow-up (`CLAUDE.md` §1 5b).
+> BI-Q1 (a new owner-only permission) and BI-Q3 (10 MiB, no logo-specific cap) differ from what the first draft assumed;
+> §2, §3, §5.1, §5.3, §5.4 and §5.7 are rewritten accordingly.
 > **Needed by:** row 27g (official attendance statement PDF), through 27i (PDF renderer).
 > **Design advisors (CLAUDE.md §1, pipeline step 2):** Codex astra 6 medium and Claude Fable 5.1 medium, read-only,
 > 2026-10-17. The slice uploads files, so both were required; their decisions are merged in §5.
@@ -27,8 +30,9 @@ the name text.
 | Part | Use case / content | Subtasks | Depends on |
 |------|--------------------|----------|-----------|
 | **27h-0** | This spec + ADR-0046 + owner questions (docs-only PR) | spec, ADR, plan row | — |
-| **27h-1** | `update-business-identity-names` | (a) migration: 3 columns + CHECKs + composite FK + partial unique index, `privileges.spec.ts` check, RLS negative test; (b) contract + use case + audit + cache-guard fix; (c) integration + query-shape tests | 27h-0 answered |
-| **27h-2** | files side (no new endpoint) | (a) `validateStoredPermission`: `settings` ⇒ `read:settings:business`; (b) per-owner-module upload cap at `request-upload`; (c) `purge_started` added to the file facts read + tests | 27h-0 answered |
+| **27h-1a** | permission `manage:business-identity:business` (BI-Q1) | (a) migration that inserts the permission and its owner role default (pattern of migration 0128), added to `ROLE_DEFAULTS`, `OWNER_GRANTED_PERMISSIONS` (db and identity lists), `deviceForbidden` in `packages/db/src/system-role-policy.ts` (a device is otherwise eligible for every catalog permission not listed there) and the owner-only rules of `permission-edit`; (b) the ar/en permission-name catalogs («إدارة هوية النشاط») in `packages/i18n`; (c) tests: default owner-only, only the owner can grant it, never a device (an ALLOW override on a device membership is refused), `privileges.spec.ts` allowlist | 27h-0 |
+| **27h-1** | `update-business-identity-names` | (a) migration: 3 columns + CHECKs + composite FK + partial unique index, `privileges.spec.ts` check, RLS negative test; (b) contract + use case + audit + cache-guard fix; (c) integration + query-shape tests | 27h-1a |
+| **27h-2** | files side (no new endpoint, no logo-specific size cap: BI-Q3 keeps the generic 10 MiB) | (a) `validateStoredPermission`: `settings` ⇒ `read:settings:business`; (b) `purge_started` added to the file facts read + tests | 27h-0 |
 | **27h-3** | `retire-business-logo` (worker, `files`-owned consumer; ships **before** any producer) | (a) `BusinessLogoChanged` registered as a known event type with a database-only idempotent consumer, the module-map event arrow **and the reverse port arrow `files → settings` (logo-reference read)**; (b) lock, re-check through that port, `purge_started_at` handoff, the `retired` kind in the retention worker (storage delete outside transactions, tombstone, system audit) and the schedule bootstrap of §5.1 item 5; (c) race, crash-between-steps and replay tests with synthetic events | 27h-1 (needs `business_settings.logo_file_id` for the reference check), 27h-2 (needs the `purge_started` flag) |
 | **27h-4** | `set-business-logo` (bind or remove; the event producer) | (a) domain `validateLogoFile` + port + adapter (`settings → files` read) + module-map line; (b) use case + `PUT /v1/businesses/:businessId/settings/logo` + audit + `BusinessLogoChanged` emit; (c) `readBusinessIdentity` + pure `statementIdentity` exports + tests | 27h-1, 27h-2, 27h-3 |
 | **27h-5** | Admin screen (names, upload with status, preview, replace, remove) | (a) names form; (b) logo upload flow (files endpoints, poll status); (c) preview through the audited download + i18n | 27h-1, 27h-4 |
@@ -36,7 +40,7 @@ the name text.
 Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, and the binding surface); plan row 27i lists `27, 27h-4` (also stated in the 27i row so 27i cannot start before the binding exists). Not here: the statement itself (27g), the PDF renderer (27i), the files-side bytes reader for the renderer (27i), the
 `staff → settings` import arrow (27g's ADR). Other documents (receipts, invoices) may reuse the identity later; out of scope.
 
-## 3. Owner rules (final) and pending
+## 3. Owner rules (final)
 
 **Final (from the owner answers and earlier owner decisions):**
 
@@ -49,21 +53,24 @@ Row 27i's logo-bytes reader depends on 27h-4 (the schema, introduced in 27h-1, a
   replaced or removed logo's file is deleted (27h-3).
 - **BR-07 (CLAUDE.md §8):** every change to settings is audited.
 
-**Pending (each is `PENDING` in [owner-questions.ar.md](owner-questions.ar.md); nothing below is implemented until answered):**
+**Owner answers of batch 28 (Waleed's picks; Abu Salem has not answered, and his pick would replace them):**
 
-- **TODO(spec) BI-Q1** — who may change the identity (names, logo).
-- **TODO(spec) BI-Q2** — is the official name a separate field from the business display name, and what the header
-  shows when it is empty.
-- **TODO(spec) BI-Q3** — the logo's maximum file size.
-- **TODO(spec) BI-Q4** — may only one language of the official name be filled, and what the header shows then.
-
-Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a **recommendation, not a rule**.
+- **BR-08 (BI-Q1):** only the owner may change the official names and the logo, through a **new permission «إدارة هوية النشاط»**
+  (`manage:business-identity:business`, §5.4). The owner holds it by default and can grant it to any human role if she
+  wants; never a device. It covers both the names and the logo (bind and remove).
+- **BR-09 (BI-Q2):** the official name is a **separate field** from the business display name. When it is empty the
+  statement uses the display name (§6).
+- **BR-10 (BI-Q3):** the logo's maximum size is **10 MiB**, the limit every file already has. There is no logo-specific cap
+  anywhere (no `request-upload` rule, no verification rule, no bind check for size).
+- **BR-11 (BI-Q4):** both official names are optional. When one is missing the header takes, in order: the official name in the
+  requested language, the official name in the other language, the display name in the requested language, the display
+  name in the other language. The header is never empty and a business may write one language only.
 
 ## 4. User scenarios and acceptance criteria
 
 | ID | Scenario |
 |----|----------|
-| BI-01 | The owner sets Arabic and English official names; they are saved trimmed and appear on the next read; one audit entry holds before and after. |
+| BI-01 | The owner (or a person the owner granted the identity permission to) sets Arabic and English official names; they are saved trimmed and appear on the next read; one audit entry holds before and after. |
 | BI-02 | A name longer than 255 characters, or blank after trimming, is refused with a bilingual validation error; nothing is saved or audited. |
 | BI-03 | The owner uploads a PNG through the existing files flow (request, PUT, confirm, poll). When the file is READY, binding it saves `logo_file_id`. Binding a PENDING or VERIFYING file is refused with `FILE_NOT_READY`. |
 | BI-04 | A PDF, XLSX, or any file that is not PNG/JPEG cannot be bound as a logo, even if it is READY and uploaded by the same user. |
@@ -77,6 +84,8 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
 | BI-12 | `readBusinessIdentity` returns the three stored fields; `statementIdentity(language, identity, displayNames)` returns the header name per §6 and whether a logo exists. |
 | BI-13 | The settings read (`GET .../settings`) includes the three new fields; a Redis entry cached before this release is never served without them. |
 | BI-14 | The audit and the event never contain a storage key, a signed URL or file bytes. |
+| BI-15 | A person who holds `manage:settings:business` but not `manage:business-identity:business` (a manager) is refused `FORBIDDEN` on the names, the bind and the removal, and nothing is written; the owner, and a person the owner granted the permission to, succeed. A person without `manage:files:business` can still type names and bind a file she uploaded but cannot upload one. |
+| BI-16 | A logo whose upload and whose re-encoded output are both within the generic 10 MiB limit is accepted like any file and can be bound; one whose re-encoding grows past the limit is rejected at verification with `FILE_SIZE_INVALID`, like any image. Nothing logo-specific refuses either. |
 
 ### Edge cases
 
@@ -97,7 +106,9 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
    cache entry for three columns). Both advisors agree.
 2. **Upload.** Reuse the `files` pipeline unchanged: `POST businesses/:businessId/files/uploads` with
    `owner_module='settings'`, `owner_entity_id=<business id>`, `required_permission='read:settings:business'`, no branch;
-   then confirm, worker verification (type from bytes, size, full sharp re-encode, metadata stripped), poll status.
+   then confirm, worker verification (type from bytes, size, full sharp re-encode, metadata stripped), poll status. The
+   files endpoints keep their own authority (`manage:files:business`, owner-only by default since 13b); the identity
+   permission does not replace it (§5.4).
    Binding happens in a **separate settings call** that receives only the file id (ADR-0031 pattern): settings never
    handles bytes, keys, or storage.
 3. **Bind check** inside the settings tenant transaction, after the business settings row lock, through the existing
@@ -106,16 +117,12 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
    `required_permission='read:settings:business'`, `created_by` = the actor. **Order matters, so that no answer discloses a
    file the caller may not know:** (a) first every ownership and identity check above (purge, `owner_module`,
    `owner_entity_id`, `business_id`, branch, `created_by`, `required_permission`, `content_type`); any mismatch answers
-   `FILE_NOT_FOUND`, identical to an unknown id; (b) only then the status: PENDING/VERIFYING answers `FILE_NOT_READY`;
-   (c) only for a READY file that passed (a), the stored `size_bytes` against the logo cap (BI-Q3) answers
-   `FILE_SIZE_INVALID`. `size_bytes` is therefore never part of the `FILE_NOT_FOUND` list.
-4. **One cap rule, on the bytes that are kept.** The logo cap (BI-Q3) applies to the **re-encoded** output: the
-   verification worker rejects a settings logo whose encoded size exceeds it (file status `REJECTED`, code
-   `FILE_SIZE_INVALID`), so a file that reaches `READY` is always within the cap and can always be bound. `request-upload`
-   also refuses a declared size above the cap for `owner_module='settings'`, only as an early refusal so a too-large PUT
-   is never issued. The bind re-checks the stored size as defence in depth and answers `FILE_SIZE_INVALID`, never
-   `FILE_NOT_FOUND`. The generic 10 MiB policy and the employee-document images are unchanged.
-   No new pixel rule: sharp's existing 16 M-pixel input cap bounds memory.
+   `FILE_NOT_FOUND`, identical to an unknown id; (b) only then the status: PENDING/VERIFYING answers `FILE_NOT_READY`. There is no size check at the bind: a READY
+   file already passed the generic 10 MiB policy (BI-Q3).
+4. **No logo-specific cap (BI-Q3 = 10 MiB).** The generic file policy and the DB checks apply unchanged, and the
+   verification worker re-encodes the logo like any image. `request-upload`, the verification worker and the bind add
+   nothing for size, and the employee-document images are unaffected. No new pixel rule: sharp's existing
+   16 M-pixel input cap bounds memory. Verification already validates the re-encoded bytes against the generic policy (`inspectContent`), so every READY logo is within 10 MiB; the renderer (27i) still bounds its read at that cap.
 5. **Replace and remove.** The bind use case writes `BusinessLogoChanged { business_id, previous_file_id,
    file_id | null }` to the outbox in the same transaction. The **`files`-owned worker consumer** (27h-3, shipped before this producer so no event is ever emitted without a consumer) retires the
    previous file in **two durable steps**, because an outbox consumer runs inside one tenant transaction together with its
@@ -149,7 +156,7 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
 6. **Seam for 27g/27i.** `settings/index.ts` exports `readBusinessIdentity(tx, companyId, businessId)` returning
    `{ official_name_ar, official_name_en, logo_file_id }` and the pure `statementIdentity` (§6). The **bytes** reader is
    declared, not built: a `files`-owned export that resolves the currently bound logo of the authorised statement's
-   business (never an arbitrary id from the requester), reads at most the cap, and writes one `file_access_audit` ALLOW
+   business (never an arbitrary id from the requester), reads at most the generic file cap (10 MiB, BI-Q3), and writes one `file_access_audit` ALLOW
    row for the requester. Built with 27i. This matters because the statement requester holds "view attendance"
    (`read:attendance:branch`), not necessarily any settings or files permission, so the stored `read:settings:business`
    gates only the admin preview, not the statement.
@@ -174,24 +181,33 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
 
 - `GET /v1/businesses/:businessId/settings` · `@Require('read:settings:business')` · response gains
   `official_name_ar: string|null`, `official_name_en: string|null`, `logo_file_id: string|null`.
-- `PATCH /v1/businesses/:businessId/settings/identity` (27h-1) · `@Require('manage:settings:business')` · body
+- `PATCH /v1/businesses/:businessId/settings/identity` (27h-1) · `@Require('manage:business-identity:business')` · body
   `{ official_name_ar?: string|null, official_name_en?: string|null }`; an omitted key is left unchanged, `null` clears.
   Names are trimmed, 1..255 characters. 200 returns the two fields. No Idempotency-Key (configuration with audit, as spec 018).
-- `PUT /v1/businesses/:businessId/settings/logo` (27h-4) · `@Require('manage:settings:business')` · body
+- `PUT /v1/businesses/:businessId/settings/logo` (27h-4) · `@Require('manage:business-identity:business')` · body
   `{ file_id: uuid|null }`; `null` removes. 200 returns `{ logo_file_id }`. No Idempotency-Key (rebinding the current file
   is a no-op).
-- Errors reuse the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `FILE_NOT_READY`, `FILE_SIZE_INVALID`,
+- Errors reuse the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `FILE_NOT_READY`,
   `FILE_NOT_FOUND`, `NOT_READY`, `TRANSACTION_RETRY_REQUIRED`. New codes only if the existing ones do not fit.
 - Preview of the logo in admin uses the existing audited `POST files/:id/download`.
 
-### 5.4 Permissions (BI-Q1 pending)
+### 5.4 Permissions (BI-Q1)
 
-Recommended: names and bind use the existing `manage:settings:business`; reading uses `read:settings:business`. Uploading
-the logo needs `manage:files:business` as today, which is **owner-only by default since 13b**, so by default only the
-owner can upload; a manager with settings can type names but not upload, and can bind only a file they
-uploaded themselves; **removal (`file_id: null`) needs only `manage:settings:business`**, so under this option a manager can remove
-the owner's logo (it is replaceable, but its file is retired); BI-Q1 may restrict that. The owner can grant `manage:files:business`. No new permission, no role-default migration. The
-actual choice is BI-Q1; options that need a new permission or a files rule change will get their own plan.
+- Reading the settings (including the three new fields) keeps `read:settings:business`.
+- Changing the names, binding the logo and removing it need the new `manage:business-identity:business` (BI-Q1, BR-08):
+  `ROLE_DEFAULTS = ['owner']`, added to `OWNER_GRANTED_PERMISSIONS` (db and identity lists), `deviceForbidden` in `packages/db/src/system-role-policy.ts`, the owner-only rules of
+  `permission-edit` and the i18n permission-name catalogs (ar «إدارة هوية النشاط»); the owner can grant it to any human role,
+  never a device. A migration (27h-1a, pattern of 0128) inserts it into `permissions` and into the owner role default.
+  `manage:settings:business` no longer lets anyone change the identity.
+- Uploading the logo file keeps the files rule, unchanged: `manage:files:business`, owner-only by default since 13b
+  (a delegate who should also upload needs both permissions from the owner). Every delegate also needs `read:settings:business`
+  (held by the managers by default): it is the permission of `GET …/settings` and the stored permission of the logo upload
+  (§5.1 item 2), which `request-upload` checks too, so a role without it cannot manage the identity until it is given.
+  The bind still accepts only a file the actor
+  uploaded herself (§5.1 item 3). Removal (`file_id: null`) needs the identity permission only. The 13b files rule is
+  not changed by this slice.
+- Live recheck of `manage:business-identity:business` inside the transaction after the settings row lock (the
+  "revoked authority during the lock wait" test, §5.7).
 
 ### 5.5 Events and audit
 
@@ -210,9 +226,9 @@ today, so there is no cycle. The retire consumer's reference check is a **revers
 
 ### 5.7 Test plan
 
-- **Domain unit:** `validateLogoFile` (every field of §5.1 item 3, one case each); `statementIdentity` (every branch of
+- **Domain unit:** `validateLogoFile` (every field of §5.1 item 3, one case each; no size case, BI-16 covers the limit); `statementIdentity` (every branch of
   §6); name normalisation.
-- **Integration (real Postgres, one cloned DB per spec file):** BI-01…BI-14; two concurrent binds; bind while VERIFYING;
+- **Integration (real Postgres, one cloned DB per spec file):** BI-01…BI-16; the permission matrix of BI-15 (owner, granted person, manager with `manage:settings:business` only, device); two concurrent binds; bind while VERIFYING;
   purge-start versus bind race; event replay (27h-3); revoked authority during the lock wait.
 - **RLS negative:** another company cannot read or write `business_settings` identity columns, nor reference its files;
   the FK rejects a cross-tenant file id.
@@ -221,7 +237,7 @@ today, so there is no cycle. The retire consumer's reference check is a **revers
 - **UI (27h-5):** upload, status polling, preview, replace, remove, ar/en messages, RTL logical properties.
 - **Docs:** doc comments in Arabic on `domain/**`, `ports/**` and `events/published.ts` in the same commit.
 
-## 6. Header-name fallback (pure `settings` domain; recommendation pending BI-Q2, BI-Q4)
+## 6. Header-name fallback (pure `settings` domain; BI-Q2, BI-Q4)
 
 `statementIdentity(language, identity, displayNames)` returns the header text, first match wins:
 
