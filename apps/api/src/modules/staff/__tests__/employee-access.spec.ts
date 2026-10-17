@@ -1,3 +1,4 @@
+import { createdEmployee, employee as employeeRecord } from '@pospay/contracts';
 import { systemUuidV7 } from '@pospay/ids';
 import { OWNER_ROLE_ID } from '@pospay/db';
 import postgres from 'postgres';
@@ -72,6 +73,8 @@ it('takes the company lock then ordered membership locks before employee writes 
     body: termsFor(f, 'Lock protocol employee'),
   });
   expect(response.status).toBe(201);
+  const record = createdEmployee.parse(response.body);
+  expect(record.employee_number).toEqual(expect.any(Number));
   const sql = f.h.calls.statements.slice(start).map((s) => s.sql);
   const company = sql.findIndex((s) => s.includes('FOR NO KEY UPDATE'));
   const members = sql.findIndex((s) => /memberships.*ORDER BY id FOR UPDATE/.test(s));
@@ -89,7 +92,7 @@ it('takes the company lock then ordered membership locks before employee writes 
         { cookie: f.cookie, company: f.company },
       )
     ).body,
-  ).toMatchObject(response.body);
+  ).toMatchObject(employeeRecord.parse(record));
 });
 it('rechecks the ended membership after waiting for its lock, with no partial employee', async () => {
   const otherOwner = ids.newId();

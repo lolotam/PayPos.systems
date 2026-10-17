@@ -3,10 +3,12 @@ export * from './staff/attendance-monthly-report.js';
 export * from './staff/attendance-report-inputs.js';
 export {
   employee,
+  createdEmployee,
   createEmployeeInput,
   employeeRoleCode,
   employeeDate,
   type Employee,
+  type CreatedEmployee,
   type CreateEmployeeInput,
 } from './staff/employee.js';
 export {

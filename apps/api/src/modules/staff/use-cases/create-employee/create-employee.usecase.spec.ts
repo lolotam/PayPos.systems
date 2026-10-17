@@ -24,6 +24,7 @@ function fixture() {
       branchBusinessId: 'business',
     })),
     canLinkUser: vi.fn(async () => true),
+    assignEmployeeNumber: vi.fn(async () => 4),
     insert: vi.fn(async () => undefined),
     audit: vi.fn(async () => undefined),
   };
@@ -45,6 +46,7 @@ it('coordinates one transaction and injected ids/time with null optionals', asyn
     user_id: null,
     contract_end: null,
     created_at: '2026-10-03T00:00:00.000Z',
+    employee_number: 4,
   });
   expect(scope.insert).toHaveBeenCalledWith(
     { ...result, name_en_key: 'synthetic', name_ar_key: null },
@@ -58,6 +60,7 @@ it('refuses changed authority before reading or writing employee data', async ()
   vi.mocked(scope.authorize).mockResolvedValue(false);
   await expect(useCase.execute(command)).rejects.toThrow('FORBIDDEN');
   expect(scope.context).not.toHaveBeenCalled();
+  expect(scope.assignEmployeeNumber).not.toHaveBeenCalled();
   expect(scope.insert).not.toHaveBeenCalled();
 });
 it('does not swallow audit failure, so the transaction can roll back', async () => {
@@ -72,6 +75,43 @@ it('checks link eligibility before insert/audit and refuses an unavailable user'
     useCase.execute({ ...command, input: { ...command.input, user_id: 'linked-user' } }),
   ).rejects.toThrow('EMPLOYEE_USER_LINK_UNAVAILABLE');
   expect(scope.canLinkUser).toHaveBeenCalledWith('linked-user');
+  expect(scope.assignEmployeeNumber).not.toHaveBeenCalled();
   expect(scope.insert).not.toHaveBeenCalled();
   expect(scope.audit).not.toHaveBeenCalled();
+});
+it('does not assign a number when domain validation throws', async () => {
+  const { scope, useCase } = fixture();
+  await expect(
+    useCase.execute({ ...command, input: { ...command.input, contract_end: '2025-12-31' } }),
+  ).rejects.toThrow('EMPLOYEE_CONTRACT_END_BEFORE_HIRE');
+  expect(scope.assignEmployeeNumber).not.toHaveBeenCalled();
+  expect(scope.insert).not.toHaveBeenCalled();
+});
+it('assigns the number after the user-link check and before insert', async () => {
+  const order: string[] = [];
+  const { scope, useCase } = fixture();
+  vi.mocked(scope.authorize).mockImplementation(async () => {
+    order.push('authorize');
+    return true;
+  });
+  vi.mocked(scope.context).mockImplementation(async () => {
+    order.push('context');
+    return { businessExists: true, branchBusinessId: 'business' };
+  });
+  vi.mocked(scope.canLinkUser).mockImplementation(async () => {
+    order.push('canLinkUser');
+    return true;
+  });
+  vi.mocked(scope.assignEmployeeNumber).mockImplementation(async () => {
+    order.push('assign');
+    return 4;
+  });
+  vi.mocked(scope.insert).mockImplementation(async () => {
+    order.push('insert');
+  });
+  vi.mocked(scope.audit).mockImplementation(async () => {
+    order.push('audit');
+  });
+  await useCase.execute({ ...command, input: { ...command.input, user_id: 'linked-user' } });
+  expect(order).toEqual(['authorize', 'context', 'canLinkUser', 'assign', 'insert', 'audit']);
 });

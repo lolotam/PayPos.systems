@@ -948,7 +948,7 @@ export interface paths {
         /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. */
         get: operations["listEmployees"];
         put?: never;
-        /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). */
+        /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). The response is CreatedEmployee; employee_number is the automatic number or null. No free number left returns EMPLOYEE_NUMBER_EXHAUSTED (422) and writes nothing. */
         post: operations["createEmployee"];
         delete?: never;
         options?: never;
@@ -3170,6 +3170,24 @@ export interface components {
             user_id: string | null;
             /** Format: date-time */
             created_at: string;
+        };
+        CreatedEmployee: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            primary_branch_id: string;
+            name_en: string;
+            name_ar: string | null;
+            role_code: components["schemas"]["EmployeeRoleCode"];
+            hire_date: components["schemas"]["EmployeeDate"];
+            contract_end: components["schemas"]["EmployeeDate"] | null;
+            /** Format: uuid */
+            user_id: string | null;
+            /** Format: date-time */
+            created_at: string;
+            employee_number: number | null;
         };
         CreateEmployeeInput: {
             /** Format: uuid */
@@ -8278,7 +8296,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Employee"];
+                    "application/json": components["schemas"]["CreatedEmployee"];
                 };
             };
             /** @description Bilingual refusal */
@@ -8301,6 +8319,15 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

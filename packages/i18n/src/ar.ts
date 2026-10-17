@@ -217,6 +217,8 @@ export const ar: Catalog = {
     EMPLOYEE_USER_LINK_UNAVAILABLE: 'تعذر ربط المستخدم الموجود.',
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'يجب أن تكون نهاية العقد في تاريخ التعيين أو بعده.',
     EMPLOYEE_USER_ALREADY_LINKED: 'هذا المستخدم مرتبط بالفعل بموظف نشط في هذا النشاط.',
+    EMPLOYEE_NUMBER_EXHAUSTED:
+      'اتملت أرقام الموظفين المتاحة في الشركة، وماينفعش يتدّي رقم تلقائي تاني. اتواصل مع الدعم.',
     EMPLOYEE_CARD_CODE_UNAVAILABLE: 'لا يمكن استخدام كود الكارت هذا. اختر كودًا آخر.',
     ...employeeImportErrorsAr,
     ...serviceErrorsAr,

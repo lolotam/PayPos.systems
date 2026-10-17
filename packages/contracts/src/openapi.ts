@@ -38,7 +38,7 @@ import {
 import { settingsPaths } from './settings/settings-openapi.js';
 import { notificationPaths } from './notifications-openapi.js';
 import { filePaths, fileSchemas } from './files-openapi.js';
-import { employee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
+import { employee, createdEmployee, createEmployeeInput, employeeRoleCode, employeeDate } from './staff/employee.js';
 import {
   employeeImportColumn,
   employeeImportErrorCode,
@@ -145,7 +145,7 @@ const SCHEMAS = [
   employeeListQuery,
   ...permissionSchemas,
   ...fileSchemas,
-  employee,
+  employee, createdEmployee,
   createEmployeeInput,
   employeeRoleCode,
   employeeDate,

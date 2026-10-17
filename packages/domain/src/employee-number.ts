@@ -21,3 +21,14 @@ export function firstFreeEmployeeNumber(
   }
   return null;
 }
+
+/**
+ * يحسب قيمة العدّاد التالية بعد رقم أُسند تلقائياً.
+ * القاعدة: العدّاد يتقدم إلى الرقم المسنَد زائد واحد، ويتوقف عند 1000000 بعد آخر رقم مسموح.
+ *
+ * @param assigned الرقم الذي أُعطي للموظف
+ * @returns العدّاد التالي، ولا يتجاوز 1000000
+ */
+export function nextEmployeeNumberCounter(assigned: number): number {
+  return Math.min(assigned + 1, 1_000_000);
+}

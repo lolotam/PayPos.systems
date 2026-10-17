@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { EMPLOYEE_NUMBER_MAX, firstFreeEmployeeNumber } from '../employee-number.js';
+import {
+  EMPLOYEE_NUMBER_MAX,
+  firstFreeEmployeeNumber,
+  nextEmployeeNumberCounter,
+} from '../employee-number.js';
 
 describe('firstFreeEmployeeNumber', () => {
   it('starts at the counter when nothing is used', () => {
@@ -53,4 +57,15 @@ describe('firstFreeEmployeeNumber', () => {
       expect(firstFreeEmployeeNumber(counter, [])).toBeNull();
     },
   );
+});
+
+describe('nextEmployeeNumberCounter', () => {
+  it.each([
+    [1, 2],
+    [999_998, 999_999],
+    [999_999, 1_000_000],
+    [1_000_000, 1_000_000],
+  ])('moves %s to %s and stops at one million', (assigned, next) => {
+    expect(nextEmployeeNumberCounter(assigned)).toBe(next);
+  });
 });
