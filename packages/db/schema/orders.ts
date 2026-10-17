@@ -334,6 +334,42 @@ export const serviceLineCancellations = pgTable('service_line_cancellations', {
   check('slc_canceller_lengths_ck', sql`char_length(${t.cancellerNameAr}) <= 255 AND char_length(${t.cancellerNameEn}) <= 255 AND char_length(${t.cancellerRoleNameAr}) <= 255 AND char_length(${t.cancellerRoleNameEn}) <= 255`),
 ]);
 
+export const serviceLineCancelNotices = pgTable('service_line_cancel_notices', {
+  companyId: uuid('company_id').notNull(),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  // الجلسة تُشتق من السطر؛ تخزينها هنا يسمح بجرس يسمي زيارة غير زيارة الإلغاء.
+  lineId: uuid('line_id').notNull(),
+  // الإلغاء يستهلك مراجعة بعد التسجيل، فمراجعة الجرس لا تكون 1.
+  revision: integer('revision').notNull(),
+  // المصدر محفوظ دون FK للأوتبوكس حتى لا تتوقف الحماية عند حذف الحدث القديم.
+  sourceEventId: uuid('source_event_id').notNull(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+  // الصفر قرار نهائي قابل للمراجعة، وليس حدثاً بمستلمين فارغين.
+  recipientCount: integer('recipient_count').notNull(),
+}, (t) => [
+  primaryKey({ name: 'service_line_cancel_notices_pkey', columns: [t.companyId, t.id] }),
+  unique('service_line_cancel_notices_line_revision_key').on(t.companyId, t.lineId, t.revision),
+  foreignKey({
+    name: 'service_line_cancel_notices_company_fk',
+    columns: [t.companyId],
+    foreignColumns: [companies.id],
+  }),
+  foreignKey({
+    name: 'service_line_cancel_notices_line_fk',
+    columns: [t.companyId, t.businessId, t.lineId],
+    foreignColumns: [serviceLines.companyId, serviceLines.businessId, serviceLines.id],
+  }),
+  foreignKey({
+    name: 'service_line_cancel_notices_cancellation_fk',
+    columns: [t.companyId, t.lineId],
+    foreignColumns: [serviceLineCancellations.companyId, serviceLineCancellations.lineId],
+  }),
+  index('service_line_cancel_notices_line_fk_idx').on(t.companyId, t.businessId, t.lineId),
+  check('service_line_cancel_notices_recipient_count', sql`${t.recipientCount} >= 0`),
+  check('service_line_cancel_notices_revision', sql`${t.revision} >= 2`),
+]);
+
 export const sessionTipRevisions = pgTable('session_tip_revisions', {
   companyId: uuid('company_id').notNull(),
   id: uuid('id').notNull(),
