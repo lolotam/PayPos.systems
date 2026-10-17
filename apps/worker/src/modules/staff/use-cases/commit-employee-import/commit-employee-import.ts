@@ -1,4 +1,4 @@
-import type { IdGenerator } from '@pospay/db';
+import { EmployeeNumberExhaustedError, type IdGenerator } from '@pospay/db';
 import { employeeNameMatchKey } from '@pospay/domain';
 import {
   ImportCommitError,
@@ -9,7 +9,7 @@ import {
 import type { ImportCommitTransactions } from '../../ports/employee-import.port.ts';
 import type { Clock } from '../../ports/clock.port.ts';
 
-// طلب API هو نقطة التفويض؛ الوظيفة تنفذ الطلب المقبول وتعيد التحقق من المعاينة والفروع داخل المعاملة.
+// طلب API هو نقطة التفويض؛ الوظيفة تنفذ الطلب المقبول، وتعيد التحقق من المعاينة والفروع، وتسند رقم كل صف بترتيب الملف داخل المعاملة.
 export class CommitEmployeeImport {
   constructor(
     private readonly transactions: ImportCommitTransactions,
@@ -31,8 +31,9 @@ export class CommitEmployeeImport {
         const branches = new Set(await scope.branches(preview.business_id));
         requireImportBranches(preview.rows, branches);
         const at = this.clock.now().toISOString();
-        const records = preview.rows.map((row): ImportedEmployeeRecord => {
-          const record = {
+        const records: ImportedEmployeeRecord[] = [];
+        for (const row of preview.rows) {
+          records.push({
             id: this.ids.newId(),
             business_id: preview.business_id,
             primary_branch_id: row.primary_branch_id,
@@ -45,15 +46,17 @@ export class CommitEmployeeImport {
             contract_end: row.contract_end,
             user_id: null,
             created_at: at,
-          };
-          return record;
-        });
+            employee_number: await scope.assignEmployeeNumber(),
+          });
+        }
         await scope.insert(records);
         await scope.complete(preview, records, at);
       });
     } catch (error) {
       if (error instanceof ImportCommitError)
         await this.transactions.fail(companyId, previewId, error.code);
+      else if (error instanceof EmployeeNumberExhaustedError)
+        await this.transactions.fail(companyId, previewId, 'IMPORT_COMMIT_FAILED');
       else throw error;
     }
   }

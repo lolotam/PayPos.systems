@@ -1,13 +1,33 @@
 import { firstFreeEmployeeNumber, nextEmployeeNumberCounter } from '@pospay/domain';
-import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import { EmployeeCreationError } from '../domain/create-employee.ts';
+import type { Tx } from './with-tenant.ts';
 
 const EMPLOYEE_NUMBER_PAGE_SIZE = 256;
 
-// ترتيب الأقفال: الشركة، ثم العضويات بالمعرف، ثم أقفال معاينة الاستيراد ومفتاح التكرار (مسارات الاستيراد فقط)، ثم صف العدّاد، ثم صفوف الموظفين، ثم المرفقات والتدقيق.
+/**
+ * رفض إسناد رقم تلقائي لأن نطاق 1…999999 امتلأ.
+ * الـ API يحوّله إلى 422، واستيراد الموظفين يفشل المعاينة كلها دون أن يتحرك العدّاد.
+ */
+export class EmployeeNumberExhaustedError extends Error {
+  readonly code = 'EMPLOYEE_NUMBER_EXHAUSTED' as const;
+
+  constructor() {
+    super('EMPLOYEE_NUMBER_EXHAUSTED');
+    this.name = 'EmployeeNumberExhaustedError';
+  }
+}
+
+/**
+ * يسند أول رقم وظيفي حر عند العدّاد أو بعده، ويقفل صف العدّاد قبل أي صف موظف.
+ * api والـ worker يستدعيان هذه الدالة حتى يبقى الإنشاء اليدوي واستيراد الملف على تنفيذ واحد.
+ *
+ * @param tx معاملة الشركة المفتوحة
+ * @param companyId الشركة التي يُحجز رقمها
+ * @returns الرقم المسنَد
+ */
 export async function assignEmployeeNumber(tx: Tx, companyId: string): Promise<number> {
+  // ترتيب الأقفال: الشركة، ثم العضويات بالمعرف، ثم أقفال معاينة الاستيراد ومفتاح التكرار (مسارات الاستيراد فقط)، ثم صف العدّاد، ثم صفوف الموظفين، ثم المرفقات والتدقيق.
   await tx.execute(
     sql`INSERT INTO employee_number_sequences(company_id) VALUES (${companyId}) ON CONFLICT DO NOTHING`,
   );
@@ -16,7 +36,7 @@ export async function assignEmployeeNumber(tx: Tx, companyId: string): Promise<n
   );
   if (sequence === undefined) throw new Error('EMPLOYEE_PERSISTENCE_FAILED');
   const assigned = await firstUnused(tx, companyId, sequence.next_number);
-  if (assigned === null) throw new EmployeeCreationError('EMPLOYEE_NUMBER_EXHAUSTED');
+  if (assigned === null) throw new EmployeeNumberExhaustedError();
   await tx.execute(sql`
     UPDATE employee_number_sequences
     SET next_number = GREATEST(next_number, ${nextEmployeeNumberCounter(assigned)}), updated_at = now()

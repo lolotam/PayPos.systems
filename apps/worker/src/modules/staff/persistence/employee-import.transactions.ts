@@ -1,4 +1,10 @@
-import { appendOutboxEvent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
+import {
+  appendOutboxEvent,
+  assignEmployeeNumber,
+  type IdGenerator,
+  type TenantWrappers,
+  type Tx,
+} from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { employeeImportBranches } from '../../tenancy/index.ts';
 import type { ImportedEmployeeRecord, ImportCommitPreview } from '../domain/employee-import.ts';
@@ -48,6 +54,7 @@ export function employeeImportTransactions(
           await work({
             preview: preview ?? null,
             branches: (businessId) => employeeImportBranches(tx, businessId),
+            assignEmployeeNumber: () => assignEmployeeNumber(tx, companyId),
             insert: (records) => insertEmployees(tx, companyId, ids, records),
             complete: (stored, records, at) => complete(tx, ids, stored, records, at),
           });

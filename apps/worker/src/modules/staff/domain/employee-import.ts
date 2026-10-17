@@ -8,7 +8,7 @@ export interface ImportEmployeeRow {
   readonly contract_end: string | null;
 }
 
-/** بيانات الكتابة المضافة إلى الصف المحقق وقت الالتزام. */
+/** بيانات الكتابة المضافة إلى الصف المحقق وقت الالتزام، ومنها الرقم المسنَد بترتيب صفوف الملف. */
 export interface ImportedEmployeeRecord extends ImportEmployeeRow {
   readonly name_en_key: string;
   readonly name_ar_key: string | null;
@@ -16,6 +16,7 @@ export interface ImportedEmployeeRecord extends ImportEmployeeRow {
   readonly business_id: string;
   readonly user_id: null;
   readonly created_at: string;
+  readonly employee_number: number;
 }
 
 /** معاينة موظفين محفوظة بعد التحقق، بلا أعمدة رواتب أو ربط مستخدم. */

@@ -1,9 +1,8 @@
-import type { Tx } from '@pospay/db';
+import { assignEmployeeNumber, type Tx } from '@pospay/db';
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { systemUuidV7 } from '@pospay/ids';
 
-import { assignEmployeeNumber } from '../persistence/employee-number-allocator.ts';
 import {
   employeesFixture,
   grantEmployeeCreation,

@@ -1,9 +1,15 @@
-import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
+import {
+  appendAuditLog,
+  assignEmployeeNumber,
+  EmployeeNumberExhaustedError,
+  type IdGenerator,
+  type TenantWrappers,
+  type Tx,
+} from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { EmployeeCreationError, type EmployeeInsertRecord } from '../domain/create-employee.ts';
 import type { EmployeeTransactions } from '../ports/employee-transactions.port.ts';
-import { assignEmployeeNumber } from './employee-number-allocator.ts';
 import {
   authorizeEmployeeCreation,
   canLinkEmployeeUser,
@@ -24,6 +30,8 @@ async function insertEmployee(
 }
 
 function cleanEmployeeError(error: unknown): never {
+  if (error instanceof EmployeeNumberExhaustedError)
+    throw new EmployeeCreationError('EMPLOYEE_NUMBER_EXHAUSTED');
   if (error instanceof EmployeeCreationError) throw error;
   const cause = error instanceof Error && 'cause' in error ? error.cause : error;
   if (
