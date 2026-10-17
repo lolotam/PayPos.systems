@@ -13,7 +13,7 @@ const jsonResponse = { '200': { description: 'Monthly attendance rows', content:
   schema: z.toJSONSchema(attendanceMonthlyReport, { target: 'openapi-3.0', io: 'input', metadata: z.registry() }),
 } } }, default: errors };
 const csvResponse = { '200': { description: 'UTF-8 attendance CSV', content: { 'text/csv': { schema: { type: 'string' } } } }, default: errors };
-const csvDescription = ' Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, names only. One audit per successful export.';
+const csvDescription = ' Arabic RFC 4180 CSV with UTF-8 BOM, h:mm and two-decimal hour columns, employee number and names only. One audit per successful export.';
 const allDescription = `${description} Every active branch of this business must have a covering grant and no covering DENY.`;
 export const attendanceMonthlyReportPaths = {
   '/v1/businesses/{businessId}/branches/{branchId}/attendance-report': { get: {
