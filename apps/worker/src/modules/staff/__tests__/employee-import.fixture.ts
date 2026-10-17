@@ -17,6 +17,7 @@ interface RequestedOptions {
   branchId?: string;
   count?: number;
   nameAr?: string;
+  names?: readonly string[];
 }
 
 /** تجهيز العامل مستقل عن تطبيق API: الطلب المقبول محفوظ كصف ثابت في قاعدة الاختبار. */
@@ -49,8 +50,9 @@ export async function employeeImportFixture() {
     }),
     async requested(name: string, options: RequestedOptions = {}) {
       const id = ids.newId();
-      const rows: ImportEmployeeRow[] = Array.from({ length: options.count ?? 1 }, () => ({
-        name_en: name,
+      const labels = options.names ?? Array.from({ length: options.count ?? 1 }, () => name);
+      const rows: ImportEmployeeRow[] = labels.map((nameEn) => ({
+        name_en: nameEn,
         name_ar: options.nameAr ?? null,
         role_code: 'staff',
         hire_date: '2026-01-01',

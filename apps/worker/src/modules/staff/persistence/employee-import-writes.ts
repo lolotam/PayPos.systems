@@ -14,6 +14,7 @@ function employeeAuditSnapshot(record: ImportedEmployeeRecord) {
     contract_end: record.contract_end,
     user_id: record.user_id,
     created_at: record.created_at,
+    employee_number: record.employee_number,
   };
 }
 
@@ -26,9 +27,9 @@ export async function insertEmployees(
   if (records.length === 0) return;
   const employees = records.map(
     (r) =>
-      sql`(${companyId},${r.id},${r.business_id},${r.primary_branch_id},${r.user_id},${r.name_ar},${r.name_en},${r.name_ar_key},${r.name_en_key},${r.role_code},${r.hire_date},${r.contract_end},${r.created_at})`,
+      sql`(${companyId},${r.id},${r.business_id},${r.primary_branch_id},${r.user_id},${r.name_ar},${r.name_en},${r.name_ar_key},${r.name_en_key},${r.role_code},${r.hire_date},${r.contract_end},${r.created_at},${r.employee_number})`,
   );
-  await tx.execute(sql`INSERT INTO employees (company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,contract_end,created_at)
+  await tx.execute(sql`INSERT INTO employees (company_id,id,business_id,primary_branch_id,user_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,contract_end,created_at,employee_number)
     VALUES ${sql.join(employees, sql`,`)}`);
   const attachments = records.map(
     (r) =>

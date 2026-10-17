@@ -19,6 +19,7 @@ export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { markEventConsumed } from './consumed-events.ts';
 export { branchToday, currentAttachment, type BranchDay } from './employee-branch-links.ts';
+export { assignEmployeeNumber, EmployeeNumberExhaustedError } from './employee-number-allocator.ts';
 export { employeeDefaultShiftsStatement } from './employee-default-shifts-projection.ts';
 export {
   createOutboxDispatcherDatabase,

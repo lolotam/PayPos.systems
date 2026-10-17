@@ -220,7 +220,7 @@ the numbers back.
   (`INSERT … ON CONFLICT DO NOTHING`), locks it in a separate statement, scans used numbers from the counter in bounded
   pages (256) and moves the counter forward in the same transaction. Every future writer of a number (8c-3 import commit,
   8c-6 hand edit, 8c-8 start, 8c-11 stragglers) MUST take the counter before locking an employee row; a hand edit reads
-  the employee without a lock, locks the counter, then locks the employee row.
+  the employee without a lock, locks the counter, then locks the employee row. The allocator lives in `packages/db` (`@pospay/db`) so the api and the worker share one implementation; an import that exhausts the range fails as `IMPORT_COMMIT_FAILED`.
 - **TD-5 Backfill is an ADR-0038 data step** (`CLAUDE.md` §5: a migration never touches tenant rows as the bypassing
   owner). A registered, idempotent step `employee-numbers` is announced by a `-- pospay:data-step employee-numbers`
   marker on a **third** migration (see TD-11), after the ones that add the column, the sequence table and the index (the
