@@ -72,7 +72,7 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
 | BI-07 | Removing the logo (`file_id: null`) clears the reference, audits it, and emits the same event; the statement falls back to the name only. |
 | BI-08 | Two concurrent binds of the same file, or of two files, leave exactly one reference and a continuous audit chain. |
 | BI-09 | The same file cannot be the logo of two businesses (unique per company). |
-| BI-10 | A user from another company, or without the permission, can neither read nor change the identity; the response never discloses that the business exists. |
+| BI-10 | Through the settings API, a user from another company, or without the permission, can neither read nor change the identity; the response never discloses that the business exists. The attendance statement reads the identity server-side for its own authorised requester (§5.1 item 6), a separate authorization. |
 | BI-11 | With storage not configured, names can still be saved; upload returns `STORAGE_NOT_CONFIGURED`; binding an already READY file still works (it reads the database only). |
 | BI-12 | `readBusinessIdentity` returns the three stored fields; `statementIdentity(language, identity, displayNames)` returns the header name per §6 and whether a logo exists. |
 | BI-13 | The settings read (`GET .../settings`) includes the three new fields; a Redis entry cached before this release is never served without them. |
@@ -112,13 +112,16 @@ Until BI-Q2 and BI-Q4 are answered, the header-name fallback chain in §6 is a *
    file_id | null }` to the outbox in the same transaction. The **`files`-owned worker consumer** (27h-3, shipped before this producer so no event is ever emitted without a consumer) retires the
    previous file in **two durable steps**, because an outbox consumer runs inside one tenant transaction together with its
    dedupe write and may do database work only (ADR-0018). Step 1, the consumer (database only): take the same business
-   lock that binding takes, **then** re-check, through a port wired at the composition root (no `files → settings`
-   import; the port is a declared arrow, §5.6), that the file is no longer referenced, **then** set `purge_started_at`
+   lock that binding takes, **then** re-check, through a settings-owned port wired at the composition root (no `files → settings`
+   import; the port is a declared arrow, §5.6) whose single operation takes the settings row lock and reports whether the file
+   is still the logo, so `files` never queries a settings table itself, that the file is no longer referenced, **then** set `purge_started_at`
    (so a later bind of that file is refused); reference check and marker run under one lock, so a concurrent re-bind
    cannot slip between them. This commit is the durable handoff and is idempotent on replay. Step 2, the existing hourly retention worker
    (ADR-0022: bounded batches, recoverable leases, fencing) gains a third eligibility kind, `retired` (`purge_started_at`
    set, `purged_at` null, not bound), deletes the object outside any DB transaction and writes the tombstone and system
-   audit. A crash between the steps loses nothing: the next retention run picks the row up. **Schedule bootstrap:** the hourly
+   audit. **The retired path must delete the verified object at `storage_key`** (a READY logo's bytes live there; its
+   `staging_key` object is normally gone already): the claim returns `storage_key` for this kind and the cleanup removes
+   it, with a test that a replaced logo's verified object no longer exists afterwards. A crash between the steps loses nothing: the next retention run picks the row up. **Schedule bootstrap:** the hourly
    retention schedules are registered per tenant only when a `FileUploadRequested` is delivered, so a tenant whose last
    such event predates 27h-3 would never run the `retired` kind. After its commit the consumer's post-commit step (outside
    `OutboxConsumer.handle`, as ADR-0018) therefore idempotently upserts that company's two hourly schedules through the
@@ -167,8 +170,9 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
 
 Recommended: names and bind use the existing `manage:settings:business`; reading uses `read:settings:business`. Uploading
 the logo needs `manage:files:business` as today, which is **owner-only by default since 13b**, so by default only the
-owner can upload; a manager with settings can type names but not upload, and can remove or rebind only a file they
-uploaded themselves. The owner can grant `manage:files:business`. No new permission, no role-default migration. The
+owner can upload; a manager with settings can type names but not upload, and can bind only a file they
+uploaded themselves; **removal (`file_id: null`) needs only `manage:settings:business`**, so under this option a manager can remove
+the owner's logo (it is replaceable, but its file is retired); BI-Q1 may restrict that. The owner can grant `manage:files:business`. No new permission, no role-default migration. The
 actual choice is BI-Q1; options that need a new permission or a files rule change will get their own plan.
 
 ### 5.5 Events and audit

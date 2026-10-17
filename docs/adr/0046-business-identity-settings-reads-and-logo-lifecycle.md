@@ -35,7 +35,8 @@ and `identity` today. ADR-0031 already solved "a module stores a file reference"
 
 ## Consequences
 
-- One new read arrow and one new published event; no new dependency, runtime role, grant, or RLS exception.
+- Two new arrows (read `settings → files`, and the reverse read port `files → settings`, wired at the composition root so
+  there is no compile-time cycle) and one new published event; no new dependency, runtime role, grant, or RLS exception.
 - The settings read cache must treat entries without the new keys as stale (guard change in `businessSettingsQuery`).
 - A READY logo that was uploaded but never bound is an orphan until a later cleanup (deferred issue); a replaced logo
   waits for the retire consumer.
