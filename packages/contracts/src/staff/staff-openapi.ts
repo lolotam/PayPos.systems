@@ -129,14 +129,15 @@ export const staffPaths = {
     post: {
       operationId: 'createEmployee',
       description:
-        'Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409).',
+        'Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). The response is CreatedEmployee; employee_number is the automatic number or null. No free number left returns EMPLOYEE_NUMBER_EXHAUSTED (422) and writes nothing.',
       parameters,
       requestBody: { required: true, content: json('CreateEmployeeInput') },
       responses: {
-        '201': { description: 'Created employee', content: json('Employee') },
+        '201': { description: 'Created employee', content: json('CreatedEmployee') },
         '400': errors,
         '404': errors,
         '409': errors,
+        '422': errors,
         default: errors,
       },
     },

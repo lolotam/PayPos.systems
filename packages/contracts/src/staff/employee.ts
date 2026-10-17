@@ -50,5 +50,10 @@ export const employee = z
     created_at: timestamp,
   })
   .meta({ id: 'Employee' });
+// الرد وحده يحمل الرقم في 8c-2؛ مخطط الموظف وتفاصيله يبقيان بلا الحقل حتى يضيفه منتجو القراءة في 8c-4.
+export const createdEmployee = employee
+  .extend({ employee_number: z.number().int().min(1).max(999999).nullable() })
+  .meta({ id: 'CreatedEmployee' });
 export type CreateEmployeeInput = z.infer<typeof createEmployeeInput>;
 export type Employee = z.infer<typeof employee>;
+export type CreatedEmployee = z.infer<typeof createdEmployee>;

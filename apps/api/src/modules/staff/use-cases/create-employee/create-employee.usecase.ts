@@ -1,4 +1,4 @@
-import type { CreateEmployeeInput, Employee } from '@pospay/contracts';
+import type { CreateEmployeeInput, CreatedEmployee, Employee } from '@pospay/contracts';
 import { employeeNameMatchKey } from '@pospay/domain';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
@@ -13,7 +13,7 @@ export interface CreateEmployeeCommand {
   readonly businessId: string;
   readonly input: CreateEmployeeInput;
 }
-// ينشئ سجل الموارد البشرية والفرع والتدقيق بعد التحقق من الإذن الحي، دون أي أثر مالي.
+// ينشئ سجل الموظف برقمه التالي والفرع والتدقيق بعد التحقق من الإذن الحي، دون أي أثر مالي.
 export class CreateEmployeeUseCase {
   constructor(
     private readonly transactions: EmployeeTransactions,
@@ -21,7 +21,7 @@ export class CreateEmployeeUseCase {
     private readonly clock: Clock,
   ) {}
 
-  execute(command: CreateEmployeeCommand): Promise<Employee> {
+  execute(command: CreateEmployeeCommand): Promise<CreatedEmployee> {
     return this.transactions.run(command, async (scope) => {
       if (!(await scope.authorize(command.businessId, command.input.primary_branch_id)))
         throw new EmployeeCreationError('FORBIDDEN');
@@ -38,17 +38,18 @@ export class CreateEmployeeUseCase {
       validateEmployeeCreation(record, await scope.context(record));
       if (record.user_id !== null && !(await scope.canLinkUser(record.user_id)))
         throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
+      const numbered = { ...record, employee_number: await scope.assignEmployeeNumber() };
       // قرار المالك 2026-10-03: الوصول خطوة صريحة في شاشة الصلاحيات؛ إنشاء سجل الوظيفة لا يمنح عضوية.
       await scope.insert(
         {
-          ...record,
-          name_en_key: employeeNameMatchKey(record.name_en),
-          name_ar_key: record.name_ar === null ? null : employeeNameMatchKey(record.name_ar),
+          ...numbered,
+          name_en_key: employeeNameMatchKey(numbered.name_en),
+          name_ar_key: numbered.name_ar === null ? null : employeeNameMatchKey(numbered.name_ar),
         },
         this.ids.newId(),
       );
-      await scope.audit(record);
-      return record;
+      await scope.audit(numbered);
+      return numbered;
     });
   }
 }

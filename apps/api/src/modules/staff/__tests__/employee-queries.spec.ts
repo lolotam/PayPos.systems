@@ -1,3 +1,4 @@
+import { employee } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { employeeContext } from '../persistence/employee-context.adapter.ts';
@@ -44,7 +45,10 @@ it('employee detail projects the contract shape and uses tenant/business index',
     businessId: f.business,
     input: termsFor(f),
   });
-  expect(await detailFor(f, f.company, f.business, created.id)).toMatchObject(created);
+  expect(created.employee_number).toEqual(expect.any(Number));
+  expect(await detailFor(f, f.company, f.business, created.id)).toMatchObject(
+    employee.parse(created),
+  );
   await f.h.owner`ANALYZE employees`;
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);

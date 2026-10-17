@@ -57,6 +57,7 @@ export async function employeesFixture(options: Parameters<typeof startHarness>[
     secondBusiness,
     branch,
     otherBranch,
+    foreignBusiness,
     foreignBranch,
     db,
     transactions,

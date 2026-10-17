@@ -48,7 +48,10 @@ describe('employee contract', () => {
       string,
       { post?: { responses: object }; get?: object }
     >;
-    expect(paths['/v1/businesses/{businessId}/employees']?.post?.responses).toHaveProperty('201');
+    const create = paths['/v1/businesses/{businessId}/employees']?.post?.responses;
+    expect(create).toHaveProperty('201');
+    expect(create).toHaveProperty('422');
+    expect(JSON.stringify(create?.['201' as keyof typeof create])).toContain('CreatedEmployee');
     expect(paths['/v1/businesses/{businessId}/employees/{employeeId}']?.get).toBeDefined();
   });
 });

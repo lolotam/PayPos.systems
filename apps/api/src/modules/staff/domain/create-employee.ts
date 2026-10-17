@@ -28,6 +28,7 @@ export interface EmployeeRecord {
 export interface EmployeeInsertRecord extends EmployeeRecord {
   readonly name_en_key: string;
   readonly name_ar_key: string | null;
+  readonly employee_number: number;
 }
 /** الحالة المقروءة داخل معاملة الإنشاء، بدون أسماء أو معرفات لشركة أخرى. */
 export interface EmployeeCreationContext {
@@ -48,6 +49,7 @@ export class EmployeeCreationError extends Error {
       | 'EMPLOYEE_CONTRACT_END_BEFORE_HIRE'
       | 'EMPLOYEE_USER_ALREADY_LINKED'
       | 'EMPLOYEE_USER_LINK_UNAVAILABLE'
+      | 'EMPLOYEE_NUMBER_EXHAUSTED'
       | 'EMPLOYEE_REVISION_CONFLICT'
       | 'EMPLOYEE_PRIMARY_BRANCH_REQUIRED'
       | 'EMPLOYEE_BRANCH_DATE_BEFORE_START'

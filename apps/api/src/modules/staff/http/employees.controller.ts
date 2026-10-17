@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import type {
   CreateEmployeeInput,
-  Employee,
+  CreatedEmployee,
   EmployeeDetail,
   EmployeeListQuery,
   UpdateEmployeeInput,
@@ -67,7 +67,7 @@ export class EmployeesController {
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Body(new EmployeeInputPipe()) input: CreateEmployeeInput,
     @Req() request: FastifyRequest,
-  ): Promise<Employee> {
+  ): Promise<CreatedEmployee> {
     if (this.createEmployee === null) throw new ApiError('NOT_READY');
     try {
       return await this.createEmployee.execute({ ...actorOf(request), businessId, input });

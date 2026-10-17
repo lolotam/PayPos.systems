@@ -1,4 +1,4 @@
-import { employee } from '@pospay/contracts';
+import { createdEmployee, employee } from '@pospay/contracts';
 import { employeeNameMatchKey } from '@pospay/domain';
 import { systemUuidV7 } from '@pospay/ids';
 const employeeIds = systemUuidV7();
@@ -56,7 +56,8 @@ it('CE-01 creates UUIDv7 employee + dated primary attachment + allowlisted audit
     contract_end: '2027-01-01',
   });
   expect(result.status).toBe(201);
-  const record = employee.parse(result.body);
+  const record = createdEmployee.parse(result.body);
+  expect(record.employee_number).toEqual(expect.any(Number));
   createdId = record.id;
   expect(result.body).not.toHaveProperty('name_en_key');
   expect(result.body).not.toHaveProperty('name_ar_key');
@@ -92,7 +93,7 @@ it('CE-01 creates UUIDv7 employee + dated primary attachment + allowlisted audit
       .owner`SELECT actor_user_id,action,after FROM audit_log WHERE company_id=${f.company} AND entity='employee' AND entity_id=${createdId}`,
   ).toEqual([{ actor_user_id: f.userId, action: 'created', after: record }]);
   expect(await f.h.owner`SELECT 1 FROM outbox WHERE aggregate_id=${createdId}`).toHaveLength(0);
-  expect(await detailFor(f, f.company, f.business, createdId)).toMatchObject(record);
+  expect(await detailFor(f, f.company, f.business, createdId)).toMatchObject(employee.parse(record));
 });
 it.each([
   [

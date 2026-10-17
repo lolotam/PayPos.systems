@@ -29,7 +29,13 @@ export interface EmployeeCreationScope {
    */
   canLinkUser(userId: string): Promise<boolean>;
   /**
-   * يحفظ الموظف بمفاتيح المطابقة المطلوبة وارتباط فرعه في نفس المعاملة، دون اعتماد أو منح جديد.
+   * يحجز أول رقم وظيفي حر عند العدّاد أو بعده تحت قفل العدّاد، حتى لا يأخذ موظفان الرقم نفسه.
+   *
+   * @returns الرقم المسنَد داخل نفس معاملة الإنشاء
+   */
+  assignEmployeeNumber(): Promise<number>;
+  /**
+   * يحفظ الموظف برقمه الوظيفي ومفاتيح المطابقة وارتباط فرعه في نفس المعاملة، دون اعتماد أو منح جديد.
    *
    * @param record سجل الموظف
    * @param attachmentId معرف ارتباط الفرع
@@ -37,12 +43,12 @@ export interface EmployeeCreationScope {
    */
   insert(record: EmployeeInsertRecord, attachmentId: string): Promise<void>;
   /**
-   * يسجل snapshot مسموح الحقول مع actor المعاملة، وأي فشل يرد الإنشاء كله.
+   * يسجل snapshot مسموح الحقول، شاملاً الرقم الوظيفي المسنَد، وأي فشل يرد الإنشاء كله.
    *
-   * @param record بيانات الموظف المسموح تسجيلها
+   * @param record بيانات الموظف المسموح تسجيلها بعد إسناد الرقم
    * @returns اكتمال كتابة سجل التدقيق
    */
-  audit(record: EmployeeRecord): Promise<void>;
+  audit(record: EmployeeRecord & { readonly employee_number: number }): Promise<void>;
 }
 /** حد المعاملة يسمح بإثبات rollback واختبار التنسيق دون قاعدة بيانات. */
 export interface EmployeeTransactions {

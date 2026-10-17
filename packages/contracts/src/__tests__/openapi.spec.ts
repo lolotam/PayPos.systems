@@ -98,6 +98,7 @@ const expectedSchemas = [
   'DeviceToken',
   'DiscountLimit',
   'DiscountLimitInput',
+  'CreatedEmployee',
   'Employee',
   'EmployeeCard',
   'EmployeeCardsView',
