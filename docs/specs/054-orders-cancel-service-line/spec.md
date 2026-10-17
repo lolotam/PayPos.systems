@@ -2,7 +2,9 @@
 
 > **Status:** Draft · 2026-10-17 · docs-only PR. Owner answers CX-Q1…CX-Q4 (batch 26, Waleed's picks = the recommended
 > option in each) are recorded in [owner-questions.ar.md](owner-questions.ar.md); the one open question, CX-Q5 (is there a
-> «reinstate» button?), is `PENDING` and **does not block** the design below (the default is "no reinstatement").
+> «reinstate» button?), is `PENDING`. It decides whether a cancellation is terminal, so everything that depends on that
+> shape is `TODO(spec)` CX-Q5 and **blocked** (D-4, FR-005, the `UNIQUE` and the one-way trigger, LC-21): sub-PRs 37-2, 37-4a…37-5
+> do not start before it is answered (§7). Only 37-1 and 37-3 do not depend on it.
 > Abu Salem has not answered batch 26; if his pick differs, his pick binds and the rule changes in a follow-up
 > (`CLAUDE.md` §1 5b). **No code starts before this spec is merged.**
 > **Extends:** [spec 050](../050-orders-record-service-session/spec.md) (lines, revisions, the 20-line cap) and
@@ -34,8 +36,8 @@ day list as «اتلغى 17/10/2026», and the branch managers get a bell. لي�
 | A tip on the visit (CX-Q4) | the cancellation **stops** while the performer would be left with a tip and no active line, until a manager removes the tip by hand | §3.2, FR-009, D-3 |
 | Records, events, split | see §4 and §5 | — |
 
-**Not in 37:** reinstating a cancelled line (CX-Q5, `PENDING`; until answered the way to fix a mistaken cancel is to record the
-service again, which counts against the 20-line cap because cancelled lines keep their slot); changing performers (37b);
+**Not in 37:** reinstating a cancelled line (CX-Q5, `PENDING`; the design below is written for "a cancel is final, record the service
+again", which counts against the 20-line cap because cancelled lines keep their slot, and it is **not adopted** until CX-Q5 is answered); changing performers (37b);
 cancelling a **redeemed** package line or a package **sale** line (rows 44 and 46 own those; the writer refuses them with
 a named code once rows 42/43 add the marker, see D-6); commission arithmetic and statement corrections (rows 50/55);
 rating scheduling (59); payments, printing, sync (Phase 2).
@@ -47,7 +49,7 @@ rating scheduling (59); payments, printing, sync (Phase 2).
 | D-1 | One line per request; a second line is a second request, a second revision, a second bell | batch cancel (partial-failure semantics with no owner request behind them) |
 | D-2 | New permission `cancel:service-lines:branch`, not the edit permission and not the record permission | reusing `edit:service-line-prices:branch` (cancelling is a different act and the owner asked for a new permission) |
 | D-3 | The tip guard (CX-Q4) is a **refusal**, never an automatic removal; orders reads its own tip tables under the visit lock | auto-removing the tip (the owner chose "stop until the manager removes it by hand"); a statement/commission read (D-5) |
-| D-4 | Cancellation is terminal: `status` goes `ACTIVE → CANCELLED` once; a database trigger refuses any change on a cancelled line | allowing `CANCELLED → ACTIVE` (that is the reinstatement CX-Q5 asks about) |
+| D-4 `TODO(spec)` CX-Q5 | **Proposed, not adopted:** cancellation is terminal: `status` goes `ACTIVE → CANCELLED` once; a database trigger refuses any change on a cancelled line. If CX-Q5 chooses a reinstatement option, this row, the `UNIQUE (company_id, line_id)` on the history table, the trigger, FR-005 and LC-21 change (a `LINE_REINSTATED` kind, more than one history row per line) before any code starts | allowing `CANCELLED → ACTIVE` (that is the reinstatement CX-Q5 asks about) |
 | D-5 | Orders reads no statement status. A cancellation in an approved or paid month is stored like any other; rows 50/55 derive the correction from the event and the history row | orders reading commission statements (35d D-5) |
 | D-6 | A line that carries a package redemption or is a package sale line is refused by this writer (`SESSION_LINE_NOT_CANCELLABLE`) as soon as rows 42/43 add the marker; rows 44/46 extend the same writer with the reversal or refund | cancelling such a line here and leaving the slot or the sale unreversed |
 | D-7 | The cancel does not join the ADR-0042 recovery proof (same reason as 35d D-6) | widening `service_session_recoveries.operation` |
@@ -171,7 +173,7 @@ Named tests; each is an integration test against real Postgres (T2 stack) unless
 - **FR-002** Require `cancel:service-lines:branch` on the route's branch and the `orders` feature, individual admin login (not a
   device), rechecked inside the transaction through the 35d `SessionEditAccessPort` pattern (`lock()` then `read()`), before an
   idempotency replay returns and after every line and performer wait.
-- **FR-003** Body (strict Zod): `{ reason: string, expected_revision: int ≥ 1, canceller_membership_id?: uuid }`. No client field names
+- **FR-003** Body (strict Zod): `{ reason?: string, expected_revision: int ≥ 1, canceller_membership_id?: uuid }` (`reason` is optional **in the Zod schema on purpose**, like the edit contract: a missing or blank value must reach the domain rule and return 422 `SESSION_CANCEL_REASON_INVALID`, not a 400 `VALIDATION_FAILED` from the pipe). No client field names
   the canceller, the time or the status.
 - **FR-004** The single transaction, in the 35d lock order with the tip read added: idempotency claim → `access.lock()` → visit advisory
   lock → load the line `FOR UPDATE` → `performers.lock(employeeIds)` → `access.read` at the fresh instant → window → performer snapshot and
@@ -266,12 +268,14 @@ Consumer **before** writer, as in 35d, so no cancellation event exists without i
 | PR | Result | Subtasks | Blocked on | Size |
 |---|---|---|---|---|
 | **37-1** | Contracts, template, registrations, map; no behaviour | 1. `change.kind = 'LINE_CANCELLED'` (kind-dependent refinement), `ServiceLineCancelNoticeRequested`, OpenAPI. 2. Template `service_line_cancelled` ar/en, admin bell render, registration in `NOTIFICATION_SOURCE_EVENTS` and the worker's known types. 3. Module-map §3/§4/§6 rows + generated YAML + ADR-0044 addendum | this spec merged; 35d-1 (merged) | 220–340 |
-| **37-2** | Permission and storage | 1. `cancel:service-lines:branch` and its four default roles. 2. `service_line_cancellations` + `UNIQUE`, `CHECK`s, `FORCE` RLS, `SELECT, INSERT` grants. 3. `UPDATE (status)` grant + one-way trigger on `service_lines`, allowlist, inventory, negative tests | this spec merged; 35d-3, 35d-3b (merged) | 300–420 |
+| **37-2** | Permission and storage | 1. `cancel:service-lines:branch` and its four default roles. 2. `service_line_cancellations` + `UNIQUE`, `CHECK`s, `FORCE` RLS, `SELECT, INSERT` grants. 3. `UPDATE (status)` grant + one-way trigger on `service_lines`, allowlist, inventory, negative tests | this spec merged; **CX-Q5 answered** (terminal vs reinstatement shapes the `UNIQUE` and the trigger); 35d-3, 35d-3b (merged) | 300–420 |
 | **37-3** | The bell works for any `LINE_CANCELLED` event | 1. Migration + RLS + grants for `service_line_cancel_notices`. 2. Worker `orders` use case, recipients/place adapters, history-row read, consumer registration. 3. Delivery tests (consume once, tenant and scope isolation, no manager, groups, ignored kinds, notification side) | 37-1, 37-2; 35d-2 pattern (merged or in flight) | 380–520 |
 | **37-4a** | Contracts and pure rules of the writer | 1. `cancelServiceLineInput/Response` (full and narrow), optional `cancelled_at` on the saved-line contract, OpenAPI. 2. Pure domain: reason, canceller selection, preparation (status, not-cancellable, no money change), `cancelBlockedByTip`, response projection. 3. Error codes ar/en + unit tests | 37-1, 37-2; 35d-4a (merged) | 220–320 |
 | **37-4b** | The use case and its storage access | 1. Orders ports (the 35d access/performer/name ports reused, a `SessionTipsReadPort`, the cancellation repository) and adapters. 2. `CancelServiceLineUseCase` in the §5 FR-004 lock order, status-200 idempotent store, audit, event emit. 3. Integration tests LC-01…LC-07, LC-09, LC-14…LC-23 | 37-4a; 35d-4b (the access port); **36-1** (the tip tables, for the tip guard) | 400–550 |
 | **37-4c** | HTTP and end-to-end | 1. `POST` route, guard, error mapping, OpenAPI and clients. 2. LC-08, LC-10…LC-13 over HTTP. 3. End to end: cancel → outbox → dispatcher → consumer → notice event → in-app row | 37-4b, 37-3 | 220–350 |
 | **37-5** | Manager day list | 1. Cancel button with reason, the «اتلغى» mark and date. 2. Guarded history read (FR-016) with `EXPLAIN`. 3. ar/en keys and component tests | 37-4c | 220–340 |
+
+**CX-Q5 gate:** 37-1 (contracts, bell template, map) and 37-3 (the bell consumer) work for any `LINE_CANCELLED` event and do not depend on it. 37-2, 37-4a, 37-4b, 37-4c and 37-5 all depend on whether a cancellation is final, so none of them starts before CX-Q5 is answered and D-4, FR-005 and LC-21 are confirmed or rewritten in a follow-up docs PR.
 
 The dependency of 37-4b on **36-1** exists only for the tip guard (CX-Q4); 36-1 is the storage PR of spec 053 and does not depend on TP-Q5…TP-Q8 (the reason column is nullable
 there), but row 36 code waits for batch 29, so the manager decides the order. If 36-1 were later than 37-4b, the guard must not ship without the tables: 37-4b stays blocked.
