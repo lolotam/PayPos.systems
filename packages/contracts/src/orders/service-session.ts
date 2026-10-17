@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { id as sharedId } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { lateServiceSessionNoticeRequested } from './late-service-session-notice.js';
+import { serviceLineCancelNoticeRequested } from './service-line-cancel-notice.js';
 import { serviceLineEditNoticeRequested } from './service-line-edit-notice.js';
 import { serviceCommissionRule } from '../catalog/service.js';
 const id = sharedId.toLowerCase();
@@ -79,8 +80,7 @@ export const editServiceLineResponseNarrow = z.strictObject({
 }).meta({ id: 'EditServiceLineResponseNarrow' });
 export const editServiceLineResponse = z.union([editServiceLineResponseFull, editServiceLineResponseNarrow])
   .meta({ id: 'EditServiceLineResponse' });
-const serviceLinePriceEdit = z.strictObject({
-  kind: z.literal('PRICE_DISCOUNT_EDIT'),
+const serviceLineChangeFields = {
   changed_at: timestamp,
   changed_by: id,
   changed_by_membership_id: id,
@@ -90,7 +90,9 @@ const serviceLinePriceEdit = z.strictObject({
     discount: sessionMoney,
     net: sessionMoney,
   }),
-});
+};
+const serviceLinePriceEdit = z.strictObject({ kind: z.literal('PRICE_DISCOUNT_EDIT'), ...serviceLineChangeFields });
+const serviceLineCancel = z.strictObject({ kind: z.literal('LINE_CANCELLED'), ...serviceLineChangeFields });
 const serviceLineChangedObject = z.strictObject({
   line_id: id, session_id: id, service_id: id, branch_id: id, business_id: id, customer_id: id,
   status: z.enum(['ACTIVE', 'CANCELLED']), occurred_at: timestamp, recorded_at: timestamp,
@@ -98,17 +100,18 @@ const serviceLineChangedObject = z.strictObject({
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
   performers: z.array(z.strictObject({ employee_id: id, share_bps: bps.min(1) })).min(1).max(4),
   rule_snapshot: serviceCommissionRule, counts_snapshot: z.boolean(), package: z.null(), revision: z.number().int().positive(),
-  change: serviceLinePriceEdit.optional(),
+  change: z.discriminatedUnion('kind', [serviceLinePriceEdit, serviceLineCancel]).optional(),
 });
 /**
- * التغيير اختياري لأن لقطات التسجيل المنشورة صارمة ومن غير المفتاح؛ وجوده يعني تعديل سعر أو خصم على سطر ACTIVE بالنسخة التالية حتى لا يُقرأ الإلغاء كتعديل سعر.
+ * التغيير اختياري لأن لقطات التسجيل المنشورة صارمة ومن غير المفتاح.
+ * تعديل السعر يبقى ACTIVE بالنسخة التالية؛ والإلغاء يحمل حالة السطر كاملة بحالة CANCELLED والنسخة التالية، حتى لا يُقرأ كتعديل سعر.
  */
 export const serviceLineChanged = serviceLineChangedObject
-  .refine(
-    (line) =>
-      line.change === undefined ||
-      (line.revision === line.change.previous.revision + 1 && line.status === 'ACTIVE'),
-  )
+  .refine((line) => {
+    if (line.change === undefined) return true;
+    if (line.revision !== line.change.previous.revision + 1) return false;
+    return line.change.kind === 'LINE_CANCELLED' ? line.status === 'CANCELLED' : line.status === 'ACTIVE';
+  })
   .meta({ id: 'ServiceLineChanged' });
 /**
  * الحذف قبل التدقيق لأن `z.undefined()` لا يُمثَّل في JSON Schema، و`z.never().optional()` ينشر المفتاح بصيغة `not` التي لا يفهمها OpenAPI 3.0.
@@ -128,7 +131,7 @@ export const serviceSessionLinesAdded = z.strictObject(eventFields).meta({ id: '
 export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessionLineInput, recordServiceSessionInput,
   appendServiceSessionLinesInput, sessionPerformer, savedServiceLine, serviceSession, rejectedServiceLine,
   recordServiceSessionResponse, appendServiceSessionLinesResponse, editServiceLineInput, editServiceLineResponseFull,
-  editServiceLineResponseNarrow, editServiceLineResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested];
+  editServiceLineResponseNarrow, editServiceLineResponse, serviceLineChanged, recordedServiceLine, serviceSessionRecorded, serviceSessionLinesAdded, lateServiceSessionNoticeRequested, serviceLineEditNoticeRequested, serviceLineCancelNoticeRequested];
 export type RecordServiceSessionInput = z.infer<typeof recordServiceSessionInput>;
 export type AppendServiceSessionLinesInput = z.infer<typeof appendServiceSessionLinesInput>;
 export type RecordServiceSessionResponse = z.infer<typeof recordServiceSessionResponse>;

@@ -266,3 +266,36 @@ it('renders a price edit in the viewer locale, falling back to English names and
     'Owner edited Cut at Salmiya dated 2026-10-16: the net was 25.000 KWD and is now 20.000 KWD.',
   );
 });
+
+it('renders a cancellation in the viewer locale and falls back to English names', () => {
+  const parameters = [
+    { name: 'service_name_ar', type: 'text', value: 'قص' },
+    { name: 'service_name_en', type: 'text', value: 'Cut' },
+    { name: 'branch_name_ar', type: 'text', value: 'السالمية' },
+    { name: 'branch_name_en', type: 'text', value: 'Salmiya' },
+    { name: 'business_date', type: 'text', value: '2026-10-16' },
+    { name: 'cancelled_net', type: 'text', value: '20.000' },
+  ];
+  const item = {
+    ...shift('ar'),
+    template_key: 'service_line_cancelled',
+    safe_parameters: parameters,
+  } as InAppNotification;
+  expect(renderNotification(item, 'ar')).toBe(
+    'أُلغيت خدمة قص في فرع السالمية بتاريخ 2026-10-16: كان صافي السطر 20.000 دينار.',
+  );
+  expect(renderNotification(item, 'en')).toBe(
+    'Cut was cancelled at Salmiya dated 2026-10-16: the line net was 20.000 KWD.',
+  );
+  expect(
+    renderNotification(
+      {
+        ...item,
+        safe_parameters: parameters.map((parameter) =>
+          parameter.name.endsWith('_ar') ? { ...parameter, value: '   ' } : parameter,
+        ),
+      } as InAppNotification,
+      'ar',
+    ),
+  ).toBe('أُلغيت خدمة Cut في فرع Salmiya بتاريخ 2026-10-16: كان صافي السطر 20.000 دينار.');
+});
