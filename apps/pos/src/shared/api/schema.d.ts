@@ -1519,6 +1519,23 @@ export interface paths {
         patch: operations["editServiceLine"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Newest-first price-edit history for one saved line. Requires read:service-sessions:branch and the orders feature. edit:service-line-prices:branch does not grant this read. A line, session, branch or company mismatch is a uniform 403. The reason is returned only here. The scoped cursor carries the last revision. */
+        get: operations["listServiceLineEdits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions/performer-options": {
         parameters: {
             query?: never;
@@ -4149,6 +4166,7 @@ export interface components {
             /** @enum {string} */
             status: "ACTIVE" | "CANCELLED";
             revision: number;
+            edited: boolean;
             list_price: components["schemas"]["SessionMoney"];
             price: components["schemas"]["SessionMoney"];
             discount: components["schemas"]["SessionMoney"];
@@ -4187,6 +4205,33 @@ export interface components {
         };
         ServiceSessionDayPage: {
             items: components["schemas"]["ServiceSessionDayItem"][];
+            next_cursor: string | null;
+        };
+        ServiceLineEditsQuery: {
+            /** @default 50 */
+            limit: number;
+            cursor?: string;
+        };
+        ServiceLineEditItem: {
+            revision: number;
+            previous: {
+                price: components["schemas"]["SessionMoney"];
+                discount: components["schemas"]["SessionMoney"];
+                net: components["schemas"]["SessionMoney"];
+            };
+            new: {
+                price: components["schemas"]["SessionMoney"];
+                discount: components["schemas"]["SessionMoney"];
+                net: components["schemas"]["SessionMoney"];
+            };
+            /** Format: date-time */
+            changed_at: string;
+            editor_label_ar: string;
+            editor_label_en: string;
+            reason: string;
+        };
+        ServiceLineEditsPage: {
+            items: components["schemas"]["ServiceLineEditItem"][];
             next_cursor: string | null;
         };
         RecordingContextQuery: {
@@ -10550,6 +10595,63 @@ export interface operations {
                 };
             };
             /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listServiceLineEdits: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                sessionId: string;
+                lineId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Edit history newest first. Money is canonical three-decimal text. next_cursor is null on the last page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceLineEditsPage"];
+                };
+            };
+            /** @description Invalid query or a cursor for another company, business, branch, session or line. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform scope/authority refusal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication/readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;

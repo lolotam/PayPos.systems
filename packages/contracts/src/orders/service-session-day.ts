@@ -24,6 +24,8 @@ export const serviceSessionDayPerformer = z.strictObject({
 export const serviceSessionDayLine = z.strictObject({
   id, service_id: id, ordinal: z.number().int().min(1).max(20), ...names,
   status: z.enum(['ACTIVE', 'CANCELLED']), revision: z.number().int().positive(),
+  // مشتق من وجود صف service_line_edits للسطر، ولا يُستنتج من revision.
+  edited: z.boolean(),
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
   effective_discount_bps: z.number().int().min(0).max(10000), recorded_by: id,
   recorded_at: timestamp, late: z.boolean(), has_performer_warning: z.boolean(),
