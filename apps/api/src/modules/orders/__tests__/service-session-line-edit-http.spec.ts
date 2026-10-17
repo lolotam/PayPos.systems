@@ -111,6 +111,26 @@ it('route refuses a missing key, a device, the wrong permission, a disabled feat
   expect(JSON.stringify(foreign[0]?.body)).toBe(JSON.stringify(foreign[1]?.body));
 });
 
+it('the idempotency fingerprint binds the line: one key on another line or with another body is IDEMPOTENCY_KEY_REUSED', async () => {
+  const recorded = await f.h.send('POST', f.base, { cookie: f.ownerCookie, company: f.company, key: ids.newId(),
+    body: { customer_id: f.customer, lines: [f.line(), f.line(must(f.services[3]), '15.000')] } });
+  expect(recorded.status).toBe(201);
+  const session = recordServiceSessionResponse.parse(recorded.body).session;
+  const first = must(session.lines[0]);
+  const second = must(session.lines[1]);
+  const key = ids.newId();
+  const saved = await patch(editUrl(session.id, first.id), editInput(1), f.editorCookie, key);
+  expect(saved.status).toBe(200);
+  const otherLine = await patch(editUrl(session.id, second.id), editInput(1), f.editorCookie, key);
+  expect(otherLine.status).toBe(422);
+  expect(otherLine.body['code']).toBe('IDEMPOTENCY_KEY_REUSED');
+  const otherBody = await patch(editUrl(session.id, first.id), editInput(1, 'Another synthetic reason'), f.editorCookie, key);
+  expect(otherBody.status).toBe(422);
+  expect(otherBody.body['code']).toBe('IDEMPOTENCY_KEY_REUSED');
+  const untouched = await patch(editUrl(session.id, second.id), editInput(1), f.editorCookie, ids.newId());
+  expect(untouched.status).toBe(200);
+});
+
 async function savedVisit() {
   const response = await f.h.send('POST', f.base, { cookie: f.ownerCookie, company: f.company, key: ids.newId(), body: { customer_id: f.customer, lines: [f.line()] } });
   expect(response.status).toBe(201);

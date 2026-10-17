@@ -10460,7 +10460,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Stale expected_revision. Details carry current_revision only. */
+            /** @description Stale expected_revision (SESSION_LINE_REVISION_STALE): details carry current_revision only and no money. Also an idempotent request still in progress or a transaction retry, which carry no details. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10469,7 +10469,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Domain refusal, including an invalid reason or an unchanged price and discount. */
+            /** @description Domain refusal, including an invalid reason, an unchanged price and discount, or the same Idempotency-Key reused with another request (IDEMPOTENCY_KEY_REUSED). */
             422: {
                 headers: {
                     [name: string]: unknown;
