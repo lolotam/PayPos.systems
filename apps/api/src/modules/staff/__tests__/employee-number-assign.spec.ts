@@ -12,6 +12,7 @@ import {
   executeCreate,
   grantEmployeeCreation,
   insertHeldNumbers,
+  provisionEmployer,
   readCounter,
   sendCreate,
   setCounter,
@@ -129,6 +130,32 @@ it('walks a run longer than a page and a run that ends on the page boundary', as
   expect(boundary.employee_number).toBe(2256);
 });
 
+it('refuses a full last page and leaves the counter and rows untouched', async () => {
+  const fresh = await provisionEmployer(f, 'Full last page');
+  await setCounter(f, 999_744, fresh.companyId);
+  await insertHeldNumbers(f, 999_744, 256, {
+    companyId: fresh.companyId,
+    businessId: fresh.businessId,
+    branchId: fresh.branchId,
+  });
+  const before = await createdCounts(f, fresh.companyId);
+  const response = await sendCreate(
+    f,
+    {
+      primary_branch_id: fresh.branchId,
+      name_en: 'No room at the top',
+      role_code: 'staff',
+      hire_date: '2026-01-01',
+    },
+    fresh.businessId,
+    fresh.companyId,
+  );
+  expect(response.status).toBe(422);
+  expect(response.body['code']).toBe('EMPLOYEE_NUMBER_EXHAUSTED');
+  expect(await readCounter(f, fresh.companyId)).toBe(999_744);
+  expect(await createdCounts(f, fresh.companyId)).toEqual(before);
+});
+
 it('keeps one company counter still when another company creates an employee', async () => {
   await setCounter(f, 6000);
   await setCounter(f, 7000, f.otherCompany);
@@ -176,8 +203,7 @@ it('EN-12 gives 999999 then refuses, and ignores holes below a full top window',
   expect(refused.status).toBe(422);
   expect(refused.body).toMatchObject({
     code: 'EMPLOYEE_NUMBER_EXHAUSTED',
-    message_ar:
-      'اتملت أرقام الموظفين المتاحة في الشركة، وماينفعش يتدّي رقم تلقائي تاني. اتواصل مع الدعم.',
+    message_ar: 'نفدت الأرقام الوظيفية المتاحة في الشركة، فلا يمكن إسناد رقم تلقائي جديد.',
     message_en:
       'The company has no free employee numbers left, so none can be assigned automatically.',
   });
@@ -228,13 +254,32 @@ it('a duplicate employee number is retryable and a duplicate user link stays lin
   expect(await readCounter(f)).toBe(8002);
 });
 
+function withRealParameters(statement: string, params: readonly unknown[]): string {
+  return statement.replace(/\$(\d+)\b/g, (_match, index: string) => {
+    const value = params[Number(index) - 1];
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    if (typeof value === 'string' && /^\d+$/.test(value)) return value;
+    if (typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value)) return `'${value}'`;
+    throw new Error(`unexpected scan parameter ${index}`);
+  });
+}
+
 it('the used-number page scans employees_company_employee_number_key', async () => {
+  await setCounter(f, 8100);
+  const start = f.h.calls.statements.length;
+  const response = await sendCreate(f, termsFor(f, 'Explain scan'));
+  expect(response.status).toBe(201);
+  const scans = f.h.calls.statements
+    .slice(start)
+    .filter((entry) => /from employees/i.test(entry.sql) && /employee_number >=/.test(entry.sql));
+  expect(scans).toHaveLength(1);
+  const scan = scans[0];
+  if (scan === undefined) throw new Error('missing page scan');
   await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan = off`);
-    const plan = await tx.execute(sql`
-      EXPLAIN SELECT employee_number FROM employees
-      WHERE company_id = ${f.company} AND employee_number >= ${1}
-      ORDER BY employee_number LIMIT 256`);
+    const plan = await tx.execute(
+      sql`EXPLAIN ${sql.raw(withRealParameters(scan.sql, scan.params))}`,
+    );
     expect(plan.map((row) => String(row['QUERY PLAN'])).join('\n')).toContain(
       'employees_company_employee_number_key',
     );

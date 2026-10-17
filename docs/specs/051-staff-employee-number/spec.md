@@ -208,8 +208,9 @@ the numbers back.
   and audit row.
 - **TD-3 Pure rules in `packages/domain`** (shared by api and admin, `CLAUDE.md` §7; precedent `iban.ts`,
   `employee-name-key.ts`): `parseEmployeeNumber(text)` (digits only, strips leading zeros, 1…999999 or `null`) and
-  `firstFreeEmployeeNumber(counter, usedAtOrAbove)` (first unused at or above the counter; `null` past 999999). The
-  admin form and the search box call the first; the assign port calls the second. No arithmetic in a use case.
+  `firstFreeEmployeeNumber(counter, usedAtOrAbove)` (first unused at or above the counter; `null` past 999999) and
+  `nextEmployeeNumberCounter(assigned)` (the counter after an automatic assignment: the number plus one, capped at
+  1000000). The admin form and the search box call the first; the assign port calls the second and third. No arithmetic in a use case.
 - **TD-4 Serialization.** Every number write in a company (automatic assign, hand edit, start) takes the counter row
   `FOR UPDATE` first; the unique index `(company_id, employee_number)` is the backstop. Decided with the design advisors at the start of 8c-2 (two independent reviews agree):
   **global lock order = company (`FOR NO KEY UPDATE`) → memberships ordered by id → import preview/idempotency locks

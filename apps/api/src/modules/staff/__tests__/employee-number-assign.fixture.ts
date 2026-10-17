@@ -1,5 +1,9 @@
+import type { Tx } from '@pospay/db';
+import type { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { systemUuidV7 } from '@pospay/ids';
 
+import { assignEmployeeNumber } from '../persistence/employee-number-allocator.ts';
 import {
   employeesFixture,
   grantEmployeeCreation,
@@ -8,6 +12,8 @@ import {
   employeeUserMembership,
   type EmployeeFixture,
 } from './employees.fixture.ts';
+
+const dialect = new PgDialect();
 
 const ids = systemUuidV7();
 export { grantEmployeeCreation, detailFor, termsFor, employeeUserMembership, type EmployeeFixture };
@@ -99,6 +105,140 @@ export function sendCreate(
     company,
     body,
   });
+}
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function releaseOnce(gate: { resolve: () => void }) {
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    gate.resolve();
+  };
+}
+
+// الإيقاف بعد تنفيذ FOR UPDATE وقبل تحديث العدّاد، لأن تحديث الصف كان سيحجز المعاملة الثانية حتى لو حُذف القفل.
+function holdOnSequenceLock(tx: Tx, release: Promise<void>, held: () => void): Tx {
+  let armed = false;
+  return new Proxy(tx, {
+    get(target, property, receiver) {
+      if (property !== 'execute') return Reflect.get(target, property, receiver);
+      return async (query: SQL) => {
+        const result = await target.execute(query);
+        const text = dialect.sqlToQuery(query).sql;
+        if (!armed && /employee_number_sequences/i.test(text) && /FOR UPDATE/i.test(text)) {
+          armed = true;
+          held();
+          await release;
+        }
+        return result;
+      };
+    },
+  });
+}
+
+async function waitForAppLock(f: EmployeeFixture, pattern: RegExp): Promise<string> {
+  let seen = '';
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const rows = await f.h.owner<{ query: string }[]>`
+      SELECT query FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND usename = 'pospay_app'
+        AND wait_event_type = 'Lock'
+        AND pid <> pg_backend_pid()`;
+    seen = rows.map((row) => row.query).join('\n');
+    const waiting = rows.find((row) => pattern.test(row.query));
+    if (waiting !== undefined) return waiting.query;
+  }
+  throw new Error(`no locked backend matched ${pattern}; saw: ${seen}`);
+}
+
+export async function allocationsSharingTheCounterLock(f: EmployeeFixture, companyId: string) {
+  const gate = deferred();
+  const holding = deferred();
+  const finish = releaseOnce(gate);
+  const followers: Promise<number>[] = [];
+  const first = f.db.withTenant(
+    companyId,
+    (tx) => assignEmployeeNumber(holdOnSequenceLock(tx, gate.promise, holding.resolve), companyId),
+    { userId: f.userId },
+  );
+  const finished = first.then(
+    () => 'finished' as const,
+    (error: unknown) => {
+      finish();
+      throw error;
+    },
+  );
+  try {
+    const gateResult = await Promise.race([holding.promise.then(() => 'held' as const), finished]);
+    if (gateResult !== 'held') throw new Error('allocator finished without FOR UPDATE');
+    const second = f.db.withTenant(companyId, (tx) => assignEmployeeNumber(tx, companyId), {
+      userId: f.userId,
+    });
+    followers.push(second);
+    await waitForAppLock(f, /employee_number_sequences/i);
+    finish();
+    return await Promise.all([first, second]);
+  } finally {
+    finish();
+    await Promise.allSettled([first, ...followers]);
+  }
+}
+
+export async function firstSequenceSeedRace(
+  f: EmployeeFixture,
+  companyId: string,
+  outcome: 'commit' | 'rollback',
+) {
+  const gate = deferred();
+  const holding = deferred();
+  const finish = releaseOnce(gate);
+  const followers: Promise<number>[] = [];
+  const first = f.db.withTenant(
+    companyId,
+    async (tx) => {
+      const number = await assignEmployeeNumber(tx, companyId);
+      holding.resolve();
+      await gate.promise;
+      if (outcome === 'rollback') throw new Error('synthetic rollback');
+      return number;
+    },
+    { userId: f.userId },
+  );
+  const settled = first.then(
+    (number) => ({ ok: true as const, number }),
+    (error: unknown) => ({ ok: false as const, error }),
+  );
+  try {
+    const gateResult = await Promise.race([
+      holding.promise.then(() => 'held' as const),
+      settled.then((result) => result),
+    ]);
+    if (gateResult !== 'held') throw new Error('first seed ended before the hold');
+    const second = f.db.withTenant(companyId, (tx) => assignEmployeeNumber(tx, companyId), {
+      userId: f.userId,
+    });
+    followers.push(second);
+    await waitForAppLock(f, /insert into employee_number_sequences/i);
+    finish();
+    const [leader, follower] = await Promise.all([settled, second]);
+    if (!leader.ok) {
+      if (outcome !== 'rollback') throw leader.error;
+      return { first: null, second: follower };
+    }
+    return { first: leader.number, second: follower };
+  } finally {
+    finish();
+    await Promise.allSettled([first, ...followers]);
+  }
 }
 
 export async function createdCounts(f: EmployeeFixture, companyId = f.company) {

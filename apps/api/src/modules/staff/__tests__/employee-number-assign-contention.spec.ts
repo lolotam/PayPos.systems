@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
-import { assignEmployeeNumber } from '../persistence/employee-number-allocator.ts';
 import { CreateEmployeeUseCase } from '../use-cases/create-employee/create-employee.usecase.ts';
 import {
+  allocationsSharingTheCounterLock,
   assignFixture,
   employeeNumberIds,
   employeeUserMembership,
   executeCreate,
+  firstSequenceSeedRace,
   grantEmployeeCreation,
   provisionEmployer,
   readCounter,
@@ -46,35 +47,22 @@ it('EN-04 concurrent creates in one company are distinct and gap-free', async ()
 
 it('the allocator lock alone keeps concurrent numbers distinct', async () => {
   await setCounter(f, 5000);
-  const numbers = await Promise.all([
-    f.db.withTenant(f.company, (tx) => assignEmployeeNumber(tx, f.company), { userId: f.userId }),
-    f.db.withTenant(f.company, (tx) => assignEmployeeNumber(tx, f.company), { userId: f.userId }),
-  ]);
+  const numbers = await allocationsSharingTheCounterLock(f, f.company);
   expect(ascending(numbers)).toEqual([5000, 5001]);
   expect(await readCounter(f)).toBe(5002);
 });
 
-it('simultaneous first creates commit, and a rolled-back first creator leaves no counter', async () => {
-  const fresh = await provisionEmployer(f, 'Simultaneous first');
-  const created = await Promise.all([
-    executeCreate(f, 'First A', fresh),
-    executeCreate(f, 'First B', fresh),
-  ]);
-  expect(ascending(created.map((record) => record.employee_number ?? 0))).toEqual([1, 2]);
-  const rolled = await provisionEmployer(f, 'Rolled back first');
-  await expect(
-    f.db.withTenant(
-      rolled.companyId,
-      async (tx) => {
-        expect(await assignEmployeeNumber(tx, rolled.companyId)).toBe(1);
-        throw new Error('synthetic rollback');
-      },
-      { userId: f.userId },
-    ),
-  ).rejects.toThrow('synthetic rollback');
-  expect(await readCounter(f, rolled.companyId)).toBeNull();
-  const next = await executeCreate(f, 'After rollback', rolled);
-  expect(next.employee_number).toBe(1);
+it('a held first seed gives 1 then 2, and rolling it back lets the waiter take 1', async () => {
+  const committed = await provisionEmployer(f, 'Seed commit');
+  expect(await firstSequenceSeedRace(f, committed.companyId, 'commit')).toEqual({
+    first: 1,
+    second: 2,
+  });
+  const rolled = await provisionEmployer(f, 'Seed rollback');
+  expect(await firstSequenceSeedRace(f, rolled.companyId, 'rollback')).toEqual({
+    first: null,
+    second: 1,
+  });
   expect(await readCounter(f, rolled.companyId)).toBe(2);
 });
 

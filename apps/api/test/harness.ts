@@ -52,7 +52,7 @@ export interface Harness {
     tenant: string[];
     user: string[];
     newTenant: string[];
-    statements: { wrapper: 'tenant' | 'user' | 'new-tenant'; sql: string }[];
+    statements: { wrapper: 'tenant' | 'user' | 'new-tenant'; sql: string; params: unknown[] }[];
   };
   signedInOperator(email: string): Promise<string>;
   onboard(cookie: string, name: string): Promise<string>;
@@ -77,7 +77,8 @@ function recording(tx: Tx, wrapper: 'tenant' | 'user' | 'new-tenant', calls: Har
     get: (target, property, receiver) =>
       property === 'execute'
         ? (query: SQL) => {
-            calls.statements.push({ wrapper, sql: dialect.sqlToQuery(query).sql });
+            const compiled = dialect.sqlToQuery(query);
+            calls.statements.push({ wrapper, sql: compiled.sql, params: compiled.params });
             return target.execute(query);
           }
         : Reflect.get(target, property, receiver),

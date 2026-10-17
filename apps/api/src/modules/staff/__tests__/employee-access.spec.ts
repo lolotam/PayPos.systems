@@ -78,11 +78,15 @@ it('takes the company lock then ordered membership locks before employee writes 
   const sql = f.h.calls.statements.slice(start).map((s) => s.sql);
   const company = sql.findIndex((s) => s.includes('FOR NO KEY UPDATE'));
   const members = sql.findIndex((s) => /memberships.*ORDER BY id FOR UPDATE/.test(s));
+  const counter = sql.findIndex(
+    (s) => s.includes('employee_number_sequences') && s.includes('FOR UPDATE'),
+  );
   const employee = sql.findIndex((s) => s.includes('INSERT INTO employees'));
   const audit = sql.findIndex((s) => s.includes('audit_log') && /insert/i.test(s));
   expect(company).toBeGreaterThanOrEqual(0);
   expect(members).toBeGreaterThan(company);
-  expect(employee).toBeGreaterThan(members);
+  expect(counter).toBeGreaterThan(members);
+  expect(employee).toBeGreaterThan(counter);
   expect(audit).toBeGreaterThan(employee);
   expect(
     (

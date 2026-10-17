@@ -6,7 +6,7 @@ import { EmployeeCreationError } from '../domain/create-employee.ts';
 
 const EMPLOYEE_NUMBER_PAGE_SIZE = 256;
 
-// ترتيب الأقفال ثابت: قفل الشركة ثم العضويات بالمعرف ثم صف العدّاد ثم صفوف الموظفين ثم المرفقات والتدقيق، حتى لا ينقلب الانتظار إلى انتظار دائري.
+// ترتيب الأقفال: الشركة، ثم العضويات بالمعرف، ثم أقفال معاينة الاستيراد ومفتاح التكرار (مسارات الاستيراد فقط)، ثم صف العدّاد، ثم صفوف الموظفين، ثم المرفقات والتدقيق.
 export async function assignEmployeeNumber(tx: Tx, companyId: string): Promise<number> {
   await tx.execute(
     sql`INSERT INTO employee_number_sequences(company_id) VALUES (${companyId}) ON CONFLICT DO NOTHING`,
