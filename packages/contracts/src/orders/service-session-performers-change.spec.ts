@@ -45,6 +45,21 @@ it('refuses a cancelled status, a wrong revision, a reason, price fields, or 0 o
     expect(serviceLineChanged.safeParse(candidate).success).toBe(false);
 });
 
+it('accepts four previous performers and refuses the performers shape on the two older kinds', () => {
+  const four = Array.from({ length: 4 }, () => ({ employee_id: id, share_bps: 2500 }));
+  expect(
+    serviceLineChanged.safeParse({
+      ...base,
+      change: changeOf('PERFORMERS_CHANGE', { revision: 1, performers: four }),
+    }).success,
+  ).toBe(true);
+  for (const candidate of [
+    { ...base, change: changeOf('PRICE_DISCOUNT_EDIT', performersPrevious) },
+    { ...base, status: 'CANCELLED', change: changeOf('LINE_CANCELLED', performersPrevious) },
+  ])
+    expect(serviceLineChanged.safeParse(candidate).success).toBe(false);
+});
+
 it('keeps recorded batches free of any change block', () => {
   const recordedLine = { ...base, revision: 1 };
   const recorded = {

@@ -64,6 +64,8 @@ it('rejects an empty group, an oversized group and an unknown field', () => {
     { ...notice, notification_recipients: Array(101).fill(recipient) },
     { ...notice, phone: 'Synthetic' },
     { ...notice, reason: 'wrong split' },
+    { ...notice, revision: 1 },
+    { ...notice, notification_recipients: [{ ...recipient, locale: 'en' }] },
   ])
     expect(serviceLinePerformersNoticeRequested.safeParse(candidate).success).toBe(false);
 });
