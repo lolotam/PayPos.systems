@@ -336,7 +336,7 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   numbers are plain digits (D-2); `NULL` shows «—» (TD-10).
 - Reception performer picker: the number next to each name; typing digits finds the employee (EN-Q9).
 - Attendance board and monthly report screens: a number column; the CSV button is unchanged.
-- Owner only (with the permission): an "Employee number" field on the add-employee form (blank = automatic), an edit
+- Only for a holder of `manage:employee-number:company` (the owner by default, or a person the owner granted it to): an "Employee number" field on the add-employee form (blank = automatic), an edit
   action on the profile, and a one-time "Start numbering from" dialog on the staff list. A typed «007» is turned into
   7 by `parseEmployeeNumber` before it is sent (EN-Q8).
 - All strings from `packages/i18n`; logical CSS only; no closing comments in JSX.
