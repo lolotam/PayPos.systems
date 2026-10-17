@@ -4,6 +4,7 @@ import {
   EMPLOYEE_NUMBER_MAX,
   firstFreeEmployeeNumber,
   nextEmployeeNumberCounter,
+  parseEmployeeNumber,
 } from '../employee-number.js';
 
 describe('firstFreeEmployeeNumber', () => {
@@ -68,4 +69,27 @@ describe('nextEmployeeNumberCounter', () => {
   ])('moves %s to %s and stops at one million', (assigned, next) => {
     expect(nextEmployeeNumberCounter(assigned)).toBe(next);
   });
+});
+
+describe('parseEmployeeNumber', () => {
+  it('reads plain digits and strips leading zeros', () => {
+    expect(parseEmployeeNumber('7')).toBe(7);
+    expect(parseEmployeeNumber('007')).toBe(7);
+    expect(parseEmployeeNumber('0000007')).toBe(7);
+    expect(parseEmployeeNumber('1')).toBe(1);
+    expect(parseEmployeeNumber('999999')).toBe(EMPLOYEE_NUMBER_MAX);
+    expect(parseEmployeeNumber('000999999')).toBe(EMPLOYEE_NUMBER_MAX);
+  });
+  it.each(['', '0', '000', '1000000', '0001000000', '12345678901234567890'])(
+    'refuses out-of-range %j',
+    (text) => {
+      expect(parseEmployeeNumber(text)).toBeNull();
+    },
+  );
+  it.each([' 7', '7 ', '+7', '-7', '7.0', '1e3', '0x7', '7a', 'seven', '٧', '1,000'])(
+    'refuses non-digits %j',
+    (text) => {
+      expect(parseEmployeeNumber(text)).toBeNull();
+    },
+  );
 });

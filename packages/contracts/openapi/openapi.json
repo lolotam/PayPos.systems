@@ -6013,10 +6013,12 @@
           {
             "in": "query",
             "name": "employee_number",
+            "description": "Exact employee number: digits only, leading zeros ignored, 1..999999; anything else is 400.",
             "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 999999
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "minLength": 1,
+              "maxLength": 50
             }
           }
         ],
@@ -15851,6 +15853,7 @@
           },
           "employee_number": {
             "type": "string",
+            "maxLength": 50,
             "pattern": "^[0-9]+$"
           }
         },

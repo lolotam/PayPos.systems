@@ -123,7 +123,8 @@ export const staffPaths = {
         {
           in: 'query',
           name: 'employee_number',
-          schema: { type: 'integer', minimum: 1, maximum: 999999 },
+          description: 'Exact employee number: digits only, leading zeros ignored, 1..999999; anything else is 400.',
+          schema: { type: 'string', pattern: '^[0-9]+$', minLength: 1, maxLength: 50 },
         },
       ],
       responses: {

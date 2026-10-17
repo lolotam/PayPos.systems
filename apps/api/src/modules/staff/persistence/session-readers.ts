@@ -1,18 +1,11 @@
 import { sessionPerformerCursorData, type SessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@pospay/contracts';
+import { parseEmployeeNumber } from '@pospay/domain';
 import type { Tx } from '@pospay/db';
 import type { SQL } from 'drizzle-orm';
 import { searchHash, cursorScope, encodeCursor, decodeCursor } from '../../../shared/persistence/name-options-cursor.ts';
 import { attendanceWorkingDate } from '../domain/clock-attendance.ts';
 import { schedulingContext } from './schedule-context.adapter.ts';
 import { sessionPerformers } from './session-performers.reader.ts';
-
-// بديل مؤقت لـ parseEmployeeNumber لحد 8c-6: بعد القص أرقام فقط بأي طول، والأصفار البادئة تتشال، والقيمة من 1 إلى 999999.
-function employeeNumberFromSearch(q: string | undefined): number | null {
-  const text = q?.trim();
-  if (text === undefined || !/^[0-9]+$/.test(text)) return null;
-  const value = Number(text);
-  return value >= 1 && value <= 999_999 ? value : null;
-}
 
 function readCursor(query: SessionPerformerOptionsQuery, requestedAt: string, scopeHash: string) {
   if (query.cursor === undefined) return null;
@@ -61,7 +54,7 @@ export function createSessionReaders(reads: {
       if (cursor !== null) normalizeTime(effectiveAt);
       const day = attendanceWorkingDate(new Date(effectiveAt), place.timezone);
       return reads.page(tx, companyId, businessId, branchId, day, { ...query, occurred_at: effectiveAt },
-        sessionPerformerCursorCodec, requestedAt, scopeHash, employeeNumberFromSearch(query.q));
+        sessionPerformerCursorCodec, requestedAt, scopeHash, (query.q === undefined ? null : parseEmployeeNumber(query.q.trim())));
     },
   };
 }

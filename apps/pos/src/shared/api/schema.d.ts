@@ -8406,7 +8406,8 @@ export interface operations {
             query?: {
                 cursor?: string;
                 limit?: number;
-                employee_number?: number;
+                /** @description Exact employee number: digits only, leading zeros ignored, 1..999999; anything else is 400. */
+                employee_number?: string;
             };
             header: {
                 "x-company-id": string;
