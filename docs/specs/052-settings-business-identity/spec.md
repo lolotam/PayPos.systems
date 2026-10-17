@@ -200,7 +200,10 @@ Contracts in `packages/contracts` (Zod, strict, snake_case, listed in `openapi.t
   never a device. A migration (27h-1a, pattern of 0128) inserts it into `permissions` and into the owner role default.
   `manage:settings:business` no longer lets anyone change the identity.
 - Uploading the logo file keeps the files rule, unchanged: `manage:files:business`, owner-only by default since 13b
-  (a delegate who should also upload needs both permissions from the owner). The bind still accepts only a file the actor
+  (a delegate who should also upload needs both permissions from the owner). Every delegate also needs `read:settings:business`
+  (held by the managers by default): it is the permission of `GET …/settings` and the stored permission of the logo upload
+  (§5.1 item 2), which `request-upload` checks too, so a role without it cannot manage the identity until it is given.
+  The bind still accepts only a file the actor
   uploaded herself (§5.1 item 3). Removal (`file_id: null`) needs the identity permission only. The 13b files rule is
   not changed by this slice.
 - Live recheck of `manage:business-identity:business` inside the transaction after the settings row lock (the
