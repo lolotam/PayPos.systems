@@ -56,9 +56,11 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
   });
   const { control } = form;
   const watched = useWatch({ control });
+  const [refreshing, setRefreshing] = useState(false);
   const pending = mutation.isPending;
+  const blocked = pending || refreshing;
   const submit = form.handleSubmit(async (body) => {
-    if (!props.online || pending) return;
+    if (!props.online || pending || refreshing) return;
     setRoot(null);
     setLimit(null);
     try {
@@ -66,12 +68,18 @@ export function EditServiceLineForm(props: EditServiceLineFormProps) {
       props.onSaved();
     } catch (error) {
       const stale = applyEditError(error, locale, form, setRoot, setLimit, setMemberships, props);
-      if (stale) await adoptRefetchedRevision(props.onStale, form.getValues('expected_revision'), (revision) => { form.setValue('expected_revision', revision); });
+      if (!stale) return;
+      setRefreshing(true);
+      try {
+        await adoptRefetchedRevision(props.onStale, form.getValues('expected_revision'), (revision) => { form.setValue('expected_revision', revision); });
+      } finally {
+        setRefreshing(false);
+      }
     }
   });
-  return <form className="grid gap-3 text-start" onSubmit={(event) => { void submit(event); }} onKeyDown={submitOnEnter(props.online, pending)}>
+  return <form className="grid gap-3 text-start" onSubmit={(event) => { void submit(event); }} onKeyDown={submitOnEnter(props.online, blocked)}>
     {root ? <p role="alert">{root}</p> : null}
-    <EditServiceLineFields form={form} locale={locale} memberships={memberships} online={props.online} pending={pending} onClose={props.onClose} />
+    <EditServiceLineFields form={form} locale={locale} memberships={memberships} online={props.online} pending={blocked} onClose={props.onClose} />
     <EditServiceLinePreview locale={locale} line={props.line} price={watched.price ?? ''} kind={watched.discount_kind ?? 'AMOUNT'} discount={watched.discount_value ?? ''} limit={limit} />
   </form>;
 }

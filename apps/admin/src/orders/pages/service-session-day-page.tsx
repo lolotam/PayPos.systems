@@ -2,12 +2,13 @@
 import type { ServiceSessionDayPage as DayPage } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, PageHeader } from '@pospay/ui';
-import { useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchDaySessions } from '../api/use-branch-day-sessions';
 import type { SessionServiceScope } from '../api/use-session-services';
-import { serviceSessionAccessRevoked } from '../model/service-session-access';
+import { discardDeniedServiceSessionReads, serviceSessionAccessRevoked } from '../model/service-session-access';
 import { sessionLocalTime } from '../model/session-local-time';
 import { useBrowserConnectivity } from '../model/use-browser-connectivity';
 import { useSessionQueryLifecycle } from '../model/use-session-query-lifecycle';
@@ -53,11 +54,15 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
   const [editing, setEditing] = useState<OpenEditor | null>(null);
   const [history, setHistory] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const query = useBranchDaySessions(scope, date, lateOnly, online);
   const revoked = serviceSessionAccessRevoked(query.error);
-  // الرفض بيتقفل في نفس الرسمة من غير تأثير؛ البيانات القديمة لسه في الكاش ولازم نمسح فتحة التعديل والسجل قبل ما تترسم.
+  // الرسمة بتقفل قبل التأثير عشان الأسماء ما تبانش؛ الكاش نفسه بيتشال في التأثير عشان خطأ لاحق ما يلاقيش بيانات.
   if (revoked && editing) setEditing(null);
   if (revoked && history) setHistory(null);
+  useEffect(() => {
+    if (revoked) discardDeniedServiceSessionReads(queryClient, scope);
+  }, [queryClient, revoked, scope]);
   const visits = revoked ? [] : (query.data?.pages.flatMap((page) => page.items) ?? []);
   const target = findLine(visits, editing?.key ?? null);
   return <section className="grid gap-4 text-start" dir={locale === 'ar' ? 'rtl' : 'ltr'}>

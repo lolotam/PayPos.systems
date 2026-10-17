@@ -125,6 +125,30 @@ it('adopts the refetched revision when the cached line is already newer', async 
   expect(bodyOf(1).expected_revision).toBe(3);
 });
 
+it('disables save while a stale refetch is in flight and sends the refreshed revision', async () => {
+  state.patch.mockReset();
+  state.patch.mockResolvedValueOnce(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 4 })).mockResolvedValue(saved);
+  const view = shown();
+  let finish: (revision: number | null) => void = () => undefined;
+  view.onStale.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  fill('because', '12.000', '1.000');
+  save();
+  const savingName = t('en', 'serviceLineEdit.saving');
+  await waitFor(() => expect((screen.getByRole('button', { name: savingName }) as HTMLButtonElement).disabled).toBe(true));
+  expect(state.patch).toHaveBeenCalledTimes(1);
+  const form = screen.getByRole('button', { name: savingName }).closest('form');
+  if (!(form instanceof HTMLFormElement)) throw new Error('missing form');
+  fireEvent.submit(form);
+  expect(state.patch).toHaveBeenCalledTimes(1);
+  await act(async () => { finish(4); await view.onStale.mock.results[0]?.value; });
+  const saveName = t('en', 'serviceLineEdit.save');
+  await waitFor(() => expect((screen.getByRole('button', { name: saveName }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: saveName }));
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(2));
+  expect(bodyOf(0).expected_revision).toBe(1);
+  expect(bodyOf(1).expected_revision).toBe(4);
+});
+
 it('rejects an amount discount above the price before submit', async () => {
   state.patch.mockReset();
   const resolved = await resolveEditLine({
