@@ -112,8 +112,7 @@ Until they are answered, §5.2 items marked ⟨TP-Q5…Q8⟩ are **recommendatio
 - ⟨TP-Q6⟩ The tip stays recorded when lines are cancelled or reassigned (the money was given); only a manager with the record
   permission can remove it, with a reason.
 - ⟨TP-Q7⟩ No hard ceiling; the screen warns when a tip exceeds the visit net.
-- ⟨TP-Q8⟩ Nearest mill half-up per performer, the remainder mills to the performer with the largest net share (ties:
-  first in performer order, as spec 050 SS-Q7 does for shares); a visit whose net is zero is split equally.
+- ⟨TP-Q8⟩ **Largest-remainder** allocation in mills: every performer first gets the floor of her exact share, then the remaining mills are given one each to the largest fractional remainders (ties: first in performer order, as spec 050 SS-Q7 does for shares). No allocation can be negative. A performer whose allocation is 0 is left out of the suggestion (amounts must be greater than zero). A visit whose net is zero is split equally by the same method.
 
 ### 5.3 Schema changes (36-1)
 
@@ -123,11 +122,13 @@ in `privileges.spec.ts` updated in the same PR, and a negative isolation test pe
 
 | Table | Columns | Constraints and keys | Indexes |
 |-------|---------|----------------------|---------|
-| `session_tip_revisions` | `company_id`, `id`, `business_id`, `session_id`, `revision int`, `changed_by uuid` (user), `changed_at timestamptz`, `reason text NULL` | `CHECK (revision >= 1)`, `CHECK (reason IS NULL OR char_length(btrim(reason)) BETWEEN 1 AND 500)`, `UNIQUE (company_id, session_id, revision)`, FK `(company_id, session_id)` → `service_sessions`, FK `(company_id, business_id)` → `businesses` | the unique index (leading `company_id`); user FK index |
-| `session_tips` | `company_id`, `id`, `business_id`, `revision_id`, `session_id`, `employee_id`, `method text`, `amount numeric(14,3)` | `CHECK (method IN ('CASH','CARD'))`, `CHECK (amount > 0)`, `UNIQUE (company_id, revision_id, employee_id, method)`, FKs `(company_id, revision_id)`, `(company_id, session_id)`, `(company_id, employee_id)` → `employees` | `(company_id, session_id, revision_id)`; employee FK index |
+| `session_tip_revisions` | `company_id`, `id`, `business_id`, `session_id`, `revision int`, `changed_by uuid` (user), `changed_at timestamptz`, `reason text NULL` | `CHECK (revision >= 1)`, `CHECK (reason IS NULL OR char_length(btrim(reason)) BETWEEN 1 AND 500)`, `UNIQUE (company_id, session_id, revision)`, FK `(company_id, business_id, session_id)` → `service_sessions` | the unique index (leading `company_id`); user FK index |
+| `session_tips` | `company_id`, `id`, `business_id`, `revision_id`, `session_id`, `employee_id`, `method text`, `amount numeric(14,3)` | `CHECK (method IN ('CASH','CARD'))`, `CHECK (amount > 0)`, `UNIQUE (company_id, revision_id, employee_id, method)`, business-qualified FKs: `(company_id, revision_id)`, `(company_id, business_id, session_id)` → `service_sessions` (it has `UNIQUE (company_id, business_id, id)`), `(company_id, business_id, employee_id)` → `employees` (`employees_company_business_id_key`) | `(company_id, session_id, revision_id)`; employee FK index |
 
 The current set of a visit is the entries of its highest revision (a revision with no entries means "no tips"). A deferred
-trigger (SECURITY INVOKER, as in spec 050) checks that a revision's entries belong to the same session and business.
+trigger (SECURITY INVOKER, as in spec 050) checks that a revision's entries belong to the same session as their revision;
+business consistency is enforced by the business-qualified foreign keys above, so a tip cannot name an employee of another
+business of the same company.
 Expand-only: new tables, no change to existing tables. Indexes on the new tables are created with them; no
 `CONCURRENTLY` is needed on new tables (ADR-0033 covers indexes added to existing tables).
 
@@ -140,7 +141,9 @@ Expand-only: new tables, no change to existing tables. Indexes on the new tables
   `{ "expected_revision": 0, "tips": [{ "employee_id": "uuid", "method": "CARD", "amount": "6.000" }], "reason": "…"? }`.
   `expected_revision` is `0` for the first entry. Amounts are canonical three-decimal KWD strings.
 - 200 returns `{ revision, tips: [...], total_cash, total_card }`.
-- `GET …/service-sessions/:sessionId/tips` (read) returns the current revision and set; guard `read:service-sessions:branch`.
+- `GET …/service-sessions/:sessionId/tips` returns the current revision and set (nothing else: no customer, no phone, no
+  history); guard **`record:service-sessions:branch`**, so the cashier who may record a tip can always reload the current set
+  and revision that the replacing PUT requires. The broader `read:service-sessions:branch` is not needed and not granted by this endpoint.
 - Errors in the envelope `{ code, message_ar, message_en }`: `VALIDATION_FAILED`, `FORBIDDEN`, `SESSION_NOT_FOUND`
   (also for an out-of-scope or foreign session), `TIP_WINDOW_CLOSED`, `TIP_SELF_FORBIDDEN`, `TIP_EMPLOYEE_NOT_PERFORMER`,
   `TIP_REVISION_CONFLICT` (409), `TIP_REASON_REQUIRED`, `TRANSACTION_RETRY_REQUIRED`. New codes are added to
@@ -149,8 +152,9 @@ Expand-only: new tables, no change to existing tables. Indexes on the new tables
 ### 5.5 Permissions
 
 No new permission. Recording and replacing use `record:service-sessions:branch` (defaults: owner, general manager, business
-manager, branch manager, cashier; grantable to others). Reading the current set uses `read:service-sessions:branch`
-(owner, general manager, business manager, branch manager by default). An employee seeing her own tips in her app belongs to
+manager, branch manager, cashier; grantable to others). Reading the current tip set (the `GET …/tips` above, needed to replace it) uses the **same
+record permission**, because the default cashier holds `record:` but not `read:service-sessions:branch`; the tip set is not
+exposed through any other read (day list columns stay under the existing read permission). An employee seeing her own tips in her app belongs to
 the staff-app rows, not here.
 
 ### 5.6 Events and audit
@@ -174,7 +178,7 @@ port; if a new read symbol is needed it is added to that port, not a new arrow.
 ### 5.8 Test plan
 
 - **Domain unit (no database):** `suggestTipSplit` (the example 8.000 → 6.000/2.000, three-way remainders, single performer,
-  zero-net visit, rounding), `validateTipSet` (empty set, duplicates, bounds, self rule, non-performer), `tipWindowOpen`
+  zero-net visit, 0.002 over four performers, never negative, sum equals the tip), `validateTipSet` (empty set, duplicates, bounds, self rule, non-performer), `tipWindowOpen`
   (month boundary, timezone, injected clock).
 - **Integration (real Postgres, one cloned DB per spec file):** TP-01…TP-14; concurrent replacements; retry with the same
   key; stale `expected_revision`; permission revoked during the lock wait; closed company; storage of insert-only revisions.
