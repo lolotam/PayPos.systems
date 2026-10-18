@@ -10,13 +10,15 @@ export function useCompanyNumbersScreen(companyId: string, userId: string) {
   const [editingId, setEditingId] = useState<string>();
   const save = useSetCompanyEmployeeNumber(companyId, userId);
   const saving = useRef(false);
+  const failed = useRef(false);
   saving.current = save.isPending;
+  failed.current = save.isError;
   const closeIfIdle = useCallback(() => {
-    // البحث المستقر بيوصل بعد الكتابة؛ لو الحفظ لسه شغّال المحرّر يفضل مفتوح عشان النتيجة ما تختفيش.
-    if (saving.current) return;
+    // البحث المستقر بيوصل بعد الكتابة؛ لو الحفظ شغّال أو نتيجته ظاهرة المحرّر يفضل مفتوح.
+    if (saving.current || failed.current) return;
     setEditingId(undefined);
   }, []);
-  const controls = useEmployeeListControls(closeIfIdle);
+  const controls = useEmployeeListControls(closeIfIdle, save.isPending);
   const list = useCompanyEmployeeNumbers(companyId, userId, controls.cursor, controls.q);
   const editing = list.data?.items.find((item) => item.employee_id === editingId);
   const onPage = (cursor: string | undefined) => {

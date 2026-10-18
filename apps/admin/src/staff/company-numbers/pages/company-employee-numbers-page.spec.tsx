@@ -6,6 +6,7 @@ import {
   companyId,
   editName,
   hangAfterFirstPage,
+  keepTakenFailureFromEarlySearch,
   listedPage,
   nextCursor,
   noura,
@@ -361,6 +362,10 @@ it('keeps the editor and its failure when paging and search are tried during a s
   });
   const row = screen.getByRole('row', { name: /Noura/ });
   expect((await within(row).findByRole('alert')).textContent).toContain(t('en', 'errors.EMPLOYEE_NUMBER_TAKEN'));
+});
+
+it('keeps a taken failure when a search was typed before the save', async () => {
+  await keepTakenFailureFromEarlySearch(api);
 });
 
 it('keeps a pending failure on the row that submitted it', async () => {

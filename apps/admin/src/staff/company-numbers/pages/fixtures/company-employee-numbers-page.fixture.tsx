@@ -1,6 +1,7 @@
 import { t, type Locale } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { expect, type Mock } from 'vitest';
 import { CompanyEmployeeNumbersPage } from '../company-employee-numbers-page';
 
 export const companyId = '01920000-0000-7000-8000-0000000000a1';
@@ -63,6 +64,35 @@ export async function openNoura(lang: Locale) {
 type ListReader = {
   mockImplementation: (implementation: () => Promise<unknown>) => unknown;
 };
+
+type NumbersApi = { GET: Mock; PUT: Mock };
+
+export async function keepTakenFailureFromEarlySearch(api: NumbersApi) {
+  let finish: (value: unknown) => void = () => undefined;
+  api.PUT.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  renderPage();
+  await openNoura('en');
+  fireEvent.change(screen.getByRole('searchbox', { name: t('en', 'staff.search') }), {
+    target: { value: '2' },
+  });
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '9' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalledTimes(1));
+  finish({
+    error: {
+      code: 'EMPLOYEE_NUMBER_TAKEN',
+      message_en: 'Synthetic taken',
+      message_ar: 'Synthetic taken ar',
+    },
+    response: { status: 409 },
+  });
+  await waitFor(() => {
+    expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20, q: '2' });
+    const row = screen.getByRole('row', { name: /Noura/ });
+    expect(within(row).getByRole('alert').textContent).toContain(t('en', 'errors.EMPLOYEE_NUMBER_TAKEN'));
+    expect(within(row).getByRole('textbox')).toBeTruthy();
+  });
+}
 
 export function hangAfterFirstPage(get: ListReader) {
   let reads = 0;
