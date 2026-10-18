@@ -429,6 +429,10 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   private-field list) and `attendance-monthly-report-csv.spec.ts` (its forbidden-words pattern includes `employee_number` and the Arabic label for it) — both change in 8c-5: the number is now allowed; phone, salary, IBAN and documents stay forbidden.
 - **Admin**: profile, list search, picker digit search, create-form field visible only with the permission, «007»
   normalisation, `NULL` shows «—», edit and start dialogs.
+- **Admin, add-employee form** (8c-10, PP-4.2), form tests `EN-18`: for a holder of `manage:employee-number:company`, the
+  field is shown when the capability read returns `can_type_number: true`; it is not rendered when it returns `false` for a DENY on the
+  selected business, or for a DENY on the selected primary branch; changing the selected branch re-asks the capability read
+  and hides or shows the field; a non-holder never sees the field.
 - **Admin, company screen «الأرقام الوظيفية»** (8c-10b, PP-4.1), screen tests `EN-17`: a holder of
   `manage:employee-number:company` alone (no staff-screen permission) reaches the screen and sees name, business and
   number only · an employee in another business of the company is listed and editable · an employee hidden by a DENY
@@ -471,7 +475,7 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 | 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field, a capability read `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` → `{ can_type_number: boolean }` (same FR-006 recheck, so the add form hides the field under a DENY), permission check and DENY recheck on the new employee's business and primary branch (FR-006, PP-4.2: `403 FORBIDDEN`, nothing created) (2) `EN-06` for create, `EN-07`, `EN-09`, `EN-09c`, `EN-09e`                                                           | 8c-2, 8c-6       | ready |
 | 8c-8  | `set-employee-number-start`                                                                                | (1) use case, `GET`/`PUT /v1/employee-numbering` (2) audit and once-only rule (3) `EN-11`                                               | 8c-2, 8c-6       | ready |
 | 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-4b, 8c-5 | ready |
-| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (hidden when a DENY covers the business/branch, PP-4.2) (2) edit action on the profile (3) "Start numbering from" dialog | 8c-7, 8c-8, 8c-9 | ready |
+| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (hidden when a DENY covers the business/branch, PP-4.2), with its `EN-18` form tests (2) edit action on the profile (3) "Start numbering from" dialog | 8c-7, 8c-8, 8c-9 | ready |
 | 8c-10b | Admin: company employee-numbers screen (PP-4.1)                                                           | (1) screen «الأرقام الوظيفية» on the DENY-filtered `GET /v1/employee-numbers` list: name, business, number, search box `q`, with its `EN-17` tests (number-only holder, other-business employee, DENY-filtered row) (2) edit action calling the 8c-6 `PUT`, with its `EN-17` tests (edit shows the new number, 409 shows the taken message) | 8c-6b, 8c-9 | ready |
 | 8c-11 | Contract: numbers for stragglers, then `NOT NULL`                                                          | (1) straggler backfill migration (2) `CHECK … NOT VALID` then `VALIDATE`; readers drop the `NULL` branch                               | 8c-2, 8c-3 in a released image | later release |
 
