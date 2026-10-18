@@ -29,7 +29,7 @@ const TIP_422 = [
 ] as const satisfies readonly SessionErrorCode[];
 
 it.each(TIP_422)('tip refusal %s is 422 with both messages', (code) => {
-  const sent = capture(new SessionError(code), code === 'TIP_SELF_FORBIDDEN' ? 403 : undefined);
+  const sent = capture(new SessionError(code), code === 'TIP_SELF_FORBIDDEN' ? 403 : 400);
   expect(sent.status).toBe(422);
   expect(sent.body).toMatchObject({ code, ...serviceSessionErrors[code] });
   expect(sent.body).not.toHaveProperty('details');
