@@ -3,6 +3,7 @@ import { nameAr, nameEn } from '../bilingual/names.js';
 import { page } from '../pagination/cursor.js';
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
+import { timestamp } from '../scalars/timestamp.js';
 import { employeeInputId } from './employee.js';
 
 export const setEmployeeNumberInput = z
@@ -47,6 +48,17 @@ export const employeeNumberListQuery = z
   })
   .meta({ id: 'EmployeeNumberListQuery' });
 
+export const setEmployeeNumberStartInput = z
+  .strictObject({ start_number: z.number().int().min(1).max(999999) })
+  .meta({ id: 'SetEmployeeNumberStartInput' });
+
+export const employeeNumbering = responseObject({
+  next_number: z.number().int().min(1).max(1_000_000),
+  start_number: z.number().int().min(1).max(999999).nullable(),
+  start_set_at: timestamp.nullable(),
+  can_manage: z.boolean(),
+}).meta({ id: 'EmployeeNumbering' });
+
 export type SetEmployeeNumberInput = z.infer<typeof setEmployeeNumberInput>;
 export type EmployeeNumberView = z.infer<typeof employeeNumberView>;
 export type EmployeeNumberCapabilityQuery = z.infer<typeof employeeNumberCapabilityQuery>;
@@ -54,3 +66,5 @@ export type EmployeeNumberCapability = z.infer<typeof employeeNumberCapability>;
 export type EmployeeNumberListItem = z.infer<typeof employeeNumberListItem>;
 export type EmployeeNumberPage = z.infer<typeof employeeNumberPage>;
 export type EmployeeNumberListQuery = z.infer<typeof employeeNumberListQuery>;
+export type SetEmployeeNumberStartInput = z.infer<typeof setEmployeeNumberStartInput>;
+export type EmployeeNumbering = z.infer<typeof employeeNumbering>;

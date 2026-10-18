@@ -17,6 +17,7 @@ import { EmployeeDefaultShiftsController } from './http/employee-default-shifts.
 import { EmployeeNumberCapabilityController } from './http/employee-number-capability.controller.ts';
 import { EmployeeNumberController } from './http/employee-number.controller.ts';
 import { EmployeeNumbersController, EMPLOYEE_NUMBERS_SEARCH } from './http/employee-numbers.controller.ts';
+import { EmployeeNumberingController } from './http/employee-numbering.controller.ts';
 import { employeeListSearch } from './persistence/employee-list-search.ts';
 import { EmployeeIbanController } from './http/employee-iban.controller.ts';
 import { MyScheduleController } from './http/my-schedule.controller.ts';
@@ -109,6 +110,7 @@ export const staffControllers = [
   EmployeeNumberController,
   EmployeeNumberCapabilityController,
   EmployeeNumbersController,
+  EmployeeNumberingController,
   EmployeeIbanController,
   ClockAttendanceController,
   ClockByCardController,
@@ -225,7 +227,7 @@ export function staffProviders(
     ...enrolProviders(database, ids, passkeys, logger),
     ...scheduleProviders(database, ids),
     ...defaultShiftsProviders(database, ids),
-    ...employeeNumberProviders(database, ids),
+    ...employeeNumberProviders(database, ids, systemClock),
     { provide: EMPLOYEE_NUMBERS_SEARCH, useValue: employeeListSearch },
     ...attendanceReportProviders(database, ids),
     ...leaveProviders(database, ids),

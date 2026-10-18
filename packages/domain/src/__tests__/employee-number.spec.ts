@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EMPLOYEE_NUMBER_MAX,
+  employeeNumberCounterAfterStart,
   firstFreeEmployeeNumber,
   nextEmployeeNumberCounter,
   parseEmployeeNumber,
@@ -68,6 +69,29 @@ describe('nextEmployeeNumberCounter', () => {
     [1_000_000, 1_000_000],
   ])('moves %s to %s and stops at one million', (assigned, next) => {
     expect(nextEmployeeNumberCounter(assigned)).toBe(next);
+  });
+});
+
+describe('employeeNumberCounterAfterStart', () => {
+  it.each([
+    [4, 1000, 1000],
+    [4, 2, 4],
+    [4, 4, 4],
+    [1, 1, 1],
+    [1, 999_999, 999_999],
+    [1_000_000, 999_999, 1_000_000],
+    [1_000_000, 1, 1_000_000],
+    [999_999, 1, 999_999],
+  ])('does not lower the counter (%s, %s) -> %s', (nextNumber, start, expected) => {
+    expect(employeeNumberCounterAfterStart(nextNumber, start)).toBe(expected);
+  });
+
+  it('never returns a value below the stored counter', () => {
+    for (const nextNumber of [1, 2, 4, 999_999, 1_000_000]) {
+      for (const start of [1, 2, 4, 999_999]) {
+        expect(employeeNumberCounterAfterStart(nextNumber, start)).toBe(Math.max(nextNumber, start));
+      }
+    }
   });
 });
 

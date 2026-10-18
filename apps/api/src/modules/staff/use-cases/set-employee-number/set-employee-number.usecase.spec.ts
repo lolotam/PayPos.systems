@@ -26,6 +26,7 @@ function harness(options: {
   refusal?: 'FORBIDDEN' | 'FEATURE_DISABLED' | null;
   refuseBranches?: readonly string[];
   held?: boolean;
+  companyFound?: boolean;
 } = {}) {
   const steps: string[] = [];
   const seen: { businessId?: string; branchIds?: readonly string[] } = {};
@@ -40,7 +41,10 @@ function harness(options: {
     return options.refusal ?? null;
   };
   const scope: SetEmployeeNumberScope = {
-    lockAccess: async () => mark('lockAccess'),
+    lockAccess: async () => {
+      mark('lockAccess');
+      return options.companyFound ?? true;
+    },
     readEmployee: async () => {
       mark('readEmployee');
       return options.row === undefined ? row() : options.row;
@@ -77,6 +81,12 @@ it('does not lock the counter when the first read is already the requested numbe
   const { steps, useCase } = harness({ row: row(8) });
   await expect(useCase.execute(command)).resolves.toEqual({ employee_id: 'employee', employee_number: 8 });
   expect(steps).toEqual(['lockAccess', 'readEmployee', 'recheck']);
+});
+
+it('refuses a missing company before reading the employee', async () => {
+  const { steps, useCase } = harness({ companyFound: false });
+  await expect(useCase.execute(command)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  expect(steps).toEqual(['lockAccess']);
 });
 
 it('stops before the recheck when the row is missing or belongs to another business', async () => {

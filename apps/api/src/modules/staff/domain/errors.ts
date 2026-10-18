@@ -16,3 +16,21 @@ export class SetEmployeeNumberError extends Error {
     super(code);
   }
 }
+
+/** رفض ضبط بداية الترقيم: مرة واحدة، وبعد إعادة فحص الصلاحية والميزة داخل المعاملة. */
+export class SetEmployeeNumberStartError extends Error {
+  /**
+   * يحمل كود الرفض إلى محول HTTP.
+   *
+   * @param code كود الرفض
+   */
+  constructor(
+    readonly code:
+      | 'FORBIDDEN'
+      | 'FEATURE_DISABLED'
+      | 'EMPLOYEE_NUMBER_START_ALREADY_SET'
+      | 'TRANSACTION_RETRY_REQUIRED',
+  ) {
+    super(code);
+  }
+}

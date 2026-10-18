@@ -15,6 +15,7 @@ import type {
   SetEmployeeNumberScope,
   SetEmployeeNumberTransactions,
 } from '../ports/employee-number.port.ts';
+import { retryableDatabaseCode, storedNumber } from './employee-number-row.ts';
 
 const NUMBER_KEY = 'employees_company_employee_number_key';
 
@@ -136,11 +137,6 @@ async function save(
   });
 }
 
-function storedNumber(value: number | string | null): number | null {
-  if (value === null) return null;
-  return typeof value === 'number' ? value : Number(value);
-}
-
 function mapped(error: unknown): never {
   const seen = new Set<unknown>();
   let code: string | undefined;
@@ -158,7 +154,6 @@ function mapped(error: unknown): never {
     if (constraint === undefined && typeof name === 'string') constraint = name;
   }
   if (code === '23505' && constraint === NUMBER_KEY) throw new SetEmployeeNumberError('EMPLOYEE_NUMBER_TAKEN');
-  if (code === '40001' || code === '40P01' || code === '55P03')
-    throw new SetEmployeeNumberError('TRANSACTION_RETRY_REQUIRED');
+  if (retryableDatabaseCode(error)) throw new SetEmployeeNumberError('TRANSACTION_RETRY_REQUIRED');
   throw error;
 }

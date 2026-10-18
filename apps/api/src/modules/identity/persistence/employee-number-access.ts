@@ -7,15 +7,20 @@ import { readFeatureEnabled } from './feature-reader.ts';
 const PERMISSION = 'manage:employee-number:company';
 
 /**
- * يقفل الشركة ثم كل العضويات بترتيب المعرف حتى لا يُسحب الإذن أثناء تعديل الرقم.
+ * يقفل الشركة النشطة ثم كل العضويات بترتيب المعرف حتى لا يُسحب الإذن أثناء تعديل الرقم.
+ * الشركة المحذوفة لا تُكمل القفل، لأن الكتابة بعدها كانت بتتم على مستأجر لا يُرى.
  *
  * @param tx معاملة تعديل الرقم
  * @param companyId الشركة المتحقق منها
- * @returns اكتمال الأقفال
+ * @returns true بعد قفل صف الشركة النشطة، وfalse دون قفل العضويات إن غاب
  */
-export async function lockEmployeeNumberAccess(tx: Tx, companyId: string): Promise<void> {
-  await tx.execute(sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL FOR NO KEY UPDATE`);
+export async function lockEmployeeNumberAccess(tx: Tx, companyId: string): Promise<boolean> {
+  const rows = await tx.execute(
+    sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL FOR NO KEY UPDATE`,
+  );
+  if (rows.length !== 1) return false;
   await tx.execute(sql`SELECT id FROM memberships WHERE company_id=${companyId} ORDER BY id FOR UPDATE`);
+  return true;
 }
 
 /**
@@ -53,4 +58,26 @@ function numberAllowed(
   const business = { companyId, businessId };
   if (!evaluateAccess(grants, PERMISSION, business)) return false;
   return branchIds.every((branchId) => evaluateAccess(grants, PERMISSION, { ...business, branchId }));
+}
+
+/**
+ * يعيد رفض صلاحية بداية الترقيم أو ميزة الموظفين على الشركة وحدها.
+ * الإعداد شركة واحدة بلا نشاط، فمنع نشاط أو فرع لا يغطي هذا الهدف ولا يمنع الضبط.
+ *
+ * @param tx معاملة الشركة
+ * @param companyId الشركة
+ * @param userId المستخدم
+ * @returns FORBIDDEN أو FEATURE_DISABLED أو null عند السماح
+ */
+export async function readEmployeeNumberCompanyAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null> {
+  const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
+  if (!time) return 'FORBIDDEN';
+  const at = new Date(time.at);
+  const access = await readAccessTransaction(tx, companyId, userId, at);
+  if (!evaluateAccess(access.grants, PERMISSION, { companyId })) return 'FORBIDDEN';
+  return (await readFeatureEnabled(tx, companyId, 'staff', at)) ? null : 'FEATURE_DISABLED';
 }

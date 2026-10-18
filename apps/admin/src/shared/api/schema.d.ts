@@ -822,6 +822,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/employee-numbering": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description A human holder of manage:employee-number:company and the staff feature. Company numbering screen. next_number is 1 when the company has no counter row. start_number and start_set_at are null until the one-time start is stored. can_manage is true exactly while that start has not been set, so the admin screen can still offer the dialog. */
+        get: operations["getEmployeeNumbering"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/employee-numbering/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description A human holder of manage:employee-number:company and the staff feature. Stores the one-time starting number. The counter becomes the greater of its current value and start_number, and existing employee numbers stay as they are. A second call returns EMPLOYEE_NUMBER_START_ALREADY_SET (409) and writes nothing. No Idempotency-Key. */
+        put: operations["setEmployeeNumberStart"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/schedules": {
         parameters: {
             query?: never;
@@ -8073,6 +8107,122 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getEmployeeNumbering: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The company employee-number counter */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        next_number: number;
+                        start_number: number | null;
+                        /** Format: date-time */
+                        start_set_at: string | null;
+                        can_manage: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setEmployeeNumberStart: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    start_number: number;
+                };
+            };
+        };
+        responses: {
+            /** @description The company employee-number counter after the start */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        next_number: number;
+                        start_number: number | null;
+                        /** Format: date-time */
+                        start_set_at: string | null;
+                        can_manage: boolean;
+                    };
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

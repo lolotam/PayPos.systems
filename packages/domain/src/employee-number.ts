@@ -34,6 +34,18 @@ export function nextEmployeeNumberCounter(assigned: number): number {
 }
 
 /**
+ * يحسب العدّاد بعد اختيار رقم البداية مرة واحدة.
+ * القاعدة (BR-6): العدّاد يصير الأكبر بين قيمته الحالية ورقم البداية، ولا يرجع للخلف أبداً.
+ *
+ * @param nextNumber العدّاد المخزّن حالياً
+ * @param start رقم البداية الذي اختاره المالك
+ * @returns العدّاد بعد البداية، ولا يقل عن العدّاد الحالي
+ */
+export function employeeNumberCounterAfterStart(nextNumber: number, start: number): number {
+  return Math.max(nextNumber, start);
+}
+
+/**
  * يحوّل نصًا مكتوبًا إلى رقم وظيفي، أو null لو مش رقم وظيفي صالح.
  * القاعدة (TD-3، EN-Q8): أرقام فقط بلا مسافة أو إشارة أو فاصلة أو صيغة علمية، والأصفار البادئة تُشال
  * («007» = 7)، والقيمة من 1 إلى 999999. مَن يستدعيها يقص المسافات قبلها لو النص جاي من خانة بحث.
