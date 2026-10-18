@@ -250,14 +250,17 @@ const inAppNotificationEnvelope = responseObject({
 const knownTemplates = new Set<string>(
   inAppNotification.options.map((option) => option.shape.template_key.value),
 );
-const isFutureTemplate = (item: unknown): boolean => {
-  if (typeof item !== 'object' || item === null || !('template_key' in item)) return false;
-  return typeof item.template_key === 'string' && !knownTemplates.has(item.template_key);
+const supportedRevision = 1;
+const isFutureVersion = (item: unknown): boolean => {
+  if (typeof item !== 'object' || item === null) return false;
+  const { template_key: key, template_revision: revision } = item as Record<string, unknown>;
+  if (typeof key === 'string' && !knownTemplates.has(key)) return true;
+  return typeof revision === 'number' && revision !== supportedRevision;
 };
 /**
- * بيقرأ صفحة إشعارات الجرس ويتخطى الإشعار اللي قالبه لسه نازل بعد الحزمة دي.
+ * بيقرأ صفحة إشعارات الجرس ويتخطى الإشعار اللي قالبه أو مراجعته لسه نازلة بعد الحزمة دي.
  * حزمة متصفح مفتوحة ممكن توصلها صفحة فيها `template_key` جديد نزل مع نشر السيرفر؛ لو فشل عنصر واحد كانت الصفحة كلها بتفشل والجرس يقف لحد إعادة التحميل.
- * التخطي مقصور على قالب مش معروف للحزمة؛ عنصر بقالب معروف ومعاملاته غلط بيرمي خطأ ظاهر زي ما كان، عشان عيب السيرفر ما يستخباش.
+ * التخطي مقصور على قالب مش معروف أو مراجعة (template_revision) أحدث من اللي الحزمة بتفهمها؛ عنصر بقالب ومراجعة معروفين ومعاملاته غلط بيرمي خطأ ظاهر زي ما كان، عشان عيب السيرفر ما يستخباش.
  * العنصر المتخطي يظهر بعد ما الحزمة الجديدة تتحمل، وعداد غير المقروء بيفضل من السيرفر.
  *
  * @param data جسم الرد كما جاء من السيرفر
@@ -266,7 +269,7 @@ const isFutureTemplate = (item: unknown): boolean => {
 export function readInAppNotificationPage(data: unknown): InAppNotificationPage {
   const envelope = inAppNotificationEnvelope.parse(data);
   const items = envelope.items
-    .filter((item) => !isFutureTemplate(item))
+    .filter((item) => !isFutureVersion(item))
     .map((item) => inAppNotification.parse(item));
   return { items, next_cursor: envelope.next_cursor };
 }

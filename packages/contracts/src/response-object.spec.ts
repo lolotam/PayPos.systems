@@ -203,6 +203,14 @@ it('readInAppNotificationPage skips an item this bundle cannot render instead of
   expect(page.next_cursor).toBe(clean.next_cursor);
 });
 
+it('readInAppNotificationPage skips a known template at a newer revision', () => {
+  const clean = validSample(inAppNotificationPage) as { items: Record<string, unknown>[]; next_cursor: string | null };
+  const known = clean.items[0];
+  const newer = { ...known, template_revision: 2, safe_parameters: [{ name: 'redesigned', type: 'text', value: 'x' }] };
+  const page = readInAppNotificationPage({ ...clean, items: [newer, known] });
+  expect(page.items).toHaveLength(1);
+});
+
 it('readInAppNotificationPage still fails on a known template with bad parameters', () => {
   const clean = validSample(inAppNotificationPage) as { items: Record<string, unknown>[]; next_cursor: string | null };
   const broken = { ...clean.items[0], safe_parameters: [] };
