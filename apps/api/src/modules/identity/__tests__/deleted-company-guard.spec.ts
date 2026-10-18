@@ -247,6 +247,7 @@ it('refuses a new device registration, an unclaimed token and a cashier PIN on t
     'UNAUTHENTICATED',
   ]);
   expect([pin.statusCode, errorEnvelope.parse(pin.json()).code]).toEqual([401, 'PIN_INVALID']);
-  const devices = await h.owner`SELECT id FROM devices WHERE company_id=${deletedCompany} AND label='Late till'`;
+  const devices =
+    await h.owner`SELECT id FROM devices WHERE company_id=${deletedCompany} AND label='Late till'`;
   expect(devices).toEqual([]);
 });

@@ -90,6 +90,13 @@ function readAccess(
   return db.withTenant(companyId, (tx) => readAccessTransaction(tx, companyId, userId), { userId });
 }
 
+async function companyIsActive(tx: Tx, companyId: string): Promise<boolean> {
+  const rows = await tx.execute(
+    sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL`,
+  );
+  return rows.length === 1;
+}
+
 /**
  * عضويات المستخدم السارية ومنحه جوه transaction الشركة.
  * مستأجر اتعمله soft-delete مش قابل للوصول حتى لأعضائه: RLS بيقارن company_id بس،
@@ -107,7 +114,7 @@ export async function readAccessTransaction(
   userId: string,
   decisionAt?: Date,
 ): ReturnType<AccessReader['accessIn']> {
-  if ((await tx.execute(sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL`)).length === 0) return { memberships: [], grants: [] };
+  if (!(await companyIsActive(tx, companyId))) return { memberships: [], grants: [] };
   const at = decisionAt === undefined ? sql`now()` : sql`${decisionAt.toISOString()}::timestamptz`;
   const active = sql`m.starts_at <= ${at} AND (m.ends_at IS NULL OR m.ends_at > ${at})`;
   const memberships = await tx.execute<{
