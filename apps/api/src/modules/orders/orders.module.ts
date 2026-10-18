@@ -25,6 +25,7 @@ import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sess
 import { ServiceLineEditHistoryQuery } from './queries/service-line-edits.query.ts';
 import { createServiceSessionTransactions } from './persistence/service-session-transactions.ts';
 import { bindLineEditReaders, createLineEditTransactions } from './persistence/line-edit-transactions.ts';
+import { createSessionTipsTransactions } from './persistence/session-tip-transactions.ts';
 import { createSessionRecovery, recoveryKeyHash } from './persistence/session-recovery.adapter.ts';
 import { sessionRecoveryPlace, sessionRecoveryRecord } from './persistence/session-recovery-read.adapter.ts';
 import { createSessionRecoveryConfirm } from './persistence/session-recovery-confirm.adapter.ts';
@@ -32,6 +33,7 @@ import { SessionRecoveryQuery } from './queries/session-recovery.query.ts';
 import { RecordServiceSessionUseCase } from './use-cases/record-service-session/record-service-session.usecase.ts';
 import { AppendServiceSessionLinesUseCase } from './use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
 import { EditServiceLinePriceUseCase } from './use-cases/edit-service-line-price/edit-service-line-price.usecase.ts';
+import { RecordSessionTipsUseCase } from './use-cases/record-session-tips/record-session-tips.usecase.ts';
 import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recovery/confirm-session-recovery.usecase.ts';
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
 import type { Clock } from './ports/service-session-transactions.port.ts';
@@ -83,6 +85,9 @@ export function ordersLineEditHistory(database: TenantWrappers) {
 export function ordersLineEdits(database: TenantWrappers) {
   return createLineEditTransactions(database, bindLineEditReaders);
 }
+export function ordersSessionTips(database: TenantWrappers) {
+  return createSessionTipsTransactions(database);
+}
 export function ordersTransactions(database: TenantWrappers, ids: IdGenerator, clock: Clock = systemClock) {
   return createServiceSessionTransactions(database, ids, (tx, context) => ({
     catalog: catalogReader(tx, context.companyId, context.businessId), customer: customerLookup(tx, context.companyId),
@@ -106,5 +111,6 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: ConfirmSessionRecoveryUseCase, useValue: database === undefined ? null : ordersRecoveryConfirm(database, ids, clock) },
     { provide: RecordServiceSessionUseCase, useValue: writes === null ? null : new RecordServiceSessionUseCase(writes.transactions, writes.recovery, ids, clock) },
     { provide: AppendServiceSessionLinesUseCase, useValue: writes === null ? null : new AppendServiceSessionLinesUseCase(writes.transactions, writes.recovery, ids, clock) },
-    { provide: EditServiceLinePriceUseCase, useValue: database === undefined ? null : new EditServiceLinePriceUseCase(ordersLineEdits(database), ids, clock) }];
+    { provide: EditServiceLinePriceUseCase, useValue: database === undefined ? null : new EditServiceLinePriceUseCase(ordersLineEdits(database), ids, clock) },
+    { provide: RecordSessionTipsUseCase, useValue: database === undefined ? null : new RecordSessionTipsUseCase(ordersSessionTips(database), ids, clock) }];
 }

@@ -11,3 +11,34 @@ export function compareEmployeeId(left: string, right: string): number {
   const lowerRight = right.toLowerCase();
   return lowerLeft < lowerRight ? -1 : lowerLeft > lowerRight ? 1 : 0;
 }
+
+/**
+ * يجمع هويات الموظفات ويزيل التكرار بلا التفات لحالة الحروف ويرتبها تصاعدياً.
+ * التوحيد قبل الترتيب يطابق قفل الصفوف وتقسيم العمولة، فالهوية نفسها لا تُقفل مرتين.
+ *
+ * @param lists قوائم الهويات من الناس والمجموعة الحالية والمجموعة المطلوبة
+ * @returns الهويات الصغيرة الفريدة مرتبة
+ */
+export function ascendingEmployeeIds(...lists: readonly (readonly string[])[]): string[] {
+  const ids = new Map<string, string>();
+  for (const list of lists) {
+    for (const id of list) ids.set(id.toLowerCase(), id.toLowerCase());
+  }
+  return [...ids.values()].sort(compareEmployeeId);
+}
+
+/**
+ * يقسم هويات مرتبة إلى دفعات بالحجم المعطى من غير أن يغيّر ترتيبها.
+ * الحجم حد القارئ؛ الدفعة الأخيرة قد تكون أقصر، والقائمة الفارغة لا تنتج دفعات.
+ *
+ * @param ids الهويات المرتبة مسبقاً
+ * @param size حد الدفعة، أكبر من صفر
+ * @returns الدفعات بنفس ترتيب المدخل
+ */
+export function employeeIdBatches(ids: readonly string[], size: number): string[][] {
+  const batches: string[][] = [];
+  for (let index = 0; index < ids.length; index += size) {
+    batches.push(ids.slice(index, index + size));
+  }
+  return batches;
+}
