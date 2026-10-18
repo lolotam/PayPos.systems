@@ -3517,6 +3517,8 @@ export interface components {
             recorded_at: string;
             late: boolean;
             edited?: boolean;
+            /** Format: date-time */
+            cancelled_at?: string;
         };
         ServiceSession: {
             /** Format: uuid */
@@ -3632,6 +3634,8 @@ export interface components {
                 late: boolean;
                 /** @enum {boolean} */
                 edited: true;
+                /** Format: date-time */
+                cancelled_at?: string;
             };
             session: {
                 /** Format: uuid */
@@ -3646,6 +3650,62 @@ export interface components {
             edited: true;
         };
         EditServiceLineResponse: components["schemas"]["EditServiceLineResponseFull"] | components["schemas"]["EditServiceLineResponseNarrow"];
+        CancelServiceLineInput: {
+            reason?: string;
+            expected_revision: number;
+            /** Format: uuid */
+            canceller_membership_id?: string;
+        };
+        CancelServiceLineResponseFull: {
+            line: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                session_id: string;
+                /** Format: uuid */
+                service_id: string;
+                input_index: number;
+                ordinal: number;
+                name_en: string;
+                name_ar: string | null;
+                list_price: components["schemas"]["SessionMoney"];
+                price: components["schemas"]["SessionMoney"];
+                discount: components["schemas"]["SessionMoney"];
+                net: components["schemas"]["SessionMoney"];
+                effective_discount_bps: number;
+                limit_bps_applied: number | null;
+                /** @enum {string} */
+                limit_source: "OWNER" | "PERSON" | "BUSINESS" | "NOT_CONFIGURED";
+                /** @enum {string} */
+                status: "CANCELLED";
+                revision: number;
+                rule_snapshot: components["schemas"]["ServiceCommissionRule"];
+                counts_snapshot: boolean;
+                catalog_revision: number;
+                has_performer_warning: boolean;
+                performers: components["schemas"]["SessionPerformer"][];
+                /** Format: uuid */
+                recorded_by: string;
+                /** Format: uuid */
+                recorded_by_membership_id: string;
+                /** Format: date-time */
+                recorded_at: string;
+                late: boolean;
+                edited?: boolean;
+                /** Format: date-time */
+                cancelled_at: string;
+            };
+            session: {
+                /** Format: uuid */
+                id: string;
+                total_net: components["schemas"]["SessionMoney"];
+            };
+        };
+        CancelServiceLineResponseNarrow: {
+            /** @enum {boolean} */
+            cancelled: true;
+        };
+        CancelServiceLineResponse: components["schemas"]["CancelServiceLineResponseFull"] | components["schemas"]["CancelServiceLineResponseNarrow"];
         ServiceLineChanged: {
             /** Format: uuid */
             line_id: string;

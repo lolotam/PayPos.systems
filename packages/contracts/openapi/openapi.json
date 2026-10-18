@@ -17906,6 +17906,11 @@
           },
           "edited": {
             "type": "boolean"
+          },
+          "cancelled_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
           }
         },
         "required": [
@@ -18390,6 +18395,11 @@
                 "enum": [
                   true
                 ]
+              },
+              "cancelled_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
               }
             },
             "required": [
@@ -18476,6 +18486,240 @@
           },
           {
             "$ref": "#/components/schemas/EditServiceLineResponseNarrow"
+          }
+        ]
+      },
+      "CancelServiceLineInput": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "canceller_membership_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "CancelServiceLineResponseFull": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "session_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "service_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "input_index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 19
+              },
+              "ordinal": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              },
+              "name_en": {
+                "type": "string"
+              },
+              "name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "list_price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "price": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "discount": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              },
+              "effective_discount_bps": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "limit_bps_applied": {
+                "nullable": true,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "limit_source": {
+                "type": "string",
+                "enum": [
+                  "OWNER",
+                  "PERSON",
+                  "BUSINESS",
+                  "NOT_CONFIGURED"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "CANCELLED"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "rule_snapshot": {
+                "$ref": "#/components/schemas/ServiceCommissionRule"
+              },
+              "counts_snapshot": {
+                "type": "boolean"
+              },
+              "catalog_revision": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "has_performer_warning": {
+                "type": "boolean"
+              },
+              "performers": {
+                "minItems": 1,
+                "maxItems": 4,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SessionPerformer"
+                }
+              },
+              "recorded_by": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "recorded_by_membership_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "recorded_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "late": {
+                "type": "boolean"
+              },
+              "edited": {
+                "type": "boolean"
+              },
+              "cancelled_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              }
+            },
+            "required": [
+              "id",
+              "session_id",
+              "service_id",
+              "input_index",
+              "ordinal",
+              "name_en",
+              "name_ar",
+              "list_price",
+              "price",
+              "discount",
+              "net",
+              "effective_discount_bps",
+              "limit_bps_applied",
+              "limit_source",
+              "status",
+              "revision",
+              "rule_snapshot",
+              "counts_snapshot",
+              "catalog_revision",
+              "has_performer_warning",
+              "performers",
+              "recorded_by",
+              "recorded_by_membership_id",
+              "recorded_at",
+              "late",
+              "cancelled_at"
+            ],
+            "additionalProperties": false
+          },
+          "session": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "total_net": {
+                "$ref": "#/components/schemas/SessionMoney"
+              }
+            },
+            "required": [
+              "id",
+              "total_net"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "line",
+          "session"
+        ],
+        "additionalProperties": false
+      },
+      "CancelServiceLineResponseNarrow": {
+        "type": "object",
+        "properties": {
+          "cancelled": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "cancelled"
+        ],
+        "additionalProperties": false
+      },
+      "CancelServiceLineResponse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/CancelServiceLineResponseFull"
+          },
+          {
+            "$ref": "#/components/schemas/CancelServiceLineResponseNarrow"
           }
         ]
       },
