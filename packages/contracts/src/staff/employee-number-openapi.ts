@@ -48,7 +48,7 @@ export const employeeNumberPaths = {
     get: {
       operationId: 'employeeNumberCapability',
       description:
-        'Authorized exactly like create-employee: manage:employees:business on the business and primary_branch_id, plus the staff feature, inside the creation lock. A primary branch outside that business is EMPLOYEE_BRANCH_NOT_FOUND (404) before permission. can_type_number is true only when the caller holds manage:employee-number:company with no DENY on that business or primary branch. Missing the number permission or any DENY returns false, not 403. No Idempotency-Key.',
+        'Authorized exactly like create-employee: manage:employees:business on the business and primary_branch_id, plus the staff feature, read without taking the creation locks. A primary branch outside that business is EMPLOYEE_BRANCH_NOT_FOUND (404) before permission. can_type_number is true only when the caller holds manage:employee-number:company with no DENY on that business or primary branch. Missing the number permission or any DENY returns false, not 403. No Idempotency-Key.',
       parameters: [
         { in: 'header', name: 'x-company-id', required: true, schema: { type: 'string', format: 'uuid' } },
         {

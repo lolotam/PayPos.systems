@@ -324,7 +324,7 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 - `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` · authorized exactly like create-employee: `manage:employees:business` evaluated on the business AND the selected
   `primary_branch_id` (the same check as `lockEmployeeCreationAccess`), so a creator who holds it only for that branch can ask · feature flag `staff`, standard
   error envelope (8c-7, PP-4.2) · `primary_branch_id` must belong to `businessId` in the caller's company, else
-  `404 NOT_FOUND` · returns `{ can_type_number: boolean }`: true only when the caller holds
+  `404 EMPLOYEE_BRANCH_NOT_FOUND` (the same code create-employee returns) · returns `{ can_type_number: boolean }`: true only when the caller holds
   `manage:employee-number:company` AND no DENY covers the business or that primary branch (the same FR-006 recheck);
   a caller without the number permission gets `false`, not `403`. `Idempotency-Key`: not required (read).
 - `GET /v1/businesses/{businessId}/employees/{employeeId}` and the list items (existing) gain

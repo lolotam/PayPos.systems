@@ -20,6 +20,18 @@ export async function authorizeEmployeeCreation(
   return lockEmployeeCreationAccess(tx, companyId, userId, businessId, branchId);
 }
 
+export async function readEmployeeCreationAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+) {
+  // نموذج الإضافة يسأل مع كل فرع؛ القراءة بلا أقفال حتى لا تعطل الإنشاء وتعديل الصلاحيات.
+  validateEmployeeBranch(businessId, await employeeWorkplace(tx, companyId, businessId, branchId));
+  return readEmployeeBranchAccess(tx, companyId, userId, businessId, [branchId]);
+}
+
 export function employeeContext(tx: Tx, companyId: string, record: EmployeeRecord) {
   return employeeWorkplace(tx, companyId, record.business_id, record.primary_branch_id);
 }

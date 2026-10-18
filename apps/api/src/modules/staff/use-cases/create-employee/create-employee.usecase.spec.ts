@@ -19,6 +19,7 @@ const command = {
 function fixture() {
   const scope: EmployeeCreationScope = {
     authorize: vi.fn(async () => true),
+    readCreationAccess: vi.fn(async () => true),
     context: vi.fn(async () => ({
       businessExists: true,
       branchBusinessId: 'business',

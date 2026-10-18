@@ -15,6 +15,14 @@ export interface EmployeeCreationScope {
    */
   authorize(businessId: string, branchId: string): Promise<boolean>;
   /**
+   * يقرأ إذن الإنشاء على النشاط والفرع بلا أقفال؛ معاينة النموذج تتكرر ولا يجوز أن تعطّل الكتابة.
+   *
+   * @param businessId النشاط المستهدف
+   * @param branchId الفرع الأساسي المطلوب
+   * @returns هل يملك الفاعل الإذن الحي؛ يرفض الفرع الخارجي أو الميزة المعطلة بخطأ مسمى
+   */
+  readCreationAccess(businessId: string, branchId: string): Promise<boolean>;
+  /**
    * يقرأ مرجع العمل داخل الشركة كي تفحص دوال المجال تبعية الفرع للنشاط.
    *
    * @param record البيانات المطلوب فحصها

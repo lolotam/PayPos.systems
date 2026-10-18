@@ -1,6 +1,8 @@
 import { createdEmployee, employeeNumberCapability } from '@pospay/contracts';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { readCounter, setCounter, insertHeldNumbers, employeeNumberIds, type EmployeeFixture } from './employee-number-assign.fixture.ts';
+import { typedEmployeeNumberTaken } from '../persistence/set-employee-number.adapter.ts';
+import { readCounter, setCounter, insertHeldNumbers, employeeNumberIds, grantEmployeeCreation, type EmployeeFixture } from './employee-number-assign.fixture.ts';
 import {
   clearNumberGrants,
   executeCreate,
@@ -81,6 +83,13 @@ it.each([
 ])('EN-07 rejects a number held by a %s employee and creates nothing', async (label, deleted, employeeNumber) => {
   await setCounter(f, 40_000);
   await insertHeldNumbers(f, employeeNumber, 1, { deleted });
+  if (deleted) {
+    expect(
+      await f.db.withTenant(f.company, (tx) =>
+        typedEmployeeNumberTaken(tx, f.company, employeeNumber),
+      ),
+    ).toBe(true);
+  }
   const name = `EN-07 ${label}`;
   const response = await post(createBody(name, employeeNumber), f.ownerCookie);
   expect(response.status).toBe(409);
@@ -228,6 +237,86 @@ it('EN-09e refuses a caller without manage:employees:business', async () => {
   const response = await readCapability(f.cookie, businessId, branchId);
   expect(response.status).toBe(403);
   expect(response.body['code']).toBe('FORBIDDEN');
+});
+
+it('answers 200 when manage:employees:business is held only on the selected branch', async () => {
+  await f.h.owner`DELETE FROM permission_overrides
+    WHERE company_id=${f.company} AND membership_id=${f.memberId}
+      AND permission_code='manage:employees:business' AND scope_type='BUSINESS' AND scope_id=${f.business}`;
+  const grant = employeeNumberIds.newId();
+  await f.h.owner`INSERT INTO permission_overrides
+    (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES (${f.company},${grant},${f.memberId},'manage:employees:business','ALLOW','BRANCH',${f.branch},'Synthetic branch grant',${f.userId})`;
+  try {
+    const response = await readCapability(f.cookie);
+    expect(response.status).toBe(200);
+  } finally {
+    await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${grant}`;
+    await grantEmployeeCreation(f);
+  }
+});
+
+it.each([
+  ['missing', ''],
+  ['malformed', '?primary_branch_id=not-a-uuid'],
+])('rejects a %s primary_branch_id', async (_label, query) => {
+  const response = await f.h.send(
+    'GET',
+    `/v1/businesses/${f.business}/employee-number-capability${query}`,
+    { cookie: f.ownerCookie, company: f.company },
+  );
+  expect(response.status).toBe(400);
+});
+
+it('reports true for the owner when no DENY is present', async () => {
+  await clearNumberGrants(f);
+  const response = await readCapability(f.ownerCookie);
+  expect(response.status).toBe(200);
+  expect(employeeNumberCapability.parse(response.body)).toEqual({ can_type_number: true });
+});
+
+it('does not block while another transaction holds the company row FOR UPDATE', async () => {
+  let release!: () => void;
+  const released = new Promise<void>((done) => {
+    release = done;
+  });
+  let held!: () => void;
+  const holding = new Promise<void>((done) => {
+    held = done;
+  });
+  const holder = f.db.withTenant(
+    f.company,
+    async (tx) => {
+      await tx.execute(sql`SELECT id FROM companies WHERE id=${f.company} FOR UPDATE`);
+      held();
+      await released;
+    },
+    { userId: f.userId },
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let holderError: unknown;
+  const ended = holder.then(
+    () => 'ended' as const,
+    (error: unknown) => {
+      holderError = error;
+      return 'failed' as const;
+    },
+  );
+  try {
+    const gate = await Promise.race([holding.then(() => 'held' as const), ended]);
+    if (gate !== 'held') throw holderError ?? new Error('company lock ended before the capability read');
+    const response = await Promise.race([
+      readCapability(f.ownerCookie),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('CAPABILITY_BLOCKED_ON_COMPANY_LOCK')), 1_500);
+      }),
+    ]);
+    expect(response.status).toBe(200);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    release();
+    await ended;
+  }
 });
 
 it('a typed create racing a hand edit stores the number once', async () => {
