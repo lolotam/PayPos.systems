@@ -28,7 +28,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | **Implementer** — code, tests **and migrations** | **Grok CLI, `grok-4.7`, reasoning effort high** — owner's choice 2026-10-14 (replaces Codex Sol 6.1; switched from `grok-4.7-build-fast` the same evening) | yes, in its own worktree |
 | **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
 | Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
-| Review layer 2 | a fresh Claude reviewer (new subagent, no prior context); the confirm round uses another fresh one | no |
+| Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff and the spec only, never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
 | Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
 | Fixer | the implementer, resuming **its own Grok session** with only the findings (§4); the orchestrator only for one-line fixes | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
@@ -75,7 +75,7 @@ moment it happens, in the owner report. Never switch to a metered provider witho
 | 5 | Guard pass: `clean-code-guard` on production code, `test-guard` on tests, `docs-guard` on docs (global `CLAUDE.md` guard workflow) | orchestrator | findings fixed or recorded |
 | 6 | Database review — **mandatory** when the PR touches `packages/db/**` (schema, migration, RLS, grants, seed) | Codex astra 6 medium | no open P0/P1 (§5 checklist) |
 | 7 | Review layer 1 | Codex astra 6 medium | findings fixed by Grok in its resumed session, or deferred per §2 |
-| 8 | Review layer 2, then a confirm round | two fresh Claude reviewers | every earlier finding confirmed fixed |
+| 8 | Review layer 2 — one Sonnet 5.5 reviewer (§8 rule 5); no separate confirm round, the four bots confirm on the head SHA in step 9 | fresh Claude reviewer | its findings fixed by Grok or deferred per §2 |
 | 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed, and every inline finding is fixed or deferred per §2 |
 | 10 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
 | 11 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
@@ -213,7 +213,43 @@ The server is shared: never touch another project's containers, databases or fil
 
 ---
 
-## 8. Never
+## 8. Claude quota discipline
+
+Claude is the scarce quota (owner's Max plan, 2026-10-18: weekly 74 % used with 4 days left, plus metered overage). Every
+rule below moves work to a model or a script that does not draw on it. Judgement stays on Claude; reading, waiting and
+typing do not.
+
+1. **Wait with scripts, not with the model.** A background watcher is a shell loop that exits on the one event that
+   matters (merged, CI failed, all bots answered on the head SHA). Never wake the orchestrator on a timer or per
+   notification to look at nothing. Each wake-up re-reads the whole context, so a 700 K context makes every idle poll
+   expensive.
+2. **Keep the orchestrator context small.** Past roughly 300 K tokens, write a handover note (state of every open PR,
+   branch, worktree, session id, next action — about 30 lines, in `docs/journey/` or the scratchpad) and continue in a
+   fresh session from that note instead of carrying the history.
+3. **Choose the model per session.** Sessions that only continue a PR, write documentation or answer bot findings run on
+   Sonnet or Haiku at medium effort. High effort and the strongest model are for design advice, risky slices (§3 step 2)
+   and P0/P1 judgement only.
+4. **Fix rounds go to Grok.** When a bot finds something, the findings go to the implementer's resumed Grok session
+   (§4 rule 2, `file:line — what is wrong — what done looks like`). Claude judges whether the fix is right; it does not
+   retype it. A Claude session fixes a finding itself only when it is a one-line change.
+5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
+   (review and confirm round). It gets the diff and the spec, not the session history, so its context stays small. Use high
+   effort, or a reviewer from another vendor, when the PR touches money, tenant isolation, auth or migrations. A docs-only
+   PR gets no Claude reviewer. The confirm round is dropped: the four bots re-review the head SHA after every push.
+6. **Drafts are written by cheaper models.** First drafts of specs, ADRs, journey docs and the HANDOVER go to Codex or a
+   free model (GLM) and Claude edits them. Claude writes a document from scratch only when it records a decision it
+   alone has the context for.
+7. **The roadmap is edited by a script.** After a merge, write the changed rows as `[{ "code": "…", "status": "done",
+   "ref": "PR #n" }]` and run `node scripts/roadmap/set-status.mjs roadmap.json updates.json`. It sets status and ref by
+   code anywhere in the file (phases, gates, track items, partner requests), bumps `updated`, and refuses an unknown
+   code or status before changing anything. Read the live page, run the script on a copy of `roadmap.json`, republish.
+   Do not write a new script each time.
+8. **Report the draw.** When the owner asks about quota, answer from the context sizes of the sessions and the number of
+   wake-ups, not from guesses; the app does not expose per-session numbers.
+
+---
+
+## 9. Never
 
 - Never let Grok commit, merge, push, or touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
