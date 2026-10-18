@@ -237,7 +237,7 @@ typing do not.
    Grok failures on one brief the orchestrator implements (§1 fallback).
 5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
    (review and confirm round). It gets the diff, the spec and the governing documents (`CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, the ADRs the slice cites), never the session history, so its context stays small. Use high
-   effort when the PR touches money, tenant isolation, auth or migrations, (the other-vendor reviewer is review layer 1, Codex astra 6, which already runs on every PR in §3 step 7). A docs-only
+   effort when the PR touches money, tenant isolation, auth or migrations, (the other-vendor reviewer is review layer 1, Codex astra 6, which already runs on every code PR in §3 step 7; the docs-only lane skips it and has no layer 2 either). A docs-only
    PR gets no Claude reviewer. The confirm round is dropped: the four bots re-review the head SHA after every push.
 6. **Drafts are written by cheaper models.** (Draft writer role, listed in §1.) First drafts of specs, ADRs, journey docs and the HANDOVER go to Codex or a
    free model (GLM) and Claude edits them. Claude writes a document from scratch only when it records a decision it
