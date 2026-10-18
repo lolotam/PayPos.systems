@@ -70,14 +70,13 @@ export function useSetCompanyEmployeeNumber(companyId: string, userId: string) {
     retry: false,
     mutationFn: (input: { businessId: string; employeeId: string; employeeNumber: number }) =>
       writeNumber(companyId, input.businessId, input.employeeId, input.employeeNumber),
-    onSuccess: async (saved) => {
+    onSuccess: (saved) => {
       client.setQueriesData<EmployeeNumberPage>({ queryKey: [...key] }, (page) =>
         page ? withSavedNumber(page, saved.employee_id, saved.employee_number) : page,
       );
-      await Promise.all([
-        client.invalidateQueries({ queryKey: [...key] }),
-        client.invalidateQueries({ queryKey: ['employees', companyId] }),
-      ]);
+      // انتظار الـ refetch كان بيخلّي الحفظ معلّق والمحرّر مفتوح لو القائمة اتعلّقت.
+      void client.invalidateQueries({ queryKey: [...key] });
+      void client.invalidateQueries({ queryKey: ['employees', companyId] });
     },
   });
 }

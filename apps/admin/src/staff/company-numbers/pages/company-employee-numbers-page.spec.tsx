@@ -67,7 +67,7 @@ it('names each edit button with the employee name', async () => {
   expect(screen.getByRole('button', { name: editName('en', 'Noura') })).toBeTruthy();
 });
 
-it('shows the saved number from the cache while the list refetch is still pending', async () => {
+it('closes the editor after a save while the list refetch hangs', async () => {
   const reads = hangAfterFirstPage(api.GET);
   api.PUT.mockResolvedValue({ data: { employee_id: nouraId, employee_number: 7 } });
   renderPage();
@@ -83,9 +83,13 @@ it('shows the saved number from the cache while the list refetch is still pendin
   const row = screen.getByRole('row', { name: /Noura/ });
   await waitFor(() => expect(within(row).getByText('7')).toBeTruthy());
   expect(within(row).queryByText('4')).toBeNull();
+  expect(screen.queryByRole('textbox')).toBeNull();
+  expect((screen.getByRole('button', { name: editName('en', 'Noura') }) as HTMLButtonElement).disabled).toBe(false);
+  expect((screen.getByRole('button', { name: editName('en', 'Heba') }) as HTMLButtonElement).disabled).toBe(false);
+  expect((screen.getByRole('searchbox', { name: t('en', 'staff.search') }) as HTMLInputElement).disabled).toBe(false);
+  expect((screen.getByRole('button', { name: t('en', 'staff.next') }) as HTMLButtonElement).disabled).toBe(false);
   expect(noura.employee_number).toBe(4);
   expect(reads()).toBeGreaterThan(1);
-  expect(screen.getByRole('textbox')).toBeTruthy();
 });
 
 it('does not send an invalid number', async () => {
@@ -405,7 +409,7 @@ it('keeps a pending success on the row that submitted it', async () => {
   finish({ data: { employee_id: nouraId, employee_number: 6 } });
   const row = screen.getByRole('row', { name: /Noura/ });
   await waitFor(() => expect(within(row).getByText('6')).toBeTruthy());
-  expect(within(row).getByRole('textbox')).toBeTruthy();
+  expect(within(row).queryByRole('textbox')).toBeNull();
   expect(within(screen.getByRole('row', { name: /Heba/ })).queryByRole('textbox')).toBeNull();
   expect(api.PUT).toHaveBeenCalledTimes(1);
 });
