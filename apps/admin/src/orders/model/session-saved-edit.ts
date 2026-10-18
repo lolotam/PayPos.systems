@@ -1,0 +1,47 @@
+import type { EditServiceLineResponse } from '@pospay/contracts';
+
+export type SavedLineEdit =
+  | { edited: true; revision: number; figures: 'FROM_RESPONSE'; price: string; discount: string; net: string }
+  | { edited: true; revision: number; figures: 'UNKNOWN' }
+  | { edited: true; revision: number; figures: 'SNAPSHOT' };
+export type SavedVisitEdit = {
+  sessionId: string; total: 'SNAPSHOT' | 'FROM_RESPONSE' | 'UNKNOWN'; totalNet: string; lines: Record<string, SavedLineEdit>;
+};
+type SavedVisitSnapshot = { id: string; total_net: string; lines: readonly { id: string; revision: number }[] };
+
+// الرد الضيق بيأكد الحفظ من غير أرقام، فالأرقام القديمة تتخبى؛ المراجعة مش مصدر علامة «اتعدّل» (FR-014، FR-019).
+export function emptySavedVisit(sessionId: string, totalNet: string): SavedVisitEdit {
+  return { sessionId, total: 'SNAPSHOT', totalNet, lines: {} };
+}
+
+export function savedLineFigures(line: { price: string; discount: string; net: string }, edit: SavedLineEdit | undefined) {
+  if (edit?.figures === 'UNKNOWN') return null;
+  if (edit?.figures === 'FROM_RESPONSE') return { price: edit.price, discount: edit.discount, net: edit.net };
+  return { price: line.price, discount: line.discount, net: line.net };
+}
+
+// الإلحاق بيستبدل كائن الجلسة ونفس id. العلامة مش من revision، وأرقام الرد القديم مش تفضل مخبّية السناب شوت الجديد.
+export function reconcileSavedVisit(visit: SavedVisitEdit, session: SavedVisitSnapshot): SavedVisitEdit {
+  if (visit.sessionId !== session.id) return emptySavedVisit(session.id, session.total_net);
+  const lines: Record<string, SavedLineEdit> = {};
+  for (const line of session.lines) {
+    const edit = visit.lines[line.id];
+    if (!edit) continue;
+    lines[line.id] = { edited: true, revision: Math.max(edit.revision, line.revision), figures: 'SNAPSHOT' };
+  }
+  return { sessionId: session.id, total: 'SNAPSHOT', totalNet: session.total_net, lines };
+}
+
+export function applySavedLineEdit(visit: SavedVisitEdit, sessionId: string, lineId: string, response: EditServiceLineResponse, revisionUsed: number): SavedVisitEdit {
+  if ('line' in response) {
+    const line = response.line;
+    return {
+      sessionId, total: 'FROM_RESPONSE', totalNet: response.session.total_net,
+      lines: { ...visit.lines, [lineId]: { edited: true, revision: line.revision, figures: 'FROM_RESPONSE', price: line.price, discount: line.discount, net: line.net } },
+    };
+  }
+  return {
+    sessionId, total: 'UNKNOWN', totalNet: visit.totalNet,
+    lines: { ...visit.lines, [lineId]: { edited: true, revision: revisionUsed + 1, figures: 'UNKNOWN' } },
+  };
+}

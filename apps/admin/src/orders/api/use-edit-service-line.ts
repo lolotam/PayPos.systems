@@ -1,5 +1,5 @@
 'use client';
-import { editServiceLineResponse, type EditServiceLineInput } from '@pospay/contracts';
+import { editServiceLineResponse, type EditServiceLineInput, type EditServiceLineResponse } from '@pospay/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { apiClient } from '@/shared/api/client';
@@ -7,32 +7,60 @@ import type { SessionServiceScope } from './use-session-services';
 
 const editPath = '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}';
 type EditAttempt = { sessionId: string; lineId: string; body: EditServiceLineInput };
+type Held = { key: string; fingerprint: string };
+type PatchFailure = { ok: false; error: unknown };
+type PatchSuccess = { ok: true; value: EditServiceLineResult };
+export type EditServiceLineResult = { response: EditServiceLineResponse; revisionUsed: number };
 
 // نفس المفتاح يتكرر لو الشبكة قطعت والقيم ما اتغيرتش؛ مفتاح جديد بعد النجاح أو لما الجسم يتغير.
-export function useEditServiceLine(scope: SessionServiceScope) {
+function requestBody(body: EditServiceLineInput) {
+  return {
+    price: body.price, discount: body.discount, expected_revision: body.expected_revision,
+    ...(body.reason === undefined ? {} : { reason: body.reason }),
+    ...(body.editor_membership_id === undefined ? {} : { editor_membership_id: body.editor_membership_id }),
+  };
+}
+
+function staleRevision(error: unknown, sent: number): number | null {
+  if (!error || typeof error !== 'object') return null;
+  const body = error as { status?: unknown; code?: unknown; details?: unknown };
+  if (body.status !== 409 || body.code !== 'SESSION_LINE_REVISION_STALE' || !body.details || typeof body.details !== 'object') return null;
+  const current = (body.details as { current_revision?: unknown }).current_revision;
+  return typeof current === 'number' && Number.isInteger(current) && current > sent ? current : null;
+}
+
+async function patchLine(scope: SessionServiceScope, sessionId: string, lineId: string, body: EditServiceLineInput, held: { current: Held | null }): Promise<PatchSuccess | PatchFailure> {
+  const fingerprint = JSON.stringify({ sessionId, lineId, body });
+  const attempt = held.current?.fingerprint === fingerprint ? held.current : { key: crypto.randomUUID(), fingerprint };
+  held.current = attempt;
+  const result = await apiClient().PATCH(editPath, {
+    params: { header: { 'x-company-id': scope.companyId, 'Idempotency-Key': attempt.key },
+      path: { businessId: scope.businessId, branchId: scope.branchId, sessionId, lineId } }, body: requestBody(body),
+  });
+  if (result.error) return { ok: false, error: { ...result.error, status: result.response.status } };
+  const parsed = editServiceLineResponse.safeParse(result.data);
+  if (!parsed.success) return { ok: false, error: Object.assign(parsed.error, { status: result.response.status }) };
+  held.current = null;
+  return { ok: true, value: { response: parsed.data, revisionUsed: body.expected_revision } };
+}
+
+// محاولة واحدة زيادة لما المراجعة تتحرك؛ المفتاح بيتجدد لأن الجسم اتغير، ومفيش محاولة تالتة.
+async function submitEdit(scope: SessionServiceScope, attempt: EditAttempt, held: { current: Held | null }, retryStaleOnce: boolean): Promise<EditServiceLineResult> {
+  const first = await patchLine(scope, attempt.sessionId, attempt.lineId, attempt.body, held);
+  if (first.ok) return first.value;
+  const next = retryStaleOnce ? staleRevision(first.error, attempt.body.expected_revision) : null;
+  if (next === null) throw first.error;
+  const second = await patchLine(scope, attempt.sessionId, attempt.lineId, { ...attempt.body, expected_revision: next }, held);
+  if (second.ok) return second.value;
+  throw second.error;
+}
+
+export function useEditServiceLine(scope: SessionServiceScope, retryStaleOnce = false) {
   const client = useQueryClient();
-  const held = useRef<{ key: string; fingerprint: string } | null>(null);
+  const held = useRef<Held | null>(null);
   return useMutation({
-    mutationKey: ['edit-service-line', scope], retry: false, gcTime: 0, networkMode: 'always',
-    mutationFn: async ({ sessionId, lineId, body }: EditAttempt) => {
-      const fingerprint = JSON.stringify({ sessionId, lineId, body });
-      const attempt = held.current?.fingerprint === fingerprint ? held.current : { key: crypto.randomUUID(), fingerprint };
-      held.current = attempt;
-      const payload = {
-        price: body.price, discount: body.discount, expected_revision: body.expected_revision,
-        ...(body.reason === undefined ? {} : { reason: body.reason }),
-        ...(body.editor_membership_id === undefined ? {} : { editor_membership_id: body.editor_membership_id }),
-      };
-      const result = await apiClient().PATCH(editPath, {
-        params: { header: { 'x-company-id': scope.companyId, 'Idempotency-Key': attempt.key },
-          path: { businessId: scope.businessId, branchId: scope.branchId, sessionId, lineId } }, body: payload,
-      });
-      if (result.error) throw { ...result.error, status: result.response.status };
-      const parsed = editServiceLineResponse.safeParse(result.data);
-      if (!parsed.success) throw Object.assign(parsed.error, { status: result.response.status });
-      held.current = null;
-      return parsed.data;
-    },
+    mutationKey: ['edit-service-line', scope, retryStaleOnce], retry: false, gcTime: 0, networkMode: 'always',
+    mutationFn: (attempt: EditAttempt) => submitEdit(scope, attempt, held, retryStaleOnce),
     onSuccess: (_data, { sessionId, lineId }) => {
       void client.invalidateQueries({ queryKey: ['branch-day-sessions', scope.companyId, scope.businessId, scope.branchId, scope.userId] });
       void client.invalidateQueries({ queryKey: ['service-line-edits', scope.companyId, scope.businessId, scope.branchId, scope.userId, sessionId, lineId] });
