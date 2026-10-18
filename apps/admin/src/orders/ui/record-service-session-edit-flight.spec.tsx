@@ -38,9 +38,14 @@ function twoLineResult() {
   const session = { ...response.session, lines: [savedLine, second] };
   return transition(initial, { type: 'RECORDED', attempt: recordAttempt, response: { outcome: 'COMPLETE', session, rejected_lines: [] } });
 }
-function Harness({ seed, store, hideSession = false }: { seed: SessionRecordingResult; store: SessionAttemptJournal; hideSession?: boolean }) {
+function Harness({ seed, store, hideSession = false, session, recover = false }: {
+  seed: SessionRecordingResult; store: SessionAttemptJournal; hideSession?: boolean;
+  session?: NonNullable<SessionRecordingResult['session']>; recover?: boolean;
+}) {
   const [result, setResult] = useState(seed);
-  const shown = hideSession ? { ...result, session: null } : result;
+  const withSession = session ? { ...result, session } : result;
+  const shown = hideSession ? { ...withSession, session: null }
+    : recover ? { ...withSession, feedback: { kind: 'UNRESOLVED' as const }, attempt: recordAttempt } : withSession;
   const recording: SessionRecordingController = {
     result: shown, journal: store, retry: async () => undefined, selectCustomer: () => undefined, replaceResult: setResult,
     submit: async () => { setResult((current) => ({ ...current, feedback: { kind: 'SAVING' } })); },
@@ -49,7 +54,8 @@ function Harness({ seed, store, hideSession = false }: { seed: SessionRecordingR
 }
 function mountVisit(seed: SessionRecordingResult, store: SessionAttemptJournal) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false }, queries: { retry: false } } });
-  const ui = (hideSession: boolean) => <QueryClientProvider client={client}><Harness seed={seed} store={store} hideSession={hideSession} /></QueryClientProvider>;
+  const ui = (hideSession: boolean, patch?: { session?: NonNullable<SessionRecordingResult['session']>; recover?: boolean }) =>
+    <QueryClientProvider client={client}><Harness seed={seed} store={store} hideSession={hideSession} {...(patch?.session ? { session: patch.session } : {})} recover={patch?.recover === true} /></QueryClientProvider>;
   return { ...render(ui(false)), ui };
 }
 function queuePatches() {
@@ -219,6 +225,44 @@ it.each([
   expect(hint()).toBeNull();
   if (editorClosed) expect(reasonBox()).toBeNull();
   else expect(reasonBox()).toBeTruthy();
+});
+
+it('releases append when an uncertain editor unmounts without another response', async () => {
+  const { pending, view } = await openPending();
+  const gate = pending[0];
+  if (!gate) throw new Error('missing response');
+  await act(async () => { gate.reject(new Error('offline')); });
+  expect(await screen.findByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  expect(disabled(t('en', 'serviceSessions.correctAndAppend'))).toBe(true);
+  view.rerender(view.ui(true));
+  await waitFor(() => expect(disabled(t('en', 'serviceSessions.correctAndAppend'))).toBe(false));
+});
+
+it('keeps append and recovery blocked until an uncertain edit is resolved', async () => {
+  const { pending, view } = await openPending();
+  const gate = pending[0];
+  if (!gate) throw new Error('missing response');
+  await act(async () => { gate.reject(new Error('offline')); });
+  expect(await screen.findByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  const source = twoLineResult().session;
+  if (!source) throw new Error('missing session');
+  const replaced = { ...source, total_net: '9.000' };
+  view.rerender(view.ui(false, { session: replaced, recover: true }));
+  expect(screen.getByLabelText(t('en', 'serviceLineEdit.reason'))).toBeTruthy();
+  expect(disabled(t('en', 'serviceSessions.correctAndAppend'))).toBe(true);
+  expect(screen.queryByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeNull();
+  const key = headerAt(0);
+  const sent = state.patch.mock.calls[0]?.[1].body;
+  lineSave();
+  await waitFor(() => expect(pending).toHaveLength(2));
+  expect(headerAt(1)).toBe(key);
+  expect(state.patch.mock.calls[1]?.[1].body).toEqual(sent);
+  expect(disabled(t('en', 'serviceSessions.correctAndAppend'))).toBe(true);
+  await settle(pending, 1, full);
+  expect(await screen.findByRole('button', { name: t('en', 'serviceSessions.retryOriginal') })).toBeTruthy();
+  expect(disabled(t('en', 'serviceSessions.correctAndAppend'))).toBe(true);
+  view.rerender(view.ui(false, { session: replaced }));
+  await waitFor(() => expect(disabled(t('en', 'serviceSessions.correctAndAppend'))).toBe(false));
 });
 
 it('returns the recording lock to zero when the saved result unmounts during a pending line save', async () => {

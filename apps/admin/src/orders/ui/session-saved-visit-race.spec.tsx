@@ -69,6 +69,7 @@ function fill(price: string, discount: string) {
 }
 const save = () => fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }));
 const reason = () => screen.queryByLabelText(t('en', 'serviceLineEdit.reason'));
+const keyOf = (index: number) => state.patch.mock.calls[index]?.[1].params.header['Idempotency-Key'] as string;
 
 async function openAndSaveFirst() {
   const pending = queuePatches();
@@ -152,14 +153,59 @@ it('does not close or open another line while a save is pending', async () => {
 it('keeps a later editor open when an earlier save completes after the snapshot changes', async () => {
   const { view, client, pending } = await openAndSaveFirst();
   view.rerender(tree(client, { ...twoLineSession(), total_net: '9.000' }));
-  expect(reason()).toBeNull();
+  expect(reason()).toBeTruthy();
   await waitFor(() => expect(buttonDisabled(t('en', 'serviceLineEdit.edit'), 1)).toBe(true));
   const first = pending[0];
   if (!first) throw new Error('missing response');
   await act(async () => { first.resolve(narrow); });
+  await waitFor(() => expect(reason()).toBeNull());
   await waitFor(() => expect(buttonDisabled(t('en', 'serviceLineEdit.edit'), 1)).toBe(false));
   editAt(1);
   expect(await screen.findByText(t('en', 'serviceLineEdit.edited'))).toBeTruthy();
   expect(reason()).toBeTruthy();
   expect(state.patch).toHaveBeenCalledTimes(1);
+});
+
+it('shows the newer snapshot figures after a late replay response for a line with no tracked local edit', async () => {
+  const { view, client, pending } = await openAndSaveFirst();
+  const newer = { ...twoLineSession(), lines: twoLineSession().lines.map((line, index) => index === 0 ? { ...line, price: '7.000', discount: '0.000', net: '7.000', revision: 3, edited: true as const } : line) };
+  view.rerender(tree(client, newer));
+  const first = pending[0];
+  if (!first) throw new Error('missing response');
+  await act(async () => { first.resolve(full); });
+  await waitFor(() => expect(reason()).toBeNull());
+  expect(screen.queryByText('4.250', { exact: false })).toBeNull();
+  expect(screen.getAllByText('7.000', { exact: false }).length).toBeGreaterThan(0);
+});
+
+it('ignores a late save response that belongs to a previous visit', async () => {
+  const { view, client, pending } = await openAndSaveFirst();
+  view.rerender(tree(client, { ...twoLineSession(), id: id(99), total_net: '9.000' }));
+  const first = pending[0];
+  if (!first) throw new Error('missing response');
+  await act(async () => { first.resolve(full); });
+  expect(screen.queryByText('4.250', { exact: false })).toBeNull();
+  expect(screen.queryByText('4.000', { exact: false })).toBeNull();
+});
+
+it('keeps the uncertain editor and its idempotency key when the same visit snapshot is replaced', async () => {
+  const { view, client, pending } = await openAndSaveFirst();
+  const gate = pending[0];
+  if (!gate) throw new Error('missing response');
+  await act(async () => { gate.reject(new Error('offline')); });
+  expect(await screen.findByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  view.rerender(tree(client, { ...twoLineSession(), total_net: '9.000' }));
+  expect(reason()).toBeTruthy();
+  expect(screen.getByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  expect(controlsLocked()).toBe(true);
+  const price = screen.getByLabelText(t('en', 'serviceSessions.price'));
+  expect((price as HTMLInputElement).disabled).toBe(true);
+  fireEvent.change(price, { target: { value: '1.000' } });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceLineEdit.reason')), { target: { value: 'changed' } });
+  const sent = state.patch.mock.calls[0]?.[1].body;
+  save();
+  await waitFor(() => expect(pending).toHaveLength(2));
+  expect(keyOf(1)).toBe(keyOf(0));
+  expect(state.patch.mock.calls[1]?.[1].body).toEqual(sent);
+  expect(controlsLocked()).toBe(true);
 });

@@ -21,8 +21,8 @@ function dayLine(revision = 1): Line {
 function refused(status: number, code: string, details?: unknown) {
   return { error: { code, message_ar: `${code} AR`, message_en: `${code} EN`, details }, response: { status } };
 }
-function shown(line = dayLine(), online = true, onAccessDenied?: (message: string) => void) {
-  const handlers = { onSaved: vi.fn(), onStale: vi.fn(), onForbidden: vi.fn(), onClose: vi.fn(), ...(onAccessDenied ? { onAccessDenied } : {}) };
+function shown(line = dayLine(), online = true, onAccessDenied?: (message: string) => void, locks?: { onRequestStart?: () => void; onRequestEnd?: () => void }) {
+  const handlers = { onSaved: vi.fn(), onStale: vi.fn(), onForbidden: vi.fn(), onClose: vi.fn(), ...(onAccessDenied ? { onAccessDenied } : {}), ...locks };
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   const ui = (next: Line) => <QueryClientProvider client={client}><EditServiceLineForm scope={scope} sessionId={id(12)} line={next} online={online} {...handlers} /></QueryClientProvider>;
   return { client, ui, ...render(ui(line)), ...handlers };
@@ -87,6 +87,17 @@ it('shows a stale revision, refetches once, and waits for a second save', async 
   save();
   await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(2));
   expect(bodyOf(0).expected_revision).toBe(1); expect(bodyOf(1).expected_revision).toBe(2); expect(keyOf(0)).not.toBe(keyOf(1));
+});
+
+it('releases the visit lock and unfreezes the fields when the stale refresh rejects', async () => {
+  state.patch.mockReset(); state.patch.mockResolvedValue(refused(409, 'SESSION_LINE_REVISION_STALE', { current_revision: 2 }));
+  const onRequestStart = vi.fn(); const onRequestEnd = vi.fn();
+  const view = shown(dayLine(), true, undefined, { onRequestStart, onRequestEnd });
+  view.onStale.mockRejectedValue(new Error('refresh failed')); fill('because', '12.000', '1.000'); save();
+  await waitFor(() => expect(view.onStale).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(onRequestEnd).toHaveBeenCalledTimes(1));
+  expect(onRequestStart).toHaveBeenCalledTimes(1);
+  expect((screen.getByLabelText(t('en', 'serviceSessions.price')) as HTMLInputElement).disabled).toBe(false);
 });
 
 it('adopts one refreshed revision after a stale save and ignores the next background change', async () => {
@@ -217,6 +228,93 @@ it('closes through the forbidden callback when a 401 has no access handler', asy
   const view = shown(); fill(); save();
   await waitFor(() => expect(view.onForbidden).toHaveBeenCalledWith('UNAUTHENTICATED EN'));
   expect(view.onClose).toHaveBeenCalled();
+});
+
+function frozenFields() {
+  const price = screen.getByLabelText(t('en', 'serviceSessions.price'));
+  const discount = screen.getByLabelText(t('en', 'serviceSessions.discountAmount'));
+  const reason = reasonBox();
+  const percent = screen.getByRole('button', { name: t('en', 'serviceSessions.discountPercent') });
+  return [price, discount, reason, percent].every((node) => node instanceof HTMLInputElement || node instanceof HTMLButtonElement ? node.disabled : false);
+}
+
+it.each([
+  ['network', () => { state.patch.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(saved); }],
+  ['500', () => { state.patch.mockResolvedValueOnce(refused(500, 'INTERNAL')).mockResolvedValue(saved); }],
+  ['in-progress 409', () => { state.patch.mockResolvedValueOnce(refused(409, 'IDEMPOTENCY_KEY_IN_PROGRESS')).mockResolvedValue(saved); }],
+  ['unparsed 200', () => { state.patch.mockResolvedValueOnce({ data: { nope: true }, response: { status: 200 } }).mockResolvedValue(saved); }],
+] as const)('freezes the fields after an uncertain %s save and replays the same key and body', async (_label, prepare) => {
+  state.patch.mockReset();
+  prepare();
+  const view = shown();
+  fill('because', '12.000', '1.000');
+  save();
+  expect(await screen.findByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  expect(frozenFields()).toBe(true);
+  expect((screen.getByRole('button', { name: t('en', 'serviceLineEdit.save') }) as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.price')), { target: { value: '3.000' } });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.discountAmount')), { target: { value: '0.000' } });
+  fireEvent.change(reasonBox(), { target: { value: 'other reason' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.discountPercent') }));
+  const sent = state.patch.mock.calls[0]?.[1].body;
+  save();
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(2));
+  expect(keyOf(1)).toBe(keyOf(0));
+  expect(state.patch.mock.calls[1]?.[1].body).toEqual(sent);
+  await waitFor(() => expect(view.onSaved).toHaveBeenCalledTimes(1));
+  expect(frozenFields()).toBe(false);
+  expect(screen.queryByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeNull();
+});
+
+it('freezes the membership chosen before an uncertain save and replays it', async () => {
+  state.patch.mockReset();
+  state.patch.mockResolvedValueOnce(refused(422, 'SESSION_EDITOR_MEMBERSHIP_REQUIRED', { editor_membership_ids: [id(30), id(31)] }))
+    .mockRejectedValueOnce(new Error('offline')).mockResolvedValue(saved);
+  shown();
+  fill('because', '12.000', '1.000');
+  save();
+  const membership = await screen.findByRole('combobox', { name: t('en', 'serviceLineEdit.membership') });
+  fireEvent.change(membership, { target: { value: id(31) } });
+  save();
+  expect(await screen.findByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  expect((membership as HTMLSelectElement).disabled).toBe(true);
+  fireEvent.change(membership, { target: { value: id(30) } });
+  const sent = state.patch.mock.calls[1]?.[1].body;
+  save();
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(3));
+  expect(keyOf(2)).toBe(keyOf(1));
+  expect(state.patch.mock.calls[2]?.[1].body).toEqual(sent);
+  expect((state.patch.mock.calls[2]?.[1].body as { editor_membership_id?: string }).editor_membership_id).toBe(id(31));
+});
+
+it('releases the visit lock when the editor unmounts after an uncertain save', async () => {
+  state.patch.mockReset();
+  state.patch.mockRejectedValueOnce(new Error('offline'));
+  const onRequestStart = vi.fn();
+  const onRequestEnd = vi.fn();
+  const view = shown(dayLine(), true, undefined, { onRequestStart, onRequestEnd });
+  fill();
+  save();
+  expect(await screen.findByText(t('en', 'serviceLineEdit.outcomeUnknown'))).toBeTruthy();
+  expect(onRequestStart).toHaveBeenCalledTimes(1);
+  expect(onRequestEnd).not.toHaveBeenCalled();
+  view.unmount();
+  expect(onRequestEnd).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the visit lock until a pending save settles after the editor unmounts', async () => {
+  state.patch.mockReset();
+  let finish: (value: unknown) => void = () => undefined;
+  state.patch.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  const onRequestEnd = vi.fn();
+  const view = shown(dayLine(), true, undefined, { onRequestEnd });
+  fill();
+  save();
+  await waitFor(() => expect(state.patch).toHaveBeenCalledTimes(1));
+  view.unmount();
+  expect(onRequestEnd).not.toHaveBeenCalled();
+  await act(async () => { finish(saved); });
+  expect(onRequestEnd).toHaveBeenCalledTimes(1);
 });
 
 it('does not save offline and submits the open form with Enter', async () => {

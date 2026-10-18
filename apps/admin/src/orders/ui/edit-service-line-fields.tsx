@@ -12,9 +12,13 @@ function fieldText(message: string | undefined, locale: Locale) {
   return message;
 }
 
-export function EditServiceLineFields({ form, locale, memberships, online, pending, closeDisabled, onClose }: {
+function holdChange<E>(frozen: boolean, onChange: (event: E) => void) {
+  return (event: E) => { if (!frozen) onChange(event); };
+}
+
+export function EditServiceLineFields({ form, locale, memberships, online, pending, frozen, closeDisabled, onClose }: {
   form: UseFormReturn<EditLineFormInput, unknown, EditServiceLineInput>;
-  locale: Locale; memberships: string[]; online: boolean; pending: boolean; closeDisabled: boolean; onClose: () => void;
+  locale: Locale; memberships: string[]; online: boolean; pending: boolean; frozen: boolean; closeDisabled: boolean; onClose: () => void;
 }) {
   const { register, formState, setValue, control } = form;
   const kind = useWatch({ control, name: 'discount_kind' });
@@ -22,23 +26,27 @@ export function EditServiceLineFields({ form, locale, memberships, online, pendi
   const reasonError = fieldText(formState.errors.reason?.message, locale);
   const priceError = fieldText(formState.errors.price?.message, locale);
   const discountError = fieldText(formState.errors.discount_value?.message, locale);
+  const price = register('price');
+  const discount = register('discount_value');
+  const reasonField = register('reason');
+  const editor = register('editor_membership_id');
   return <>
     <div className="flex flex-wrap gap-2">
-      {(['AMOUNT', 'PERCENT'] as const).map((next) => <Button key={next} type="button" variant="outline" aria-pressed={kind === next} onClick={() => setValue('discount_kind', next, { shouldDirty: true })}>
+      {(['AMOUNT', 'PERCENT'] as const).map((next) => <Button key={next} type="button" variant="outline" aria-pressed={kind === next} disabled={frozen} onClick={() => { if (!frozen) setValue('discount_kind', next, { shouldDirty: true }); }}>
         {t(locale, next === 'AMOUNT' ? 'serviceSessions.discountAmount' : 'serviceSessions.discountPercent')}
       </Button>)}
     </div>
     <Label htmlFor="edit-price">{t(locale, 'serviceSessions.price')}</Label>
-    <Input id="edit-price" dir="ltr" inputMode="decimal" aria-invalid={!!priceError} {...register('price')} />
+    <Input id="edit-price" dir="ltr" inputMode="decimal" disabled={frozen} aria-invalid={!!priceError} {...price} onChange={holdChange(frozen, price.onChange)} />
     {priceError ? <p role="alert">{priceError}</p> : null}
     <Label htmlFor="edit-discount">{t(locale, kind === 'AMOUNT' ? 'serviceSessions.discountAmount' : 'serviceSessions.discountPercent')}</Label>
-    <Input id="edit-discount" dir="ltr" inputMode="decimal" aria-invalid={!!discountError} {...register('discount_value')} />
+    <Input id="edit-discount" dir="ltr" inputMode="decimal" disabled={frozen} aria-invalid={!!discountError} {...discount} onChange={holdChange(frozen, discount.onChange)} />
     {discountError ? <p role="alert">{discountError}</p> : null}
     <Label htmlFor="edit-reason">{t(locale, 'serviceLineEdit.reason')}</Label>
-    <Input id="edit-reason" aria-invalid={!!reasonError} {...register('reason')} />
+    <Input id="edit-reason" disabled={frozen} aria-invalid={!!reasonError} {...reasonField} onChange={holdChange(frozen, reasonField.onChange)} />
     <p>{t(locale, 'serviceLineEdit.reasonCount').replace('{count}', String(editReasonLength(reason ?? '')))}</p>
     {reasonError ? <p role="alert">{reasonError}</p> : null}
-    {memberships.length ? <NativeSelect aria-label={t(locale, 'serviceLineEdit.membership')} {...register('editor_membership_id')}>
+    {memberships.length ? <NativeSelect aria-label={t(locale, 'serviceLineEdit.membership')} disabled={frozen} {...editor} onChange={holdChange(frozen, editor.onChange)}>
       <option value="">{t(locale, 'serviceLineEdit.membership')}</option>
       {memberships.map((membershipId, index) => <option key={membershipId} value={membershipId}>{t(locale, 'serviceLineEdit.membershipN').replace('{n}', String(index + 1))}</option>)}
     </NativeSelect> : null}
