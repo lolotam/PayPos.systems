@@ -1,5 +1,6 @@
 import { ar } from './ar.js';
 import { en } from './en.js';
+import { serviceLineEditAr, serviceLineEditEn } from './service-line-edit-catalog.js';
 import { serviceSessionsAr, serviceSessionsEn } from './service-session-catalog.js';
 
 /** اللغتين اللي المنتج بيدعمهم — العربي الأساسي (CLAUDE.md §0). */
@@ -10,6 +11,7 @@ export type Catalog = { readonly [S in keyof typeof en]: Record<keyof (typeof en
 
 type RegisteredCatalog = Catalog & {
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
+  readonly serviceLineEdit: Record<keyof typeof serviceLineEditEn, string>;
 };
 
 /** مفتاح رسالة: <القسم>.<الاسم>، زي errors.NOT_READY. */
@@ -21,8 +23,8 @@ export type MessageKey = {
 export type ErrorMessageCode = keyof typeof en.errors;
 
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
-  ar: { ...ar, serviceSessions: serviceSessionsAr },
-  en: { ...en, serviceSessions: serviceSessionsEn },
+  ar: { ...ar, serviceSessions: serviceSessionsAr, serviceLineEdit: serviceLineEditAr },
+  en: { ...en, serviceSessions: serviceSessionsEn, serviceLineEdit: serviceLineEditEn },
 };
 
 /**

@@ -25,3 +25,23 @@ it('drops cached own recordings on a scope change and on unmount, and keeps the 
   hook.unmount();
   expect(client.getQueryData(otherKey)).toBeUndefined();
 });
+
+it('drops the cached day list and line history when the operator or scope changes', () => {
+  const client = new QueryClient();
+  const other = { ...scope, userId: id(91) };
+  const parts = (current: typeof scope) => [current.companyId, current.businessId, current.branchId, current.userId] as const;
+  const dayKey = ['branch-day-sessions', ...parts(scope), '2026-10-14', false] as const;
+  const historyKey = ['service-line-edits', ...parts(scope), id(7), id(8)] as const;
+  const otherDayKey = ['branch-day-sessions', ...parts(other), '2026-10-14', false] as const;
+  client.setQueryData(dayKey, visit);
+  client.setQueryData(historyKey, visit);
+  client.setQueryData(otherDayKey, visit);
+  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  const hook = renderHook(({ value }) => useSessionQueryLifecycle(value, true), { wrapper, initialProps: { value: scope } });
+  hook.rerender({ value: other });
+  expect(client.getQueryData(dayKey)).toBeUndefined();
+  expect(client.getQueryData(historyKey)).toBeUndefined();
+  expect(client.getQueryData(otherDayKey)).toEqual(visit);
+  hook.unmount();
+  expect(client.getQueryData(otherDayKey)).toBeUndefined();
+});

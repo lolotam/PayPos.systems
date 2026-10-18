@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
@@ -9,8 +10,7 @@ export const attendanceExceptionDecisionInput = z
     reason,
   })
   .meta({ id: 'AttendanceExceptionDecisionInput' });
-export const attendanceExceptionRecord = z
-  .strictObject({
+export const attendanceExceptionRecord = responseObject({
     id,
     session_id: id,
     employee_id: id,

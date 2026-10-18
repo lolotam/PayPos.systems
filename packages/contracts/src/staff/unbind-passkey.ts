@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { passkeyBindingStatus } from './passkeys.js';
@@ -14,8 +15,7 @@ export const unbindPasskeyInput = z
     reason: z.string().trim().min(1).max(500),
   })
   .meta({ id: 'UnbindPasskeyInput' });
-export const unboundPasskey = z
-  .strictObject({
+export const unboundPasskey = responseObject({
     binding_id: id,
     revision: z.number().int().positive(),
     unbound_at: timestamp,
@@ -27,17 +27,17 @@ export const passkeyHistoryQuery = z
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
   .meta({ id: 'PasskeyHistoryQuery' });
-export const passkeyHistoryEntry = z
-  .strictObject({
+export const passkeyHistoryEntry = responseObject({
     binding_id: id,
     revision: z.number().int().positive(),
     bound_at: timestamp,
     unbound_at: timestamp.nullable(),
   })
   .meta({ id: 'PasskeyHistoryEntry' });
-export const employeePasskeyHistory = z
-  .strictObject({
-    status: passkeyBindingStatus.extend({
+export const employeePasskeyHistory = responseObject({
+    // الحالة المنشورة لسه strict؛ الشاشة بتقرا نسخة بتشيل المفتاح الزيادة (ADR-0047).
+    status: responseObject({
+      ...passkeyBindingStatus.shape,
       phone_locked: z.boolean(),
       phone_locked_since: timestamp.nullable(),
     }),
@@ -46,16 +46,14 @@ export const employeePasskeyHistory = z
     next_cursor: id.nullable(),
   })
   .meta({ id: 'EmployeePasskeyHistory' });
-export const passkeyEmployee = z
-  .strictObject({
+export const passkeyEmployee = responseObject({
     id,
     name_en: z.string(),
     name_ar: z.string().nullable(),
     primary_branch_id: id,
   })
   .meta({ id: 'PasskeyEmployee' });
-export const passkeyEmployeePage = z
-  .strictObject({
+export const passkeyEmployeePage = responseObject({
     items: z.array(passkeyEmployee),
     next_cursor: id.nullable(),
   })

@@ -1,4 +1,5 @@
 import { serviceSessionDaySchemas } from './service-session-day.js';
+import { serviceLineEditsSchemas } from './service-session-edits.js';
 import { serviceSessionFormSchemas } from './service-session-form-openapi.js';
 import { serviceSessionRecoverySchemas } from './service-session-recovery-openapi.js';
 import { serviceSessionSchemas } from './service-session.js';
@@ -9,6 +10,7 @@ export const orderSchemas = [
   ...serviceSessionSchemas,
   ...sessionTipsSchemas,
   ...serviceSessionDaySchemas,
+  ...serviceLineEditsSchemas,
   ...serviceSessionFormSchemas,
   ...serviceSessionRecoverySchemas,
 ];

@@ -79,6 +79,7 @@ it('validates the visible projection, ten-row cap, visible total and boolean hid
   expect(
     employeeNameMatches.safeParse({ matches: [], visible_total: 0, hidden_count: 2 }).success,
   ).toBe(false);
+  expect(employeeNameMatches.parse({ ...response, hidden_count: 2 })).toEqual(response);
   for (const change of [
     { id: 'invalid' },
     { primary_branch_id: 'invalid' },

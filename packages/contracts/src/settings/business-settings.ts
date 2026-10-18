@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
@@ -10,8 +11,7 @@ export const language = z.enum(['ar', 'en']).meta({ id: 'Language' });
 export const calendar = z.enum(['gregorian', 'hijri']).meta({ id: 'Calendar' });
 
 // شكل TaxRule من packages/domain (PRD D-27): النسبة نص بـ 4 خانات عشرية بالكتير (5 أو 12.5)، مش float.
-export const taxRule = z
-  .object({
+export const taxRule = responseObject({
     code: z.string().min(1).max(50),
     country_code: z.string().regex(/^[A-Z]{2}$/),
     rate: z.string().regex(/^\d+(\.\d{1,4})?$/),
@@ -19,8 +19,7 @@ export const taxRule = z
   })
   .meta({ id: 'TaxRule' });
 
-export const businessSettings = z
-  .object({
+export const businessSettings = responseObject({
     business_id: id,
     default_language: language,
     calendar,

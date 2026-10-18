@@ -3,6 +3,7 @@ import { serviceSessionDayPage, type RecordServiceSessionInput } from '@pospay/c
 import { sql } from 'drizzle-orm';
 import { ordersDayQuery } from '../orders.module.ts';
 import { branchDayServiceSessionsStatement } from '../queries/branch-day-service-sessions.query.ts';
+import { seedPriceEdit } from './line-edit.helpers.ts';
 import { interceptDatabase, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
 
 let f: SessionFixture;
@@ -124,4 +125,17 @@ it('projects the numeric money maximum losslessly as a KWD string', async () => 
   expect(page.items.find((visit) => visit.id === saved.session.id)?.lines[0]).toMatchObject({
     price: '99999999999.999', net: '99999999999.999', discount: '0.000', list_price: '25.000',
   });
+});
+
+it('derives edited from a history row and keeps price history off the day list', async () => {
+  f.setAt(new Date('2026-10-21T08:00:00Z'));
+  const saved = await f.create.execute({ ...f.context(), input: { ...f.body([f.line(), f.line()]), occurred_at: '2026-10-20T08:00:00.000Z' } });
+  const edited = must(saved.session.lines[0]).id;
+  await seedPriceEdit(f, { lineId: edited, revision: 2 });
+  const visit = must(serviceSessionDayPage.parse(await read('2026-10-20')).items.find((row) => row.id === saved.session.id));
+  expect(visit.lines.find((line) => line.id === edited)?.edited).toBe(true);
+  expect(visit.lines.find((line) => line.id !== edited)?.edited).toBe(false);
+  const payload = JSON.stringify(visit);
+  for (const hidden of ['previous_price', 'previous_discount', 'previous_net', 'new_price', 'new_discount', 'new_net',
+    'editor_label', 'editor_name', 'editor_role', 'changed_at', 'reason']) expect(payload).not.toContain(hidden);
 });

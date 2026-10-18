@@ -102,3 +102,44 @@ it('publishes the record-tip errors from task 36-3a', () => {
     expect(serviceSessionErrors[code]).toEqual(recordTipMessages[code]);
   }
 });
+
+const cancelMessages = {
+  SESSION_LINE_ALREADY_CANCELLED: {
+    message_ar: 'السطر ده ملغي بالفعل.',
+    message_en: 'This line is already cancelled.',
+  },
+  SESSION_CANCEL_REASON_INVALID: {
+    message_ar: 'اكتب سبب الإلغاء (لحد 500 حرف).',
+    message_en: 'Enter the reason for the cancellation (up to 500 characters).',
+  },
+  SESSION_CANCEL_BLOCKED_BY_TIP: {
+    message_ar: 'فيه بقشيش مسجّل لموظفة ملهاش خدمة تانية في الزيارة. امسحي البقشيش الأول وبعدين الغي.',
+    message_en:
+      'A tip is recorded for a performer who has no other service on this visit. Remove the tip first, then cancel.',
+  },
+  SESSION_LINE_IDENTITY_UNKNOWN: {
+    message_ar: 'مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتلغي.',
+    message_en: 'This older line has no performer identity record and cannot be cancelled.',
+  },
+  SESSION_CANCELLER_MEMBERSHIP_REQUIRED: {
+    message_ar: 'اختاري العضوية اللي بتلغّي بيها.',
+    message_en: 'Select the membership you are cancelling under.',
+  },
+  SESSION_LINE_NOT_CANCELLABLE: {
+    message_ar: 'السطر ده مش قابل للإلغاء.',
+    message_en: 'This line cannot be cancelled.',
+  },
+} as const;
+
+it('publishes the cancel-line errors from spec 054', () => {
+  for (const code of Object.keys(cancelMessages) as (keyof typeof cancelMessages)[]) {
+    expect(serviceSessionErrors[code]).toEqual(cancelMessages[code]);
+  }
+});
+
+it('generalizes the shared self-refusal so record, edit and cancel share one sentence', () => {
+  expect(serviceSessionErrors.SESSION_PERFORMER_SELF_FORBIDDEN).toEqual({
+    message_ar: 'لا يمكنك تنفيذ هذا الإجراء على خدمة قمت بها بنفسك.',
+    message_en: 'You cannot perform this action on a service you performed yourself.',
+  });
+});

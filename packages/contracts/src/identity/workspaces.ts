@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { responseObject } from '../response-object.js';
 
 import { nameAr, nameEn } from '../bilingual/names.js';
 import { timeZone } from '../reference/time-zone.js';
@@ -6,8 +7,7 @@ import { id } from '../scalars/id.js';
 
 // الشركات والنشاطات والفروع اللي اليوزر عضو فيها — شاشة اختيار الشركة في الأدمن.
 
-export const workspaceBranch = z
-  .object({
+export const workspaceBranch = responseObject({
     id,
     name_ar: nameAr.nullable(),
     name_en: nameEn,
@@ -16,8 +16,7 @@ export const workspaceBranch = z
   })
   .meta({ id: 'WorkspaceBranch' });
 
-export const workspaceBusiness = z
-  .object({
+export const workspaceBusiness = responseObject({
     id,
     name_ar: nameAr.nullable(),
     name_en: nameEn,
@@ -26,7 +25,7 @@ export const workspaceBusiness = z
   .meta({ id: 'WorkspaceBusiness' });
 
 /** Names of one company the caller can reach. Identity adds role_code and scope before the response leaves. */
-export const workspaceCompanyNames = z.object({
+export const workspaceCompanyNames = responseObject({
   id,
   name_ar: nameAr.nullable(),
   name_en: nameEn,
@@ -42,8 +41,7 @@ export const workspaceCompany = workspaceCompanyNames
   })
   .meta({ id: 'WorkspaceCompany' });
 
-export const myWorkspacesResponse = z
-  .object({ companies: z.array(workspaceCompany) })
+export const myWorkspacesResponse = responseObject({ companies: z.array(workspaceCompany) })
   .meta({ id: 'MyWorkspacesResponse' });
 
 export type WorkspaceBranch = z.infer<typeof workspaceBranch>;
