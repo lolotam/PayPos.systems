@@ -31,7 +31,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff and the spec only, never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
 | Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
 | Draft writer (§8 rule 6) | Codex or a free model (GLM) writes first drafts of specs, ADRs, journey docs and the HANDOVER; the orchestrator edits and owns the result | yes |
-| Fixer | the implementer, resuming **its own Grok session** with only the findings (§4); the orchestrator only for one-line fixes | yes |
+| Fixer | the implementer, resuming **its own Grok session** with only the findings (§4); the orchestrator (or a doc-writing session) for a one-line fix, for any fix on a docs-only PR (no Grok session exists), and after two Grok failures (§8 rule 4) | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
 On 2026-10-14 the owner picked `grok-4.7` at reasoning effort high from the live list (`grok models`: `grok-4.7`,

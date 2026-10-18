@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 
 import { applyUpdates } from './set-status.mjs';
 
@@ -15,5 +15,7 @@ const roadmap = applyUpdates(
   today,
 );
 const indent = source.trimEnd().includes('\n') ? 2 : 0;
-writeFileSync(roadmapPath, `${JSON.stringify(roadmap, null, indent)}\n`);
+const temporaryPath = `${roadmapPath}.tmp`;
+writeFileSync(temporaryPath, `${JSON.stringify(roadmap, null, indent)}\n`);
+renameSync(temporaryPath, roadmapPath);
 console.log(`roadmap updated (${today})`);
