@@ -1,10 +1,16 @@
 import { z } from 'zod';
-import { employeeNumberView, setEmployeeNumberInput } from './employee-number.js';
+import {
+  employeeNumberCapability,
+  employeeNumberView,
+  setEmployeeNumberInput,
+} from './employee-number.js';
 
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
 });
-const bodyJson = (schema: typeof employeeNumberView | typeof setEmployeeNumberInput) => ({
+const bodyJson = (
+  schema: typeof employeeNumberView | typeof setEmployeeNumberInput | typeof employeeNumberCapability,
+) => ({
   'application/json': {
     schema: z.toJSONSchema(schema, { target: 'openapi-3.0', io: 'input', metadata: z.registry() }),
   },
@@ -34,6 +40,35 @@ export const employeeNumberPaths = {
         '403': errors,
         '404': errors,
         '409': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/employee-number-capability': {
+    get: {
+      operationId: 'employeeNumberCapability',
+      description:
+        'Authorized exactly like create-employee: manage:employees:business on the business and primary_branch_id, plus the staff feature, inside the creation lock. A primary branch outside that business is EMPLOYEE_BRANCH_NOT_FOUND (404) before permission. can_type_number is true only when the caller holds manage:employee-number:company with no DENY on that business or primary branch. Missing the number permission or any DENY returns false, not 403. No Idempotency-Key.',
+      parameters: [
+        { in: 'header', name: 'x-company-id', required: true, schema: { type: 'string', format: 'uuid' } },
+        {
+          in: 'path',
+          name: 'businessId',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        },
+        {
+          in: 'query',
+          name: 'primary_branch_id',
+          required: true,
+          schema: { type: 'string', format: 'uuid' },
+        },
+      ],
+      responses: {
+        '200': { description: 'Whether this caller may type a number for that primary branch', content: bodyJson(employeeNumberCapability) },
+        '400': errors,
+        '403': errors,
+        '404': errors,
         default: errors,
       },
     },

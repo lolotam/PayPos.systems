@@ -325,8 +325,12 @@ export {
 export {
   setEmployeeNumberInput,
   employeeNumberView,
+  employeeNumberCapabilityQuery,
+  employeeNumberCapability,
   type SetEmployeeNumberInput,
   type EmployeeNumberView,
+  type EmployeeNumberCapabilityQuery,
+  type EmployeeNumberCapability,
 } from './staff/employee-number.js';
 export * from './staff/attendance-actions-read.js';
 export {

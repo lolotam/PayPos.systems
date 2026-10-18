@@ -8,7 +8,10 @@ import {
   validateEmployeeCreation,
   type EmployeeRecord,
 } from '../../domain/create-employee.ts';
-import type { EmployeeTransactions } from '../../ports/employee-transactions.port.ts';
+import type {
+  EmployeeCreationScope,
+  EmployeeTransactions,
+} from '../../ports/employee-transactions.port.ts';
 
 export { EmployeeCreationError } from '../../domain/create-employee.ts';
 export interface CreateEmployeeCommand {
@@ -17,7 +20,7 @@ export interface CreateEmployeeCommand {
   readonly businessId: string;
   readonly input: CreateEmployeeInput;
 }
-// ينشئ سجل الموظف برقمه التالي والفرع والتدقيق بعد التحقق من الإذن الحي، دون أي أثر مالي.
+// ينشئ سجل الموظف برقمه التالي أو برقم مكتوب مسموح، والفرع والتدقيق، بعد التحقق من الإذن الحي ودون أي أثر مالي.
 export class CreateEmployeeUseCase {
   constructor(
     private readonly transactions: EmployeeTransactions,
@@ -29,9 +32,10 @@ export class CreateEmployeeUseCase {
     return this.transactions.run(command, async (scope) => {
       if (!(await scope.authorize(command.businessId, command.input.primary_branch_id)))
         throw new EmployeeCreationError('FORBIDDEN');
+      const { employee_number: typedNumber, ...input } = command.input;
       const at = this.clock.now();
       const record: EmployeeRecord = {
-        ...command.input,
+        ...input,
         id: this.ids.newId(),
         business_id: command.businessId,
         name_ar: command.input.name_ar ?? null,
@@ -42,18 +46,38 @@ export class CreateEmployeeUseCase {
       validateEmployeeCreation(record, await scope.context(record));
       if (record.user_id !== null && !(await scope.canLinkUser(record.user_id)))
         throw new EmployeeCreationError('EMPLOYEE_USER_LINK_UNAVAILABLE');
-      const numbered = { ...record, employee_number: await scope.assignEmployeeNumber() };
+      const numbered = {
+        ...record,
+        employee_number: await chosenNumber(scope, command, typedNumber),
+      };
+      const stored = {
+        ...numbered,
+        name_en_key: employeeNameMatchKey(numbered.name_en),
+        name_ar_key: numbered.name_ar === null ? null : employeeNameMatchKey(numbered.name_ar),
+      };
+      const attachmentId = this.ids.newId();
       // قرار المالك 2026-10-03: الوصول خطوة صريحة في شاشة الصلاحيات؛ إنشاء سجل الوظيفة لا يمنح عضوية.
-      await scope.insert(
-        {
-          ...numbered,
-          name_en_key: employeeNameMatchKey(numbered.name_en),
-          name_ar_key: numbered.name_ar === null ? null : employeeNameMatchKey(numbered.name_ar),
-        },
-        this.ids.newId(),
-      );
+      if (typedNumber === undefined) await scope.insert(stored, attachmentId);
+      else await scope.insertTyped(stored, attachmentId);
       await scope.audit(numbered);
       return numbered;
     });
   }
+}
+
+async function chosenNumber(
+  scope: EmployeeCreationScope,
+  command: CreateEmployeeCommand,
+  typedNumber: number | undefined,
+): Promise<number> {
+  if (typedNumber === undefined) return scope.assignEmployeeNumber();
+  const decision = await scope.recheckTypedNumber(
+    command.businessId,
+    command.input.primary_branch_id,
+  );
+  if (decision !== null) throw new EmployeeCreationError(decision);
+  await scope.lockCounter();
+  if (await scope.typedNumberTaken(typedNumber))
+    throw new EmployeeCreationError('EMPLOYEE_NUMBER_TAKEN');
+  return typedNumber;
 }

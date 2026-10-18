@@ -58,6 +58,7 @@ export class EmployeeCreationError extends Error {
       | 'NOT_FOUND'
       | 'FEATURE_DISABLED'
       | 'FORBIDDEN'
+      | 'EMPLOYEE_NUMBER_TAKEN'
       | 'TRANSACTION_RETRY_REQUIRED',
   ) {
     super(code);

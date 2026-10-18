@@ -35,6 +35,31 @@ export interface EmployeeCreationScope {
    */
   assignEmployeeNumber(): Promise<number>;
   /**
+   * يعيد فحص manage:employee-number:company على نشاط الموظفة الجديدة وفرعها الأساسي فقط،
+   * قبل قفل العدّاد، حتى يرفض المنع الرقم المكتوب دون أن يستهلك رقماً.
+   *
+   * @param businessId نشاط الموظفة الجديدة
+   * @param primaryBranchId الفرع الأساسي الوحيد في طلب الإنشاء؛ تاريخ الارتباط لا يغيّر الفحص
+   * @returns null عند السماح، أو FORBIDDEN أو FEATURE_DISABLED
+   */
+  recheckTypedNumber(
+    businessId: string,
+    primaryBranchId: string,
+  ): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null>;
+  /**
+   * يقفل عدّاد أرقام الشركة دون تحريكه حتى يتسلسل الرقم المكتوب مع الإسناد والتعديل اليدوي.
+   *
+   * @returns اكتمال القفل دون تغيير next_number
+   */
+  lockCounter(): Promise<void>;
+  /**
+   * هل الرقم محجوز لأي موظفة في الشركة بما فيها المحذوفة ناعماً.
+   *
+   * @param employeeNumber الرقم المكتوب
+   * @returns true إذا وُجد الصف
+   */
+  typedNumberTaken(employeeNumber: number): Promise<boolean>;
+  /**
    * يحفظ الموظف برقمه الوظيفي ومفاتيح المطابقة وارتباط فرعه في نفس المعاملة، دون اعتماد أو منح جديد.
    *
    * @param record سجل الموظف
@@ -42,6 +67,14 @@ export interface EmployeeCreationScope {
    * @returns اكتمال الحفظ داخل المعاملة
    */
   insert(record: EmployeeInsertRecord, attachmentId: string): Promise<void>;
+  /**
+   * يحفظ رقماً مكتوباً؛ تعارض قيد الشركة يُرفض EMPLOYEE_NUMBER_TAKEN لأن الرقم لم يأتِ من العدّاد.
+   *
+   * @param record سجل الموظف برقمه المكتوب
+   * @param attachmentId معرف ارتباط الفرع
+   * @returns اكتمال الحفظ داخل المعاملة
+   */
+  insertTyped(record: EmployeeInsertRecord, attachmentId: string): Promise<void>;
   /**
    * يسجل snapshot مسموح الحقول، شاملاً الرقم الوظيفي المسنَد، وأي فشل يرد الإنشاء كله.
    *

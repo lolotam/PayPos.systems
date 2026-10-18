@@ -88,6 +88,26 @@ async function currentBranchIds(tx: Tx, companyId: string, employeeId: string) {
   return attached.map((link) => link.branch_id);
 }
 
+export function refuseTypedEmployeeNumber(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  primaryBranchId: string,
+) {
+  // الإنشاء يفحص النشاط والفرع الأساسي فقط؛ تاريخ بداية الارتباط لا يُخرج الفرع من المنع (PP-4.2).
+  return readEmployeeNumberAccess(tx, companyId, userId, businessId, [primaryBranchId]);
+}
+
+export async function typedEmployeeNumberTaken(tx: Tx, companyId: string, employeeNumber: number) {
+  // الرقم المحذوف ناعماً يبقى محجوزاً للشركة، ولا يُستثنى صف لأن الموظفة لم تُنشأ بعد (EN-Q4).
+  const [row] = await tx.execute<{ id: string }>(sql`
+    SELECT id FROM employees
+    WHERE company_id=${companyId} AND employee_number=${employeeNumber}
+    LIMIT 1`);
+  return row !== undefined;
+}
+
 async function taken(tx: Tx, companyId: string, employeeId: string, employeeNumber: number) {
   // الرقم المحذوف ناعماً يبقى محجوزاً للشركة (EN-Q4).
   const [row] = await tx.execute<{ id: string }>(sql`
