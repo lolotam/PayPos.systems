@@ -53,7 +53,8 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md`, then by kind (`CLAUDE.md` §1 5b): charges/money
    questions to a new numbered batch on the decisions page, every other question to Waleed through his super agent. On
    the page, when Waleed and his partner (Abu Salem) differ, the partner's pick binds.
-   Ask the questions of a whole feature in one batch before its first sub-PR, with a mockup when the answer is a screen.
+   Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen: one batch per
+   destination (the money questions on the page, the rest to Waleed), never a mixed batch.
 3. The implementer is the **Grok CLI, `grok-4.7`, effort high** (owner, 2026-10-14), one resumed session per
    task to keep its cache warm. Claude Code orchestrates, judges the diff and runs `pnpm check`.
 4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
