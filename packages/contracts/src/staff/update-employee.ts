@@ -10,7 +10,9 @@ const branches = z
   .min(1)
   .max(100)
   .refine((values) => new Set(values).size === values.length);
+// الرقم الوظيفي بيتغيّر من مساره الخاص (8c-6) بس، فالتعديل العام يرفضه بدل ما يقبله ويتجاهله.
 export const updateEmployeeInput = createEmployeeInput
+  .omit({ employee_number: true })
   .extend({
     expected_revision: revision,
     branch_ids: branches,

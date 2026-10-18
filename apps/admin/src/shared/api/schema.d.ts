@@ -3044,7 +3044,6 @@ export interface components {
             contract_end?: components["schemas"]["EmployeeDate"] | null;
             /** Format: uuid */
             user_id?: string | null;
-            employee_number?: number;
             expected_revision: number;
             branch_ids: string[];
             branch_effective_date: components["schemas"]["EmployeeDate"];
