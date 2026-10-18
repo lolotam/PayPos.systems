@@ -1,6 +1,7 @@
 import { sessionTips } from '@pospay/contracts';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { sessionRecordAccess } from '../persistence/session-record-access.adapter.ts';
 import { SessionTipsCurrentQuery, SessionTipsReadError, sessionTipsCurrentStatement, type SessionTipsScope } from '../queries/session-tips-current.query.ts';
 import { ids, pairLine, recordVisit, runTips, tip, tipFixture, tipInput, type TipFixture } from '../../../../test/session-tips.fixture.ts';
 
@@ -11,6 +12,19 @@ afterAll(async () => { await f?.close(); });
 function scope(sessionId: string): SessionTipsScope {
   return { companyId: f.company, userId: f.userId, businessId: f.business, branchId: f.branch, sessionId };
 }
+function tipsQuery() {
+  return new SessionTipsCurrentQuery(f.db, {
+    access: (tx, current, at) => sessionRecordAccess(tx, current.companyId, current.userId, current.businessId, current.branchId).read(at),
+  }, f.clock);
+}
+function refusalOf(error: unknown) {
+  expect(error).toBeInstanceOf(SessionTipsReadError);
+  const refused = error as SessionTipsReadError;
+  return { code: refused.code, message: refused.message };
+}
+function catchRefusal(query: SessionTipsCurrentQuery, sessionId: string) {
+  return query.execute(scope(sessionId)).then(() => null, (error: unknown) => error);
+}
 function byTip(left: { employee_id: string; method: string }, right: { employee_id: string; method: string }) {
   const byEmployee = left.employee_id.toLowerCase() < right.employee_id.toLowerCase() ? -1
     : left.employee_id.toLowerCase() > right.employee_id.toLowerCase() ? 1 : 0;
@@ -20,7 +34,7 @@ function byTip(left: { employee_id: string; method: string }, right: { employee_
 
 it('returns the empty contract, the sorted current set, and a cleared revision', async () => {
   const visit = await recordVisit(f, [pairLine(f)]);
-  const query = new SessionTipsCurrentQuery(f.db);
+  const query = tipsQuery();
   expect(sessionTips.parse(await query.execute(scope(visit.sessionId)))).toEqual({
     revision: 0, tips: [], total_cash: '0.000', total_card: '0.000',
   });
@@ -39,7 +53,7 @@ it('returns the empty contract, the sorted current set, and a cleared revision',
 
 it('an unknown session and a session outside the branch are the same read error', async () => {
   const visit = await recordVisit(f);
-  const query = new SessionTipsCurrentQuery(f.db);
+  const query = tipsQuery();
   const unknown = query.execute(scope(ids.newId())).then(() => null, (error: unknown) => error);
   const branch = ids.newId();
   const sessionId = ids.newId();
@@ -60,6 +74,28 @@ it('an unknown session and a session outside the branch are the same read error'
 it('the current-set statement takes no row or advisory lock', () => {
   const text = new PgDialect().sqlToQuery(sessionTipsCurrentStatement(scope(ids.newId()))).sql.toLowerCase();
   expect(text).not.toMatch(/for update|for share|pg_advisory/);
+  expect(text).not.toMatch(/\bsum\s*\(|to_char|\bover\s*\(/);
   expect(text).toContain('session_tip_revisions');
   expect(text).toContain('session_tips');
+});
+
+it('a revoked grant or a DENY between the guard and the read matches an unknown session', async () => {
+  const visit = await recordVisit(f, [pairLine(f)]);
+  await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.500')]));
+  const query = tipsQuery();
+  const unknown = refusalOf(await catchRefusal(query, ids.newId()));
+  const deny = ids.newId();
+  await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES(${f.company},${deny},${f.membership},'record:service-sessions:branch','DENY','BRANCH',${f.branch},'Synthetic tip read deny',${f.ownerId})`;
+  try {
+    expect(refusalOf(await catchRefusal(query, visit.sessionId))).toEqual(unknown);
+  } finally {
+    await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${deny}`;
+  }
+  await f.h.owner`UPDATE memberships SET ends_at='2026-10-14T00:00:00Z' WHERE company_id=${f.company} AND id=${f.membership}`;
+  try {
+    expect(refusalOf(await catchRefusal(query, visit.sessionId))).toEqual(unknown);
+  } finally {
+    await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membership}`;
+  }
 });

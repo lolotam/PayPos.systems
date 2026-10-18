@@ -49,6 +49,7 @@ it('reads the current revision and its entries through the tip indexes', async (
       expect(scans.length).toBeGreaterThan(0);
       expect(scans.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
     }
+    expect(plan.some((node) => node['Node Type'] === 'WindowAgg')).toBe(false);
     const indexes = plan.map((node) => node['Index Name']);
     expect(indexes).toContain('session_tip_revisions_session_revision_uq');
     expect(indexes).toContain('session_tips_session_revision_idx');

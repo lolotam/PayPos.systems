@@ -90,8 +90,10 @@ export function ordersLineEdits(database: TenantWrappers) {
 export function ordersSessionTips(database: TenantWrappers) {
   return createSessionTipsTransactions(database);
 }
-export function ordersSessionTipsCurrent(database: TenantWrappers) {
-  return new SessionTipsCurrentQuery(database);
+export function ordersSessionTipsCurrent(database: TenantWrappers, clock: Clock = systemClock) {
+  return new SessionTipsCurrentQuery(database, {
+    access: (tx, scope, at) => sessionRecordAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId).read(at),
+  }, clock);
 }
 export function ordersTransactions(database: TenantWrappers, ids: IdGenerator, clock: Clock = systemClock) {
   return createServiceSessionTransactions(database, ids, (tx, context) => ({
@@ -118,5 +120,5 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: AppendServiceSessionLinesUseCase, useValue: writes === null ? null : new AppendServiceSessionLinesUseCase(writes.transactions, writes.recovery, ids, clock) },
     { provide: EditServiceLinePriceUseCase, useValue: database === undefined ? null : new EditServiceLinePriceUseCase(ordersLineEdits(database), ids, clock) },
     { provide: RecordSessionTipsUseCase, useValue: database === undefined ? null : new RecordSessionTipsUseCase(ordersSessionTips(database), ids, clock) },
-    { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database) }];
+    { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database, clock) }];
 }

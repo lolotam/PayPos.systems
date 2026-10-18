@@ -1,5 +1,6 @@
 import { sessionTips, type SessionTips } from '@pospay/contracts';
-import type { TenantWrappers } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
+import { moneyToString, parseMoney, sumTipTotalsByMethod, type Money } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 
 export interface SessionTipsScope {
@@ -16,14 +17,17 @@ export class SessionTipsReadError extends Error {
   constructor() { super('SESSION_NOT_FOUND'); }
 }
 
+export interface SessionTipsCurrentReads {
+  /** يعيد إذن record:service-sessions:branch على الفرع في اللحظة المعطاة بلا قفل صف. */
+  access(tx: Tx, scope: SessionTipsScope, at: Date): Promise<{ record: boolean; denied: boolean; feature: boolean; membership_ids: readonly string[] }>;
+}
+
 type TipReadRow = {
   session_id: string | null;
   revision: number | string | null;
   employee_id: string | null;
   method: string | null;
   amount: string | null;
-  total_cash: string;
-  total_card: string;
 };
 
 // شاشة بقشيش الاستقبال لمن يسجّل الزيارة: المراجعة الحالية ومجموعتها فقط، بلا عميلة أو هاتف.
@@ -33,16 +37,14 @@ export function sessionTipsCurrentStatement(scope: SessionTipsScope) {
     FROM service_sessions s
     WHERE s.company_id = ${scope.companyId} AND s.company_id = app_company_id()
       AND s.business_id = ${scope.businessId} AND s.branch_id = ${scope.branchId} AND s.id = ${scope.sessionId})
-  SELECT visit.id AS session_id, coalesce(rev.revision, 0) AS revision, tip.employee_id, tip.method, tip.amount,
-    trim(to_char(coalesce(sum(tip.amount_value) FILTER (WHERE tip.method = 'CASH') OVER (), 0), '99999999990.000')) AS total_cash,
-    trim(to_char(coalesce(sum(tip.amount_value) FILTER (WHERE tip.method = 'CARD') OVER (), 0), '99999999990.000')) AS total_card
+  SELECT visit.id AS session_id, coalesce(rev.revision, 0) AS revision, tip.employee_id, tip.method, tip.amount
   FROM visit
   LEFT JOIN LATERAL (
     SELECT r.id, r.revision FROM session_tip_revisions r
     WHERE r.company_id = visit.company_id AND r.session_id = visit.id
     ORDER BY r.revision DESC LIMIT 1) rev ON true
   LEFT JOIN LATERAL (
-    SELECT t.employee_id, t.method, trim(to_char(t.amount, '99999999990.000')) AS amount, t.amount AS amount_value
+    SELECT t.employee_id, t.method, t.amount::text AS amount
     FROM session_tips t
     WHERE t.company_id = visit.company_id AND t.business_id = visit.business_id
       AND t.session_id = visit.id AND t.revision_id = rev.id) tip ON rev.id IS NOT NULL
@@ -53,23 +55,26 @@ function currentSet(rows: readonly TipReadRow[]): SessionTips {
   const head = rows[0];
   if (head?.session_id == null) throw new SessionTipsReadError();
   const tips: SessionTips['tips'] = [];
+  const entries: { method: 'CASH' | 'CARD'; amount: Money }[] = [];
   for (const row of rows) {
     if (row.employee_id === null || row.method === null || row.amount === null) continue;
-    tips.push({ employee_id: row.employee_id, method: row.method as SessionTips['tips'][number]['method'], amount: row.amount });
+    const amount = parseMoney(row.amount.trim());
+    const method = row.method as SessionTips['tips'][number]['method'];
+    tips.push({ employee_id: row.employee_id, method, amount: moneyToString(amount) });
+    if (method === 'CASH' || method === 'CARD') entries.push({ method, amount });
   }
-  return sessionTips.parse({
-    revision: Number(head.revision ?? 0),
-    tips,
-    total_cash: head.total_cash,
-    total_card: head.total_card,
-  });
+  return sessionTips.parse({ revision: Number(head.revision ?? 0), tips, ...sumTipTotalsByMethod(entries) });
 }
 
 export class SessionTipsCurrentQuery {
-  constructor(private readonly db: TenantWrappers) {}
+  constructor(private readonly db: TenantWrappers, private readonly reads: SessionTipsCurrentReads,
+    private readonly clock: { now(): Date }) {}
   async execute(scope: SessionTipsScope): Promise<SessionTips> {
     return this.db.withTenant(scope.companyId, async (tx) => {
       const rows = await tx.execute<TipReadRow>(sessionTipsCurrentStatement(scope));
+      const access = await this.reads.access(tx, scope, this.clock.now());
+      // فقدان record أو DENY أو انتهاء العضوية بعد الحارس يطلع نفس رفض الزيارة المجهولة، بلا قفل وبلا معلومة زيادة
+      if (access.denied || !access.record || access.membership_ids.length === 0) throw new SessionTipsReadError();
       return currentSet(rows);
     }, { userId: scope.userId });
   }
