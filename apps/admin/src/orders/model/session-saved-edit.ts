@@ -47,7 +47,9 @@ export function reconcileSavedVisit(visit: SavedVisitEdit, session: SavedVisitSn
 export function applySavedLineEdit(visit: SavedVisitEdit, sessionId: string, lineId: string, response: EditServiceLineResponse, revisionUsed: number): SavedVisitEdit {
   // رد إعادة محاولة متأخر ما يكتبش فوق سناب شوت أحدث مراجعة منه.
   const known = visit.lines[lineId];
-  if (known && known.revision >= ('line' in response ? response.line.revision : revisionUsed + 1)) return visit;
+  const answered = 'line' in response ? response.line.revision : revisionUsed + 1;
+  // مراجعة مساوية والأرقام معروفة (سناب شوت أو رد متطبّق) تفضل زي ما هي؛ أرقام «مجهولة» بمراجعة مساوية هي اللي رد الإعادة بيحلّها.
+  if (known && (known.revision > answered || (known.revision === answered && known.figures !== 'UNKNOWN'))) return visit;
   if ('line' in response) {
     const line = response.line;
     return {
