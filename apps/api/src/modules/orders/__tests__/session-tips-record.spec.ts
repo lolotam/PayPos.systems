@@ -4,8 +4,8 @@ import {
   must,
   payloadOf,
   recordVisit,
+  refusedTips,
   runTips,
-  sessionRevisionCount,
   tip,
   tipFixture,
   tipInput,
@@ -88,16 +88,15 @@ it('TP-09 an empty replacement writes a revision with no entries and an empty ev
 
 it('TP-12 refuses a total past the money ceiling and accepts a tip above the visit net', async () => {
   const visit = await recordVisit(f, twoLines(f));
-  const overflow = await runTips(
-    f,
-    visit.sessionId,
-    tipInput([tip(f, 0, 'CARD', '50000000000.000'), tip(f, 1, 'CARD', '50000000000.000')]),
-  ).then(
-    () => null,
-    (error: unknown) => error,
-  );
-  expect(overflow).toMatchObject({ code: 'TIP_TOTAL_TOO_LARGE' });
-  expect(await sessionRevisionCount(f, visit.sessionId)).toBe(0);
+  expect(
+    (
+      await refusedTips(
+        f,
+        visit.sessionId,
+        tipInput([tip(f, 0, 'CARD', '50000000000.000'), tip(f, 1, 'CARD', '50000000000.000')]),
+      )
+    ).code,
+  ).toBe('TIP_TOTAL_TOO_LARGE');
   const saved = sessionTips.parse(
     await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '100.000')])),
   );

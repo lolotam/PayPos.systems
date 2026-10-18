@@ -1,6 +1,7 @@
 import type { RecordSessionTipsInput } from '@pospay/contracts';
 import { cancelServiceLine } from '../../../packages/db/test/service-line-cancellation.ts';
 import postgres from 'postgres';
+import { expect } from 'vitest';
 import { ordersSessionTips } from '../src/modules/orders/orders.module.ts';
 import { RecordSessionTipsUseCase } from '../src/modules/orders/use-cases/record-session-tips/record-session-tips.usecase.ts';
 import { ids, must, sessionFixture, type SessionFixture } from './service-session.fixture.ts';
@@ -162,6 +163,21 @@ export async function tipQuiet(f: TipFixture, sessionId: string, key: string) {
     events: events.length,
     keys: keys.length,
   };
+}
+
+/** العدّ مطلق، فالمساواة قبل النداء وبعده تثبت أن الرفض لم يزد صفاً حتى لو كانت الزيارة فيها سطور. */
+export async function refusedTips(
+  f: TipFixture,
+  sessionId: string,
+  input: RecordSessionTipsInput,
+  options: TipRunOptions = {},
+) {
+  const key = options.key ?? ids.newId();
+  const before = await tipQuiet(f, sessionId, key);
+  const error = await caught(runTips(f, sessionId, input, { ...options, key }));
+  expect(await tipQuiet(f, sessionId, key)).toEqual(before);
+  if (error === null) throw new Error('expected a refusal');
+  return errorShape(error);
 }
 
 export async function sessionRevisionCount(f: TipFixture, sessionId: string) {

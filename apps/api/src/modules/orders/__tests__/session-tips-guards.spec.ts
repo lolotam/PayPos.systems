@@ -269,6 +269,42 @@ it('a branch deactivated while the visit lock is held is not found and writes no
   }
 });
 
+it('a place read that returns null after the visit lock is not found and writes nothing', async () => {
+  const visit = await recordVisit(f);
+  const base = ordersSessionTips(f.db);
+  let hidePlace = false;
+  const tips = new RecordSessionTipsUseCase(
+    {
+      run: (context, work) =>
+        base.run(context, (tx) =>
+          work({
+            ...tx,
+            place: { read: () => (hidePlace ? Promise.resolve(null) : tx.place.read()) },
+          }),
+        ),
+    },
+    ids,
+    f.clock,
+  );
+  const key = ids.newId();
+  const held = await holdVisit(f, visit.sessionId);
+  const pending = tips.execute({
+    ...f.context(key),
+    sessionId: visit.sessionId,
+    input: tipInput([tip(f, 0, 'CASH', '1.000')]),
+  });
+  try {
+    expect(await waitForAdvisory(f, held.pid, 1)).toBeGreaterThanOrEqual(1);
+    hidePlace = true;
+    await held.release();
+    expect(errorShape(await caught(pending))).toEqual(NOT_FOUND);
+    expect(await tipQuiet(f, visit.sessionId, key)).toEqual(QUIET);
+  } finally {
+    await held.release();
+    await pending.catch(() => undefined);
+  }
+});
+
 it('a membership that expires while the visit lock is held is not found and writes nothing', async () => {
   const visit = await recordVisit(f);
   const key = ids.newId();

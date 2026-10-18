@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { ordersSessionTips } from '../orders.module.ts';
+import { RecordSessionTipsUseCase } from '../use-cases/record-session-tips/record-session-tips.usecase.ts';
 import {
   AT,
   cancelLine,
@@ -10,8 +12,8 @@ import {
   payloadOf,
   recordVisit,
   recordVisitAt,
+  refusedTips,
   runTips,
-  sessionRevisionCount,
   tip,
   tipFixture,
   tipInput,
@@ -36,8 +38,7 @@ it('TP-04 a snapshot of the cashier refuses a self tip', async () => {
     { employee_id: employeeId, linked_user_id: f.userId, linked_user_snapshotted: true },
   ]);
   expect(
-    errorShape(await caught(runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]))))
-      .code,
+    (await refusedTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]))).code,
   ).toBe('TIP_SELF_FORBIDDEN');
   const saved = await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]), {
     userId: f.ownerId,
@@ -51,8 +52,7 @@ it('TP-04 a current link of the cashier refuses a self tip', async () => {
   await f.linkEmployee(employeeId, f.userId);
   try {
     expect(
-      errorShape(await caught(runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]))))
-        .code,
+      (await refusedTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]))).code,
     ).toBe('TIP_SELF_FORBIDDEN');
     const saved = await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]), {
       userId: f.ownerId,
@@ -72,12 +72,10 @@ it('TP-04 an unsnapshotted row is unknown to the manager and the linked actor, a
   await f.linkEmployee(employeeId, f.userId);
   try {
     const touching = tipInput([tip(f, 0, 'CASH', '1.000')]);
-    expect(errorShape(await caught(runTips(f, visit.sessionId, touching))).code).toBe(
+    expect((await refusedTips(f, visit.sessionId, touching)).code).toBe('TIP_IDENTITY_UNKNOWN');
+    expect((await refusedTips(f, visit.sessionId, touching, { userId: f.ownerId })).code).toBe(
       'TIP_IDENTITY_UNKNOWN',
     );
-    expect(
-      errorShape(await caught(runTips(f, visit.sessionId, touching, { userId: f.ownerId }))).code,
-    ).toBe('TIP_IDENTITY_UNKNOWN');
     const saved = await runTips(f, visit.sessionId, tipInput([tip(f, 1, 'CARD', '1.500')]));
     const replaced = await runTips(
       f,
@@ -115,18 +113,18 @@ it('TP-05 a cancelled line keeps a carried tip, allows its removal, and refuses 
     }),
   );
   expect(removed.tips.map((entry) => entry.employee_id)).toEqual([must(f.employees[1])]);
-  const added = await caught(
-    runTips(
-      f,
-      visit.sessionId,
-      tipInput([tip(f, 1, 'CARD', '3.000'), kept], {
-        expected_revision: 3,
-        reason: 'add the cancelled performer',
-      }),
-    ),
-  );
-  expect(errorShape(added).code).toBe('TIP_EMPLOYEE_NOT_PERFORMER');
-  expect((await tipRows(f, visit.sessionId)).revisions).toHaveLength(3);
+  expect(
+    (
+      await refusedTips(
+        f,
+        visit.sessionId,
+        tipInput([tip(f, 1, 'CARD', '3.000'), kept], {
+          expected_revision: 3,
+          reason: 'add the cancelled performer',
+        }),
+      )
+    ).code,
+  ).toBe('TIP_EMPLOYEE_NOT_PERFORMER');
 });
 
 it('TP-06 a closed window is refused and the oldest open day still accepts a tip', async () => {
@@ -134,11 +132,9 @@ it('TP-06 a closed window is refused and the oldest open day still accepts a tip
   try {
     const closed = await recordVisitAt(f, '2026-08-15T08:00:00.000Z');
     f.setAt(AT);
-    const error = await caught(
-      runTips(f, closed.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')])),
-    );
-    expect(errorShape(error).code).toBe('TIP_WINDOW_CLOSED');
-    expect(await sessionRevisionCount(f, closed.sessionId)).toBe(0);
+    expect(
+      (await refusedTips(f, closed.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]))).code,
+    ).toBe('TIP_WINDOW_CLOSED');
   } finally {
     f.setAt(AT);
   }
@@ -151,22 +147,17 @@ it('TP-06 a closed window is refused and the oldest open day still accepts a tip
 it('TP-07 a stale expected revision conflicts with only current_revision and writes nothing', async () => {
   const visit = await recordVisit(f);
   await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]));
-  const key = ids.newId();
-  const error = await caught(
-    runTips(
+  expect(
+    await refusedTips(
       f,
       visit.sessionId,
       tipInput([tip(f, 0, 'CASH', '2.000')], { expected_revision: 0, reason: 'late' }),
-      { key },
     ),
-  );
-  expect(errorShape(error)).toEqual({
+  ).toEqual({
     code: 'TIP_REVISION_CONFLICT',
     message: 'TIP_REVISION_CONFLICT',
     details: { current_revision: 1 },
   });
-  expect((await tipRows(f, visit.sessionId)).revisions).toHaveLength(1);
-  expect((await tipQuiet(f, visit.sessionId, key)).keys).toBe(0);
 });
 
 it('TP-08 a replacement needs a stored reason and that reason stays off the audit, event and response', async () => {
@@ -175,25 +166,20 @@ it('TP-08 a replacement needs a stored reason and that reason stays off the audi
   expect(must((await tipRows(f, visit.sessionId)).revisions[0])['reason']).toBeNull();
   const next = [tip(f, 0, 'CASH', '2.000')];
   expect(
-    errorShape(await caught(runTips(f, visit.sessionId, tipInput(next, { expected_revision: 1 }))))
-      .code,
+    (await refusedTips(f, visit.sessionId, tipInput(next, { expected_revision: 1 }))).code,
   ).toBe('TIP_REASON_REQUIRED');
   expect(
-    errorShape(
-      await caught(
-        runTips(f, visit.sessionId, tipInput(next, { expected_revision: 1, reason: ' \t' })),
-      ),
+    (
+      await refusedTips(f, visit.sessionId, tipInput(next, { expected_revision: 1, reason: ' \t' }))
     ).code,
   ).toBe('TIP_REASON_REQUIRED');
   expect(
-    errorShape(
-      await caught(
-        runTips(
-          f,
-          visit.sessionId,
-          tipInput(next, { expected_revision: 1, reason: 'a'.repeat(501) }),
-        ),
-      ),
+    (
+      await refusedTips(
+        f,
+        visit.sessionId,
+        tipInput(next, { expected_revision: 1, reason: 'a'.repeat(501) }),
+      )
     ).code,
   ).toBe('VALIDATION_FAILED');
   const fresh = await recordVisit(f);
@@ -247,4 +233,83 @@ it('D-T1 an identical set changes nothing, and a stale identical request conflic
     ),
   );
   expect(stale.code).toBe('TIP_REVISION_CONFLICT');
+});
+
+it('a missing current link is unknown before a closed window', async () => {
+  f.setAt(new Date('2026-08-15T08:00:00.000Z'));
+  try {
+    const visit = await recordVisitAt(f, '2026-08-15T08:00:00.000Z');
+    f.setAt(AT);
+    const base = ordersSessionTips(f.db);
+    const tips = new RecordSessionTipsUseCase(
+      {
+        run: (context, work) =>
+          base.run(context, (tx) =>
+            work({
+              ...tx,
+              performers: { lock: (batch) => tx.performers.lock(batch), read: async () => [] },
+            }),
+          ),
+      },
+      ids,
+      f.clock,
+    );
+    const key = ids.newId();
+    const before = await tipQuiet(f, visit.sessionId, key);
+    const error = errorShape(
+      await caught(
+        tips.execute({
+          ...f.context(key),
+          sessionId: visit.sessionId,
+          input: tipInput([tip(f, 0, 'CASH', '1.000')]),
+        }),
+      ),
+    );
+    expect(error.code).toBe('TIP_IDENTITY_UNKNOWN');
+    expect(await tipQuiet(f, visit.sessionId, key)).toEqual(before);
+  } finally {
+    f.setAt(AT);
+  }
+});
+
+it('a closed window is refused before a missing replacement reason', async () => {
+  f.setAt(new Date('2026-08-15T08:00:00.000Z'));
+  try {
+    const visit = await recordVisitAt(f, '2026-08-15T08:00:00.000Z');
+    await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]));
+    f.setAt(AT);
+    expect(
+      (
+        await refusedTips(
+          f,
+          visit.sessionId,
+          tipInput([tip(f, 0, 'CASH', '2.000')], { expected_revision: 1 }),
+        )
+      ).code,
+    ).toBe('TIP_WINDOW_CLOSED');
+  } finally {
+    f.setAt(AT);
+  }
+});
+
+it('a missing replacement reason is refused before a self tip', async () => {
+  const employeeId = must(f.employees[0]);
+  const visit = await recordVisit(f);
+  await f.linkEmployee(employeeId, f.userId);
+  try {
+    await runTips(f, visit.sessionId, tipInput([tip(f, 0, 'CASH', '1.000')]), {
+      userId: f.ownerId,
+    });
+    expect(
+      (
+        await refusedTips(
+          f,
+          visit.sessionId,
+          tipInput([tip(f, 0, 'CASH', '2.000')], { expected_revision: 1 }),
+        )
+      ).code,
+    ).toBe('TIP_REASON_REQUIRED');
+  } finally {
+    await f.linkEmployee(employeeId, null);
+  }
 });
