@@ -157,6 +157,7 @@ export {
   inAppNotification,
   inAppNotificationQuery,
   inAppNotificationPage,
+  readInAppNotificationPage,
   notificationUnreadCount,
   notificationReadResult,
   type InAppRecipient,

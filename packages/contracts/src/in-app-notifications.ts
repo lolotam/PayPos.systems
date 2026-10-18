@@ -243,6 +243,26 @@ export const inAppNotificationPage = responseObject({
   items: z.array(inAppNotification),
   next_cursor: z.string().nullable(),
 }).meta({ id: 'InAppNotificationPage' });
+const inAppNotificationEnvelope = responseObject({
+  items: z.array(z.unknown()),
+  next_cursor: z.string().nullable(),
+});
+/**
+ * بيقرأ صفحة إشعارات الجرس ويتخطى الإشعار اللي الحزمة دي مش عارفة تعرضه.
+ * حزمة متصفح مفتوحة ممكن توصلها صفحة فيها `template_key` جديد نزل مع نشر السيرفر؛ لو فشل عنصر واحد كانت الصفحة كلها بتفشل والجرس يقف لحد إعادة التحميل.
+ * العنصر المتخطي يظهر بعد ما الحزمة الجديدة تتحمل، وعداد غير المقروء بيفضل من السيرفر.
+ *
+ * @param data جسم الرد كما جاء من السيرفر
+ * @returns الصفحة بالعناصر اللي الحزمة دي تفهمها، ومؤشر الصفحة التالية
+ */
+export function readInAppNotificationPage(data: unknown): InAppNotificationPage {
+  const envelope = inAppNotificationEnvelope.parse(data);
+  const items = envelope.items.flatMap((item) => {
+    const parsed = inAppNotification.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
+  });
+  return { items, next_cursor: envelope.next_cursor };
+}
 export const notificationUnreadCount = responseObject({
   count: z.number().int().nonnegative(),
 }).meta({ id: 'NotificationUnreadCount' });

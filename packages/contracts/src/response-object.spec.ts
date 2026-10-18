@@ -9,7 +9,7 @@ import { fileConfirmation, fileDownload, fileStatus, fileUploadTicket, requestFi
 import { discountLimit, discountLimitInput } from './identity/discount-limit.js';
 import { membershipPermissions, permissionMembershipPage, permissionOverride, permissionOverrideInput } from './identity/permissions.js';
 import { myWorkspacesResponse, workspaceCompany } from './identity/workspaces.js';
-import { inAppNotificationPage, inAppRecipient, notificationReadResult, notificationUnreadCount } from './in-app-notifications.js';
+import { inAppNotificationPage, inAppRecipient, notificationReadResult, notificationUnreadCount, readInAppNotificationPage } from './in-app-notifications.js';
 import {
   appendServiceSessionLinesResponse,
   editServiceLineResponse,
@@ -188,6 +188,23 @@ it('fileUploadTicket drops an unknown top-level key but passes extra upload head
   const parsed = fileUploadTicket.parse({ ...clean, headers, __unknown: true });
   expect(JSON.stringify(parsed)).not.toContain('__unknown');
   expect((parsed.headers as Record<string, string>)['x-amz-checksum-sha256']).toBe('abc');
+});
+
+// حزمة مفتوحة ممكن توصلها صفحة فيها template_key نزل بعد نشر السيرفر؛ العنصر ده يتخطى والصفحة تكمل.
+it('readInAppNotificationPage skips an item this bundle cannot render instead of failing the page', () => {
+  const clean = validSample(inAppNotificationPage) as { items: Record<string, unknown>[]; next_cursor: string | null };
+  const known = clean.items[0];
+  expect(known).toBeDefined();
+  const future = { ...known, template_key: 'a_template_from_the_next_deploy', safe_parameters: [{ name: 'x', type: 'text', value: 'y' }] };
+  expect(inAppNotificationPage.safeParse({ ...clean, items: [future, known] }).success).toBe(false);
+  const page = readInAppNotificationPage({ ...clean, items: [future, known], __unknown: true });
+  expect(page.items).toHaveLength(1);
+  expect(page.items[0]?.template_key).toBe(known?.['template_key']);
+  expect(page.next_cursor).toBe(clean.next_cursor);
+});
+
+it('readInAppNotificationPage still rejects a body that is not a page', () => {
+  expect(() => readInAppNotificationPage({ items: 'nope', next_cursor: null })).toThrow();
 });
 
 it.each(requests)('$name still rejects an unknown key', ({ schema }) => {
