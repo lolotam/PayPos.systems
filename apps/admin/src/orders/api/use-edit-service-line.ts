@@ -3,6 +3,7 @@ import { editServiceLineResponse, type EditServiceLineInput, type EditServiceLin
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { apiClient } from '@/shared/api/client';
+import { editAccessRevoked } from '../model/service-session-access';
 import type { SessionServiceScope } from './use-session-services';
 
 const editPath = '/v1/businesses/{businessId}/branches/{branchId}/service-sessions/{sessionId}/lines/{lineId}';
@@ -57,13 +58,14 @@ export function revisionAfterFailedRetry(error: unknown): number | null {
   return staleRevision(error, retried) ?? retried;
 }
 
-// 4xx رفض واضح. 409 من غير SESSION_LINE_REVISION_STALE أو FEATURE_DISABLED (إيقاف الميزة رفض نهائي مش تعارض شغّال) ممكن يكون تعارض لسه شغّال، والـ 5xx وقطع الشبكة ورد 2xx اللي مش مفهوم ممكن يكون الحفظ اتنفذ.
+// إيقاف الميزة (FEATURE_DISABLED) بأي status وانتهاء الجلسة 401 رفض نهائي. 4xx رفض واضح. 409 من غير SESSION_LINE_REVISION_STALE ممكن يكون تعارض لسه شغّال، والـ 5xx وقطع الشبكة ورد 2xx اللي مش مفهوم ممكن يكون الحفظ اتنفذ.
 export function editOutcomeKnown(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
+  if (editAccessRevoked(error)) return true;
   const status = (error as { status?: unknown }).status;
   const code = (error as { code?: unknown }).code;
   if (typeof status !== 'number' || !Number.isInteger(status) || status < 400 || status > 499) return false;
-  if (status === 409) return code === 'SESSION_LINE_REVISION_STALE' || code === 'FEATURE_DISABLED';
+  if (status === 409) return code === 'SESSION_LINE_REVISION_STALE';
   return true;
 }
 
