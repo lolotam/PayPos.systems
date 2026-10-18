@@ -152,6 +152,11 @@ it('DH-Q5 employee hours default to owner only', () => {
   expect(ROLE_DEFAULTS['manage:employee-hours:business']).toEqual(['owner']);
 });
 
+it('BI-Q1 business identity defaults to the owner and stays owner-granted', () => {
+  expect(ROLE_DEFAULTS['manage:business-identity:business']).toEqual(['owner']);
+  expect(OWNER_GRANTED_PERMISSIONS).toContain('manage:business-identity:business');
+});
+
 it('cancel:service-lines:branch defaults to the four managers and a device cannot hold it', () => {
   const defaults = ['owner', 'general_manager', 'business_manager', 'branch_manager'];
   const holders: readonly string[] = ROLE_DEFAULTS['cancel:service-lines:branch'];

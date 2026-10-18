@@ -25,6 +25,7 @@ it.each(['ar', 'en'] as const)(
       'manage:discount-limits:business',
       'read:settings:business',
       'manage:settings:business',
+      'manage:business-identity:business',
       'read:package-types:business',
       'manage:package-types:business',
       'correct:attendance:branch',
@@ -43,6 +44,10 @@ it.each(['ar', 'en'] as const)(
     );
     expect(permissionName('ar', 'cancel:service-lines:branch')).toBe('إلغاء بنود الخدمة');
     expect(permissionName('en', 'cancel:service-lines:branch')).toBe('Cancel service lines');
+    expect(permissionName('ar', 'manage:business-identity:business')).toBe('إدارة هوية النشاط');
+    expect(permissionName('en', 'manage:business-identity:business')).toBe(
+      'Manage business identity',
+    );
     expect(permissionName(locale, 'read:future:business')).toBe('read:future:business');
   },
 );

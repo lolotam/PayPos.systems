@@ -1023,6 +1023,13 @@
       "when": 1792246581674,
       "tag": "0147_2026-10-17_service-line-cancel-notices",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1792277623622,
+      "tag": "0148_2026-10-17_business-identity-permission",
+      "breakpoints": true
     }
   ]
 }

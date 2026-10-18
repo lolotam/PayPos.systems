@@ -159,3 +159,12 @@ it('employee hours grants are eligible for humans and never devices', () => {
     expect(systemRolePolicy(entry.id, 'global')?.permissions.includes('manage:employee-hours:business'))
       .toBe(entry.code !== 'device');
 });
+
+it('business identity is grantable to every human role and never a device', () => {
+  for (const entry of SYSTEM_ROLES)
+    expect(
+      systemRolePolicy(entry.id, 'global')?.permissions.includes(
+        'manage:business-identity:business',
+      ),
+    ).toBe(entry.code !== 'device');
+});

@@ -309,3 +309,26 @@ for (const permission_code of OWNER_GRANTED_PERMISSIONS) {
     );
   });
 }
+
+it('manage:business-identity:business refuses an ALLOW override on a device membership', () => {
+  const permission_code = 'manage:business-identity:business';
+  const deviceMember = {
+    ...member,
+    roleCode: 'device',
+    systemRoleCode: 'device',
+    allowedPermissions: ['login:staff:branch'],
+  };
+  expect(
+    permissionEditFailure(
+      { ...terms, permission_code },
+      {
+        ...context,
+        editorIsCompanyOwner: true,
+        catalog: [permission_code],
+        membership: deviceMember,
+        holderMemberships: [deviceMember],
+        grants: [manage, grant(permission_code)],
+      },
+    ),
+  ).toBe('PERMISSION_ROLE_FORBIDDEN');
+});
