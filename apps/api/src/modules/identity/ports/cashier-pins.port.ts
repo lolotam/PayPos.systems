@@ -5,7 +5,7 @@ import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
  */
 export interface CashierPinScope {
   readonly audit: AuditTrail;
-  /** الشركة لسه ظاهرة وdeleted_at فاضي. جهاز شركة اتحذفت ما يثبتش الموظف اللي على الكاشير. */
+  /** true بعد قفل صف الشركة النشطة FOR SHARE لحد نهاية معاملة قراءة الـ hash؛ false لو الشركة محذوفة، والحذف ميتسجلش بين الفحص والقراءة. */
   companyOpen(): Promise<boolean>;
   /**
    * الـ hash المتخزن للموظف ده في الشركة دي، أو null لو مالوش PIN — الـ use case بيقارن بيه.

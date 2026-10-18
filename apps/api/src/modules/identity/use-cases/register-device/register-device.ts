@@ -46,7 +46,7 @@ export class RegisterDevice {
     const deviceId = this.#ids.newId();
     const claimSecret = this.#secrets.newSecret();
     await this.#transactions.run(target.companyId, null, async (scope) => {
-      // الكود اتستهلك؛ شركة اتحذفت بتترفض زي كود باطل من غير ما يتسجل جهاز.
+      // القفل FOR SHARE بيتاخد قبل الإدراج ويفضل ماسك لحد تسجيل الرفض؛ شركة اتحذفت زي كود باطل ومن غير جهاز.
       if (!(await scope.companyOpen())) throw new PairingCodeInvalidError();
       await scope.insertPending({
         id: deviceId,

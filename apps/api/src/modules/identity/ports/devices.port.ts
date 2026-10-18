@@ -27,7 +27,7 @@ export interface DeviceScope {
    * @param deviceId الجهاز
    */
   findForUpdate(deviceId: string): Promise<DeviceRecord | null>;
-  /** الشركة ظاهرة وdeleted_at فاضي. التسجيل وإصدار توكن جديد بيتوقفوا لو الشركة اتحذفت. */
+  /** بيقفل صف الشركة النشطة FOR SHARE من أول الفحص لحد ما معاملة التسجيل أو إصدار التوكن تخلص؛ شركة اتحذفت بترفض الاتنين. */
   companyOpen(): Promise<boolean>;
   /**
    * بيضيف جهاز جديد PENDING ومعاه hash سر الاستلام.

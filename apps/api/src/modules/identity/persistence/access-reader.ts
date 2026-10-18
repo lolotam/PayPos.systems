@@ -11,6 +11,7 @@ import { sql } from 'drizzle-orm';
 import type { ScopeType } from '../domain/access.ts';
 import { protectOwnerAccess } from '../domain/owner-access.ts';
 import type { AccessReader, ActiveMembership, SourcedGrant } from '../ports/access-reader.port.ts';
+import { lockActiveCompany } from './company-active-lock.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
 import { readScopeTargets } from './permission-scope-targets.ts';
 
@@ -90,17 +91,11 @@ function readAccess(
   return db.withTenant(companyId, (tx) => readAccessTransaction(tx, companyId, userId), { userId });
 }
 
-async function companyIsActive(tx: Tx, companyId: string): Promise<boolean> {
-  const rows = await tx.execute(
-    sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL`,
-  );
-  return rows.length === 1;
-}
-
 /**
  * عضويات المستخدم السارية ومنحه جوه transaction الشركة.
- * مستأجر اتعمله soft-delete مش قابل للوصول حتى لأعضائه: RLS بيقارن company_id بس،
- * فلو الصف مش ظاهر أو deleted_at متعبّى بنرجّع صفر عضويات وصفر منح والـ guard بيرفض بالفحص الموجود.
+ * صف الشركة النشطة بيتقفل FOR SHARE قبل العضويات والمنح، ويفضل ماسك لحد ما معاملة القرار تتسجل،
+ * عشان UPDATE الحذف الناعم ميتسجلش في النص تحت READ COMMITTED.
+ * صف مش ظاهر أو deleted_at متعبّى بيرجّع صفر عضويات وصفر منح والـ guard بيرفض بالفحص الموجود.
  *
  * @param tx         معاملة withTenant للشركة
  * @param companyId  الشركة
@@ -114,7 +109,7 @@ export async function readAccessTransaction(
   userId: string,
   decisionAt?: Date,
 ): ReturnType<AccessReader['accessIn']> {
-  if (!(await companyIsActive(tx, companyId))) return { memberships: [], grants: [] };
+  if (!(await lockActiveCompany(tx, companyId))) return { memberships: [], grants: [] };
   const at = decisionAt === undefined ? sql`now()` : sql`${decisionAt.toISOString()}::timestamptz`;
   const active = sql`m.starts_at <= ${at} AND (m.ends_at IS NULL OR m.ends_at > ${at})`;
   const memberships = await tx.execute<{

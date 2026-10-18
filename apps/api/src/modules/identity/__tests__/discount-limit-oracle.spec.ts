@@ -136,7 +136,7 @@ it('self and owner failures are named only for fully authorized targets; the mut
   ).toEqual([{ limit_bps: null }, { limit_bps: null }, { limit_bps: null }]);
 });
 
-it('locked recheck catches a descendant DENY committed after the HTTP preflight', async () => {
+it('waits on the company share lock and then refuses a descendant DENY committed before access is read', async () => {
   const locked = barrier(),
     release = barrier();
   const override = f.ids.newId();
@@ -156,7 +156,7 @@ it('locked recheck catches a descendant DENY committed after the HTTP preflight'
       async () => {
         const waiting =
           await observer`SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
-          AND wait_event_type='Lock' AND query LIKE '%companies%FOR NO KEY UPDATE%'`;
+          AND wait_event_type='Lock' AND query LIKE '%companies%deleted_at IS NULL FOR SHARE%'`;
         expect(waiting.length).toBeGreaterThan(0);
       },
       { timeout: 5000, interval: 20 },

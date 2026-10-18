@@ -2,14 +2,13 @@ import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
+import { lockActiveCompany } from './company-active-lock.ts';
 import type { CashierPinScope, CashierPinTransactions } from '../ports/cashier-pins.port.ts';
 
 function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): CashierPinScope {
   return {
     audit: transactionWriters(tx, ids).audit,
-    companyOpen: async () =>
-      (await tx.execute(sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL`))
-        .length === 1,
+    companyOpen: () => lockActiveCompany(tx, companyId),
     findHash: async (employeeId) => {
       const [row] = await tx.execute<{ pin_hash: string }>(sql`
         SELECT pin_hash FROM cashier_pins WHERE company_id = ${companyId} AND employee_id = ${employeeId}`);

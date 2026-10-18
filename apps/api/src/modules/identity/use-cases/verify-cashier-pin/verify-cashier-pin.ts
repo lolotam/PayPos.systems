@@ -37,18 +37,19 @@ export class VerifyCashierPin {
     pin: string;
   }): Promise<PinOutcome> {
     const { companyId, employeeId } = command;
-    // شركة اتحذفت مش بتثبت مين على الكاشير، والرفض زي PIN غلط عشان مفيش oracle جديد.
-    const open = await this.#transactions.run(companyId, null, (scope) => scope.companyOpen());
-    if (!open) return { kind: 'refused' };
+    // فحص الشركة وقراءة الـ hash في معاملة واحدة، والقفل FOR SHARE ماسك لحد ما تتسجل.
+    // شركة اتحذفت بتترفض قبل حجز المحاولة زي PIN غلط، والمقارنة البطيئة بتفضل بعد الحجز.
+    const pinRead = await this.#transactions.run(companyId, null, async (scope) => {
+      const open = await scope.companyOpen();
+      return open ? { open, hash: await scope.findHash(employeeId) } : { open, hash: null };
+    });
+    if (!pinRead.open) return { kind: 'refused' };
     const target = { companyId, employeeId };
     const reserved = await this.#attempts.reserve(target);
     if (reserved.kind !== 'ok') return { kind: reserved.kind };
     let matches: boolean;
     try {
-      const stored = await this.#transactions.run(companyId, null, (scope) =>
-        scope.findHash(employeeId),
-      );
-      matches = await this.#hasher.verify(command.pin, stored);
+      matches = await this.#hasher.verify(command.pin, pinRead.hash);
     } catch (error) {
       await this.#attempts.release(target, reserved.reservation);
       throw error;
