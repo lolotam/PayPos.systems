@@ -7,8 +7,8 @@
 **Status**: Draft — owner answers EN-Q1 … EN-Q14 are final (batches 14 and 17, Waleed 2026-10-12/13; batch 27, Waleed
 2026-10-17). Abu Salem's pick on EN-Q1…Q4 is the same as Waleed's; he has not answered EN-Q10 … EN-Q14, and if his pick
 differs later it replaces these (Waleed's ruling, 2026-10-10). EN-Q15 and EN-Q16 were answered by Abu Salem (batch 32,
-2026-10-17) and are binding without Waleed's pick (2026-10-10 rule); PP-3.1 was answered by Waleed (2026-10-18). One
-point is pending Waleed: PP-4.1 (see the Admin UI section).
+2026-10-17) and are binding without Waleed's pick (2026-10-10 rule); PP-3.1 was answered by Waleed (2026-10-18). Two
+points are pending Waleed: PP-4.1 and PP-4.2 (see the Admin UI section).
 
 **Input**: User description: "staff-employee-number — every employee gets a number that appears in the profile, the
 staff list, the attendance board, the monthly report, the CSV and the official statement (Abu Salem's AB-Q10 pick,
@@ -363,6 +363,7 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   7 by `parseEmployeeNumber` before it is sent (EN-Q8).
 - All strings from `packages/i18n`; logical CSS only; no closing comments in JSX.
 - TODO(spec): PP-4.1 — how a number-only holder reaches an employee in a business whose staff screen she cannot open (pending Waleed).
+- TODO(spec): PP-4.2 — whether typing a number at creation (8c-7) applies the same EN-Q15/PP-3.1 DENY recheck as the hand edit (pending Waleed; recommended: yes).
 
 ### Test plan
 
@@ -422,10 +423,10 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 | 8c-4b | Staff-list search box (EN-Q16, AS-24)                                                                     | (1) list query `q`: digits only match the exact number OR the name, letters search ar/en names, same as the reception picker (2) EXPLAIN and EN-14-style tests (3) OpenAPI and clients | 8c-4             | ready |
 | 8c-5  | Reads: attendance board, monthly report, CSV                                                               | (1) board contract and query (2) report contract, query and CSV first column (3) update the two "number is absent" tests, `EN-15`      | 8c-1             | ready                  |
 | 8c-6  | `set-employee-number` (hand edit)                                                                          | (1) reuse `parseEmployeeNumber` (added in 8c-4 with its unit tests) (2) permission migration and use case with audit (3) route, contract, `EN-06`…`EN-10`, including `EN-09b` (company-level holder with DENY on the business, primary branch or another attached branch, EN-Q15, PP-3.1)           | 8c-2             | ready |
-| 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field and permission check (2) `EN-06` for create, `EN-07`, `EN-09`                                                           | 8c-2, 8c-6       | ready |
+| 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field and permission check (2) `EN-06` for create, `EN-07`, `EN-09`                                                           | 8c-2, 8c-6       | waits PP-4.2 |
 | 8c-8  | `set-employee-number-start`                                                                                | (1) use case, `GET`/`PUT /v1/employee-numbering` (2) audit and once-only rule (3) `EN-11`                                               | 8c-2, 8c-6       | ready |
 | 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-4b, 8c-5 | ready |
-| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (2) edit action on the profile (3) "Start numbering from" dialog                                                 | 8c-7, 8c-8, 8c-9 | ready |
+| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (2) edit action on the profile (3) "Start numbering from" dialog                                                 | 8c-7, 8c-8, 8c-9 | waits PP-4.1 |
 | 8c-11 | Contract: numbers for stragglers, then `NOT NULL`                                                          | (1) straggler backfill migration (2) `CHECK … NOT VALID` then `VALIDATE`; readers drop the `NULL` branch                               | 8c-2, 8c-3 in a released image | later release |
 
 Parallel work follows the pipeline's file-disjoint rule: 8c-4 and 8c-5 touch different queries and can run together;
