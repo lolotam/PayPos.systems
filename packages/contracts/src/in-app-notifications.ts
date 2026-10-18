@@ -174,13 +174,6 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
     safe_parameters: breakNotReturnedParameters,
   }),
 ]);
-// قوالب الجرس والواتساب لسه strict؛ الإشعار اللي الشاشة بتقراه بيشيل مفتاح زيادة جوه المعاملات (ADR-0047).
-function responseParameters(parameters: z.ZodTuple<readonly [z.ZodType, ...z.ZodType[]]>) {
-  const items = parameters.def.items.map((item) =>
-    item instanceof z.ZodObject ? responseObject(item.shape) : item,
-  );
-  return z.tuple(items as unknown as [z.ZodType, ...z.ZodType[]]);
-}
 const inAppNotificationBase = {
   id,
   company_id: id,
@@ -196,69 +189,66 @@ export const inAppNotification = z
   .discriminatedUnion('template_key', [
     responseObject({
       ...inAppNotificationBase, template_key: z.literal('late_service_session'),
-      safe_parameters: responseParameters(lateServiceSessionParameters),
+      safe_parameters: lateServiceSessionParameters,
     }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('service_line_price_edited'),
-      safe_parameters: responseParameters(serviceLinePriceEditedParameters),
+      safe_parameters: serviceLinePriceEditedParameters,
     }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('service_line_cancelled'),
-      safe_parameters: responseParameters(serviceLineCancelledParameters),
+      safe_parameters: serviceLineCancelledParameters,
     }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('service_line_performers_changed'),
-      safe_parameters: responseParameters(serviceLinePerformersChangedParameters),
+      safe_parameters: serviceLinePerformersChangedParameters,
     }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('break_returned_other_branch'),
-      safe_parameters: responseParameters(breakReturnedOtherBranchParameters),
+      safe_parameters: breakReturnedOtherBranchParameters,
     }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('attendance_change_requested'),
-      safe_parameters: responseParameters(attendanceChangeRequestedParameters),
+      safe_parameters: attendanceChangeRequestedParameters,
     }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('attendance_change_decided'),
-      safe_parameters: responseParameters(attendanceChangeDecidedParameters),
+      safe_parameters: attendanceChangeDecidedParameters,
     }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('generic_notice'),
-      safe_parameters: responseParameters(inAppParameters),
+      safe_parameters: inAppParameters,
     }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('shift_not_clocked_in'),
-      safe_parameters: responseParameters(shiftNotClockedInParameters),
+      safe_parameters: shiftNotClockedInParameters,
     }),
     responseObject({
       ...inAppNotificationBase,
       template_key: z.literal('break_not_returned'),
-      safe_parameters: responseParameters(breakNotReturnedParameters),
+      safe_parameters: breakNotReturnedParameters,
     }),
   ])
   .meta({ id: 'InAppNotification' });
 export const inAppNotificationQuery = pageQuery.meta({ id: 'InAppNotificationQuery' });
 export const inAppNotificationPage = responseObject({
-    items: z.array(inAppNotification),
-    next_cursor: z.string().nullable(),
-  })
-  .meta({ id: 'InAppNotificationPage' });
+  items: z.array(inAppNotification),
+  next_cursor: z.string().nullable(),
+}).meta({ id: 'InAppNotificationPage' });
 export const notificationUnreadCount = responseObject({
-    count: z.number().int().nonnegative(),
-  })
-  .meta({ id: 'NotificationUnreadCount' });
+  count: z.number().int().nonnegative(),
+}).meta({ id: 'NotificationUnreadCount' });
 export const notificationReadResult = responseObject({
-    ok: z.literal(true),
-  })
-  .meta({ id: 'NotificationReadResult' });
+  ok: z.literal(true),
+}).meta({ id: 'NotificationReadResult' });
 export type InAppRecipient = z.infer<typeof inAppRecipient>;
 export type InAppNotification = z.infer<typeof inAppNotification>;
 export type InAppNotificationQuery = z.infer<typeof inAppNotificationQuery>;

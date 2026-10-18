@@ -90,13 +90,10 @@ const responses = [
   { name: 'fileDownload', schema: fileDownload },
   { name: 'fileStatus', schema: fileStatus },
   { name: 'fileUploadTicket', schema: fileUploadTicket },
-  { name: 'inAppNotificationPage', schema: inAppNotificationPage },
   { name: 'leavePage', schema: leavePage },
   { name: 'leaveRequest', schema: leaveRequest },
   { name: 'membershipPermissions', schema: membershipPermissions },
   { name: 'myWorkspacesResponse', schema: myWorkspacesResponse },
-  { name: 'notificationReadResult', schema: notificationReadResult },
-  { name: 'notificationUnreadCount', schema: notificationUnreadCount },
   { name: 'packageServiceOptionPage', schema: packageServiceOptionPage },
   { name: 'packageTypeDetail', schema: packageTypeDetail },
   { name: 'packageTypePage', schema: packageTypePage },
@@ -165,6 +162,21 @@ it.each(responses)('$name drops an unknown key at the top and inside a nested ob
   expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error?.issues)).toBe(true);
   if (!parsed.success) return;
   expect(hasUnknown(parsed.data)).toBe(false);
+  expect(parsed.data).toEqual(schema.parse(clean));
+});
+
+// معاملات القوالب (safe_parameters) tuples مكتوبة؛ وبتفضل strict عشان نوع العميل يفضل tuple. الغلاف والصفحة بيشيلوا المفتاح الزيادة.
+it.each([
+  { name: 'inAppNotificationPage', schema: inAppNotificationPage },
+  { name: 'notificationReadResult', schema: notificationReadResult },
+  { name: 'notificationUnreadCount', schema: notificationUnreadCount },
+])('$name drops an unknown key at the top and on each notification envelope', ({ schema }) => {
+  const clean = validSample(schema) as Record<string, unknown>;
+  const items = Array.isArray(clean['items']) ? (clean['items'] as Record<string, unknown>[]).map((item) => ({ ...item, __unknown: true })) : undefined;
+  const parsed = schema.safeParse({ ...clean, ...(items ? { items } : {}), __unknown: true });
+  expect(parsed.success, parsed.success ? '' : JSON.stringify(parsed.error?.issues)).toBe(true);
+  if (!parsed.success) return;
+  expect(JSON.stringify(parsed.data)).not.toContain('__unknown');
   expect(parsed.data).toEqual(schema.parse(clean));
 });
 
