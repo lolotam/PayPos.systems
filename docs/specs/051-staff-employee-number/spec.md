@@ -7,8 +7,8 @@
 **Status**: Draft — owner answers EN-Q1 … EN-Q14 are final (batches 14 and 17, Waleed 2026-10-12/13; batch 27, Waleed
 2026-10-17). Abu Salem's pick on EN-Q1…Q4 is the same as Waleed's; he has not answered EN-Q10 … EN-Q14, and if his pick
 differs later it replaces these (Waleed's ruling, 2026-10-10). EN-Q15 and EN-Q16 were answered by Abu Salem (batch 32,
-2026-10-17) and are binding without Waleed's pick (2026-10-10 rule); PP-3.1 was answered by Waleed (2026-10-18). Two
-points are pending Waleed: PP-4.1 and PP-4.2 (see the Admin UI section).
+2026-10-17) and are binding without Waleed's pick (2026-10-10 rule); PP-3.1 and PP-4.1 were answered by Waleed (2026-10-18). One
+point is still pending Waleed: PP-4.2 (see the Admin UI section).
 
 **Input**: User description: "staff-employee-number — every employee gets a number that appears in the profile, the
 staff list, the attendance board, the monthly report, the CSV and the official statement (Abu Salem's AB-Q10 pick,
@@ -40,6 +40,7 @@ performer picker, ADR-0041). **Consumed by** row 27g (the official attendance st
 | EN-Q15 | May a holder of `manage:employee-number:company` change the number of an employee in a business whose staff screen she cannot open | **Yes**: the permission is company-wide; a holder may change the number of an employee in any business unless a DENY covers that employee's business or branch. The use case rechecks inside the transaction (FR-006). Batch 32, Abu Salem 2026-10-17 (binding). |
 | EN-Q16 | Search box on the staff list (partner request AS-24) | **One search box `q`**: digits only match the exact employee number **or** the name; letters search the Arabic and English names, the same way the reception performer picker does. It replaces the exact-number-only list filter (FR-009, D-3). Batch 32, Abu Salem 2026-10-17 (binding). |
 | PP-3.1 | Which branches the DENY recheck on a number change covers when the employee is attached to more than one branch | The employee's business, her primary branch **and every branch she is currently attached to**; a DENY on any of them blocks the change (same rule as the IBAN screen). Permission decision for Waleed only, not on the partner page. Waleed 2026-10-18. |
+| PP-4.1 | How a holder of `manage:employee-number:company` reaches an employee in a business whose staff screen she cannot open | **(a)** A small company-wide screen «الأرقام الوظيفية» for holders of the permission: it lists every employee of the company with name, business and number only (no salary, phone, documents or any other field) and lets the holder edit the number there. The PP-3.1 DENY rule still applies: an employee whose business, primary branch or any current attached branch carries a DENY on this permission is neither listed for her nor editable by her. Screen decision for Waleed only, not on the partner page. Waleed 2026-10-18, through the super agent. |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -329,6 +330,14 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   (8c-6, EN-Q11) · body `{ employee_number: integer 1…999999 }` →
   `{ employee_id, employee_number }`. `Idempotency-Key`: not required (no money or stock effect; the same value twice
   is a no-op).
+- `GET /v1/employee-numbers` · `@Require('manage:employee-number:company')` (8c-6b, PP-4.1) · company-level read behind
+  the «الأرقام الوظيفية» screen · cursor-paginated · each item is `{ employee_id, name_ar, name_en, business_id,
+  business_name_ar, business_name_en, employee_number }` and nothing else (no salary, phone, documents or any other
+  field). Employees whose business, primary branch or any current attached branch carries a DENY on
+  `manage:employee-number:company` for the caller are filtered out (EN-Q15, PP-3.1); soft-deleted employees are
+  excluded. Optional `q` with the same search rule as the staff list (EN-Q16): digits only match the exact number or
+  the name, other text searches the Arabic and English names. Editing from this screen reuses the 8c-6 `PUT` route
+  above. `Idempotency-Key`: not required (read).
 - `GET /v1/employee-numbering` → `{ next_number, start_number | null, start_set_at | null, can_manage }` and
   `PUT /v1/employee-numbering/start` · `@Require('manage:employee-number:company')` · body
   `{ start_number: integer 1…999999 }` (8c-8, EN-Q10, EN-Q11). The GET needs the same permission.
@@ -362,7 +371,14 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   action on the profile, and a one-time "Start numbering from" dialog on the staff list. A typed «007» is turned into
   7 by `parseEmployeeNumber` before it is sent (EN-Q8).
 - All strings from `packages/i18n`; logical CSS only; no closing comments in JSX.
-- TODO(spec): PP-4.1 — how a number-only holder reaches an employee in a business whose staff screen she cannot open (pending Waleed).
+- Company-wide screen «الأرقام الوظيفية» (8c-10, PP-4.1), only for a holder of `manage:employee-number:company`, so a
+  holder can reach an employee in a business whose staff screen she cannot open. A table of every employee of the
+  company with exactly three fields: name, business and number (plain digits, `NULL` shows «—»); no salary, phone,
+  documents or any other field. One search box `q` as on the staff list (EN-Q16). Each row has an edit action that
+  calls the 8c-6 `PUT` route; «007» is turned into 7 by `parseEmployeeNumber` before it is sent. The list applies the
+  same DENY filtering as the edit (PP-3.1): an employee whose business, primary branch or any current attached branch
+  carries a DENY on this permission is not listed for her and cannot be edited by her. Data comes from
+  `GET /v1/employee-numbers` (8c-6b).
 - TODO(spec): PP-4.2 — whether typing a number at creation (8c-7) applies the same EN-Q15/PP-3.1 DENY recheck as the hand edit (pending Waleed; recommended: yes).
 
 ### Test plan
@@ -380,7 +396,10 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   employee in another business with no DENY → allowed (the recheck runs inside the transaction) ·
   `EN-10` no-op not audited, change audited · `EN-11` start once, forward only (US4) · `EN-12` exhaustion at 999999 ·
   `EN-13` import commit numbers in file order · `EN-14` list search box `q` and picker digit search: a digit string matching both an exact number and names, an Arabic letter query, an English letter query (EN-Q16, US5-2) · `EN-15` board, report and
-  CSV carry the number and still carry no phone, salary or IBAN.
+  CSV carry the number and still carry no phone, salary or IBAN · `EN-16` company list `GET /v1/employee-numbers`
+  (PP-4.1): the holder sees only employee id, names, business and number; a DENY on an employee's business, primary
+  branch or another current attached branch hides that employee; a non-holder gets `FORBIDDEN` (403); soft-deleted
+  employees never appear; `q` follows the EN-Q16 rule.
 - **RLS negative**: `employee_number_sequences` cross-tenant read = 0 rows, insert/update with another `company_id`
   rejected, no DELETE; a duplicate number across two tenants is allowed, within one tenant rejected by the unique
   index; the privileges allowlist test lists the new grants.
@@ -423,10 +442,11 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 | 8c-4b | Staff-list search box (EN-Q16, AS-24)                                                                     | (1) list query `q`: digits only match the exact number OR the name, letters search ar/en names, same as the reception picker (2) EXPLAIN and EN-14-style tests (3) OpenAPI and clients | 8c-4             | ready |
 | 8c-5  | Reads: attendance board, monthly report, CSV                                                               | (1) board contract and query (2) report contract, query and CSV first column (3) update the two "number is absent" tests, `EN-15`      | 8c-1             | ready                  |
 | 8c-6  | `set-employee-number` (hand edit)                                                                          | (1) reuse `parseEmployeeNumber` (added in 8c-4 with its unit tests) (2) permission migration and use case with audit (3) route, contract, `EN-06`…`EN-10`, including `EN-09b` (company-level holder with DENY on the business, primary branch or another attached branch, EN-Q15, PP-3.1)           | 8c-2             | ready |
+| 8c-6b | Company employee-numbers list (PP-4.1)                                                                     | (1) query + contract + route `GET /v1/employee-numbers` (2) DENY-filter, result-shape and `EXPLAIN` tests, `EN-16` (3) OpenAPI and clients | 8c-6             | ready |
 | 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field and permission check (2) `EN-06` for create, `EN-07`, `EN-09`                                                           | 8c-2, 8c-6       | waits PP-4.2 |
 | 8c-8  | `set-employee-number-start`                                                                                | (1) use case, `GET`/`PUT /v1/employee-numbering` (2) audit and once-only rule (3) `EN-11`                                               | 8c-2, 8c-6       | ready |
 | 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-4b, 8c-5 | ready |
-| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (2) edit action on the profile (3) "Start numbering from" dialog                                                 | 8c-7, 8c-8, 8c-9 | waits PP-4.1 |
+| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (2) edit action on the profile (3) "Start numbering from" dialog                                                 | 8c-6b, 8c-7, 8c-8, 8c-9 | ready |
 | 8c-11 | Contract: numbers for stragglers, then `NOT NULL`                                                          | (1) straggler backfill migration (2) `CHECK … NOT VALID` then `VALIDATE`; readers drop the `NULL` branch                               | 8c-2, 8c-3 in a released image | later release |
 
 Parallel work follows the pipeline's file-disjoint rule: 8c-4 and 8c-5 touch different queries and can run together;
