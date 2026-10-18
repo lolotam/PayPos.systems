@@ -84,6 +84,13 @@ it.each(['ar', 'en'] as const)(
     expect(within(daily).getByTitle(t(locale, 'attendanceBoard.manualDetail'))).toBeTruthy();
     expect(within(daily).getByText('12')).toBeTruthy();
     expect(
+      within(daily).getByRole('columnheader', { name: t(locale, 'attendanceBoard.employeeNumber') }),
+    ).toBeTruthy();
+    expect(within(daily).getByText('15')).toBeTruthy();
+    const label = within(inNow).getByText(t(locale, 'staff.employeeNumber'), { exact: false });
+    expect(label.className).toContain('sr-only');
+    expect(label.parentElement?.textContent).toBe(`${t(locale, 'staff.employeeNumber')} 15`);
+    expect(
       (screen.getByLabelText(t(locale, 'attendanceBoard.date')) as HTMLInputElement).value,
     ).toBe('2026-10-11');
     const attempts = screen.getByRole('region', { name: t(locale, 'attendanceBoard.refusals') });
@@ -114,8 +121,9 @@ it.each(['ar', 'en'] as const)(
     const row = within(table).getAllByRole('row')[1];
     if (!row) throw new Error('Missing overnight row');
     const cells = within(row).getAllByRole('cell');
-    expect(cells[1]?.textContent).toBe(formatInstant(clockIn, locale, 'Asia/Kuwait'));
-    expect(cells[2]?.textContent).toBe(formatInstant(clockOut, locale, 'Asia/Kuwait'));
+    expect(cells[0]?.textContent).toBe('15');
+    expect(cells[2]?.textContent).toBe(formatInstant(clockIn, locale, 'Asia/Kuwait'));
+    expect(cells[3]?.textContent).toBe(formatInstant(clockOut, locale, 'Asia/Kuwait'));
     expect(localDate(clockIn, 'Asia/Kuwait')).toBe('2026-10-10');
     expect(localDate(clockOut, 'Asia/Kuwait')).toBe('2026-10-11');
     expect(

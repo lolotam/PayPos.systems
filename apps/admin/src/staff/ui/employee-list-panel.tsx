@@ -5,6 +5,7 @@ import { t } from '@pospay/i18n';
 import { EmptyState, CircleAlert, LoaderCircle, UserRound } from '@pospay/ui';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
+import { EmployeeListSearch } from './employee-list-search';
 import { EmployeeTable } from './employee-table';
 import { EmployeePageNavigation } from './employee-page-navigation';
 
@@ -13,6 +14,8 @@ export function EmployeeListPanel({
   branches,
   selectedId,
   cursor,
+  search,
+  onSearch,
   onSelect,
   onPage,
 }: {
@@ -20,34 +23,41 @@ export function EmployeeListPanel({
   branches: readonly WorkspaceBranch[];
   selectedId: string;
   cursor: string | undefined;
+  search: string;
+  onSearch: (value: string) => void;
   onSelect: (id: string) => void;
   onPage: (cursor: string | undefined) => void;
 }) {
   const locale = useLocale();
-  if (list.isPending)
-    return <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />;
-  if (list.isError)
-    return (
-      <EmptyState
-        role="alert"
-        tone="danger"
-        icon={<CircleAlert />}
-        title={envelopeMessage(list.error, locale)}
-      />
-    );
   return (
     <div className="flex flex-col gap-4">
-      {list.data.items.length ? (
-        <EmployeeTable
-          items={list.data.items}
-          branches={branches}
-          selectedId={selectedId}
-          onSelect={onSelect}
+      <EmployeeListSearch value={search} onChange={onSearch} />
+      {list.isPending ? (
+        <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />
+      ) : null}
+      {list.isError ? (
+        <EmptyState
+          role="alert"
+          tone="danger"
+          icon={<CircleAlert />}
+          title={envelopeMessage(list.error, locale)}
         />
-      ) : (
-        <EmptyState icon={<UserRound />} title={t(locale, 'staff.empty')} />
-      )}
-      <EmployeePageNavigation cursor={cursor} next={list.data.next_cursor} onChange={onPage} />
+      ) : null}
+      {list.data && !list.isError ? (
+        <>
+          {list.data.items.length ? (
+            <EmployeeTable
+              items={list.data.items}
+              branches={branches}
+              selectedId={selectedId}
+              onSelect={onSelect}
+            />
+          ) : (
+            <EmptyState icon={<UserRound />} title={t(locale, 'staff.empty')} />
+          )}
+          <EmployeePageNavigation cursor={cursor} next={list.data.next_cursor} onChange={onPage} />
+        </>
+      ) : null}
     </div>
   );
 }

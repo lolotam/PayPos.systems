@@ -9,6 +9,7 @@ import { EditEmployeeForm } from './edit-employee-form';
 import { EmployeeRecordSections } from './employee-record-sections';
 import { EmployeeEditActions } from './employee-edit-actions';
 import { EmployeeLeaveSection } from './employee-leave-section';
+import { EmployeeProfileHeading } from './employee-profile-heading';
 
 export function EmployeeEditPanel({
   companyId,
@@ -27,7 +28,7 @@ export function EmployeeEditPanel({
   const { record, save } = useEmployeeEdit(companyId, business.id, userId, employeeId);
   return (
     <Card className="flex max-w-xl flex-col gap-4 p-6">
-      <h2 className="text-xl font-bold">{t(locale, 'staff.editTitle')}</h2>
+      <EmployeeProfileHeading employee={record.data && !record.isError ? record.data : undefined} />
       {record.isPending ? (
         <EmptyState icon={<LoaderCircle />} role="status" title={t(locale, 'admin.loading')} />
       ) : null}

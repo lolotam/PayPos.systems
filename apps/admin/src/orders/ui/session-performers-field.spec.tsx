@@ -104,3 +104,17 @@ it('refreshes selected facts through unfiltered pages when search excludes the p
   rerender(<QueryClientProvider client={client}><Harness at={at} place={{ ...scope, branchId: 'other' }} /></QueryClientProvider>);
   expect(screen.queryByText(/Not clocked in/)).toBeNull(); expect(screen.getByText(/Not checked for this time yet/)).toBeTruthy();
 });
+it('shows the performer number and sends a digit query', async () => {
+  state.locale = 'en';
+  mount();
+  expect(await screen.findByRole('option', { name: 'Synthetic 1' })).toBeTruthy();
+  const numbered = { ...fixtureAt(items, 0), employee_number: 2 };
+  state.get.mockImplementation((path, options) => Promise.resolve({
+    data: path.endsWith('/recording-context')
+      ? { generated_at: instant, business_timezone: 'Asia/Kuwait', recorder_membership_ids: ['01920000-0000-7000-8000-0000000000a1', '01920000-0000-7000-8000-0000000000a2'], recorder_membership_id: null, discount_limit: null }
+      : { items: options.params.query.q ? [numbered] : items, next_cursor: null },
+  }));
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: '2' } });
+  await waitFor(() => expect(state.get.mock.lastCall?.[1].params.query.q).toBe('2'));
+  expect(await screen.findByRole('option', { name: 'Synthetic 1 (2)' })).toBeTruthy();
+});

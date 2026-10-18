@@ -4,6 +4,7 @@ import { t } from '@pospay/i18n';
 import { Card, CardHeader, CardTitle, CardContent } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { boardTime, stillIn } from '../model/attendance-board-display';
+import { displayEmployeeNumber } from '../model/employee-number-display';
 import { AttendanceSourceBadge } from './attendance-source-badge';
 export function AttendanceInNow({ board }: { board: AttendanceBoard }) {
   const locale = useLocale();
@@ -18,7 +19,10 @@ export function AttendanceInNow({ board }: { board: AttendanceBoard }) {
         {board.in_now.map((row) => (
           <Card key={`${row.employee_id}:${row.clock_in}`}>
             <CardHeader>
-              <CardTitle>{locale === 'ar' ? (row.name_ar ?? row.name_en) : row.name_en}</CardTitle>
+              <CardTitle className="flex flex-wrap items-baseline gap-2">
+                <span>{locale === 'ar' ? (row.name_ar ?? row.name_en) : row.name_en}</span>
+                <span><span className="sr-only">{t(locale, 'staff.employeeNumber')} </span>{displayEmployeeNumber(row.employee_number)}</span>
+              </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
               <AttendanceSourceBadge source={row.source} />

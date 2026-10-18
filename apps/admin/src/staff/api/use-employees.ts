@@ -9,13 +9,14 @@ async function list(
   companyId: string,
   businessId: string,
   cursor: string | undefined,
+  q: string | undefined,
   signal: AbortSignal,
 ) {
   const result = await apiClient().GET('/v1/businesses/{businessId}/employees', {
     params: {
       header: { 'x-company-id': companyId },
       path: { businessId },
-      query: { limit: 20, ...(cursor ? { cursor } : {}) },
+      query: { limit: 20, ...(cursor ? { cursor } : {}), ...(q ? { q } : {}) },
     },
     signal,
   });
@@ -58,10 +59,11 @@ export function useEmployees(
   businessId: string,
   userId: string,
   cursor?: string,
+  q?: string,
 ) {
   return useQuery({
-    queryKey: [...key(companyId, businessId, userId), 'list', cursor],
-    queryFn: ({ signal }) => list(companyId, businessId, cursor, signal),
+    queryKey: [...key(companyId, businessId, userId), 'list', cursor, ...(q ? [q] : [])],
+    queryFn: ({ signal }) => list(companyId, businessId, cursor, q, signal),
     refetchInterval: 30_000,
   });
 }

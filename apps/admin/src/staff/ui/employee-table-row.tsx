@@ -3,6 +3,7 @@ import type { EmployeeListItem, WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Badge, Button, Identifier } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { displayEmployeeNumber } from '../model/employee-number-display';
 
 export function EmployeeTableRow({
   item,
@@ -18,6 +19,7 @@ export function EmployeeTableRow({
   const locale = useLocale();
   return (
     <tr className={selected ? 'bg-secondary/50' : ''}>
+      <td>{displayEmployeeNumber(item.employee_number)}</td>
       <td>{locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}</td>
       <td>
         <Badge variant="neutral">{t(locale, `roles.${item.role_code}`)}</Badge>

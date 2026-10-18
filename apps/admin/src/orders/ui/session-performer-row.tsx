@@ -21,6 +21,7 @@ export function SessionPerformerRow({ index, ordinal, items, selectedFacts, inst
   const id = `${line.local_id}-performer-${ordinal}`;
   const label = (key: 'performerNumber' | 'share' | 'removePerformer') => t(locale, `serviceSessions.${key}`).replace('{n}', String(ordinal + 1));
   const name = (item: SessionPerformerSelection) => locale === 'ar' ? item.name_ar ?? item.name_en : item.name_en;
+  const optionName = (item: SessionPerformerSelection) => item.employee_number === null ? name(item) : `${name(item)} (${item.employee_number})`;
   const facts = current ?? (row.facts_key === factsKey && row.selection?.id === row.employee_id ? row.selection : null);
   const choices = items.filter((item) => item.id === row.employee_id || !line.performers.some((other) => other.employee_id === item.id));
   return <div className="grid gap-2">
@@ -31,8 +32,8 @@ export function SessionPerformerRow({ index, ordinal, items, selectedFacts, inst
           onChange={(event) => { const selection = choices.find((item) => item.id === event.target.value); if (!selection) return;
             clearErrors(`lines.${index}.performers`); field.onChange(selection.id); setValue(`${path}.selection`, selection); setValue(`${path}.facts_key`, factsKey); }}>
           <option value="" disabled>{t(locale, 'serviceSessions.choosePerformer')}</option>
-          {row.selection && !choices.some((item) => item.id === row.selection?.id) ? <option value={row.selection.id}>{name(row.selection)}</option> : null}
-          {choices.map((item) => <option key={item.id} value={item.id}>{name(item)}</option>)}
+          {row.selection && !choices.some((item) => item.id === row.selection?.id) ? <option value={row.selection.id}>{optionName(row.selection)}</option> : null}
+          {choices.map((item) => <option key={item.id} value={item.id}>{optionName(item)}</option>)}
         </NativeSelect>
         {fieldState.error ? <p id={`${id}-error`} role="alert">{fieldState.error.message}</p> : null}
       </>} />
