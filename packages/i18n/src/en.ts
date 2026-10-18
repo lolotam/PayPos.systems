@@ -1,4 +1,5 @@
 import { attendanceActionsEn, attendanceBoardEn, attendanceReportEn } from './attendance-actions-catalog.js';
+import { staffDuplicateNameEn } from './staff-duplicate-name-catalog.js';
 import { attendanceChangeEn } from './attendance-change.js';
 import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
@@ -271,12 +272,7 @@ export const en = {
     INTERNAL_ERROR: 'An unexpected error occurred',
   },
   staff: {
-    duplicateNameTitle: 'Same-name employee',
-    duplicateNameLead: 'An employee with the same name exists. Add the full four-part name?',
-    duplicateNameHidden: 'Another employee with this name exists in a branch you cannot see.',
-    duplicateNameMore: 'Further visible matches:',
-    duplicateNameEdit: 'Edit name',
-    duplicateNameSaveAnyway: 'Save anyway',
+    ...staffDuplicateNameEn,
     listTitle: 'Employees',
     listLead: 'Manage employee records and working branches.',
     empty: 'No employees on this page.',
