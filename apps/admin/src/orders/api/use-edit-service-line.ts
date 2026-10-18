@@ -57,13 +57,13 @@ export function revisionAfterFailedRetry(error: unknown): number | null {
   return staleRevision(error, retried) ?? retried;
 }
 
-// 4xx رفض واضح. 409 من غير SESSION_LINE_REVISION_STALE ممكن يكون تعارض لسه شغّال، والـ 5xx وقطع الشبكة ورد 2xx اللي مش مفهوم ممكن يكون الحفظ اتنفذ.
+// 4xx رفض واضح. 409 من غير SESSION_LINE_REVISION_STALE أو FEATURE_DISABLED (إيقاف الميزة رفض نهائي مش تعارض شغّال) ممكن يكون تعارض لسه شغّال، والـ 5xx وقطع الشبكة ورد 2xx اللي مش مفهوم ممكن يكون الحفظ اتنفذ.
 export function editOutcomeKnown(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const status = (error as { status?: unknown }).status;
   const code = (error as { code?: unknown }).code;
   if (typeof status !== 'number' || !Number.isInteger(status) || status < 400 || status > 499) return false;
-  if (status === 409) return code === 'SESSION_LINE_REVISION_STALE';
+  if (status === 409) return code === 'SESSION_LINE_REVISION_STALE' || code === 'FEATURE_DISABLED';
   return true;
 }
 
