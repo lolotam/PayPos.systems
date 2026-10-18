@@ -21,17 +21,16 @@ export async function companyIsActive(tx: Tx, companyId: string): Promise<boolea
 }
 
 /**
- * بيقفل صف الشركة النشطة FOR KEY SHARE لحد ما معاملة التسجيل أو الـ PIN تتسجل.
- * القفل لمسارات مش بتعدّي على lock*Access. مش بيتعارض مع FOR NO KEY UPDATE،
- * فالقراية دي مش بتستنى كتابات الوصول. أي حذف ناعم لازم يقفل الصف FOR UPDATE
- * قبل ما يكتب deleted_at، عشان الحذف يستنى القرار الشغال وكل قرار بعده يترفض.
- * نفس المعاملة لو ماسكة قفل أقوى على الصف بتاخد القفل ده من غير تعارض ذاتي.
+ * بيقفل صف الشركة FOR SHARE لحد ما معاملة إصدار أو قبول بيانات الاعتماد تتسجل.
+ * التسجيل والمطالبة بتوكن الجهاز والـ PIN بيصدروا أو بيقبلوا اعتماد، فلازم القفل
+ * يتعارض مع UPDATE عادي للصف (FOR NO KEY UPDATE) ومع FOR UPDATE، عشان أي حذف ناعم
+ * يستنى القرار من غير قفل FOR UPDATE مخصوص.
  *
- * @param tx        معاملة التسجيل أو التحقق من الـ PIN
+ * @param tx        معاملة الاعتماد
  * @param companyId الشركة
  * @returns true لما الصف ظاهر وdeleted_at فاضي
  */
-export async function lockActiveCompany(tx: Tx, companyId: string): Promise<boolean> {
-  const rows = await tx.execute(activeCompany(companyId, sql` FOR KEY SHARE`));
+export async function lockCredentialCompany(tx: Tx, companyId: string): Promise<boolean> {
+  const rows = await tx.execute(activeCompany(companyId, sql` FOR SHARE`));
   return rows.length === 1;
 }

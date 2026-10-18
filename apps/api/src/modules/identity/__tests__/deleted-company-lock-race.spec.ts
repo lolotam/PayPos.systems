@@ -36,12 +36,15 @@ function barrier(): { promise: Promise<void>; release: () => void } {
   return { promise, release };
 }
 
-async function untilKeyShareWait(observer: ReturnType<typeof postgres>): Promise<void> {
+async function untilQueryWaits(
+  observer: ReturnType<typeof postgres>,
+  like: string,
+): Promise<void> {
   await vi.waitFor(
     async () => {
       const waiting = await observer`SELECT 1 FROM pg_stat_activity
         WHERE datname=current_database() AND wait_event_type='Lock'
-          AND query LIKE '%companies%deleted_at IS NULL FOR KEY SHARE%'
+          AND query LIKE ${like}
           AND pid<>pg_backend_pid()`;
       expect(waiting.length).toBeGreaterThan(0);
     },
@@ -49,49 +52,21 @@ async function untilKeyShareWait(observer: ReturnType<typeof postgres>): Promise
   );
 }
 
-async function duringDeletion<T>(start: () => Promise<T>): Promise<T> {
-  const locked = barrier();
-  const release = barrier();
-  // deleted_at مش عمود مفتاح، فالـ UPDATE لوحده بياخد FOR NO KEY UPDATE ومش بيوقف FOR KEY SHARE.
-  const deletion = h.owner.begin(async (tx) => {
-    await tx`SELECT id FROM companies WHERE id=${company} FOR UPDATE`;
-    await tx`UPDATE companies SET deleted_at=now() WHERE id=${company}`;
-    locked.release();
-    await release.promise;
-  });
-  await locked.promise;
-  const subject = start();
-  const observer = postgres(h.ownerUrl, { max: 1, onnotice: () => undefined });
-  try {
-    await untilKeyShareWait(observer);
-  } finally {
-    release.release();
-    try {
-      await deletion;
-    } finally {
-      await observer.end();
-    }
-  }
-  return subject;
+function untilShareWait(observer: ReturnType<typeof postgres>): Promise<void> {
+  return untilQueryWaits(observer, '%companies%deleted_at IS NULL FOR SHARE%');
 }
 
-async function untilNoKeyUpdateWait(observer: ReturnType<typeof postgres>): Promise<void> {
-  await vi.waitFor(
-    async () => {
-      const waiting = await observer`SELECT 1 FROM pg_stat_activity
-        WHERE datname=current_database() AND wait_event_type='Lock'
-          AND query LIKE '%companies%deleted_at IS NULL FOR NO KEY UPDATE%'
-          AND pid<>pg_backend_pid()`;
-      expect(waiting.length).toBeGreaterThan(0);
-    },
-    { timeout: 5_000, interval: 20 },
-  );
+function untilNoKeyUpdateWait(observer: ReturnType<typeof postgres>): Promise<void> {
+  return untilQueryWaits(observer, '%companies%deleted_at IS NULL FOR NO KEY UPDATE%');
 }
 
-async function duringOpenUpdate<T>(start: () => Promise<T>): Promise<T> {
+async function duringOpenUpdate<T>(
+  start: () => Promise<T>,
+  untilWait: (observer: ReturnType<typeof postgres>) => Promise<void> = untilNoKeyUpdateWait,
+): Promise<T> {
   const locked = barrier();
   const release = barrier();
-  // UPDATE لوحده بياخد FOR NO KEY UPDATE، وده اللي lock*Access بيستناه قبل إعادة الفحص.
+  // UPDATE لوحده بياخد FOR NO KEY UPDATE، فـ FOR SHARE بتاع الاعتماد وFOR NO KEY UPDATE بتاع إعادة الفحص بيستنوه.
   const deletion = h.owner.begin(async (tx) => {
     await tx`UPDATE companies SET deleted_at=now() WHERE id=${company}`;
     locked.release();
@@ -101,7 +76,7 @@ async function duringOpenUpdate<T>(start: () => Promise<T>): Promise<T> {
   const subject = start();
   const observer = postgres(h.ownerUrl, { max: 1, onnotice: () => undefined });
   try {
-    await untilNoKeyUpdateWait(observer);
+    await untilWait(observer);
   } finally {
     release.release();
     try {
@@ -220,12 +195,13 @@ it('an access read does not wait behind FOR UPDATE and refuses after the deletio
 
 it('waits on registration and then refuses without inserting the device', async () => {
   const code = await pairingCode();
-  const registeredAfter = await duringDeletion(() =>
+  const registeredAfter = await duringOpenUpdate(() =>
     h.app.inject({
       method: 'POST',
       url: '/v1/devices/register',
       payload: { pairing_code: code, label: RACE_LABEL },
     }),
+    untilShareWait,
   );
   expect(outcome(registeredAfter)).toEqual([400, 'PAIRING_CODE_INVALID']);
   expect(
@@ -236,8 +212,9 @@ it('waits on registration and then refuses without inserting the device', async 
 it('waits on token claim and then refuses without clearing the claim secret', async () => {
   const [before] = await h.owner<{ claim_hash: string }[]>`
     SELECT claim_hash FROM devices WHERE company_id=${company} AND id=${pendingClaim.device_id}`;
-  const claimed = await duringDeletion(() =>
-    h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: pendingClaim }),
+  const claimed = await duringOpenUpdate(
+    () => h.app.inject({ method: 'POST', url: '/v1/devices/claim', payload: pendingClaim }),
+    untilShareWait,
   );
   const [after] = await h.owner<{ claim_hash: string; token_hash: string | null }[]>`
     SELECT claim_hash, token_hash FROM devices WHERE company_id=${company} AND id=${pendingClaim.device_id}`;
@@ -251,16 +228,41 @@ it('waits on PIN verification and then counts the failure like a wrong PIN', asy
     `pin:${company}:${EMPLOYEE}:reservations`,
     `pin:${company}:${EMPLOYEE}:lock`,
   );
-  const pin = await duringDeletion(() =>
-    h.app.inject({
+  const pin = await duringOpenUpdate(
+    () =>
+      h.app.inject({
+        method: 'POST',
+        url: '/v1/devices/me/cashier-pin/verify',
+        headers: { authorization: `Device ${deviceToken}` },
+        payload: { employee_id: EMPLOYEE, pin: PIN },
+      }),
+    untilShareWait,
+  );
+  expect(outcome(pin)).toEqual([401, 'PIN_INVALID']);
+  expect(await h.redis.get(`pin:${company}:${EMPLOYEE}:failures`)).toBe('1');
+});
+
+it('a deletion committed during PIN comparison is refused and records no success', async () => {
+  await h.redis.del(
+    `pin:${company}:${EMPLOYEE}:failures`,
+    `pin:${company}:${EMPLOYEE}:reservations`,
+    `pin:${company}:${EMPLOYEE}:lock`,
+  );
+  const verify = h.app.get<CashierPinUseCases>(CASHIER_PIN_USE_CASES).verifyCashierPin;
+  verify.afterCompare = () =>
+    h.owner`UPDATE companies SET deleted_at=now() WHERE id=${company}`.then(() => undefined);
+  try {
+    const pin = await h.app.inject({
       method: 'POST',
       url: '/v1/devices/me/cashier-pin/verify',
       headers: { authorization: `Device ${deviceToken}` },
       payload: { employee_id: EMPLOYEE, pin: PIN },
-    }),
-  );
-  expect(outcome(pin)).toEqual([401, 'PIN_INVALID']);
-  expect(await h.redis.get(`pin:${company}:${EMPLOYEE}:failures`)).toBe('1');
+    });
+    expect(outcome(pin)).toEqual([401, 'PIN_INVALID']);
+    expect(await h.redis.get(`pin:${company}:${EMPLOYEE}:failures`)).toBe('1');
+  } finally {
+    verify.afterCompare = null;
+  }
 });
 
 it('a number recheck waits for an open company update and refuses after it commits', async () => {

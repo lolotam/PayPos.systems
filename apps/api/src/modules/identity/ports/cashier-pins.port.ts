@@ -6,8 +6,13 @@ import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 export interface CashierPinScope {
   readonly audit: AuditTrail;
   /**
+   * بيقفل صف الشركة FOR SHARE لحد ما معاملة قبول الـ PIN تتسجل.
+   * القفل بيتعارض مع أي UPDATE للصف، ولو الشركة اتحذفت النتيجة زي PIN غلط.
+   */
+  companyOpen(): Promise<boolean>;
+  /**
    * الـ hash المتخزن، أو null لو الموظف مالوش PIN أو الشركة اتحذفت.
-   * القفل FOR KEY SHARE ماسك لحد نهاية المعاملة، والنتيجة الفاضية بتتحسب بعد الحجز زي PIN غلط.
+   * القفل FOR SHARE ماسك لحد نهاية المعاملة، والنتيجة الفاضية بتتحسب بعد الحجز زي PIN غلط.
    *
    * @param employeeId الموظف
    */
