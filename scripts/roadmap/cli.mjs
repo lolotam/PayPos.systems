@@ -1,9 +1,17 @@
-import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, renameSync, rmSync, writeSync } from 'node:fs';
 
 import { applyUpdates } from './set-status.mjs';
 
-const [roadmapPath, updatesPath, today = new Date().toISOString().slice(0, 10)] =
-  process.argv.slice(2);
+// The owner's calendar day (Kuwait), not UTC, so a merge between 00:00 and 03:00 is not stamped a day behind.
+const kuwaitToday = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kuwait',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+
+const [roadmapPath, updatesPath, today = kuwaitToday()] = process.argv.slice(2);
 if (!roadmapPath || !updatesPath) {
   console.error('usage: node scripts/roadmap/cli.mjs <roadmap.json> <updates.json> [YYYY-MM-DD]');
   process.exit(2);
@@ -17,10 +25,17 @@ const roadmap = applyUpdates(
 const indent = source.trimEnd().includes('\n') ? 2 : 0;
 const temporaryPath = `${roadmapPath}.${process.pid}.${Date.now()}.tmp`;
 const output = JSON.stringify(roadmap, null, indent) + '\n';
-writeFileSync(temporaryPath, output, { flag: 'wx' });
+const descriptor = openSync(temporaryPath, 'wx');
 try {
+  writeSync(descriptor, output);
+  closeSync(descriptor);
   renameSync(temporaryPath, roadmapPath);
 } catch (error) {
+  try {
+    closeSync(descriptor);
+  } catch {
+    // already closed
+  }
   rmSync(temporaryPath, { force: true });
   throw error;
 }
