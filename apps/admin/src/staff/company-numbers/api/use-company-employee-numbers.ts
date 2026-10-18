@@ -2,6 +2,7 @@
 import { employeeNumberPage, employeeNumberView, type EmployeeNumberPage } from '@pospay/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
+import { withSavedNumber } from '../model/company-numbers-saved-page';
 
 const listKey = (companyId: string, userId: string) =>
   ['employee-numbers', companyId, userId, 'list'] as const;
@@ -41,15 +42,6 @@ async function writeNumber(
   return employeeNumberView.parse(result.data);
 }
 
-function withSavedNumber(page: EmployeeNumberPage, employeeId: string, employeeNumber: number) {
-  return {
-    ...page,
-    items: page.items.map((item) =>
-      item.employee_id === employeeId ? { ...item, employee_number: employeeNumber } : item,
-    ),
-  };
-}
-
 export function useCompanyEmployeeNumbers(
   companyId: string,
   userId: string,
@@ -64,10 +56,6 @@ export function useCompanyEmployeeNumbers(
   });
 }
 
-function unfilteredPage(query: { queryKey: readonly unknown[] }) {
-  return query.queryKey[listKeyLength + 1] === null;
-}
-
 export function useSetCompanyEmployeeNumber(companyId: string, userId: string) {
   const client = useQueryClient();
   const key = listKey(companyId, userId);
@@ -76,11 +64,17 @@ export function useSetCompanyEmployeeNumber(companyId: string, userId: string) {
     mutationFn: (input: { businessId: string; employeeId: string; employeeNumber: number }) =>
       writeNumber(companyId, input.businessId, input.employeeId, input.employeeNumber),
     onSuccess: (saved) => {
-      // صفحات البحث بتستنى الـ refetch: الرقم الجديد ممكن ما يطابقش البحث (q=4 والرقم بقى 7).
-      client.setQueriesData<EmployeeNumberPage>(
-        { queryKey: [...key], predicate: unfilteredPage },
-        (page) => (page ? withSavedNumber(page, saved.employee_id, saved.employee_number) : page),
-      );
+      // كل صفحة بتتحدّث بالبحث بتاعها: صفحة البحث بالرقم بتطلّع الصف لو الرقم الجديد مابقاش مطابق.
+      for (const [queryKey, page] of client.getQueriesData<EmployeeNumberPage>({
+        queryKey: [...key],
+      })) {
+        if (!page) continue;
+        const q = (queryKey[listKeyLength + 1] ?? null) as string | null;
+        client.setQueryData(
+          queryKey,
+          withSavedNumber(page, q, saved.employee_id, saved.employee_number),
+        );
+      }
       // انتظار الـ refetch كان بيخلّي الحفظ معلّق والمحرّر مفتوح لو القائمة اتعلّقت.
       void client.invalidateQueries({ queryKey: [...key] });
       void client.invalidateQueries({ queryKey: ['employees', companyId] });

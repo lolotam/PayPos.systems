@@ -2,8 +2,14 @@
 import { useCallback, useRef, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeListControls } from '../../model/use-employee-list-controls';
-import { companyNumbersEditMessage, companyNumbersListDenied } from '../model/company-employee-number-message';
-import { useCompanyEmployeeNumbers, useSetCompanyEmployeeNumber } from './use-company-employee-numbers';
+import {
+  companyNumbersEditMessage,
+  companyNumbersListDenied,
+} from '../model/company-employee-number-message';
+import {
+  useCompanyEmployeeNumbers,
+  useSetCompanyEmployeeNumber,
+} from './use-company-employee-numbers';
 
 export function useCompanyNumbersScreen(companyId: string, userId: string) {
   const locale = useLocale();
@@ -18,7 +24,7 @@ export function useCompanyNumbersScreen(companyId: string, userId: string) {
     if (saving.current || failed.current) return;
     setEditingId(undefined);
   }, []);
-  const controls = useEmployeeListControls(closeIfIdle, save.isPending);
+  const controls = useEmployeeListControls(closeIfIdle, save.isPending || save.isError);
   const list = useCompanyEmployeeNumbers(companyId, userId, controls.cursor, controls.q);
   const editing = list.data?.items.find((item) => item.employee_id === editingId);
   const onPage = (cursor: string | undefined) => {

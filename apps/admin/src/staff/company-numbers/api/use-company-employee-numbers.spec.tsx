@@ -21,12 +21,14 @@ const row = {
 };
 const page = { items: [row], next_cursor: null };
 
-it('rewrites only unfiltered pages, so a search page never shows a row that no longer matches', async () => {
+it('updates every cached page by its own search, dropping a row a digit search no longer matches', async () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const all = ['employee-numbers', company, user, 'list', null, null];
   const byNumber = ['employee-numbers', company, user, 'list', null, '4'];
+  const byName = ['employee-numbers', company, user, 'list', null, 'Synthetic'];
+  client.setQueryData(byName, page);
   client.setQueryData(all, page);
   client.setQueryData(byNumber, page);
   api.PUT.mockResolvedValue({
@@ -46,6 +48,7 @@ it('rewrites only unfiltered pages, so a search page never shows a row that no l
     });
   });
   expect(client.getQueryData<typeof page>(all)?.items[0]?.employee_number).toBe(7);
-  expect(client.getQueryData<typeof page>(byNumber)?.items[0]?.employee_number).toBe(4);
+  expect(client.getQueryData<typeof page>(byNumber)?.items).toEqual([]);
+  expect(client.getQueryData<typeof page>(byName)?.items[0]?.employee_number).toBe(7);
   expect(client.getQueryState(byNumber)?.isInvalidated).toBe(true);
 });

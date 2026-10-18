@@ -69,7 +69,12 @@ type NumbersApi = { GET: Mock; PUT: Mock };
 
 export async function keepTakenFailureFromEarlySearch(api: NumbersApi) {
   let finish: (value: unknown) => void = () => undefined;
-  api.PUT.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  api.PUT.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
   renderPage();
   await openNoura('en');
   fireEvent.change(screen.getByRole('searchbox', { name: t('en', 'staff.search') }), {
@@ -87,11 +92,16 @@ export async function keepTakenFailureFromEarlySearch(api: NumbersApi) {
     response: { status: 409 },
   });
   await waitFor(() => {
-    expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20, q: '2' });
     const row = screen.getByRole('row', { name: /Noura/ });
-    expect(within(row).getByRole('alert').textContent).toContain(t('en', 'errors.EMPLOYEE_NUMBER_TAKEN'));
+    expect(within(row).getByRole('alert').textContent).toContain(
+      t('en', 'errors.EMPLOYEE_NUMBER_TAKEN'),
+    );
     expect(within(row).getByRole('textbox')).toBeTruthy();
   });
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  expect(api.GET.mock.calls.some((call) => call[1].params.query.q === '2')).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.close') }));
+  await waitFor(() => expect(api.GET.mock.calls.at(-1)?.[1].params.query).toEqual({ limit: 20, q: '2' }));
 }
 
 export function hangAfterFirstPage(get: ListReader) {
