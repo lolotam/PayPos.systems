@@ -103,7 +103,8 @@ it('has fixed authorization reads and one list statement regardless of page size
   await query.execute(scope(), { date: '2026-10-17', limit: 100 });
   expect(statements).toEqual(first);
   expect(first.filter((statement) => statement.startsWith('WITH candidates'))).toHaveLength(1);
-  expect(first).toHaveLength(7);
+  // قفل الشركة FOR KEY SHARE جوه readAccessTransaction ضمن قراءات الإذن الثابتة.
+  expect(first).toHaveLength(8);
 });
 
 it('keeps query RLS outside context, after rollback and against another tenant scope', async () => {

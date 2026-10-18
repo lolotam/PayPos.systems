@@ -12,7 +12,8 @@ export type PinOutcome =
 
 // An approved device proves which employee is at the till (ADR-0003 §4 path B). A comparison is reserved before it
 // starts, so however many requests arrive together, no more than five failures are possible before the lock; the
-// fifth failure locks the PIN for 15 minutes (PRD D-08). An unknown employee is counted and refused like a wrong PIN.
+// fifth failure locks the PIN for 15 minutes (PRD D-08). An unknown employee, and a soft-deleted company whose
+// stored hash is absent, are counted and refused like a wrong PIN.
 export class VerifyCashierPin {
   readonly #transactions: CashierPinTransactions;
   readonly #hasher: PinHasher;
@@ -37,19 +38,15 @@ export class VerifyCashierPin {
     pin: string;
   }): Promise<PinOutcome> {
     const { companyId, employeeId } = command;
-    // فحص الشركة وقراءة الـ hash في معاملة واحدة، والقفل FOR SHARE ماسك لحد ما تتسجل.
-    // شركة اتحذفت بتترفض قبل حجز المحاولة زي PIN غلط، والمقارنة البطيئة بتفضل بعد الحجز.
-    const pinRead = await this.#transactions.run(companyId, null, async (scope) => {
-      const open = await scope.companyOpen();
-      return open ? { open, hash: await scope.findHash(employeeId) } : { open, hash: null };
-    });
-    if (!pinRead.open) return { kind: 'refused' };
     const target = { companyId, employeeId };
+    // الحجز قبل قراءة الـ hash عشان الشركة المحذوفة تتحسب زي PIN غلط بنفس العدّ والوقت.
+    // القفل FOR KEY SHARE ماسك لحد القراءة بس، والمقارنة البطيئة بتفضل بره المعاملة.
     const reserved = await this.#attempts.reserve(target);
     if (reserved.kind !== 'ok') return { kind: reserved.kind };
     let matches: boolean;
     try {
-      matches = await this.#hasher.verify(command.pin, pinRead.hash);
+      const hash = await this.#transactions.run(companyId, null, (scope) => scope.findHash(employeeId));
+      matches = await this.#hasher.verify(command.pin, hash);
     } catch (error) {
       await this.#attempts.release(target, reserved.reservation);
       throw error;

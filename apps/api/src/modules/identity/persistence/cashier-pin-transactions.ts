@@ -8,10 +8,12 @@ import type { CashierPinScope, CashierPinTransactions } from '../ports/cashier-p
 function scopeFor(tx: Tx, companyId: string, ids: IdGenerator): CashierPinScope {
   return {
     audit: transactionWriters(tx, ids).audit,
-    companyOpen: () => lockActiveCompany(tx, companyId),
     findHash: async (employeeId) => {
+      if (!(await lockActiveCompany(tx, companyId))) return null;
       const [row] = await tx.execute<{ pin_hash: string }>(sql`
-        SELECT pin_hash FROM cashier_pins WHERE company_id = ${companyId} AND employee_id = ${employeeId}`);
+        SELECT pins.pin_hash FROM cashier_pins pins
+        JOIN companies ON companies.id = pins.company_id AND companies.deleted_at IS NULL
+        WHERE pins.company_id = ${companyId} AND pins.employee_id = ${employeeId}`);
       return row?.pin_hash ?? null;
     },
     save: async (pin) => {

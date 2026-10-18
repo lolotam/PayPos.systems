@@ -32,12 +32,12 @@ function barrier(): { promise: Promise<void>; release: () => void } {
   return { promise, release };
 }
 
-async function untilShareWait(observer: ReturnType<typeof postgres>): Promise<void> {
+async function untilKeyShareWait(observer: ReturnType<typeof postgres>): Promise<void> {
   await vi.waitFor(
     async () => {
       const waiting = await observer`SELECT 1 FROM pg_stat_activity
         WHERE datname=current_database() AND wait_event_type='Lock'
-          AND query LIKE '%companies%deleted_at IS NULL FOR SHARE%'
+          AND query LIKE '%companies%deleted_at IS NULL FOR KEY SHARE%'
           AND pid<>pg_backend_pid()`;
       expect(waiting.length).toBeGreaterThan(0);
     },
@@ -48,7 +48,9 @@ async function untilShareWait(observer: ReturnType<typeof postgres>): Promise<vo
 async function duringDeletion<T>(start: () => Promise<T>): Promise<T> {
   const locked = barrier();
   const release = barrier();
+  // deleted_at مش عمود مفتاح، فالـ UPDATE لوحده بياخد FOR NO KEY UPDATE ومش بيوقف FOR KEY SHARE.
   const deletion = h.owner.begin(async (tx) => {
+    await tx`SELECT id FROM companies WHERE id=${company} FOR UPDATE`;
     await tx`UPDATE companies SET deleted_at=now() WHERE id=${company}`;
     locked.release();
     await release.promise;
@@ -57,7 +59,7 @@ async function duringDeletion<T>(start: () => Promise<T>): Promise<T> {
   const subject = start();
   const observer = postgres(h.ownerUrl, { max: 1, onnotice: () => undefined });
   try {
-    await untilShareWait(observer);
+    await untilKeyShareWait(observer);
   } finally {
     release.release();
     try {
@@ -142,7 +144,7 @@ afterAll(async () => {
   await h?.close();
 });
 
-it('waits on the company share lock and then returns no access after the deletion commits', async () => {
+it('waits on the company key-share lock and then returns no access after the deletion commits', async () => {
   const access = await duringDeletion(() =>
     db.withTenant(company, (tx) => readAccessTransaction(tx, company, userId), { userId }),
   );
@@ -176,7 +178,12 @@ it('waits on token claim and then refuses without clearing the claim secret', as
   expect(after).toEqual({ claim_hash: before?.claim_hash, token_hash: null });
 });
 
-it('waits on PIN verification and then refuses without reserving an attempt', async () => {
+it('waits on PIN verification and then counts the failure like a wrong PIN', async () => {
+  await h.redis.del(
+    `pin:${company}:${EMPLOYEE}:failures`,
+    `pin:${company}:${EMPLOYEE}:reservations`,
+    `pin:${company}:${EMPLOYEE}:lock`,
+  );
   const pin = await duringDeletion(() =>
     h.app.inject({
       method: 'POST',
@@ -186,13 +193,42 @@ it('waits on PIN verification and then refuses without reserving an attempt', as
     }),
   );
   expect(outcome(pin)).toEqual([401, 'PIN_INVALID']);
-  expect(
-    await h.redis.exists(
-      `pin:${company}:${EMPLOYEE}:failures`,
-      `pin:${company}:${EMPLOYEE}:reservations`,
-      `pin:${company}:${EMPLOYEE}:lock`,
-    ),
-  ).toBe(0);
+  expect(await h.redis.get(`pin:${company}:${EMPLOYEE}:failures`)).toBe('1');
+});
+
+it('a guarded read does not wait behind a writer holding FOR NO KEY UPDATE', async () => {
+  const release = barrier();
+  const held = barrier();
+  const holder = h.owner.begin(async (tx) => {
+    await tx`SELECT id FROM companies WHERE id=${company} FOR NO KEY UPDATE`;
+    held.release();
+    await release.promise;
+  });
+  await held.promise;
+  const read = db.withTenant(
+    company,
+    (tx) => readAccessTransaction(tx, company, userId),
+    { userId },
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const access = await Promise.race([
+      read,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Guarded read waited for FOR NO KEY UPDATE')),
+          1_000,
+        );
+      }),
+    ]);
+    expect(access.memberships.length).toBeGreaterThan(0);
+    expect(access.grants.length).toBeGreaterThan(0);
+  } finally {
+    clearTimeout(timer);
+    release.release();
+    await holder;
+    await read.catch(() => undefined);
+  }
 });
 
 it('reads grants after a stronger company lock in the same transaction', async () => {

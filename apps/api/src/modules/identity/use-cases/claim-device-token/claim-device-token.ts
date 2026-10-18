@@ -32,7 +32,7 @@ export class ClaimDeviceToken {
     claimSecret: string;
   }): Promise<ClaimOutcome> {
     return this.#transactions.run(command.companyId, null, async (scope) => {
-      // القفل FOR SHARE بيتاخد قبل الجهاز ويفضل ماسك لحد تسجيل الرفض، من غير ما نمسح سر الاستلام.
+      // القفل FOR KEY SHARE بيتاخد قبل الجهاز ويفضل ماسك لحد تسجيل الرفض، من غير ما نمسح سر الاستلام.
       if (!(await scope.companyOpen())) return { kind: 'refused' };
       const device = await scope.findForUpdate(command.deviceId);
       if (device === null || !this.#secrets.verify(command.claimSecret, device.claimHash)) {

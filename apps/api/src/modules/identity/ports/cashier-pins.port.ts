@@ -5,10 +5,9 @@ import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
  */
 export interface CashierPinScope {
   readonly audit: AuditTrail;
-  /** true بعد قفل صف الشركة النشطة FOR SHARE لحد نهاية معاملة قراءة الـ hash؛ false لو الشركة محذوفة، والحذف ميتسجلش بين الفحص والقراءة. */
-  companyOpen(): Promise<boolean>;
   /**
-   * الـ hash المتخزن للموظف ده في الشركة دي، أو null لو مالوش PIN — الـ use case بيقارن بيه.
+   * الـ hash المتخزن، أو null لو الموظف مالوش PIN أو الشركة اتحذفت.
+   * القفل FOR KEY SHARE ماسك لحد نهاية المعاملة، والنتيجة الفاضية بتتحسب بعد الحجز زي PIN غلط.
    *
    * @param employeeId الموظف
    */

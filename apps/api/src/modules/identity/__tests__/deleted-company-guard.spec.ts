@@ -197,11 +197,16 @@ it('refuses a guarded settings read and write with FORBIDDEN and still reads the
     cookie,
     company: deletedCompany,
   });
+  const settingsRow = () => h.owner`
+    SELECT calendar, default_language, limit_bps, updated_by, updated_at
+    FROM business_settings WHERE company_id=${deletedCompany} AND business_id=${deletedBusiness}`;
+  const beforeSettings = await settingsRow();
   const deletedWrite = await h.send('PATCH', `/v1/businesses/${deletedBusiness}/settings`, {
     cookie,
     company: deletedCompany,
     body: { calendar: 'hijri' },
   });
+  expect(await settingsRow()).toEqual(beforeSettings);
   const activeRead = await h.send('GET', `/v1/businesses/${activeBusiness}/settings`, {
     cookie,
     company: activeCompany,
@@ -237,6 +242,11 @@ it('refuses a new device registration, an unclaimed token and a cashier PIN on t
     url: '/v1/devices/claim',
     payload: pendingClaim,
   });
+  await h.redis.del(
+    `pin:${deletedCompany}:${EMPLOYEE}:failures`,
+    `pin:${deletedCompany}:${EMPLOYEE}:reservations`,
+    `pin:${deletedCompany}:${EMPLOYEE}:lock`,
+  );
   const pin = await verifyPin(EMPLOYEE, PIN);
   expect([registeredAfter.statusCode, errorEnvelope.parse(registeredAfter.json()).code]).toEqual([
     400,
@@ -247,6 +257,7 @@ it('refuses a new device registration, an unclaimed token and a cashier PIN on t
     'UNAUTHENTICATED',
   ]);
   expect([pin.statusCode, errorEnvelope.parse(pin.json()).code]).toEqual([401, 'PIN_INVALID']);
+  expect(await h.redis.get(`pin:${deletedCompany}:${EMPLOYEE}:failures`)).toBe('1');
   const devices =
     await h.owner`SELECT id FROM devices WHERE company_id=${deletedCompany} AND label='Late till'`;
   expect(devices).toEqual([]);
