@@ -6,8 +6,9 @@
 
 **Status**: Draft — owner answers EN-Q1 … EN-Q14 are final (batches 14 and 17, Waleed 2026-10-12/13; batch 27, Waleed
 2026-10-17). Abu Salem's pick on EN-Q1…Q4 is the same as Waleed's; he has not answered EN-Q10 … EN-Q14, and if his pick
-differs later it replaces these (Waleed's ruling, 2026-10-10). No owner question is open: no sub-PR in §1 waits on an
-answer.
+differs later it replaces these (Waleed's ruling, 2026-10-10). EN-Q15 and EN-Q16 were answered by Abu Salem (batch 32,
+2026-10-17) and are binding without Waleed's pick (2026-10-10 rule); PP-3.1, PP-4.1 and PP-4.2 were answered by Waleed (2026-10-18). No
+owner point is pending.
 
 **Input**: User description: "staff-employee-number — every employee gets a number that appears in the profile, the
 staff list, the attendance board, the monthly report, the CSV and the official statement (Abu Salem's AB-Q10 pick,
@@ -18,7 +19,7 @@ row 27a/27b (spec `docs/specs/049-staff-attendance-board-report/spec.md`, AB-Q9e
 performer picker, ADR-0041). **Consumed by** row 27g (the official attendance statement, which prints the number) —
 27g, 27h and 27i have their own specs; nothing of them is built here.
 
-## Owner decisions already taken (binding — not asked again; EN-Q10 … EN-Q14 are Waleed's picks, Abu Salem has not answered them)
+## Owner decisions already taken (binding — not asked again; EN-Q10 … EN-Q14 are Waleed's picks, Abu Salem has not answered them; EN-Q15 and EN-Q16 are Abu Salem's, binding)
 
 | ID    | Question                                         | Decision                                                                                                                                                                             |
 | ----- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -36,6 +37,10 @@ performer picker, ADR-0041). **Consumed by** row 27g (the official attendance st
 | EN-Q12 | Does the Excel import template get an «employee number» column | **No**, not in this batch: imported employees get automatic numbers in file-row order and the owner edits any by hand afterwards. It can be added later without breaking anything (BR-8). Batch 27, Waleed 2026-10-17. |
 | EN-Q13 | Confirm the derived rules D-1, D-2, D-3, D-5, D-7, D-8 | Confirmed as written, all of them (§ Derived rules). Batch 27, Waleed 2026-10-17. |
 | EN-Q14 | May a number freed by a hand edit (not by deletion) be given again | **Yes**: it is an ordinary unused number again. The owner may type it by hand for any employee and the counter gives it if it is at or above the counter and reaches it. No record of old numbers is kept (FR-005, BR-3). Known downside: a statement printed with Sara's old number could be confused with an employee who later takes the same number. Batch 27, Waleed 2026-10-17. |
+| EN-Q15 | May a holder of `manage:employee-number:company` change the number of an employee in a business whose staff screen she cannot open | **Yes**: the permission is company-wide; a holder may change the number of an employee in any business unless a DENY covers that employee's business or branch. The use case rechecks inside the transaction (FR-006). Batch 32, Abu Salem 2026-10-17 (binding). |
+| EN-Q16 | Search box on the staff list (partner request AS-24) | **One search box `q`**: digits only match the exact employee number **or** the name; letters search the Arabic and English names, the same way the reception performer picker does. It is added beside the existing exact `employee_number=N` filter, which stays (FR-009, D-3). Batch 32, Abu Salem 2026-10-17 (binding). |
+| PP-3.1 | Which branches the DENY recheck on a number change covers when the employee is attached to more than one branch | The employee's business, her primary branch **and every branch she is currently attached to**; a DENY on any of them blocks the change (same rule as the IBAN screen). Permission decision for Waleed only, not on the partner page. Waleed 2026-10-18. |
+| PP-4.1 | How a holder of `manage:employee-number:company` reaches an employee in a business whose staff screen she cannot open | **(a)** A small company-wide screen «الأرقام الوظيفية» for holders of the permission: it lists every employee of the company with name, business and number only (no salary, phone, documents or any other field) and lets the holder edit the number there. The PP-3.1 DENY rule still applies: an employee whose business, primary branch or any current attached branch carries a DENY on this permission is neither listed for her nor editable by her. Screen decision for Waleed only, not on the partner page. Waleed 2026-10-18, through the super agent. |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -132,8 +137,13 @@ the numbers back.
 
 1. **Given** Sara = 1, **When** her profile, the staff list, the attendance board (in-now and sessions), the monthly
    report (single branch and all branches) and the CSV are read, **Then** each carries `1` next to her name.
-2. **Given** the staff list, **When** it is filtered by number 2, **Then** only Heba is returned; a number nobody has
-   returns an empty page, not an error.
+2. **Given** the staff list search box `q` (EN-Q16), **When** it holds `2`, **Then** Heba (number 2) is returned **and**
+   any employee whose name contains «2»; a text nobody matches returns an empty page, not an error.
+   - 2a. **Given** `q` is an Arabic name part («هبة»), **When** searched, **Then** Heba appears (Arabic and English
+     names are searched, as in the performer picker).
+   - 2b. **Given** `q` is an English name part («heb»), **When** searched, **Then** Heba appears.
+   - 2c. **Given** one employee numbered 2 and another whose name contains «2», **When** `q` is `2`, **Then** both
+     appear.
 3. **Given** the reception performer picker, **When** the receptionist types `2`, **Then** Heba appears (a digit-only
    text also matches the number exactly, besides the name search that exists today); the picker rows show the number.
 4. **Given** the CSV, **When** downloaded, **Then** the first column is the employee number and still no phone, salary
@@ -176,14 +186,16 @@ the numbers back.
   gets there, and the owner may type it by hand for anyone (BR-3). EN-Q4 covers deletion only.
 - **FR-006** (EN-Q11): typing a number when adding an employee, changing a number, and setting the
   starting number MUST require `manage:employee-number:company`; the owner holds it by default and can grant it to any
-  human role, never a device (pattern of DH-Q5, spec 048).
+  human role, never a device (pattern of DH-Q5, spec 048). EN-Q15 (partner Abu Salem, batch 32, 2026-10-17): the permission is company-wide, so a holder may change the number of an employee in any business of the company, unless a DENY covers that employee's business or branch; the use case rechecks the permission inside the transaction on the employee's business/branch target so a narrower DENY wins. PP-3.1 (Waleed, 2026-10-18): the recheck covers the employee's business, her primary branch and every branch she is currently attached to; a DENY on any of them blocks the change (same rule as the IBAN screen). "Currently attached" means the attachment has not ended: `to IS NULL` or `to > today` (`to` is exclusive), where today is the date in the branch's business day. This is exactly the shared `currentAttachment` predicate that the IBAN screen uses (PP-3.1 "same rule as the IBAN screen"), so an attachment that starts in the future also counts: a DENY on a branch she is about to join blocks too (the stricter reading). An attachment that ended (`to <= today`) does not count. PP-4.2 (Waleed, 2026-10-18): the same recheck applies to a number typed when adding an employee. When a create request carries `employee_number`, the use case rechecks `manage:employee-number:company` inside the transaction on the NEW employee's business and her primary branch (`primary_branch_id`, the only branch a create request carries); a DENY on either refuses the request with `403 FORBIDDEN` and creates nothing (D-8: never silently ignored). For this creation check the targets are that business and primary branch regardless of the attachment start date: `create-employee` allows a future `hire_date`, so the new attachment may start later, and it still counts; the "currently attached" date rule above applies only to hand edits of existing employees. The add screen does not offer the number field for that business/branch, so the employee is created without the field and takes the automatic number.
 - **FR-007** (EN-Q10): the owner MUST be able to set the starting number once; it moves the counter
   forward only and never changes an existing employee's number (BR-6).
 - **FR-008**: The number MUST appear in the employee detail, the staff list, the attendance board, the monthly report
   (single branch and all branches), the CSV and the reception performer picker (EN-Q3, AB-Q9e). It MUST NOT widen
   anyone's access to those surfaces.
-- **FR-009**: The staff list MUST accept an exact-number filter and the performer picker MUST match a digit-only
-  search text against the number exactly, in addition to the name search it has today (EN-Q9, D-3).
+- **FR-009** (EN-Q16): The staff list MUST have ONE search box `q`: a text of digits only matches the exact employee
+  number **or** the name; any other text searches the Arabic and English names, the same way the reception performer
+  picker does. The performer picker MUST match a digit-only search text against the number exactly, in addition to the
+  name search it has today (EN-Q9, D-3). The `q` box is added beside the exact `employee_number=N` list filter; that filter stays and nothing is removed.
 - **FR-010**: Every hand change of a number and the one-time start MUST write one audit row in the same transaction;
   an unchanged value writes nothing (D-1, `CLAUDE.md` §8).
 - **FR-011**: All reads and writes MUST be tenant-scoped (RLS plus `withTenant`); a number of another company never
@@ -210,7 +222,7 @@ the numbers back.
   `employee-name-key.ts`): `parseEmployeeNumber(text)` (digits only, strips leading zeros, 1…999999 or `null`) and
   `firstFreeEmployeeNumber(counter, usedAtOrAbove)` (first unused at or above the counter; `null` past 999999) and
   `nextEmployeeNumberCounter(assigned)` (the counter after an automatic assignment: the number plus one, capped at
-  1000000). The admin form and the search box call the first; the assign port calls the second and third. No arithmetic in a use case.
+  1000000). `parseEmployeeNumber` is used only by number-entry fields (the add form, the edit action, the start dialog) and by the server to read the digit branch of `q`; the admin search box passes the raw text to `?q=` unchanged. The assign port calls the second and third. No arithmetic in a use case.
 - **TD-4 Serialization.** Every number write in a company (automatic assign, hand edit, start) takes the counter row
   `FOR UPDATE` first; the unique index `(company_id, employee_number)` is the backstop. Decided with the design advisors at the start of 8c-2 (two independent reviews agree):
   **global lock order = company (`FOR NO KEY UPDATE`) → memberships ordered by id → import preview/idempotency locks
@@ -275,7 +287,7 @@ the numbers back.
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | D-1 | Every hand change and the one-time start write an audit row in the same transaction. A hand change: entity `employees`, entity id = the employee id, action `employee_number.changed`, before/after number, actor. The start: entity `employee_number_sequences`, entity id = the **company id** (the sequence row's key, so it exists even when the company has no employees), action `employee_number.start_set`, before/after `{ start_number, next_number }`, actor. |
 | D-2 | The number is shown as plain digits, no separators, in Arabic and English screens, and printed the same way.                                                            |
-| D-3 | The list filter is an **exact** match; the picker matches a digit-only text exactly **or** the name as today.                                                          |
+| D-3 | The staff list has one search box `q`, like the picker: digits only match the exact number **or** the name; letters search the Arabic and English names. EN-Q16 changed the earlier «exact match only» wording confirmed under EN-Q13: `q` is added beside the exact `employee_number=N` filter, which stays. |
 | D-5 | A deleted employee's number cannot be edited (the employee reads as `NOT_FOUND`) and stays reserved.                                                                    |
 | D-7 | After the migration, numbers follow creation order; hire date does not order new employees.                                                                             |
 | D-8 | A hand number or the start typed by someone without the permission is refused (`FORBIDDEN`), never silently ignored.                                                    |
@@ -302,12 +314,24 @@ the numbers back.
 All routes under `/v1`, feature flag `staff`, standard error envelope.
 
 - `POST /v1/businesses/{businessId}/employees` (existing) — `CreateEmployeeInput` gains optional
-  `employee_number` (integer 1…999999, **8c-7**, EN-Q11); the `POST` response is the new
+  `employee_number` (integer 1…999999, **8c-7**, EN-Q11; when a create request carries it, the use case rechecks
+  `manage:employee-number:company` inside the transaction on the NEW employee's business and her primary branch
+  (`primary_branch_id`, the only branch a create request carries), and a DENY on either refuses it with
+  `403 FORBIDDEN` and creates nothing, regardless of the attachment start date, FR-006, PP-4.2, D-8);
+  the `POST` response is the new
   `CreatedEmployee` (`Employee` plus `employee_number: integer | null`, 8c-2, automatic number returned); `Employee` and
   `EmployeeDetail` stay unchanged until 8c-4 adds the field to the read producers.
+- `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` · authorized exactly like create-employee: `manage:employees:business` evaluated on the business AND the selected
+  `primary_branch_id` (the same check as `lockEmployeeCreationAccess`), so a creator who holds it only for that branch can ask · feature flag `staff`, standard
+  error envelope (8c-7, PP-4.2) · `primary_branch_id` must belong to `businessId` in the caller's company, else
+  `404 NOT_FOUND` · returns `{ can_type_number: boolean }`: true only when the caller holds
+  `manage:employee-number:company` AND no DENY covers the business or that primary branch (the same FR-006 recheck);
+  a caller without the number permission gets `false`, not `403`. `Idempotency-Key`: not required (read).
 - `GET /v1/businesses/{businessId}/employees/{employeeId}` and the list items (existing) gain
   `employee_number: integer | null` (8c-4).
-- `GET /v1/businesses/{businessId}/employees?employee_number=N` — optional exact filter (8c-4).
+- `GET /v1/businesses/{businessId}/employees?q=…` — optional search box (8c-4b, EN-Q16): digits only match the exact
+  `employee_number` **or** the name; any other text searches the Arabic and English names, as the performer picker does.
+  It is added beside the exact `employee_number=N` filter that 8c-4 added; that filter stays and nothing is removed.
 - Session performer options (existing query, ADR-0041): items gain `employee_number: integer | null`; `q` made only
   of digits also matches the number exactly (8c-4).
 - Attendance board (`in_now[]` and `sessions[]`) and monthly report rows gain `employee_number: integer | null`; the
@@ -316,6 +340,14 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   (8c-6, EN-Q11) · body `{ employee_number: integer 1…999999 }` →
   `{ employee_id, employee_number }`. `Idempotency-Key`: not required (no money or stock effect; the same value twice
   is a no-op).
+- `GET /v1/employee-numbers` · `@Require('manage:employee-number:company')` (8c-6b, PP-4.1) · company-level read behind
+  the «الأرقام الوظيفية» screen · cursor-paginated · each item is `{ employee_id, name_ar, name_en, business_id,
+  business_name_ar, business_name_en, employee_number }` and nothing else (no salary, phone, documents or any other
+  field). Employees whose business, primary branch or any current attached branch carries a DENY on
+  `manage:employee-number:company` for the caller are filtered out (EN-Q15, PP-3.1); soft-deleted employees are
+  excluded. Optional `q` with the same search rule as the staff list (EN-Q16): digits only match the exact number or
+  the name, other text searches the Arabic and English names. Editing from this screen reuses the 8c-6 `PUT` route
+  above. `Idempotency-Key`: not required (read).
 - `GET /v1/employee-numbering` → `{ next_number, start_number | null, start_set_at | null, can_manage }` and
   `PUT /v1/employee-numbering/start` · `@Require('manage:employee-number:company')` · body
   `{ start_number: integer 1…999999 }` (8c-8, EN-Q10, EN-Q11). The GET needs the same permission.
@@ -338,16 +370,26 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 - None published or consumed. The audit rows (D-1) are the record. Row 27g reads the number through staff's read path,
   not through an event.
 
-### Admin UI (8c-9, 8c-10)
+### Admin UI (8c-9, 8c-10, 8c-10b)
 
-- Employee profile: the number beside the name. Staff list: a number column and an exact-number search box. All
-  numbers are plain digits (D-2); `NULL` shows «—» (TD-10).
+- Employee profile: the number beside the name. Staff list: a number column and one search box (EN-Q16): digits find
+  the exact number or the name, letters find the Arabic or English name. All numbers are plain digits (D-2); `NULL`
+  shows «—» (TD-10).
 - Reception performer picker: the number next to each name; typing digits finds the employee (EN-Q9).
 - Attendance board and monthly report screens: a number column; the CSV button is unchanged.
-- Only for a holder of `manage:employee-number:company` (the owner by default, or a person the owner granted it to): an "Employee number" field on the add-employee form (blank = automatic), an edit
+- Only for a holder of `manage:employee-number:company` (the owner by default, or a person the owner granted it to): an "Employee number" field on the add-employee form (blank = automatic; not offered at all when a DENY covers the chosen business/branch — the form asks the server-side capability read `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` (8c-7) for the selected business and primary branch, PP-4.2), an edit
   action on the profile, and a one-time "Start numbering from" dialog on the staff list. A typed «007» is turned into
   7 by `parseEmployeeNumber` before it is sent (EN-Q8).
 - All strings from `packages/i18n`; logical CSS only; no closing comments in JSX.
+- Company-wide screen «الأرقام الوظيفية» (8c-10b, PP-4.1), only for a holder of `manage:employee-number:company`, so a
+  holder can reach an employee in a business whose staff screen she cannot open. A table of every employee of the
+  company with exactly three fields: name, business and number (plain digits, `NULL` shows «—»); no salary, phone,
+  documents or any other field. One search box `q` as on the staff list (EN-Q16). Each row has an edit action that
+  calls the 8c-6 `PUT` route; «007» is turned into 7 by `parseEmployeeNumber` before it is sent. The list applies the
+  same DENY filtering as the edit (PP-3.1): an employee whose business, primary branch or any current attached branch
+  carries a DENY on this permission is not listed for her and cannot be edited by her. Data comes from
+  `GET /v1/employee-numbers` (8c-6b).
+- PP-4.2 (Waleed, 2026-10-18): typing a number when adding an employee (8c-7) applies the same EN-Q15/PP-3.1 DENY recheck as the hand edit. Under such a DENY the API refuses a create request that carries `employee_number` with `403 FORBIDDEN` and creates nothing (D-8); the add screen does not offer the number field for that business/branch, so the employee is created without the field and takes the automatic number.
 
 ### Test plan
 
@@ -359,18 +401,43 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   creates, distinct and gap-free · `EN-05` failed create leaves the counter · `EN-06` hand number does not move the
   counter and is skipped later (BR-2/3) · `EN-07` taken number refused, deleted employee's number included · `EN-08`
   validation of 1…999999 and «007» · `EN-09` permission matrix (owner, owner-granted person, non-holder, device) ·
+  `EN-09b` company-level holder with DENY (EN-Q15, PP-3.1): DENY on the employee's business → refused; DENY on her
+  primary branch → refused; DENY on another branch she is currently attached to → refused; the same holder editing an
+  employee in another business with no DENY → allowed (the recheck runs inside the transaction) ·
+  `EN-09c` typed number at creation under a DENY (PP-4.2, D-8): a create request carrying `employee_number` under a DENY on
+  `manage:employee-number:company` for the new employee's business or primary branch → `403 FORBIDDEN` and nothing created (no
+  employee row, counter unmoved); the same request without the field → `201` with the automatic number; a future-dated
+  hire (`hire_date` after today) into a primary branch carrying a DENY with a typed number → `403 FORBIDDEN` and nothing created
+  (the creation check ignores the attachment start date) ·
+  `EN-09e` capability read `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` for a company-level holder: a DENY on the business → `can_type_number: false`; a DENY on the primary branch → false; no DENY on the business and the primary branch → true; a non-holder of the number permission → false (not 403); a `primary_branch_id` of another business or another company → `404 NOT_FOUND`; a caller without `manage:employees:business` → `403 FORBIDDEN` (8c-7) ·
+  `EN-09d` temporal boundary of attachments (FR-006; hand edit of an existing employee only, not creation): a DENY on a branch whose attachment
+  is finite and has not ended (`to > today`; `to` is exclusive) → refused; a DENY on a branch whose attachment starts after today
+  (`from > today`, not ended) → refused (same `currentAttachment` predicate as the IBAN screen); a DENY on a branch whose attachment ended (`to <= today`) → allowed; `to IS NULL` counts as current; today is the date in the
+  branch's business day ·
   `EN-10` no-op not audited, change audited · `EN-11` start once, forward only (US4) · `EN-12` exhaustion at 999999 ·
-  `EN-13` import commit numbers in file order · `EN-14` list filter and picker digit search · `EN-15` board, report and
-  CSV carry the number and still carry no phone, salary or IBAN.
+  `EN-13` import commit numbers in file order · `EN-14` (row 8c-4) exact `employee_number=N` list filter and picker digit search · `EN-14b` (row 8c-4b) list search box `q`: digits match the exact number or the name, an Arabic letter query, an English letter query, a digit string matching both an exact number and names (EN-Q16, US5-2) · `EN-15` board, report and
+  CSV carry the number and still carry no phone, salary or IBAN · `EN-16` company list `GET /v1/employee-numbers` (also: a DENY on a branch whose attachment ended before today, or ends today since `to` is exclusive, does NOT hide the employee; a DENY on an attachment that has not ended, including one that starts after today, does)
+  (PP-4.1): the holder sees only employee id, names, business and number; a DENY on an employee's business, primary
+  branch or another current attached branch hides that employee; a non-holder gets `FORBIDDEN` (403); soft-deleted
+  employees never appear; `q` follows the EN-Q16 rule.
 - **RLS negative**: `employee_number_sequences` cross-tenant read = 0 rows, insert/update with another `company_id`
   rejected, no DELETE; a duplicate number across two tenants is allowed, within one tenant rejected by the unique
   index; the privileges allowlist test lists the new grants.
-- **Queries**: result-shape test and `EXPLAIN ANALYZE` index assertion for the list filter, the picker digit match and
+- **Queries**: result-shape test and `EXPLAIN ANALYZE` index assertion for the list search box, the picker digit match and
   the used-numbers lookup of the assign port (`(company_id, employee_number)` index).
 - **Existing tests that assert the number is absent** — `attendance-board.query.spec.ts` (`employee_number` in the
   private-field list) and `attendance-monthly-report-csv.spec.ts` (its forbidden-words pattern includes `employee_number` and the Arabic label for it) — both change in 8c-5: the number is now allowed; phone, salary, IBAN and documents stay forbidden.
 - **Admin**: profile, list search, picker digit search, create-form field visible only with the permission, «007»
   normalisation, `NULL` shows «—», edit and start dialogs.
+- **Admin, add-employee form** (8c-10, PP-4.2), form tests `EN-18`: for a holder of `manage:employee-number:company`, the
+  field is shown when the capability read returns `can_type_number: true`; it is not rendered when it returns `false` for a DENY on the
+  selected business, or for a DENY on the selected primary branch; changing the selected branch re-asks the capability read
+  and hides or shows the field; a non-holder never sees the field.
+- **Admin, company screen «الأرقام الوظيفية»** (8c-10b, PP-4.1), screen tests `EN-17`: a holder of
+  `manage:employee-number:company` alone (no staff-screen permission) reaches the screen and sees name, business and
+  number only · an employee in another business of the company is listed and editable · an employee hidden by a DENY
+  (`GET /v1/employee-numbers` filtered) is not listed · editing calls the 8c-6 `PUT` route and the row shows the new
+  number · a `409 EMPLOYEE_NUMBER_TAKEN` shows the taken message and leaves the old number.
 
 ## Success Criteria _(mandatory)_
 
@@ -400,13 +467,16 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 | 8c-1  | Database foundation                                                                                        | (1) migrations A and B: column, sequence table with RLS and grants, then the concurrent unique index (2) Drizzle schema, privileges allowlist, and migration C with the `employee-numbers` data step (3) RLS negative and backfill tests (`EN-01`, `EN-02`) | —                | ready                  |
 | 8c-2  | `create-employee` gives the next number                                                                    | (1) `firstFreeEmployeeNumber` + unit tests (2) assign port and Drizzle adapter, counter lock (3) use case, `CreatedEmployee` contract, `EN-03`…`EN-05`, `EN-12` | 8c-1             | ready (advisors done, TD-4) |
 | 8c-3  | `commit-employee-import` gives numbers in file order                                                       | (1) import commit uses the assign port (2) `EN-13`                                                                                      | 8c-2             | ready |
-| 8c-4  | Reads: employee detail, staff list, performer picker                                                       | (1) contracts and queries add the field (2) exact-number filter and digit match (3) result-shape and `EXPLAIN` tests, `EN-14`          | 8c-1             | ready |
+| 8c-4  | Reads: employee detail, staff list, performer picker                                                       | (1) contracts and queries add the field (2) exact `employee_number=N` filter (kept; 8c-4b adds `q` beside it, EN-Q16) and picker digit match (3) result-shape and `EXPLAIN` tests, `EN-14`          | 8c-1             | ready |
+| 8c-4b | Staff-list search box (EN-Q16, AS-24)                                                                     | (1) list query `q`: digits only match the exact number OR the name, letters search ar/en names, same as the reception picker (2) EXPLAIN and `EN-14b` tests (3) OpenAPI and clients; the exact `employee_number=N` filter stays | 8c-4             | ready |
 | 8c-5  | Reads: attendance board, monthly report, CSV                                                               | (1) board contract and query (2) report contract, query and CSV first column (3) update the two "number is absent" tests, `EN-15`      | 8c-1             | ready                  |
-| 8c-6  | `set-employee-number` (hand edit)                                                                          | (1) reuse `parseEmployeeNumber` (added in 8c-4 with its unit tests) (2) permission migration and use case with audit (3) route, contract, `EN-06`…`EN-10`           | 8c-2             | ready |
-| 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field and permission check (2) `EN-06` for create, `EN-07`, `EN-09`                                                           | 8c-2, 8c-6       | ready |
+| 8c-6  | `set-employee-number` (hand edit)                                                                          | (1) reuse `parseEmployeeNumber` (added in 8c-4 with its unit tests) (2) permission migration and use case with audit (3) route, contract, `EN-06`…`EN-10`, including `EN-09b` (company-level holder with DENY on the business, primary branch or another attached branch, EN-Q15, PP-3.1) and `EN-09d` (attachment dates)           | 8c-2             | ready |
+| 8c-6b | Company employee-numbers list (PP-4.1)                                                                     | (1) query + contract + route `GET /v1/employee-numbers` (2) DENY-filter, result-shape and `EXPLAIN` tests, `EN-16` (3) OpenAPI and clients | 8c-6             | ready |
+| 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field, a capability read `GET /v1/businesses/{businessId}/employee-number-capability?primary_branch_id=…` → `{ can_type_number: boolean }` (same FR-006 recheck, so the add form hides the field under a DENY), permission check and DENY recheck on the new employee's business and primary branch (FR-006, PP-4.2: `403 FORBIDDEN`, nothing created) (2) `EN-06` for create, `EN-07`, `EN-09`, `EN-09c`, `EN-09e`                                                           | 8c-2, 8c-6       | ready |
 | 8c-8  | `set-employee-number-start`                                                                                | (1) use case, `GET`/`PUT /v1/employee-numbering` (2) audit and once-only rule (3) `EN-11`                                               | 8c-2, 8c-6       | ready |
-| 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-5       | ready |
-| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (2) edit action on the profile (3) "Start numbering from" dialog                                                 | 8c-7, 8c-8, 8c-9 | ready |
+| 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-4b, 8c-5 | ready |
+| 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (hidden when a DENY covers the business/branch, PP-4.2), with its `EN-18` form tests (2) edit action on the profile (3) "Start numbering from" dialog | 8c-7, 8c-8, 8c-9 | ready |
+| 8c-10b | Admin: company employee-numbers screen (PP-4.1)                                                           | (1) screen «الأرقام الوظيفية» on the DENY-filtered `GET /v1/employee-numbers` list: name, business, number, search box `q`, with its `EN-17` tests (number-only holder, other-business employee, DENY-filtered row) (2) edit action calling the 8c-6 `PUT`, with its `EN-17` tests (edit shows the new number, 409 shows the taken message) | 8c-6b, 8c-9 | ready |
 | 8c-11 | Contract: numbers for stragglers, then `NOT NULL`                                                          | (1) straggler backfill migration (2) `CHECK … NOT VALID` then `VALIDATE`; readers drop the `NULL` branch                               | 8c-2, 8c-3 in a released image | later release |
 
 Parallel work follows the pipeline's file-disjoint rule: 8c-4 and 8c-5 touch different queries and can run together;
