@@ -63,9 +63,9 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
     }
     // الطلبات بتتسلسل، والدمج على الحالة الحالية عشان رد متأخر ما يقفلش محرر غير محرره.
     setHeld((current) => {
-      const base = current?.snapshot === session ? current.visit
-        : reconcileSavedVisit(current?.visit ?? emptySavedVisit(session.id, session.total_net), session);
-      return { snapshot: session, visit: applySavedLineEdit(base, session.id, lineId, edit.response, edit.revisionUsed) };
+      const base = current?.snapshot === latest ? current.visit
+        : reconcileSavedVisit(current?.visit ?? emptySavedVisit(latest.id, latest.total_net), latest);
+      return { snapshot: latest, visit: applySavedLineEdit(base, latest.id, lineId, edit.response, edit.revisionUsed) };
     });
     setOpen((current) => current?.lineId === lineId ? null : current);
   };
