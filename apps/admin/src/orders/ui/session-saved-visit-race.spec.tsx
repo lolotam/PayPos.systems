@@ -166,6 +166,18 @@ it('keeps a later editor open when an earlier save completes after the snapshot 
   expect(state.patch).toHaveBeenCalledTimes(1);
 });
 
+it('shows the newer snapshot figures after a late replay response for a line with no tracked local edit', async () => {
+  const { view, client, pending } = await openAndSaveFirst();
+  const newer = { ...twoLineSession(), lines: twoLineSession().lines.map((line, index) => index === 0 ? { ...line, price: '7.000', discount: '0.000', net: '7.000', revision: 3, edited: true as const } : line) };
+  view.rerender(tree(client, newer));
+  const first = pending[0];
+  if (!first) throw new Error('missing response');
+  await act(async () => { first.resolve(full); });
+  await waitFor(() => expect(reason()).toBeNull());
+  expect(screen.queryByText('4.250', { exact: false })).toBeNull();
+  expect(screen.getAllByText('7.000', { exact: false }).length).toBeGreaterThan(0);
+});
+
 it('keeps the uncertain editor and its idempotency key when the same visit snapshot is replaced', async () => {
   const { view, client, pending } = await openAndSaveFirst();
   const gate = pending[0];

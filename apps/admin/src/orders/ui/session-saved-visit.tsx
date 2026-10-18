@@ -47,6 +47,12 @@ export function SessionSavedVisit({ result, scope, online, editBusy = false, onR
   const refusalText = refusal?.snapshot === session ? refusal.message : null;
   const when = formatInstant(new Date(session.occurred_at), locale, session.business_timezone);
   const saved = (lineId: string, edit: EditServiceLineResult) => {
+    // رد إعادة محاولة أقدم من مراجعة السطر في السناب شوت الحالي ما يكتبش فوقه حتى لو مفيش تعديل محلي متتبَّع.
+    const answered = 'line' in edit.response ? edit.response.line.revision : edit.revisionUsed + 1;
+    if ((session.lines.find((line) => line.id === lineId)?.revision ?? 0) > answered) {
+      setOpen((current) => current?.lineId === lineId ? null : current);
+      return;
+    }
     // الطلبات بتتسلسل، والدمج على الحالة الحالية عشان رد متأخر ما يقفلش محرر غير محرره.
     setHeld((current) => {
       const base = current?.snapshot === session ? current.visit
