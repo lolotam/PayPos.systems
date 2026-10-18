@@ -48,6 +48,9 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
     - **Overlap:** a question that is both (for example «may a cashier refund or cancel a paid line?») is a money
       question: it goes to the page, because the answer changes how money moves.
     - **Every other owner question** (product behaviour that moves no money, for example whether a break is mandatory) also goes to Waleed through his super agent, like the permission questions. Only charges/money questions reach the partner page.
+    - **Questions already on the page before 2026-10-18** keep the rule they were published under: an answer Abu Salem
+      gives to one of them still binds, and nothing is migrated. The routing above applies to every question asked
+      from 2026-10-18 on.
     - On the page, Waleed and his partner (Abu Salem) pick. **When they differ, the partner's pick is binding.** When
       the partner has answered, his pick binds and Waleed's own pick is not required; until the partner answers, work
       proceeds on Waleed's pick; if the partner later differs, his pick replaces it (the decision record, the slice's
