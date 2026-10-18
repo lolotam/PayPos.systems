@@ -962,7 +962,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope. */
+        /** @description Cursor-paginated employees; persisted primary and all active branches require manage:employees:business. DENY wins. Requires staff feature. Optional employee_number is an exact match combined with that scope. Optional q searches with it: digits match that exact number or the name, and other text searches Arabic and English names the same way as the reception picker. */
         get: operations["listEmployees"];
         put?: never;
         /** @description Requires manage:employees:business at the primary branch and staff feature. Missing, other-business and other-company primary branches share EMPLOYEE_BRANCH_NOT_FOUND (404), before target permission, feature or employee diagnostics. Grants no access. A linked user must have an active membership in this company; unknown and foreign users share EMPLOYEE_USER_LINK_UNAVAILABLE (400). Duplicate names and future hires are allowed. Contract end before hire returns EMPLOYEE_CONTRACT_END_BEFORE_HIRE (400); an active user/business link conflict returns EMPLOYEE_USER_ALREADY_LINKED (409). The response is CreatedEmployee; employee_number is the automatic number or null. No free number left returns EMPLOYEE_NUMBER_EXHAUSTED (422) and writes nothing. */
@@ -3072,6 +3072,7 @@ export interface components {
             /** @default 20 */
             limit: number;
             employee_number?: string;
+            q?: string;
         };
         DiscountLimit: {
             limit_bps: number | null;
@@ -8725,6 +8726,8 @@ export interface operations {
                 limit?: number;
                 /** @description Exact employee number: digits only, leading zeros ignored, 1..999999; anything else is 400. */
                 employee_number?: string;
+                /** @description Optional search, trimmed, 1..100 characters. Digits match the exact employee number or the name; other text searches Arabic and English names. */
+                q?: string;
             };
             header: {
                 "x-company-id": string;
