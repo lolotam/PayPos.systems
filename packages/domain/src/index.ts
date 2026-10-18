@@ -31,6 +31,7 @@ export * from './attendance-contracted-minutes.js';
 export { computeAttendanceMonthlyReport } from './attendance-monthly-report.js';
 export {
   EMPLOYEE_NUMBER_MAX,
+  employeeNumberCounterAfterStart,
   firstFreeEmployeeNumber,
   nextEmployeeNumberCounter,
   parseEmployeeNumber,

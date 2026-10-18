@@ -162,3 +162,12 @@ function mapped(error: unknown): never {
     throw new SetEmployeeNumberError('TRANSACTION_RETRY_REQUIRED');
   throw error;
 }
+
+// بداية الترقيم تعيد استخدام نفس رمزي identity حتى لا يظهر سهم قراءة جديد.
+export function lockEmployeeNumberCompany(tx: Tx, companyId: string) {
+  return lockEmployeeNumberAccess(tx, companyId);
+}
+
+export function recheckEmployeeNumberCompany(tx: Tx, companyId: string, userId: string) {
+  return readEmployeeNumberAccess(tx, companyId, userId);
+}

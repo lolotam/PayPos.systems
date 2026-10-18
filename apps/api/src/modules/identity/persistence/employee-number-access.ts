@@ -19,28 +19,33 @@ export async function lockEmployeeNumberAccess(tx: Tx, companyId: string): Promi
 }
 
 /**
- * يعيد رفض الصلاحية أو الميزة على نشاط الموظفة وكل فرع حالي؛ منع واحد على أي منها يكفي.
- * الأهداف تأتي من صف الموظفة لا من الطلب، ووقت القرار هو وقت المعاملة.
+ * يعيد رفض الصلاحية أو الميزة.
+ * تعديل الرقم يفحص نشاط الموظفة وكل فرع لأن المنع على أي منها يكفي. بداية الترقيم بلا نشاط،
+ * فغياب businessId يفحص الشركة وحدها حتى لا يمنع نشاط أو فرع حوار البداية. الجهاز لا يمر، ووقت القرار وقت المعاملة.
  *
  * @param tx معاملة الشركة
  * @param companyId الشركة
  * @param userId المستخدم
- * @param businessId نشاط الموظفة المحفوظ
- * @param branchIds الفروع الحالية بما فيها الفرع الرئيسي
+ * @param businessId نشاط الموظفة عند التعديل اليدوي، ويُحذف عند فحص الشركة وحدها
+ * @param branchIds الفروع الحالية عند التعديل اليدوي
  * @returns FORBIDDEN أو FEATURE_DISABLED أو null عند السماح
  */
 export async function readEmployeeNumberAccess(
   tx: Tx,
   companyId: string,
   userId: string,
-  businessId: string,
-  branchIds: readonly string[],
+  businessId?: string,
+  branchIds?: readonly string[],
 ): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null> {
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (!time) return 'FORBIDDEN';
   const at = new Date(time.at);
   const access = await readAccessTransaction(tx, companyId, userId, at);
-  if (!numberAllowed(access.grants, companyId, businessId, branchIds)) return 'FORBIDDEN';
+  const allowed =
+    businessId === undefined
+      ? evaluateAccess(access.grants, PERMISSION, { companyId })
+      : numberAllowed(access.grants, companyId, businessId, branchIds ?? []);
+  if (!allowed) return 'FORBIDDEN';
   return (await readFeatureEnabled(tx, companyId, 'staff', at)) ? null : 'FEATURE_DISABLED';
 }
 

@@ -330,6 +330,8 @@ export {
   employeeNumberListItem,
   employeeNumberPage,
   employeeNumberListQuery,
+  setEmployeeNumberStartInput,
+  employeeNumbering,
   type SetEmployeeNumberInput,
   type EmployeeNumberView,
   type EmployeeNumberCapabilityQuery,
@@ -337,6 +339,8 @@ export {
   type EmployeeNumberListItem,
   type EmployeeNumberPage,
   type EmployeeNumberListQuery,
+  type SetEmployeeNumberStartInput,
+  type EmployeeNumbering,
 } from './staff/employee-number.js';
 export * from './staff/attendance-actions-read.js';
 export {

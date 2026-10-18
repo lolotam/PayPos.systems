@@ -3,7 +3,9 @@ import {
   employeeNumberCapability,
   employeeNumberPage,
   employeeNumberView,
+  employeeNumbering,
   setEmployeeNumberInput,
+  setEmployeeNumberStartInput,
 } from './employee-number.js';
 
 const json = (schema: string) => ({
@@ -97,6 +99,35 @@ export const employeeNumberPaths = {
         '400': errors,
         '403': errors,
         '404': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/employee-numbering': {
+    get: {
+      operationId: 'getEmployeeNumbering',
+      parameters: [companyHeader],
+      description:
+        'A human holder of manage:employee-number:company and the staff feature. Company numbering screen. next_number is 1 when the company has no counter row. start_number and start_set_at are null until the one-time start is stored. can_manage is true exactly while that start has not been set, so the admin screen can still offer the dialog.',
+      responses: {
+        '200': { description: 'The company employee-number counter', content: bodyJson(employeeNumbering) },
+        '403': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/employee-numbering/start': {
+    put: {
+      operationId: 'setEmployeeNumberStart',
+      parameters: [companyHeader],
+      description:
+        'A human holder of manage:employee-number:company and the staff feature. Stores the one-time starting number. The counter becomes the greater of its current value and start_number, and existing employee numbers stay as they are. A second call returns EMPLOYEE_NUMBER_START_ALREADY_SET (409) and writes nothing. No Idempotency-Key.',
+      requestBody: { required: true, content: bodyJson(setEmployeeNumberStartInput) },
+      responses: {
+        '200': { description: 'The company employee-number counter after the start', content: bodyJson(employeeNumbering) },
+        '400': errors,
+        '403': errors,
+        '409': errors,
         default: errors,
       },
     },
