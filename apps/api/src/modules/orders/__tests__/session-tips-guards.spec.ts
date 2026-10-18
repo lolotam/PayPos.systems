@@ -74,14 +74,19 @@ async function refusalCode(
   userId?: string,
 ) {
   const key = ids.newId();
-  const error = errorShape(await caught(runTips(fixture, sessionId, input, { key, userId })));
+  const error = errorShape(
+    await caught(
+      runTips(fixture, sessionId, input, userId === undefined ? { key } : { key, userId }),
+    ),
+  );
   expect(await tipQuiet(fixture, sessionId, key)).toEqual(HELD);
   return error.code;
 }
 
 it('TP-04 a persisted self entry and an unsnapshotted entry refuse a touch and allow carrying both', async () => {
   const { sessionId, kept } = await persistedSet(f);
-  const [self, unknown] = kept;
+  const self = must(kept[0]);
+  const unknown = must(kept[1]);
   const reason = { expected_revision: 1, reason: 'touch' };
   const changedSelf = tip(f, 0, 'CASH', '2.000');
   const changedUnknown = tip(f, 1, 'CARD', '2.000');
