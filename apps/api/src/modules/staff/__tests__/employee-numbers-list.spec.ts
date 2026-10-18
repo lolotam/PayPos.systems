@@ -174,6 +174,20 @@ it('a DENY on an attachment that ends today does not hide her', async () => {
   }
 });
 
+it('a DENY on an attachment that ended yesterday still lists the employee', async () => {
+  const employee = await executeCreate(f, 'EN16 deny yesterday');
+  const branchId = await attachBranch(f, employee.id);
+  await f.h.owner`UPDATE employee_branches SET "to"=(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kuwait')::date - 1
+    WHERE company_id=${f.company} AND employee_id=${employee.id} AND branch_id=${branchId}`;
+  await asHolder();
+  await grantNumber(f, 'DENY', 'BRANCH', branchId);
+  try {
+    expect(await ids(f.cookie, 'EN16 deny yesterday')).toEqual([employee.id]);
+  } finally {
+    await clearNumberGrants(f);
+  }
+});
+
 it('an owner still sees the employee when her own membership has a business DENY', async () => {
   const employee = await executeCreate(f, 'EN16 owner deny');
   const [membership] = await f.h.owner`SELECT m.id FROM memberships m JOIN "user" u ON u.id=m.user_id

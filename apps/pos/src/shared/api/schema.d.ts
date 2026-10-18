@@ -778,7 +778,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Human manage:employee-number:company and the staff feature. Company employee-numbers screen. Each row is only employee_id, name_ar, name_en, business_id, business_name_ar, business_name_en, and employee_number. Soft-deleted employees are omitted. A DENY on her business, primary branch, or any current attachment (a future start still counts) hides the row; an ended attachment does not. */
+        /** @description A human holder of manage:employee-number:company and the staff feature. Company employee-numbers screen. Each row is only employee_id, name_ar, name_en, business_id, business_name_ar, business_name_en, and employee_number. Soft-deleted employees are omitted. A DENY on the employee's business, primary branch, or any current attachment (a future start still counts) hides the row; an ended attachment does not. */
         get: operations["listEmployeeNumbers"];
         put?: never;
         post?: never;
@@ -796,7 +796,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** @description Human manage:employee-number:company. Sets one employee number in the company. A DENY on her business, primary branch, or any current attachment blocks. The same number is a no-op. A hand edit does not move the company counter. No Idempotency-Key. */
+        /** @description A human holder of manage:employee-number:company. Sets one employee number in the company. A DENY on the employee's business, primary branch, or any current attachment blocks. The same number is a no-op. A hand edit does not move the company counter. No Idempotency-Key. */
         put: operations["setEmployeeNumber"];
         post?: never;
         delete?: never;

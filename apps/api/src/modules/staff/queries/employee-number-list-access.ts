@@ -8,8 +8,10 @@ import {
 import { sql, type SQL } from 'drizzle-orm';
 
 const PERMISSION: Permission = 'manage:employee-number:company';
+// شاشة «الأرقام الوظيفية» على مستوى الشركة.
 const active = sql`m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > now())`;
 
+// شاشة «الأرقام الوظيفية» على مستوى الشركة.
 export function employeeNumberGrantCte(companyId: string, userId: string) {
   return sql`effective AS (
     SELECT g.effect, g.scope_type, g.scope_id FROM (
@@ -30,6 +32,7 @@ function roleGrants(companyId: string, userId: string) {
       AND ${systemRoleGrantAllowedSql('m', 'rp')}`;
 }
 
+// شاشة «الأرقام الوظيفية» على مستوى الشركة.
 function overrideGrants(companyId: string, userId: string) {
   return sql`SELECT o.effect, o.scope_type, o.scope_id
     FROM permission_overrides o
@@ -48,6 +51,7 @@ function ownerMembership(companyId: string, userId: string) {
       AND ${canonicalOwnerSql('owner_m', companyId)})`;
 }
 
+// شاشة «الأرقام الوظيفية» على مستوى الشركة.
 function scopeCover(companyId: string, business: SQL, branch: SQL | null) {
   const branchCover =
     branch === null ? sql`false` : sql`(g.scope_type = 'BRANCH' AND g.scope_id = ${branch})`;
@@ -56,6 +60,7 @@ function scopeCover(companyId: string, business: SQL, branch: SQL | null) {
     OR ${branchCover})`;
 }
 
+// شاشة «الأرقام الوظيفية» على مستوى الشركة.
 export function numberTargetAllowed(companyId: string, business: SQL, branch: SQL | null) {
   const cover = scopeCover(companyId, business, branch);
   return sql`(EXISTS (SELECT 1 FROM effective g WHERE g.effect = 'ALLOW' AND ${cover})

@@ -43,7 +43,7 @@ export const employeeNumberPaths = {
         },
       ],
       description:
-        'Human manage:employee-number:company and the staff feature. Company employee-numbers screen. Each row is only employee_id, name_ar, name_en, business_id, business_name_ar, business_name_en, and employee_number. Soft-deleted employees are omitted. A DENY on her business, primary branch, or any current attachment (a future start still counts) hides the row; an ended attachment does not.',
+        'A human holder of manage:employee-number:company and the staff feature. Company employee-numbers screen. Each row is only employee_id, name_ar, name_en, business_id, business_name_ar, business_name_en, and employee_number. Soft-deleted employees are omitted. A DENY on the employee\'s business, primary branch, or any current attachment (a future start still counts) hides the row; an ended attachment does not.',
       responses: {
         '200': { description: 'Employee number page', content: bodyJson(employeeNumberPage) },
         default: errors,
@@ -55,7 +55,7 @@ export const employeeNumberPaths = {
       operationId: 'setEmployeeNumber',
       parameters,
       description:
-        'Human manage:employee-number:company. Sets one employee number in the company. A DENY on her business, primary branch, or any current attachment blocks. The same number is a no-op. A hand edit does not move the company counter. No Idempotency-Key.',
+        'A human holder of manage:employee-number:company. Sets one employee number in the company. A DENY on the employee\'s business, primary branch, or any current attachment blocks. The same number is a no-op. A hand edit does not move the company counter. No Idempotency-Key.',
       requestBody: { required: true, content: bodyJson(setEmployeeNumberInput) },
       responses: {
         '200': { description: 'The stored employee number', content: bodyJson(employeeNumberView) },
