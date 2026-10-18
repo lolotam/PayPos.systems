@@ -113,7 +113,7 @@ it('sends the chosen recorder membership and locks it after the visit is saved',
   const submitted: SessionDraftForm[] = [];
   const view = renderForm(true, emptySessionRecordingResult(customer), openJournal(), async (drafts) => { submitted.push(drafts); });
   await chooseService();
-  await screen.findByRole('option', { name: 'Synthetic performer —' });
+  await screen.findByRole('option', { name: 'Synthetic performer' });
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1')), { target: { value: id(6) } });
   await screen.findByRole('option', { name: id(9) });
   fireEvent.change(membership(), { target: { value: id(9) } });
@@ -201,7 +201,7 @@ it('reopens the recorder picker after the saved membership is forbidden and subm
   const savedVisit: SessionRecordingResult = { ...saved, drafts: { lines: [], recorder_membership_id: id(8) } };
   renderForm(true, savedVisit, openJournal(), async (drafts) => { submitted.push(drafts); });
   await chooseService();
-  await screen.findByRole('option', { name: 'Synthetic performer —' });
+  await screen.findByRole('option', { name: 'Synthetic performer' });
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1')), { target: { value: id(6) } });
   await screen.findByRole('option', { name: id(9) });
   await waitFor(() => expect(membership().disabled).toBe(false));

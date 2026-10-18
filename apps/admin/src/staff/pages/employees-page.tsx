@@ -3,7 +3,7 @@ import type { WorkspaceBusiness } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, PageHeader } from '@pospay/ui';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployees } from '../api/use-employees';
 import { useEmployeeListControls } from '../model/use-employee-list-controls';
@@ -21,8 +21,8 @@ export function EmployeesPage({
   userId: string;
 }) {
   const locale = useLocale();
-  const search = useEmployeeListControls();
   const [employeeId, setEmployeeId] = useState('');
+  const search = useEmployeeListControls(useCallback(() => setEmployeeId(''), []));
   const list = useEmployees(companyId, business.id, userId, search.cursor, search.q);
   const page = (next: string | undefined) => {
     search.onPage(next);

@@ -12,7 +12,7 @@ export function EmployeeProfileHeading({ employee }: { employee: EmployeeDetail 
       {employee ? (
         <p className="flex flex-wrap items-baseline gap-2">
           <span>{locale === 'ar' ? (employee.name_ar ?? employee.name_en) : employee.name_en}</span>
-          <span>{displayEmployeeNumber(employee.employee_number)}</span>
+          <span aria-label={`${t(locale, 'staff.employeeNumber')} ${displayEmployeeNumber(employee.employee_number)}`}>{displayEmployeeNumber(employee.employee_number)}</span>
         </p>
       ) : null}
     </div>

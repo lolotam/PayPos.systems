@@ -91,7 +91,7 @@ it('feeds edited UTC to performer options without replacing the chosen performer
   } }) : previous?.(path, options));
   const time = screen.getByLabelText(t('en', 'serviceSessions.occurredAt'));
   fireEvent.change(time, { target: { value: '2026-10-12T17:00' } });
-  await screen.findByRole('option', { name: 'Synthetic performer —' });
+  await screen.findByRole('option', { name: 'Synthetic performer' });
   expect(get.mock.calls.findLast(([path]) => path.endsWith('/performer-options'))?.[1].params.query.occurred_at).toBe('2026-10-12T14:00:00.000Z');
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.performerNumber').replace('{n}', '1')), { target: { value: service.id } });
   fireEvent.change(time, { target: { value: '2026-10-11T17:00' } });

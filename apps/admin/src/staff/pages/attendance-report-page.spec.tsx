@@ -124,7 +124,10 @@ it.each(['ar', 'en'] as const)(
     expect(
       within(table).getByRole('columnheader', { name: t(locale, 'attendanceReport.employeeNumber') }),
     ).toBeTruthy();
-    expect(within(row).getByText('\u2014')).toBeTruthy();
+    expect(within(row).getByText('15')).toBeTruthy();
+    const unnumbered = within(table).getByText('Other synthetic employee').closest('tr');
+    if (!unnumbered) throw new Error('Missing report row');
+    expect(within(unnumbered).getByText('\u2014')).toBeTruthy();
     for (const value of ['20', '160:05', '168:00', '170:00', '-9:55', '27'])
       expect(within(row).getByText(value)).toBeTruthy();
     expect(within(row).getByText('-9:55').getAttribute('dir')).toBe('ltr');

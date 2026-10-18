@@ -34,7 +34,7 @@ function fixtureAt<T>(values: T[], index: number): T { const value = values[inde
 function choose(n: number, item = n) { fireEvent.change(screen.getByLabelText(text('performerNumber', n)), { target: { value: fixtureAt(items, item - 1).id } }); }
 it.each(['ar', 'en'] as const)('keeps input order, enforces 1/4 bounds and excludes duplicates in %s', async (locale) => {
   state.locale = locale; mount(); const select = screen.getByLabelText(text('performerNumber', 1)) as HTMLSelectElement;
-  await waitFor(() => expect(select.options.length).toBe(5)); expect(select.options.item(1)?.text).toBe(`${locale === 'ar' ? fixtureAt(items, 0).name_ar : 'Synthetic 1'} —`); choose(1, 2);
+  await waitFor(() => expect(select.options.length).toBe(5)); expect(select.options.item(1)?.text).toBe(locale === 'ar' ? fixtureAt(items, 0).name_ar : 'Synthetic 1'); choose(1, 2);
   expect((screen.getByRole('button', { name: text('removePerformer', 1) }) as HTMLButtonElement).disabled).toBe(true);
   const add = screen.getByText(t(locale, 'serviceSessions.addPerformer')) as HTMLButtonElement;
   for (const n of [2, 3, 4]) { fireEvent.click(add); choose(n, n === 2 ? 1 : n); }
@@ -44,7 +44,7 @@ it.each(['ar', 'en'] as const)('keeps input order, enforces 1/4 bounds and exclu
   expect(sessionPerformerInputs(form.getValues('lines.0')).map((row) => row.employee_id)).toEqual([2, 3, 4].map((n) => fixtureAt(items, n - 1).id));
 });
 it('converts localized 70/30 with contracts, leaves sum validation to the server and shows indexed errors', async () => {
-  state.locale = 'en'; const { submit } = mount(); await screen.findByRole('option', { name: 'Synthetic 1 —' }); choose(1);
+  state.locale = 'en'; const { submit } = mount(); await screen.findByRole('option', { name: 'Synthetic 1' }); choose(1);
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.addPerformer') })); choose(2);
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.customShares') }));
   for (const [n, value] of [[1, String.fromCharCode(0x667, 0x660)], [2, String.fromCharCode(0x663, 0x660)]] as const) fireEvent.change(screen.getByLabelText(text('share', n)), { target: { value } });
@@ -61,7 +61,7 @@ it('converts localized 70/30 with contracts, leaves sum validation to the server
   await waitFor(() => expect(submit).toHaveBeenCalledTimes(3));
 });
 it.each(['', '0', '1.001', '-1', '100.01'])('rejects custom %s without mixed omissions and restores omitted-all equal mode', async (value) => {
-  state.locale = 'en'; const { submit } = mount(); await screen.findByRole('option', { name: 'Synthetic 1 —' }); choose(1);
+  state.locale = 'en'; const { submit } = mount(); await screen.findByRole('option', { name: 'Synthetic 1' }); choose(1);
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.customShares') }));
   fireEvent.change(screen.getByLabelText(text('share', 1)), { target: { value } }); fireEvent.click(screen.getByRole('button', { name: 'Submit fixture' }));
   await screen.findByRole('alert'); expect(submit).not.toHaveBeenCalled();
@@ -69,12 +69,12 @@ it.each(['', '0', '1.001', '-1', '100.01'])('rejects custom %s without mixed omi
   fireEvent.click(screen.getByRole('button', { name: 'Submit fixture' })); await waitFor(() => expect(submit).toHaveBeenCalledWith([{ employee_id: fixtureAt(items, 0).id }]));
 });
 it('uses server-now for dated nonblocking warnings, hides stale search choices immediately and prevents Enter submission', async () => {
-  state.locale = 'en'; const { submit } = mount(); await screen.findByRole('option', { name: 'Synthetic 1 —' }); choose(1);
+  state.locale = 'en'; const { submit } = mount(); await screen.findByRole('option', { name: 'Synthetic 1' }); choose(1);
   expect(screen.getByText(/Not clocked in/).textContent).toContain('Oct 13');
   expect(state.get.mock.lastCall?.[1].params.query.occurred_at).toBe(instant);
   fireEvent.click(screen.getByRole('button', { name: 'Submit fixture' })); await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
   expect(fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Enter' })).toBe(false); expect(submit).toHaveBeenCalledTimes(1);
-  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'new' } }); expect(screen.queryByRole('option', { name: 'Synthetic 2 —' })).toBeNull();
+  fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'new' } }); expect(screen.queryByRole('option', { name: 'Synthetic 2' })).toBeNull();
   expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe(fixtureAt(items, 0).id);
   await waitFor(() => expect(state.get.mock.lastCall?.[1].params.query.q).toBe('new'));
   expect(screen.getByText(/Not clocked in/).textContent).toContain('Oct 13');
@@ -85,7 +85,7 @@ it('disables fresh reads and reports required performer selection', async () => 
   await screen.findByRole('alert'); expect(submit).not.toHaveBeenCalled();
 });
 it('refreshes selected facts through unfiltered pages when search excludes the performer at a new time', async () => {
-  state.locale = 'en'; const { rerender, client } = mount(); await screen.findByRole('option', { name: 'Synthetic 1 —' }); choose(1, 2);
+  state.locale = 'en'; const { rerender, client } = mount(); await screen.findByRole('option', { name: 'Synthetic 1' }); choose(1, 2);
   expect(screen.getByText(/Approved leave/).textContent).toContain('Oct 13');
   const at = '2026-10-12T08:00:00.000Z', context = client.getQueryData(['session-performer-context', 'company', 'business', 'branch', 'actor', 'now']);
   state.get.mockImplementation((path, options) => Promise.resolve({ data: path.endsWith('/recording-context') ? context
@@ -107,7 +107,7 @@ it('refreshes selected facts through unfiltered pages when search excludes the p
 it('shows the performer number and sends a digit query', async () => {
   state.locale = 'en';
   mount();
-  expect(await screen.findByRole('option', { name: 'Synthetic 1 —' })).toBeTruthy();
+  expect(await screen.findByRole('option', { name: 'Synthetic 1' })).toBeTruthy();
   const numbered = { ...fixtureAt(items, 0), employee_number: 2 };
   state.get.mockImplementation((path, options) => Promise.resolve({
     data: path.endsWith('/recording-context')
@@ -116,5 +116,5 @@ it('shows the performer number and sends a digit query', async () => {
   }));
   fireEvent.change(screen.getByRole('searchbox'), { target: { value: '2' } });
   await waitFor(() => expect(state.get.mock.lastCall?.[1].params.query.q).toBe('2'));
-  expect(await screen.findByRole('option', { name: 'Synthetic 1 2' })).toBeTruthy();
+  expect(await screen.findByRole('option', { name: 'Synthetic 1 (2)' })).toBeTruthy();
 });

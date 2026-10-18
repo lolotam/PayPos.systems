@@ -153,3 +153,44 @@ it('sends trimmed digits and letters as q and clears q when the box is emptied',
     vi.useRealTimers();
   }
 });
+it('closes the open employee editor when a search settles', () => {
+  vi.useFakeTimers();
+  try {
+    state.useEmployees.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: {
+        items: [
+          {
+            id,
+            name_en: 'Synthetic employee',
+            name_ar: null,
+            role_code: 'staff',
+            hire_date: '2026-01-01',
+            primary_branch_id: id,
+            employee_number: 2,
+          },
+        ],
+        next_cursor: null,
+      },
+    });
+    render(<EmployeesPage companyId={id} business={business} userId={id} />);
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'staff.edit') }));
+    expect(state.edit).toHaveBeenLastCalledWith(expect.objectContaining({ employeeId: id }));
+    state.edit.mockClear();
+    fireEvent.change(screen.getByRole('searchbox', { name: t('en', 'staff.search') }), {
+      target: { value: 'Other' },
+    });
+    act(() => {
+      vi.advanceTimersByTime(299);
+    });
+    expect(state.edit).toHaveBeenCalled();
+    state.edit.mockClear();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(state.edit).not.toHaveBeenCalled();
+  } finally {
+    vi.useRealTimers();
+  }
+});

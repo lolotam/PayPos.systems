@@ -21,7 +21,7 @@ export function AttendanceInNow({ board }: { board: AttendanceBoard }) {
             <CardHeader>
               <CardTitle className="flex flex-wrap items-baseline gap-2">
                 <span>{locale === 'ar' ? (row.name_ar ?? row.name_en) : row.name_en}</span>
-                <span>{displayEmployeeNumber(row.employee_number)}</span>
+                <span aria-label={`${t(locale, 'staff.employeeNumber')} ${displayEmployeeNumber(row.employee_number)}`}>{displayEmployeeNumber(row.employee_number)}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">

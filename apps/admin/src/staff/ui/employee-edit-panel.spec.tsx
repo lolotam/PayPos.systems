@@ -69,6 +69,7 @@ it('shows the employee number beside the name', () => {
   renderPanel();
   expect(screen.getByRole('heading', { name: t('en', 'staff.editTitle') })).toBeTruthy();
   expect(screen.getByText('Synthetic employee').parentElement?.textContent).toContain('15');
+  expect(screen.getByText('15').getAttribute('aria-label')).toBe(`${t('en', 'staff.employeeNumber')} 15`);
 });
 it('shows an em dash beside the name when the employee has no number', () => {
   state.number = null;

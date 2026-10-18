@@ -86,8 +86,10 @@ it.each(['ar', 'en'] as const)(
     expect(
       within(daily).getByRole('columnheader', { name: t(locale, 'attendanceBoard.employeeNumber') }),
     ).toBeTruthy();
-    expect(within(daily).getByText('\u2014')).toBeTruthy();
-    expect(within(inNow).getByText('\u2014')).toBeTruthy();
+    expect(within(daily).getByText('15')).toBeTruthy();
+    expect(within(inNow).getByText('15').getAttribute('aria-label')).toBe(
+      `${t(locale, 'staff.employeeNumber')} 15`,
+    );
     expect(
       (screen.getByLabelText(t(locale, 'attendanceBoard.date')) as HTMLInputElement).value,
     ).toBe('2026-10-11');
@@ -119,7 +121,7 @@ it.each(['ar', 'en'] as const)(
     const row = within(table).getAllByRole('row')[1];
     if (!row) throw new Error('Missing overnight row');
     const cells = within(row).getAllByRole('cell');
-    expect(cells[0]?.textContent).toBe('\u2014');
+    expect(cells[0]?.textContent).toBe('15');
     expect(cells[2]?.textContent).toBe(formatInstant(clockIn, locale, 'Asia/Kuwait'));
     expect(cells[3]?.textContent).toBe(formatInstant(clockOut, locale, 'Asia/Kuwait'));
     expect(localDate(clockIn, 'Asia/Kuwait')).toBe('2026-10-10');
