@@ -33,10 +33,13 @@ export function useCompanyNumbersScreen(companyId: string, userId: string) {
     pending: save.isPending,
     message: save.isError ? companyNumbersEditMessage(save.error, locale) : null,
     onEdit: (employeeId: string) => {
+      // الحفظ الشغال ما يتسابش؛ reset بيمسح نتيجة الصف اللي اتبعت.
+      if (save.isPending) return;
       save.reset();
       setEditingId(employeeId);
     },
     onClose: () => {
+      if (save.isPending) return;
       save.reset();
       setEditingId(undefined);
     },

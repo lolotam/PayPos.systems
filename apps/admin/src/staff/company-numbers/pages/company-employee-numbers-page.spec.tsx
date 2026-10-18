@@ -145,12 +145,17 @@ it('does not send an invalid number', async () => {
   await openNoura('en');
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '007a' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
-  expect(screen.getByRole('alert').textContent).toContain(t('en', 'companyEmployeeNumbers.invalid'));
+  await waitFor(() => {
+    expect(screen.getByRole('alert').textContent).toContain(t('en', 'companyEmployeeNumbers.invalid'));
+  });
   expect(api.PUT).not.toHaveBeenCalled();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '12' } });
   expect(screen.queryByText(t('en', 'companyEmployeeNumbers.invalid'))).toBeNull();
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '0' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  await waitFor(() => {
+    expect(screen.getByRole('alert').textContent).toContain(t('en', 'companyEmployeeNumbers.invalid'));
+  });
   expect(api.PUT).not.toHaveBeenCalled();
   expect(within(screen.getByRole('row', { name: /Noura/ })).getByText('4')).toBeTruthy();
 });
@@ -243,6 +248,25 @@ it('focuses the number input when the editor opens', async () => {
   expect(screen.getByRole('textbox')).toBe(document.activeElement);
 });
 
+it('sends the shown number when the field is not retyped', async () => {
+  api.PUT.mockResolvedValue({ data: { employee_id: nouraId, employee_number: 4 } });
+  renderPage();
+  await openNoura('en');
+  const box = screen.getByRole('textbox');
+  expect((box as HTMLInputElement).value).toBe('4');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalledTimes(1));
+  const [, options] = api.PUT.mock.calls[0] ?? [];
+  expect(options.body).toEqual({ employee_number: 4 });
+});
+
+it('opens a blank field when the employee has no number', async () => {
+  renderPage();
+  const row = await screen.findByRole('row', { name: /Heba/ });
+  fireEvent.click(within(row).getByRole('button', { name: editName('en', 'Heba') }));
+  expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('');
+});
+
 it('returns focus to that row edit button when the editor closes', async () => {
   renderPage();
   await openNoura('en');
@@ -307,6 +331,82 @@ it('closes the open editor when the search settles', async () => {
     name: editName('en', 'Noura'),
   });
   expect(screen.queryByRole('textbox')).toBeNull();
+});
+
+it('shows the retry envelope instead of the taken message', async () => {
+  api.PUT.mockResolvedValue({
+    error: {
+      code: 'TRANSACTION_RETRY_REQUIRED',
+      message_en: 'Synthetic retry',
+      message_ar: 'Synthetic retry ar',
+    },
+    response: { status: 409 },
+  });
+  renderPage();
+  await openNoura('en');
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '9' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  expect((await screen.findByRole('alert')).textContent).toContain('Synthetic retry');
+  expect(screen.queryByText(t('en', 'errors.EMPLOYEE_NUMBER_TAKEN'))).toBeNull();
+  expect(within(screen.getByRole('row', { name: /Noura/ })).getByText('4')).toBeTruthy();
+});
+
+it('shows the feature envelope instead of no access', async () => {
+  api.GET.mockResolvedValue({
+    error: {
+      code: 'FEATURE_DISABLED',
+      message_en: 'Synthetic feature',
+      message_ar: 'Synthetic feature ar',
+    },
+    response: { status: 403 },
+  });
+  renderPage();
+  expect((await screen.findByRole('alert')).textContent).toContain('Synthetic feature');
+  expect(screen.queryByText(t('en', 'companyEmployeeNumbers.noAccess'))).toBeNull();
+  expect(screen.getByRole('searchbox', { name: t('en', 'staff.search') })).toBeTruthy();
+  expect(screen.queryByRole('table')).toBeNull();
+});
+
+it('keeps a pending failure on the row that submitted it', async () => {
+  let finish: (value: unknown) => void = () => undefined;
+  api.PUT.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  renderPage();
+  await openNoura('en');
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '9' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: editName('en', 'Heba') }));
+  expect(within(screen.getByRole('row', { name: /Noura/ })).getByRole('textbox')).toBeTruthy();
+  finish({
+    error: {
+      code: 'EMPLOYEE_NUMBER_TAKEN',
+      message_en: 'Synthetic taken',
+      message_ar: 'Synthetic taken ar',
+    },
+    response: { status: 409 },
+  });
+  const row = screen.getByRole('row', { name: /Noura/ });
+  expect((await within(row).findByRole('alert')).textContent).toContain(t('en', 'errors.EMPLOYEE_NUMBER_TAKEN'));
+  expect(within(screen.getByRole('row', { name: /Heba/ })).queryByRole('alert')).toBeNull();
+  expect(within(row).getByText('4')).toBeTruthy();
+});
+
+it('keeps a pending success on the row that submitted it', async () => {
+  hangAfterFirstPage();
+  let finish: (value: unknown) => void = () => undefined;
+  api.PUT.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  renderPage();
+  await openNoura('en');
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '6' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: editName('en', 'Heba') }));
+  finish({ data: { employee_id: nouraId, employee_number: 6 } });
+  const row = screen.getByRole('row', { name: /Noura/ });
+  await waitFor(() => expect(within(row).getByText('6')).toBeTruthy());
+  expect(within(row).getByRole('textbox')).toBeTruthy();
+  expect(within(screen.getByRole('row', { name: /Heba/ })).queryByRole('textbox')).toBeNull();
+  expect(api.PUT).toHaveBeenCalledTimes(1);
 });
 
 it('closes the open editor when the page changes', async () => {
