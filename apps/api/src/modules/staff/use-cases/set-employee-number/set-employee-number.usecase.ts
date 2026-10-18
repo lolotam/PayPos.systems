@@ -1,11 +1,12 @@
-import { employeeNumberChange, SetEmployeeNumberError } from '../../domain/employee-number-change.ts';
+import { employeeNumberChange } from '../../domain/employee-number-change.ts';
+import { SetEmployeeNumberError } from '../../domain/errors.ts';
 import type {
   SetEmployeeNumberActor,
   SetEmployeeNumberScope,
   SetEmployeeNumberTransactions,
 } from '../../ports/employee-number.port.ts';
 
-export { SetEmployeeNumberError } from '../../domain/employee-number-change.ts';
+export { SetEmployeeNumberError } from '../../domain/errors.ts';
 
 export interface SetEmployeeNumberCommand extends SetEmployeeNumberActor {
   businessId: string;

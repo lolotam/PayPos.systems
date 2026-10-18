@@ -38,9 +38,10 @@ export async function readEmployeeNumberAccess(
 ): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null> {
   const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
   if (!time) return 'FORBIDDEN';
-  const access = await readAccessTransaction(tx, companyId, userId, new Date(time.at));
+  const at = new Date(time.at);
+  const access = await readAccessTransaction(tx, companyId, userId, at);
   if (!numberAllowed(access.grants, companyId, businessId, branchIds)) return 'FORBIDDEN';
-  return (await readFeatureEnabled(tx, companyId, 'staff')) ? null : 'FEATURE_DISABLED';
+  return (await readFeatureEnabled(tx, companyId, 'staff', at)) ? null : 'FEATURE_DISABLED';
 }
 
 function numberAllowed(

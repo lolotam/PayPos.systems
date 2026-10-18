@@ -8,7 +8,8 @@ import {
 } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { lockEmployeeNumberAccess, readEmployeeNumberAccess } from '../../identity/index.ts';
-import { SetEmployeeNumberError, type EmployeeNumberAudit } from '../domain/employee-number-change.ts';
+import { type EmployeeNumberAudit } from '../domain/employee-number-change.ts';
+import { SetEmployeeNumberError } from '../domain/errors.ts';
 import type {
   SetEmployeeNumberActor,
   SetEmployeeNumberScope,

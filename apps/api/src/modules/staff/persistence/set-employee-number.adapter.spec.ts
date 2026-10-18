@@ -1,6 +1,6 @@
 import type { TenantWrappers } from '@pospay/db';
 import { expect, it } from 'vitest';
-import { SetEmployeeNumberError } from '../domain/employee-number-change.ts';
+import { SetEmployeeNumberError } from '../domain/errors.ts';
 import { createSetEmployeeNumberTransactions } from './set-employee-number.adapter.ts';
 
 const actor = { companyId: 'company', userId: 'user' };

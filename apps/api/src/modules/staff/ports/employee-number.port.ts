@@ -35,7 +35,7 @@ export interface SetEmployeeNumberScope {
    */
   readEmployee(businessId: string, employeeId: string): Promise<EmployeeNumberRow | null>;
   /**
-   * يعيد فحص المنع على نشاط الصف وكل فرع حالي؛ الأهداف من الصف لا من الطلب.
+   * يرجع FORBIDDEN أو FEATURE_DISABLED أو null حتى يوقف التعديل قبل الكتابة إن مُنع النشاط أو فرع أو أُغلقت ميزة الموظفين.
    *
    * @param businessId نشاط الصف
    * @param branchIds الفرع الرئيسي ثم الارتباطات الحالية

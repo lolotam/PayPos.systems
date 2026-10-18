@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { SetEmployeeNumberError } from '../../domain/employee-number-change.ts';
+import { SetEmployeeNumberError } from '../../domain/errors.ts';
 import type { EmployeeNumberLock, EmployeeNumberRow, SetEmployeeNumberScope } from '../../ports/employee-number.port.ts';
 import { SetEmployeeNumberUseCase } from './set-employee-number.usecase.ts';
 
