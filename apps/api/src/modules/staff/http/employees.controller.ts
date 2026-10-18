@@ -28,6 +28,7 @@ import {
   employeeNameMatchesInput,
 } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
+import { parseEmployeeNumber } from '@pospay/domain';
 import type { FastifyRequest } from 'fastify';
 
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -120,7 +121,7 @@ export class EmployeesController {
     const access = this.access;
     const page = await this.database.withTenant(
       actor.companyId,
-      (tx) => listEmployees(tx, actor.companyId, businessId, actor.userId, query, access),
+      (tx) => listEmployees(tx, actor.companyId, businessId, actor.userId, query, access, query.q === undefined ? null : parseEmployeeNumber(query.q.trim())),
       { userId: actor.userId },
     );
     if (page === 'FEATURE_DISABLED') throw new ApiError('FEATURE_DISABLED');
