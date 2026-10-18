@@ -56,23 +56,35 @@ async function readEmployee(tx: Tx, companyId: string, businessId: string, emplo
   }>(sql`SELECT business_id, primary_branch_id, employee_number FROM employees
     WHERE company_id=${companyId} AND id=${employeeId} AND business_id=${businessId} AND deleted_at IS NULL`);
   if (row === undefined) return null;
-  const attached = await tx.execute<{ branch_id: string }>(sql`
-    SELECT eb.branch_id FROM employee_branches eb
-    WHERE eb.company_id=${companyId} AND eb.employee_id=${employeeId} AND ${currentAttachment()}`);
   return {
     business_id: row.business_id,
     primary_branch_id: row.primary_branch_id,
     employee_number: storedNumber(row.employee_number),
-    attached_branch_ids: attached.map((link) => link.branch_id),
+    attached_branch_ids: await currentBranchIds(tx, companyId, employeeId),
   };
 }
 
 async function lockEmployee(tx: Tx, companyId: string, businessId: string, employeeId: string) {
-  const [row] = await tx.execute<{ employee_number: number | string | null }>(sql`
-    SELECT employee_number FROM employees
+  const [row] = await tx.execute<{
+    primary_branch_id: string;
+    employee_number: number | string | null;
+  }>(sql`
+    SELECT primary_branch_id, employee_number FROM employees
     WHERE company_id=${companyId} AND id=${employeeId} AND business_id=${businessId} AND deleted_at IS NULL
     FOR NO KEY UPDATE`);
-  return row === undefined ? null : { employee_number: storedNumber(row.employee_number) };
+  if (row === undefined) return null;
+  return {
+    primary_branch_id: row.primary_branch_id,
+    employee_number: storedNumber(row.employee_number),
+    attached_branch_ids: await currentBranchIds(tx, companyId, employeeId),
+  };
+}
+
+async function currentBranchIds(tx: Tx, companyId: string, employeeId: string) {
+  const attached = await tx.execute<{ branch_id: string }>(sql`
+    SELECT eb.branch_id FROM employee_branches eb
+    WHERE eb.company_id=${companyId} AND eb.employee_id=${employeeId} AND ${currentAttachment()}`);
+  return attached.map((link) => link.branch_id);
 }
 
 async function taken(tx: Tx, companyId: string, employeeId: string, employeeNumber: number) {

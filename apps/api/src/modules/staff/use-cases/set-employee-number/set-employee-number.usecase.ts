@@ -1,6 +1,5 @@
 import { employeeNumberChange, SetEmployeeNumberError } from '../../domain/employee-number-change.ts';
 import type {
-  EmployeeNumberRow,
   SetEmployeeNumberActor,
   SetEmployeeNumberScope,
   SetEmployeeNumberTransactions,
@@ -35,6 +34,10 @@ async function change(command: SetEmployeeNumberCommand, scope: SetEmployeeNumbe
   if (locked === null) throw new SetEmployeeNumberError('NOT_FOUND');
   const next = employeeNumberChange(locked.employee_number, command.employeeNumber);
   if (next === null) return view(command);
+  if (!sameTargets(row, locked)) {
+    const again = await scope.recheck(row.business_id, branchTargets(locked));
+    if (again !== null) throw new SetEmployeeNumberError(again);
+  }
   if (await scope.taken(command.employeeId, command.employeeNumber))
     throw new SetEmployeeNumberError('EMPLOYEE_NUMBER_TAKEN');
   await scope.save(command.employeeId, next);
@@ -45,8 +48,20 @@ function view(command: SetEmployeeNumberCommand) {
   return { employee_id: command.employeeId, employee_number: command.employeeNumber };
 }
 
-function branchTargets(row: EmployeeNumberRow): string[] {
+function branchTargets(row: {
+  primary_branch_id: string;
+  attached_branch_ids: readonly string[];
+}): string[] {
   const branches = [row.primary_branch_id];
   for (const branchId of row.attached_branch_ids) if (!branches.includes(branchId)) branches.push(branchId);
   return branches;
+}
+
+function sameTargets(
+  before: { primary_branch_id: string; attached_branch_ids: readonly string[] },
+  after: { primary_branch_id: string; attached_branch_ids: readonly string[] },
+): boolean {
+  const left = branchTargets(before);
+  const right = branchTargets(after);
+  return left.length === right.length && left.every((branchId, index) => branchId === right[index]);
 }

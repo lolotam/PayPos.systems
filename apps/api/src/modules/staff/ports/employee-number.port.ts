@@ -8,6 +8,13 @@ export interface EmployeeNumberRow {
   attached_branch_ids: readonly string[];
 }
 
+/** الصف بعد قفل الموظفة. الفروع تُعاد قراءتها لأن القراءة الأولى كانت بلا قفل. */
+export interface EmployeeNumberLock {
+  primary_branch_id: string;
+  employee_number: number | null;
+  attached_branch_ids: readonly string[];
+}
+
 /** الشركة والمستخدم من الجلسة؛ المعاملة تضبط المستأجر منهما. */
 export interface SetEmployeeNumberActor {
   companyId: string;
@@ -40,15 +47,12 @@ export interface SetEmployeeNumberScope {
   /** يقفل عدّاد الشركة دون تحريكه حتى لا يتسابق الإسناد التلقائي مع التعديل اليدوي. */
   lockCounter(): Promise<void>;
   /**
-   * يقفل صف الموظفة ويعيد رقمها بعد القفل لأن القراءة الأولى كانت بلا قفل.
+   * يقفل صف الموظفة ويعيد رقمها وفرعها الرئيسي وارتباطاتها الحالية؛ القراءة الأولى كانت بلا قفل فقد تتغير الفروع قبله.
    *
    * @param businessId النشاط
    * @param employeeId الموظفة
    */
-  lockEmployee(
-    businessId: string,
-    employeeId: string,
-  ): Promise<{ employee_number: number | null } | null>;
+  lockEmployee(businessId: string, employeeId: string): Promise<EmployeeNumberLock | null>;
   /**
    * يتحقق أن الرقم محجوز لموظفة أخرى حتى لو كانت محذوفة ناعماً.
    *

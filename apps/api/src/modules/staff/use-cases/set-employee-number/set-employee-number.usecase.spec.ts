@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { SetEmployeeNumberError } from '../../domain/employee-number-change.ts';
-import type { EmployeeNumberRow, SetEmployeeNumberScope } from '../../ports/employee-number.port.ts';
+import type { EmployeeNumberLock, EmployeeNumberRow, SetEmployeeNumberScope } from '../../ports/employee-number.port.ts';
 import { SetEmployeeNumberUseCase } from './set-employee-number.usecase.ts';
 
 const command = {
@@ -22,8 +22,9 @@ function row(employeeNumber = 1, attached: readonly string[] = ['primary', 'othe
 
 function harness(options: {
   row?: EmployeeNumberRow | null;
-  locked?: { employee_number: number | null } | null;
+  locked?: EmployeeNumberLock | null;
   refusal?: 'FORBIDDEN' | 'FEATURE_DISABLED' | null;
+  refuseBranches?: readonly string[];
   held?: boolean;
 } = {}) {
   const steps: string[] = [];
@@ -35,6 +36,7 @@ function harness(options: {
     mark('recheck');
     seen.businessId = businessId;
     seen.branchIds = branchIds;
+    if (options.refuseBranches?.some((branchId) => branchIds.includes(branchId))) return 'FORBIDDEN';
     return options.refusal ?? null;
   };
   const scope: SetEmployeeNumberScope = {
@@ -47,7 +49,13 @@ function harness(options: {
     lockCounter: async () => mark('lockCounter'),
     lockEmployee: async () => {
       mark('lockEmployee');
-      return options.locked === undefined ? { employee_number: 1 } : options.locked;
+      if (options.locked !== undefined) return options.locked;
+      const source = options.row === undefined ? row() : options.row;
+      return {
+        employee_number: source?.employee_number ?? 1,
+        primary_branch_id: source?.primary_branch_id ?? 'primary',
+        attached_branch_ids: source?.attached_branch_ids ?? [],
+      };
     },
     taken: async () => {
       mark('taken');
@@ -93,7 +101,32 @@ it('locks the counter before reporting that the number is taken, and does not sa
 });
 
 it('does not save when the locked row already has the requested number', async () => {
-  const { steps, useCase } = harness({ locked: { employee_number: 8 } });
+  const { steps, useCase } = harness({
+    locked: { employee_number: 8, primary_branch_id: 'primary', attached_branch_ids: ['primary', 'other'] },
+  });
   await expect(useCase.execute(command)).resolves.toEqual({ employee_id: 'employee', employee_number: 8 });
   expect(steps).toEqual(['lockAccess', 'readEmployee', 'recheck', 'lockCounter', 'lockEmployee']);
+});
+
+it('checks the primary branch even when it is absent from the current attachments', async () => {
+  const { seen, useCase } = harness({ row: row(1, ['other']) });
+  await expect(useCase.execute(command)).resolves.toEqual({ employee_id: 'employee', employee_number: 8 });
+  expect(seen.branchIds).toEqual(['primary', 'other']);
+});
+
+it('does not lock the counter when the staff feature is off', async () => {
+  const { steps, useCase } = harness({ refusal: 'FEATURE_DISABLED' });
+  await expect(useCase.execute(command)).rejects.toMatchObject({ code: 'FEATURE_DISABLED' });
+  expect(steps).toEqual(['lockAccess', 'readEmployee', 'recheck']);
+});
+
+it('rechecks branches read under the employee lock when they differ and writes nothing if that recheck denies', async () => {
+  const { steps, seen, useCase } = harness({
+    row: row(1, ['other']),
+    locked: { employee_number: 1, primary_branch_id: 'primary', attached_branch_ids: ['late'] },
+    refuseBranches: ['late'],
+  });
+  await expect(useCase.execute(command)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  expect(steps).toEqual(['lockAccess', 'readEmployee', 'recheck', 'lockCounter', 'lockEmployee', 'recheck']);
+  expect(seen.branchIds).toEqual(['primary', 'late']);
 });

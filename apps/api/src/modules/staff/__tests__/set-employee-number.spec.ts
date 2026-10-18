@@ -1,6 +1,7 @@
 import { employeeNumberView } from '@pospay/contracts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { readCounter, setCounter, insertHeldNumbers, type EmployeeFixture } from './employee-number-assign.fixture.ts';
+import { readCounter, setCounter, insertHeldNumbers, employeeNumberIds, type EmployeeFixture } from './employee-number-assign.fixture.ts';
+import { createSetEmployeeNumberTransactions } from '../persistence/set-employee-number.adapter.ts';
 import {
   attachBranch,
   clearNumberGrants,
@@ -46,6 +47,18 @@ it('EN-07 rejects a number held by an active employee and by a soft-deleted one'
   const deleted = await putNumber(f, employee.id, { employee_number: 60_001 }, { cookie: f.ownerCookie });
   expect(deleted.status).toBe(409);
   expect(deleted.body['code']).toBe('EMPLOYEE_NUMBER_TAKEN');
+});
+
+it('EN-07 taken reports a soft-deleted holder before any update', async () => {
+  const employee = await executeCreate(f, 'EN-07 taken');
+  await insertHeldNumbers(f, 61_000, 1, { deleted: true });
+  const transactions = createSetEmployeeNumberTransactions(f.db, employeeNumberIds);
+  const held = await transactions.run({ companyId: f.company, userId: f.userId }, (scope) =>
+    scope.taken(employee.id, 61_000),
+  );
+  expect(held).toBe(true);
+  const [stored] = await f.h.owner`SELECT employee_number FROM employees WHERE company_id=${f.company} AND id=${employee.id}`;
+  expect(Number(stored?.['employee_number'])).toBe(employee.employee_number);
 });
 
 it('EN-08 rejects out-of-range, fractional, textual and extra-key bodies', async () => {
@@ -122,6 +135,22 @@ it('a DENY on the primary branch blocks the edit', async () => {
   await grantNumber(f, 'DENY', 'BRANCH', f.branch);
   try {
     expect((await putNumber(f, employee.id, { employee_number: 1400 })).status).toBe(403);
+  } finally {
+    await clearNumberGrants(f);
+  }
+});
+
+it('a DENY on the primary branch blocks the edit after that attachment has ended, and writes nothing', async () => {
+  const employee = await executeCreate(f, 'DENY ended primary');
+  await f.h.owner`UPDATE employee_branches SET "to"='2026-01-02'
+    WHERE company_id=${f.company} AND employee_id=${employee.id} AND branch_id=${f.branch}`;
+  await grantNumber(f, 'ALLOW', 'COMPANY', f.company);
+  await grantNumber(f, 'DENY', 'BRANCH', f.branch);
+  try {
+    expect((await putNumber(f, employee.id, { employee_number: 1600 })).status).toBe(403);
+    const [stored] = await f.h.owner`SELECT employee_number FROM employees WHERE company_id=${f.company} AND id=${employee.id}`;
+    expect(Number(stored?.['employee_number'])).toBe(employee.employee_number);
+    expect(await numberAudits(f, employee.id)).toEqual([]);
   } finally {
     await clearNumberGrants(f);
   }
