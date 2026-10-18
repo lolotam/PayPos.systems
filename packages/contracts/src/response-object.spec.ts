@@ -5,7 +5,7 @@ import { packageServiceOptionPage } from './catalog/package-service-option.js';
 import { createPackageTypeInput, packageTypeDetail, packageTypePage } from './catalog/package-type.js';
 import { customer, findOrCreateCustomerInput } from './customers.js';
 import { errorEnvelope } from './errors/envelope.js';
-import { fileDownload, fileStatus, fileUploadTicket, requestFileUpload } from './files.js';
+import { fileConfirmation, fileDownload, fileStatus, fileUploadTicket, requestFileUpload } from './files.js';
 import { discountLimit, discountLimitInput } from './identity/discount-limit.js';
 import { membershipPermissions, permissionMembershipPage, permissionOverride, permissionOverrideInput } from './identity/permissions.js';
 import { myWorkspacesResponse, workspaceCompany } from './identity/workspaces.js';
@@ -88,7 +88,7 @@ const responses = [
   { name: 'errorEnvelope', schema: errorEnvelope },
   { name: 'fileDownload', schema: fileDownload },
   { name: 'fileStatus', schema: fileStatus },
-  { name: 'fileUploadTicket', schema: fileUploadTicket },
+  { name: 'fileConfirmation', schema: fileConfirmation },
   { name: 'leavePage', schema: leavePage },
   { name: 'leaveRequest', schema: leaveRequest },
   { name: 'membershipPermissions', schema: membershipPermissions },
@@ -178,6 +178,15 @@ it.each([
   if (!parsed.success) return;
   expect(JSON.stringify(parsed.data)).not.toContain('__unknown');
   expect(parsed.data).toEqual(schema.parse(clean));
+});
+
+// الهيدرز المرتدة للتخزين بتعدّي زي ما هي (ممكن يتضاف هيدر موقّع)؛ الغلاف بيشيل المفتاح الزيادة.
+it('fileUploadTicket drops an unknown top-level key but passes extra upload headers through', () => {
+  const clean = validSample(fileUploadTicket) as Record<string, unknown>;
+  const headers = { ...(clean['headers'] as Record<string, string>), 'x-amz-checksum-sha256': 'abc' };
+  const parsed = fileUploadTicket.parse({ ...clean, headers, __unknown: true });
+  expect(JSON.stringify(parsed)).not.toContain('__unknown');
+  expect((parsed.headers as Record<string, string>)['x-amz-checksum-sha256']).toBe('abc');
 });
 
 it.each(requests)('$name still rejects an unknown key', ({ schema }) => {

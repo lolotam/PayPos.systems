@@ -26,7 +26,8 @@ export const fileUploadTicket = responseObject({
     id,
     upload_url: z.url(),
     expires_in: z.literal(120),
-    headers: responseObject({ 'content-type': z.string(), 'content-length': z.string() }),
+    // الهيدرز بترجع للتخزين زي ما هي في الـ PUT؛ هيدر موقّع جديد لازم يعدّي مش يتشال (ADR-0047).
+    headers: z.looseObject({ 'content-type': z.string(), 'content-length': z.string() }),
   })
   .meta({ id: 'FileUploadTicket' });
 
@@ -41,8 +42,7 @@ export const fileStatus = responseObject({
       .optional(),
   })
   .meta({ id: 'FileStatus' });
-export const fileConfirmation = z
-  .strictObject({ id, status: z.literal('QUEUED') })
+export const fileConfirmation = responseObject({ id, status: z.literal('QUEUED') })
   .meta({ id: 'FileConfirmation' });
 export const fileDownload = responseObject({ download_url: z.url(), expires_in: z.literal(60) })
   .meta({ id: 'FileDownload' });

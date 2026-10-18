@@ -16364,7 +16364,8 @@
             "required": [
               "content-type",
               "content-length"
-            ]
+            ],
+            "additionalProperties": {}
           }
         },
         "required": [
@@ -16437,8 +16438,7 @@
         "required": [
           "id",
           "status"
-        ],
-        "additionalProperties": false
+        ]
       },
       "FileDownload": {
         "type": "object",

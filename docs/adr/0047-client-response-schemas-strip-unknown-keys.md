@@ -25,6 +25,9 @@ Request bodies, query strings, path params, cursors, and inbound payloads (webho
 5. A response that carries a signature or a credential stays strict on purpose: ttendanceQrIssue (the attendance QR token and its branch). An unexpected key there is a bad response, not a newer API, and the POS refuses it (ead-attendance-qr.spec.ts). Any new response that carries a secret follows the same exception and says so in its schema comment.
 6. Stripping is forward compatible for one deploy window. The old bundle ignores the new field and keeps the fields it knows. It does not keep the unknown key, and it does not treat the unknown key as data.
 
+7. The strip is a browser behaviour, not a server one. `responseObject` is strict when `POSPAY_STRICT_RESPONSES=1`, and the API test configs (`apps/api/vitest.config.ts`, the smoke config) set it. The API tests that parse real server responses with these schemas keep failing on a leaked field (an IBAN, a salary, a phone number). The browser bundles and POS never set it, so they strip.
+8. Values the client echoes back unchanged are not stripped: the upload ticket `headers` are a loose object, so a new signed header reaches the storage PUT.
+9. The in-app notification envelope and page strip unknown keys. The typed `safe_parameters` tuples and the `template_key` union stay strict: a tuple needs its element types for the generated client, and a new template ships together with the bundle that renders it. A new key inside a parameter object therefore still needs the new bundle; widening this is a separate decision.
 ## Consequences
 
 - Adding a response field no longer breaks an admin or POS bundle that is already open, as long as the old schema parsed that response with `responseObject`.

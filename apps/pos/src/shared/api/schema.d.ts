@@ -3169,6 +3169,8 @@ export interface components {
             headers: {
                 "content-type": string;
                 "content-length": string;
+            } & {
+                [key: string]: unknown;
             };
         };
         FileStatus: {
