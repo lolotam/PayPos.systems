@@ -60,7 +60,10 @@ export class RecordSessionTipsUseCase {
   private async open(tx: SessionTipsTransaction, context: TipContext): Promise<SessionTips> {
     await this.authorize(tx, context);
     const result = await tx.idempotent(() => this.record(tx, context));
-    if (result.replayed) await this.authorize(tx, context);
+    if (!result.replayed) return result.body;
+    // إعادة الإرسال بتقفل صفوف الصلاحية زي الكتابة الأصلية، عشان سحب صلاحية متزامن يتشاف قبل ما يرجع الجسم المحفوظ.
+    await tx.access.lock();
+    await this.authorize(tx, context);
     return result.body;
   }
 
