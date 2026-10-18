@@ -2,14 +2,14 @@ import { currentAttachment, type Tx } from '@pospay/db';
 import { employeePage, type EmployeeListQuery, type EmployeePage } from '@pospay/contracts';
 import { parseEmployeeNumber } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
+import { icuNameMatch } from '../../../shared/name-options-search.ts';
 import type { EmployeeDetailAccess } from './employee-detail.query.ts';
 
+// قائمة الموظفين في لوحة الإدارة، وخانة البحث فيها.
 // نص الأرقام يطابق الرقم بالمفتاح الفريد أو الاسم؛ الحروف الاسم فقط. الطي والهروب هما نفس منتقي الاستقبال حتى لا يطابق 2 الرقم 12 ولا تتحول % إلى بدل.
 function listSearchClause(companyId: string, q: string | undefined) {
   if (q === undefined) return sql``;
-  const escaped = q.trim().replace(/[\\%_]/g, '\\$&');
-  const nameMatch = sql`(lower(e.name_ar COLLATE "und-x-icu") LIKE '%' || lower(${escaped}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'}
-    OR lower(e.name_en COLLATE "und-x-icu") LIKE '%' || lower(${escaped}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'})`;
+  const nameMatch = icuNameMatch(q);
   const employeeNumber = parseEmployeeNumber(q.trim());
   return employeeNumber === null
     ? sql`AND ${nameMatch}`

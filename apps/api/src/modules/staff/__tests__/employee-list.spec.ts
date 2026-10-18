@@ -301,6 +301,22 @@ it('EN-Q16 q never returns an employee hidden by a branch DENY', async () => {
     await releaseListed(hidden);
   }
 });
+it('EN-Q16 q hides an allowed-primary employee currently attached to a denied branch', async () => {
+  const id = await insertListed('Split 880051', 880051);
+  await f.h.owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+    VALUES(${f.company},${ids.newId()},${f.business},${id},${f.sibling},'2026-01-01')`;
+  try {
+    expect(await idsOf('880051')).toEqual([id]);
+    await employeeGrants(f, [
+      ['ALLOW', 'BUSINESS', f.business],
+      ['DENY', 'BRANCH', f.sibling],
+    ]);
+    expect(await search('880051')).toEqual({ items: [], next_cursor: null });
+  } finally {
+    await employeeGrants(f, [['ALLOW', 'BUSINESS', f.business]]);
+    await releaseListed(id);
+  }
+});
 it('HTTP rejects an empty or overlong q and accepts a short one', async () => {
   const path = `/v1/businesses/${f.business}/employees`;
   const send = (query: string) => f.h.send('GET', `${path}?${query}`, { cookie: f.cookie, company: f.company });
@@ -308,20 +324,74 @@ it('HTTP rejects an empty or overlong q and accepts a short one', async () => {
   expect((await send(`q=${'a'.repeat(101)}`)).status).toBe(400);
   expect((await send('q=a')).status).toBe(200);
 });
+interface ExplainNode {
+  'Node Type'?: string;
+  'Relation Name'?: string;
+}
+function explainNodes(value: unknown): ExplainNode[] {
+  const parsed = typeof value === 'string' && (value[0] === '{' || value[0] === '[') ? parsedPlan(value) : value;
+  if (parsed === null || typeof parsed !== 'object') return [];
+  if (Array.isArray(parsed)) return parsed.flatMap(explainNodes);
+  const record = parsed as Record<string, unknown>;
+  const nodeType = record['Node Type'];
+  const relation = record['Relation Name'];
+  const self: ExplainNode[] =
+    typeof nodeType === 'string'
+      ? [{ 'Node Type': nodeType, ...(typeof relation === 'string' ? { 'Relation Name': relation } : {}) }]
+      : [];
+  return [
+    ...self,
+    ...explainNodes(record['QUERY PLAN']),
+    ...explainNodes(record['Plan']),
+    ...explainNodes(record['Plans']),
+    ...explainNodes(record['InitPlan']),
+  ];
+}
+function parsedPlan(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+const scansEmployees = (plan: unknown) =>
+  explainNodes(plan).some((node) => node['Node Type'] === 'Seq Scan' && node['Relation Name'] === 'employees');
+it('flags a nested Seq Scan on employees inside an EXPLAIN plan', () => {
+  expect(
+    scansEmployees([
+      {
+        'QUERY PLAN': [
+          {
+            Plan: {
+              'Node Type': 'Limit',
+              Plans: [
+                {
+                  'Node Type': 'Index Scan',
+                  'Relation Name': 'employees',
+                  Plans: [{ 'Node Type': 'Seq Scan', 'Relation Name': 'employees' }],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ]),
+  ).toBe(true);
+});
 it('EXPLAIN uses the number key for a digit q and the existing list index for a name q', async () => {
-  const planFor = async (q: string) => {
-    const plan = await f.db.withTenant(f.company, async (tx) => {
+  const planFor = async (q: string) =>
+    f.db.withTenant(f.company, async (tx) => {
       await tx.execute(sql`SET LOCAL enable_seqscan=off`);
       return tx.execute(
         sql`EXPLAIN (ANALYZE,FORMAT JSON) ${listEmployeesStatement(f.company, f.business, { limit: 20, q }, [f.branch, f.sibling])}`,
       );
     });
-    return JSON.stringify(plan);
-  };
   const digit = await planFor('0880007');
-  expect(digit).toContain('employees_company_employee_number_key');
+  expect(JSON.stringify(digit)).toContain('employees_company_employee_number_key');
   const letters = await planFor('Synthetic');
-  expect(letters).toMatch(/employees_company_business_id_(idx|key)/);
-  expect(digit).not.toContain('Seq Scan on employees');
-  expect(letters).not.toContain('Seq Scan on employees');
+  // enable_seqscan=off يثبت أن فهرس القائمة ممكن الوصول، لا أنه اختيار المخطط الافتراضي.
+  expect(JSON.stringify(letters)).toMatch(/employees_company_business_id_(idx|key)/);
+  expect(explainNodes(digit).some((node) => node['Relation Name'] === 'employees')).toBe(true);
+  expect(scansEmployees(digit)).toBe(false);
+  expect(scansEmployees(letters)).toBe(false);
 });

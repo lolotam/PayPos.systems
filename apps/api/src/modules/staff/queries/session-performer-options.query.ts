@@ -1,7 +1,7 @@
 import { sessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { normalizeSearch } from '../../../shared/name-options-search.ts';
+import { icuNameMatch, normalizeSearch } from '../../../shared/name-options-search.ts';
 interface CursorCodec {
   decode(query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string): { key: string; id: string } | null;
   encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string): string;
@@ -25,9 +25,7 @@ export function sessionPerformerOptionsStatement(companyId: string, businessId: 
   const name = query.lang === 'ar'
     ? sql`coalesce(e.name_ar,e.name_en) COLLATE "und-x-icu"`
     : sql`coalesce(e.name_en,e.name_ar) COLLATE "und-x-icu"`;
-  const escapedQ = query.q?.trim().replace(/[\\%_]/g, '\\$&');
-  const nameMatch = escapedQ === undefined ? sql`` : sql`(lower(e.name_ar COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'}
-    OR lower(e.name_en COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'})`;
+  const nameMatch = query.q === undefined ? sql`` : icuNameMatch(query.q);
   const after = cursor === null ? sql``
     : sql`AND (${name},e.id)>(${cursor.key}::text COLLATE "und-x-icu",${cursor.id}::uuid)`;
   return sql`SELECT e.id,e.name_ar,e.name_en,e.employee_number,${name} AS sort_key,${sessionPerformerWarningColumns(branchId, day, new Date(query.occurred_at))}
@@ -36,7 +34,7 @@ export function sessionPerformerOptionsStatement(companyId: string, businessId: 
       AND EXISTS(SELECT 1 FROM employee_branches eb WHERE eb.company_id=e.company_id AND eb.business_id=e.business_id
         AND eb.employee_id=e.id AND eb.branch_id=${branchId} AND eb."from"<=${day}::date AND (eb."to" IS NULL OR eb."to">${day}::date))
       ${after}
-      ${escapedQ === undefined ? sql`` : employeeNumber === null ? sql`AND ${nameMatch}` : sql`AND (${nameMatch} OR e.id IN (SELECT numbered.id FROM employees numbered WHERE numbered.company_id=${companyId} AND numbered.employee_number=${employeeNumber}))`}
+      ${query.q === undefined ? sql`` : employeeNumber === null ? sql`AND ${nameMatch}` : sql`AND (${nameMatch} OR e.id IN (SELECT numbered.id FROM employees numbered WHERE numbered.company_id=${companyId} AND numbered.employee_number=${employeeNumber}))`}
     ORDER BY ${name} ASC,e.id ASC LIMIT ${query.limit + 1}`;
 }
 export async function sessionPerformerOptionsPage(tx: Tx, companyId: string, businessId: string, branchId: string,
