@@ -217,11 +217,11 @@ it.each([0, -1, 1.5, 'two'])('readInAppNotificationPage still fails on a known t
   expect(() => readInAppNotificationPage({ ...clean, items: [broken] })).toThrow();
 });
 
-// لو قالب اتحول لـ union من مراجعات، القارئ لازم يتعدل (الصفوف المخزنة بمراجعتها)؛ الاختبار ده بيفشل وقتها بدل ما العناصر تتخطى بصمت.
-it('every in-app template declares exactly one readable revision for the page reader', () => {
+// أي رفع لمراجعة قالب (أو تحويله لـ union) لازم يعدّل القارئ في نفس الـ PR عشان الصفوف المخزنة بمراجعة 1 تفضل مقروءة؛ الاختبار ده بيفشل وقتها بدل ما الصفحة تفشل أو العناصر تتخطى بصمت.
+it('every in-app template still declares revision 1, the only one the page reader is reviewed for', () => {
   for (const option of inAppNotification.options) {
     const revision = option.shape.template_revision as unknown as { value?: unknown };
-    expect(typeof revision.value, option.shape.template_key.value).toBe('number');
+    expect(revision.value, option.shape.template_key.value).toBe(1);
   }
 });
 
