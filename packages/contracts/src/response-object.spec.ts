@@ -203,6 +203,12 @@ it('readInAppNotificationPage skips an item this bundle cannot render instead of
   expect(page.next_cursor).toBe(clean.next_cursor);
 });
 
+it('readInAppNotificationPage still fails on a known template with bad parameters', () => {
+  const clean = validSample(inAppNotificationPage) as { items: Record<string, unknown>[]; next_cursor: string | null };
+  const broken = { ...clean.items[0], safe_parameters: [] };
+  expect(() => readInAppNotificationPage({ ...clean, items: [broken] })).toThrow();
+});
+
 it('readInAppNotificationPage still rejects a body that is not a page', () => {
   expect(() => readInAppNotificationPage({ items: 'nope', next_cursor: null })).toThrow();
 });

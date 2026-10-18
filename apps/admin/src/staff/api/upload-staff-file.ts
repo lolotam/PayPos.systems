@@ -5,7 +5,8 @@ import { apiClient } from '@/shared/api/client';
 export type UploadPhase = 'idle' | 'uploading' | 'verifying' | 'recording';
 
 const failure = (code: ErrorMessageCode) => ({ code, ...errorMessages(code) });
-const storageHeader = /^(content-type|content-md5|cache-control|content-disposition|content-encoding|x-amz-.+)$/i;
+const browserManagedHeader =
+  /^(accept-charset|accept-encoding|access-control-request-.+|connection|content-length|cookie|date|dnt|expect|host|keep-alive|origin|referer|set-cookie|te|trailer|transfer-encoding|upgrade|via|proxy-.+|sec-.+)$/i;
 const pause = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
 
 async function confirmedUpload(
@@ -28,9 +29,9 @@ async function confirmedUpload(
   });
   if (ticket.error) throw ticket.error;
   const upload = fileUploadTicket.parse(ticket.data);
-  // الهيدرز الموقّعة اللي المتصفح بيسمح بيها بس بتروح للتخزين (ADR-0047)؛ content-length المتصفح بيحسبه، وأسماء زي host ممنوعة في fetch.
+  // كل هيدر موقّع لازم يوصل للتخزين (ADR-0047)؛ بنستبعد بس الهيدرز اللي المتصفح بيحسبها أو ممنوعة في fetch (content-length وhost وغيرهم).
   const signedHeaders = Object.entries(upload.headers).filter(
-    (entry): entry is [string, string] => typeof entry[1] === 'string' && storageHeader.test(entry[0]),
+    (entry): entry is [string, string] => typeof entry[1] === 'string' && !browserManagedHeader.test(entry[0]),
   );
   const put = await fetch(upload.upload_url, {
     method: 'PUT',

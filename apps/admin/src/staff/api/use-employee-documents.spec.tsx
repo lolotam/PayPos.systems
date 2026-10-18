@@ -68,6 +68,15 @@ it('lists current documents with their badge only after a fresh read and evicts 
   expect(client.getQueryCache().findAll({ queryKey: prefix })).toEqual([]);
 });
 
+// هيدرز موقّعة جديدة لازم توصل للتخزين؛ content-length وhost يستبعدهم المتصفح.
+const ticketHeaders = {
+  'content-type': 'application/pdf',
+  'content-length': '3',
+  'x-amz-meta-added-later': 'signed',
+  'x-goog-meta-added-later': 'signed',
+  host: 'storage.test',
+};
+
 it('uploads through files, waits for READY, then records by file id with an idempotency key', async () => {
   api.GET.mockImplementation(async (path: string) =>
     path === '/v1/files/{id}'
@@ -81,11 +90,7 @@ it('uploads through files, waits for READY, then records by file id with an idem
           id: fileId,
           upload_url: 'https://storage.test/upload',
           expires_in: 120,
-          headers: {
-            'content-type': 'application/pdf',
-            'content-length': '3',
-            'x-amz-meta-added-later': 'signed',
-          },
+          headers: ticketHeaders,
         },
       };
     if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
@@ -123,7 +128,7 @@ it('uploads through files, waits for READY, then records by file id with an idem
     'https://storage.test/upload',
     expect.objectContaining({
       method: 'PUT',
-      headers: { 'content-type': 'application/pdf', 'x-amz-meta-added-later': 'signed' },
+      headers: { 'content-type': 'application/pdf', 'x-amz-meta-added-later': 'signed', 'x-goog-meta-added-later': 'signed' },
     }),
   );
 });

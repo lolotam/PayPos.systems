@@ -247,9 +247,17 @@ const inAppNotificationEnvelope = responseObject({
   items: z.array(z.unknown()),
   next_cursor: z.string().nullable(),
 });
+const knownTemplates = new Set<string>(
+  inAppNotification.options.map((option) => option.shape.template_key.value),
+);
+const isFutureTemplate = (item: unknown): boolean => {
+  if (typeof item !== 'object' || item === null || !('template_key' in item)) return false;
+  return typeof item.template_key === 'string' && !knownTemplates.has(item.template_key);
+};
 /**
- * بيقرأ صفحة إشعارات الجرس ويتخطى الإشعار اللي الحزمة دي مش عارفة تعرضه.
+ * بيقرأ صفحة إشعارات الجرس ويتخطى الإشعار اللي قالبه لسه نازل بعد الحزمة دي.
  * حزمة متصفح مفتوحة ممكن توصلها صفحة فيها `template_key` جديد نزل مع نشر السيرفر؛ لو فشل عنصر واحد كانت الصفحة كلها بتفشل والجرس يقف لحد إعادة التحميل.
+ * التخطي مقصور على قالب مش معروف للحزمة؛ عنصر بقالب معروف ومعاملاته غلط بيرمي خطأ ظاهر زي ما كان، عشان عيب السيرفر ما يستخباش.
  * العنصر المتخطي يظهر بعد ما الحزمة الجديدة تتحمل، وعداد غير المقروء بيفضل من السيرفر.
  *
  * @param data جسم الرد كما جاء من السيرفر
@@ -257,10 +265,9 @@ const inAppNotificationEnvelope = responseObject({
  */
 export function readInAppNotificationPage(data: unknown): InAppNotificationPage {
   const envelope = inAppNotificationEnvelope.parse(data);
-  const items = envelope.items.flatMap((item) => {
-    const parsed = inAppNotification.safeParse(item);
-    return parsed.success ? [parsed.data] : [];
-  });
+  const items = envelope.items
+    .filter((item) => !isFutureTemplate(item))
+    .map((item) => inAppNotification.parse(item));
   return { items, next_cursor: envelope.next_cursor };
 }
 export const notificationUnreadCount = responseObject({
