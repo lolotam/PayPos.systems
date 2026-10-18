@@ -50,7 +50,7 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
 `.claude/skills/pospay-pipeline/SKILL.md`. In short:
 
 1. One row of the phase plan per branch, worktree and PR (`feat/…`, `fix/…`, `docs/…`). **Never push to `main`.**
-2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md`, then by kind (`CLAUDE.md` §1 5b): charges/money
+2. Spec first (`/speckit-specify`); owner questions go to the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` when no slice exists: pipeline, docs or process rules), then by kind (`CLAUDE.md` §1 5b): charges/money
    questions to a new numbered batch on the decisions page, every other question to Waleed through his super agent. On
    the page, when Waleed and his partner (Abu Salem) differ, the partner's pick binds.
    Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen: one batch per
