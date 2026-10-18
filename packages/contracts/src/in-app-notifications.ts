@@ -248,6 +248,7 @@ const inAppNotificationEnvelope = responseObject({
   next_cursor: z.string().nullable(),
 });
 // المراجعة المعروفة لكل قالب بتتقرأ من الـ literal بتاعه، فرفع مراجعة قالب واحد في السكيما كفاية وما فيش ثابت تاني ينسيه حد.
+// القارئ بيفترض مراجعة واحدة مقروءة لكل قالب؛ قالب لازم يقرا مراجعتين (صفوف قديمة مخزنة) لازم يتعدل القارئ ده في نفس الـ PR، وده اللي اختبار response-object.spec بيحرسه.
 const supportedRevisions = new Map<string, number>(
   inAppNotification.options.map((option) => [
     option.shape.template_key.value,

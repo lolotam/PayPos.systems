@@ -9,7 +9,7 @@ import { fileConfirmation, fileDownload, fileStatus, fileUploadTicket, requestFi
 import { discountLimit, discountLimitInput } from './identity/discount-limit.js';
 import { membershipPermissions, permissionMembershipPage, permissionOverride, permissionOverrideInput } from './identity/permissions.js';
 import { myWorkspacesResponse, workspaceCompany } from './identity/workspaces.js';
-import { inAppNotificationPage, inAppRecipient, notificationReadResult, notificationUnreadCount, readInAppNotificationPage } from './in-app-notifications.js';
+import { inAppNotification, inAppNotificationPage, inAppRecipient, notificationReadResult, notificationUnreadCount, readInAppNotificationPage } from './in-app-notifications.js';
 import {
   appendServiceSessionLinesResponse,
   editServiceLineResponse,
@@ -215,6 +215,14 @@ it.each([0, -1, 1.5, 'two'])('readInAppNotificationPage still fails on a known t
   const clean = validSample(inAppNotificationPage) as { items: Record<string, unknown>[]; next_cursor: string | null };
   const broken = { ...clean.items[0], template_revision: revision };
   expect(() => readInAppNotificationPage({ ...clean, items: [broken] })).toThrow();
+});
+
+// لو قالب اتحول لـ union من مراجعات، القارئ لازم يتعدل (الصفوف المخزنة بمراجعتها)؛ الاختبار ده بيفشل وقتها بدل ما العناصر تتخطى بصمت.
+it('every in-app template declares exactly one readable revision for the page reader', () => {
+  for (const option of inAppNotification.options) {
+    const revision = option.shape.template_revision as unknown as { value?: unknown };
+    expect(typeof revision.value, option.shape.template_key.value).toBe('number');
+  }
 });
 
 it('readInAppNotificationPage still fails on a known template with bad parameters', () => {
