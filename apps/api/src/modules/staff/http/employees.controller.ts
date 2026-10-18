@@ -28,7 +28,6 @@ import {
   employeeNameMatchesInput,
 } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
-import { parseEmployeeNumber } from '@pospay/domain';
 import type { FastifyRequest } from 'fastify';
 
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -51,6 +50,9 @@ import { listEmployees } from '../queries/list-employees.query.ts';
 import { employeeNameMatches } from '../queries/employee-name-matches.query.ts';
 import { UpdateEmployeeUseCase } from '../use-cases/update-employee/update-employee.usecase.ts';
 
+export const EMPLOYEE_LIST_SEARCH = Symbol('EMPLOYEE_LIST_SEARCH');
+type EmployeeListSearch = (q: string | undefined) => { text: string; number: number | null } | undefined;
+
 @Controller('businesses/:businessId/employees')
 export class EmployeesController {
   constructor(
@@ -58,6 +60,7 @@ export class EmployeesController {
     @Inject(UpdateEmployeeUseCase) private readonly updateEmployee: UpdateEmployeeUseCase | null,
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
     @Inject(EMPLOYEE_DETAIL_ACCESS) private readonly access: EmployeeDetailAccess | null,
+    @Inject(EMPLOYEE_LIST_SEARCH) private readonly employeeListSearch: EmployeeListSearch | null = null,
   ) {}
 
   @Post()
@@ -116,12 +119,13 @@ export class EmployeesController {
     @Query(new ZodValidationPipe(employeeListQuery)) query: EmployeeListQuery,
     @Req() request: FastifyRequest,
   ): Promise<EmployeePage> {
-    if (this.database === null || this.access === null) throw new ApiError('NOT_READY');
+    const listSearch = this.employeeListSearch;
+    if (this.database === null || this.access === null || listSearch === null) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
     const access = this.access;
     const page = await this.database.withTenant(
       actor.companyId,
-      (tx) => listEmployees(tx, actor.companyId, businessId, actor.userId, query, access, query.q === undefined ? null : parseEmployeeNumber(query.q.trim())),
+      (tx) => listEmployees(tx, actor.companyId, businessId, actor.userId, query, access, listSearch(query.q)),
       { userId: actor.userId },
     );
     if (page === 'FEATURE_DISABLED') throw new ApiError('FEATURE_DISABLED');

@@ -63,7 +63,8 @@ import type { Redis } from 'ioredis';
 
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { AttendanceQrController } from './http/attendance-qr.controller.ts';
-import { EmployeesController } from './http/employees.controller.ts';
+import { EMPLOYEE_LIST_SEARCH, EmployeesController } from './http/employees.controller.ts';
+import { employeeListSearch } from './persistence/employee-list-search.ts';
 import { EmployeeImportController } from './http/employee-import.controller.ts';
 import { EmployeeDetailGuard } from './http/employee-detail.guard.ts';
 import { createEmployeeDetailAccess } from './persistence/employee-detail-access.adapter.ts';
@@ -237,6 +238,7 @@ export function staffProviders(
       provide: EMPLOYEE_DETAIL_ACCESS,
       useValue: database === undefined ? null : createEmployeeDetailAccess(),
     },
+    { provide: EMPLOYEE_LIST_SEARCH, useValue: employeeListSearch },
     {
       provide: CreateEmployeeUseCase,
       useValue:

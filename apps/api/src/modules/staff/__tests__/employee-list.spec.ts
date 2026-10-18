@@ -1,7 +1,7 @@
 import { employeeListItem, employeePage } from '@pospay/contracts';
-import { parseEmployeeNumber } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { employeeListSearch } from '../persistence/employee-list-search.ts';
 import { listEmployees, listEmployeesStatement } from '../queries/list-employees.query.ts';
 import { createEmployeeDetailAccess } from '../persistence/employee-detail-access.adapter.ts';
 import { employeeDetail } from '../queries/employee-detail.query.ts';
@@ -56,7 +56,7 @@ const list = (
         ...(q === undefined ? {} : { q }),
       },
       createEmployeeDetailAccess(),
-      q === undefined ? null : parseEmployeeNumber(q.trim()),
+      employeeListSearch(q),
     ),
   );
 const search = (q: string, limit = 20, cursor?: string, employeeNumber?: number) =>
@@ -91,7 +91,7 @@ it('details include sorted active branches and revision; list query uses both sc
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(
-      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${listEmployeesStatement(f.company, f.business, { limit: 20 }, [f.branch, f.sibling], null)}`,
+      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${listEmployeesStatement(f.company, f.business, { limit: 20 }, [f.branch, f.sibling], undefined)}`,
     );
   });
   expect(JSON.stringify(plan)).toMatch(/employees_company_business_id_(idx|key)/);
@@ -231,7 +231,7 @@ it('EXPLAIN uses employees_company_employee_number_key for the exact list filter
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(
-      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${listEmployeesStatement(f.company, f.business, { limit: 20, employee_number: number }, [f.branch, f.sibling], null)}`,
+      sql`EXPLAIN (ANALYZE,FORMAT JSON) ${listEmployeesStatement(f.company, f.business, { limit: 20, employee_number: number }, [f.branch, f.sibling], undefined)}`,
     );
   });
   expect(JSON.stringify(plan)).toContain('employees_company_employee_number_key');
@@ -385,7 +385,7 @@ it('EXPLAIN uses the number key for a digit q and the existing list index for a 
     f.db.withTenant(f.company, async (tx) => {
       await tx.execute(sql`SET LOCAL enable_seqscan=off`);
       return tx.execute(
-        sql`EXPLAIN (ANALYZE,FORMAT JSON) ${listEmployeesStatement(f.company, f.business, { limit: 20, q }, [f.branch, f.sibling], parseEmployeeNumber(q.trim()))}`,
+        sql`EXPLAIN (ANALYZE,FORMAT JSON) ${listEmployeesStatement(f.company, f.business, { limit: 20, q }, [f.branch, f.sibling], employeeListSearch(q))}`,
       );
     });
   const digit = await planFor('0880007');

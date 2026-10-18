@@ -1,7 +1,8 @@
 import { sessionPerformerOptionPage, type SessionPerformerOptionsQuery } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { icuNameMatch, normalizeSearch } from '../../../shared/name-options-search.ts';
+import { normalizeSearch } from '../../../shared/name-options-search.ts';
+import { icuNameMatch } from './employee-name-search.ts';
 interface CursorCodec {
   decode(query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string): { key: string; id: string } | null;
   encode(key: string, id: string, query: SessionPerformerOptionsQuery, normalizedQ: string, requestedAt: string, scopeHash: string): string;
