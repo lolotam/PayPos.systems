@@ -23,12 +23,16 @@ export class EmployeeNumberingController {
   @Get()
   @Require('manage:employee-number:company')
   @RequiresFeature('staff')
-  show(@Req() request: FastifyRequest) {
+  async show(@Req() request: FastifyRequest) {
     if (this.database === null) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
-    return this.database.withTenant(actor.companyId, (tx) => readEmployeeNumbering(tx, actor.companyId), {
-      userId: actor.userId,
-    });
+    const numbering = await this.database.withTenant(
+      actor.companyId,
+      (tx) => readEmployeeNumbering(tx, actor.companyId),
+      { userId: actor.userId },
+    );
+    if (numbering === null) throw new ApiError('FORBIDDEN');
+    return numbering;
   }
 
   @Put('start')

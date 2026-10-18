@@ -1,10 +1,17 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { createSetEmployeeNumberTransactions } from '../persistence/set-employee-number.adapter.ts';
 import { createSetEmployeeNumberStartTransactions } from '../persistence/set-employee-number-start.adapter.ts';
+import { readEmployeeNumbering } from '../queries/employee-numbering.query.ts';
 import { SetEmployeeNumberUseCase } from '../use-cases/set-employee-number/set-employee-number.usecase.ts';
 import { SetEmployeeNumberStartUseCase } from '../use-cases/set-employee-number-start/set-employee-number-start.usecase.ts';
 import { employeeNumberIds, executeCreate, provisionEmployer } from './employee-number-assign.fixture.ts';
-import { counterOf, numberFixture, startAudits, type EmployeeFixture } from './set-employee-number-start.fixture.ts';
+import {
+  counterOf,
+  getNumbering,
+  numberFixture,
+  startAudits,
+  type EmployeeFixture,
+} from './set-employee-number-start.fixture.ts';
 
 const clock = { now: () => new Date('2026-10-18T12:00:00.000Z') };
 
@@ -63,5 +70,23 @@ it('refuses a hand edit on a soft-deleted company and leaves the number and audi
     expect(audits).toEqual([]);
   } finally {
     await f.h.owner`UPDATE companies SET deleted_at=NULL WHERE id=${employer.companyId}`;
+  }
+});
+
+it('hides numbering for a soft-deleted company and still reads 1 when no counter exists', async () => {
+  const active = await provisionEmployer(f, 'active numbering');
+  const seen = await f.db.withTenant(active.companyId, (tx) => readEmployeeNumbering(tx, active.companyId));
+  expect(seen).toEqual({ next_number: 1, start_number: null, start_set_at: null, can_manage: true });
+  const deleted = await provisionEmployer(f, 'deleted numbering');
+  await f.h.owner`UPDATE companies SET deleted_at=now() WHERE id=${deleted.companyId}`;
+  try {
+    expect(
+      await f.db.withTenant(deleted.companyId, (tx) => readEmployeeNumbering(tx, deleted.companyId)),
+    ).toBeNull();
+    const response = await getNumbering(f, { company: deleted.companyId });
+    expect(response.status).toBe(403);
+    expect(response.body).toMatchObject({ code: 'FORBIDDEN' });
+  } finally {
+    await f.h.owner`UPDATE companies SET deleted_at=NULL WHERE id=${deleted.companyId}`;
   }
 });

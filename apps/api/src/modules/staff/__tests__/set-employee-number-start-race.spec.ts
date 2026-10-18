@@ -97,6 +97,7 @@ it('parses the numbering shape and does not seq-scan the counter', async () => {
     return tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${employeeNumberingStatement(employer.companyId)}`);
   });
   expect(explainNodes(plan).some((node) => node['Relation Name'] === 'employee_number_sequences')).toBe(true);
+  expect(explainNodes(plan).some((node) => node['Index Name'] === 'companies_pkey')).toBe(true);
   expect(scansSequences(plan)).toBe(false);
 });
 
@@ -120,6 +121,7 @@ function databaseRefusal(error: unknown): { code: string; message: string } {
 interface ExplainNode {
   'Node Type'?: string;
   'Relation Name'?: string;
+  'Index Name'?: string;
 }
 
 function explainNodes(value: unknown): ExplainNode[] {
@@ -131,7 +133,11 @@ function explainNodes(value: unknown): ExplainNode[] {
   const relation = record['Relation Name'];
   const self: ExplainNode[] =
     typeof nodeType === 'string'
-      ? [{ 'Node Type': nodeType, ...(typeof relation === 'string' ? { 'Relation Name': relation } : {}) }]
+      ? [{
+          'Node Type': nodeType,
+          ...(typeof relation === 'string' ? { 'Relation Name': relation } : {}),
+          ...(typeof record['Index Name'] === 'string' ? { 'Index Name': record['Index Name'] } : {}),
+        }]
       : [];
   return [
     ...self,

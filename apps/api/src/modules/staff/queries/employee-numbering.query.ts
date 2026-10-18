@@ -3,20 +3,26 @@ import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 type NumberingRow = {
-  next_number: number | string;
+  next_number: number | string | null;
   start_number: number | string | null;
   start_set_at: Date | string | null;
 };
 
 export function employeeNumberingStatement(companyId: string) {
   // شاشة بداية الترقيم على مستوى الشركة.
-  return sql`SELECT next_number, start_number, start_set_at
-    FROM employee_number_sequences WHERE company_id=${companyId}`;
+  return sql`SELECT s.next_number, s.start_number, s.start_set_at
+    FROM companies c
+    LEFT JOIN employee_number_sequences s ON s.company_id = c.id
+    WHERE c.id=${companyId} AND c.deleted_at IS NULL`;
 }
 
-export async function readEmployeeNumbering(tx: Tx, companyId: string): Promise<EmployeeNumbering> {
+export async function readEmployeeNumbering(
+  tx: Tx,
+  companyId: string,
+): Promise<EmployeeNumbering | null> {
   const [row] = await tx.execute<NumberingRow>(employeeNumberingStatement(companyId));
-  if (row === undefined) return unsetNumbering();
+  if (row === undefined) return null;
+  if (row.next_number === null) return unsetNumbering();
   const startNumber = storedNumber(row.start_number);
   return employeeNumbering.parse({
     next_number: Number(row.next_number),
@@ -27,7 +33,7 @@ export async function readEmployeeNumbering(tx: Tx, companyId: string): Promise<
 }
 
 function unsetNumbering(): EmployeeNumbering {
-  // صف غائب هو العدّاد الافتراضي 1، والحوار ما زال معروضاً لأن البداية لم تُضبط.
+  // شركة نشطة بلا صف عدّاد تُعرض بالبداية 1، والحوار ما زال معروضاً لأن البداية لم تُضبط.
   return employeeNumbering.parse({
     next_number: 1,
     start_number: null,
