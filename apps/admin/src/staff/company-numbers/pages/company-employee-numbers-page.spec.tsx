@@ -252,7 +252,7 @@ it('requests the next cursor and returns to the first page', async () => {
   });
 });
 
-it('invalidates the staff list for this company after the number is saved', async () => {
+it('drops the cached staff list for this company after the number is saved', async () => {
   api.PUT.mockResolvedValue({ data: { employee_id: nouraId, employee_number: 7 } });
   const { client } = renderPage();
   const staffKey = ['employees', companyId, salonId, userId] as const;
@@ -260,5 +260,5 @@ it('invalidates the staff list for this company after the number is saved', asyn
   await openNoura('en');
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '5' } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'companyEmployeeNumbers.save') }));
-  await waitFor(() => expect(client.getQueryState(staffKey)?.isInvalidated).toBe(true));
+  await waitFor(() => expect(client.getQueryState(staffKey)).toBeUndefined());
 });

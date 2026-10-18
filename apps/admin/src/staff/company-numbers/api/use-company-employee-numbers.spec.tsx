@@ -52,3 +52,34 @@ it('updates every cached page by its own search, dropping a row a digit search n
   expect(client.getQueryData<typeof page>(byName)?.items[0]?.employee_number).toBe(7);
   expect(client.getQueryState(byNumber)?.isInvalidated).toBe(true);
 });
+
+it('drops cached staff list and detail data so a later visit shows the saved number', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const staffList = ['employees', company, business, user, 'list', undefined];
+  const staffDetail = ['employees', company, business, user, 'detail', employee];
+  client.setQueryData(staffList, {
+    items: [{ id: employee, employee_number: 4 }],
+    next_cursor: null,
+  });
+  client.setQueryData(staffDetail, { id: employee, employee_number: 4 });
+  api.PUT.mockResolvedValue({
+    data: { employee_id: employee, employee_number: 7 },
+    response: { status: 200 },
+  });
+  api.GET.mockReturnValue(new Promise(() => undefined));
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const hook = renderHook(() => useSetCompanyEmployeeNumber(company, user), { wrapper });
+  await act(async () => {
+    await hook.result.current.mutateAsync({
+      businessId: business,
+      employeeId: employee,
+      employeeNumber: 7,
+    });
+  });
+  expect(client.getQueryData(staffList)).toBeUndefined();
+  expect(client.getQueryData(staffDetail)).toBeUndefined();
+});

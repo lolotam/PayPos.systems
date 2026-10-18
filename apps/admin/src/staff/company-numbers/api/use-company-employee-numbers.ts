@@ -77,6 +77,8 @@ export function useSetCompanyEmployeeNumber(companyId: string, userId: string) {
       }
       // انتظار الـ refetch كان بيخلّي الحفظ معلّق والمحرّر مفتوح لو القائمة اتعلّقت.
       void client.invalidateQueries({ queryKey: [...key] });
+      // نسخ قايمة الموظفين وملف الموظف المقفولة بتتشال، فأول فتح بيجيب الرقم الجديد بدل ما يعرض القديم.
+      client.removeQueries({ queryKey: ['employees', companyId], type: 'inactive' });
       void client.invalidateQueries({ queryKey: ['employees', companyId] });
     },
   });
