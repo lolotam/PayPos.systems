@@ -45,6 +45,7 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
     - Always first, the slice's `docs/specs/NNN-…/owner-questions.ar.md`. It holds the question, the options, the recommended option, and the owner's answer verbatim, all in Arabic. **This file is the audit record** of every owner decision, whichever channel the answer came through.
     - **Charges and money** (what a customer pays, what staff earn, how money moves or is recorded: prices, fees, discounts, tips, commissions, refunds, cancellations of paid lines): also the shared decisions page https://claude.ai/artifact/VirV1CDguH46v7rgcRqwqF, as a **new numbered batch**. Batch 1 is the decisions made up to 2026-10-08.
     - **Permissions and technical questions** (roles, who can see or edit what, access scope, screens' reach, design, CI, database, tooling): go to Waleed only, through his super agent, as a numbered batch; never to the partner page. His answer is copied verbatim into the slice's `owner-questions.ar.md` with the date and «عن طريق الـ super agent» (Waleed, PP-4.3, 2026-10-18).
+    - **Every other owner question** (product behaviour that moves no money, for example whether a break is mandatory) also goes to Waleed through his super agent, like the permission questions. Only charges/money questions reach the partner page.
     - On the page, Waleed and his partner (Abu Salem) pick. **When they differ, the partner's pick is binding.** When
       the partner has answered, his pick binds and Waleed's own pick is not required; until the partner answers, work
       proceeds on Waleed's pick; if the partner later differs, his pick replaces it (the decision record, the slice's
@@ -53,8 +54,9 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
     - Never create a second page. Publish to that same URL.
     - **Who writes where:** only the Claude Code orchestrator session can publish to that page. Any other agent (Codex,
       Grok, a subagent) writes the question into the slice's `owner-questions.ar.md` with the answer marked
-      `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then posts the batch to the page and writes
-      the owner's answer back into the file.
+      `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then routes it by kind (the page for a
+      charges/money question, Waleed's super agent for every other question) and writes the owner's answer back into
+      the file.
 5c. **The project-status tab is always current.** The same decisions page has a tab «المشروع أول بأول» fed by its
     published file `roadmap.json`: every phase, gate, task and sub-task by its code, the product tracks, and every
     partner request, each marked done / in progress / not started. The orchestrator updates it and republishes **after
