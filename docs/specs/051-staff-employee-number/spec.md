@@ -6,8 +6,9 @@
 
 **Status**: Draft — owner answers EN-Q1 … EN-Q14 are final (batches 14 and 17, Waleed 2026-10-12/13; batch 27, Waleed
 2026-10-17). Abu Salem's pick on EN-Q1…Q4 is the same as Waleed's; he has not answered EN-Q10 … EN-Q14, and if his pick
-differs later it replaces these (Waleed's ruling, 2026-10-10). No owner question is open: no sub-PR in §1 waits on an
-answer.
+differs later it replaces these (Waleed's ruling, 2026-10-10). EN-Q15 and EN-Q16 were answered by Abu Salem (batch 32,
+2026-10-17) and are binding without Waleed's pick (2026-10-10 rule); PP-3.1 was answered by Waleed (2026-10-18). One
+point is pending Waleed: PP-4.1 (see the Admin UI section).
 
 **Input**: User description: "staff-employee-number — every employee gets a number that appears in the profile, the
 staff list, the attendance board, the monthly report, the CSV and the official statement (Abu Salem's AB-Q10 pick,
@@ -18,7 +19,7 @@ row 27a/27b (spec `docs/specs/049-staff-attendance-board-report/spec.md`, AB-Q9e
 performer picker, ADR-0041). **Consumed by** row 27g (the official attendance statement, which prints the number) —
 27g, 27h and 27i have their own specs; nothing of them is built here.
 
-## Owner decisions already taken (binding — not asked again; EN-Q10 … EN-Q14 are Waleed's picks, Abu Salem has not answered them)
+## Owner decisions already taken (binding — not asked again; EN-Q10 … EN-Q14 are Waleed's picks, Abu Salem has not answered them; EN-Q15 and EN-Q16 are Abu Salem's, binding)
 
 | ID    | Question                                         | Decision                                                                                                                                                                             |
 | ----- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -36,6 +37,9 @@ performer picker, ADR-0041). **Consumed by** row 27g (the official attendance st
 | EN-Q12 | Does the Excel import template get an «employee number» column | **No**, not in this batch: imported employees get automatic numbers in file-row order and the owner edits any by hand afterwards. It can be added later without breaking anything (BR-8). Batch 27, Waleed 2026-10-17. |
 | EN-Q13 | Confirm the derived rules D-1, D-2, D-3, D-5, D-7, D-8 | Confirmed as written, all of them (§ Derived rules). Batch 27, Waleed 2026-10-17. |
 | EN-Q14 | May a number freed by a hand edit (not by deletion) be given again | **Yes**: it is an ordinary unused number again. The owner may type it by hand for any employee and the counter gives it if it is at or above the counter and reaches it. No record of old numbers is kept (FR-005, BR-3). Known downside: a statement printed with Sara's old number could be confused with an employee who later takes the same number. Batch 27, Waleed 2026-10-17. |
+| EN-Q15 | May a holder of `manage:employee-number:company` change the number of an employee in a business whose staff screen she cannot open | **Yes**: the permission is company-wide; a holder may change the number of an employee in any business unless a DENY covers that employee's business or branch. The use case rechecks inside the transaction (FR-006). Batch 32, Abu Salem 2026-10-17 (binding). |
+| EN-Q16 | Search box on the staff list (partner request AS-24) | **One search box `q`**: digits only match the exact employee number **or** the name; letters search the Arabic and English names, the same way the reception performer picker does. It replaces the exact-number-only list filter (FR-009, D-3). Batch 32, Abu Salem 2026-10-17 (binding). |
+| PP-3.1 | Which branches the DENY recheck on a number change covers when the employee is attached to more than one branch | The employee's business, her primary branch **and every branch she is currently attached to**; a DENY on any of them blocks the change (same rule as the IBAN screen). Permission decision for Waleed only, not on the partner page. Waleed 2026-10-18. |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -132,8 +136,13 @@ the numbers back.
 
 1. **Given** Sara = 1, **When** her profile, the staff list, the attendance board (in-now and sessions), the monthly
    report (single branch and all branches) and the CSV are read, **Then** each carries `1` next to her name.
-2. **Given** the staff list, **When** it is filtered by number 2, **Then** only Heba is returned; a number nobody has
-   returns an empty page, not an error.
+2. **Given** the staff list search box `q` (EN-Q16), **When** it holds `2`, **Then** Heba (number 2) is returned **and**
+   any employee whose name contains «2»; a text nobody matches returns an empty page, not an error.
+   - 2a. **Given** `q` is an Arabic name part («هبة»), **When** searched, **Then** Heba appears (Arabic and English
+     names are searched, as in the performer picker).
+   - 2b. **Given** `q` is an English name part («heb»), **When** searched, **Then** Heba appears.
+   - 2c. **Given** one employee numbered 2 and another whose name contains «2», **When** `q` is `2`, **Then** both
+     appear.
 3. **Given** the reception performer picker, **When** the receptionist types `2`, **Then** Heba appears (a digit-only
    text also matches the number exactly, besides the name search that exists today); the picker rows show the number.
 4. **Given** the CSV, **When** downloaded, **Then** the first column is the employee number and still no phone, salary
@@ -182,8 +191,10 @@ the numbers back.
 - **FR-008**: The number MUST appear in the employee detail, the staff list, the attendance board, the monthly report
   (single branch and all branches), the CSV and the reception performer picker (EN-Q3, AB-Q9e). It MUST NOT widen
   anyone's access to those surfaces.
-- **FR-009**: The staff list MUST accept an exact-number filter and the performer picker MUST match a digit-only
-  search text against the number exactly, in addition to the name search it has today (EN-Q9, D-3).
+- **FR-009** (EN-Q16): The staff list MUST have ONE search box `q`: a text of digits only matches the exact employee
+  number **or** the name; any other text searches the Arabic and English names, the same way the reception performer
+  picker does. The performer picker MUST match a digit-only search text against the number exactly, in addition to the
+  name search it has today (EN-Q9, D-3). The `q` box replaces the exact-number-only list filter.
 - **FR-010**: Every hand change of a number and the one-time start MUST write one audit row in the same transaction;
   an unchanged value writes nothing (D-1, `CLAUDE.md` §8).
 - **FR-011**: All reads and writes MUST be tenant-scoped (RLS plus `withTenant`); a number of another company never
@@ -275,7 +286,7 @@ the numbers back.
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | D-1 | Every hand change and the one-time start write an audit row in the same transaction. A hand change: entity `employees`, entity id = the employee id, action `employee_number.changed`, before/after number, actor. The start: entity `employee_number_sequences`, entity id = the **company id** (the sequence row's key, so it exists even when the company has no employees), action `employee_number.start_set`, before/after `{ start_number, next_number }`, actor. |
 | D-2 | The number is shown as plain digits, no separators, in Arabic and English screens, and printed the same way.                                                            |
-| D-3 | The list filter is an **exact** match; the picker matches a digit-only text exactly **or** the name as today.                                                          |
+| D-3 | The staff list has one search box `q`, like the picker: digits only match the exact number **or** the name; letters search the Arabic and English names. EN-Q16 superseded the earlier «exact match» wording confirmed under EN-Q13 (exact-number-only list filter). |
 | D-5 | A deleted employee's number cannot be edited (the employee reads as `NOT_FOUND`) and stays reserved.                                                                    |
 | D-7 | After the migration, numbers follow creation order; hire date does not order new employees.                                                                             |
 | D-8 | A hand number or the start typed by someone without the permission is refused (`FORBIDDEN`), never silently ignored.                                                    |
@@ -307,7 +318,9 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   `EmployeeDetail` stay unchanged until 8c-4 adds the field to the read producers.
 - `GET /v1/businesses/{businessId}/employees/{employeeId}` and the list items (existing) gain
   `employee_number: integer | null` (8c-4).
-- `GET /v1/businesses/{businessId}/employees?employee_number=N` — optional exact filter (8c-4).
+- `GET /v1/businesses/{businessId}/employees?q=…` — optional search box (8c-4b, EN-Q16): digits only match the exact
+  `employee_number` **or** the name; any other text searches the Arabic and English names, as the performer picker does.
+  It replaces the exact `employee_number=N` filter that 8c-4 first added.
 - Session performer options (existing query, ADR-0041): items gain `employee_number: integer | null`; `q` made only
   of digits also matches the number exactly (8c-4).
 - Attendance board (`in_now[]` and `sessions[]`) and monthly report rows gain `employee_number: integer | null`; the
@@ -340,14 +353,16 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 
 ### Admin UI (8c-9, 8c-10)
 
-- Employee profile: the number beside the name. Staff list: a number column and an exact-number search box. All
-  numbers are plain digits (D-2); `NULL` shows «—» (TD-10).
+- Employee profile: the number beside the name. Staff list: a number column and one search box (EN-Q16): digits find
+  the exact number or the name, letters find the Arabic or English name. All numbers are plain digits (D-2); `NULL`
+  shows «—» (TD-10).
 - Reception performer picker: the number next to each name; typing digits finds the employee (EN-Q9).
 - Attendance board and monthly report screens: a number column; the CSV button is unchanged.
 - Only for a holder of `manage:employee-number:company` (the owner by default, or a person the owner granted it to): an "Employee number" field on the add-employee form (blank = automatic), an edit
   action on the profile, and a one-time "Start numbering from" dialog on the staff list. A typed «007» is turned into
   7 by `parseEmployeeNumber` before it is sent (EN-Q8).
 - All strings from `packages/i18n`; logical CSS only; no closing comments in JSX.
+- TODO(spec): PP-4.1 — how a number-only holder reaches an employee in a business whose staff screen she cannot open (pending Waleed).
 
 ### Test plan
 
@@ -359,13 +374,16 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
   creates, distinct and gap-free · `EN-05` failed create leaves the counter · `EN-06` hand number does not move the
   counter and is skipped later (BR-2/3) · `EN-07` taken number refused, deleted employee's number included · `EN-08`
   validation of 1…999999 and «007» · `EN-09` permission matrix (owner, owner-granted person, non-holder, device) ·
+  `EN-09b` company-level holder with DENY (EN-Q15, PP-3.1): DENY on the employee's business → refused; DENY on her
+  primary branch → refused; DENY on another branch she is currently attached to → refused; the same holder editing an
+  employee in another business with no DENY → allowed (the recheck runs inside the transaction) ·
   `EN-10` no-op not audited, change audited · `EN-11` start once, forward only (US4) · `EN-12` exhaustion at 999999 ·
-  `EN-13` import commit numbers in file order · `EN-14` list filter and picker digit search · `EN-15` board, report and
+  `EN-13` import commit numbers in file order · `EN-14` list search box `q` and picker digit search: a digit string matching both an exact number and names, an Arabic letter query, an English letter query (EN-Q16, US5-2) · `EN-15` board, report and
   CSV carry the number and still carry no phone, salary or IBAN.
 - **RLS negative**: `employee_number_sequences` cross-tenant read = 0 rows, insert/update with another `company_id`
   rejected, no DELETE; a duplicate number across two tenants is allowed, within one tenant rejected by the unique
   index; the privileges allowlist test lists the new grants.
-- **Queries**: result-shape test and `EXPLAIN ANALYZE` index assertion for the list filter, the picker digit match and
+- **Queries**: result-shape test and `EXPLAIN ANALYZE` index assertion for the list search box, the picker digit match and
   the used-numbers lookup of the assign port (`(company_id, employee_number)` index).
 - **Existing tests that assert the number is absent** — `attendance-board.query.spec.ts` (`employee_number` in the
   private-field list) and `attendance-monthly-report-csv.spec.ts` (its forbidden-words pattern includes `employee_number` and the Arabic label for it) — both change in 8c-5: the number is now allowed; phone, salary, IBAN and documents stay forbidden.
@@ -400,13 +418,13 @@ All routes under `/v1`, feature flag `staff`, standard error envelope.
 | 8c-1  | Database foundation                                                                                        | (1) migrations A and B: column, sequence table with RLS and grants, then the concurrent unique index (2) Drizzle schema, privileges allowlist, and migration C with the `employee-numbers` data step (3) RLS negative and backfill tests (`EN-01`, `EN-02`) | —                | ready                  |
 | 8c-2  | `create-employee` gives the next number                                                                    | (1) `firstFreeEmployeeNumber` + unit tests (2) assign port and Drizzle adapter, counter lock (3) use case, `CreatedEmployee` contract, `EN-03`…`EN-05`, `EN-12` | 8c-1             | ready (advisors done, TD-4) |
 | 8c-3  | `commit-employee-import` gives numbers in file order                                                       | (1) import commit uses the assign port (2) `EN-13`                                                                                      | 8c-2             | ready |
-| 8c-4  | Reads: employee detail, staff list, performer picker                                                       | (1) contracts and queries add the field (2) exact-number filter and digit match (3) result-shape and `EXPLAIN` tests, `EN-14`          | 8c-1             | ready |
+| 8c-4  | Reads: employee detail, staff list, performer picker                                                       | (1) contracts and queries add the field (2) exact-number filter (replaced by `q` in 8c-4b, EN-Q16) and picker digit match (3) result-shape and `EXPLAIN` tests, `EN-14`          | 8c-1             | ready |
 | 8c-4b | Staff-list search box (EN-Q16, AS-24)                                                                     | (1) list query `q`: digits only match the exact number OR the name, letters search ar/en names, same as the reception picker (2) EXPLAIN and EN-14-style tests (3) OpenAPI and clients | 8c-4             | ready |
 | 8c-5  | Reads: attendance board, monthly report, CSV                                                               | (1) board contract and query (2) report contract, query and CSV first column (3) update the two "number is absent" tests, `EN-15`      | 8c-1             | ready                  |
-| 8c-6  | `set-employee-number` (hand edit)                                                                          | (1) reuse `parseEmployeeNumber` (added in 8c-4 with its unit tests) (2) permission migration and use case with audit (3) route, contract, `EN-06`…`EN-10`           | 8c-2             | ready |
+| 8c-6  | `set-employee-number` (hand edit)                                                                          | (1) reuse `parseEmployeeNumber` (added in 8c-4 with its unit tests) (2) permission migration and use case with audit (3) route, contract, `EN-06`…`EN-10`, including `EN-09b` (company-level holder with DENY on the business, primary branch or another attached branch, EN-Q15, PP-3.1)           | 8c-2             | ready |
 | 8c-7  | `create-employee` accepts a typed number                                                                   | (1) input field and permission check (2) `EN-06` for create, `EN-07`, `EN-09`                                                           | 8c-2, 8c-6       | ready |
 | 8c-8  | `set-employee-number-start`                                                                                | (1) use case, `GET`/`PUT /v1/employee-numbering` (2) audit and once-only rule (3) `EN-11`                                               | 8c-2, 8c-6       | ready |
-| 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-5       | ready |
+| 8c-9  | Admin: show and search the number                                                                          | (1) profile and staff list with search (2) reception performer picker (3) board and report screens                                     | 8c-4, 8c-4b, 8c-5 | ready |
 | 8c-10 | Admin: type, edit and start                                                                                | (1) add-employee field (2) edit action on the profile (3) "Start numbering from" dialog                                                 | 8c-7, 8c-8, 8c-9 | ready |
 | 8c-11 | Contract: numbers for stragglers, then `NOT NULL`                                                          | (1) straggler backfill migration (2) `CHECK … NOT VALID` then `VALIDATE`; readers drop the `NULL` branch                               | 8c-2, 8c-3 in a released image | later release |
 
